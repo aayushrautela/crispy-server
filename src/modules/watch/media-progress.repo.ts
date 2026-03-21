@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { deriveProgressPercent, type PersistedProgressSnapshot } from './heartbeat-policy.js';
+import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
 
 export class MediaProgressRepository {
@@ -7,10 +7,6 @@ export class MediaProgressRepository {
     profileId: string;
     identity: MediaIdentity;
     eventId: string;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     positionSeconds?: number | null;
     durationSeconds?: number | null;
     occurredAt: string;
@@ -49,7 +45,7 @@ export class MediaProgressRepository {
           updated_at
         )
         VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+          $1::uuid, $2, $3, $4, $5, $6, $7, NULL, NULL, NULL, NULL,
           $12, $13, $14, $15, $16::uuid, $17::timestamptz,
           CASE WHEN $15 = 'completed' THEN $17::timestamptz ELSE NULL END,
           $18::timestamptz,
@@ -58,10 +54,10 @@ export class MediaProgressRepository {
         )
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
-          title = EXCLUDED.title,
-          subtitle = EXCLUDED.subtitle,
-          poster_url = EXCLUDED.poster_url,
-          backdrop_url = EXCLUDED.backdrop_url,
+          title = COALESCE(media_progress.title, EXCLUDED.title),
+          subtitle = COALESCE(media_progress.subtitle, EXCLUDED.subtitle),
+          poster_url = COALESCE(media_progress.poster_url, EXCLUDED.poster_url),
+          backdrop_url = COALESCE(media_progress.backdrop_url, EXCLUDED.backdrop_url),
           position_seconds = EXCLUDED.position_seconds,
           duration_seconds = EXCLUDED.duration_seconds,
           progress_percent = EXCLUDED.progress_percent,
@@ -81,10 +77,6 @@ export class MediaProgressRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
-        params.title ?? null,
-        params.subtitle ?? null,
-        params.posterUrl ?? null,
-        params.backdropUrl ?? null,
         params.positionSeconds ?? 0,
         params.durationSeconds ?? null,
         progressPercent,

@@ -3,12 +3,14 @@ import { env } from '../../config/env.js';
 import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { WatchHistoryQueryService } from '../watch/history.service.js';
 import { CalendarService } from '../calendar/calendar.service.js';
+import { HomeBuilderService } from './home-builder.service.js';
 
 export class HomeService {
   constructor(
     private readonly continueWatchingService = new ContinueWatchingService(),
     private readonly historyService = new WatchHistoryQueryService(),
     private readonly calendarService = new CalendarService(),
+    private readonly homeBuilderService = new HomeBuilderService(),
   ) {}
 
   async getHome(userId: string, profileId: string): Promise<Record<string, unknown>> {
@@ -24,25 +26,11 @@ export class HomeService {
       this.calendarService.getCalendar(userId, profileId),
     ]);
 
-    const response = {
-      sections: [
-        {
-          id: 'continue-watching',
-          title: 'Continue Watching',
-          items: continueWatching,
-        },
-        {
-          id: 'recent-history',
-          title: 'Recent History',
-          items: history,
-        },
-        {
-          id: 'calendar',
-          title: 'This Week',
-          items: calendar.items,
-        },
-      ],
-    };
+    const response = this.homeBuilderService.build({
+      continueWatching,
+      history,
+      calendarItems: calendar.items,
+    });
 
     await redis.set(cacheKey, JSON.stringify(response), 'EX', env.homeCacheTtlSeconds);
     return response;

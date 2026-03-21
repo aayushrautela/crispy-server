@@ -2,11 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { ContinueWatchingService } from '../../modules/watch/continue-watching.service.js';
 import { WatchEventIngestService } from '../../modules/watch/event-ingest.service.js';
 import { WatchHistoryQueryService } from '../../modules/watch/history.service.js';
+import { WatchStateService } from '../../modules/watch/watch-state.service.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
   const continueWatchingService = new ContinueWatchingService();
   const historyService = new WatchHistoryQueryService();
+  const watchStateService = new WatchStateService();
 
   app.post('/v1/watch/events', async (request, reply) => {
     await app.requireAuth(request);
@@ -21,10 +23,6 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       showTmdbId: typeof body.showTmdbId === 'number' ? body.showTmdbId : null,
       seasonNumber: typeof body.seasonNumber === 'number' ? body.seasonNumber : null,
       episodeNumber: typeof body.episodeNumber === 'number' ? body.episodeNumber : null,
-      title: typeof body.title === 'string' ? body.title : null,
-      subtitle: typeof body.subtitle === 'string' ? body.subtitle : null,
-      posterUrl: typeof body.posterUrl === 'string' ? body.posterUrl : null,
-      backdropUrl: typeof body.backdropUrl === 'string' ? body.backdropUrl : null,
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
       rating: typeof body.rating === 'number' ? body.rating : null,
@@ -60,6 +58,20 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     return {
       items: await historyService.list(request.auth!.appUserId, profileId, limit),
     };
+  });
+
+  app.get('/v1/watch/state', async (request) => {
+    await app.requireAuth(request);
+    const profileId = app.requireProfileId(request);
+    const query = request.query as Record<string, unknown>;
+    return watchStateService.getState(request.auth!.appUserId, profileId, {
+      mediaKey: typeof query.mediaKey === 'string' ? query.mediaKey : undefined,
+      mediaType: typeof query.mediaType === 'string' ? query.mediaType : undefined,
+      tmdbId: parseOptionalNumber(query.tmdbId),
+      showTmdbId: parseOptionalNumber(query.showTmdbId),
+      seasonNumber: parseOptionalNumber(query.seasonNumber),
+      episodeNumber: parseOptionalNumber(query.episodeNumber),
+    });
   });
 
   app.post('/v1/watch/mark-watched', async (request) => {
@@ -122,12 +134,19 @@ function mapMutationBody(body: Record<string, unknown>) {
     showTmdbId: typeof body.showTmdbId === 'number' ? body.showTmdbId : null,
     seasonNumber: typeof body.seasonNumber === 'number' ? body.seasonNumber : null,
     episodeNumber: typeof body.episodeNumber === 'number' ? body.episodeNumber : null,
-    title: typeof body.title === 'string' ? body.title : null,
-    subtitle: typeof body.subtitle === 'string' ? body.subtitle : null,
-    posterUrl: typeof body.posterUrl === 'string' ? body.posterUrl : null,
-    backdropUrl: typeof body.backdropUrl === 'string' ? body.backdropUrl : null,
     occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
     rating: typeof body.rating === 'number' ? body.rating : null,
     payload: typeof body.payload === 'object' && body.payload !== null ? (body.payload as Record<string, unknown>) : {},
   };
+}
+
+function parseOptionalNumber(value: unknown): number | null | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }

@@ -7,10 +7,6 @@ export class WatchlistRepository {
     identity: MediaIdentity;
     sourceEventId: string;
     addedAt: string;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<void> {
     await client.query(
@@ -18,13 +14,13 @@ export class WatchlistRepository {
         INSERT INTO watchlist_items (
           profile_id, media_key, media_type, tmdb_id, title, subtitle, poster_url, backdrop_url, added_at, source_event_id, payload
         )
-        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10::uuid, $11::jsonb)
+        VALUES ($1::uuid, $2, $3, $4, NULL, NULL, NULL, NULL, $9::timestamptz, $10::uuid, $11::jsonb)
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
-          title = EXCLUDED.title,
-          subtitle = EXCLUDED.subtitle,
-          poster_url = EXCLUDED.poster_url,
-          backdrop_url = EXCLUDED.backdrop_url,
+          title = COALESCE(watchlist_items.title, EXCLUDED.title),
+          subtitle = COALESCE(watchlist_items.subtitle, EXCLUDED.subtitle),
+          poster_url = COALESCE(watchlist_items.poster_url, EXCLUDED.poster_url),
+          backdrop_url = COALESCE(watchlist_items.backdrop_url, EXCLUDED.backdrop_url),
           added_at = EXCLUDED.added_at,
           source_event_id = EXCLUDED.source_event_id,
           payload = EXCLUDED.payload
@@ -34,10 +30,6 @@ export class WatchlistRepository {
         params.identity.mediaKey,
         params.identity.mediaType,
         params.identity.tmdbId,
-        params.title ?? null,
-        params.subtitle ?? null,
-        params.posterUrl ?? null,
-        params.backdropUrl ?? null,
         params.addedAt,
         params.sourceEventId,
         JSON.stringify(params.payload ?? {}),
@@ -47,5 +39,13 @@ export class WatchlistRepository {
 
   async delete(client: DbClient, profileId: string, mediaKey: string): Promise<void> {
     await client.query(`DELETE FROM watchlist_items WHERE profile_id = $1::uuid AND media_key = $2`, [profileId, mediaKey]);
+  }
+
+  async getByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<Record<string, unknown> | null> {
+    const result = await client.query(
+      `SELECT media_key, media_type, tmdb_id, added_at, payload FROM watchlist_items WHERE profile_id = $1::uuid AND media_key = $2`,
+      [profileId, mediaKey],
+    );
+    return result.rows[0] ?? null;
   }
 }

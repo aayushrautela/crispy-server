@@ -1,10 +1,13 @@
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
+import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
-import type { MediaIdentity } from './media-key.js';
+import { showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
+import { TrackedSeriesRepository } from './tracked-series.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
 import { WatchlistRepository } from './watchlist.repo.js';
 
@@ -15,6 +18,8 @@ export class WatchProjectorService {
     private readonly watchHistoryRepository = new WatchHistoryRepository(),
     private readonly watchlistRepository = new WatchlistRepository(),
     private readonly ratingsRepository = new RatingsRepository(),
+    private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async applyPlaybackEvent(client: DbClient, params: {
@@ -23,14 +28,12 @@ export class WatchProjectorService {
     eventId: string;
     eventType: string;
     occurredAt: string;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     positionSeconds?: number | null;
     durationSeconds?: number | null;
     payload?: Record<string, unknown>;
   }): Promise<void> {
+    await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload);
+
     const current = await this.mediaProgressRepository.getByMediaKey(client, params.profileId, params.identity.mediaKey);
     if (current && Date.parse(params.occurredAt) < Date.parse(current.lastPlayedAt)) {
       throw new HttpError(409, 'Incoming playback event is older than current progress.');
@@ -43,10 +46,6 @@ export class WatchProjectorService {
       profileId: params.profileId,
       identity: params.identity,
       eventId: params.eventId,
-      title: params.title,
-      subtitle: params.subtitle,
-      posterUrl: params.posterUrl,
-      backdropUrl: params.backdropUrl,
       positionSeconds: params.positionSeconds,
       durationSeconds: params.durationSeconds,
       occurredAt: params.occurredAt,
@@ -60,10 +59,6 @@ export class WatchProjectorService {
         identity: params.identity,
         watchedAt: params.occurredAt,
         sourceEventId: params.eventId,
-        title: params.title,
-        subtitle: params.subtitle,
-        posterUrl: params.posterUrl,
-        backdropUrl: params.backdropUrl,
         payload: params.payload,
       });
       await this.continueWatchingRepository.delete(client, params.profileId, params.identity.mediaKey);
@@ -77,10 +72,6 @@ export class WatchProjectorService {
     await this.continueWatchingRepository.upsert(client, {
       profileId: params.profileId,
       identity: params.identity,
-      title: params.title,
-      subtitle: params.subtitle,
-      posterUrl: params.posterUrl,
-      backdropUrl: params.backdropUrl,
       positionSeconds: params.positionSeconds,
       durationSeconds: params.durationSeconds,
       occurredAt: params.occurredAt,
@@ -93,21 +84,14 @@ export class WatchProjectorService {
     identity: MediaIdentity;
     eventId: string;
     occurredAt: string;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<void> {
+    await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload);
     await this.watchHistoryRepository.upsertWatched(client, {
       profileId: params.profileId,
       identity: params.identity,
       watchedAt: params.occurredAt,
       sourceEventId: params.eventId,
-      title: params.title,
-      subtitle: params.subtitle,
-      posterUrl: params.posterUrl,
-      backdropUrl: params.backdropUrl,
       payload: params.payload,
     });
     await this.continueWatchingRepository.delete(client, params.profileId, params.identity.mediaKey);
@@ -115,10 +99,6 @@ export class WatchProjectorService {
       profileId: params.profileId,
       identity: params.identity,
       eventId: params.eventId,
-      title: params.title,
-      subtitle: params.subtitle,
-      posterUrl: params.posterUrl,
-      backdropUrl: params.backdropUrl,
       occurredAt: params.occurredAt,
       status: 'completed',
       payload: params.payload,
@@ -134,21 +114,14 @@ export class WatchProjectorService {
     identity: MediaIdentity;
     eventId: string;
     occurredAt: string;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<void> {
+    await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload, 'watchlist');
     await this.watchlistRepository.put(client, {
       profileId: params.profileId,
       identity: params.identity,
       sourceEventId: params.eventId,
       addedAt: params.occurredAt,
-      title: params.title,
-      subtitle: params.subtitle,
-      posterUrl: params.posterUrl,
-      backdropUrl: params.backdropUrl,
       payload: params.payload,
     });
   }
@@ -163,22 +136,15 @@ export class WatchProjectorService {
     eventId: string;
     occurredAt: string;
     rating: number;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<void> {
+    await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload, 'rating');
     await this.ratingsRepository.put(client, {
       profileId: params.profileId,
       identity: params.identity,
       sourceEventId: params.eventId,
       ratedAt: params.occurredAt,
       rating: params.rating,
-      title: params.title,
-      subtitle: params.subtitle,
-      posterUrl: params.posterUrl,
-      backdropUrl: params.backdropUrl,
       payload: params.payload,
     });
   }
@@ -189,5 +155,42 @@ export class WatchProjectorService {
 
   async dismissContinueWatching(client: DbClient, params: { profileId: string; projectionId: string }): Promise<void> {
     await this.continueWatchingRepository.dismissById(client, params.profileId, params.projectionId);
+  }
+
+  private async refreshMetadataReferences(
+    client: DbClient,
+    profileId: string,
+    identity: MediaIdentity,
+    eventId: string,
+    occurredAt: string,
+    payload?: Record<string, unknown>,
+    reason = 'watch_activity',
+  ): Promise<void> {
+    const showTmdbId = showTmdbIdForIdentity(identity);
+    if (!showTmdbId) {
+      if (identity.mediaType === 'movie' && identity.tmdbId) {
+        await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId);
+      }
+      return;
+    }
+
+    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
+    const nextEpisode = extractNextEpisodeToAir(title);
+
+    await this.trackedSeriesRepository.upsert(client, {
+      profileId,
+      showTmdbId,
+      reason,
+      lastSourceEventId: eventId,
+      lastInteractedAt: occurredAt,
+      payload,
+    });
+
+    await this.trackedSeriesRepository.updateMetadataState(client, {
+      profileId,
+      showTmdbId,
+      nextEpisodeAirDate: nextEpisode?.airDate ?? null,
+      metadataRefreshedAt: new Date().toISOString(),
+    });
   }
 }

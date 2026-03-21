@@ -4,6 +4,7 @@ import { enqueueHeartbeatFlush } from '../../lib/queue.js';
 import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
+import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
 
@@ -13,6 +14,7 @@ export class HeartbeatFlushService {
     private readonly mediaProgressRepository = new MediaProgressRepository(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
+    private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
   ) {}
 
   async flush(profileId: string, mediaKey: string): Promise<{ action: 'persisted' | 'deferred' | 'cleared' | 'missing'; reason: string }> {
@@ -45,10 +47,6 @@ export class HeartbeatFlushService {
           showTmdbId: snapshot.showTmdbId,
           seasonNumber: snapshot.seasonNumber,
           episodeNumber: snapshot.episodeNumber,
-          title: snapshot.title,
-          subtitle: snapshot.subtitle,
-          posterUrl: snapshot.posterUrl,
-          backdropUrl: snapshot.backdropUrl,
           positionSeconds: snapshot.positionSeconds,
           durationSeconds: snapshot.durationSeconds,
           occurredAt: snapshot.occurredAt,
@@ -80,10 +78,6 @@ export class HeartbeatFlushService {
         eventId: event.id,
         eventType: 'playback_progress_snapshot',
         occurredAt: snapshot.occurredAt,
-        title: snapshot.title,
-        subtitle: snapshot.subtitle,
-        posterUrl: snapshot.posterUrl,
-        backdropUrl: snapshot.backdropUrl,
         positionSeconds: snapshot.positionSeconds,
         durationSeconds: snapshot.durationSeconds,
         payload: {
@@ -106,6 +100,10 @@ export class HeartbeatFlushService {
 
     if (outcome.action === 'deferred') {
       await enqueueHeartbeatFlush(profileId, mediaKey, HEARTBEAT_POLICY.recheckDelayMs);
+    }
+
+    if (outcome.action === 'persisted') {
+      await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, { mediaKey });
     }
 
     return outcome;

@@ -37,6 +37,12 @@ export const env = {
   defaultProfileName: process.env.DEFAULT_PROFILE_NAME?.trim() || 'Main',
   homeCacheTtlSeconds: parseNumber('HOME_CACHE_TTL_SECONDS', 120),
   calendarCacheTtlSeconds: parseNumber('CALENDAR_CACHE_TTL_SECONDS', 300),
+  tmdbApiKey: requireEnv('TMDB_API_KEY'),
+  tmdbBaseUrl: process.env.TMDB_BASE_URL?.trim() || 'https://api.themoviedb.org/3',
+  tmdbImageBaseUrl: process.env.TMDB_IMAGE_BASE_URL?.trim() || 'https://image.tmdb.org/t/p',
+  tmdbMovieTtlHours: parseNumber('TMDB_MOVIE_TTL_HOURS', 168),
+  tmdbShowTtlHours: parseNumber('TMDB_SHOW_TTL_HOURS', 24),
+  tmdbSeasonTtlHours: parseNumber('TMDB_SEASON_TTL_HOURS', 24),
 };
 
 export type Env = typeof env;

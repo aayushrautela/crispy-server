@@ -24,23 +24,44 @@ export type ProjectionRefreshJob = {
   mediaKey?: string;
 };
 
+function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: string): string {
+  return mediaKey ? `${reason}:${profileId}:${mediaKey}` : `${reason}:${profileId}`;
+}
+
+async function enqueueProjectionRefreshJob(job: ProjectionRefreshJob, options?: { delayMs?: number }): Promise<void> {
+  await projectionQueue.add(job.reason, job, {
+    jobId: projectionRefreshJobId(job.reason, job.profileId, job.mediaKey),
+    delay: options?.delayMs,
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+}
+
 export function heartbeatFlushJobId(profileId: string, mediaKey: string): string {
   return `heartbeat-flush:${profileId}:${mediaKey}`;
 }
 
 export async function enqueueHeartbeatFlush(profileId: string, mediaKey: string, delayMs?: number): Promise<void> {
-  await projectionQueue.add(
-    'flush-heartbeat',
+  await enqueueProjectionRefreshJob(
     {
       profileId,
       mediaKey,
       reason: 'flush-heartbeat',
     },
     {
-      jobId: heartbeatFlushJobId(profileId, mediaKey),
-      delay: delayMs ?? HEARTBEAT_POLICY.initialFlushDelayMs,
-      removeOnComplete: true,
-      removeOnFail: 100,
+      delayMs: delayMs ?? HEARTBEAT_POLICY.initialFlushDelayMs,
     },
   );
+}
+
+export async function enqueueRefreshHomeCache(profileId: string): Promise<void> {
+  await enqueueProjectionRefreshJob({ profileId, reason: 'refresh-home-cache' });
+}
+
+export async function enqueueRefreshCalendarCache(profileId: string): Promise<void> {
+  await enqueueProjectionRefreshJob({ profileId, reason: 'refresh-calendar-cache' });
+}
+
+export async function enqueueMetadataRefresh(profileId: string, mediaKey?: string): Promise<void> {
+  await enqueueProjectionRefreshJob({ profileId, mediaKey, reason: 'metadata-refresh' });
 }

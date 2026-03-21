@@ -5,6 +5,7 @@ import { ProfileRepository } from '../profiles/profile.repo.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { isBufferedHeartbeatEvent } from './heartbeat-policy.js';
 import { inferMediaIdentity } from './media-key.js';
+import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
 import { sanitizeWatchEventInput, type WatchEventInput, type WatchIngestResult, type WatchMutationInput } from './watch.types.js';
@@ -15,6 +16,7 @@ export class WatchEventIngestService {
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
+    private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
   ) {}
 
   async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
@@ -40,6 +42,9 @@ export class WatchEventIngestService {
     await this.applyMutation(userId, profileId, 'mark_watched', input, async (client, params) => {
       await this.projector.markWatched(client, params);
     });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey: inferMediaIdentity(input).mediaKey,
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -47,12 +52,19 @@ export class WatchEventIngestService {
     await this.applyMutation(userId, profileId, 'unmark_watched', input, async (client, params) => {
       await this.projector.unmarkWatched(client, { profileId, mediaKey: params.identity.mediaKey });
     });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey: inferMediaIdentity(input).mediaKey,
+      refreshMetadata: false,
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
   async setWatchlist(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
     await this.applyMutation(userId, profileId, 'watchlist_put', input, async (client, params) => {
       await this.projector.setWatchlist(client, params);
+    });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey: inferMediaIdentity(input).mediaKey,
     });
     return { accepted: true, mode: 'synchronous' };
   }
@@ -64,6 +76,10 @@ export class WatchEventIngestService {
         throw new HttpError(404, 'Profile not found.');
       }
       await this.projector.removeWatchlist(client, { profileId, mediaKey });
+    });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey,
+      refreshMetadata: false,
     });
     return { accepted: true, mode: 'synchronous' };
   }
@@ -78,6 +94,9 @@ export class WatchEventIngestService {
         rating: input.rating as number,
       });
     });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey: inferMediaIdentity(input).mediaKey,
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -88,6 +107,10 @@ export class WatchEventIngestService {
         throw new HttpError(404, 'Profile not found.');
       }
       await this.projector.removeRating(client, { profileId, mediaKey });
+    });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey,
+      refreshMetadata: false,
     });
     return { accepted: true, mode: 'synchronous' };
   }
@@ -100,16 +123,19 @@ export class WatchEventIngestService {
       }
       await this.projector.dismissContinueWatching(client, { profileId, projectionId });
     });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      refreshMetadata: false,
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
   private async ingestPlaybackEventSynchronously(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
+    const identity = inferMediaIdentity(input);
     await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      const identity = inferMediaIdentity(input);
       const event = await this.watchEventsRepository.insert(client, {
         householdId: profile.householdId,
         profileId,
@@ -122,14 +148,13 @@ export class WatchEventIngestService {
         eventId: event.id,
         eventType: input.eventType,
         occurredAt: input.occurredAt ?? new Date().toISOString(),
-        title: input.title,
-        subtitle: input.subtitle,
-        posterUrl: input.posterUrl,
-        backdropUrl: input.backdropUrl,
         positionSeconds: input.positionSeconds,
         durationSeconds: input.durationSeconds,
         payload: input.payload,
       });
+    });
+    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey: identity.mediaKey,
     });
     return { accepted: true, mode: 'synchronous' };
   }
@@ -161,10 +186,7 @@ export class WatchEventIngestService {
       identity: ReturnType<typeof inferMediaIdentity>;
       eventId: string;
       occurredAt: string;
-      title?: string | null;
-      subtitle?: string | null;
-      posterUrl?: string | null;
-      backdropUrl?: string | null;
+      rating?: number;
       payload?: Record<string, unknown>;
     }) => Promise<void>,
   ): Promise<void> {
@@ -187,10 +209,6 @@ export class WatchEventIngestService {
           showTmdbId: identity.showTmdbId,
           seasonNumber: identity.seasonNumber,
           episodeNumber: identity.episodeNumber,
-          title: input.title,
-          subtitle: input.subtitle,
-          posterUrl: input.posterUrl,
-          backdropUrl: input.backdropUrl,
           rating: input.rating,
           occurredAt,
           payload: input.payload,
@@ -203,10 +221,7 @@ export class WatchEventIngestService {
         identity,
         eventId: event.id,
         occurredAt,
-        title: input.title,
-        subtitle: input.subtitle,
-        posterUrl: input.posterUrl,
-        backdropUrl: input.backdropUrl,
+        rating: typeof input.rating === 'number' ? input.rating : undefined,
         payload: input.payload,
       });
     });

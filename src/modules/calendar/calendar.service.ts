@@ -1,30 +1,31 @@
 import { redis } from '../../lib/redis.js';
 import { env } from '../../config/env.js';
-import { ContinueWatchingService } from '../watch/continue-watching.service.js';
-import { WatchHistoryQueryService } from '../watch/history.service.js';
+import { withTransaction } from '../../lib/db.js';
+import { HttpError } from '../../lib/errors.js';
+import { ProfileRepository } from '../profiles/profile.repo.js';
+import type { CalendarItem } from '../watch/watch-read.types.js';
+import { CalendarBuilderService } from './calendar-builder.service.js';
 
 export class CalendarService {
   constructor(
-    private readonly continueWatchingService = new ContinueWatchingService(),
-    private readonly historyService = new WatchHistoryQueryService(),
+    private readonly profileRepository = new ProfileRepository(),
+    private readonly calendarBuilderService = new CalendarBuilderService(),
   ) {}
 
-  async getCalendar(userId: string, profileId: string): Promise<Record<string, unknown>> {
+  async getCalendar(userId: string, profileId: string): Promise<{ generatedAt: string; items: CalendarItem[] }> {
     const cacheKey = `calendar:${profileId}`;
     const cached = await redis.get(cacheKey);
     if (cached) {
-      return JSON.parse(cached) as Record<string, unknown>;
+      return JSON.parse(cached) as { generatedAt: string; items: CalendarItem[] };
     }
 
-    const [continueWatching, history] = await Promise.all([
-      this.continueWatchingService.list(userId, profileId, 10),
-      this.historyService.list(userId, profileId, 20),
-    ]);
-
-    const items = [...continueWatching.slice(0, 5), ...history.slice(0, 5)].map((item, index) => ({
-      bucket: index < continueWatching.length ? 'continue_watching' : 'history',
-      ...item,
-    }));
+    const items = await withTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+      return this.calendarBuilderService.build(client, profileId, 25);
+    });
 
     const response = {
       generatedAt: new Date().toISOString(),

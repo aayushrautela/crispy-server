@@ -9,6 +9,55 @@ export type MediaIdentity = {
   episodeNumber: number | null;
 };
 
+export function showTmdbIdForIdentity(identity: MediaIdentity): number | null {
+  if (identity.mediaType === 'show') {
+    return identity.tmdbId;
+  }
+  return identity.showTmdbId;
+}
+
+export function parseMediaKey(mediaKey: string): MediaIdentity {
+  const parts = mediaKey.split(':');
+  if (parts.length < 3 || parts[1] !== 'tmdb') {
+    throw new HttpError(400, 'Unsupported media key format.');
+  }
+
+  const mediaType = parts[0];
+  if (mediaType === 'movie' || mediaType === 'show') {
+    const tmdbId = Number(parts[2]);
+    if (!Number.isFinite(tmdbId)) {
+      throw new HttpError(400, 'Invalid TMDB id in media key.');
+    }
+    return {
+      mediaKey,
+      mediaType,
+      tmdbId,
+      showTmdbId: mediaType === 'show' ? tmdbId : null,
+      seasonNumber: null,
+      episodeNumber: null,
+    };
+  }
+
+  if (mediaType === 'episode' && parts.length === 5) {
+    const showTmdbId = Number(parts[2]);
+    const seasonNumber = Number(parts[3]);
+    const episodeNumber = Number(parts[4]);
+    if (!Number.isFinite(showTmdbId) || !Number.isFinite(seasonNumber) || !Number.isFinite(episodeNumber)) {
+      throw new HttpError(400, 'Invalid episode media key.');
+    }
+    return {
+      mediaKey,
+      mediaType,
+      tmdbId: null,
+      showTmdbId,
+      seasonNumber,
+      episodeNumber,
+    };
+  }
+
+  throw new HttpError(400, 'Unsupported media key format.');
+}
+
 export function inferMediaIdentity(input: {
   mediaKey?: string;
   mediaType: string;

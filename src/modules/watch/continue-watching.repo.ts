@@ -5,10 +5,6 @@ export class ContinueWatchingRepository {
   async upsert(client: DbClient, params: {
     profileId: string;
     identity: MediaIdentity;
-    title?: string | null;
-    subtitle?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
     positionSeconds?: number | null;
     durationSeconds?: number | null;
     occurredAt: string;
@@ -29,15 +25,15 @@ export class ContinueWatchingRepository {
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13,
+          NULL, NULL, NULL, NULL, $12, $13,
           $14, $15::timestamptz, $16::timestamptz, $17::jsonb, now()
         )
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
-          title = EXCLUDED.title,
-          subtitle = EXCLUDED.subtitle,
-          poster_url = EXCLUDED.poster_url,
-          backdrop_url = EXCLUDED.backdrop_url,
+          title = COALESCE(continue_watching_projection.title, EXCLUDED.title),
+          subtitle = COALESCE(continue_watching_projection.subtitle, EXCLUDED.subtitle),
+          poster_url = COALESCE(continue_watching_projection.poster_url, EXCLUDED.poster_url),
+          backdrop_url = COALESCE(continue_watching_projection.backdrop_url, EXCLUDED.backdrop_url),
           position_seconds = EXCLUDED.position_seconds,
           duration_seconds = EXCLUDED.duration_seconds,
           progress_percent = EXCLUDED.progress_percent,
@@ -54,10 +50,6 @@ export class ContinueWatchingRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
-        params.title ?? null,
-        params.subtitle ?? null,
-        params.posterUrl ?? null,
-        params.backdropUrl ?? null,
         params.positionSeconds ?? 0,
         params.durationSeconds ?? null,
         progressPercent,
@@ -100,5 +92,18 @@ export class ContinueWatchingRepository {
       [profileId, limit],
     );
     return result.rows;
+  }
+
+  async getByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<Record<string, unknown> | null> {
+    const result = await client.query(
+      `
+        SELECT id, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+               position_seconds, duration_seconds, progress_percent, last_activity_at, payload
+        FROM continue_watching_projection
+        WHERE profile_id = $1::uuid AND media_key = $2 AND dismissed_at IS NULL
+      `,
+      [profileId, mediaKey],
+    );
+    return result.rows[0] ?? null;
   }
 }
