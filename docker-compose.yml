@@ -25,7 +25,7 @@ services:
       REDIS_URL: redis://redis:6379
     command: npm run dev:api
     ports:
-      - "8080:8080"
+      - "18765:18765"
     depends_on:
       - postgres
       - redis

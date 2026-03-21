@@ -25,6 +25,6 @@ RUN npm ci --omit=dev
 COPY migrations ./migrations
 COPY --from=build /app/dist ./dist
 
-EXPOSE 8080
+EXPOSE 18765
 
 CMD ["npm", "run", "start:api"]

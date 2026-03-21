@@ -25,7 +25,7 @@ function parseNumber(name: string, fallback: number): number {
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
   serverHost: process.env.SERVER_HOST?.trim() || '0.0.0.0',
-  serverPort: parseNumber('SERVER_PORT', 8080),
+  serverPort: parseNumber('SERVER_PORT', 18765),
   logLevel: process.env.LOG_LEVEL?.trim() || 'info',
   databaseUrl: requireEnv('DATABASE_URL'),
   redisUrl: requireEnv('REDIS_URL'),

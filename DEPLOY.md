@@ -23,11 +23,11 @@
    ```
 
 5. Reverse proxy to:
-   - `127.0.0.1:8080`
+   - `127.0.0.1:18765`
 
 6. Test on the server:
    ```bash
-   curl http://127.0.0.1:8080/healthz
+   curl http://127.0.0.1:18765/healthz
    ```
 
 7. Update later:
