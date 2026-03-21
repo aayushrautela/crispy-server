@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import { env } from '../config/env.js';
+import { HEARTBEAT_POLICY } from '../modules/watch/heartbeat-policy.js';
 
 export const projectionQueueName = 'projection-refresh';
 
@@ -20,4 +21,26 @@ export const projectionQueue = new Queue(projectionQueueName, {
 export type ProjectionRefreshJob = {
   profileId: string;
   reason: string;
+  mediaKey?: string;
 };
+
+export function heartbeatFlushJobId(profileId: string, mediaKey: string): string {
+  return `heartbeat-flush:${profileId}:${mediaKey}`;
+}
+
+export async function enqueueHeartbeatFlush(profileId: string, mediaKey: string, delayMs?: number): Promise<void> {
+  await projectionQueue.add(
+    'flush-heartbeat',
+    {
+      profileId,
+      mediaKey,
+      reason: 'flush-heartbeat',
+    },
+    {
+      jobId: heartbeatFlushJobId(profileId, mediaKey),
+      delay: delayMs ?? HEARTBEAT_POLICY.initialFlushDelayMs,
+      removeOnComplete: true,
+      removeOnFail: 100,
+    },
+  );
+}

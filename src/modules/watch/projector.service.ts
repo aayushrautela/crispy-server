@@ -1,4 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
+import { HttpError } from '../../lib/errors.js';
+import { deriveProgressPercent } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
@@ -29,13 +31,13 @@ export class WatchProjectorService {
     durationSeconds?: number | null;
     payload?: Record<string, unknown>;
   }): Promise<void> {
-    const completionThreshold = 0.9;
-    const progressRatio =
-      params.positionSeconds && params.durationSeconds && params.durationSeconds > 0
-        ? params.positionSeconds / params.durationSeconds
-        : 0;
+    const current = await this.mediaProgressRepository.getByMediaKey(client, params.profileId, params.identity.mediaKey);
+    if (current && Date.parse(params.occurredAt) < Date.parse(current.lastPlayedAt)) {
+      throw new HttpError(409, 'Incoming playback event is older than current progress.');
+    }
 
-    const status = progressRatio >= completionThreshold || params.eventType === 'playback_completed' ? 'completed' : 'in_progress';
+    const progressPercent = deriveProgressPercent(params.positionSeconds, params.durationSeconds);
+    const status = progressPercent >= 90 || params.eventType === 'playback_completed' ? 'completed' : 'in_progress';
 
     await this.mediaProgressRepository.upsert(client, {
       profileId: params.profileId,

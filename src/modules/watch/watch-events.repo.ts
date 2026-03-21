@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { deriveProgressPercent } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
 import type { WatchEventInput } from './watch.types.js';
 
@@ -101,11 +102,4 @@ export class WatchEventsRepository {
       occurredAt: String(result.rows[0].occurred_at),
     };
   }
-}
-
-function deriveProgressPercent(positionSeconds?: number | null, durationSeconds?: number | null): number | null {
-  if (!positionSeconds || !durationSeconds || durationSeconds <= 0) {
-    return null;
-  }
-  return Math.max(0, Math.min(100, Number(((positionSeconds / durationSeconds) * 100).toFixed(2))));
 }

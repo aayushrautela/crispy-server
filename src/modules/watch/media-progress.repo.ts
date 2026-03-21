@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { deriveProgressPercent, type PersistedProgressSnapshot } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
 
 export class MediaProgressRepository {
@@ -105,5 +106,29 @@ export class MediaProgressRepository {
       `,
       [profileId, mediaKey],
     );
+  }
+
+  async getByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<PersistedProgressSnapshot | null> {
+    const result = await client.query(
+      `
+        SELECT position_seconds, duration_seconds, progress_percent, status, last_played_at
+        FROM media_progress
+        WHERE profile_id = $1::uuid AND media_key = $2
+      `,
+      [profileId, mediaKey],
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      positionSeconds: Number(row.position_seconds ?? 0),
+      durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
+      progressPercent: Number(row.progress_percent ?? 0),
+      status: String(row.status),
+      lastPlayedAt: String(row.last_played_at),
+    };
   }
 }

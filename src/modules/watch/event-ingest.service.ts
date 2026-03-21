@@ -2,19 +2,108 @@ import { randomUUID } from 'node:crypto';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
+import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
+import { isBufferedHeartbeatEvent } from './heartbeat-policy.js';
 import { inferMediaIdentity } from './media-key.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
-import type { WatchEventInput, WatchMutationInput } from './watch.types.js';
+import { sanitizeWatchEventInput, type WatchEventInput, type WatchIngestResult, type WatchMutationInput } from './watch.types.js';
 
 export class WatchEventIngestService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
+    private readonly heartbeatBufferService = new HeartbeatBufferService(),
   ) {}
 
-  async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<{ accepted: true }> {
+  async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
+    const normalizedInput = sanitizeWatchEventInput(input);
+    if (!normalizedInput.clientEventId) {
+      throw new HttpError(400, 'clientEventId is required.');
+    }
+    if (!normalizedInput.eventType) {
+      throw new HttpError(400, 'eventType is required.');
+    }
+    if (!normalizedInput.mediaType) {
+      throw new HttpError(400, 'mediaType is required.');
+    }
+
+    if (isBufferedHeartbeatEvent(normalizedInput.eventType)) {
+      return this.bufferPlaybackHeartbeat(userId, profileId, normalizedInput);
+    }
+
+    return this.ingestPlaybackEventSynchronously(userId, profileId, normalizedInput);
+  }
+
+  async markWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
+    await this.applyMutation(userId, profileId, 'mark_watched', input, async (client, params) => {
+      await this.projector.markWatched(client, params);
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  async unmarkWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
+    await this.applyMutation(userId, profileId, 'unmark_watched', input, async (client, params) => {
+      await this.projector.unmarkWatched(client, { profileId, mediaKey: params.identity.mediaKey });
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  async setWatchlist(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
+    await this.applyMutation(userId, profileId, 'watchlist_put', input, async (client, params) => {
+      await this.projector.setWatchlist(client, params);
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  async removeWatchlist(userId: string, profileId: string, mediaKey: string): Promise<WatchIngestResult> {
+    await withTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+      await this.projector.removeWatchlist(client, { profileId, mediaKey });
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  async setRating(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
+    if (!input.rating || input.rating < 1 || input.rating > 10) {
+      throw new HttpError(400, 'Rating must be between 1 and 10.');
+    }
+    await this.applyMutation(userId, profileId, 'rating_put', input, async (client, params) => {
+      await this.projector.setRating(client, {
+        ...params,
+        rating: input.rating as number,
+      });
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  async removeRating(userId: string, profileId: string, mediaKey: string): Promise<WatchIngestResult> {
+    await withTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+      await this.projector.removeRating(client, { profileId, mediaKey });
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  async dismissContinueWatching(userId: string, profileId: string, projectionId: string): Promise<WatchIngestResult> {
+    await withTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+      await this.projector.dismissContinueWatching(client, { profileId, projectionId });
+    });
+    return { accepted: true, mode: 'synchronous' };
+  }
+
+  private async ingestPlaybackEventSynchronously(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
       if (!profile) {
@@ -42,74 +131,24 @@ export class WatchEventIngestService {
         payload: input.payload,
       });
     });
-    return { accepted: true };
+    return { accepted: true, mode: 'synchronous' };
   }
 
-  async markWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<{ accepted: true }> {
-    await this.applyMutation(userId, profileId, 'mark_watched', input, async (client, params) => {
-      await this.projector.markWatched(client, params);
-    });
-    return { accepted: true };
-  }
-
-  async unmarkWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<{ accepted: true }> {
-    await this.applyMutation(userId, profileId, 'unmark_watched', input, async (client, params) => {
-      await this.projector.unmarkWatched(client, { profileId, mediaKey: params.identity.mediaKey });
-    });
-    return { accepted: true };
-  }
-
-  async setWatchlist(userId: string, profileId: string, input: WatchMutationInput): Promise<{ accepted: true }> {
-    await this.applyMutation(userId, profileId, 'watchlist_put', input, async (client, params) => {
-      await this.projector.setWatchlist(client, params);
-    });
-    return { accepted: true };
-  }
-
-  async removeWatchlist(userId: string, profileId: string, mediaKey: string): Promise<{ accepted: true }> {
+  private async bufferPlaybackHeartbeat(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      await this.projector.removeWatchlist(client, { profileId, mediaKey });
-    });
-    return { accepted: true };
-  }
-
-  async setRating(userId: string, profileId: string, input: WatchMutationInput): Promise<{ accepted: true }> {
-    if (!input.rating || input.rating < 1 || input.rating > 10) {
-      throw new HttpError(400, 'Rating must be between 1 and 10.');
-    }
-    await this.applyMutation(userId, profileId, 'rating_put', input, async (client, params) => {
-      await this.projector.setRating(client, {
-        ...params,
-        rating: input.rating as number,
+      const identity = inferMediaIdentity(input);
+      await this.heartbeatBufferService.bufferHeartbeat({
+        householdId: profile.householdId,
+        profileId,
+        identity,
+        input,
       });
     });
-    return { accepted: true };
-  }
-
-  async removeRating(userId: string, profileId: string, mediaKey: string): Promise<{ accepted: true }> {
-    await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
-      await this.projector.removeRating(client, { profileId, mediaKey });
-    });
-    return { accepted: true };
-  }
-
-  async dismissContinueWatching(userId: string, profileId: string, projectionId: string): Promise<{ accepted: true }> {
-    await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
-      await this.projector.dismissContinueWatching(client, { profileId, projectionId });
-    });
-    return { accepted: true };
+    return { accepted: true, mode: 'buffered' };
   }
 
   private async applyMutation(

@@ -1,17 +1,26 @@
 import { Worker } from 'bullmq';
 import { logger } from '../config/logger.js';
 import { bullConnection, projectionQueueName } from '../lib/queue.js';
+import { HeartbeatFlushService } from '../modules/watch/heartbeat-flush.service.js';
 import { runMetadataRefreshJob } from './jobs/metadata-refresh.job.js';
 import { runRebuildProfileProjectionsJob } from './jobs/rebuild-profile-projections.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
 import { runRefreshHomeCacheJob } from './jobs/refresh-home-cache.job.js';
 
 export function startWorker(): Worker {
+  const heartbeatFlushService = new HeartbeatFlushService();
+
   return new Worker(
     projectionQueueName,
     async (job) => {
-      const payload = job.data as { profileId: string; reason: string };
+      const payload = job.data as { profileId: string; reason: string; mediaKey?: string };
       switch (payload.reason) {
+        case 'flush-heartbeat':
+          if (!payload.mediaKey) {
+            throw new Error('flush-heartbeat job missing mediaKey');
+          }
+          await heartbeatFlushService.flush(payload.profileId, payload.mediaKey);
+          return;
         case 'refresh-home-cache':
           await runRefreshHomeCacheJob(payload);
           return;

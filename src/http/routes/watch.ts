@@ -8,11 +8,11 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const continueWatchingService = new ContinueWatchingService();
   const historyService = new WatchHistoryQueryService();
 
-  app.post('/v1/watch/events', async (request) => {
+  app.post('/v1/watch/events', async (request, reply) => {
     await app.requireAuth(request);
     const profileId = app.requireProfileId(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return ingestService.ingestPlaybackEvent(request.auth!.appUserId, profileId, {
+    const result = await ingestService.ingestPlaybackEvent(request.auth!.appUserId, profileId, {
       clientEventId: String(body.clientEventId ?? ''),
       eventType: String(body.eventType ?? ''),
       mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
@@ -31,6 +31,10 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
       payload: typeof body.payload === 'object' && body.payload !== null ? (body.payload as Record<string, unknown>) : {},
     });
+    if (result.mode === 'buffered') {
+      return reply.code(202).send(result);
+    }
+    return result;
   });
 
   app.get('/v1/watch/continue-watching', async (request) => {
