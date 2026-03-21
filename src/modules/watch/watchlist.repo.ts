@@ -1,0 +1,51 @@
+import type { DbClient } from '../../lib/db.js';
+import type { MediaIdentity } from './media-key.js';
+
+export class WatchlistRepository {
+  async put(client: DbClient, params: {
+    profileId: string;
+    identity: MediaIdentity;
+    sourceEventId: string;
+    addedAt: string;
+    title?: string | null;
+    subtitle?: string | null;
+    posterUrl?: string | null;
+    backdropUrl?: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
+      `
+        INSERT INTO watchlist_items (
+          profile_id, media_key, media_type, tmdb_id, title, subtitle, poster_url, backdrop_url, added_at, source_event_id, payload
+        )
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10::uuid, $11::jsonb)
+        ON CONFLICT (profile_id, media_key)
+        DO UPDATE SET
+          title = EXCLUDED.title,
+          subtitle = EXCLUDED.subtitle,
+          poster_url = EXCLUDED.poster_url,
+          backdrop_url = EXCLUDED.backdrop_url,
+          added_at = EXCLUDED.added_at,
+          source_event_id = EXCLUDED.source_event_id,
+          payload = EXCLUDED.payload
+      `,
+      [
+        params.profileId,
+        params.identity.mediaKey,
+        params.identity.mediaType,
+        params.identity.tmdbId,
+        params.title ?? null,
+        params.subtitle ?? null,
+        params.posterUrl ?? null,
+        params.backdropUrl ?? null,
+        params.addedAt,
+        params.sourceEventId,
+        JSON.stringify(params.payload ?? {}),
+      ],
+    );
+  }
+
+  async delete(client: DbClient, profileId: string, mediaKey: string): Promise<void> {
+    await client.query(`DELETE FROM watchlist_items WHERE profile_id = $1::uuid AND media_key = $2`, [profileId, mediaKey]);
+  }
+}
