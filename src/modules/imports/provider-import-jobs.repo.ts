@@ -1,0 +1,133 @@
+import type { DbClient } from '../../lib/db.js';
+import type { ProviderImportJobMode, ProviderImportJobStatus, ProviderImportProvider } from './provider-import.types.js';
+
+export type ProviderImportJobRecord = {
+  id: string;
+  profileId: string;
+  householdId: string;
+  provider: ProviderImportProvider;
+  mode: ProviderImportJobMode;
+  status: ProviderImportJobStatus;
+  requestedByUserId: string;
+  connectionId: string | null;
+  checkpointJson: Record<string, unknown>;
+  summaryJson: Record<string, unknown>;
+  errorJson: Record<string, unknown>;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  updatedAt: string;
+};
+
+function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
+  return {
+    id: String(row.id),
+    profileId: String(row.profile_id),
+    householdId: String(row.household_id),
+    provider: String(row.provider) as ProviderImportProvider,
+    mode: String(row.mode) as ProviderImportJobMode,
+    status: String(row.status) as ProviderImportJobStatus,
+    requestedByUserId: String(row.requested_by_user_id),
+    connectionId: typeof row.connection_id === 'string' ? row.connection_id : null,
+    checkpointJson: (row.checkpoint_json as Record<string, unknown> | undefined) ?? {},
+    summaryJson: (row.summary_json as Record<string, unknown> | undefined) ?? {},
+    errorJson: (row.error_json as Record<string, unknown> | undefined) ?? {},
+    createdAt: String(row.created_at),
+    startedAt: typeof row.started_at === 'string' ? row.started_at : null,
+    finishedAt: typeof row.finished_at === 'string' ? row.finished_at : null,
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export class ProviderImportJobsRepository {
+  async create(client: DbClient, params: {
+    profileId: string;
+    householdId: string;
+    provider: ProviderImportProvider;
+    requestedByUserId: string;
+    connectionId?: string | null;
+    status: ProviderImportJobStatus;
+  }): Promise<ProviderImportJobRecord> {
+    const result = await client.query(
+      `
+        INSERT INTO provider_import_jobs (
+          profile_id,
+          household_id,
+          provider,
+          mode,
+          status,
+          requested_by_user_id,
+          connection_id
+        )
+        VALUES ($1::uuid, $2::uuid, $3, 'replace_import', $4, $5::uuid, $6::uuid)
+        RETURNING id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+                  checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
+      `,
+      [params.profileId, params.householdId, params.provider, params.status, params.requestedByUserId, params.connectionId ?? null],
+    );
+    return mapJob(result.rows[0]);
+  }
+
+  async listForProfile(client: DbClient, profileId: string, limit = 20): Promise<ProviderImportJobRecord[]> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+               checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
+        FROM provider_import_jobs
+        WHERE profile_id = $1::uuid
+        ORDER BY created_at DESC
+        LIMIT $2
+      `,
+      [profileId, limit],
+    );
+    return result.rows.map((row) => mapJob(row));
+  }
+
+  async findByIdForProfile(client: DbClient, profileId: string, jobId: string): Promise<ProviderImportJobRecord | null> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+               checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
+        FROM provider_import_jobs
+        WHERE profile_id = $1::uuid AND id = $2::uuid
+      `,
+      [profileId, jobId],
+    );
+    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
+
+  async findById(client: DbClient, jobId: string): Promise<ProviderImportJobRecord | null> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+               checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
+        FROM provider_import_jobs
+        WHERE id = $1::uuid
+      `,
+      [jobId],
+    );
+    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
+
+  async markRunning(client: DbClient, jobId: string): Promise<void> {
+    await client.query(
+      `
+        UPDATE provider_import_jobs
+        SET status = 'running', started_at = COALESCE(started_at, now()), updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [jobId],
+    );
+  }
+
+  async markFailed(client: DbClient, jobId: string, errorJson: Record<string, unknown>): Promise<void> {
+    await client.query(
+      `
+        UPDATE provider_import_jobs
+        SET status = 'failed', error_json = $2::jsonb, finished_at = now(), updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [jobId, JSON.stringify(errorJson)],
+    );
+  }
+}

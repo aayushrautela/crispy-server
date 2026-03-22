@@ -22,6 +22,7 @@ export type ProjectionRefreshJob = {
   profileId: string;
   reason: string;
   mediaKey?: string;
+  importJobId?: string;
 };
 
 function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: string): string {
@@ -68,4 +69,8 @@ export async function enqueueMetadataRefresh(profileId: string, mediaKey?: strin
 
 export async function enqueueRebuildProfileProjections(profileId: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, reason: 'rebuild-profile-projections' });
+}
+
+export async function enqueueProviderImport(profileId: string, importJobId: string): Promise<void> {
+  await enqueueProjectionRefreshJob({ profileId, importJobId, reason: 'provider-import' });
 }

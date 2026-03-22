@@ -1,0 +1,94 @@
+import type { DbClient } from '../../lib/db.js';
+
+export type RecommendationEventOutboxRecord = {
+  id: number;
+  profileId: string;
+  historyGeneration: number;
+  eventType: string;
+  mediaKey: string | null;
+  mediaType: string | null;
+  tmdbId: number | null;
+  showTmdbId: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  rating: number | null;
+  occurredAt: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  deliveredAt: string | null;
+};
+
+function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecord {
+  return {
+    id: Number(row.id),
+    profileId: String(row.profile_id),
+    historyGeneration: Number(row.history_generation),
+    eventType: String(row.event_type),
+    mediaKey: typeof row.media_key === 'string' ? row.media_key : null,
+    mediaType: typeof row.media_type === 'string' ? row.media_type : null,
+    tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
+    showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
+    seasonNumber: row.season_number === null ? null : Number(row.season_number),
+    episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
+    rating: row.rating === null ? null : Number(row.rating),
+    occurredAt: String(row.occurred_at),
+    payload: (row.payload as Record<string, unknown> | undefined) ?? {},
+    createdAt: String(row.created_at),
+    deliveredAt: typeof row.delivered_at === 'string' ? row.delivered_at : null,
+  };
+}
+
+export class RecommendationEventOutboxRepository {
+  async append(client: DbClient, params: {
+    profileId: string;
+    historyGeneration: number;
+    eventType: string;
+    mediaKey?: string | null;
+    mediaType?: string | null;
+    tmdbId?: number | null;
+    showTmdbId?: number | null;
+    seasonNumber?: number | null;
+    episodeNumber?: number | null;
+    rating?: number | null;
+    occurredAt: string;
+    payload?: Record<string, unknown>;
+  }): Promise<RecommendationEventOutboxRecord> {
+    const result = await client.query(
+      `
+        INSERT INTO recommendation_event_outbox (
+          profile_id,
+          history_generation,
+          event_type,
+          media_key,
+          media_type,
+          tmdb_id,
+          show_tmdb_id,
+          season_number,
+          episode_number,
+          rating,
+          occurred_at,
+          payload
+        )
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz, $12::jsonb)
+        RETURNING id, profile_id, history_generation, event_type, media_key, media_type,
+                  tmdb_id, show_tmdb_id, season_number, episode_number, rating,
+                  occurred_at, payload, created_at, delivered_at
+      `,
+      [
+        params.profileId,
+        params.historyGeneration,
+        params.eventType,
+        params.mediaKey ?? null,
+        params.mediaType ?? null,
+        params.tmdbId ?? null,
+        params.showTmdbId ?? null,
+        params.seasonNumber ?? null,
+        params.episodeNumber ?? null,
+        params.rating ?? null,
+        params.occurredAt,
+        JSON.stringify(params.payload ?? {}),
+      ],
+    );
+    return mapOutbox(result.rows[0]);
+  }
+}

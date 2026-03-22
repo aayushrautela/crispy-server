@@ -43,6 +43,12 @@ export const env = {
   tmdbMovieTtlHours: parseNumber('TMDB_MOVIE_TTL_HOURS', 168),
   tmdbShowTtlHours: parseNumber('TMDB_SHOW_TTL_HOURS', 24),
   tmdbSeasonTtlHours: parseNumber('TMDB_SEASON_TTL_HOURS', 24),
+  traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
+  traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',
+  traktImportRedirectUri: process.env.TRAKT_IMPORT_REDIRECT_URI?.trim() || '',
+  simklImportClientId: process.env.SIMKL_IMPORT_CLIENT_ID?.trim() || '',
+  simklImportClientSecret: process.env.SIMKL_IMPORT_CLIENT_SECRET?.trim() || '',
+  simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
 };
 
 export type Env = typeof env;
