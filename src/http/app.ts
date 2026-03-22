@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { logger } from '../config/logger.js';
+import { loggerOptions } from '../config/logger.js';
 import authPlugin from './plugins/auth.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
 import profileContextPlugin from './plugins/profile-context.js';
@@ -20,7 +20,7 @@ declare module 'fastify' {
 
 export async function buildApp() {
   const app = Fastify({
-    logger,
+    logger: loggerOptions,
   });
 
   await app.register(errorHandlerPlugin);

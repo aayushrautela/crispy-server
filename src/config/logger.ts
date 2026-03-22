@@ -1,7 +1,7 @@
 import pino from 'pino';
 import { env } from './env.js';
 
-export const logger = pino({
+export const loggerOptions = {
   level: env.logLevel,
   transport:
     env.nodeEnv === 'development'
@@ -10,4 +10,6 @@ export const logger = pino({
           options: { destination: 1 },
         }
       : undefined,
-});
+} as const;
+
+export const logger = pino(loggerOptions);
