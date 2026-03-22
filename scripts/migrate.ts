@@ -5,9 +5,29 @@ import { db } from '../src/lib/db.js';
 import { logger } from '../src/config/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const migrationsDir = path.resolve(__dirname, '../migrations');
+
+async function resolveMigrationsDir(): Promise<string> {
+  const candidates = [
+    path.resolve(__dirname, '../migrations'),
+    path.resolve(__dirname, '../../migrations'),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const entries = await readdir(candidate);
+      if (entries.some((name) => name.endsWith('.sql'))) {
+        return candidate;
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  throw new Error(`Could not locate migrations directory from ${__dirname}`);
+}
 
 async function main(): Promise<void> {
+  const migrationsDir = await resolveMigrationsDir();
   const client = await db.connect();
   try {
     await client.query(`
