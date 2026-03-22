@@ -4,6 +4,7 @@ import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { WatchHistoryQueryService } from '../watch/history.service.js';
 import { CalendarService } from '../calendar/calendar.service.js';
 import { HomeBuilderService } from './home-builder.service.js';
+import type { HomeResponse } from './home.types.js';
 
 export class HomeService {
   constructor(
@@ -13,11 +14,11 @@ export class HomeService {
     private readonly homeBuilderService = new HomeBuilderService(),
   ) {}
 
-  async getHome(userId: string, profileId: string): Promise<Record<string, unknown>> {
+  async getHome(userId: string, profileId: string): Promise<HomeResponse> {
     const cacheKey = `home:${profileId}`;
     const cached = await redis.get(cacheKey);
     if (cached) {
-      return JSON.parse(cached) as Record<string, unknown>;
+      return JSON.parse(cached) as HomeResponse;
     }
 
     const [continueWatching, history, calendar] = await Promise.all([

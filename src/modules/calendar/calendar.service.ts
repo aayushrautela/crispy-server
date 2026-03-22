@@ -3,7 +3,7 @@ import { env } from '../../config/env.js';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import type { CalendarItem } from '../watch/watch-read.types.js';
+import type { CalendarResponse } from '../watch/watch-read.types.js';
 import { CalendarBuilderService } from './calendar-builder.service.js';
 
 export class CalendarService {
@@ -12,11 +12,11 @@ export class CalendarService {
     private readonly calendarBuilderService = new CalendarBuilderService(),
   ) {}
 
-  async getCalendar(userId: string, profileId: string): Promise<{ generatedAt: string; items: CalendarItem[] }> {
+  async getCalendar(userId: string, profileId: string): Promise<CalendarResponse> {
     const cacheKey = `calendar:${profileId}`;
     const cached = await redis.get(cacheKey);
     if (cached) {
-      return JSON.parse(cached) as { generatedAt: string; items: CalendarItem[] };
+      return JSON.parse(cached) as CalendarResponse;
     }
 
     const items = await withTransaction(async (client) => {

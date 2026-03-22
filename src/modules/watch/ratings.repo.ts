@@ -51,4 +51,18 @@ export class RatingsRepository {
     );
     return result.rows[0] ?? null;
   }
+
+  async list(client: DbClient, profileId: string, limit: number): Promise<Record<string, unknown>[]> {
+    const result = await client.query(
+      `
+        SELECT media_key, media_type, tmdb_id, rating, rated_at, payload
+        FROM ratings
+        WHERE profile_id = $1::uuid
+        ORDER BY rated_at DESC
+        LIMIT $2
+      `,
+      [profileId, limit],
+    );
+    return result.rows;
+  }
 }

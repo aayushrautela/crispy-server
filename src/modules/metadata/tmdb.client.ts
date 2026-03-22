@@ -21,6 +21,10 @@ export class TmdbClient {
     return fetchTmdbJson(`/${mediaType}/${tmdbId}`);
   }
 
+  async findByExternalId(externalId: string, externalSource: string): Promise<Record<string, unknown>> {
+    return fetchTmdbJson(`/find/${encodeURIComponent(externalId)}?external_source=${encodeURIComponent(externalSource)}`);
+  }
+
   async fetchExternalIds(mediaType: TmdbTitleType, tmdbId: number): Promise<Record<string, unknown>> {
     return fetchTmdbJson(`/${mediaType}/${tmdbId}/external_ids`);
   }

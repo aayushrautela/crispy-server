@@ -1,12 +1,13 @@
 import type { HydratedWatchItem } from '../watch/watch-read.types.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
+import type { HomeResponse } from './home.types.js';
 
 export class HomeBuilderService {
   build(params: {
     continueWatching: HydratedWatchItem[];
     history: HydratedWatchItem[];
     calendarItems: CalendarItem[];
-  }): Record<string, unknown> {
+  }): HomeResponse {
     const upNext = params.calendarItems.filter((item) => item.bucket === 'up_next' || item.bucket === 'this_week').slice(0, 10);
     const recentlyReleased = params.calendarItems.filter((item) => item.bucket === 'recently_released').slice(0, 10);
 

@@ -8,6 +8,7 @@ import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
 import { WatchlistRepository } from './watchlist.repo.js';
+import type { WatchStateLookupInput, WatchStateResponse } from './watch-read.types.js';
 
 export class WatchStateService {
   constructor(
@@ -20,14 +21,7 @@ export class WatchStateService {
     private readonly ratingsRepository = new RatingsRepository(),
   ) {}
 
-  async getState(userId: string, profileId: string, input: {
-    mediaKey?: string;
-    mediaType?: string;
-    tmdbId?: number | null;
-    showTmdbId?: number | null;
-    seasonNumber?: number | null;
-    episodeNumber?: number | null;
-  }): Promise<Record<string, unknown>> {
+  async getState(userId: string, profileId: string, input: WatchStateLookupInput): Promise<WatchStateResponse> {
     return withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
       if (!profile) {
@@ -62,43 +56,44 @@ export class WatchStateService {
           : null,
         continueWatching: continueWatching
           ? {
-              id: continueWatching.id,
-              positionSeconds: continueWatching.position_seconds,
-              durationSeconds: continueWatching.duration_seconds,
-              progressPercent: continueWatching.progress_percent,
-              lastActivityAt: continueWatching.last_activity_at,
+              id: String(continueWatching.id),
+              positionSeconds: continueWatching.position_seconds === null ? null : Number(continueWatching.position_seconds),
+              durationSeconds: continueWatching.duration_seconds === null ? null : Number(continueWatching.duration_seconds),
+              progressPercent: Number(continueWatching.progress_percent ?? 0),
+              lastActivityAt: String(continueWatching.last_activity_at),
             }
           : null,
         watched: watched
           ? {
-              watchedAt: watched.watched_at,
+              watchedAt: String(watched.watched_at),
             }
           : null,
         watchlist: watchlist
           ? {
-              addedAt: watchlist.added_at,
+              addedAt: String(watchlist.added_at),
             }
           : null,
         rating: rating
           ? {
-              value: rating.rating,
-              ratedAt: rating.rated_at,
+              value: Number(rating.rating),
+              ratedAt: String(rating.rated_at),
             }
           : null,
         watchedEpisodeKeys,
       };
     });
   }
+
+  async getStates(userId: string, profileId: string, inputs: WatchStateLookupInput[]): Promise<WatchStateResponse[]> {
+    if (inputs.length === 0) {
+      return [];
+    }
+
+    return Promise.all(inputs.map((input) => this.getState(userId, profileId, input)));
+  }
 }
 
-function resolveIdentity(input: {
-  mediaKey?: string;
-  mediaType?: string;
-  tmdbId?: number | null;
-  showTmdbId?: number | null;
-  seasonNumber?: number | null;
-  episodeNumber?: number | null;
-}): MediaIdentity {
+function resolveIdentity(input: WatchStateLookupInput): MediaIdentity {
   if (input.mediaKey?.trim()) {
     return parseMediaKey(input.mediaKey.trim());
   }

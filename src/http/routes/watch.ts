@@ -2,12 +2,15 @@ import type { FastifyInstance } from 'fastify';
 import { ContinueWatchingService } from '../../modules/watch/continue-watching.service.js';
 import { WatchEventIngestService } from '../../modules/watch/event-ingest.service.js';
 import { WatchHistoryQueryService } from '../../modules/watch/history.service.js';
+import { WatchCollectionService } from '../../modules/watch/watch-collection.service.js';
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
+import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
   const continueWatchingService = new ContinueWatchingService();
   const historyService = new WatchHistoryQueryService();
+  const watchCollectionService = new WatchCollectionService();
   const watchStateService = new WatchStateService();
 
   app.post('/v1/watch/events', async (request, reply) => {
@@ -60,18 +63,44 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
+  app.get('/v1/watch/watchlist', async (request) => {
+    await app.requireAuth(request);
+    const profileId = app.requireProfileId(request);
+    const limit = Number((request.query as { limit?: string }).limit ?? 50);
+    return {
+      items: await watchCollectionService.listWatchlist(request.auth!.appUserId, profileId, limit),
+    };
+  });
+
+  app.get('/v1/watch/ratings', async (request) => {
+    await app.requireAuth(request);
+    const profileId = app.requireProfileId(request);
+    const limit = Number((request.query as { limit?: string }).limit ?? 50);
+    return {
+      items: await watchCollectionService.listRatings(request.auth!.appUserId, profileId, limit),
+    };
+  });
+
   app.get('/v1/watch/state', async (request) => {
     await app.requireAuth(request);
     const profileId = app.requireProfileId(request);
     const query = request.query as Record<string, unknown>;
-    return watchStateService.getState(request.auth!.appUserId, profileId, {
-      mediaKey: typeof query.mediaKey === 'string' ? query.mediaKey : undefined,
-      mediaType: typeof query.mediaType === 'string' ? query.mediaType : undefined,
-      tmdbId: parseOptionalNumber(query.tmdbId),
-      showTmdbId: parseOptionalNumber(query.showTmdbId),
-      seasonNumber: parseOptionalNumber(query.seasonNumber),
-      episodeNumber: parseOptionalNumber(query.episodeNumber),
-    });
+    return watchStateService.getState(request.auth!.appUserId, profileId, mapStateLookupInput(query));
+  });
+
+  app.post('/v1/watch/states', async (request) => {
+    await app.requireAuth(request);
+    const profileId = app.requireProfileId(request);
+    const body = (request.body ?? {}) as { items?: unknown };
+    const items = Array.isArray(body.items) ? body.items : [];
+
+    return {
+      items: await watchStateService.getStates(
+        request.auth!.appUserId,
+        profileId,
+        items.map((item) => mapStateLookupInput((item ?? {}) as Record<string, unknown>)),
+      ),
+    };
   });
 
   app.post('/v1/watch/mark-watched', async (request) => {
@@ -149,4 +178,15 @@ function parseOptionalNumber(value: unknown): number | null | undefined {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function mapStateLookupInput(query: Record<string, unknown>): WatchStateLookupInput {
+  return {
+    mediaKey: typeof query.mediaKey === 'string' ? query.mediaKey : undefined,
+    mediaType: typeof query.mediaType === 'string' ? query.mediaType : undefined,
+    tmdbId: parseOptionalNumber(query.tmdbId),
+    showTmdbId: parseOptionalNumber(query.showTmdbId),
+    seasonNumber: parseOptionalNumber(query.seasonNumber),
+    episodeNumber: parseOptionalNumber(query.episodeNumber),
+  };
 }

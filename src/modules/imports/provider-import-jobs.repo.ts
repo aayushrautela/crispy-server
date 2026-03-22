@@ -109,6 +109,47 @@ export class ProviderImportJobsRepository {
     return result.rows[0] ? mapJob(result.rows[0]) : null;
   }
 
+  async findLatestOauthPendingForConnection(client: DbClient, connectionId: string): Promise<ProviderImportJobRecord | null> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+               checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
+        FROM provider_import_jobs
+        WHERE connection_id = $1::uuid AND status = 'oauth_pending'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      [connectionId],
+    );
+    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
+
+  async markQueued(client: DbClient, jobId: string, params?: {
+    connectionId?: string | null;
+    summaryJson?: Record<string, unknown>;
+    checkpointJson?: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE provider_import_jobs
+        SET status = 'queued',
+            connection_id = COALESCE($2::uuid, connection_id),
+            summary_json = CASE WHEN $3::jsonb IS NULL THEN summary_json ELSE $3::jsonb END,
+            checkpoint_json = CASE WHEN $4::jsonb IS NULL THEN checkpoint_json ELSE $4::jsonb END,
+            error_json = '{}'::jsonb,
+            finished_at = null,
+            updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [
+        jobId,
+        params?.connectionId ?? null,
+        params?.summaryJson ? JSON.stringify(params.summaryJson) : null,
+        params?.checkpointJson ? JSON.stringify(params.checkpointJson) : null,
+      ],
+    );
+  }
+
   async markRunning(client: DbClient, jobId: string): Promise<void> {
     await client.query(
       `
@@ -117,6 +158,72 @@ export class ProviderImportJobsRepository {
         WHERE id = $1::uuid
       `,
       [jobId],
+    );
+  }
+
+  async markSucceeded(client: DbClient, jobId: string, params?: {
+    summaryJson?: Record<string, unknown>;
+    checkpointJson?: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE provider_import_jobs
+        SET status = 'succeeded',
+            summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
+            checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
+            error_json = '{}'::jsonb,
+            finished_at = now(),
+            updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [
+        jobId,
+        params?.summaryJson ? JSON.stringify(params.summaryJson) : null,
+        params?.checkpointJson ? JSON.stringify(params.checkpointJson) : null,
+      ],
+    );
+  }
+
+  async markSucceededWithWarnings(client: DbClient, jobId: string, params?: {
+    summaryJson?: Record<string, unknown>;
+    checkpointJson?: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE provider_import_jobs
+        SET status = 'succeeded_with_warnings',
+            summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
+            checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
+            error_json = '{}'::jsonb,
+            finished_at = now(),
+            updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [
+        jobId,
+        params?.summaryJson ? JSON.stringify(params.summaryJson) : null,
+        params?.checkpointJson ? JSON.stringify(params.checkpointJson) : null,
+      ],
+    );
+  }
+
+  async updateProgress(client: DbClient, jobId: string, params: {
+    summaryJson?: Record<string, unknown>;
+    checkpointJson?: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE provider_import_jobs
+        SET summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
+            checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
+            updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [
+        jobId,
+        params.summaryJson ? JSON.stringify(params.summaryJson) : null,
+        params.checkpointJson ? JSON.stringify(params.checkpointJson) : null,
+      ],
     );
   }
 

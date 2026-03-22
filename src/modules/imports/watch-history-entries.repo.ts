@@ -37,6 +37,10 @@ function mapEntry(row: Record<string, unknown>): WatchHistoryEntryRecord {
 }
 
 export class WatchHistoryEntriesRepository {
+  async clearForProfile(client: DbClient, profileId: string): Promise<void> {
+    await client.query(`DELETE FROM watch_history_entries WHERE profile_id = $1::uuid`, [profileId]);
+  }
+
   async append(client: DbClient, params: {
     profileId: string;
     householdId: string;

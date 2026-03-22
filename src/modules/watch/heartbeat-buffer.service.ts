@@ -83,4 +83,20 @@ export class HeartbeatBufferService {
     );
     return result === 1;
   }
+
+  async clearAllForProfile(profileId: string): Promise<number> {
+    const pattern = `watch:heartbeat:latest:${profileId}:*`;
+    let cursor = '0';
+    let deleted = 0;
+
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        deleted += await redis.del(...keys);
+      }
+    } while (cursor !== '0');
+
+    return deleted;
+  }
 }

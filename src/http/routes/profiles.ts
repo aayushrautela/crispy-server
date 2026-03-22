@@ -57,11 +57,35 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     return providerImportService.listJobs(request.auth!.appUserId, params.profileId);
   });
 
+  app.get('/v1/profiles/:profileId/import-connections', async (request) => {
+    await app.requireAuth(request);
+    const params = request.params as { profileId: string };
+    return providerImportService.listConnections(request.auth!.appUserId, params.profileId);
+  });
+
   app.get('/v1/profiles/:profileId/imports/:jobId', async (request) => {
     await app.requireAuth(request);
     const params = request.params as { profileId: string; jobId: string };
     return {
       job: await providerImportService.getJob(request.auth!.appUserId, params.profileId, params.jobId),
     };
+  });
+
+  app.get('/v1/imports/:provider/callback', async (request, reply) => {
+    const params = request.params as { provider: string };
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const completed = await providerImportService.completeOAuthCallback(parseImportProvider(params.provider), {
+      state: String(query.state ?? '').trim(),
+      code: typeof query.code === 'string' ? query.code : undefined,
+      error: typeof query.error === 'string' ? query.error : undefined,
+      errorDescription:
+        typeof query.error_description === 'string'
+          ? query.error_description
+          : typeof query.errorDescription === 'string'
+            ? query.errorDescription
+            : undefined,
+    });
+    reply.code(202);
+    return completed;
   });
 }

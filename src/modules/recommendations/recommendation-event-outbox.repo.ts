@@ -39,6 +39,10 @@ function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecor
 }
 
 export class RecommendationEventOutboxRepository {
+  async clearForProfile(client: DbClient, profileId: string): Promise<void> {
+    await client.query(`DELETE FROM recommendation_event_outbox WHERE profile_id = $1::uuid`, [profileId]);
+  }
+
   async append(client: DbClient, params: {
     profileId: string;
     historyGeneration: number;
