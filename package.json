@@ -8,6 +8,7 @@
     "dev:worker": "tsx watch src/bin/worker.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "migrate": "tsx scripts/migrate.ts",
     "migrate:prod": "node dist/scripts/migrate.js",
     "seed:dev": "tsx scripts/seed-dev.ts",

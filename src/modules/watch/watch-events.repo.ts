@@ -12,6 +12,18 @@ export type PersistedWatchEvent = {
   occurredAt: string;
 };
 
+export type RebuildableWatchEvent = PersistedWatchEvent & {
+  mediaType: string;
+  tmdbId: number | null;
+  showTmdbId: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  positionSeconds: number | null;
+  durationSeconds: number | null;
+  rating: number | null;
+  payload: Record<string, unknown>;
+};
+
 export class WatchEventsRepository {
   async insert(client: DbClient, params: {
     householdId: string;
@@ -97,5 +109,37 @@ export class WatchEventsRepository {
       mediaKey: String(result.rows[0].media_key),
       occurredAt: String(result.rows[0].occurred_at),
     };
+  }
+
+  async listForProfile(client: DbClient, profileId: string): Promise<RebuildableWatchEvent[]> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, household_id, event_type, media_key, media_type,
+               tmdb_id, show_tmdb_id, season_number, episode_number,
+               position_seconds, duration_seconds, rating, occurred_at, payload
+        FROM watch_events
+        WHERE profile_id = $1::uuid
+        ORDER BY occurred_at ASC, created_at ASC, id ASC
+      `,
+      [profileId],
+    );
+
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      profileId: String(row.profile_id),
+      householdId: String(row.household_id),
+      eventType: String(row.event_type),
+      mediaKey: String(row.media_key),
+      mediaType: String(row.media_type),
+      tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
+      showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
+      seasonNumber: row.season_number === null ? null : Number(row.season_number),
+      episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
+      positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
+      durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
+      rating: row.rating === null ? null : Number(row.rating),
+      occurredAt: String(row.occurred_at),
+      payload: (row.payload as Record<string, unknown> | undefined) ?? {},
+    }));
   }
 }

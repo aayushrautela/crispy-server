@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import type { TmdbEpisodeRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
   return {
@@ -36,6 +36,21 @@ function mapEpisode(row: Record<string, unknown>): TmdbEpisodeRecord {
     runtime: row.runtime === null || row.runtime === undefined ? null : Number(row.runtime),
     stillPath: typeof row.still_path === 'string' ? row.still_path : null,
     voteAverage: row.vote_average === null || row.vote_average === undefined ? null : Number(row.vote_average),
+    raw: (row.raw as Record<string, unknown> | undefined) ?? {},
+    fetchedAt: String(row.fetched_at),
+    expiresAt: String(row.expires_at),
+  };
+}
+
+function mapSeason(row: Record<string, unknown>): TmdbSeasonRecord {
+  return {
+    showTmdbId: Number(row.show_tmdb_id),
+    seasonNumber: Number(row.season_number),
+    name: typeof row.name === 'string' ? row.name : null,
+    overview: typeof row.overview === 'string' ? row.overview : null,
+    airDate: row.air_date ? String(row.air_date) : null,
+    posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
+    episodeCount: row.episode_count === null || row.episode_count === undefined ? null : Number(row.episode_count),
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
     fetchedAt: String(row.fetched_at),
     expiresAt: String(row.expires_at),
@@ -110,6 +125,19 @@ export class TmdbRepository {
         record.expiresAt,
       ],
     );
+  }
+
+  async getSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbSeasonRecord | null> {
+    const result = await client.query(
+      `
+        SELECT show_tmdb_id, season_number, name, overview, air_date, poster_path, episode_count, raw, fetched_at, expires_at
+        FROM tmdb_tv_seasons
+        WHERE show_tmdb_id = $1 AND season_number = $2
+      `,
+      [showTmdbId, seasonNumber],
+    );
+
+    return result.rows[0] ? mapSeason(result.rows[0]) : null;
   }
 
   async replaceSeasonEpisodes(client: DbClient, params: {

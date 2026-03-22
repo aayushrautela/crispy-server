@@ -65,3 +65,7 @@ export async function enqueueRefreshCalendarCache(profileId: string): Promise<vo
 export async function enqueueMetadataRefresh(profileId: string, mediaKey?: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, mediaKey, reason: 'metadata-refresh' });
 }
+
+export async function enqueueRebuildProfileProjections(profileId: string): Promise<void> {
+  await enqueueProjectionRefreshJob({ profileId, reason: 'rebuild-profile-projections' });
+}

@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
 import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
-import { showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
@@ -153,8 +153,27 @@ export class WatchProjectorService {
     await this.ratingsRepository.delete(client, params.profileId, params.mediaKey);
   }
 
-  async dismissContinueWatching(client: DbClient, params: { profileId: string; projectionId: string }): Promise<void> {
-    await this.continueWatchingRepository.dismissById(client, params.profileId, params.projectionId);
+  async dismissContinueWatching(client: DbClient, params: {
+    profileId: string;
+    projectionId?: string;
+    mediaKey: string;
+    eventId: string;
+    occurredAt: string;
+  }): Promise<void> {
+    if (params.projectionId) {
+      await this.continueWatchingRepository.dismissById(client, params.profileId, params.projectionId);
+    } else {
+      await this.continueWatchingRepository.dismissByMediaKey(client, params.profileId, params.mediaKey);
+    }
+    await this.mediaProgressRepository.dismissContinueWatching(client, params.profileId, params.mediaKey);
+    const showTmdbId = parseTrackedShowTmdbId(params.mediaKey);
+    if (showTmdbId) {
+      await this.trackedSeriesRepository.updateMetadataState(client, {
+        profileId: params.profileId,
+        showTmdbId,
+        metadataRefreshedAt: params.occurredAt,
+      });
+    }
   }
 
   private async refreshMetadataReferences(
@@ -193,4 +212,9 @@ export class WatchProjectorService {
       metadataRefreshedAt: new Date().toISOString(),
     });
   }
+}
+
+function parseTrackedShowTmdbId(mediaKey: string): number | null {
+  const identity = parseMediaKey(mediaKey);
+  return showTmdbIdForIdentity(identity);
 }

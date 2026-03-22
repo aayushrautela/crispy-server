@@ -27,6 +27,18 @@ function mapProfile(row: Record<string, unknown>): ProfileRecord {
 }
 
 export class ProfileRepository {
+  async findById(client: DbClient, profileId: string): Promise<ProfileRecord | null> {
+    const result = await client.query(
+      `
+        SELECT id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        FROM profiles
+        WHERE id = $1::uuid
+      `,
+      [profileId],
+    );
+    return result.rows[0] ? mapProfile(result.rows[0]) : null;
+  }
+
   async listForHousehold(client: DbClient, householdId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `

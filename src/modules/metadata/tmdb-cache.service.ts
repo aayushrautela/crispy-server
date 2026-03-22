@@ -3,7 +3,7 @@ import { env } from '../../config/env.js';
 import type { DbClient } from '../../lib/db.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
-import type { TmdbEpisodeRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function toNullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
@@ -93,6 +93,20 @@ export class TmdbCacheService {
       fetchedAt: now,
       expiresAt,
     });
+  }
+
+  async getSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbSeasonRecord | null> {
+    return this.tmdbRepository.getSeason(client, showTmdbId, seasonNumber);
+  }
+
+  async ensureSeasonCached(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbSeasonRecord | null> {
+    const cached = await this.tmdbRepository.getSeason(client, showTmdbId, seasonNumber);
+    if (cached && Date.parse(cached.expiresAt) > Date.now()) {
+      return cached;
+    }
+
+    await this.refreshSeason(client, showTmdbId, seasonNumber);
+    return this.tmdbRepository.getSeason(client, showTmdbId, seasonNumber);
   }
 
   async listEpisodesForShow(client: DbClient, showTmdbId: number): Promise<TmdbEpisodeRecord[]> {

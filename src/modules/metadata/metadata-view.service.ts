@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { env } from '../../config/env.js';
 import type { MediaIdentity } from '../watch/media-key.js';
+import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type { MetadataView, TmdbEpisodeRecord, TmdbTitleRecord } from './tmdb.types.js';
 
@@ -36,10 +37,9 @@ export class MetadataViewService {
     let nextEpisode: TmdbEpisodeRecord | null = null;
 
     if (identity.showTmdbId) {
-      if (title?.numberOfSeasons) {
-        for (let season = 1; season <= title.numberOfSeasons; season += 1) {
-          await this.tmdbCacheService.refreshSeason(client, identity.showTmdbId, season);
-        }
+      const seasonsToEnsure = collectRelevantSeasonNumbers(identity, title);
+      for (const seasonNumber of seasonsToEnsure) {
+        await this.tmdbCacheService.ensureSeasonCached(client, identity.showTmdbId, seasonNumber);
       }
 
       const episodes = await this.tmdbCacheService.listEpisodesForShow(client, identity.showTmdbId);
@@ -49,18 +49,7 @@ export class MetadataViewService {
         ) ?? null;
       }
       if (identity.mediaType === 'episode') {
-        nextEpisode = episodes.find((episode) => {
-          if (!episode.airDate || Date.parse(episode.airDate) > Date.now()) {
-            return false;
-          }
-          if (episode.seasonNumber < (identity.seasonNumber ?? 0)) {
-            return false;
-          }
-          if (episode.seasonNumber === identity.seasonNumber && episode.episodeNumber <= (identity.episodeNumber ?? 0)) {
-            return false;
-          }
-          return true;
-        }) ?? null;
+        nextEpisode = selectNextEpisode(identity, title, episodes);
       }
     }
 
@@ -90,4 +79,47 @@ export class MetadataViewService {
       nextEpisode,
     };
   }
+}
+
+function collectRelevantSeasonNumbers(identity: MediaIdentity, title: TmdbTitleRecord | null): number[] {
+  const seasons = new Set<number>();
+
+  if (identity.seasonNumber && identity.seasonNumber > 0) {
+    seasons.add(identity.seasonNumber);
+  }
+
+  const nextEpisode = extractNextEpisodeToAir(title);
+  if (nextEpisode?.seasonNumber) {
+    seasons.add(nextEpisode.seasonNumber);
+  }
+
+  if (seasons.size === 0 && title?.numberOfSeasons && title.numberOfSeasons > 0) {
+    seasons.add(title.numberOfSeasons);
+  }
+
+  return Array.from(seasons).sort((left, right) => left - right);
+}
+
+function selectNextEpisode(
+  identity: MediaIdentity,
+  title: TmdbTitleRecord | null,
+  episodes: TmdbEpisodeRecord[],
+): TmdbEpisodeRecord | null {
+  const tmdbNextEpisode = extractNextEpisodeToAir(title);
+  if (tmdbNextEpisode) {
+    return tmdbNextEpisode;
+  }
+
+  return episodes.find((episode) => {
+    if (!episode.airDate || Date.parse(episode.airDate) > Date.now()) {
+      return false;
+    }
+    if (episode.seasonNumber < (identity.seasonNumber ?? 0)) {
+      return false;
+    }
+    if (episode.seasonNumber === identity.seasonNumber && episode.episodeNumber <= (identity.episodeNumber ?? 0)) {
+      return false;
+    }
+    return true;
+  }) ?? null;
 }

@@ -78,6 +78,17 @@ export class ContinueWatchingRepository {
     );
   }
 
+  async dismissByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<void> {
+    await client.query(
+      `
+        UPDATE continue_watching_projection
+        SET dismissed_at = now(), updated_at = now()
+        WHERE profile_id = $1::uuid AND media_key = $2
+      `,
+      [profileId, mediaKey],
+    );
+  }
+
   async list(client: DbClient, profileId: string, limit: number): Promise<Record<string, unknown>[]> {
     const result = await client.query(
       `
@@ -103,6 +114,19 @@ export class ContinueWatchingRepository {
         WHERE profile_id = $1::uuid AND media_key = $2 AND dismissed_at IS NULL
       `,
       [profileId, mediaKey],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findById(client: DbClient, profileId: string, projectionId: string): Promise<Record<string, unknown> | null> {
+    const result = await client.query(
+      `
+        SELECT id, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+               position_seconds, duration_seconds, progress_percent, last_activity_at, payload
+        FROM continue_watching_projection
+        WHERE id = $1::uuid AND profile_id = $2::uuid AND dismissed_at IS NULL
+      `,
+      [projectionId, profileId],
     );
     return result.rows[0] ?? null;
   }

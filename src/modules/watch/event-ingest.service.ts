@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
+import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { isBufferedHeartbeatEvent } from './heartbeat-policy.js';
-import { inferMediaIdentity } from './media-key.js';
+import { inferMediaIdentity, parseMediaKey } from './media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
@@ -15,6 +16,7 @@ export class WatchEventIngestService {
     private readonly profileRepository = new ProfileRepository(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
+    private readonly continueWatchingRepository = new ContinueWatchingRepository(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
   ) {}
@@ -70,11 +72,7 @@ export class WatchEventIngestService {
   }
 
   async removeWatchlist(userId: string, profileId: string, mediaKey: string): Promise<WatchIngestResult> {
-    await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+    await this.applyMutationByMediaKey(userId, profileId, 'watchlist_remove', mediaKey, async (client) => {
       await this.projector.removeWatchlist(client, { profileId, mediaKey });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
@@ -101,11 +99,7 @@ export class WatchEventIngestService {
   }
 
   async removeRating(userId: string, profileId: string, mediaKey: string): Promise<WatchIngestResult> {
-    await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+    await this.applyMutationByMediaKey(userId, profileId, 'rating_remove', mediaKey, async (client) => {
       await this.projector.removeRating(client, { profileId, mediaKey });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
@@ -116,14 +110,49 @@ export class WatchEventIngestService {
   }
 
   async dismissContinueWatching(userId: string, profileId: string, projectionId: string): Promise<WatchIngestResult> {
+    let mediaKey: string | null = null;
     await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      await this.projector.dismissContinueWatching(client, { profileId, projectionId });
+
+      const continueWatching = await this.continueWatchingRepository.findById(client, profileId, projectionId);
+      if (!continueWatching) {
+        throw new HttpError(404, 'Continue watching item not found.');
+      }
+
+      mediaKey = String(continueWatching.media_key);
+      const identity = parseMediaKey(mediaKey);
+      const occurredAt = new Date().toISOString();
+      const event = await this.watchEventsRepository.insert(client, {
+        householdId: profile.householdId,
+        profileId,
+        input: {
+          clientEventId: randomUUID(),
+          eventType: 'continue_watching_dismissed',
+          mediaKey: identity.mediaKey,
+          mediaType: identity.mediaType,
+          tmdbId: identity.tmdbId,
+          showTmdbId: identity.showTmdbId,
+          seasonNumber: identity.seasonNumber,
+          episodeNumber: identity.episodeNumber,
+          occurredAt,
+          payload: {},
+        },
+        identity,
+      });
+
+      await this.projector.dismissContinueWatching(client, {
+        profileId,
+        projectionId,
+        mediaKey: identity.mediaKey,
+        eventId: event.id,
+        occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
+      mediaKey: mediaKey ?? undefined,
       refreshMetadata: false,
     });
     return { accepted: true, mode: 'synchronous' };
@@ -224,6 +253,42 @@ export class WatchEventIngestService {
         rating: typeof input.rating === 'number' ? input.rating : undefined,
         payload: input.payload,
       });
+    });
+  }
+
+  private async applyMutationByMediaKey(
+    userId: string,
+    profileId: string,
+    eventType: string,
+    mediaKey: string,
+    apply: (client: import('../../lib/db.js').DbClient) => Promise<void>,
+  ): Promise<void> {
+    await withTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+
+      const identity = parseMediaKey(mediaKey);
+      await this.watchEventsRepository.insert(client, {
+        householdId: profile.householdId,
+        profileId,
+        input: {
+          clientEventId: randomUUID(),
+          eventType,
+          mediaKey: identity.mediaKey,
+          mediaType: identity.mediaType,
+          tmdbId: identity.tmdbId,
+          showTmdbId: identity.showTmdbId,
+          seasonNumber: identity.seasonNumber,
+          episodeNumber: identity.episodeNumber,
+          occurredAt: new Date().toISOString(),
+          payload: {},
+        },
+        identity,
+      });
+
+      await apply(client);
     });
   }
 }

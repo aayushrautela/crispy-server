@@ -37,6 +37,19 @@ export type TmdbEpisodeRecord = {
   expiresAt: string;
 };
 
+export type TmdbSeasonRecord = {
+  showTmdbId: number;
+  seasonNumber: number;
+  name: string | null;
+  overview: string | null;
+  airDate: string | null;
+  posterPath: string | null;
+  episodeCount: number | null;
+  raw: Record<string, unknown>;
+  fetchedAt: string;
+  expiresAt: string;
+};
+
 export type MetadataArtwork = {
   posterUrl: string | null;
   backdropUrl: string | null;
