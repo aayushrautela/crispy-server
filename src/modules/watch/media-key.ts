@@ -1,13 +1,23 @@
 import { HttpError } from '../../lib/errors.js';
 
+export type SupportedMediaType = 'movie' | 'show' | 'episode';
+
 export type MediaIdentity = {
   mediaKey: string;
-  mediaType: string;
+  mediaType: SupportedMediaType;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
 };
+
+export function ensureSupportedMediaType(value: string): SupportedMediaType {
+  if (value === 'movie' || value === 'show' || value === 'episode') {
+    return value;
+  }
+
+  throw new HttpError(400, 'Unsupported media type.');
+}
 
 export function showTmdbIdForIdentity(identity: MediaIdentity): number | null {
   if (identity.mediaType === 'show') {
@@ -67,13 +77,13 @@ export function inferMediaIdentity(input: {
   episodeNumber?: number | null;
 }): MediaIdentity {
   if (input.mediaKey?.trim()) {
+    const parsed = parseMediaKey(input.mediaKey.trim());
     return {
-      mediaKey: input.mediaKey.trim(),
-      mediaType: input.mediaType,
-      tmdbId: input.tmdbId ?? null,
-      showTmdbId: input.showTmdbId ?? null,
-      seasonNumber: input.seasonNumber ?? null,
-      episodeNumber: input.episodeNumber ?? null,
+      ...parsed,
+      tmdbId: input.tmdbId ?? parsed.tmdbId,
+      showTmdbId: input.showTmdbId ?? parsed.showTmdbId,
+      seasonNumber: input.seasonNumber ?? parsed.seasonNumber,
+      episodeNumber: input.episodeNumber ?? parsed.episodeNumber,
     };
   }
 

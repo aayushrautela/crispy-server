@@ -6,22 +6,43 @@ import type { CalendarItem, HydratedWatchItem } from '../watch/watch-read.types.
 function createWatchItem(mediaKey: string): HydratedWatchItem {
   return {
     media: {
+      id: mediaKey.replace(/:/g, '-'),
       mediaKey,
       mediaType: mediaKey.startsWith('movie:') ? 'movie' : 'episode',
+      kind: mediaKey.startsWith('episode:') ? 'episode' : 'title',
       tmdbId: 1,
       showTmdbId: mediaKey.startsWith('episode:') ? 10 : null,
       seasonNumber: mediaKey.startsWith('episode:') ? 1 : null,
       episodeNumber: mediaKey.startsWith('episode:') ? 1 : null,
       title: mediaKey,
       subtitle: null,
+      summary: null,
       overview: null,
       artwork: {
         posterUrl: null,
         backdropUrl: null,
         stillUrl: null,
       },
+      images: {
+        posterUrl: null,
+        backdropUrl: null,
+        stillUrl: null,
+        logoUrl: null,
+      },
       releaseDate: null,
+      releaseYear: null,
       runtimeMinutes: null,
+      rating: null,
+      certification: null,
+      status: null,
+      genres: [],
+      externalIds: {
+        tmdb: 1,
+        imdb: null,
+        tvdb: null,
+      },
+      seasonCount: mediaKey.startsWith('episode:') ? 5 : null,
+      episodeCount: mediaKey.startsWith('episode:') ? 50 : null,
       nextEpisode: null,
     },
   };

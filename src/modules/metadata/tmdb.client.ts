@@ -1,10 +1,19 @@
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
-import type { TmdbSeasonApiResponse, TmdbTitleApiResponse, TmdbTitleType } from './tmdb.types.js';
+import type { TmdbSeasonApiResponse, TmdbSearchApiResponse, TmdbTitleApiResponse, TmdbTitleType } from './tmdb.types.js';
 
-async function fetchTmdbJson(pathname: string): Promise<Record<string, unknown>> {
+async function fetchTmdbJson(
+  pathname: string,
+  query: Record<string, string | number | undefined> = {},
+): Promise<Record<string, unknown>> {
   const url = new URL(`${env.tmdbBaseUrl.replace(/\/$/, '')}${pathname}`);
   url.searchParams.set('api_key', env.tmdbApiKey);
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined) {
+      continue;
+    }
+    url.searchParams.set(key, String(value));
+  }
 
   const response = await fetch(url);
   if (response.status === 404) {
@@ -18,11 +27,17 @@ async function fetchTmdbJson(pathname: string): Promise<Record<string, unknown>>
 
 export class TmdbClient {
   async fetchTitle(mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleApiResponse> {
-    return fetchTmdbJson(`/${mediaType}/${tmdbId}`);
+    const appendToResponse = mediaType === 'movie' ? 'images,release_dates' : 'images,content_ratings';
+    return fetchTmdbJson(`/${mediaType}/${tmdbId}`, {
+      append_to_response: appendToResponse,
+      include_image_language: 'en,null',
+    });
   }
 
   async findByExternalId(externalId: string, externalSource: string): Promise<Record<string, unknown>> {
-    return fetchTmdbJson(`/find/${encodeURIComponent(externalId)}?external_source=${encodeURIComponent(externalSource)}`);
+    return fetchTmdbJson(`/find/${encodeURIComponent(externalId)}`, {
+      external_source: externalSource,
+    });
   }
 
   async fetchExternalIds(mediaType: TmdbTitleType, tmdbId: number): Promise<Record<string, unknown>> {
@@ -31,5 +46,13 @@ export class TmdbClient {
 
   async fetchSeason(showTmdbId: number, seasonNumber: number): Promise<TmdbSeasonApiResponse> {
     return fetchTmdbJson(`/tv/${showTmdbId}/season/${seasonNumber}`);
+  }
+
+  async searchTitles(query: string, page = 1): Promise<TmdbSearchApiResponse> {
+    return fetchTmdbJson('/search/multi', {
+      query,
+      page,
+      include_adult: 'false',
+    });
   }
 }

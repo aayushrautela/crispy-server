@@ -7,6 +7,7 @@ import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerHomeRoutes } from './routes/home.js';
 import { registerMeRoutes } from './routes/me.js';
+import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
 import { registerWatchRoutes } from './routes/watch.js';
@@ -31,6 +32,7 @@ export async function buildApp() {
   await registerMeRoutes(app);
   await registerProfileRoutes(app);
   await registerProfileSettingsRoutes(app);
+  await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
   await registerHomeRoutes(app);
   await registerCalendarRoutes(app);

@@ -1,6 +1,7 @@
 import { addHours } from './tmdb-time.js';
 import { env } from '../../config/env.js';
 import type { DbClient } from '../../lib/db.js';
+import { HttpError } from '../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
@@ -58,6 +59,10 @@ export class TmdbCacheService {
     return record;
   }
 
+  async ensureTitleCached(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
+    return this.getTitle(client, mediaType, tmdbId);
+  }
+
   async refreshSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<void> {
     const season = await this.tmdbClient.fetchSeason(showTmdbId, seasonNumber);
     const now = new Date().toISOString();
@@ -111,5 +116,41 @@ export class TmdbCacheService {
 
   async listEpisodesForShow(client: DbClient, showTmdbId: number): Promise<TmdbEpisodeRecord[]> {
     return this.tmdbRepository.listEpisodesForShow(client, showTmdbId);
+  }
+
+  async listEpisodesForSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbEpisodeRecord[]> {
+    return this.tmdbRepository.listEpisodesForSeason(client, showTmdbId, seasonNumber);
+  }
+
+  async searchTitles(client: DbClient, query: string, limit: number): Promise<TmdbTitleRecord[]> {
+    const cached = await this.tmdbRepository.searchTitles(client, query, limit);
+    if (cached.length >= Math.min(limit, 5)) {
+      return cached;
+    }
+
+    const payload = await this.tmdbClient.searchTitles(query);
+    const results = Array.isArray(payload.results) ? payload.results : [];
+
+    for (const result of results) {
+      const mediaType = result && typeof result === 'object' && result.media_type === 'movie'
+        ? 'movie'
+        : result && typeof result === 'object' && result.media_type === 'tv'
+          ? 'tv'
+          : null;
+      const tmdbId = result && typeof result === 'object' && typeof result.id === 'number' ? result.id : null;
+      if (!mediaType || !tmdbId) {
+        continue;
+      }
+
+      try {
+        await this.ensureTitleCached(client, mediaType, tmdbId);
+      } catch (error) {
+        if (!(error instanceof HttpError && error.statusCode === 404)) {
+          throw error;
+        }
+      }
+    }
+
+    return this.tmdbRepository.searchTitles(client, query, limit);
   }
 }

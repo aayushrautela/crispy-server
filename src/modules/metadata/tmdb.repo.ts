@@ -58,6 +58,31 @@ function mapSeason(row: Record<string, unknown>): TmdbSeasonRecord {
 }
 
 export class TmdbRepository {
+  async searchTitles(client: DbClient, query: string, limit: number): Promise<TmdbTitleRecord[]> {
+    const result = await client.query(
+      `
+        SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
+               poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
+               external_ids, raw, fetched_at, expires_at,
+               CASE
+                 WHEN lower(coalesce(name, '')) = lower($1) THEN 0
+                 WHEN lower(coalesce(original_name, '')) = lower($1) THEN 1
+                 WHEN lower(coalesce(name, '')) LIKE lower($1) || '%' THEN 2
+                 WHEN lower(coalesce(original_name, '')) LIKE lower($1) || '%' THEN 3
+                 ELSE 4
+               END AS rank_order
+        FROM tmdb_titles
+        WHERE lower(coalesce(name, '')) LIKE '%' || lower($1) || '%'
+           OR lower(coalesce(original_name, '')) LIKE '%' || lower($1) || '%'
+        ORDER BY rank_order ASC, fetched_at DESC
+        LIMIT $2
+      `,
+      [query, limit],
+    );
+
+    return result.rows.map((row) => mapTitle(row));
+  }
+
   async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
     const result = await client.query(
       `
@@ -224,6 +249,20 @@ export class TmdbRepository {
         ORDER BY season_number ASC, episode_number ASC
       `,
       [showTmdbId],
+    );
+    return result.rows.map((row) => mapEpisode(row));
+  }
+
+  async listEpisodesForSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbEpisodeRecord[]> {
+    const result = await client.query(
+      `
+        SELECT show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
+               runtime, still_path, vote_average, raw, fetched_at, expires_at
+        FROM tmdb_tv_episodes
+        WHERE show_tmdb_id = $1 AND season_number = $2
+        ORDER BY episode_number ASC
+      `,
+      [showTmdbId, seasonNumber],
     );
     return result.rows.map((row) => mapEpisode(row));
   }

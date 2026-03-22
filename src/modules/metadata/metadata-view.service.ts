@@ -1,40 +1,100 @@
 import type { DbClient } from '../../lib/db.js';
-import { env } from '../../config/env.js';
 import type { MediaIdentity } from '../watch/media-key.js';
+import { assertPresent } from '../../lib/errors.js';
+import {
+  buildEpisodeView,
+  buildMetadataView,
+  buildSeasonViewFromRecord,
+  buildSeasonViewFromTitleRaw,
+} from './metadata-normalizers.js';
 import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
-import type { MetadataView, TmdbEpisodeRecord, TmdbTitleRecord } from './tmdb.types.js';
-
-function buildImageUrl(path: string | null, size: string): string | null {
-  if (!path) {
-    return null;
-  }
-  return `${env.tmdbImageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
-}
-
-function deriveRuntimeMinutes(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null): number | null {
-  if (episode?.runtime) {
-    return episode.runtime;
-  }
-  if (title?.runtime) {
-    return title.runtime;
-  }
-  if (title?.episodeRunTime.length) {
-    return title.episodeRunTime[0] ?? null;
-  }
-  return null;
-}
+import type {
+  MetadataEpisodeView,
+  MetadataSeasonDetail,
+  MetadataTitleDetail,
+  MetadataView,
+  TmdbEpisodeRecord,
+  TmdbTitleRecord,
+} from './tmdb.types.js';
 
 export class MetadataViewService {
   constructor(private readonly tmdbCacheService = new TmdbCacheService()) {}
 
   async buildMetadataView(client: DbClient, identity: MediaIdentity): Promise<MetadataView> {
+    const { title, currentEpisode, nextEpisode } = await this.loadIdentityContext(client, identity);
+
+    return buildMetadataView({
+      identity,
+      title,
+      currentEpisode,
+      nextEpisode,
+    });
+  }
+
+  async getTitleDetail(client: DbClient, identity: MediaIdentity): Promise<MetadataTitleDetail> {
+    const normalizedIdentity = identity.mediaType === 'episode'
+      ? { ...identity, mediaType: 'show' as const, tmdbId: identity.showTmdbId, seasonNumber: null, episodeNumber: null }
+      : identity;
+    const { title, nextEpisode } = await this.loadIdentityContext(client, normalizedIdentity);
+    const resolvedTitle = assertPresent(title, 'Metadata title not found.');
+
+    return {
+      item: buildMetadataView({
+        identity: normalizedIdentity,
+        title: resolvedTitle,
+        currentEpisode: null,
+        nextEpisode,
+      }),
+      seasons: buildSeasonViewFromTitleRaw(resolvedTitle),
+    };
+  }
+
+  async getSeasonDetail(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<MetadataSeasonDetail> {
+    const showIdentity: MediaIdentity = {
+      mediaKey: `show:tmdb:${showTmdbId}`,
+      mediaType: 'show',
+      tmdbId: showTmdbId,
+      showTmdbId,
+      seasonNumber: null,
+      episodeNumber: null,
+    };
+
+    const { title, nextEpisode } = await this.loadIdentityContext(client, showIdentity);
+    const resolvedTitle = assertPresent(title, 'Show metadata not found.');
+    const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
+    const resolvedSeason = assertPresent(seasonRecord, 'Season metadata not found.');
+    const episodes = await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber);
+
+    return {
+      show: buildMetadataView({
+        identity: showIdentity,
+        title: resolvedTitle,
+        currentEpisode: null,
+        nextEpisode,
+      }),
+      season: buildSeasonViewFromRecord(showTmdbId, resolvedSeason),
+      episodes: episodes.map((episode) => buildEpisodeView(resolvedTitle, episode)),
+    };
+  }
+
+  async buildViews(client: DbClient, identities: MediaIdentity[]): Promise<MetadataView[]> {
+    return Promise.all(identities.map((identity) => this.buildMetadataView(client, identity)));
+  }
+
+  private async loadIdentityContext(client: DbClient, identity: MediaIdentity): Promise<{
+    title: TmdbTitleRecord | null;
+    currentEpisode: TmdbEpisodeRecord | null;
+    nextEpisode: TmdbEpisodeRecord | null;
+    episodes: MetadataEpisodeView[] | null;
+  }> {
     const titleType = identity.mediaType === 'movie' ? 'movie' : 'tv';
     const titleTmdbId = identity.mediaType === 'episode' ? identity.showTmdbId : identity.tmdbId;
     const title = titleTmdbId ? await this.tmdbCacheService.getTitle(client, titleType, titleTmdbId) : null;
 
     let currentEpisode: TmdbEpisodeRecord | null = null;
     let nextEpisode: TmdbEpisodeRecord | null = null;
+    let mappedEpisodes: MetadataEpisodeView[] | null = null;
 
     if (identity.showTmdbId) {
       const seasonsToEnsure = collectRelevantSeasonNumbers(identity, title);
@@ -51,32 +111,17 @@ export class MetadataViewService {
       if (identity.mediaType === 'episode') {
         nextEpisode = selectNextEpisode(identity, title, episodes);
       }
+
+      if (title) {
+        mappedEpisodes = episodes.map((episode) => buildEpisodeView(title, episode));
+      }
     }
 
-    const titleName = currentEpisode?.name ?? title?.name ?? title?.originalName ?? null;
-    const subtitle =
-      identity.mediaType === 'episode' && identity.seasonNumber !== null && identity.episodeNumber !== null
-        ? `S${String(identity.seasonNumber).padStart(2, '0')} E${String(identity.episodeNumber).padStart(2, '0')}`
-        : title?.status ?? null;
-
     return {
-      mediaKey: identity.mediaKey,
-      mediaType: identity.mediaType,
-      tmdbId: identity.tmdbId,
-      showTmdbId: identity.showTmdbId,
-      seasonNumber: identity.seasonNumber,
-      episodeNumber: identity.episodeNumber,
-      title: titleName,
-      subtitle,
-      overview: currentEpisode?.overview ?? title?.overview ?? null,
-      artwork: {
-        posterUrl: buildImageUrl(title?.posterPath ?? null, 'w500'),
-        backdropUrl: buildImageUrl(title?.backdropPath ?? null, 'w780'),
-        stillUrl: buildImageUrl(currentEpisode?.stillPath ?? null, 'w500'),
-      },
-      releaseDate: currentEpisode?.airDate ?? title?.releaseDate ?? title?.firstAirDate ?? null,
-      runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
+      title,
+      currentEpisode,
       nextEpisode,
+      episodes: mappedEpisodes,
     };
   }
 }

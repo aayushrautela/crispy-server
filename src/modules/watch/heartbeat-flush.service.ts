@@ -3,6 +3,7 @@ import { withTransaction } from '../../lib/db.js';
 import { enqueueHeartbeatFlush } from '../../lib/queue.js';
 import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
+import { ensureSupportedMediaType } from './media-key.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
@@ -57,7 +58,7 @@ export class HeartbeatFlushService {
         },
         identity: {
           mediaKey: snapshot.mediaKey,
-          mediaType: snapshot.mediaType,
+          mediaType: ensureSupportedMediaType(snapshot.mediaType),
           tmdbId: snapshot.tmdbId,
           showTmdbId: snapshot.showTmdbId,
           seasonNumber: snapshot.seasonNumber,
@@ -69,7 +70,7 @@ export class HeartbeatFlushService {
         profileId,
         identity: {
           mediaKey: snapshot.mediaKey,
-          mediaType: snapshot.mediaType,
+          mediaType: ensureSupportedMediaType(snapshot.mediaType),
           tmdbId: snapshot.tmdbId,
           showTmdbId: snapshot.showTmdbId,
           seasonNumber: snapshot.seasonNumber,
