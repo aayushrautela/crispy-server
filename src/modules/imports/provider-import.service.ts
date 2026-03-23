@@ -209,6 +209,9 @@ export class ProviderImportService {
           accessTokenExpiresAt: exchanged.accessTokenExpiresAt,
           providerUserId: profile.providerUserId,
           externalUsername: profile.externalUsername,
+          connectedAt,
+          lastRefreshAt: connectedAt,
+          lastRefreshError: null,
           tokenPayload: exchanged.raw,
         },
       });
@@ -440,7 +443,7 @@ export class ProviderImportService {
     }
 
     if (provider === 'trakt' && env.traktImportClientId && env.traktImportRedirectUri) {
-      const url = new URL('https://api.trakt.tv/oauth/authorize');
+      const url = new URL('https://trakt.tv/oauth/authorize');
       url.searchParams.set('response_type', 'code');
       url.searchParams.set('client_id', env.traktImportClientId);
       url.searchParams.set('redirect_uri', env.traktImportRedirectUri);
@@ -474,11 +477,7 @@ export class ProviderImportService {
 
     const response = await fetch('https://api.trakt.tv/oauth/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'trakt-api-key': env.traktImportClientId,
-        'trakt-api-version': '2',
-      },
+      headers: buildTraktHeaders({ includeAuthorization: false }),
       body: JSON.stringify({
         code,
         client_id: env.traktImportClientId,
@@ -489,9 +488,23 @@ export class ProviderImportService {
       }),
     });
 
-    const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    const rawBody = await response.text();
+    const payload = parseProviderJson(rawBody);
     if (!response.ok || !payload || typeof payload.access_token !== 'string') {
-      throw new HttpError(response.status || 502, resolveProviderError(payload, 'Unable to exchange the Trakt authorization code.'));
+      throw new HttpError(
+        response.status || 502,
+        resolveProviderError(payload, 'Unable to exchange the Trakt authorization code.'),
+        rawBody.trim()
+          ? {
+              provider: 'trakt',
+              providerStatus: response.status,
+              responseBody: rawBody.slice(0, 500),
+            }
+          : {
+              provider: 'trakt',
+              providerStatus: response.status,
+            },
+      );
     }
 
     return {
@@ -541,12 +554,7 @@ export class ProviderImportService {
   private async fetchTraktProfile(accessToken: string): Promise<ProviderProfileResult> {
     const response = await fetch('https://api.trakt.tv/users/settings', {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'trakt-api-key': env.traktImportClientId,
-        'trakt-api-version': '2',
-      },
+      headers: buildTraktHeaders({ accessToken }),
     });
 
     if (!response.ok) {
@@ -956,12 +964,7 @@ export class ProviderImportService {
   private async traktGetArray(path: string, accessToken: string): Promise<Array<Record<string, unknown>>> {
     const response = await fetch(`https://api.trakt.tv${path}`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'trakt-api-key': env.traktImportClientId,
-        'trakt-api-version': '2',
-      },
+      headers: buildTraktHeaders({ accessToken }),
     });
 
     const payload = (await response.json().catch(() => null)) as unknown;
@@ -1102,6 +1105,38 @@ function asFiniteNumber(value: unknown): number | null {
     }
   }
   return null;
+}
+
+function parseProviderJson(rawBody: string): Record<string, unknown> | null {
+  if (!rawBody.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildTraktHeaders(params: {
+  accessToken?: string;
+  includeAuthorization?: boolean;
+}): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'trakt-api-key': env.traktImportClientId,
+    'trakt-api-version': '2',
+    'User-Agent': 'CrispyServer/1.0',
+  };
+
+  if (params.includeAuthorization !== false && params.accessToken) {
+    headers.Authorization = `Bearer ${params.accessToken}`;
+  }
+
+  return headers;
 }
 
 function durationSecondsFromRuntime(value: unknown): number | null {

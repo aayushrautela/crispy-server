@@ -1,0 +1,69 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+function seedTestEnv(): void {
+  process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
+  process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
+  process.env.SUPABASE_URL ||= 'https://example.supabase.co';
+  process.env.SUPABASE_JWKS_URL ||= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
+  process.env.SUPABASE_JWT_ISSUER ||= 'https://example.supabase.co/auth/v1';
+  process.env.SUPABASE_JWT_AUDIENCE ||= 'authenticated';
+  process.env.TMDB_API_KEY ||= 'tmdb-key';
+  process.env.TRAKT_IMPORT_CLIENT_ID ||= 'trakt-client-id';
+  process.env.TRAKT_IMPORT_CLIENT_SECRET ||= 'trakt-client-secret';
+  process.env.TRAKT_IMPORT_REDIRECT_URI ||= 'https://api.crispytv.tech/v1/imports/trakt/callback';
+}
+
+test('buildAuthUrl uses trakt.tv authorize host', async () => {
+  seedTestEnv();
+  const { ProviderImportService } = await import('./provider-import.service.js');
+
+  const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const authUrl = (service as any).buildAuthUrl('trakt', 'state-123', 'challenge-abc');
+
+  assert.equal(typeof authUrl, 'string');
+  const url = new URL(authUrl);
+  assert.equal(url.origin, 'https://trakt.tv');
+  assert.equal(url.pathname, '/oauth/authorize');
+  assert.equal(url.searchParams.get('client_id'), 'trakt-client-id');
+  assert.equal(url.searchParams.get('redirect_uri'), 'https://api.crispytv.tech/v1/imports/trakt/callback');
+  assert.equal(url.searchParams.get('state'), 'state-123');
+  assert.equal(url.searchParams.get('code_challenge'), 'challenge-abc');
+  assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
+});
+
+test('exchangeTraktAuthorizationCode includes helpful details for non-json failures', async () => {
+  seedTestEnv();
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { HttpError } = await import('../../lib/errors.js');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response('blocked by upstream firewall', {
+      status: 403,
+      headers: {
+        'content-type': 'text/plain',
+      },
+    });
+  }) as typeof fetch;
+
+  try {
+    const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    await assert.rejects(
+      () => (service as any).exchangeTraktAuthorizationCode('code-123', 'verifier-123'),
+      (error: unknown) => {
+        assert.ok(error instanceof HttpError);
+        assert.equal(error.statusCode, 403);
+        assert.equal(error.message, 'Unable to exchange the Trakt authorization code.');
+        assert.deepEqual(error.details, {
+          provider: 'trakt',
+          providerStatus: 403,
+          responseBody: 'blocked by upstream firewall',
+        });
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
