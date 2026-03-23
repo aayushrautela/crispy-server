@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 function seedTestEnv(): void {
+  process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
   process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
   process.env.SUPABASE_URL ||= 'https://example.supabase.co';

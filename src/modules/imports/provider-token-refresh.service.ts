@@ -37,10 +37,6 @@ export class ProviderTokenRefreshService {
     connection: ProviderImportConnectionRecord,
     options?: { force?: boolean },
   ): Promise<{ connection: ProviderImportConnectionRecord; refreshed: boolean }> {
-    if (connection.provider === 'simkl') {
-      throw new HttpError(503, 'Simkl token refresh is not implemented yet.');
-    }
-
     const refreshToken = asString(connection.credentialsJson.refreshToken);
     if (!refreshToken) {
       return { connection, refreshed: false };
@@ -53,7 +49,9 @@ export class ProviderTokenRefreshService {
     }
 
     try {
-      const exchanged = await this.exchangeTraktRefreshToken(refreshToken);
+      const exchanged = connection.provider === 'simkl'
+        ? await this.exchangeSimklRefreshToken(refreshToken)
+        : await this.exchangeTraktRefreshToken(refreshToken);
       const refreshedAt = new Date().toISOString();
       const updated = await withTransaction(async (client) => {
         return this.connectionsRepository.updateConnectedCredentials(client, {
@@ -131,6 +129,44 @@ export class ProviderTokenRefreshService {
     if (!response.ok || !payload || typeof payload.access_token !== 'string') {
       throw new HttpError(response.status || 502, 'Unable to refresh the Trakt access token.', {
         provider: 'trakt',
+        providerStatus: response.status,
+        responseBody: rawBody.slice(0, 500),
+      });
+    }
+
+    return {
+      accessToken: payload.access_token,
+      refreshToken: typeof payload.refresh_token === 'string' ? payload.refresh_token : null,
+      accessTokenExpiresAt: expiresAtIsoFromNow(payload.expires_in),
+      raw: payload,
+    };
+  }
+
+  private async exchangeSimklRefreshToken(refreshToken: string): Promise<ProviderTokenExchangeResult> {
+    if (!env.simklImportClientId || !env.simklImportClientSecret || !env.simklImportRedirectUri) {
+      throw new HttpError(503, 'Simkl import is not configured.');
+    }
+
+    const response = await fetch('https://api.simkl.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        refresh_token: refreshToken,
+        client_id: env.simklImportClientId,
+        client_secret: env.simklImportClientSecret,
+        redirect_uri: env.simklImportRedirectUri,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    const rawBody = await response.text();
+    const payload = parseProviderJson(rawBody);
+    if (!response.ok || !payload || typeof payload.access_token !== 'string') {
+      throw new HttpError(response.status || 502, 'Unable to refresh the Simkl access token.', {
+        provider: 'simkl',
         providerStatus: response.status,
         responseBody: rawBody.slice(0, 500),
       });

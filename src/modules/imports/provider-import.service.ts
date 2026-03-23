@@ -370,9 +370,7 @@ export class ProviderImportService {
         return found;
       });
 
-      const activeConnection = runningJob.provider === 'trakt'
-        ? (await this.tokenRefreshService.refreshConnection(connection)).connection
-        : connection;
+      const activeConnection = (await this.tokenRefreshService.refreshConnection(connection)).connection;
 
       const importedPayload = runningJob.provider === 'trakt'
         ? await this.fetchAndNormalizeTraktImport(runningJob, activeConnection)
@@ -474,11 +472,6 @@ export class ProviderImportService {
           requestId,
         });
       });
-
-      if (runningJob.provider === 'simkl') {
-        logger.warn({ importJobId: runningJob.id, err: error }, 'simkl import remains unimplemented');
-        return;
-      }
 
       throw error;
     }
@@ -948,9 +941,336 @@ export class ProviderImportService {
 
   private async fetchAndNormalizeSimklImport(
     _job: ProviderImportJobRecord,
-    _connection: ProviderImportConnectionRecord,
+    connection: ProviderImportConnectionRecord,
   ): Promise<ProviderReplaceImportPayload> {
-    throw new HttpError(503, 'Simkl replace import is not implemented yet.');
+    const accessToken = requireConnectedAccessToken(connection);
+    const statuses = ['watching', 'plantowatch', 'hold', 'completed', 'dropped'] as const;
+    const [movieLists, showLists, animeLists, ratingMovies, ratingShows, ratingAnime, moviePlayback, episodePlayback] = await Promise.all([
+      Promise.all(statuses.map(async (status) => ({
+        status,
+        items: await this.simklGetArray(`/sync/all-items/movies/${status}`, accessToken, { extended: 'full' }, 'movies'),
+      }))),
+      Promise.all(statuses.map(async (status) => ({
+        status,
+        items: await this.simklGetArray(
+          `/sync/all-items/shows/${status}`,
+          accessToken,
+          { extended: 'full', episode_watched_at: 'yes' },
+          'shows',
+        ),
+      }))),
+      Promise.all(statuses.map(async (status) => ({
+        status,
+        items: await this.simklGetArray(
+          `/sync/all-items/anime/${status}`,
+          accessToken,
+          { extended: 'full_anime_seasons', episode_watched_at: 'yes' },
+          'anime',
+        ),
+      }))),
+      this.simklGetArray('/sync/ratings/movies', accessToken, undefined, 'movies'),
+      this.simklGetArray('/sync/ratings/shows', accessToken, undefined, 'shows'),
+      this.simklGetArray('/sync/ratings/anime', accessToken, undefined, 'anime'),
+      this.simklGetArray('/sync/playback/movies', accessToken),
+      this.simklGetArray('/sync/playback/episodes', accessToken),
+    ]);
+
+    const resolvedCache = new Map<string, number | null>();
+    const importedEvents: ImportedWatchEventDraft[] = [];
+    const importedHistoryEntries: ImportedHistoryEntryDraft[] = [];
+    const mediaKeysToRefresh = new Set<string>();
+
+    for (const group of movieLists) {
+      for (const item of group.items) {
+        const movie = getRecord(item.movie);
+        const ids = getRecord(movie?.ids);
+        const tmdbId = await this.resolveTmdbIdForImport(resolvedCache, {
+          mediaType: 'movie',
+          tmdbId: asPositiveInt(ids?.tmdb),
+          imdbId: asString(ids?.imdb),
+        });
+        if (!tmdbId) {
+          continue;
+        }
+
+        const mediaKey = `movie:tmdb:${tmdbId}`;
+        if (group.status === 'completed') {
+          const occurredAt = asIsoString(item.last_watched_at)
+            ?? asIsoString(item.user_rated_at)
+            ?? asIsoString(item.added_to_watchlist_at)
+            ?? new Date().toISOString();
+          importedEvents.push({
+            eventType: 'mark_watched',
+            mediaKey,
+            mediaType: 'movie',
+            tmdbId,
+            occurredAt,
+            payload: {
+              provider: 'simkl',
+              source: 'all_items_completed',
+              status: group.status,
+            },
+          });
+          importedHistoryEntries.push({
+            mediaKey,
+            mediaType: 'movie',
+            tmdbId,
+            watchedAt: occurredAt,
+            sourceKind: 'provider_import',
+            payload: {
+              provider: 'simkl',
+              source: 'all_items_completed',
+              status: group.status,
+            },
+          });
+        } else {
+          const occurredAt = asIsoString(item.added_to_watchlist_at)
+            ?? asIsoString(item.last_watched_at)
+            ?? asIsoString(item.user_rated_at)
+            ?? new Date().toISOString();
+          importedEvents.push({
+            eventType: 'watchlist_put',
+            mediaKey,
+            mediaType: 'movie',
+            tmdbId,
+            occurredAt,
+            payload: {
+              provider: 'simkl',
+              source: 'all_items',
+              status: group.status,
+            },
+          });
+        }
+        mediaKeysToRefresh.add(mediaKey);
+      }
+    }
+
+    for (const group of [...showLists, ...animeLists]) {
+      for (const item of group.items) {
+        const show = getRecord(item.show);
+        const ids = getRecord(show?.ids);
+        const showTmdbId = await this.resolveTmdbIdForImport(resolvedCache, {
+          mediaType: 'show',
+          tmdbId: asPositiveInt(ids?.tmdb),
+          imdbId: asString(ids?.imdb),
+          tvdbId: asString(ids?.tvdb),
+        });
+        if (!showTmdbId) {
+          continue;
+        }
+
+        const showMediaKey = `show:tmdb:${showTmdbId}`;
+        if (group.status !== 'completed') {
+          const occurredAt = asIsoString(item.added_to_watchlist_at)
+            ?? asIsoString(item.last_watched_at)
+            ?? asIsoString(item.user_rated_at)
+            ?? new Date().toISOString();
+          importedEvents.push({
+            eventType: 'watchlist_put',
+            mediaKey: showMediaKey,
+            mediaType: 'show',
+            tmdbId: showTmdbId,
+            showTmdbId,
+            occurredAt,
+            payload: {
+              provider: 'simkl',
+              source: 'all_items',
+              status: group.status,
+            },
+          });
+          mediaKeysToRefresh.add(showMediaKey);
+        }
+
+        const seasons = asArray(item.seasons);
+        for (const seasonValue of seasons) {
+          const season = getRecord(seasonValue);
+          const defaultSeasonNumber = asPositiveInt(season?.number);
+          const episodes = asArray(season?.episodes);
+          for (const episodeValue of episodes) {
+            const episode = getRecord(episodeValue);
+            const mappedTvdb = getRecord(episode?.tvdb);
+            const seasonNumber = asPositiveInt(mappedTvdb?.season) ?? defaultSeasonNumber;
+            const episodeNumber = asPositiveInt(mappedTvdb?.episode)
+              ?? asPositiveInt(episode?.tvdb_number)
+              ?? asPositiveInt(episode?.number);
+            if (!seasonNumber || !episodeNumber) {
+              continue;
+            }
+
+            const occurredAt = asIsoString(episode?.last_watched_at)
+              ?? asIsoString(episode?.watched_at)
+              ?? asIsoString(item.last_watched_at)
+              ?? new Date().toISOString();
+            const mediaKey = `episode:tmdb:${showTmdbId}:${seasonNumber}:${episodeNumber}`;
+            importedEvents.push({
+              eventType: 'mark_watched',
+              mediaKey,
+              mediaType: 'episode',
+              showTmdbId,
+              seasonNumber,
+              episodeNumber,
+              occurredAt,
+              payload: {
+                provider: 'simkl',
+                source: 'all_items',
+                status: group.status,
+              },
+            });
+            importedHistoryEntries.push({
+              mediaKey,
+              mediaType: 'episode',
+              showTmdbId,
+              seasonNumber,
+              episodeNumber,
+              watchedAt: occurredAt,
+              sourceKind: 'provider_import',
+              payload: {
+                provider: 'simkl',
+                source: 'all_items',
+                status: group.status,
+              },
+            });
+            mediaKeysToRefresh.add(mediaKey);
+          }
+        }
+      }
+    }
+
+    for (const item of [...ratingMovies, ...ratingShows, ...ratingAnime]) {
+      const movie = getRecord(item.movie);
+      const show = getRecord(item.show);
+      const node = movie ?? show;
+      const mediaType = movie ? 'movie' : 'show';
+      const ids = getRecord(node?.ids);
+      const tmdbId = await this.resolveTmdbIdForImport(resolvedCache, {
+        mediaType,
+        tmdbId: asPositiveInt(ids?.tmdb),
+        imdbId: asString(ids?.imdb),
+        tvdbId: mediaType === 'show' ? asString(ids?.tvdb) : null,
+      });
+      const rating = asPositiveInt(item.user_rating);
+      if (!tmdbId || !rating) {
+        continue;
+      }
+
+      const occurredAt = asIsoString(item.user_rated_at) ?? new Date().toISOString();
+      const mediaKey = `${mediaType}:tmdb:${tmdbId}`;
+      importedEvents.push({
+        eventType: 'rating_put',
+        mediaKey,
+        mediaType,
+        tmdbId,
+        showTmdbId: mediaType === 'show' ? tmdbId : null,
+        rating,
+        occurredAt,
+        payload: {
+          provider: 'simkl',
+          source: 'ratings',
+        },
+      });
+      mediaKeysToRefresh.add(mediaKey);
+    }
+
+    for (const item of moviePlayback) {
+      const movie = getRecord(item.movie);
+      const ids = getRecord(movie?.ids);
+      const tmdbId = await this.resolveTmdbIdForImport(resolvedCache, {
+        mediaType: 'movie',
+        tmdbId: asPositiveInt(ids?.tmdb),
+        imdbId: asString(ids?.imdb),
+      });
+      if (!tmdbId) {
+        continue;
+      }
+
+      const progress = asFiniteNumber(item.progress);
+      const durationSeconds = durationSecondsFromRuntime(movie?.runtime);
+      const positionSeconds = progress !== null && durationSeconds !== null
+        ? Math.max(1, Math.round((durationSeconds * progress) / 100))
+        : null;
+      const occurredAt = asIsoString(item.paused_at) ?? new Date().toISOString();
+      const mediaKey = `movie:tmdb:${tmdbId}`;
+      importedEvents.push({
+        eventType: progress !== null && progress >= 90 ? 'playback_completed' : 'playback_progress_snapshot',
+        mediaKey,
+        mediaType: 'movie',
+        tmdbId,
+        positionSeconds,
+        durationSeconds,
+        occurredAt,
+        payload: {
+          provider: 'simkl',
+          source: 'playback',
+          playbackId: asString(item.id),
+          progressPercent: progress,
+        },
+      });
+      mediaKeysToRefresh.add(mediaKey);
+    }
+
+    for (const item of episodePlayback) {
+      const show = getRecord(item.show);
+      const episode = getRecord(item.episode);
+      const ids = getRecord(show?.ids);
+      const showTmdbId = await this.resolveTmdbIdForImport(resolvedCache, {
+        mediaType: 'show',
+        tmdbId: asPositiveInt(ids?.tmdb),
+        imdbId: asString(ids?.imdb),
+        tvdbId: asString(ids?.tvdb),
+      });
+      const seasonNumber = asPositiveInt(episode?.tvdb_season) ?? asPositiveInt(episode?.season);
+      const episodeNumber = asPositiveInt(episode?.tvdb_number) ?? asPositiveInt(episode?.episode);
+      if (!showTmdbId || !seasonNumber || !episodeNumber) {
+        continue;
+      }
+
+      const progress = asFiniteNumber(item.progress);
+      const durationSeconds = durationSecondsFromRuntime(episode?.runtime);
+      const positionSeconds = progress !== null && durationSeconds !== null
+        ? Math.max(1, Math.round((durationSeconds * progress) / 100))
+        : null;
+      const occurredAt = asIsoString(item.paused_at) ?? new Date().toISOString();
+      const mediaKey = `episode:tmdb:${showTmdbId}:${seasonNumber}:${episodeNumber}`;
+      importedEvents.push({
+        eventType: progress !== null && progress >= 90 ? 'playback_completed' : 'playback_progress_snapshot',
+        mediaKey,
+        mediaType: 'episode',
+        showTmdbId,
+        seasonNumber,
+        episodeNumber,
+        positionSeconds,
+        durationSeconds,
+        occurredAt,
+        payload: {
+          provider: 'simkl',
+          source: 'playback',
+          playbackId: asString(item.id),
+          progressPercent: progress,
+        },
+      });
+      mediaKeysToRefresh.add(mediaKey);
+    }
+
+    const importedAt = new Date().toISOString();
+    const watchlistCount = movieLists.reduce((count, group) => count + (group.status === 'completed' ? 0 : group.items.length), 0)
+      + showLists.reduce((count, group) => count + (group.status === 'completed' ? 0 : group.items.length), 0)
+      + animeLists.reduce((count, group) => count + (group.status === 'completed' ? 0 : group.items.length), 0);
+    const watchedShowCount = showLists.reduce((count, group) => count + group.items.length, 0)
+      + animeLists.reduce((count, group) => count + group.items.length, 0);
+    return {
+      importedEvents,
+      importedHistoryEntries,
+      importedAt,
+      mediaKeysToRefresh: Array.from(mediaKeysToRefresh),
+      importSummary: {
+        provider: 'simkl',
+        watchedMovieCount: movieLists.find((group) => group.status === 'completed')?.items.length ?? 0,
+        watchedShowCount,
+        watchlistCount,
+        ratingCount: ratingMovies.length + ratingShows.length + ratingAnime.length,
+        playbackCount: moviePlayback.length + episodePlayback.length,
+      },
+    };
   }
 
   private async markConnectionImportComplete(
@@ -1035,6 +1355,36 @@ export class ProviderImportService {
     return payload.filter(isRecord);
   }
 
+  private async simklGetArray(
+    path: string,
+    accessToken: string,
+    query?: Record<string, string>,
+    collectionKey?: string,
+  ): Promise<Array<Record<string, unknown>>> {
+    const url = new URL(`https://api.simkl.com${path}`);
+    for (const [key, value] of Object.entries(query ?? {})) {
+      url.searchParams.set(key, value);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'simkl-api-key': env.simklImportClientId,
+      },
+    });
+
+    const payload = (await response.json().catch(() => null)) as unknown;
+    const records = extractProviderArray(payload, collectionKey);
+    if (!response.ok || records === null) {
+      throw new HttpError(response.status || 502, `Simkl import request failed for ${path}.`);
+    }
+
+    return records;
+  }
+
   private async resolveTmdbIdForImport(
     cache: Map<string, number | null>,
     params: {
@@ -1095,9 +1445,7 @@ export function parseImportProvider(value: unknown): ProviderImportProvider {
 }
 
 function assertProviderEnabled(provider: ProviderImportProvider): void {
-  if (provider === 'simkl') {
-    throw new HttpError(503, 'Simkl imports are disabled until local support is complete.');
-  }
+  void provider;
 }
 
 function sanitizeDisconnectedCredentials(
@@ -1199,6 +1547,21 @@ function parseProviderJson(rawBody: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function extractProviderArray(payload: unknown, collectionKey?: string): Array<Record<string, unknown>> | null {
+  if (Array.isArray(payload)) {
+    return payload.filter(isRecord);
+  }
+
+  if (isRecord(payload) && collectionKey) {
+    const value = payload[collectionKey];
+    if (Array.isArray(value)) {
+      return value.filter(isRecord);
+    }
+  }
+
+  return null;
 }
 
 function buildTraktHeaders(params: {

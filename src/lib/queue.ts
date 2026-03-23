@@ -14,9 +14,7 @@ export const bullConnection = {
   db: redisUrl.pathname && redisUrl.pathname !== '/' ? Number(redisUrl.pathname.slice(1)) : 0,
 };
 
-export const projectionQueue = new Queue(projectionQueueName, {
-  connection: bullConnection,
-});
+let projectionQueue: Queue | null = null;
 
 export type ProjectionRefreshJob = {
   profileId: string;
@@ -31,7 +29,7 @@ function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: st
 }
 
 async function enqueueProjectionRefreshJob(job: ProjectionRefreshJob, options?: { delayMs?: number }): Promise<void> {
-  await projectionQueue.add(job.reason, job, {
+  await getProjectionQueue().add(job.reason, job, {
     jobId: resolveProjectionJobId(job),
     delay: options?.delayMs,
     removeOnComplete: true,
@@ -93,4 +91,11 @@ function resolveProjectionJobId(job: ProjectionRefreshJob): string {
   }
 
   return projectionRefreshJobId(job.reason, job.profileId, job.mediaKey);
+}
+
+function getProjectionQueue(): Queue {
+  projectionQueue ??= new Queue(projectionQueueName, {
+    connection: bullConnection,
+  });
+  return projectionQueue;
 }

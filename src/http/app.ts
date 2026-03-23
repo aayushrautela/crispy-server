@@ -5,6 +5,7 @@ import errorHandlerPlugin from './plugins/error-handler.js';
 import profileContextPlugin from './plugins/profile-context.js';
 import serviceAuthPlugin from './plugins/service-auth.js';
 import { registerAccountRoutes } from './routes/account.js';
+import { registerAiRoutes } from './routes/ai.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerHomeRoutes } from './routes/home.js';
@@ -38,6 +39,7 @@ export async function buildApp() {
 
   await registerHealthRoutes(app);
   await registerAccountRoutes(app);
+  await registerAiRoutes(app);
   await registerMeRoutes(app);
   await registerProfileRoutes(app);
   await registerProfileSettingsRoutes(app);

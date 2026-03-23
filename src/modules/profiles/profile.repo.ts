@@ -52,6 +52,28 @@ export class ProfileRepository {
     return result.rows.map((row) => mapProfile(row));
   }
 
+  async listAvatarKeysForHouseholds(client: DbClient, householdIds: string[]): Promise<string[]> {
+    if (householdIds.length === 0) {
+      return [];
+    }
+
+    const result = await client.query(
+      `
+        SELECT DISTINCT avatar_key
+        FROM profiles
+        WHERE household_id = ANY($1::uuid[])
+          AND avatar_key IS NOT NULL
+          AND btrim(avatar_key) <> ''
+        ORDER BY avatar_key ASC
+      `,
+      [householdIds],
+    );
+
+    return result.rows
+      .map((row) => (typeof row.avatar_key === 'string' ? row.avatar_key : null))
+      .filter((value): value is string => value !== null);
+  }
+
   async listForUser(client: DbClient, userId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
