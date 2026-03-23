@@ -17,7 +17,6 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
       return {
         user: {
           id: actor.appUserId,
-          supabaseAuthUserId: auth.supabaseAuthUserId,
           email: auth.email,
         },
         household: {

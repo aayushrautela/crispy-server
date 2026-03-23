@@ -4,7 +4,7 @@ import type { AppUser } from './user.types.js';
 function mapUserRow(row: Record<string, unknown>): AppUser {
   return {
     id: String(row.id),
-    supabaseAuthUserId: String(row.supabase_auth_user_id),
+    authSubject: String(row.auth_subject),
     email: typeof row.email === 'string' ? row.email : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -16,7 +16,7 @@ export class UserRepository {
   async findById(client: DbClient, userId: string): Promise<AppUser | null> {
     const result = await client.query(
       `
-        SELECT id, supabase_auth_user_id, email, created_at, updated_at, last_seen_at
+        SELECT id, auth_subject, email, created_at, updated_at, last_seen_at
         FROM app_users
         WHERE id = $1::uuid
       `,
@@ -25,32 +25,44 @@ export class UserRepository {
     return result.rows[0] ? mapUserRow(result.rows[0]) : null;
   }
 
-  async findBySupabaseAuthUserId(client: DbClient, supabaseAuthUserId: string): Promise<AppUser | null> {
+  async findByAuthSubject(client: DbClient, authSubject: string): Promise<AppUser | null> {
     const result = await client.query(
       `
-        SELECT id, supabase_auth_user_id, email, created_at, updated_at, last_seen_at
+        SELECT id, auth_subject, email, created_at, updated_at, last_seen_at
         FROM app_users
-        WHERE supabase_auth_user_id = $1
+        WHERE auth_subject = $1
       `,
-      [supabaseAuthUserId],
+      [authSubject],
     );
     return result.rows[0] ? mapUserRow(result.rows[0]) : null;
   }
 
-  async upsertFromJwt(client: DbClient, params: { supabaseAuthUserId: string; email: string | null }): Promise<AppUser> {
+  async upsertFromAuthSubject(client: DbClient, params: { authSubject: string; email: string | null }): Promise<AppUser> {
     const result = await client.query(
       `
-        INSERT INTO app_users (supabase_auth_user_id, email)
-        VALUES ($1::uuid, $2)
-        ON CONFLICT (supabase_auth_user_id)
+        INSERT INTO app_users (auth_subject, email)
+        VALUES ($1, $2)
+        ON CONFLICT (auth_subject)
         DO UPDATE SET
           email = EXCLUDED.email,
           updated_at = now(),
           last_seen_at = now()
-        RETURNING id, supabase_auth_user_id, email, created_at, updated_at, last_seen_at
+        RETURNING id, auth_subject, email, created_at, updated_at, last_seen_at
       `,
-      [params.supabaseAuthUserId, params.email],
+      [params.authSubject, params.email],
     );
     return mapUserRow(result.rows[0]);
+  }
+
+  async deleteById(client: DbClient, userId: string): Promise<boolean> {
+    const result = await client.query(
+      `
+        DELETE FROM app_users
+        WHERE id = $1::uuid
+        RETURNING id
+      `,
+      [userId],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 }

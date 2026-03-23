@@ -44,4 +44,16 @@ export class HouseholdRepository {
 
     return householdId;
   }
+
+  async deleteOwnedByUser(client: DbClient, userId: string): Promise<number> {
+    const result = await client.query(
+      `
+        DELETE FROM households
+        WHERE owner_user_id = $1::uuid
+      `,
+      [userId],
+    );
+
+    return result.rowCount ?? 0;
+  }
 }

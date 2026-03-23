@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { db, withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import { enqueueProviderImport } from '../../lib/queue.js';
+import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.js';
 import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
 import { TmdbExternalIdResolverService } from '../metadata/tmdb-external-id-resolver.service.js';
@@ -22,6 +22,7 @@ import {
   type ProviderReplaceImportPayload,
 } from './provider-destructive-import.service.js';
 import { mapConnectionView, type ProviderImportConnectionView } from './provider-import.views.js';
+import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
@@ -65,9 +66,11 @@ export class ProviderImportService {
     private readonly destructiveImportService = new ProviderDestructiveImportService(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly tmdbRefreshService = new TmdbRefreshService(),
+    private readonly tokenRefreshService = new ProviderTokenRefreshService(),
   ) {}
 
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
+    assertProviderEnabled(provider);
     const started = await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
       if (!profile) {
@@ -144,6 +147,7 @@ export class ProviderImportService {
     provider: ProviderImportProvider,
     params: ProviderCallbackParams,
   ): Promise<CompletedProviderImportCallback> {
+    assertProviderEnabled(provider);
     const completed = await withTransaction(async (client) => {
       const connection = await this.connectionsRepository.findPendingByStateToken(client, provider, params.state);
       if (!connection) {
@@ -237,6 +241,7 @@ export class ProviderImportService {
     });
 
     await enqueueProviderImport(completed.connection.profileId, completed.job.id);
+    await this.scheduleProviderRefresh(completed.connection);
     return completed;
   }
 
@@ -276,6 +281,42 @@ export class ProviderImportService {
         watchDataState,
       };
     });
+  }
+
+  async disconnectConnection(
+    userId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<{ connection: ProviderImportConnectionView }> {
+    assertProviderEnabled(provider);
+
+    const disconnected = await withTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+
+      const connection = await this.connectionsRepository.findLatestConnectedForProfile(client, profileId, provider);
+      if (!connection) {
+        throw new HttpError(404, 'Provider connection not found.');
+      }
+
+      const disconnectedAt = new Date().toISOString();
+      const updated = await this.connectionsRepository.revokeConnection(client, {
+        connectionId: connection.id,
+        lastUsedAt: disconnectedAt,
+        credentialsJson: sanitizeDisconnectedCredentials(connection.credentialsJson, disconnectedAt, userId),
+      });
+      if (!updated) {
+        throw new HttpError(404, 'Provider connection not found.');
+      }
+
+      return updated;
+    });
+
+    return {
+      connection: mapConnectionView(disconnected),
+    };
   }
 
   async getJob(userId: string, profileId: string, jobId: string): Promise<ProviderImportJobRecord> {
@@ -329,9 +370,13 @@ export class ProviderImportService {
         return found;
       });
 
+      const activeConnection = runningJob.provider === 'trakt'
+        ? (await this.tokenRefreshService.refreshConnection(connection)).connection
+        : connection;
+
       const importedPayload = runningJob.provider === 'trakt'
-        ? await this.fetchAndNormalizeTraktImport(runningJob, connection)
-        : await this.fetchAndNormalizeSimklImport(runningJob, connection);
+        ? await this.fetchAndNormalizeTraktImport(runningJob, activeConnection)
+        : await this.fetchAndNormalizeSimklImport(runningJob, activeConnection);
 
       const replaceResult = await withTransaction(async (client) => {
         return this.destructiveImportService.replaceProfileWatchData(client, {
@@ -366,9 +411,15 @@ export class ProviderImportService {
       }
 
       try {
-        await this.markConnectionImportComplete(connection, runningJob.id, importedPayload.importedAt);
+        await this.markConnectionImportComplete(activeConnection, runningJob.id, importedPayload.importedAt);
       } catch (error) {
         warnings.push(`failed to update provider connection usage: ${error instanceof Error ? error.message : 'unknown error'}`);
+      }
+
+      try {
+        await this.scheduleProviderRefresh(activeConnection);
+      } catch (error) {
+        warnings.push(`failed to schedule provider refresh: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
 
       try {
@@ -925,6 +976,15 @@ export class ProviderImportService {
     }
   }
 
+  private async scheduleProviderRefresh(connection: ProviderImportConnectionRecord): Promise<void> {
+    const delayMs = this.tokenRefreshService.getRecommendedDelayMs(connection);
+    if (delayMs === null) {
+      return;
+    }
+
+    await enqueueProviderRefresh(connection.profileId, connection.id, delayMs);
+  }
+
   private async refreshImportedMetadata(profileId: string, mediaKeys: string[]): Promise<Record<string, unknown>> {
     const client = await db.connect();
     try {
@@ -1032,6 +1092,27 @@ export function parseImportProvider(value: unknown): ProviderImportProvider {
     throw new HttpError(400, 'Provider must be either trakt or simkl.');
   }
   return value;
+}
+
+function assertProviderEnabled(provider: ProviderImportProvider): void {
+  if (provider === 'simkl') {
+    throw new HttpError(503, 'Simkl imports are disabled until local support is complete.');
+  }
+}
+
+function sanitizeDisconnectedCredentials(
+  credentials: Record<string, unknown>,
+  disconnectedAt: string,
+  disconnectedByUserId: string,
+): Record<string, unknown> {
+  return {
+    lastImportJobId: asString(credentials.lastImportJobId),
+    lastImportCompletedAt: asIsoString(credentials.lastImportCompletedAt),
+    lastRefreshAt: asIsoString(credentials.lastRefreshAt),
+    lastRefreshError: null,
+    disconnectedAt,
+    disconnectedByUserId,
+  };
 }
 
 function generatePkcePair(): { codeVerifier: string; codeChallenge: string } {

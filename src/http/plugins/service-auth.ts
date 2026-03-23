@@ -24,7 +24,7 @@ const serviceAuthPlugin: FastifyPluginAsync = async (fastify) => {
       appUserId: null,
       serviceId: 'recommendation-service',
       scopes: SERVICE_DEFAULT_SCOPES,
-      supabaseAuthUserId: null,
+      authSubject: null,
       email: null,
       tokenId: null,
     } satisfies AuthActor;

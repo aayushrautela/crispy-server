@@ -1,6 +1,6 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync } from 'fastify';
-import { verifySupabaseJwt } from '../../lib/jwks.js';
+import { verifyAuthJwt } from '../../lib/jwks.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AuthActor, AuthScope, UserAuthActor } from '../../modules/auth/auth.types.js';
 import { USER_DEFAULT_SCOPES } from '../../modules/auth/auth.types.js';
@@ -43,9 +43,9 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
-    const payload = await verifySupabaseJwt(token);
+    const payload = await verifyAuthJwt(token);
     const auth = await userService.ensureAppUser({
-      supabaseAuthUserId: payload.sub,
+      authSubject: payload.sub,
       email: typeof payload.email === 'string' ? payload.email : null,
     });
     request.auth = {
@@ -53,7 +53,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       appUserId: auth.appUserId,
       serviceId: null,
       scopes: USER_DEFAULT_SCOPES,
-      supabaseAuthUserId: auth.supabaseAuthUserId,
+      authSubject: auth.authSubject,
       email: auth.email,
       tokenId: null,
     };

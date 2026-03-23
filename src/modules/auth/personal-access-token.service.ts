@@ -79,6 +79,10 @@ export class PersonalAccessTokenService {
     });
   }
 
+  async revokeAllForUser(userId: string): Promise<number> {
+    return withTransaction(async (client) => this.tokenRepository.revokeAllForUser(client, userId));
+  }
+
   async authenticate(rawToken: string): Promise<AuthActor | null> {
     const tokenHash = hashAccessToken(rawToken);
     return withTransaction(async (client) => {
@@ -99,7 +103,7 @@ export class PersonalAccessTokenService {
         appUserId: user.id,
         serviceId: null,
         scopes: token.scopes,
-        supabaseAuthUserId: user.supabaseAuthUserId,
+        authSubject: user.authSubject,
         email: user.email,
         tokenId: token.id,
       } satisfies AuthActor;

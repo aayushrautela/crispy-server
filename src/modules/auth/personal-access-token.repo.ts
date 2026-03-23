@@ -118,4 +118,18 @@ export class PersonalAccessTokenRepository {
 
     return result.rows[0] ? mapPersonalAccessToken(result.rows[0]) : null;
   }
+
+  async revokeAllForUser(client: DbClient, userId: string): Promise<number> {
+    const result = await client.query(
+      `
+        UPDATE personal_access_tokens
+        SET revoked_at = now(), updated_at = now()
+        WHERE user_id = $1::uuid
+          AND revoked_at IS NULL
+      `,
+      [userId],
+    );
+
+    return result.rowCount ?? 0;
+  }
 }

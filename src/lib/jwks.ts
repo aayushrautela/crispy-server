@@ -1,17 +1,17 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { env } from '../config/env.js';
 
-const jwks = createRemoteJWKSet(new URL(env.supabaseJwksUrl));
+const jwks = createRemoteJWKSet(new URL(env.authJwksUrl));
 
 export type AuthTokenPayload = JWTPayload & {
   sub: string;
   email?: string;
 };
 
-export async function verifySupabaseJwt(token: string): Promise<AuthTokenPayload> {
+export async function verifyAuthJwt(token: string): Promise<AuthTokenPayload> {
   const { payload } = await jwtVerify(token, jwks, {
-    issuer: env.supabaseJwtIssuer,
-    audience: env.supabaseJwtAudience,
+    issuer: env.authJwtIssuer,
+    audience: env.authJwtAudience,
   });
 
   if (typeof payload.sub !== 'string' || !payload.sub.trim()) {

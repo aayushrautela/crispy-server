@@ -23,6 +23,7 @@ export type ProjectionRefreshJob = {
   reason: string;
   mediaKey?: string;
   importJobId?: string;
+  connectionId?: string;
 };
 
 function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: string): string {
@@ -31,7 +32,7 @@ function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: st
 
 async function enqueueProjectionRefreshJob(job: ProjectionRefreshJob, options?: { delayMs?: number }): Promise<void> {
   await projectionQueue.add(job.reason, job, {
-    jobId: projectionRefreshJobId(job.reason, job.profileId, job.mediaKey),
+    jobId: resolveProjectionJobId(job),
     delay: options?.delayMs,
     removeOnComplete: true,
     removeOnFail: 100,
@@ -73,4 +74,23 @@ export async function enqueueRebuildProfileProjections(profileId: string): Promi
 
 export async function enqueueProviderImport(profileId: string, importJobId: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, importJobId, reason: 'provider-import' });
+}
+
+export async function enqueueProviderRefresh(profileId: string, connectionId: string, delayMs?: number): Promise<void> {
+  await enqueueProjectionRefreshJob(
+    { profileId, connectionId, reason: 'provider-refresh' },
+    { delayMs },
+  );
+}
+
+function resolveProjectionJobId(job: ProjectionRefreshJob): string {
+  if (job.importJobId) {
+    return `${job.reason}:${job.profileId}:${job.importJobId}`;
+  }
+
+  if (job.connectionId) {
+    return `${job.reason}:${job.profileId}:${job.connectionId}`;
+  }
+
+  return projectionRefreshJobId(job.reason, job.profileId, job.mediaKey);
 }

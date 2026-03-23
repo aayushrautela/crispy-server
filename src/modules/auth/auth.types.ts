@@ -13,7 +13,7 @@ export type AuthActor = {
   appUserId: string | null;
   serviceId: string | null;
   scopes: AuthScope[];
-  supabaseAuthUserId: string | null;
+  authSubject: string | null;
   email: string | null;
   tokenId: string | null;
 };

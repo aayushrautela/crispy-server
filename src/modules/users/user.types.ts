@@ -1,6 +1,6 @@
 export type AppUser = {
   id: string;
-  supabaseAuthUserId: string;
+  authSubject: string;
   email: string | null;
   createdAt: string;
   updatedAt: string;
@@ -9,6 +9,6 @@ export type AppUser = {
 
 export type AuthContext = {
   appUserId: string;
-  supabaseAuthUserId: string;
+  authSubject: string;
   email: string | null;
 };

@@ -4,6 +4,7 @@ import { bullConnection, projectionQueueName } from '../lib/queue.js';
 import { HeartbeatFlushService } from '../modules/watch/heartbeat-flush.service.js';
 import { runMetadataRefreshJob } from './jobs/metadata-refresh.job.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
+import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRebuildProfileProjectionsJob } from './jobs/rebuild-profile-projections.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
 import { runRefreshHomeCacheJob } from './jobs/refresh-home-cache.job.js';
@@ -14,7 +15,13 @@ export function startWorker(): Worker {
   return new Worker(
     projectionQueueName,
     async (job) => {
-      const payload = job.data as { profileId: string; reason: string; mediaKey?: string; importJobId?: string };
+      const payload = job.data as {
+        profileId: string;
+        reason: string;
+        mediaKey?: string;
+        importJobId?: string;
+        connectionId?: string;
+      };
       switch (payload.reason) {
         case 'flush-heartbeat':
           if (!payload.mediaKey) {
@@ -33,6 +40,9 @@ export function startWorker(): Worker {
           return;
         case 'provider-import':
           await runProviderImportJob(payload);
+          return;
+        case 'provider-refresh':
+          await runProviderRefreshJob(payload);
           return;
         default:
           await runRebuildProfileProjectionsJob(payload);

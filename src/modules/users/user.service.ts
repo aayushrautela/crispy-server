@@ -9,13 +9,13 @@ export class UserService {
     private readonly householdService = new HouseholdService(),
   ) {}
 
-  async ensureAppUser(params: { supabaseAuthUserId: string; email: string | null }): Promise<AuthContext> {
+  async ensureAppUser(params: { authSubject: string; email: string | null }): Promise<AuthContext> {
     return withTransaction(async (client) => {
-      const user = await this.userRepository.upsertFromJwt(client, params);
+      const user = await this.userRepository.upsertFromAuthSubject(client, params);
       await this.householdService.ensureDefaultHousehold(client, { userId: user.id });
       return {
         appUserId: user.id,
-        supabaseAuthUserId: user.supabaseAuthUserId,
+        authSubject: user.authSubject,
         email: user.email,
       };
     });

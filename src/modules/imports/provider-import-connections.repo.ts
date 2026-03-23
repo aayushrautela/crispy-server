@@ -167,6 +167,34 @@ export class ProviderImportConnectionsRepository {
     );
   }
 
+  async revokeConnection(client: DbClient, params: {
+    connectionId: string;
+    credentialsJson?: Record<string, unknown>;
+    lastUsedAt?: string | null;
+  }): Promise<ProviderImportConnectionRecord | null> {
+    const result = await client.query(
+      `
+        UPDATE provider_import_connections
+        SET status = 'revoked',
+            state_token = null,
+            expires_at = null,
+            credentials_json = CASE WHEN $2::jsonb IS NULL THEN credentials_json ELSE $2::jsonb END,
+            last_used_at = COALESCE($3::timestamptz, last_used_at),
+            updated_at = now()
+        WHERE id = $1::uuid
+          AND status = 'connected'
+        RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
+                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
+      `,
+      [
+        params.connectionId,
+        params.credentialsJson ? JSON.stringify(params.credentialsJson) : null,
+        params.lastUsedAt ?? null,
+      ],
+    );
+    return result.rows[0] ? mapConnection(result.rows[0]) : null;
+  }
+
   async revokeOtherConnectedForProfile(
     client: DbClient,
     profileId: string,
