@@ -6,7 +6,8 @@ export async function registerHomeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/v1/home', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
-    return homeService.getHome(request.auth!.appUserId, profileId);
+    return homeService.getHome(actor.appUserId, profileId);
   });
 }

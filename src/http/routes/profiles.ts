@@ -8,15 +8,17 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
 
   app.get('/v1/profiles', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     return {
-      profiles: await profileService.listForUser(request.auth!.appUserId),
+      profiles: await profileService.listForUser(actor.appUserId),
     };
   });
 
   app.post('/v1/profiles', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const profile = await profileService.create(request.auth!.appUserId, {
+    const profile = await profileService.create(actor.appUserId, {
       name: String(body.name ?? '').trim(),
       avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : null,
       isKids: Boolean(body.isKids),
@@ -27,9 +29,10 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
 
   app.patch('/v1/profiles/:profileId', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const profile = await profileService.update(request.auth!.appUserId, params.profileId, {
+    const profile = await profileService.update(actor.appUserId, params.profileId, {
       name: typeof body.name === 'string' ? body.name : undefined,
       avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : undefined,
       isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
@@ -40,10 +43,11 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
 
   app.post('/v1/profiles/:profileId/imports/start', async (request, reply) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     const started = await providerImportService.startReplaceImport(
-      request.auth!.appUserId,
+      actor.appUserId,
       params.profileId,
       parseImportProvider(body.provider),
     );
@@ -53,21 +57,24 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
 
   app.get('/v1/profiles/:profileId/imports', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
-    return providerImportService.listJobs(request.auth!.appUserId, params.profileId);
+    return providerImportService.listJobs(actor.appUserId, params.profileId);
   });
 
   app.get('/v1/profiles/:profileId/import-connections', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
-    return providerImportService.listConnections(request.auth!.appUserId, params.profileId);
+    return providerImportService.listConnections(actor.appUserId, params.profileId);
   });
 
   app.get('/v1/profiles/:profileId/imports/:jobId', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; jobId: string };
     return {
-      job: await providerImportService.getJob(request.auth!.appUserId, params.profileId, params.jobId),
+      job: await providerImportService.getJob(actor.appUserId, params.profileId, params.jobId),
     };
   });
 

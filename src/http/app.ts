@@ -3,6 +3,7 @@ import { loggerOptions } from '../config/logger.js';
 import authPlugin from './plugins/auth.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
 import profileContextPlugin from './plugins/profile-context.js';
+import serviceAuthPlugin from './plugins/service-auth.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerHomeRoutes } from './routes/home.js';
@@ -10,12 +11,17 @@ import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
+import { registerRecommendationRoutes } from './routes/recommendations.js';
 import { registerWatchRoutes } from './routes/watch.js';
+import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
     requireAuth(request: import('fastify').FastifyRequest): Promise<void>;
+    requireServiceAuth(request: import('fastify').FastifyRequest): Promise<void>;
     requireProfileId(request: import('fastify').FastifyRequest): string;
+    requireUserActor(request: import('fastify').FastifyRequest): UserAuthActor;
+    requireScopes(request: import('fastify').FastifyRequest, scopes: AuthScope[]): void;
   }
 }
 
@@ -26,6 +32,7 @@ export async function buildApp() {
 
   await app.register(errorHandlerPlugin);
   await app.register(authPlugin);
+  await app.register(serviceAuthPlugin);
   await app.register(profileContextPlugin);
 
   await registerHealthRoutes(app);
@@ -34,6 +41,7 @@ export async function buildApp() {
   await registerProfileSettingsRoutes(app);
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
+  await registerRecommendationRoutes(app);
   await registerHomeRoutes(app);
   await registerCalendarRoutes(app);
 

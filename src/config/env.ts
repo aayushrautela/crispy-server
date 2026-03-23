@@ -49,6 +49,7 @@ export const env = {
   simklImportClientId: process.env.SIMKL_IMPORT_CLIENT_ID?.trim() || '',
   simklImportClientSecret: process.env.SIMKL_IMPORT_CLIENT_SECRET?.trim() || '',
   simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
+  recommendationApiKey: process.env.RECOMMENDATION_API_KEY?.trim() || '',
 };
 
 export type Env = typeof env;

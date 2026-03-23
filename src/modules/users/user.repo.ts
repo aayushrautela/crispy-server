@@ -13,6 +13,18 @@ function mapUserRow(row: Record<string, unknown>): AppUser {
 }
 
 export class UserRepository {
+  async findById(client: DbClient, userId: string): Promise<AppUser | null> {
+    const result = await client.query(
+      `
+        SELECT id, supabase_auth_user_id, email, created_at, updated_at, last_seen_at
+        FROM app_users
+        WHERE id = $1::uuid
+      `,
+      [userId],
+    );
+    return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+  }
+
   async findBySupabaseAuthUserId(client: DbClient, supabaseAuthUserId: string): Promise<AppUser | null> {
     const result = await client.query(
       `

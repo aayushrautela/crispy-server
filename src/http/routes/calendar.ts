@@ -6,7 +6,8 @@ export async function registerCalendarRoutes(app: FastifyInstance): Promise<void
 
   app.get('/v1/calendar', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
-    return calendarService.getCalendar(request.auth!.appUserId, profileId);
+    return calendarService.getCalendar(actor.appUserId, profileId);
   });
 }

@@ -52,6 +52,34 @@ export class ProfileRepository {
     return result.rows.map((row) => mapProfile(row));
   }
 
+  async listForUser(client: DbClient, userId: string): Promise<ProfileRecord[]> {
+    const result = await client.query(
+      `
+        SELECT DISTINCT p.id, p.household_id, p.name, p.avatar_key, p.is_kids, p.sort_order,
+               p.created_by_user_id, p.created_at, p.updated_at
+        FROM profiles p
+        INNER JOIN household_members hm ON hm.household_id = p.household_id
+        WHERE hm.user_id = $1::uuid
+        ORDER BY p.sort_order ASC, p.created_at ASC
+      `,
+      [userId],
+    );
+    return result.rows.map((row) => mapProfile(row));
+  }
+
+  async listAll(client: DbClient, limit: number, offset: number): Promise<ProfileRecord[]> {
+    const result = await client.query(
+      `
+        SELECT id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        FROM profiles
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT $1 OFFSET $2
+      `,
+      [limit, offset],
+    );
+    return result.rows.map((row) => mapProfile(row));
+  }
+
   async findByIdForUser(client: DbClient, profileId: string, userId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `

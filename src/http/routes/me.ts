@@ -9,13 +9,14 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/v1/me', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     return withTransaction(async (client) => {
       const auth = request.auth!;
-      const householdId = await householdService.ensureDefaultHousehold(client, { userId: auth.appUserId });
+      const householdId = await householdService.ensureDefaultHousehold(client, { userId: actor.appUserId });
       const profiles = await profileRepository.listForHousehold(client, householdId);
       return {
         user: {
-          id: auth.appUserId,
+          id: actor.appUserId,
           supabaseAuthUserId: auth.supabaseAuthUserId,
           email: auth.email,
         },

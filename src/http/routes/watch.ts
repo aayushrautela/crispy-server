@@ -15,9 +15,10 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/v1/watch/events', async (request, reply) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const result = await ingestService.ingestPlaybackEvent(request.auth!.appUserId, profileId, {
+    const result = await ingestService.ingestPlaybackEvent(actor.appUserId, profileId, {
       clientEventId: String(body.clientEventId ?? ''),
       eventType: String(body.eventType ?? ''),
       mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
@@ -40,63 +41,70 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/v1/watch/continue-watching', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const limit = Number((request.query as { limit?: string }).limit ?? 20);
     return {
-      items: await continueWatchingService.list(request.auth!.appUserId, profileId, limit),
+      items: await continueWatchingService.list(actor.appUserId, profileId, limit),
     };
   });
 
   app.delete('/v1/watch/continue-watching/:id', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const params = request.params as { id: string };
-    return ingestService.dismissContinueWatching(request.auth!.appUserId, profileId, params.id);
+    return ingestService.dismissContinueWatching(actor.appUserId, profileId, params.id);
   });
 
   app.get('/v1/watch/history', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const limit = Number((request.query as { limit?: string }).limit ?? 50);
     return {
-      items: await historyService.list(request.auth!.appUserId, profileId, limit),
+      items: await historyService.list(actor.appUserId, profileId, limit),
     };
   });
 
   app.get('/v1/watch/watchlist', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const limit = Number((request.query as { limit?: string }).limit ?? 50);
     return {
-      items: await watchCollectionService.listWatchlist(request.auth!.appUserId, profileId, limit),
+      items: await watchCollectionService.listWatchlist(actor.appUserId, profileId, limit),
     };
   });
 
   app.get('/v1/watch/ratings', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const limit = Number((request.query as { limit?: string }).limit ?? 50);
     return {
-      items: await watchCollectionService.listRatings(request.auth!.appUserId, profileId, limit),
+      items: await watchCollectionService.listRatings(actor.appUserId, profileId, limit),
     };
   });
 
   app.get('/v1/watch/state', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const query = request.query as Record<string, unknown>;
-    return watchStateService.getState(request.auth!.appUserId, profileId, mapStateLookupInput(query));
+    return watchStateService.getState(actor.appUserId, profileId, mapStateLookupInput(query));
   });
 
   app.post('/v1/watch/states', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const body = (request.body ?? {}) as { items?: unknown };
     const items = Array.isArray(body.items) ? body.items : [];
 
     return {
       items: await watchStateService.getStates(
-        request.auth!.appUserId,
+        actor.appUserId,
         profileId,
         items.map((item) => mapStateLookupInput((item ?? {}) as Record<string, unknown>)),
       ),
@@ -105,24 +113,27 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/v1/watch/mark-watched', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return ingestService.markWatched(request.auth!.appUserId, profileId, mapMutationBody(body));
+    return ingestService.markWatched(actor.appUserId, profileId, mapMutationBody(body));
   });
 
   app.post('/v1/watch/unmark-watched', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return ingestService.unmarkWatched(request.auth!.appUserId, profileId, mapMutationBody(body));
+    return ingestService.unmarkWatched(actor.appUserId, profileId, mapMutationBody(body));
   });
 
   app.put('/v1/watch/watchlist/:mediaKey', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const params = request.params as { mediaKey: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return ingestService.setWatchlist(request.auth!.appUserId, profileId, {
+    return ingestService.setWatchlist(actor.appUserId, profileId, {
       ...mapMutationBody(body),
       mediaKey: params.mediaKey,
     });
@@ -130,17 +141,19 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/v1/watch/watchlist/:mediaKey', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const params = request.params as { mediaKey: string };
-    return ingestService.removeWatchlist(request.auth!.appUserId, profileId, params.mediaKey);
+    return ingestService.removeWatchlist(actor.appUserId, profileId, params.mediaKey);
   });
 
   app.put('/v1/watch/rating/:mediaKey', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const params = request.params as { mediaKey: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return ingestService.setRating(request.auth!.appUserId, profileId, {
+    return ingestService.setRating(actor.appUserId, profileId, {
       ...mapMutationBody(body),
       mediaKey: params.mediaKey,
       rating: typeof body.rating === 'number' ? body.rating : null,
@@ -149,9 +162,10 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/v1/watch/rating/:mediaKey', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = app.requireProfileId(request);
     const params = request.params as { mediaKey: string };
-    return ingestService.removeRating(request.auth!.appUserId, profileId, params.mediaKey);
+    return ingestService.removeRating(actor.appUserId, profileId, params.mediaKey);
   });
 }
 
