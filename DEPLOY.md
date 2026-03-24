@@ -16,6 +16,17 @@
 
 3. Fill `.env`.
 
+   Auth is external-only. Application data lives in the local Postgres from `DATABASE_URL`, while JWT verification and optional upstream user deletion use the `AUTH_*` variables.
+
+   Example auth config when Supabase is the auth provider:
+   ```env
+   AUTH_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
+   AUTH_JWT_ISSUER=https://your-project.supabase.co/auth/v1
+   AUTH_JWT_AUDIENCE=authenticated
+   AUTH_ADMIN_URL=https://your-project.supabase.co/auth/v1
+   AUTH_ADMIN_TOKEN=replace_with_auth_admin_token
+   ```
+
    The API requires `SERVICE_CLIENTS_JSON` for service-to-service authentication. Internal callers such as the hosted recommendation engine must send `x-service-id` and `x-api-key`, and those values must match an active entry in `SERVICE_CLIENTS_JSON`.
 
    Example:

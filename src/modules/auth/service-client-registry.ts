@@ -73,11 +73,7 @@ export function parseServiceClientRegistryConfig(raw: string): ServiceClientConf
       throw new Error(`Invalid SERVICE_CLIENTS_JSON: apiKey is required for '${serviceId}'.`);
     }
 
-    const rawScopes = Array.isArray(entry.scopes)
-      ? entry.scopes
-      : Array.isArray(entry.allowedScopes)
-        ? entry.allowedScopes
-        : null;
+    const rawScopes = Array.isArray(entry.scopes) ? entry.scopes : null;
     if (!rawScopes?.length) {
       throw new Error(`Invalid SERVICE_CLIENTS_JSON: scopes are required for '${serviceId}'.`);
     }

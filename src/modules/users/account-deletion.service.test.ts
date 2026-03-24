@@ -5,9 +5,9 @@ function seedTestEnv(): void {
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
   process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
-  process.env.SUPABASE_JWKS_URL ||= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
-  process.env.SUPABASE_JWT_ISSUER ||= 'https://example.supabase.co/auth/v1';
-  process.env.SUPABASE_JWT_AUDIENCE ||= 'authenticated';
+  process.env.AUTH_JWKS_URL ||= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
+  process.env.AUTH_JWT_ISSUER ||= 'https://example.supabase.co/auth/v1';
+  process.env.AUTH_JWT_AUDIENCE ||= 'authenticated';
   process.env.TMDB_API_KEY ||= 'tmdb-key';
   process.env.SERVICE_CLIENTS_JSON ||= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
 }
@@ -64,6 +64,7 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
       return ['avatar-a', 'avatar-b'];
     },
   };
+  const accountSettingsRepository = {};
   const userRepository = {
     deleteById: async (_client: unknown, userId: string) => {
       assert.equal(userId, 'user-1');
@@ -82,6 +83,7 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
       personalAccessTokenService as never,
       householdRepository as never,
       profileRepository as never,
+      accountSettingsRepository as never,
       userRepository as never,
       externalAuthAdminService as never,
     );
@@ -101,7 +103,12 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
         'Deleted household household-empty referenced 2 avatar key(s), but avatar storage cleanup is not configured locally.',
       ],
     });
-    assert.deepEqual(queries, ['BEGIN', 'COMMIT']);
+    assert.deepEqual(queries, [
+      'BEGIN',
+      'DELETE FROM account_secrets WHERE app_user_id = $1::uuid',
+      'DELETE FROM account_settings WHERE app_user_id = $1::uuid',
+      'COMMIT',
+    ]);
   } finally {
     (db as { connect: typeof db.connect }).connect = originalConnect;
   }

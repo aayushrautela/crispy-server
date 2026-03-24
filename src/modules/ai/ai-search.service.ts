@@ -2,7 +2,7 @@ import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
+import { AccountSettingsRepository } from '../users/account-settings.repo.js';
 import { OpenRouterClient } from './openrouter.client.js';
 import type { AiCandidateMediaType, AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
 
@@ -23,7 +23,7 @@ const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', '
 export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly profileSettingsRepository = new ProfileSettingsRepository(),
+    private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly openRouterClient = new OpenRouterClient(),
   ) {}
 
@@ -52,10 +52,9 @@ export class AiSearchService {
         throw new HttpError(404, 'Profile not found.');
       }
 
-      const settings = await this.profileSettingsRepository.getForProfile(client, profileId);
-      const key = typeof settings['ai.openrouter_key'] === 'string' ? settings['ai.openrouter_key'].trim() : '';
+      const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.openrouter_key')) ?? '';
       if (!key) {
-        throw new HttpError(412, 'AI search is not configured for this profile. Add an OpenRouter key in Settings.');
+        throw new HttpError(412, 'AI search is not configured for this account. Add an OpenRouter key in Account Settings.');
       }
 
       return key;

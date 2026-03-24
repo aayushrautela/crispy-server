@@ -5,10 +5,9 @@ function seedTestEnv(): void {
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
   process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
-  process.env.SUPABASE_URL ||= 'https://example.supabase.co';
-  process.env.SUPABASE_JWKS_URL ||= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
-  process.env.SUPABASE_JWT_ISSUER ||= 'https://example.supabase.co/auth/v1';
-  process.env.SUPABASE_JWT_AUDIENCE ||= 'authenticated';
+  process.env.AUTH_JWKS_URL ||= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
+  process.env.AUTH_JWT_ISSUER ||= 'https://example.supabase.co/auth/v1';
+  process.env.AUTH_JWT_AUDIENCE ||= 'authenticated';
   process.env.TMDB_API_KEY ||= 'tmdb-key';
   process.env.SERVICE_CLIENTS_JSON ||= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
   process.env.TRAKT_IMPORT_CLIENT_ID ||= 'trakt-client-id';

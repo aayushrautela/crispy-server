@@ -39,6 +39,20 @@ export class ProfileRepository {
     return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }
 
+  async findOwnerUserIdById(client: DbClient, profileId: string): Promise<string | null> {
+    const result = await client.query(
+      `
+        SELECT h.owner_user_id
+        FROM profiles p
+        INNER JOIN households h ON h.id = p.household_id
+        WHERE p.id = $1::uuid
+      `,
+      [profileId],
+    );
+
+    return typeof result.rows[0]?.owner_user_id === 'string' ? result.rows[0].owner_user_id : null;
+  }
+
   async listForHousehold(client: DbClient, householdId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `

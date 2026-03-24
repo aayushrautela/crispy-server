@@ -4,6 +4,7 @@ import { PersonalAccessTokenService } from '../auth/personal-access-token.servic
 import { ExternalAuthAdminService } from '../auth/external-auth-admin.service.js';
 import { HouseholdRepository } from '../households/household.repo.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
+import { AccountSettingsRepository } from './account-settings.repo.js';
 import { UserRepository } from './user.repo.js';
 
 export type DeletedAccountResult = {
@@ -20,6 +21,7 @@ export class AccountDeletionService {
     private readonly personalAccessTokenService = new PersonalAccessTokenService(),
     private readonly householdRepository = new HouseholdRepository(),
     private readonly profileRepository = new ProfileRepository(),
+    private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly userRepository = new UserRepository(),
     private readonly externalAuthAdminService = new ExternalAuthAdminService(),
   ) {}
@@ -59,6 +61,9 @@ export class AccountDeletionService {
           warnings.push(`Unable to delete empty household ${householdId}.`);
         }
       }
+
+      await client.query('DELETE FROM account_secrets WHERE app_user_id = $1::uuid', [params.appUserId]);
+      await client.query('DELETE FROM account_settings WHERE app_user_id = $1::uuid', [params.appUserId]);
 
       const deletedUser = await this.userRepository.deleteById(client, params.appUserId);
       if (!deletedUser) {

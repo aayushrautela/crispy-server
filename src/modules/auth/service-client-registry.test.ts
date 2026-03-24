@@ -48,6 +48,15 @@ test('parseServiceClientRegistryConfig rejects duplicate service ids', () => {
   );
 });
 
+test('parseServiceClientRegistryConfig rejects legacy allowedScopes alias', () => {
+  assert.throws(
+    () => parseServiceClientRegistryConfig(JSON.stringify([
+      { serviceId: 'svc', apiKey: 'key-1', allowedScopes: ['profiles:read'] },
+    ])),
+    /scopes are required/,
+  );
+});
+
 test('ServiceClientRegistry authenticate returns null for unknown or disabled clients', () => {
   const registry = new ServiceClientRegistry(parseServiceClientRegistryConfig(JSON.stringify([
     { serviceId: 'svc-active', apiKey: 'key-1', scopes: ['profiles:read'] },

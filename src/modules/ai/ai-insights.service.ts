@@ -2,7 +2,7 @@ import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
+import { AccountSettingsRepository } from '../users/account-settings.repo.js';
 import { OpenRouterClient } from './openrouter.client.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import type { AiInsightsMediaType, AiInsightsPayload } from './ai.types.js';
@@ -27,7 +27,7 @@ const GENERATION_VERSION = 'v1';
 export class AiInsightsService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly profileSettingsRepository = new ProfileSettingsRepository(),
+    private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
     private readonly openRouterClient = new OpenRouterClient(),
   ) {}
@@ -62,10 +62,9 @@ export class AiInsightsService {
         throw new HttpError(404, 'Profile not found.');
       }
 
-      const settings = await this.profileSettingsRepository.getForProfile(client, profileId);
-      const key = typeof settings['ai.openrouter_key'] === 'string' ? settings['ai.openrouter_key'].trim() : '';
+      const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.openrouter_key')) ?? '';
       if (!key) {
-        throw new HttpError(412, 'AI insights are not configured for this profile. Add an OpenRouter key in Settings.');
+        throw new HttpError(412, 'AI insights are not configured for this account. Add an OpenRouter key in Account Settings.');
       }
       return key;
     });

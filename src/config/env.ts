@@ -16,17 +16,6 @@ function optionalEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
-function requireOneOfEnv(names: string[]): string {
-  for (const name of names) {
-    const value = optionalEnv(name);
-    if (value) {
-      return value;
-    }
-  }
-
-  throw new Error(`Missing required environment variable: ${names.join(' or ')}`);
-}
-
 function parseNumber(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) {
@@ -46,11 +35,11 @@ export const env = {
   logLevel: process.env.LOG_LEVEL?.trim() || 'info',
   databaseUrl: requireEnv('DATABASE_URL'),
   redisUrl: requireEnv('REDIS_URL'),
-  authJwksUrl: requireOneOfEnv(['AUTH_JWKS_URL', 'SUPABASE_JWKS_URL']),
-  authJwtIssuer: requireOneOfEnv(['AUTH_JWT_ISSUER', 'SUPABASE_JWT_ISSUER']),
-  authJwtAudience: requireOneOfEnv(['AUTH_JWT_AUDIENCE', 'SUPABASE_JWT_AUDIENCE']),
-  authAdminUrl: optionalEnv('AUTH_ADMIN_URL') ?? optionalEnv('SUPABASE_AUTH_ADMIN_URL') ?? '',
-  authAdminToken: optionalEnv('AUTH_ADMIN_TOKEN') ?? optionalEnv('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  authJwksUrl: requireEnv('AUTH_JWKS_URL'),
+  authJwtIssuer: requireEnv('AUTH_JWT_ISSUER'),
+  authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
+  authAdminUrl: optionalEnv('AUTH_ADMIN_URL') ?? '',
+  authAdminToken: optionalEnv('AUTH_ADMIN_TOKEN') ?? '',
   defaultHouseholdName: process.env.DEFAULT_HOUSEHOLD_NAME?.trim() || 'Crispy Household',
   defaultProfileName: process.env.DEFAULT_PROFILE_NAME?.trim() || 'Main',
   homeCacheTtlSeconds: parseNumber('HOME_CACHE_TTL_SECONDS', 120),

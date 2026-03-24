@@ -1,6 +1,7 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { HouseholdService } from '../households/household.service.js';
+import { normalizeSettingsPatch, stripAccountScopedProfileSettings } from '../users/account-settings.service.js';
 import { ProfileRepository, type ProfileRecord } from './profile.repo.js';
 import { ProfileSettingsRepository } from './profile-settings.repo.js';
 
@@ -58,7 +59,8 @@ export class ProfileService {
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      return this.profileSettingsRepository.getForProfile(client, profileId);
+      const settings = await this.profileSettingsRepository.getForProfile(client, profileId);
+      return stripAccountScopedProfileSettings(settings);
     });
   }
 
@@ -68,7 +70,9 @@ export class ProfileService {
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      return this.profileSettingsRepository.patchForProfile(client, profileId, patch);
+      const normalizedPatch = normalizeSettingsPatch(patch);
+      const settings = await this.profileSettingsRepository.patchForProfile(client, profileId, normalizedPatch);
+      return stripAccountScopedProfileSettings(settings);
     });
   }
 
