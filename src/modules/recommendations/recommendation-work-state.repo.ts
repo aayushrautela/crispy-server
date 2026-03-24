@@ -33,6 +33,32 @@ type PendingCandidate = {
   updatedAt: string;
 };
 
+export type RecommendationLeaseDiagnosticRecord = {
+  consumerId: string;
+  consumerKey: string;
+  displayName: string;
+  sourceKey: string;
+  profileId: string;
+  profileName: string;
+  leaseId: string;
+  leaseOwner: string;
+  leaseExpiresAt: string;
+  claimedHistoryGeneration: number | null;
+  pendingEventCount: number;
+  updatedAt: string;
+};
+
+export type RecommendationBacklogSummaryRecord = {
+  consumerId: string;
+  consumerKey: string;
+  displayName: string;
+  sourceKey: string;
+  pendingProfileCount: number;
+  pendingEventCount: number;
+  oldestOccurredAt: string | null;
+  newestEventId: number | null;
+};
+
 export class RecommendationWorkStateRepository {
   async claimPendingProfiles(client: DbClient, input: ClaimRecommendationWorkInput & { sourceKey: string }): Promise<RecommendationWorkItem[]> {
     const candidates = await this.listPendingCandidates(client, input);
@@ -186,6 +212,112 @@ export class RecommendationWorkStateRepository {
       `,
       [profileId],
     );
+  }
+
+  async listActiveLeases(client: DbClient, limit: number): Promise<RecommendationLeaseDiagnosticRecord[]> {
+    return this.listLeases(client, false, limit);
+  }
+
+  async listStaleLeases(client: DbClient, limit: number): Promise<RecommendationLeaseDiagnosticRecord[]> {
+    return this.listLeases(client, true, limit);
+  }
+
+  async listBacklogSummaries(client: DbClient, limit: number): Promise<RecommendationBacklogSummaryRecord[]> {
+    const result = await client.query(
+      `
+        WITH consumer_profiles AS (
+          SELECT rc.id AS consumer_id,
+                 rc.consumer_key,
+                 rc.display_name,
+                 rc.source_key,
+                 p.id AS profile_id,
+                 COALESCE(rpws.last_completed_event_id, 0) AS last_completed_event_id
+          FROM recommendation_consumers rc
+          CROSS JOIN profiles p
+          LEFT JOIN recommendation_profile_work_state rpws
+            ON rpws.consumer_id = rc.id
+           AND rpws.profile_id = p.id
+          WHERE rc.status = 'active'
+        )
+        SELECT cp.consumer_id,
+               cp.consumer_key,
+               cp.display_name,
+               cp.source_key,
+               COUNT(DISTINCT reo.profile_id)::integer AS pending_profile_count,
+               COUNT(reo.id)::integer AS pending_event_count,
+               MIN(reo.occurred_at) AS oldest_occurred_at,
+               MAX(reo.id) AS newest_event_id
+        FROM consumer_profiles cp
+        INNER JOIN recommendation_event_outbox reo
+          ON reo.profile_id = cp.profile_id
+         AND reo.id > cp.last_completed_event_id
+        GROUP BY cp.consumer_id, cp.consumer_key, cp.display_name, cp.source_key
+        ORDER BY pending_event_count DESC, oldest_occurred_at ASC NULLS LAST
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return result.rows.map((row) => ({
+      consumerId: String(row.consumer_id),
+      consumerKey: String(row.consumer_key),
+      displayName: String(row.display_name),
+      sourceKey: String(row.source_key),
+      pendingProfileCount: Number(row.pending_profile_count ?? 0),
+      pendingEventCount: Number(row.pending_event_count ?? 0),
+      oldestOccurredAt: typeof row.oldest_occurred_at === 'string' ? row.oldest_occurred_at : null,
+      newestEventId: row.newest_event_id === null ? null : Number(row.newest_event_id),
+    }));
+  }
+
+  private async listLeases(client: DbClient, stale: boolean, limit: number): Promise<RecommendationLeaseDiagnosticRecord[]> {
+    const comparator = stale ? '<' : '>=';
+    const result = await client.query(
+      `
+        SELECT rpws.consumer_id,
+               rc.consumer_key,
+               rc.display_name,
+               rc.source_key,
+               rpws.profile_id,
+               p.name AS profile_name,
+               rpws.lease_id,
+               rpws.lease_owner,
+               rpws.lease_expires_at,
+               rpws.claimed_history_generation,
+               COUNT(reo.id)::integer AS pending_event_count,
+               rpws.updated_at
+        FROM recommendation_profile_work_state rpws
+        INNER JOIN recommendation_consumers rc ON rc.id = rpws.consumer_id
+        INNER JOIN profiles p ON p.id = rpws.profile_id
+        LEFT JOIN recommendation_event_outbox reo
+          ON reo.profile_id = rpws.profile_id
+         AND reo.id > COALESCE(rpws.last_completed_event_id, 0)
+        WHERE rpws.lease_id IS NOT NULL
+          AND rpws.lease_expires_at IS NOT NULL
+          AND rpws.lease_expires_at ${comparator} now()
+        GROUP BY rpws.consumer_id, rc.consumer_key, rc.display_name, rc.source_key,
+                 rpws.profile_id, p.name, rpws.lease_id, rpws.lease_owner,
+                 rpws.lease_expires_at, rpws.claimed_history_generation, rpws.updated_at
+        ORDER BY rpws.lease_expires_at ASC, rpws.updated_at DESC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return result.rows.map((row) => ({
+      consumerId: String(row.consumer_id),
+      consumerKey: String(row.consumer_key),
+      displayName: String(row.display_name),
+      sourceKey: String(row.source_key),
+      profileId: String(row.profile_id),
+      profileName: String(row.profile_name),
+      leaseId: String(row.lease_id),
+      leaseOwner: String(row.lease_owner),
+      leaseExpiresAt: String(row.lease_expires_at),
+      claimedHistoryGeneration: row.claimed_history_generation === null ? null : Number(row.claimed_history_generation),
+      pendingEventCount: Number(row.pending_event_count ?? 0),
+      updatedAt: String(row.updated_at),
+    }));
   }
 
   private async listPendingCandidates(client: DbClient, input: ClaimRecommendationWorkInput): Promise<PendingCandidate[]> {

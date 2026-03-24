@@ -8,11 +8,18 @@ export class RecommendationConsumerService {
   constructor(private readonly consumerRepository = new RecommendationConsumerRepository()) {}
 
   async ensureInternalDefault(): Promise<RecommendationConsumerRecord> {
+    return this.ensureInternalServiceConsumer(null);
+  }
+
+  async ensureInternalServiceConsumer(serviceId: string | null): Promise<RecommendationConsumerRecord> {
+    const sourceKey = normalizeServiceSourceKey(serviceId);
     return withTransaction(async (client) => {
       return this.consumerRepository.findOrCreateInternal(client, {
-        consumerKey: 'internal-default',
-        displayName: 'Crispy Internal Recommender',
-        sourceKey: 'internal-default',
+        consumerKey: sourceKey === 'internal-default' ? 'internal-default' : `service:${sourceKey}`,
+        displayName: sourceKey === 'internal-default'
+          ? 'Crispy Internal Recommender'
+          : `Internal Service ${serviceId}`,
+        sourceKey,
       });
     });
   }
@@ -52,7 +59,7 @@ export class RecommendationConsumerService {
     }
 
     if (actor.type === 'service') {
-      return this.ensureInternalDefault();
+      return this.ensureInternalServiceConsumer(actor.serviceId);
     }
 
     if (!actor.appUserId) {
@@ -79,4 +86,13 @@ export class RecommendationConsumerService {
       });
     });
   }
+}
+
+function normalizeServiceSourceKey(serviceId: string | null): string {
+  if (!serviceId?.trim()) {
+    return 'internal-default';
+  }
+
+  const normalized = serviceId.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return normalized || 'internal-default';
 }

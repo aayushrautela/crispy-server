@@ -17,6 +17,17 @@ export type RecommendationEventOutboxRecord = {
   createdAt: string;
 };
 
+export type RecommendationEventOutboxAdminRecord = RecommendationEventOutboxRecord & {
+  deliveredAt: string | null;
+};
+
+export type RecommendationEventOutboxLagSummary = {
+  undeliveredCount: number;
+  oldestOccurredAt: string | null;
+  oldestCreatedAt: string | null;
+  newestCreatedAt: string | null;
+};
+
 function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecord {
   return {
     id: Number(row.id),
@@ -92,5 +103,46 @@ export class RecommendationEventOutboxRepository {
       ],
     );
     return mapOutbox(result.rows[0]);
+  }
+
+  async listUndelivered(client: DbClient, limit: number): Promise<RecommendationEventOutboxAdminRecord[]> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, history_generation, event_type, media_key, media_type,
+               tmdb_id, show_tmdb_id, season_number, episode_number, rating,
+               occurred_at, payload, created_at, delivered_at
+        FROM recommendation_event_outbox
+        WHERE delivered_at IS NULL
+        ORDER BY occurred_at ASC, id ASC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return result.rows.map((row) => ({
+      ...mapOutbox(row),
+      deliveredAt: typeof row.delivered_at === 'string' ? row.delivered_at : null,
+    }));
+  }
+
+  async getLagSummary(client: DbClient): Promise<RecommendationEventOutboxLagSummary> {
+    const result = await client.query(
+      `
+        SELECT COUNT(*)::integer AS undelivered_count,
+               MIN(occurred_at) AS oldest_occurred_at,
+               MIN(created_at) AS oldest_created_at,
+               MAX(created_at) AS newest_created_at
+        FROM recommendation_event_outbox
+        WHERE delivered_at IS NULL
+      `,
+    );
+
+    const row = result.rows[0] ?? {};
+    return {
+      undeliveredCount: Number(row.undelivered_count ?? 0),
+      oldestOccurredAt: typeof row.oldest_occurred_at === 'string' ? row.oldest_occurred_at : null,
+      oldestCreatedAt: typeof row.oldest_created_at === 'string' ? row.oldest_created_at : null,
+      newestCreatedAt: typeof row.newest_created_at === 'string' ? row.newest_created_at : null,
+    };
   }
 }

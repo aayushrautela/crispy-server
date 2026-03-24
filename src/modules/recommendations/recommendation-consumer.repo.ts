@@ -2,6 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
 import type { RecommendationConsumerOwnerKind, RecommendationConsumerRecord } from './recommendation-consumer.types.js';
 
+export type RecommendationConsumerAdminRecord = RecommendationConsumerRecord & {
+  activeLeaseCount: number;
+  trackedProfileCount: number;
+  latestWorkStateUpdatedAt: string | null;
+};
+
 function mapConsumer(row: Record<string, unknown>): RecommendationConsumerRecord {
   return {
     id: String(row.id),
@@ -72,6 +78,35 @@ export class RecommendationConsumerRepository {
       [userId],
     );
     return result.rows.map((row) => mapConsumer(row));
+  }
+
+  async listAll(client: DbClient, limit: number): Promise<RecommendationConsumerAdminRecord[]> {
+    const result = await client.query(
+      `
+        SELECT rc.id, rc.consumer_key, rc.owner_kind, rc.owner_user_id, rc.display_name, rc.source_key,
+               rc.is_internal, rc.status, rc.created_at, rc.updated_at,
+               COUNT(rpws.profile_id)::integer AS tracked_profile_count,
+               COUNT(*) FILTER (
+                 WHERE rpws.lease_id IS NOT NULL
+                   AND rpws.lease_expires_at IS NOT NULL
+                   AND rpws.lease_expires_at >= now()
+               )::integer AS active_lease_count,
+               MAX(rpws.updated_at) AS latest_work_state_updated_at
+        FROM recommendation_consumers rc
+        LEFT JOIN recommendation_profile_work_state rpws ON rpws.consumer_id = rc.id
+        GROUP BY rc.id
+        ORDER BY rc.updated_at DESC, rc.created_at DESC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return result.rows.map((row) => ({
+      ...mapConsumer(row),
+      activeLeaseCount: Number(row.active_lease_count ?? 0),
+      trackedProfileCount: Number(row.tracked_profile_count ?? 0),
+      latestWorkStateUpdatedAt: typeof row.latest_work_state_updated_at === 'string' ? row.latest_work_state_updated_at : null,
+    }));
   }
 
   async findOrCreateInternal(client: DbClient, params: {

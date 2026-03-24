@@ -18,6 +18,16 @@ export type ProviderImportConnectionRecord = {
   updatedAt: string;
 };
 
+export type ProviderImportConnectionAdminRecord = ProviderImportConnectionRecord & {
+  accessTokenExpiresAt: string | null;
+  lastRefreshAt: string | null;
+  lastRefreshError: string | null;
+  lastImportJobId: string | null;
+  lastImportCompletedAt: string | null;
+  hasAccessToken: boolean;
+  hasRefreshToken: boolean;
+};
+
 function mapConnection(row: Record<string, unknown>): ProviderImportConnectionRecord {
   return {
     id: String(row.id),
@@ -256,5 +266,52 @@ export class ProviderImportConnectionsRepository {
       ],
     );
     return mapConnection(result.rows[0]);
+  }
+
+  async listAdminConnections(client: DbClient, filters?: {
+    provider?: ProviderImportProvider | null;
+    status?: ProviderImportConnectionStatus | null;
+    expiringBefore?: string | null;
+    refreshFailuresOnly?: boolean;
+    limit?: number;
+  }): Promise<ProviderImportConnectionAdminRecord[]> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, provider, status, state_token, provider_user_id, external_username,
+               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at,
+               NULLIF(credentials_json ->> 'accessTokenExpiresAt', '') AS access_token_expires_at,
+               NULLIF(credentials_json ->> 'lastRefreshAt', '') AS last_refresh_at,
+               NULLIF(credentials_json ->> 'lastRefreshError', '') AS last_refresh_error,
+               NULLIF(credentials_json ->> 'lastImportJobId', '') AS last_import_job_id,
+               NULLIF(credentials_json ->> 'lastImportCompletedAt', '') AS last_import_completed_at,
+               CASE WHEN COALESCE(credentials_json ->> 'accessToken', '') <> '' THEN true ELSE false END AS has_access_token,
+               CASE WHEN COALESCE(credentials_json ->> 'refreshToken', '') <> '' THEN true ELSE false END AS has_refresh_token
+        FROM provider_import_connections
+        WHERE ($1::text IS NULL OR provider = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND ($3::timestamptz IS NULL OR NULLIF(credentials_json ->> 'accessTokenExpiresAt', '')::timestamptz <= $3::timestamptz)
+          AND ($4::boolean = false OR NULLIF(credentials_json ->> 'lastRefreshError', '') IS NOT NULL)
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT $5
+      `,
+      [
+        filters?.provider ?? null,
+        filters?.status ?? null,
+        filters?.expiringBefore ?? null,
+        filters?.refreshFailuresOnly ?? false,
+        filters?.limit ?? 100,
+      ],
+    );
+
+    return result.rows.map((row) => ({
+      ...mapConnection(row),
+      accessTokenExpiresAt: typeof row.access_token_expires_at === 'string' ? row.access_token_expires_at : null,
+      lastRefreshAt: typeof row.last_refresh_at === 'string' ? row.last_refresh_at : null,
+      lastRefreshError: typeof row.last_refresh_error === 'string' ? row.last_refresh_error : null,
+      lastImportJobId: typeof row.last_import_job_id === 'string' ? row.last_import_job_id : null,
+      lastImportCompletedAt: typeof row.last_import_completed_at === 'string' ? row.last_import_completed_at : null,
+      hasAccessToken: Boolean(row.has_access_token),
+      hasRefreshToken: Boolean(row.has_refresh_token),
+    }));
   }
 }

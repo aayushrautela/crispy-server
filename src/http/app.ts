@@ -11,6 +11,10 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerHomeRoutes } from './routes/home.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
+import { registerInternalAdminImportRoutes } from './routes/internal-admin-imports.js';
+import { registerInternalAdminRecommendationRoutes } from './routes/internal-admin-recommendations.js';
+import { registerInternalProfileSecretRoutes } from './routes/internal-profile-secrets.js';
+import { registerInternalProviderAuthRoutes } from './routes/internal-provider-auth.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
@@ -52,6 +56,10 @@ export async function buildApp() {
   await registerRecommendationDataRoutes(app);
   await registerRecommendationOutputRoutes(app);
   await registerRecommendationWorkRoutes(app);
+  await registerInternalProfileSecretRoutes(app);
+  await registerInternalProviderAuthRoutes(app);
+  await registerInternalAdminRecommendationRoutes(app);
+  await registerInternalAdminImportRoutes(app);
   await registerHomeRoutes(app);
   await registerCalendarRoutes(app);
 

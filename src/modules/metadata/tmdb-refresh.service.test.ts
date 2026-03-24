@@ -12,6 +12,7 @@ function seedTestEnv(): void {
   process.env.SUPABASE_JWT_ISSUER ??= 'https://example.supabase.co/auth/v1';
   process.env.SUPABASE_JWT_AUDIENCE ??= 'authenticated';
   process.env.TMDB_API_KEY ??= 'tmdb-test-key';
+  process.env.SERVICE_CLIENTS_JSON ??= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
 }
 
 async function loadTmdbRefreshService(): Promise<typeof import('./tmdb-refresh.service.js').TmdbRefreshService> {

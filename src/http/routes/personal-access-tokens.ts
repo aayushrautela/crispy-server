@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { AuthScope } from '../../modules/auth/auth.types.js';
+import { isPersonalAccessTokenScope } from '../../modules/auth/auth.types.js';
 import { PersonalAccessTokenService } from '../../modules/auth/personal-access-token.service.js';
 
 export async function registerPersonalAccessTokenRoutes(app: FastifyInstance): Promise<void> {
@@ -37,17 +38,5 @@ export async function registerPersonalAccessTokenRoutes(app: FastifyInstance): P
 }
 
 function parseScopes(value: unknown): AuthScope[] | undefined {
-  return Array.isArray(value) ? value.filter(isAuthScope) : undefined;
-}
-
-function isAuthScope(value: unknown): value is AuthScope {
-  return value === 'profiles:read'
-    || value === 'watch:read'
-    || value === 'taste-profile:read'
-    || value === 'taste-profile:write'
-    || value === 'recommendations:read'
-    || value === 'recommendations:write'
-    || value === 'recommendation-work:claim'
-    || value === 'recommendation-work:renew'
-    || value === 'recommendation-work:complete';
+  return Array.isArray(value) ? value.filter(isPersonalAccessTokenScope) : undefined;
 }

@@ -1,15 +1,23 @@
 export type AuthActorType = 'user' | 'pat' | 'service';
 
-export type AuthScope =
-  | 'profiles:read'
-  | 'watch:read'
-  | 'taste-profile:read'
-  | 'taste-profile:write'
-  | 'recommendations:read'
-  | 'recommendations:write'
-  | 'recommendation-work:claim'
-  | 'recommendation-work:renew'
-  | 'recommendation-work:complete';
+export const AUTH_SCOPES = [
+  'profiles:read',
+  'watch:read',
+  'taste-profile:read',
+  'taste-profile:write',
+  'recommendations:read',
+  'recommendations:write',
+  'recommendation-work:claim',
+  'recommendation-work:renew',
+  'recommendation-work:complete',
+  'profile-secrets:read',
+  'provider-connections:read',
+  'provider-tokens:read',
+  'provider-tokens:refresh',
+  'admin:diagnostics:read',
+] as const;
+
+export type AuthScope = (typeof AUTH_SCOPES)[number];
 
 export type AuthActor = {
   type: AuthActorType;
@@ -43,14 +51,19 @@ export const PAT_DEFAULT_SCOPES: AuthScope[] = [
   'recommendations:read',
 ];
 
-export const SERVICE_DEFAULT_SCOPES: AuthScope[] = [
+export const PAT_ALLOWED_SCOPES: AuthScope[] = [
   'profiles:read',
   'watch:read',
   'taste-profile:read',
   'taste-profile:write',
   'recommendations:read',
   'recommendations:write',
-  'recommendation-work:claim',
-  'recommendation-work:renew',
-  'recommendation-work:complete',
 ];
+
+export function isAuthScope(value: unknown): value is AuthScope {
+  return typeof value === 'string' && AUTH_SCOPES.includes(value as AuthScope);
+}
+
+export function isPersonalAccessTokenScope(value: unknown): value is AuthScope {
+  return typeof value === 'string' && PAT_ALLOWED_SCOPES.includes(value as AuthScope);
+}

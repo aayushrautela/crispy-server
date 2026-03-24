@@ -3,7 +3,7 @@ import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { UserRepository } from '../users/user.repo.js';
 import type { AuthActor, AuthScope } from './auth.types.js';
-import { PAT_DEFAULT_SCOPES, USER_DEFAULT_SCOPES } from './auth.types.js';
+import { PAT_DEFAULT_SCOPES, isPersonalAccessTokenScope } from './auth.types.js';
 import { PersonalAccessTokenRepository, type PersonalAccessTokenRecord } from './personal-access-token.repo.js';
 import { hashAccessToken } from './token-hash.js';
 
@@ -114,15 +114,7 @@ export class PersonalAccessTokenService {
 
 function normalizeScopes(scopes?: AuthScope[]): AuthScope[] {
   const values = scopes?.length ? scopes : PAT_DEFAULT_SCOPES;
-  return Array.from(new Set(values.filter(isAuthScope)));
-}
-
-function isAuthScope(value: string): value is AuthScope {
-  return USER_DEFAULT_SCOPES.includes(value as AuthScope)
-    || value === 'recommendations:write'
-    || value === 'recommendation-work:claim'
-    || value === 'recommendation-work:renew'
-    || value === 'recommendation-work:complete';
+  return Array.from(new Set(values.filter(isPersonalAccessTokenScope)));
 }
 
 function toTokenView(record: PersonalAccessTokenRecord): PersonalAccessTokenView {

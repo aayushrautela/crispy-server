@@ -17,6 +17,7 @@ export async function registerRecommendationDataRoutes(app: FastifyInstance): Pr
 
   app.get('/internal/v1/profiles', async (request) => {
     await app.requireServiceAuth(request);
+    app.requireScopes(request, ['profiles:read']);
     const query = (request.query ?? {}) as Record<string, unknown>;
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 100, 1, 250);
     const offset = Math.max(parseOptionalNumber(query.offset) ?? 0, 0);
@@ -25,6 +26,7 @@ export async function registerRecommendationDataRoutes(app: FastifyInstance): Pr
 
   app.get('/internal/v1/profiles/:profileId/watch-history', async (request) => {
     await app.requireServiceAuth(request);
+    app.requireScopes(request, ['watch:read']);
     const params = request.params as { profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 100, 1, 500);
     return {
@@ -34,6 +36,7 @@ export async function registerRecommendationDataRoutes(app: FastifyInstance): Pr
 
   app.get('/internal/v1/profiles/:profileId/continue-watching', async (request) => {
     await app.requireServiceAuth(request);
+    app.requireScopes(request, ['watch:read']);
     const params = request.params as { profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 50, 1, 250);
     return {
@@ -43,6 +46,7 @@ export async function registerRecommendationDataRoutes(app: FastifyInstance): Pr
 
   app.get('/internal/v1/profiles/:profileId/watchlist', async (request) => {
     await app.requireServiceAuth(request);
+    app.requireScopes(request, ['watch:read']);
     const params = request.params as { profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 100, 1, 500);
     return {
@@ -52,6 +56,7 @@ export async function registerRecommendationDataRoutes(app: FastifyInstance): Pr
 
   app.get('/internal/v1/profiles/:profileId/ratings', async (request) => {
     await app.requireServiceAuth(request);
+    app.requireScopes(request, ['watch:read']);
     const params = request.params as { profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 100, 1, 500);
     return {
@@ -61,6 +66,7 @@ export async function registerRecommendationDataRoutes(app: FastifyInstance): Pr
 
   app.get('/internal/v1/profiles/:profileId/tracked-series', async (request) => {
     await app.requireServiceAuth(request);
+    app.requireScopes(request, ['watch:read']);
     const params = request.params as { profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 25, 1, 100);
     return {

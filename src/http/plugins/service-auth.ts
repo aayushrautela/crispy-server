@@ -1,29 +1,34 @@
-import { timingSafeEqual } from 'node:crypto';
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync } from 'fastify';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AuthActor } from '../../modules/auth/auth.types.js';
-import { SERVICE_DEFAULT_SCOPES } from '../../modules/auth/auth.types.js';
+import { ServiceClientRegistry } from '../../modules/auth/service-client-registry.js';
+
+const serviceClientRegistry = new ServiceClientRegistry(env.serviceClients);
 
 const serviceAuthPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorate('requireServiceAuth', async (request: import('fastify').FastifyRequest) => {
-    const header = request.headers['x-api-key'];
-    const provided = Array.isArray(header) ? header[0] : header;
-    if (!provided?.trim()) {
+    const serviceId = readHeaderValue(request.headers['x-service-id']);
+    if (!serviceId) {
+      throw new HttpError(401, 'Missing service id.');
+    }
+
+    const apiKey = readHeaderValue(request.headers['x-api-key']);
+    if (!apiKey) {
       throw new HttpError(401, 'Missing API key.');
     }
 
-    const expected = env.recommendationApiKey;
-    if (!expected || !safeEqual(provided.trim(), expected)) {
-      throw new HttpError(401, 'Invalid API key.');
+    const client = serviceClientRegistry.authenticate(serviceId, apiKey);
+    if (!client) {
+      throw new HttpError(401, 'Invalid service credentials.');
     }
 
     request.auth = {
       type: 'service',
       appUserId: null,
-      serviceId: 'recommendation-service',
-      scopes: SERVICE_DEFAULT_SCOPES,
+      serviceId: client.serviceId,
+      scopes: [...client.scopes],
       authSubject: null,
       email: null,
       tokenId: null,
@@ -32,13 +37,9 @@ const serviceAuthPlugin: FastifyPluginAsync = async (fastify) => {
   });
 };
 
-function safeEqual(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-  return timingSafeEqual(leftBuffer, rightBuffer);
+function readHeaderValue(header: string | string[] | undefined): string | null {
+  const value = Array.isArray(header) ? header[0] : header;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 export default fp(serviceAuthPlugin, { name: 'service-auth-plugin' });

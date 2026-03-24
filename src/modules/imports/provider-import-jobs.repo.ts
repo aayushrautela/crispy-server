@@ -19,6 +19,11 @@ export type ProviderImportJobRecord = {
   updatedAt: string;
 };
 
+export type ProviderImportJobAdminRecord = ProviderImportJobRecord & {
+  errorCode: string | null;
+  errorMessage: string | null;
+};
+
 function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
   return {
     id: String(row.id),
@@ -236,5 +241,39 @@ export class ProviderImportJobsRepository {
       `,
       [jobId, JSON.stringify(errorJson)],
     );
+  }
+
+  async listAdminJobs(client: DbClient, filters?: {
+    provider?: ProviderImportProvider | null;
+    status?: ProviderImportJobStatus | null;
+    failuresOnly?: boolean;
+    limit?: number;
+  }): Promise<ProviderImportJobAdminRecord[]> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+               checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at,
+               NULLIF(error_json ->> 'code', '') AS error_code,
+               NULLIF(error_json ->> 'message', '') AS error_message
+        FROM provider_import_jobs
+        WHERE ($1::text IS NULL OR provider = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND ($3::boolean = false OR status IN ('failed', 'succeeded_with_warnings'))
+        ORDER BY created_at DESC
+        LIMIT $4
+      `,
+      [
+        filters?.provider ?? null,
+        filters?.status ?? null,
+        filters?.failuresOnly ?? false,
+        filters?.limit ?? 100,
+      ],
+    );
+
+    return result.rows.map((row) => ({
+      ...mapJob(row),
+      errorCode: typeof row.error_code === 'string' ? row.error_code : null,
+      errorMessage: typeof row.error_message === 'string' ? row.error_message : null,
+    }));
   }
 }
