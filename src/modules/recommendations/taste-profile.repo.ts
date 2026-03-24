@@ -2,6 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 
 export type TasteProfileRecord = {
   profileId: string;
+  sourceKey: string;
   genres: unknown[];
   preferredActors: unknown[];
   preferredDirectors: unknown[];
@@ -21,6 +22,7 @@ export type TasteProfileRecord = {
 function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {
   return {
     profileId: String(row.profile_id),
+    sourceKey: String(row.source_key),
     genres: Array.isArray(row.genres) ? row.genres : [],
     preferredActors: Array.isArray(row.preferred_actors) ? row.preferred_actors : [],
     preferredDirectors: Array.isArray(row.preferred_directors) ? row.preferred_directors : [],
@@ -39,23 +41,40 @@ function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {
 }
 
 export class TasteProfileRepository {
-  async findByProfileId(client: DbClient, profileId: string): Promise<TasteProfileRecord | null> {
+  async findByProfileAndSourceKey(client: DbClient, profileId: string, sourceKey: string): Promise<TasteProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT profile_id, genres, preferred_actors, preferred_directors, content_type_pref,
+        SELECT profile_id, source_key, genres, preferred_actors, preferred_directors, content_type_pref,
                rating_tendency, decade_preferences, watching_pace, ai_summary,
                source, updated_by_kind, updated_by_id, version, created_at, updated_at
         FROM taste_profiles
-        WHERE profile_id = $1::uuid
+        WHERE profile_id = $1::uuid AND source_key = $2
       `,
-      [profileId],
+      [profileId, sourceKey],
     );
 
     return result.rows[0] ? mapTasteProfile(result.rows[0]) : null;
   }
 
+  async listForProfile(client: DbClient, profileId: string): Promise<TasteProfileRecord[]> {
+    const result = await client.query(
+      `
+        SELECT profile_id, source_key, genres, preferred_actors, preferred_directors, content_type_pref,
+               rating_tendency, decade_preferences, watching_pace, ai_summary,
+               source, updated_by_kind, updated_by_id, version, created_at, updated_at
+        FROM taste_profiles
+        WHERE profile_id = $1::uuid
+        ORDER BY updated_at DESC, source_key ASC
+      `,
+      [profileId],
+    );
+
+    return result.rows.map((row) => mapTasteProfile(row));
+  }
+
   async upsert(client: DbClient, params: {
     profileId: string;
+    sourceKey: string;
     genres?: unknown[];
     preferredActors?: unknown[];
     preferredDirectors?: unknown[];
@@ -72,6 +91,7 @@ export class TasteProfileRepository {
       `
         INSERT INTO taste_profiles (
           profile_id,
+          source_key,
           genres,
           preferred_actors,
           preferred_directors,
@@ -86,19 +106,20 @@ export class TasteProfileRepository {
         )
         VALUES (
           $1::uuid,
-          $2::jsonb,
+          $2,
           $3::jsonb,
           $4::jsonb,
           $5::jsonb,
           $6::jsonb,
           $7::jsonb,
-          $8,
+          $8::jsonb,
           $9,
           $10,
           $11,
-          $12
+          $12,
+          $13
         )
-        ON CONFLICT (profile_id)
+        ON CONFLICT (profile_id, source_key)
         DO UPDATE SET
           genres = EXCLUDED.genres,
           preferred_actors = EXCLUDED.preferred_actors,
@@ -113,12 +134,13 @@ export class TasteProfileRepository {
           updated_by_id = EXCLUDED.updated_by_id,
           version = taste_profiles.version + 1,
           updated_at = now()
-        RETURNING profile_id, genres, preferred_actors, preferred_directors, content_type_pref,
+        RETURNING profile_id, source_key, genres, preferred_actors, preferred_directors, content_type_pref,
                   rating_tendency, decade_preferences, watching_pace, ai_summary,
                   source, updated_by_kind, updated_by_id, version, created_at, updated_at
       `,
       [
         params.profileId,
+        params.sourceKey,
         JSON.stringify(params.genres ?? []),
         JSON.stringify(params.preferredActors ?? []),
         JSON.stringify(params.preferredDirectors ?? []),
@@ -134,6 +156,10 @@ export class TasteProfileRepository {
     );
 
     return mapTasteProfile(result.rows[0]);
+  }
+
+  async deleteForProfile(client: DbClient, profileId: string): Promise<void> {
+    await client.query(`DELETE FROM taste_profiles WHERE profile_id = $1::uuid`, [profileId]);
   }
 }
 

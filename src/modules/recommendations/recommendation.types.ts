@@ -1,6 +1,8 @@
 import type { MetadataView } from '../metadata/tmdb.types.js';
 
 export type TasteProfilePayload = {
+  profileId: string;
+  sourceKey: string;
   genres: unknown[];
   preferredActors: unknown[];
   preferredDirectors: unknown[];
@@ -34,6 +36,7 @@ export type RecommendationSection = {
 
 export type RecommendationSnapshotPayload = {
   profileId: string;
+  sourceKey: string;
   historyGeneration: number;
   algorithmVersion: string;
   sourceCursor: string | null;

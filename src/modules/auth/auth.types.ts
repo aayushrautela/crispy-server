@@ -6,7 +6,10 @@ export type AuthScope =
   | 'taste-profile:read'
   | 'taste-profile:write'
   | 'recommendations:read'
-  | 'recommendations:write';
+  | 'recommendations:write'
+  | 'recommendation-work:claim'
+  | 'recommendation-work:renew'
+  | 'recommendation-work:complete';
 
 export type AuthActor = {
   type: AuthActorType;
@@ -16,6 +19,7 @@ export type AuthActor = {
   authSubject: string | null;
   email: string | null;
   tokenId: string | null;
+  consumerId: string | null;
 };
 
 export type UserAuthActor = AuthActor & {
@@ -46,4 +50,7 @@ export const SERVICE_DEFAULT_SCOPES: AuthScope[] = [
   'taste-profile:write',
   'recommendations:read',
   'recommendations:write',
+  'recommendation-work:claim',
+  'recommendation-work:renew',
+  'recommendation-work:complete',
 ];

@@ -11,9 +11,12 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerHomeRoutes } from './routes/home.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
+import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
-import { registerRecommendationRoutes } from './routes/recommendations.js';
+import { registerRecommendationDataRoutes } from './routes/recommendation-data.js';
+import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
+import { registerRecommendationWorkRoutes } from './routes/recommendation-work.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
 
@@ -41,11 +44,14 @@ export async function buildApp() {
   await registerAccountRoutes(app);
   await registerAiRoutes(app);
   await registerMeRoutes(app);
+  await registerPersonalAccessTokenRoutes(app);
   await registerProfileRoutes(app);
   await registerProfileSettingsRoutes(app);
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
-  await registerRecommendationRoutes(app);
+  await registerRecommendationDataRoutes(app);
+  await registerRecommendationOutputRoutes(app);
+  await registerRecommendationWorkRoutes(app);
   await registerHomeRoutes(app);
   await registerCalendarRoutes(app);
 

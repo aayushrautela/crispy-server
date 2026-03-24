@@ -106,6 +106,7 @@ export class PersonalAccessTokenService {
         authSubject: user.authSubject,
         email: user.email,
         tokenId: token.id,
+        consumerId: null,
       } satisfies AuthActor;
     });
   }
@@ -117,7 +118,11 @@ function normalizeScopes(scopes?: AuthScope[]): AuthScope[] {
 }
 
 function isAuthScope(value: string): value is AuthScope {
-  return USER_DEFAULT_SCOPES.includes(value as AuthScope) || value === 'recommendations:write';
+  return USER_DEFAULT_SCOPES.includes(value as AuthScope)
+    || value === 'recommendations:write'
+    || value === 'recommendation-work:claim'
+    || value === 'recommendation-work:renew'
+    || value === 'recommendation-work:complete';
 }
 
 function toTokenView(record: PersonalAccessTokenRecord): PersonalAccessTokenView {

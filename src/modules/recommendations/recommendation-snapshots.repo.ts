@@ -2,6 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 
 export type RecommendationSnapshotRecord = {
   profileId: string;
+  sourceKey: string;
   historyGeneration: number;
   algorithmVersion: string;
   sourceCursor: string | null;
@@ -17,6 +18,7 @@ export type RecommendationSnapshotRecord = {
 function mapSnapshot(row: Record<string, unknown>): RecommendationSnapshotRecord {
   return {
     profileId: String(row.profile_id),
+    sourceKey: String(row.source_key),
     historyGeneration: Number(row.history_generation),
     algorithmVersion: String(row.algorithm_version),
     sourceCursor: typeof row.source_cursor === 'string' ? row.source_cursor : null,
@@ -38,36 +40,38 @@ export class RecommendationSnapshotsRepository {
   async listForProfile(client: DbClient, profileId: string): Promise<RecommendationSnapshotRecord[]> {
     const result = await client.query(
       `
-        SELECT profile_id, history_generation, algorithm_version, source_cursor, generated_at, expires_at,
+        SELECT profile_id, source_key, history_generation, algorithm_version, source_cursor, generated_at, expires_at,
                items, source, updated_by_kind, updated_by_id, updated_at
         FROM recommendation_snapshots
         WHERE profile_id = $1::uuid
-        ORDER BY generated_at DESC, algorithm_version ASC
+        ORDER BY generated_at DESC, source_key ASC, algorithm_version ASC
       `,
       [profileId],
     );
     return result.rows.map((row) => mapSnapshot(row));
   }
 
-  async findByProfileAndAlgorithm(
+  async findByProfileSourceAndAlgorithm(
     client: DbClient,
     profileId: string,
+    sourceKey: string,
     algorithmVersion: string,
   ): Promise<RecommendationSnapshotRecord | null> {
     const result = await client.query(
       `
-        SELECT profile_id, history_generation, algorithm_version, source_cursor, generated_at, expires_at,
+        SELECT profile_id, source_key, history_generation, algorithm_version, source_cursor, generated_at, expires_at,
                items, source, updated_by_kind, updated_by_id, updated_at
         FROM recommendation_snapshots
-        WHERE profile_id = $1::uuid AND algorithm_version = $2
+        WHERE profile_id = $1::uuid AND source_key = $2 AND algorithm_version = $3
       `,
-      [profileId, algorithmVersion],
+      [profileId, sourceKey, algorithmVersion],
     );
     return result.rows[0] ? mapSnapshot(result.rows[0]) : null;
   }
 
   async upsert(client: DbClient, params: {
     profileId: string;
+    sourceKey: string;
     historyGeneration: number;
     algorithmVersion: string;
     sourceCursor?: string | null;
@@ -82,6 +86,7 @@ export class RecommendationSnapshotsRepository {
       `
         INSERT INTO recommendation_snapshots (
           profile_id,
+          source_key,
           history_generation,
           algorithm_version,
           source_cursor,
@@ -92,8 +97,8 @@ export class RecommendationSnapshotsRepository {
           updated_by_kind,
           updated_by_id
         )
-        VALUES ($1::uuid, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7::jsonb, $8, $9, $10)
-        ON CONFLICT (profile_id, algorithm_version)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, $8::jsonb, $9, $10, $11)
+        ON CONFLICT (profile_id, source_key, algorithm_version)
         DO UPDATE SET
           history_generation = EXCLUDED.history_generation,
           source_cursor = EXCLUDED.source_cursor,
@@ -104,11 +109,12 @@ export class RecommendationSnapshotsRepository {
           updated_by_kind = EXCLUDED.updated_by_kind,
           updated_by_id = EXCLUDED.updated_by_id,
           updated_at = now()
-        RETURNING profile_id, history_generation, algorithm_version, source_cursor, generated_at, expires_at,
+        RETURNING profile_id, source_key, history_generation, algorithm_version, source_cursor, generated_at, expires_at,
                   items, source, updated_by_kind, updated_by_id, updated_at
       `,
       [
         params.profileId,
+        params.sourceKey,
         params.historyGeneration,
         params.algorithmVersion,
         params.sourceCursor ?? null,

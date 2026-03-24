@@ -56,6 +56,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       authSubject: auth.authSubject,
       email: auth.email,
       tokenId: null,
+      consumerId: null,
     };
   });
 

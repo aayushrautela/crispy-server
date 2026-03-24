@@ -5,7 +5,8 @@ export type HomeSectionId =
   | 'up-next'
   | 'this-week'
   | 'recently-released'
-  | 'recent-history';
+  | 'recent-history'
+  | string;
 
 export type HomeSection = {
   id: HomeSectionId;

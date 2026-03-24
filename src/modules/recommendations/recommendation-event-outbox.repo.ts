@@ -15,7 +15,6 @@ export type RecommendationEventOutboxRecord = {
   occurredAt: string;
   payload: Record<string, unknown>;
   createdAt: string;
-  deliveredAt: string | null;
 };
 
 function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecord {
@@ -34,7 +33,6 @@ function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecor
     occurredAt: String(row.occurred_at),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
     createdAt: String(row.created_at),
-    deliveredAt: typeof row.delivered_at === 'string' ? row.delivered_at : null,
   };
 }
 
@@ -76,7 +74,7 @@ export class RecommendationEventOutboxRepository {
         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz, $12::jsonb)
         RETURNING id, profile_id, history_generation, event_type, media_key, media_type,
                   tmdb_id, show_tmdb_id, season_number, episode_number, rating,
-                  occurred_at, payload, created_at, delivered_at
+                  occurred_at, payload, created_at
       `,
       [
         params.profileId,
@@ -94,49 +92,5 @@ export class RecommendationEventOutboxRepository {
       ],
     );
     return mapOutbox(result.rows[0]);
-  }
-
-  async listUndeliveredForProfile(client: DbClient, params: {
-    profileId: string;
-    afterId?: number | null;
-    limit: number;
-  }): Promise<RecommendationEventOutboxRecord[]> {
-    const result = await client.query(
-      `
-        SELECT id, profile_id, history_generation, event_type, media_key, media_type,
-               tmdb_id, show_tmdb_id, season_number, episode_number, rating,
-               occurred_at, payload, created_at, delivered_at
-        FROM recommendation_event_outbox
-        WHERE profile_id = $1::uuid
-          AND delivered_at IS NULL
-          AND ($2::bigint IS NULL OR id > $2)
-        ORDER BY id ASC
-        LIMIT $3
-      `,
-      [params.profileId, params.afterId ?? null, params.limit],
-    );
-    return result.rows.map((row) => mapOutbox(row));
-  }
-
-  async markDelivered(client: DbClient, params: {
-    profileId: string;
-    ids: number[];
-  }): Promise<number> {
-    if (params.ids.length === 0) {
-      return 0;
-    }
-
-    const result = await client.query(
-      `
-        UPDATE recommendation_event_outbox
-        SET delivered_at = now()
-        WHERE profile_id = $1::uuid
-          AND id = ANY($2::bigint[])
-          AND delivered_at IS NULL
-      `,
-      [params.profileId, params.ids],
-    );
-
-    return result.rowCount ?? 0;
   }
 }

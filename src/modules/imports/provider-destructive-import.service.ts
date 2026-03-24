@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
-import { RecommendationSnapshotsRepository } from '../recommendations/recommendation-snapshots.repo.js';
+import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
+import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
 import { parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
@@ -64,7 +65,8 @@ export class ProviderDestructiveImportService {
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly watchHistoryEntriesRepository = new WatchHistoryEntriesRepository(),
     private readonly recommendationEventOutboxRepository = new RecommendationEventOutboxRepository(),
-    private readonly recommendationSnapshotsRepository = new RecommendationSnapshotsRepository(),
+    private readonly recommendationOutputService = new RecommendationOutputService(),
+    private readonly recommendationWorkStateRepository = new RecommendationWorkStateRepository(),
     private readonly projectionRebuildService = new ProjectionRebuildService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
   ) {}
@@ -165,7 +167,8 @@ export class ProviderDestructiveImportService {
     await client.query(`DELETE FROM watch_events WHERE profile_id = $1::uuid`, [profileId]);
     await this.watchHistoryEntriesRepository.clearForProfile(client, profileId);
     await this.recommendationEventOutboxRepository.clearForProfile(client, profileId);
-    await this.recommendationSnapshotsRepository.clearForProfile(client, profileId);
+    await this.recommendationOutputService.clearOutputsForProfile(client, profileId);
+    await this.recommendationWorkStateRepository.clearClaimsForProfile(client, profileId);
   }
 
   private async insertImportedEvents(client: DbClient, params: {

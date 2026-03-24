@@ -27,6 +27,7 @@ const serviceAuthPlugin: FastifyPluginAsync = async (fastify) => {
       authSubject: null,
       email: null,
       tokenId: null,
+      consumerId: null,
     } satisfies AuthActor;
   });
 };
