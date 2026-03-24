@@ -16,6 +16,20 @@
 
 3. Fill `.env`.
 
+   The API requires `SERVICE_CLIENTS_JSON` for service-to-service authentication. Internal callers such as the hosted recommendation engine must send `x-service-id` and `x-api-key`, and those values must match an active entry in `SERVICE_CLIENTS_JSON`.
+
+   Example:
+   ```env
+   SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-recommendation-engine","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","recommendation-work:claim","recommendation-work:renew","recommendation-work:complete","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","admin:diagnostics:read"],"status":"active"}]
+   ```
+
+   The external engine should then use:
+   ```env
+   HOSTED_API_BASE_URL=https://your-api-domain.com
+   HOSTED_SERVICE_ID=crispy-recommendation-engine
+   HOSTED_API_KEY=replace_with_long_random_secret
+   ```
+
 4. Start it:
    ```bash
    docker compose -f docker-compose.prod.yml up -d --build
