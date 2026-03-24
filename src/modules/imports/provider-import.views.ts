@@ -1,4 +1,5 @@
 import type { ProviderImportConnectionRecord } from './provider-import-connections.repo.js';
+import type { ProviderImportJobAdminRecord, ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
 
 export type ProviderImportConnectionView = {
@@ -13,6 +14,10 @@ export type ProviderImportConnectionView = {
   lastImportJobId: string | null;
   lastImportCompletedAt: string | null;
 };
+
+export type ProviderImportJobView = Omit<ProviderImportJobRecord, 'profileGroupId'>;
+
+export type ProviderImportJobAdminView = Omit<ProviderImportJobAdminRecord, 'profileGroupId'>;
 
 export function mapConnectionView(connection: ProviderImportConnectionRecord): ProviderImportConnectionView {
   const lastImportJobId = asString(connection.credentialsJson.lastImportJobId);
@@ -30,6 +35,16 @@ export function mapConnectionView(connection: ProviderImportConnectionRecord): P
     lastImportJobId,
     lastImportCompletedAt,
   };
+}
+
+export function mapProviderImportJobView(job: ProviderImportJobRecord): ProviderImportJobView {
+  const { profileGroupId: _profileGroupId, ...view } = job;
+  return view;
+}
+
+export function mapProviderImportJobAdminView(job: ProviderImportJobAdminRecord): ProviderImportJobAdminView {
+  const { profileGroupId: _profileGroupId, ...view } = job;
+  return view;
 }
 
 function asString(value: unknown): string | null {

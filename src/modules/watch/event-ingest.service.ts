@@ -126,7 +126,7 @@ export class WatchEventIngestService {
       const identity = parseMediaKey(mediaKey);
       const occurredAt = new Date().toISOString();
       const event = await this.watchEventsRepository.insert(client, {
-        householdId: profile.householdId,
+        profileGroupId: profile.profileGroupId,
         profileId,
         input: {
           clientEventId: randomUUID(),
@@ -166,7 +166,7 @@ export class WatchEventIngestService {
         throw new HttpError(404, 'Profile not found.');
       }
       const event = await this.watchEventsRepository.insert(client, {
-        householdId: profile.householdId,
+        profileGroupId: profile.profileGroupId,
         profileId,
         input,
         identity,
@@ -196,7 +196,7 @@ export class WatchEventIngestService {
       }
       const identity = inferMediaIdentity(input);
       await this.heartbeatBufferService.bufferHeartbeat({
-        householdId: profile.householdId,
+        profileGroupId: profile.profileGroupId,
         profileId,
         identity,
         input,
@@ -227,7 +227,7 @@ export class WatchEventIngestService {
       const occurredAt = input.occurredAt ?? new Date().toISOString();
       const identity = inferMediaIdentity(input);
       const event = await this.watchEventsRepository.insert(client, {
-        householdId: profile.householdId,
+        profileGroupId: profile.profileGroupId,
         profileId,
         input: {
           clientEventId: randomUUID(),
@@ -271,7 +271,7 @@ export class WatchEventIngestService {
 
       const identity = parseMediaKey(mediaKey);
       await this.watchEventsRepository.insert(client, {
-        householdId: profile.householdId,
+        profileGroupId: profile.profileGroupId,
         profileId,
         input: {
           clientEventId: randomUUID(),

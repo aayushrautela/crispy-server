@@ -2,15 +2,15 @@ import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { PersonalAccessTokenService } from '../auth/personal-access-token.service.js';
 import { ExternalAuthAdminService } from '../auth/external-auth-admin.service.js';
-import { HouseholdRepository } from '../households/household.repo.js';
+import { ProfileGroupRepository } from '../profile-groups/profile-group.repo.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
 import { UserRepository } from './user.repo.js';
 
 export type DeletedAccountResult = {
   appUserId: string;
-  deletedOwnedHouseholds: number;
-  transferredOwnedHouseholds: number;
+  deletedProfileGroups: number;
+  transferredProfileGroups: number;
   revokedPersonalAccessTokens: number;
   deletedExternalAuthUser: boolean;
   warnings: string[];
@@ -19,7 +19,7 @@ export type DeletedAccountResult = {
 export class AccountDeletionService {
   constructor(
     private readonly personalAccessTokenService = new PersonalAccessTokenService(),
-    private readonly householdRepository = new HouseholdRepository(),
+    private readonly profileGroupRepository = new ProfileGroupRepository(),
     private readonly profileRepository = new ProfileRepository(),
     private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly userRepository = new UserRepository(),
@@ -31,34 +31,34 @@ export class AccountDeletionService {
     const warnings: string[] = [];
 
     const deletion = await withTransaction(async (client) => {
-      const ownedHouseholdIds = await this.householdRepository.findOwnedHouseholdIds(client, params.appUserId);
-      let deletedOwnedHouseholds = 0;
-      let transferredOwnedHouseholds = 0;
+      const ownedProfileGroupIds = await this.profileGroupRepository.findOwnedProfileGroupIds(client, params.appUserId);
+      let deletedOwnedProfileGroups = 0;
+      let transferredOwnedProfileGroups = 0;
 
-      for (const householdId of ownedHouseholdIds) {
-        const members = await this.householdRepository.listMembers(client, householdId);
+      for (const profileGroupId of ownedProfileGroupIds) {
+        const members = await this.profileGroupRepository.listMembers(client, profileGroupId);
         const nextOwner = members.find((member) => member.userId !== params.appUserId);
         if (nextOwner) {
-          await this.householdRepository.transferOwnership(client, {
-            householdId,
+          await this.profileGroupRepository.transferOwnership(client, {
+            profileGroupId,
             nextOwnerUserId: nextOwner.userId,
           });
-          transferredOwnedHouseholds += 1;
+          transferredOwnedProfileGroups += 1;
           continue;
         }
 
-        const avatarKeys = await this.profileRepository.listAvatarKeysForHouseholds(client, [householdId]);
+        const avatarKeys = await this.profileRepository.listAvatarKeysForProfileGroups(client, [profileGroupId]);
 
-        const deleted = await this.householdRepository.deleteById(client, householdId);
+        const deleted = await this.profileGroupRepository.deleteById(client, profileGroupId);
         if (deleted) {
-          deletedOwnedHouseholds += 1;
+          deletedOwnedProfileGroups += 1;
           if (avatarKeys.length > 0) {
             warnings.push(
-              `Deleted household ${householdId} referenced ${avatarKeys.length} avatar key(s), but avatar storage cleanup is not configured locally.`,
+              `Deleted profile group ${profileGroupId} referenced ${avatarKeys.length} avatar key(s), but avatar storage cleanup is not configured locally.`,
             );
           }
         } else {
-          warnings.push(`Unable to delete empty household ${householdId}.`);
+          warnings.push(`Unable to delete empty profile group ${profileGroupId}.`);
         }
       }
 
@@ -70,7 +70,7 @@ export class AccountDeletionService {
         throw new HttpError(404, 'Account not found.');
       }
 
-      return { deletedOwnedHouseholds, transferredOwnedHouseholds };
+      return { deletedOwnedProfileGroups, transferredOwnedProfileGroups };
     });
 
     let deletedExternalAuthUser = false;
@@ -80,8 +80,8 @@ export class AccountDeletionService {
 
     return {
       appUserId: params.appUserId,
-      deletedOwnedHouseholds: deletion.deletedOwnedHouseholds,
-      transferredOwnedHouseholds: deletion.transferredOwnedHouseholds,
+      deletedProfileGroups: deletion.deletedOwnedProfileGroups,
+      transferredProfileGroups: deletion.transferredOwnedProfileGroups,
       revokedPersonalAccessTokens,
       deletedExternalAuthUser,
       warnings,

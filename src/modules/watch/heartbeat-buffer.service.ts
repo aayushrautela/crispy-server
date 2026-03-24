@@ -11,7 +11,7 @@ function bufferKey(profileId: string, mediaKey: string): string {
 
 export class HeartbeatBufferService {
   async bufferHeartbeat(params: {
-    householdId: string;
+    profileGroupId: string;
     profileId: string;
     identity: MediaIdentity;
     input: WatchEventInput;
@@ -19,7 +19,7 @@ export class HeartbeatBufferService {
     const occurredAt = params.input.occurredAt ?? new Date().toISOString();
     const snapshot: BufferedHeartbeatSnapshot = {
       profileId: params.profileId,
-      householdId: params.householdId,
+      profileGroupId: params.profileGroupId,
       clientEventId: params.input.clientEventId,
       eventType: params.input.eventType,
       mediaKey: params.identity.mediaKey,

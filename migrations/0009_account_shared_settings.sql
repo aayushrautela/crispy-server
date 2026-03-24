@@ -13,16 +13,16 @@ CREATE TABLE IF NOT EXISTS account_secrets (
 INSERT INTO account_secrets (app_user_id, secrets_json, updated_at)
 SELECT source.app_user_id, jsonb_build_object('ai.openrouter_key', source.openrouter_key), now()
 FROM (
-    SELECT DISTINCT ON (h.owner_user_id)
-        h.owner_user_id AS app_user_id,
+    SELECT DISTINCT ON (pg.owner_user_id)
+        pg.owner_user_id AS app_user_id,
         btrim(ps.settings_json ->> 'ai.openrouter_key') AS openrouter_key
     FROM profile_settings ps
     INNER JOIN profiles p ON p.id = ps.profile_id
-    INNER JOIN households h ON h.id = p.household_id
-    WHERE h.owner_user_id IS NOT NULL
+    INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
+    WHERE pg.owner_user_id IS NOT NULL
       AND ps.settings_json ? 'ai.openrouter_key'
       AND btrim(COALESCE(ps.settings_json ->> 'ai.openrouter_key', '')) <> ''
-    ORDER BY h.owner_user_id, ps.updated_at DESC, p.created_at DESC, p.id DESC
+    ORDER BY pg.owner_user_id, ps.updated_at DESC, p.created_at DESC, p.id DESC
 ) AS source
 ON CONFLICT (app_user_id)
 DO UPDATE SET

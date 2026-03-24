@@ -37,7 +37,7 @@ export class HeartbeatFlushService {
       }
 
       const event = await this.watchEventsRepository.insert(client, {
-        householdId: snapshot.householdId,
+        profileGroupId: snapshot.profileGroupId,
         profileId,
         input: {
           clientEventId: `heartbeat-flush:${profileId}:${mediaKey}:${snapshot.occurredAt}:${randomUUID()}`,

@@ -45,7 +45,7 @@ export type WatchMutationInput = {
 
 export type BufferedHeartbeatSnapshot = {
   profileId: string;
-  householdId: string;
+  profileGroupId: string;
   clientEventId: string;
   eventType: string;
   mediaKey: string;

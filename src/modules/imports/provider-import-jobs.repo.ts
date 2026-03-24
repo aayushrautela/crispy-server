@@ -4,7 +4,7 @@ import type { ProviderImportJobMode, ProviderImportJobStatus, ProviderImportProv
 export type ProviderImportJobRecord = {
   id: string;
   profileId: string;
-  householdId: string;
+  profileGroupId: string;
   provider: ProviderImportProvider;
   mode: ProviderImportJobMode;
   status: ProviderImportJobStatus;
@@ -28,7 +28,7 @@ function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
   return {
     id: String(row.id),
     profileId: String(row.profile_id),
-    householdId: String(row.household_id),
+    profileGroupId: String(row.profile_group_id),
     provider: String(row.provider) as ProviderImportProvider,
     mode: String(row.mode) as ProviderImportJobMode,
     status: String(row.status) as ProviderImportJobStatus,
@@ -47,7 +47,7 @@ function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
 export class ProviderImportJobsRepository {
   async create(client: DbClient, params: {
     profileId: string;
-    householdId: string;
+    profileGroupId: string;
     provider: ProviderImportProvider;
     requestedByUserId: string;
     connectionId?: string | null;
@@ -57,7 +57,7 @@ export class ProviderImportJobsRepository {
       `
         INSERT INTO provider_import_jobs (
           profile_id,
-          household_id,
+          profile_group_id,
           provider,
           mode,
           status,
@@ -65,10 +65,10 @@ export class ProviderImportJobsRepository {
           connection_id
         )
         VALUES ($1::uuid, $2::uuid, $3, 'replace_import', $4, $5::uuid, $6::uuid)
-        RETURNING id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+        RETURNING id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
                   checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
       `,
-      [params.profileId, params.householdId, params.provider, params.status, params.requestedByUserId, params.connectionId ?? null],
+      [params.profileId, params.profileGroupId, params.provider, params.status, params.requestedByUserId, params.connectionId ?? null],
     );
     return mapJob(result.rows[0]);
   }
@@ -76,7 +76,7 @@ export class ProviderImportJobsRepository {
   async listForProfile(client: DbClient, profileId: string, limit = 20): Promise<ProviderImportJobRecord[]> {
     const result = await client.query(
       `
-        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE profile_id = $1::uuid
@@ -91,7 +91,7 @@ export class ProviderImportJobsRepository {
   async findByIdForProfile(client: DbClient, profileId: string, jobId: string): Promise<ProviderImportJobRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE profile_id = $1::uuid AND id = $2::uuid
@@ -104,7 +104,7 @@ export class ProviderImportJobsRepository {
   async findById(client: DbClient, jobId: string): Promise<ProviderImportJobRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE id = $1::uuid
@@ -117,7 +117,7 @@ export class ProviderImportJobsRepository {
   async findLatestOauthPendingForConnection(client: DbClient, connectionId: string): Promise<ProviderImportJobRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE connection_id = $1::uuid AND status = 'oauth_pending'
@@ -251,10 +251,10 @@ export class ProviderImportJobsRepository {
   }): Promise<ProviderImportJobAdminRecord[]> {
     const result = await client.query(
       `
-        SELECT id, profile_id, household_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at,
-               NULLIF(error_json ->> 'code', '') AS error_code,
-               NULLIF(error_json ->> 'message', '') AS error_message
+                NULLIF(error_json ->> 'code', '') AS error_code,
+                NULLIF(error_json ->> 'message', '') AS error_message
         FROM provider_import_jobs
         WHERE ($1::text IS NULL OR provider = $1)
           AND ($2::text IS NULL OR status = $2)

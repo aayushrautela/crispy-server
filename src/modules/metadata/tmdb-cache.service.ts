@@ -4,7 +4,7 @@ import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
-import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+import type { MetadataSearchFilter, TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function toNullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
@@ -152,5 +152,71 @@ export class TmdbCacheService {
     }
 
     return this.tmdbRepository.searchTitles(client, query, limit);
+  }
+
+  async discoverTitlesByGenre(
+    client: DbClient,
+    params: {
+      movieGenreId?: number | null;
+      tvGenreId?: number | null;
+      filter: MetadataSearchFilter;
+      limit: number;
+    },
+  ): Promise<TmdbTitleRecord[]> {
+    const results: TmdbTitleRecord[] = [];
+    const seen = new Set<string>();
+
+    const loadGenre = async (mediaType: TmdbTitleType, genreId: number | null | undefined): Promise<void> => {
+      if (!genreId || results.length >= params.limit) {
+        return;
+      }
+
+      const payload = await this.tmdbClient.discoverTitlesByGenre(mediaType, genreId);
+      const items = Array.isArray(payload.results) ? payload.results : [];
+      for (const item of items) {
+        const tmdbId = item && typeof item === 'object' && typeof item.id === 'number' ? item.id : null;
+        if (!tmdbId) {
+          continue;
+        }
+
+        try {
+          await this.ensureTitleCached(client, mediaType, tmdbId);
+        } catch (error) {
+          if (!(error instanceof HttpError && error.statusCode === 404)) {
+            throw error;
+          }
+        }
+
+        const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId);
+        if (!cached) {
+          continue;
+        }
+
+        const key = `${cached.mediaType}:${cached.tmdbId}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        results.push(cached);
+
+        if (results.length >= params.limit) {
+          return;
+        }
+      }
+    };
+
+    if (params.filter === 'movies') {
+      await loadGenre('movie', params.movieGenreId);
+      return results;
+    }
+
+    if (params.filter === 'series') {
+      await loadGenre('tv', params.tvGenreId);
+      return results;
+    }
+
+    await loadGenre('movie', params.movieGenreId);
+    await loadGenre('tv', params.tvGenreId);
+    return results;
   }
 }

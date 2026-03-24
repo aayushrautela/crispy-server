@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS app_users (
     last_seen_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS households (
+CREATE TABLE IF NOT EXISTS profile_groups (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     owner_user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
@@ -22,17 +22,17 @@ CREATE TABLE IF NOT EXISTS households (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS household_members (
-    household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS profile_group_members (
+    profile_group_id uuid NOT NULL REFERENCES profile_groups(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
     role text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (household_id, user_id)
+    PRIMARY KEY (profile_group_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    profile_group_id uuid NOT NULL REFERENCES profile_groups(id) ON DELETE CASCADE,
     name text NOT NULL,
     avatar_key text,
     is_kids boolean NOT NULL DEFAULT false,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_profiles_household_sort ON profiles(household_id, sort_order, created_at);
+CREATE INDEX IF NOT EXISTS idx_profiles_profile_group_sort ON profiles(profile_group_id, sort_order, created_at);
 
 CREATE TABLE IF NOT EXISTS profile_settings (
     profile_id uuid PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,

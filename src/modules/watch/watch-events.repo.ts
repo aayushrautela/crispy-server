@@ -6,7 +6,7 @@ import type { WatchEventInput } from './watch.types.js';
 export type PersistedWatchEvent = {
   id: string;
   profileId: string;
-  householdId: string;
+  profileGroupId: string;
   eventType: string;
   mediaKey: string;
   occurredAt: string;
@@ -26,7 +26,7 @@ export type RebuildableWatchEvent = PersistedWatchEvent & {
 
 export class WatchEventsRepository {
   async insert(client: DbClient, params: {
-    householdId: string;
+    profileGroupId: string;
     profileId: string;
     input: WatchEventInput;
     identity: MediaIdentity;
@@ -34,7 +34,7 @@ export class WatchEventsRepository {
     const result = await client.query(
       `
         INSERT INTO watch_events (
-          household_id,
+          profile_group_id,
           profile_id,
           client_event_id,
           event_type,
@@ -79,10 +79,10 @@ export class WatchEventsRepository {
         )
         ON CONFLICT (profile_id, client_event_id)
         DO UPDATE SET occurred_at = EXCLUDED.occurred_at
-        RETURNING id, profile_id, household_id, event_type, media_key, occurred_at
+        RETURNING id, profile_id, profile_group_id, event_type, media_key, occurred_at
       `,
       [
-        params.householdId,
+        params.profileGroupId,
         params.profileId,
         params.input.clientEventId,
         params.input.eventType,
@@ -104,7 +104,7 @@ export class WatchEventsRepository {
     return {
       id: String(result.rows[0].id),
       profileId: String(result.rows[0].profile_id),
-      householdId: String(result.rows[0].household_id),
+      profileGroupId: String(result.rows[0].profile_group_id),
       eventType: String(result.rows[0].event_type),
       mediaKey: String(result.rows[0].media_key),
       occurredAt: String(result.rows[0].occurred_at),
@@ -114,7 +114,7 @@ export class WatchEventsRepository {
   async listForProfile(client: DbClient, profileId: string): Promise<RebuildableWatchEvent[]> {
     const result = await client.query(
       `
-        SELECT id, profile_id, household_id, event_type, media_key, media_type,
+        SELECT id, profile_id, profile_group_id, event_type, media_key, media_type,
                tmdb_id, show_tmdb_id, season_number, episode_number,
                position_seconds, duration_seconds, rating, occurred_at, payload
         FROM watch_events
@@ -127,7 +127,7 @@ export class WatchEventsRepository {
     return result.rows.map((row) => ({
       id: String(row.id),
       profileId: String(row.profile_id),
-      householdId: String(row.household_id),
+      profileGroupId: String(row.profile_group_id),
       eventType: String(row.event_type),
       mediaKey: String(row.media_key),
       mediaType: String(row.media_type),

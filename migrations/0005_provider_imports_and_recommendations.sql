@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS watch_history_entries (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    profile_group_id uuid NOT NULL REFERENCES profile_groups(id) ON DELETE CASCADE,
     media_key text NOT NULL,
     media_type text NOT NULL,
     tmdb_id integer,
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_provider_import_connections_profile_created
 CREATE TABLE IF NOT EXISTS provider_import_jobs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    profile_group_id uuid NOT NULL REFERENCES profile_groups(id) ON DELETE CASCADE,
     provider text NOT NULL CHECK (provider IN ('trakt', 'simkl')),
     mode text NOT NULL CHECK (mode IN ('replace_import')),
     status text NOT NULL CHECK (

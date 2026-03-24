@@ -10,6 +10,7 @@ import { TmdbCacheService } from './tmdb-cache.service.js';
 import type {
   MetadataResolveResponse,
   MetadataSearchResponse,
+  MetadataSearchFilter,
   TmdbTitleRecord,
   MetadataTitleDetail,
   MetadataSeasonDetail,
@@ -23,6 +24,18 @@ type ResolveInput = {
   mediaType?: SupportedMediaType | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+};
+
+type SearchTitlesInput = {
+  query: string;
+  limit?: number;
+  filter?: MetadataSearchFilter | null;
+  genre?: string | null;
+};
+
+type GenreMapping = {
+  movieGenreId: number;
+  tvGenreId?: number | null;
 };
 
 export class MetadataQueryService {
@@ -70,9 +83,13 @@ export class MetadataQueryService {
     });
   }
 
-  async searchTitles(query: string, limit = 20): Promise<MetadataSearchResponse> {
-    const normalizedQuery = query.trim();
-    if (!normalizedQuery) {
+  async searchTitles(input: SearchTitlesInput): Promise<MetadataSearchResponse> {
+    const normalizedQuery = input.query.trim();
+    const normalizedFilter = normalizeSearchFilter(input.filter);
+    const genreMapping = resolveGenreMapping(input.genre);
+    const limit = input.limit ?? 20;
+
+    if (!normalizedQuery && !genreMapping) {
       return {
         query: normalizedQuery,
         items: [],
@@ -80,10 +97,18 @@ export class MetadataQueryService {
     }
 
     return withTransaction(async (client) => {
-      const matches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit);
+      const matches = genreMapping
+        ? await this.tmdbCacheService.discoverTitlesByGenre(client, {
+            movieGenreId: genreMapping.movieGenreId,
+            tvGenreId: genreMapping.tvGenreId,
+            filter: normalizedFilter,
+            limit,
+          })
+        : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit);
+      const filteredMatches = matches.filter((match) => matchesSearchFilter(match, normalizedFilter));
       const items = await this.metadataViewService.buildViews(
         client,
-        matches.map((match: TmdbTitleRecord) =>
+        filteredMatches.map((match: TmdbTitleRecord) =>
           inferMediaIdentity({
             mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
             tmdbId: match.tmdbId,
@@ -153,6 +178,47 @@ export class MetadataQueryService {
 
     return null;
   }
+}
+
+function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined): MetadataSearchFilter {
+  return filter === 'movies' || filter === 'series' ? filter : 'all';
+}
+
+function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilter): boolean {
+  if (filter === 'movies') {
+    return match.mediaType === 'movie';
+  }
+  if (filter === 'series') {
+    return match.mediaType === 'tv';
+  }
+  return true;
+}
+
+function normalizeGenreKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function resolveGenreMapping(genre: string | null | undefined): GenreMapping | null {
+  if (!genre?.trim()) {
+    return null;
+  }
+
+  const genreMap: Record<string, GenreMapping> = {
+    action: { movieGenreId: 28, tvGenreId: 10759 },
+    animated: { movieGenreId: 16, tvGenreId: 16 },
+    comedy: { movieGenreId: 35, tvGenreId: 35 },
+    documentary: { movieGenreId: 99, tvGenreId: 99 },
+    drama: { movieGenreId: 18, tvGenreId: 18 },
+    family: { movieGenreId: 10751, tvGenreId: 10751 },
+    fantasy: { movieGenreId: 14, tvGenreId: 10765 },
+    horror: { movieGenreId: 27 },
+    mystery: { movieGenreId: 9648, tvGenreId: 9648 },
+    romance: { movieGenreId: 10749 },
+    scifi: { movieGenreId: 878, tvGenreId: 10765 },
+    thriller: { movieGenreId: 53 },
+  };
+
+  return genreMap[normalizeGenreKey(genre)] ?? null;
 }
 
 function normalizeResolveMediaType(

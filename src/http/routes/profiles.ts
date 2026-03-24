@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { ProviderImportService, parseImportProvider } from '../../modules/imports/provider-import.service.js';
+import { mapProviderImportJobView } from '../../modules/imports/provider-import.views.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
+import { mapProfileView } from '../../modules/profiles/profile.views.js';
 
 export async function registerProfileRoutes(app: FastifyInstance): Promise<void> {
   const profileService = new ProfileService();
@@ -10,7 +12,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     return {
-      profiles: await profileService.listForUser(actor.appUserId),
+      profiles: (await profileService.listForUser(actor.appUserId)).map((profile) => mapProfileView(profile)),
     };
   });
 
@@ -24,7 +26,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
       isKids: Boolean(body.isKids),
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
-    return { profile };
+    return { profile: mapProfileView(profile) };
   });
 
   app.patch('/v1/profiles/:profileId', async (request) => {
@@ -38,7 +40,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
       isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
-    return { profile };
+    return { profile: mapProfileView(profile) };
   });
 
   app.post('/v1/profiles/:profileId/imports/start', async (request, reply) => {
@@ -52,14 +54,21 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
       parseImportProvider(body.provider),
     );
     reply.code(started.nextAction === 'queued' ? 202 : 201);
-    return started;
+    return {
+      ...started,
+      job: mapProviderImportJobView(started.job),
+    };
   });
 
   app.get('/v1/profiles/:profileId/imports', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
-    return providerImportService.listJobs(actor.appUserId, params.profileId);
+    const result = await providerImportService.listJobs(actor.appUserId, params.profileId);
+    return {
+      ...result,
+      jobs: result.jobs.map((job) => mapProviderImportJobView(job)),
+    };
   });
 
   app.get('/v1/profiles/:profileId/import-connections', async (request) => {
@@ -80,8 +89,9 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; jobId: string };
+    const job = await providerImportService.getJob(actor.appUserId, params.profileId, params.jobId);
     return {
-      job: await providerImportService.getJob(actor.appUserId, params.profileId, params.jobId),
+      job: mapProviderImportJobView(job),
     };
   });
 
@@ -100,6 +110,9 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
             : undefined,
     });
     reply.code(202);
-    return completed;
+    return {
+      ...completed,
+      job: mapProviderImportJobView(completed.job),
+    };
   });
 }

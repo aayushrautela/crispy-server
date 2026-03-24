@@ -3,7 +3,7 @@ import type { DbClient } from '../../lib/db.js';
 export type WatchHistoryEntryRecord = {
   id: string;
   profileId: string;
-  householdId: string;
+  profileGroupId: string;
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -21,7 +21,7 @@ function mapEntry(row: Record<string, unknown>): WatchHistoryEntryRecord {
   return {
     id: String(row.id),
     profileId: String(row.profile_id),
-    householdId: String(row.household_id),
+    profileGroupId: String(row.profile_group_id),
     mediaKey: String(row.media_key),
     mediaType: String(row.media_type),
     tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
@@ -43,7 +43,7 @@ export class WatchHistoryEntriesRepository {
 
   async append(client: DbClient, params: {
     profileId: string;
-    householdId: string;
+    profileGroupId: string;
     mediaKey: string;
     mediaType: string;
     tmdbId?: number | null;
@@ -59,7 +59,7 @@ export class WatchHistoryEntriesRepository {
       `
         INSERT INTO watch_history_entries (
           profile_id,
-          household_id,
+          profile_group_id,
           media_key,
           media_type,
           tmdb_id,
@@ -72,12 +72,12 @@ export class WatchHistoryEntriesRepository {
           payload
         )
         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10::uuid, $11, $12::jsonb)
-        RETURNING id, profile_id, household_id, media_key, media_type, tmdb_id, show_tmdb_id,
+        RETURNING id, profile_id, profile_group_id, media_key, media_type, tmdb_id, show_tmdb_id,
                   season_number, episode_number, watched_at, source_watch_event_id, source_kind, payload, created_at
       `,
       [
         params.profileId,
-        params.householdId,
+        params.profileGroupId,
         params.mediaKey,
         params.mediaType,
         params.tmdbId ?? null,

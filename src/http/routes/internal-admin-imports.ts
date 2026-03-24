@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
 import { ProviderAdminService } from '../../modules/imports/provider-admin.service.js';
+import { mapProviderImportJobAdminView } from '../../modules/imports/provider-import.views.js';
 import {
   isProviderImportProvider,
   type ProviderImportConnectionStatus,
@@ -39,12 +40,15 @@ export async function registerInternalAdminImportRoutes(app: FastifyInstance): P
     await app.requireServiceAuth(request);
     app.requireScopes(request, ['admin:diagnostics:read']);
     const query = asRecord(request.query);
-    return adminService.listJobs({
+    const result = await adminService.listJobs({
       provider: parseProvider(query.provider),
       status: parseJobStatus(query.status),
       failuresOnly: query.failuresOnly === true || query.failuresOnly === 'true',
       limit: parseLimit(query.limit),
     });
+    return {
+      jobs: result.jobs.map((job) => mapProviderImportJobAdminView(job)),
+    };
   });
 }
 

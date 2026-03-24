@@ -326,8 +326,8 @@ export class RecommendationWorkStateRepository {
           WITH eligible_profiles AS (
             SELECT p.id, p.name, p.is_kids, p.updated_at
             FROM profiles p
-            INNER JOIN household_members hm ON hm.household_id = p.household_id
-            WHERE hm.user_id = $2::uuid
+            INNER JOIN profile_group_members pgm ON pgm.profile_group_id = p.profile_group_id
+            WHERE pgm.user_id = $2::uuid
           ), work AS (
             SELECT
               ep.id AS profile_id,

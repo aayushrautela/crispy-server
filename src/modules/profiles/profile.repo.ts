@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 
 export type ProfileRecord = {
   id: string;
-  householdId: string;
+  profileGroupId: string;
   name: string;
   avatarKey: string | null;
   isKids: boolean;
@@ -15,7 +15,7 @@ export type ProfileRecord = {
 function mapProfile(row: Record<string, unknown>): ProfileRecord {
   return {
     id: String(row.id),
-    householdId: String(row.household_id),
+    profileGroupId: String(row.profile_group_id),
     name: String(row.name),
     avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
     isKids: Boolean(row.is_kids),
@@ -30,7 +30,7 @@ export class ProfileRepository {
   async findById(client: DbClient, profileId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        SELECT id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
         FROM profiles
         WHERE id = $1::uuid
       `,
@@ -42,9 +42,9 @@ export class ProfileRepository {
   async findOwnerUserIdById(client: DbClient, profileId: string): Promise<string | null> {
     const result = await client.query(
       `
-        SELECT h.owner_user_id
+        SELECT pg.owner_user_id
         FROM profiles p
-        INNER JOIN households h ON h.id = p.household_id
+        INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
         WHERE p.id = $1::uuid
       `,
       [profileId],
@@ -53,21 +53,21 @@ export class ProfileRepository {
     return typeof result.rows[0]?.owner_user_id === 'string' ? result.rows[0].owner_user_id : null;
   }
 
-  async listForHousehold(client: DbClient, householdId: string): Promise<ProfileRecord[]> {
+  async listForProfileGroup(client: DbClient, profileGroupId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        SELECT id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
         FROM profiles
-        WHERE household_id = $1::uuid
+        WHERE profile_group_id = $1::uuid
         ORDER BY sort_order ASC, created_at ASC
       `,
-      [householdId],
+      [profileGroupId],
     );
     return result.rows.map((row) => mapProfile(row));
   }
 
-  async listAvatarKeysForHouseholds(client: DbClient, householdIds: string[]): Promise<string[]> {
-    if (householdIds.length === 0) {
+  async listAvatarKeysForProfileGroups(client: DbClient, profileGroupIds: string[]): Promise<string[]> {
+    if (profileGroupIds.length === 0) {
       return [];
     }
 
@@ -75,12 +75,12 @@ export class ProfileRepository {
       `
         SELECT DISTINCT avatar_key
         FROM profiles
-        WHERE household_id = ANY($1::uuid[])
+        WHERE profile_group_id = ANY($1::uuid[])
           AND avatar_key IS NOT NULL
           AND btrim(avatar_key) <> ''
         ORDER BY avatar_key ASC
       `,
-      [householdIds],
+      [profileGroupIds],
     );
 
     return result.rows
@@ -91,11 +91,11 @@ export class ProfileRepository {
   async listForUser(client: DbClient, userId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT DISTINCT p.id, p.household_id, p.name, p.avatar_key, p.is_kids, p.sort_order,
+        SELECT DISTINCT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order,
                p.created_by_user_id, p.created_at, p.updated_at
         FROM profiles p
-        INNER JOIN household_members hm ON hm.household_id = p.household_id
-        WHERE hm.user_id = $1::uuid
+        INNER JOIN profile_group_members pgm ON pgm.profile_group_id = p.profile_group_id
+        WHERE pgm.user_id = $1::uuid
         ORDER BY p.sort_order ASC, p.created_at ASC
       `,
       [userId],
@@ -106,7 +106,7 @@ export class ProfileRepository {
   async listAll(client: DbClient, limit: number, offset: number): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        SELECT id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
         FROM profiles
         ORDER BY updated_at DESC, created_at DESC
         LIMIT $1 OFFSET $2
@@ -119,10 +119,10 @@ export class ProfileRepository {
   async findByIdForUser(client: DbClient, profileId: string, userId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT p.id, p.household_id, p.name, p.avatar_key, p.is_kids, p.sort_order, p.created_by_user_id, p.created_at, p.updated_at
+        SELECT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order, p.created_by_user_id, p.created_at, p.updated_at
         FROM profiles p
-        INNER JOIN household_members hm ON hm.household_id = p.household_id
-        WHERE p.id = $1::uuid AND hm.user_id = $2::uuid
+        INNER JOIN profile_group_members pgm ON pgm.profile_group_id = p.profile_group_id
+        WHERE p.id = $1::uuid AND pgm.user_id = $2::uuid
       `,
       [profileId, userId],
     );
@@ -130,7 +130,7 @@ export class ProfileRepository {
   }
 
   async create(client: DbClient, params: {
-    householdId: string;
+    profileGroupId: string;
     name: string;
     avatarKey?: string | null;
     isKids?: boolean;
@@ -139,11 +139,11 @@ export class ProfileRepository {
   }): Promise<ProfileRecord> {
     const result = await client.query(
       `
-        INSERT INTO profiles (household_id, name, avatar_key, is_kids, sort_order, created_by_user_id)
+        INSERT INTO profiles (profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id)
         VALUES ($1::uuid, $2, $3, $4, $5, $6::uuid)
-        RETURNING id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        RETURNING id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
       `,
-      [params.householdId, params.name, params.avatarKey ?? null, params.isKids ?? false, params.sortOrder, params.createdByUserId],
+      [params.profileGroupId, params.name, params.avatarKey ?? null, params.isKids ?? false, params.sortOrder, params.createdByUserId],
     );
     return mapProfile(result.rows[0]);
   }
@@ -170,12 +170,12 @@ export class ProfileRepository {
           is_kids = $5,
           sort_order = $6,
           updated_at = now()
-        WHERE id = $1::uuid AND household_id = $2::uuid
-        RETURNING id, household_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        WHERE id = $1::uuid AND profile_group_id = $2::uuid
+        RETURNING id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
       `,
       [
         params.profileId,
-        current.householdId,
+        current.profileGroupId,
         params.name ?? current.name,
         params.avatarKey === undefined ? current.avatarKey : params.avatarKey,
         params.isKids ?? current.isKids,

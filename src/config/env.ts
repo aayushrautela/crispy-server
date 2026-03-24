@@ -40,7 +40,7 @@ export const env = {
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: optionalEnv('AUTH_ADMIN_URL') ?? '',
   authAdminToken: optionalEnv('AUTH_ADMIN_TOKEN') ?? '',
-  defaultHouseholdName: process.env.DEFAULT_HOUSEHOLD_NAME?.trim() || 'Crispy Household',
+  defaultProfileGroupName: process.env.DEFAULT_PROFILE_GROUP_NAME?.trim() || 'Crispy Profile Group',
   defaultProfileName: process.env.DEFAULT_PROFILE_NAME?.trim() || 'Main',
   homeCacheTtlSeconds: parseNumber('HOME_CACHE_TTL_SECONDS', 120),
   calendarCacheTtlSeconds: parseNumber('CALENDAR_CACHE_TTL_SECONDS', 300),

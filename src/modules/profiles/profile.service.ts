@@ -1,30 +1,30 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { HouseholdService } from '../households/household.service.js';
+import { ProfileGroupService } from '../profile-groups/profile-group.service.js';
 import { normalizeSettingsPatch, stripAccountScopedProfileSettings } from '../users/account-settings.service.js';
 import { ProfileRepository, type ProfileRecord } from './profile.repo.js';
 import { ProfileSettingsRepository } from './profile-settings.repo.js';
 
 export class ProfileService {
   constructor(
-    private readonly householdService = new HouseholdService(),
+    private readonly profileGroupService = new ProfileGroupService(),
     private readonly profileRepository = new ProfileRepository(),
     private readonly profileSettingsRepository = new ProfileSettingsRepository(),
   ) {}
 
   async listForUser(userId: string): Promise<ProfileRecord[]> {
     return withTransaction(async (client) => {
-      const householdId = await this.householdService.ensureDefaultHousehold(client, { userId });
-      return this.profileRepository.listForHousehold(client, householdId);
+      const profileGroupId = await this.profileGroupService.ensureDefaultProfileGroup(client, { userId });
+      return this.profileRepository.listForProfileGroup(client, profileGroupId);
     });
   }
 
   async create(userId: string, input: { name: string; avatarKey?: string | null; isKids?: boolean; sortOrder?: number }): Promise<ProfileRecord> {
     return withTransaction(async (client) => {
-      const householdId = await this.householdService.ensureDefaultHousehold(client, { userId });
-      const existing = await this.profileRepository.listForHousehold(client, householdId);
+      const profileGroupId = await this.profileGroupService.ensureDefaultProfileGroup(client, { userId });
+      const existing = await this.profileRepository.listForProfileGroup(client, profileGroupId);
       const profile = await this.profileRepository.create(client, {
-        householdId,
+        profileGroupId,
         name: input.name.trim(),
         avatarKey: input.avatarKey ?? null,
         isKids: input.isKids ?? false,

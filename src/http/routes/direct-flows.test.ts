@@ -1,0 +1,221 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import Fastify from 'fastify';
+import type { FastifyRequest } from 'fastify';
+
+function seedTestEnv(): void {
+  process.env.NODE_ENV ??= 'test';
+  process.env.DATABASE_URL ??= 'postgres://test:test@127.0.0.1:5432/test';
+  process.env.REDIS_URL ??= 'redis://127.0.0.1:6379/0';
+  process.env.AUTH_JWKS_URL ??= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
+  process.env.AUTH_JWT_ISSUER ??= 'https://example.supabase.co/auth/v1';
+  process.env.AUTH_JWT_AUDIENCE ??= 'authenticated';
+  process.env.TMDB_API_KEY ??= 'tmdb-test-key';
+  process.env.SERVICE_CLIENTS_JSON ??= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
+}
+
+seedTestEnv();
+
+async function buildRouteTestApp(register: (app: Awaited<ReturnType<typeof Fastify>>) => Promise<void>) {
+  seedTestEnv();
+  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
+
+  const app = Fastify();
+  app.decorateRequest('auth');
+  app.decorate('requireAuth', async (request: FastifyRequest) => {
+    request.auth = {
+      type: 'user',
+      appUserId: 'user-1',
+      serviceId: null,
+      scopes: [],
+      authSubject: 'auth-subject',
+      email: 'test@example.com',
+      tokenId: null,
+      consumerId: null,
+    };
+  });
+  app.decorate('requireServiceAuth', async () => {});
+  app.decorate('requireUserActor', (request: FastifyRequest) => request.auth as never);
+  app.decorate('requireScopes', () => {});
+  await app.register(errorHandlerPlugin);
+  await register(app);
+  return app;
+}
+
+test('metadata direct routes parse inputs and return service payloads', async (t) => {
+  const { MetadataDirectService } = await import('../../modules/metadata/metadata-direct.service.js');
+  const originalGetPersonDetail = MetadataDirectService.prototype.getPersonDetail;
+  const originalListEpisodes = MetadataDirectService.prototype.listEpisodes;
+  const originalGetNextEpisode = MetadataDirectService.prototype.getNextEpisode;
+  const originalResolvePlayback = MetadataDirectService.prototype.resolvePlayback;
+
+  t.after(() => {
+    MetadataDirectService.prototype.getPersonDetail = originalGetPersonDetail;
+    MetadataDirectService.prototype.listEpisodes = originalListEpisodes;
+    MetadataDirectService.prototype.getNextEpisode = originalGetNextEpisode;
+    MetadataDirectService.prototype.resolvePlayback = originalResolvePlayback;
+  });
+
+  MetadataDirectService.prototype.getPersonDetail = async function (id, language) {
+    return {
+      id: `person:${id}`,
+      tmdbPersonId: 44,
+      name: 'Person',
+      knownForDepartment: null,
+      biography: null,
+      birthday: null,
+      placeOfBirth: null,
+      profileUrl: null,
+      imdbId: null,
+      instagramId: null,
+      twitterId: null,
+      knownFor: [],
+      language,
+    } as never;
+  };
+
+  MetadataDirectService.prototype.listEpisodes = async function (id, seasonNumber) {
+    return {
+      show: { id, externalIds: { imdb: 'tt123' } },
+      requestedSeasonNumber: seasonNumber ?? null,
+      effectiveSeasonNumber: seasonNumber ?? 1,
+      includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1],
+      episodes: [],
+    } as never;
+  };
+
+  MetadataDirectService.prototype.getNextEpisode = async function (id, input) {
+    return {
+      show: { id },
+      currentSeasonNumber: input.currentSeasonNumber,
+      currentEpisodeNumber: input.currentEpisodeNumber,
+      receivedWatchedKeys: input.watchedKeys,
+      receivedShowId: input.showId,
+      receivedNowMs: input.nowMs,
+      item: null,
+    } as never;
+  };
+
+  MetadataDirectService.prototype.resolvePlayback = async function (input) {
+    return {
+      item: { id: input.id ?? 'fallback' },
+      show: null,
+      season: null,
+      input,
+    } as never;
+  };
+
+  const { registerMetadataRoutes } = await import('./metadata.js');
+  const app = await buildRouteTestApp(registerMetadataRoutes);
+  t.after(async () => {
+    await app.close();
+  });
+
+  const personResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/people/44?language=en-US',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(personResponse.statusCode, 200);
+  assert.equal(personResponse.json().language, 'en-US');
+
+  const episodesResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/titles/crisp:show:12/episodes?seasonNumber=2',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(episodesResponse.statusCode, 200);
+  assert.equal(episodesResponse.json().requestedSeasonNumber, 2);
+
+  const nextEpisodeResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/titles/crisp:show:12/next-episode?currentSeasonNumber=1&currentEpisodeNumber=2&watchedKeys=tt1:1:3,tt1:1:4&showId=tt1&nowMs=1700000000000',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(nextEpisodeResponse.statusCode, 200);
+  assert.deepEqual(nextEpisodeResponse.json().receivedWatchedKeys, ['tt1:1:3', 'tt1:1:4']);
+  assert.equal(nextEpisodeResponse.json().receivedShowId, 'tt1');
+  assert.equal(nextEpisodeResponse.json().receivedNowMs, 1700000000000);
+
+  const playbackResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/playback/resolve?id=crisp:movie:55',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(playbackResponse.statusCode, 200);
+  assert.equal(playbackResponse.json().input.id, 'crisp:movie:55');
+});
+
+test('library routes forward source and limit to service', async (t) => {
+  const { LibraryService } = await import('../../modules/library/library.service.js');
+  const originalGetProfileLibrary = LibraryService.prototype.getProfileLibrary;
+  const originalRequireOwnedProfile = LibraryService.prototype.requireOwnedProfile;
+  const originalGetProviderAuthState = LibraryService.prototype.getProviderAuthState;
+
+  t.after(() => {
+    LibraryService.prototype.getProfileLibrary = originalGetProfileLibrary;
+    LibraryService.prototype.requireOwnedProfile = originalRequireOwnedProfile;
+    LibraryService.prototype.getProviderAuthState = originalGetProviderAuthState;
+  });
+
+  LibraryService.prototype.getProfileLibrary = async function (userId, profileId, options) {
+    return {
+      userId,
+      profileId,
+      source: options?.source ?? 'all',
+      limitPerFolder: options?.limitPerFolder ?? null,
+      auth: { providers: [] },
+      native: null,
+      providers: [],
+    } as never;
+  };
+
+  LibraryService.prototype.requireOwnedProfile = async function () {};
+  LibraryService.prototype.getProviderAuthState = async function (profileId) {
+    return [{ provider: 'trakt', connected: true, status: 'connected', tokenState: 'valid', externalUsername: profileId, lastImportCompletedAt: null, lastUsedAt: null, message: null }] as never;
+  };
+
+  const { registerLibraryRoutes } = await import('./library.js');
+  const app = await buildRouteTestApp(registerLibraryRoutes);
+  t.after(async () => {
+    await app.close();
+  });
+
+  const libraryResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/library?source=trakt&limitPerFolder=25',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(libraryResponse.statusCode, 200);
+  assert.equal(libraryResponse.json().userId, 'user-1');
+  assert.equal(libraryResponse.json().source, 'trakt');
+  assert.equal(libraryResponse.json().limitPerFolder, 25);
+
+  const authStateResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/provider-auth/state',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(authStateResponse.statusCode, 200);
+  assert.equal(authStateResponse.json().providers[0].externalUsername, 'profile-1');
+});
+
+test('library route rejects invalid source', async (t) => {
+  await import('../../modules/library/library.service.js');
+  const { registerLibraryRoutes } = await import('./library.js');
+  const app = await buildRouteTestApp(registerLibraryRoutes);
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/library?source=bad',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), {
+    error: 'Invalid library source.',
+  });
+});

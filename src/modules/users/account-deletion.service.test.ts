@@ -12,7 +12,7 @@ function seedTestEnv(): void {
   process.env.SERVICE_CLIENTS_JSON ||= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
 }
 
-test('deleteAccount transfers shared households and warns about avatar cleanup for deleted households', async () => {
+test('deleteAccount reports profile-group cleanup without household wording', async () => {
   seedTestEnv();
   const { AccountDeletionService } = await import('./account-deletion.service.js');
   const { db } = await import('../../lib/db.js');
@@ -36,10 +36,10 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
       return 2;
     },
   };
-  const householdRepository = {
-    findOwnedHouseholdIds: async () => ['household-shared', 'household-empty'],
-    listMembers: async (_client: unknown, householdId: string) => {
-      if (householdId === 'household-shared') {
+  const profileGroupRepository = {
+    findOwnedProfileGroupIds: async () => ['profile-group-shared', 'profile-group-empty'],
+    listMembers: async (_client: unknown, profileGroupId: string) => {
+      if (profileGroupId === 'profile-group-shared') {
         return [
           { userId: 'user-1', role: 'owner' },
           { userId: 'user-2', role: 'member' },
@@ -47,20 +47,20 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
       }
       return [{ userId: 'user-1', role: 'owner' }];
     },
-    transferOwnership: async (_client: unknown, params: { householdId: string; nextOwnerUserId: string }) => {
+    transferOwnership: async (_client: unknown, params: { profileGroupId: string; nextOwnerUserId: string }) => {
       assert.deepEqual(params, {
-        householdId: 'household-shared',
+        profileGroupId: 'profile-group-shared',
         nextOwnerUserId: 'user-2',
       });
     },
-    deleteById: async (_client: unknown, householdId: string) => {
-      assert.equal(householdId, 'household-empty');
+    deleteById: async (_client: unknown, profileGroupId: string) => {
+      assert.equal(profileGroupId, 'profile-group-empty');
       return true;
     },
   };
   const profileRepository = {
-    listAvatarKeysForHouseholds: async (_client: unknown, householdIds: string[]) => {
-      assert.deepEqual(householdIds, ['household-empty']);
+    listAvatarKeysForProfileGroups: async (_client: unknown, profileGroupIds: string[]) => {
+      assert.deepEqual(profileGroupIds, ['profile-group-empty']);
       return ['avatar-a', 'avatar-b'];
     },
   };
@@ -81,7 +81,7 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
   try {
     const service = new AccountDeletionService(
       personalAccessTokenService as never,
-      householdRepository as never,
+      profileGroupRepository as never,
       profileRepository as never,
       accountSettingsRepository as never,
       userRepository as never,
@@ -95,12 +95,12 @@ test('deleteAccount transfers shared households and warns about avatar cleanup f
 
     assert.deepEqual(result, {
       appUserId: 'user-1',
-      deletedOwnedHouseholds: 1,
-      transferredOwnedHouseholds: 1,
+      deletedProfileGroups: 1,
+      transferredProfileGroups: 1,
       revokedPersonalAccessTokens: 2,
       deletedExternalAuthUser: true,
       warnings: [
-        'Deleted household household-empty referenced 2 avatar key(s), but avatar storage cleanup is not configured locally.',
+        'Deleted profile group profile-group-empty referenced 2 avatar key(s), but avatar storage cleanup is not configured locally.',
       ],
     });
     assert.deepEqual(queries, [

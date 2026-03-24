@@ -26,10 +26,15 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - User auth: bearer JWTs are verified against a remote JWKS, then the backend upserts a local app user from the auth subject.
 - Personal access tokens: local `cp_pat_...` tokens issued and validated by this server.
 - Service-to-service auth: internal callers send `x-service-id` and `x-api-key`; permissions come from `SERVICE_CLIENTS_JSON`.
+- The signed-in account is the only auth actor and the ownership root.
+- Email is an account lookup attribute at the product boundary; the durable internal ownership key remains the local app-user id.
+- Profiles are child personas under one account, not standalone users.
 - One account token covers all profiles owned by that account; profiles do not have separate credentials.
-- Shared account-scoped data includes addons, OpenRouter key, and OMDb key.
-- Profile-scoped data includes watch state/history, provider connections, imports, taste profiles, and recommendations.
+- Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
+- Shared account-scoped data includes addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+- Profile-scoped personal data includes profile settings, watch state/history, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl are per-profile, not account-scoped.
+- Older ownership plumbing in code is an implementation detail slated for cleanup, not the intended product contract.
 
 ## Endpoint model
 

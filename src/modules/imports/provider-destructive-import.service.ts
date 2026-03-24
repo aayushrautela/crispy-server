@@ -96,7 +96,7 @@ export class ProviderDestructiveImportService {
 
     const insertedEvents = await this.insertImportedEvents(client, {
       profileId: job.profileId,
-      householdId: job.householdId,
+      profileGroupId: job.profileGroupId,
       provider,
       historyGeneration: watchDataState.historyGeneration,
       importedEvents: sortedEvents,
@@ -104,7 +104,7 @@ export class ProviderDestructiveImportService {
 
     const insertedHistoryEntries = await this.insertImportedHistoryEntries(client, {
       profileId: job.profileId,
-      householdId: job.householdId,
+      profileGroupId: job.profileGroupId,
       provider,
       importedHistoryEntries: sortedHistoryEntries,
     });
@@ -173,7 +173,7 @@ export class ProviderDestructiveImportService {
 
   private async insertImportedEvents(client: DbClient, params: {
     profileId: string;
-    householdId: string;
+    profileGroupId: string;
     provider: ProviderImportProvider;
     historyGeneration: number;
     importedEvents: ImportedWatchEventDraft[];
@@ -186,7 +186,7 @@ export class ProviderDestructiveImportService {
         `
           INSERT INTO watch_events (
             id,
-            household_id,
+            profile_group_id,
             profile_id,
             client_event_id,
             event_type,
@@ -237,7 +237,7 @@ export class ProviderDestructiveImportService {
         `,
         [
           eventId,
-          params.householdId,
+          params.profileGroupId,
           params.profileId,
           event.clientEventId ?? `provider-import:${params.provider}:${params.profileId}:${inserted}:${event.occurredAt}:${randomUUID()}`,
           event.eventType,
@@ -301,7 +301,7 @@ export class ProviderDestructiveImportService {
 
   private async insertImportedHistoryEntries(client: DbClient, params: {
     profileId: string;
-    householdId: string;
+    profileGroupId: string;
     provider: ProviderImportProvider;
     importedHistoryEntries: ImportedHistoryEntryDraft[];
   }): Promise<number> {
@@ -310,7 +310,7 @@ export class ProviderDestructiveImportService {
       const identity = identityFromDraft(entry);
       await this.watchHistoryEntriesRepository.append(client, {
         profileId: params.profileId,
-        householdId: params.householdId,
+        profileGroupId: params.profileGroupId,
         mediaKey: identity.mediaKey,
         mediaType: identity.mediaType,
         tmdbId: identity.tmdbId,

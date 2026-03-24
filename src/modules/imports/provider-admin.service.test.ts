@@ -54,7 +54,7 @@ test('listJobs forwards admin filters to repository', async () => {
         assert.equal(filters.status, 'failed');
         assert.equal(filters.failuresOnly, true);
         assert.equal(filters.limit, 10);
-        return [{ id: 'job-1', profileId: 'profile-1', householdId: 'household-1', provider: 'simkl', mode: 'replace_import', status: 'failed', requestedByUserId: 'user-1', connectionId: 'connection-1', checkpointJson: {}, summaryJson: {}, errorJson: {}, createdAt: 'a', startedAt: null, finishedAt: null, updatedAt: 'b', errorCode: 'provider_error', errorMessage: 'boom' }];
+        return [{ id: 'job-1', profileId: 'profile-1', profileGroupId: 'profile-group-1', provider: 'simkl', mode: 'replace_import', status: 'failed', requestedByUserId: 'user-1', connectionId: 'connection-1', checkpointJson: {}, summaryJson: {}, errorJson: {}, createdAt: 'a', startedAt: null, finishedAt: null, updatedAt: 'b', errorCode: 'provider_error', errorMessage: 'boom' }];
       },
     } as never,
     async (work) => work({} as never),

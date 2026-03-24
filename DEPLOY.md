@@ -18,6 +18,14 @@
 
    Auth is external-only. Application data lives in the local Postgres from `DATABASE_URL`, while JWT verification and optional upstream user deletion use the `AUTH_*` variables.
 
+   Ownership contract for hosted and internal consumers:
+
+   - The signed-in account is the only auth actor and the ownership root.
+   - Profiles are child personas under that account, not separate users.
+   - Shared management data stays account-scoped: addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+   - Personal experience data stays profile-scoped: profile settings, Trakt and Simkl connections, imports, watch history, continue watching, watchlist, ratings, tracked series, taste profiles, and recommendations.
+   - Current privileged routes are still mostly `:profileId`-addressed for personal data. That path shape selects a profile under the account; it does not mean a profile is a separate auth principal.
+
    Example auth config when Supabase is the auth provider:
    ```env
    AUTH_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
@@ -28,6 +36,12 @@
    ```
 
    The API requires `SERVICE_CLIENTS_JSON` for service-to-service authentication. Internal callers such as the hosted recommendation engine must send `x-service-id` and `x-api-key`, and those values must match an active entry in `SERVICE_CLIENTS_JSON`.
+
+   When integrating a hosted recommendation engine or other privileged service, model ownership as:
+
+   - account/email identifies the owning user in your control plane
+   - profile identifies the personal experience being targeted inside that account
+   - account-shared secret routes are account-owned even when a current helper route accepts `:profileId`
 
    Example:
    ```env
@@ -40,6 +54,8 @@
    HOSTED_SERVICE_ID=crispy-recommendation-engine
    HOSTED_API_KEY=replace_with_long_random_secret
    ```
+
+   Until later phases land, the API surface remains mostly profile-targeted for personal data reads and writes. Treat that as route targeting only, not as a separate-user model.
 
 4. Start it:
    ```bash

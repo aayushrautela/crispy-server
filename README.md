@@ -68,11 +68,17 @@ Redis backs BullMQ and cached API surfaces such as home and calendar.
 
 ## Auth model
 
+- This ownership contract is authoritative for future migrations even where some internals still use older ownership plumbing today.
 - One authenticated account can access all profiles that belong to that account.
+- The signed-in account is the only auth actor and the ownership root for the whole profile group.
+- Email identifies the account at the product boundary, but the durable internal ownership key should remain the local account id (`app_user.id`), not the raw email value.
+- Profiles are child personas under one account, similar to Netflix-style labels such as `me`, `mom`, `dad`, or `tom`.
 - Profiles do not have their own API keys or bearer tokens.
-- Shared account-level settings and secrets include addons, OpenRouter key, and OMDb key.
-- Profile-level data includes watch history, ratings, watchlist, tracked series, provider connections, taste profiles, and recommendations.
+- Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
+- Shared account-level settings and secrets include addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+- Profile-personal data includes profile settings, watch history, continue watching, ratings, watchlist, tracked series, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl connections remain per-profile.
+- Internal and external privileged consumers should treat the account as the owning identity and use profile ids only to select which profile's personal experience data to read or write.
 
 ### User auth
 
@@ -204,6 +210,7 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 #### Profile data and outputs
 
+- These profile-targeted internal routes select a child persona under the owning account. They do not imply that profiles are standalone auth principals.
 - `GET /internal/v1/profiles` - list profiles known to this API instance
 - `GET /internal/v1/profiles/:profileId/watch-history` - profile watch history
 - `GET /internal/v1/profiles/:profileId/continue-watching` - profile continue watching
@@ -215,8 +222,9 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `GET /internal/v1/profiles/:profileId/recommendations` - read recommendations by source and algorithm version
 - `PUT /internal/v1/profiles/:profileId/recommendations` - write recommendations
 
-#### Shared account secrets resolved from profile id
+#### Shared account secrets currently resolved from profile id
 
+- These routes return account-shared secrets by inferring the owning account from the profile id. This path shape is legacy and does not make the secret profile-owned.
 - `GET /internal/v1/profiles/:profileId/secrets/openrouter-key` - read account-shared OpenRouter key for the profile owner
 - `GET /internal/v1/profiles/:profileId/secrets/omdb-api-key` - read account-shared OMDb key for the profile owner
 
@@ -240,8 +248,11 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 ## Current product-scoping rules
 
-- Account-scoped: addons, OpenRouter key, OMDb key, PATs, account deletion
-- Profile-scoped: watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations
+- Ownership root: the signed-in account owns the profile group; profiles are child personas under that account.
+- Account-shared: addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+- Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
+- Profile-targeted paths select which persona under the account is being addressed; they are not separate logins or separate API clients.
+- Some internals still use older ownership plumbing. That is an implementation detail pending cleanup, not the intended product contract.
 - Internal services can target any profile id the API knows about.
 - End users can only access profiles that belong to their account.
 

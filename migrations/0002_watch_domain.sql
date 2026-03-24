@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS watch_events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    profile_group_id uuid NOT NULL REFERENCES profile_groups(id) ON DELETE CASCADE,
     profile_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     client_event_id text NOT NULL,
     event_type text NOT NULL,

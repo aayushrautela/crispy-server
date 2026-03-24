@@ -11,7 +11,7 @@ import { WatchlistRepository } from '../watch/watchlist.repo.js';
 
 type ProfileSummary = {
   id: string;
-  householdId: string;
+  accountId: string | null;
   name: string;
   isKids: boolean;
   updatedAt: string;
@@ -33,14 +33,16 @@ export class RecommendationDataService {
   async listOwnedProfiles(userId: string): Promise<ProfileSummary[]> {
     return withTransaction(async (client) => {
       const profiles = await this.profileRepository.listForUser(client, userId);
-      return profiles.map(toProfileSummary);
+      return Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile)));
     });
   }
 
   async listAllProfiles(limit: number, offset: number): Promise<{ profiles: ProfileSummary[] }> {
     return withTransaction(async (client) => {
       const profiles = await this.profileRepository.listAll(client, limit, offset);
-      return { profiles: profiles.map(toProfileSummary) };
+      return {
+        profiles: await Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile))),
+      };
     });
   }
 
@@ -243,10 +245,15 @@ export class RecommendationDataService {
   }
 }
 
-function toProfileSummary(profile: ProfileRecord): ProfileSummary {
+async function toProfileSummary(
+  profileRepository: ProfileRepository,
+  client: DbClient,
+  profile: ProfileRecord,
+): Promise<ProfileSummary> {
+  const accountId = await profileRepository.findOwnerUserIdById(client, profile.id);
   return {
     id: profile.id,
-    householdId: profile.householdId,
+    accountId,
     name: profile.name,
     isKids: profile.isKids,
     updatedAt: profile.updatedAt,

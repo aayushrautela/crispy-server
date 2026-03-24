@@ -78,15 +78,15 @@ export class ProviderImportService {
       }
 
       const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
-      const connectedConnection = await this.connectionsRepository.findLatestConnectedForProfile(client, profileId, provider);
+        const connectedConnection = await this.connectionsRepository.findLatestConnectedForProfile(client, profileId, provider);
 
-      if (connectedConnection) {
-        const queuedJob = await this.jobsRepository.create(client, {
-          profileId,
-          householdId: profile.householdId,
-          provider,
-          requestedByUserId: userId,
-          connectionId: connectedConnection.id,
+        if (connectedConnection) {
+          const queuedJob = await this.jobsRepository.create(client, {
+            profileId,
+            profileGroupId: profile.profileGroupId,
+            provider,
+            requestedByUserId: userId,
+            connectionId: connectedConnection.id,
           status: 'queued',
         });
 
@@ -120,7 +120,7 @@ export class ProviderImportService {
 
       const pendingJob = await this.jobsRepository.create(client, {
         profileId,
-        householdId: profile.householdId,
+        profileGroupId: profile.profileGroupId,
         provider,
         requestedByUserId: userId,
         connectionId: connection.id,

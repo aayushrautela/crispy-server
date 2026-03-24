@@ -1,6 +1,13 @@
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
-import type { TmdbSeasonApiResponse, TmdbSearchApiResponse, TmdbTitleApiResponse, TmdbTitleType } from './tmdb.types.js';
+import type {
+  TmdbDiscoverApiResponse,
+  TmdbPersonApiResponse,
+  TmdbSeasonApiResponse,
+  TmdbSearchApiResponse,
+  TmdbTitleApiResponse,
+  TmdbTitleType,
+} from './tmdb.types.js';
 
 async function fetchTmdbJson(
   pathname: string,
@@ -48,10 +55,26 @@ export class TmdbClient {
     return fetchTmdbJson(`/tv/${showTmdbId}/season/${seasonNumber}`);
   }
 
+  async fetchPerson(personTmdbId: number, language?: string | null): Promise<TmdbPersonApiResponse> {
+    return fetchTmdbJson(`/person/${personTmdbId}`, {
+      append_to_response: 'combined_credits,external_ids',
+      language: language?.trim() || undefined,
+    });
+  }
+
   async searchTitles(query: string, page = 1): Promise<TmdbSearchApiResponse> {
     return fetchTmdbJson('/search/multi', {
       query,
       page,
+      include_adult: 'false',
+    });
+  }
+
+  async discoverTitlesByGenre(mediaType: TmdbTitleType, genreId: number, page = 1): Promise<TmdbDiscoverApiResponse> {
+    return fetchTmdbJson(`/discover/${mediaType}`, {
+      with_genres: genreId,
+      page,
+      sort_by: 'popularity.desc',
       include_adult: 'false',
     });
   }

@@ -140,6 +140,54 @@ export type MetadataSeasonDetail = {
   episodes: MetadataEpisodeView[];
 };
 
+export type MetadataEpisodeListResponse = {
+  show: MetadataView;
+  requestedSeasonNumber: number | null;
+  effectiveSeasonNumber: number;
+  includedSeasonNumbers: number[];
+  episodes: MetadataEpisodeView[];
+};
+
+export type MetadataNextEpisodeResponse = {
+  show: MetadataView;
+  currentSeasonNumber: number;
+  currentEpisodeNumber: number;
+  item: MetadataEpisodeView | null;
+};
+
+export type PlaybackResolveResponse = {
+  item: MetadataView;
+  show: MetadataView | null;
+  season: MetadataSeasonView | null;
+};
+
+export type MetadataPersonKnownForItem = {
+  id: string;
+  mediaType: 'movie' | 'show';
+  tmdbId: number;
+  title: string;
+  posterUrl: string | null;
+  rating: number | null;
+  releaseYear: number | null;
+};
+
+export type MetadataPersonDetail = {
+  id: string;
+  tmdbPersonId: number;
+  name: string;
+  knownForDepartment: string | null;
+  biography: string | null;
+  birthday: string | null;
+  placeOfBirth: string | null;
+  profileUrl: string | null;
+  imdbId: string | null;
+  instagramId: string | null;
+  twitterId: string | null;
+  knownFor: MetadataPersonKnownForItem[];
+};
+
+export type MetadataSearchFilter = 'all' | 'movies' | 'series';
+
 export type MetadataSearchResult = MetadataView;
 
 export type MetadataSearchResponse = {
@@ -154,3 +202,5 @@ export type MetadataResolveResponse = {
 export type TmdbTitleApiResponse = Record<string, unknown>;
 export type TmdbSeasonApiResponse = Record<string, unknown>;
 export type TmdbSearchApiResponse = Record<string, unknown>;
+export type TmdbDiscoverApiResponse = Record<string, unknown>;
+export type TmdbPersonApiResponse = Record<string, unknown>;

@@ -28,7 +28,7 @@ test('searchTitles returns empty when query is blank', async () => {
     } as never,
   );
 
-  const response = await svc.searchTitles('   ', 10);
+  const response = await svc.searchTitles({ query: '   ', limit: 10 });
   assert.deepEqual(response, { query: '', items: [] });
 });
 
