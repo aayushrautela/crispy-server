@@ -2,7 +2,6 @@ import Fastify from 'fastify';
 import { loggerOptions } from '../config/logger.js';
 import authPlugin from './plugins/auth.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
-import profileContextPlugin from './plugins/profile-context.js';
 import serviceAuthPlugin from './plugins/service-auth.js';
 import { registerAccountRoutes } from './routes/account.js';
 import { registerAiRoutes } from './routes/ai.js';
@@ -28,7 +27,6 @@ declare module 'fastify' {
   interface FastifyInstance {
     requireAuth(request: import('fastify').FastifyRequest): Promise<void>;
     requireServiceAuth(request: import('fastify').FastifyRequest): Promise<void>;
-    requireProfileId(request: import('fastify').FastifyRequest): string;
     requireUserActor(request: import('fastify').FastifyRequest): UserAuthActor;
     requireScopes(request: import('fastify').FastifyRequest, scopes: AuthScope[]): void;
   }
@@ -42,7 +40,6 @@ export async function buildApp() {
   await app.register(errorHandlerPlugin);
   await app.register(authPlugin);
   await app.register(serviceAuthPlugin);
-  await app.register(profileContextPlugin);
 
   await registerHealthRoutes(app);
   await registerAccountRoutes(app);

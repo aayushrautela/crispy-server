@@ -4,10 +4,11 @@ import { HomeService } from '../../modules/home/home.service.js';
 export async function registerHomeRoutes(app: FastifyInstance): Promise<void> {
   const homeService = new HomeService();
 
-  app.get('/v1/home', async (request) => {
+  app.get('/v1/profiles/:profileId/home', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    const profileId = app.requireProfileId(request);
+    const params = request.params as { profileId: string };
+    const profileId = params.profileId.trim();
     return homeService.getHome(actor.appUserId, profileId);
   });
 }
