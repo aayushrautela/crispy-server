@@ -16,6 +16,18 @@ function optionalEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
+export function parseStringListEnv(name: string): string[] {
+  const value = process.env[name];
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 function parseNumber(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) {

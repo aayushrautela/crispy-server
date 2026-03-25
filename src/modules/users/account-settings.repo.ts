@@ -1,5 +1,10 @@
 import type { DbClient } from '../../lib/db.js';
 
+export type AccountSecretRecord = {
+  appUserId: string;
+  value: string;
+};
+
 export class AccountSettingsRepository {
   async getSettingsForUser(client: DbClient, userId: string): Promise<Record<string, unknown>> {
     const result = await client.query(
@@ -70,5 +75,26 @@ export class AccountSettingsRepository {
       [userId, fieldKey],
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async listSecretsForField(client: DbClient, fieldKey: string): Promise<AccountSecretRecord[]> {
+    const result = await client.query(
+      `
+        SELECT app_user_id::text AS app_user_id,
+               btrim(secrets_json ->> $1::text) AS field_value
+        FROM account_secrets
+        WHERE secrets_json ? $1::text
+          AND btrim(COALESCE(secrets_json ->> $1::text, '')) <> ''
+        ORDER BY updated_at DESC, app_user_id ASC
+      `,
+      [fieldKey],
+    );
+
+    return result.rows
+      .map((row) => ({
+        appUserId: String(row.app_user_id),
+        value: String(row.field_value),
+      }))
+      .filter((row) => row.value.trim().length > 0);
   }
 }

@@ -15,19 +15,21 @@ function seedTestEnv(): void {
 
 seedTestEnv();
 
+const passthroughTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
+
 test('MetadataDirectService.getTitleContent resolves OMDb content for a title', async () => {
   const { MetadataDirectService } = await import('./metadata-direct.service.js');
   let requestedUrl = '';
+  let cachedImdbId: string | null = null;
   const service = new MetadataDirectService(
     {} as never,
     {} as never,
     {} as never,
     {} as never,
     {
-      getOmdbApiKeyForUser: async (userId: string) => ({
-        appUserId: userId,
-        key: 'metadata.omdb_api_key',
-        value: 'omdb-test-key',
+      listOmdbApiKeysForLookup: async (userId: string) => ({
+        ownKeys: ['omdb-test-key'],
+        pooledKeys: [],
       }),
     } as never,
     (async (input: string | URL | Request) => {
@@ -66,6 +68,14 @@ test('MetadataDirectService.getTitleContent resolves OMDb content for a title', 
         headers: { 'content-type': 'application/json' },
       });
     }) as never,
+    {
+      findByImdbId: async () => null,
+      upsert: async (_client: unknown, _imdbId: string, payload: { imdbId?: string }) => {
+        cachedImdbId = payload.imdbId ?? null;
+        return payload;
+      },
+    } as never,
+    passthroughTransaction,
   );
 
   service.resolveMetadataView = async function () {
@@ -110,6 +120,7 @@ test('MetadataDirectService.getTitleContent resolves OMDb content for a title', 
   assert.equal(result.omdb.imdbVotes, 123456);
   assert.equal(result.omdb.metascore, 79);
   assert.equal(result.omdb.totalSeasons, 3);
+  assert.equal(cachedImdbId, 'tt1234567');
   assert.deepEqual(result.omdb.ratings, [
     { source: 'Internet Movie Database', value: '8.7/10' },
     { source: 'Rotten Tomatoes', value: '95%' },
@@ -118,17 +129,22 @@ test('MetadataDirectService.getTitleContent resolves OMDb content for a title', 
 
 test('MetadataDirectService.getTitleContent requires an account OMDb key', async () => {
   const { MetadataDirectService } = await import('./metadata-direct.service.js');
+  const previousServerKeys = process.env.OMDB_API_KEYS;
+  process.env.OMDB_API_KEYS = '';
   const service = new MetadataDirectService(
     {} as never,
     {} as never,
     {} as never,
     {} as never,
     {
-      getOmdbApiKeyForUser: async () => {
-        throw new HttpError(404, 'Account secret not found.');
-      },
+      listOmdbApiKeysForLookup: async () => ({ ownKeys: [], pooledKeys: [] }),
     } as never,
     (async () => new Response('{}', { status: 200 })) as never,
+    {
+      findByImdbId: async () => null,
+      upsert: async (_client: unknown, _imdbId: string, payload: Record<string, unknown>) => payload,
+    } as never,
+    passthroughTransaction,
   );
 
   service.resolveMetadataView = async function () {
@@ -166,8 +182,196 @@ test('MetadataDirectService.getTitleContent requires an account OMDb key', async
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 412);
-      assert.equal(error.message, 'OMDb is not configured for this account. Add an OMDb API key in Account Settings.');
+      assert.equal(error.message, 'OMDb is not configured. Add an OMDb API key in Account Settings or configure server OMDb keys.');
       return true;
     },
   );
+
+  if (previousServerKeys === undefined) {
+    delete process.env.OMDB_API_KEYS;
+  } else {
+    process.env.OMDB_API_KEYS = previousServerKeys;
+  }
+});
+
+test('MetadataDirectService.getTitleContent falls back from a limited user key to a server key', async () => {
+  const { MetadataDirectService } = await import('./metadata-direct.service.js');
+  const previousServerKeys = process.env.OMDB_API_KEYS;
+  process.env.OMDB_API_KEYS = 'server-key-a,server-key-b';
+
+  const requestedKeys: string[] = [];
+  const service = new MetadataDirectService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      listOmdbApiKeysForLookup: async () => ({
+        ownKeys: ['user-key'],
+        pooledKeys: ['pooled-key'],
+      }),
+    } as never,
+    (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const apiKey = url.searchParams.get('apikey') ?? '';
+      requestedKeys.push(apiKey);
+
+      if (apiKey === 'user-key') {
+        return new Response(JSON.stringify({
+          Response: 'False',
+          Error: 'Request limit reached!',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        Response: 'True',
+        imdbID: 'tt1234567',
+        Title: 'Example Movie',
+        Type: 'movie',
+        Genre: 'Drama',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as never,
+    {
+      findByImdbId: async () => null,
+      upsert: async (_client: unknown, _imdbId: string, payload: Record<string, unknown>) => payload,
+    } as never,
+    passthroughTransaction,
+  );
+
+  service.resolveMetadataView = async function () {
+    return {
+      id: 'crisp:movie:55',
+      mediaKey: 'movie:tmdb:55',
+      mediaType: 'movie',
+      kind: 'title',
+      tmdbId: 55,
+      showTmdbId: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      title: 'Example Movie',
+      subtitle: null,
+      summary: null,
+      overview: null,
+      artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+      images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+      releaseDate: null,
+      releaseYear: null,
+      runtimeMinutes: null,
+      rating: null,
+      certification: null,
+      status: null,
+      genres: [],
+      externalIds: { tmdb: 55, imdb: 'tt1234567', tvdb: null },
+      seasonCount: null,
+      episodeCount: null,
+      nextEpisode: null,
+    };
+  };
+
+  const result = await service.getTitleContent('user-1', 'crisp:movie:55');
+
+  assert.equal(result.omdb.imdbId, 'tt1234567');
+  assert.equal(requestedKeys[0], 'user-key');
+  assert.ok(['server-key-a', 'server-key-b'].includes(requestedKeys[1] ?? ''));
+  assert.equal(requestedKeys.includes('pooled-key'), false);
+
+  if (previousServerKeys === undefined) {
+    delete process.env.OMDB_API_KEYS;
+  } else {
+    process.env.OMDB_API_KEYS = previousServerKeys;
+  }
+});
+
+test('MetadataDirectService.getTitleContent returns cached OMDb content before looking up keys', async () => {
+  const { MetadataDirectService } = await import('./metadata-direct.service.js');
+  let lookupCalled = false;
+  let fetchCalled = false;
+  const service = new MetadataDirectService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      listOmdbApiKeysForLookup: async () => {
+        lookupCalled = true;
+        return { ownKeys: ['user-key'], pooledKeys: [] };
+      },
+    } as never,
+    (async () => {
+      fetchCalled = true;
+      return new Response('{}', { status: 200 });
+    }) as never,
+    {
+      findByImdbId: async () => ({
+        imdbId: 'tt1234567',
+        title: 'Cached Movie',
+        type: 'movie',
+        year: null,
+        rated: null,
+        released: null,
+        runtime: null,
+        genres: [],
+        directors: [],
+        writers: [],
+        actors: [],
+        plot: null,
+        languages: [],
+        countries: [],
+        awards: null,
+        posterUrl: null,
+        ratings: [],
+        imdbRating: null,
+        imdbVotes: null,
+        metascore: null,
+        boxOffice: null,
+        production: null,
+        website: null,
+        totalSeasons: null,
+      }),
+      upsert: async (_client: unknown, _imdbId: string, payload: Record<string, unknown>) => payload,
+    } as never,
+    passthroughTransaction,
+  );
+
+  service.resolveMetadataView = async function () {
+    return {
+      id: 'crisp:movie:55',
+      mediaKey: 'movie:tmdb:55',
+      mediaType: 'movie',
+      kind: 'title',
+      tmdbId: 55,
+      showTmdbId: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      title: 'Example Movie',
+      subtitle: null,
+      summary: null,
+      overview: null,
+      artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+      images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+      releaseDate: null,
+      releaseYear: null,
+      runtimeMinutes: null,
+      rating: null,
+      certification: null,
+      status: null,
+      genres: [],
+      externalIds: { tmdb: 55, imdb: 'tt1234567', tvdb: null },
+      seasonCount: null,
+      episodeCount: null,
+      nextEpisode: null,
+    };
+  };
+
+  const result = await service.getTitleContent('user-1', 'crisp:movie:55');
+
+  assert.equal(result.omdb.title, 'Cached Movie');
+  assert.equal(lookupCalled, false);
+  assert.equal(fetchCalled, false);
 });

@@ -11,6 +11,11 @@ export type AccountSecretValue = {
   value: string;
 };
 
+export type OmdbApiKeyLookup = {
+  ownKeys: string[];
+  pooledKeys: string[];
+};
+
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.openrouter_key', 'metadata.omdb_api_key']);
@@ -46,6 +51,16 @@ export class AccountSettingsService {
 
   async setOmdbApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
     return this.setSecretForUser(userId, 'metadata.omdb_api_key', value);
+  }
+
+  async listOmdbApiKeysForLookup(userId: string): Promise<OmdbApiKeyLookup> {
+    return this.runInTransaction(async (client) => {
+      const entries = await this.accountSettingsRepository.listSecretsForField(client, 'metadata.omdb_api_key');
+      return {
+        ownKeys: dedupeStrings(entries.filter((entry) => entry.appUserId === userId).map((entry) => entry.value)),
+        pooledKeys: dedupeStrings(entries.filter((entry) => entry.appUserId !== userId).map((entry) => entry.value)),
+      } satisfies OmdbApiKeyLookup;
+    });
   }
 
   async clearOpenRouterKeyForUser(userId: string): Promise<boolean> {
@@ -170,4 +185,8 @@ function normalizeSecretValue(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }

@@ -190,7 +190,7 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile
 - `POST /v1/profiles/:profileId/ai/insights` - AI insights for a title and profile
 
-`GET /v1/metadata/titles/:id/content` returns the existing metadata item plus an `omdb` object resolved from the stored account OMDb key and the title's IMDb id.
+`GET /v1/metadata/titles/:id/content` returns the existing metadata item plus an `omdb` object resolved from a cached OMDb enrichment when available, otherwise using keys in this order: the requesting account's OMDb key, server-managed keys from `OMDB_API_KEYS`, then the shared pool of other stored account OMDb keys.
 
 Example response shape:
 

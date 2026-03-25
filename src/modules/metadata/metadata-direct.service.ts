@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { withTransaction } from '../../lib/db.js';
+import { parseStringListEnv } from '../../config/env.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
@@ -13,6 +14,7 @@ import {
 } from './metadata-normalizers.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { findNextEpisode } from './next-episode.js';
+import { OmdbCacheRepository } from './omdb-cache.repo.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbExternalIdResolverService } from './tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
@@ -32,6 +34,10 @@ import type {
 } from './tmdb.types.js';
 
 type FetchLike = typeof fetch;
+type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
+
+let omdbServerKeyCursor = 0;
+let omdbPoolKeyCursor = 0;
 
 type ResolveMetadataInput = {
   id?: string;
@@ -59,6 +65,8 @@ export class MetadataDirectService {
     private readonly tmdbClient = new TmdbClient(),
     private readonly accountSettingsService = new AccountSettingsService(),
     private readonly fetcher: FetchLike = fetch,
+    private readonly omdbCacheRepository = new OmdbCacheRepository(),
+    private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
@@ -156,8 +164,17 @@ export class MetadataDirectService {
       throw new HttpError(404, 'IMDb id not available for this title.');
     }
 
-    const omdbApiKey = await this.getOmdbApiKey(userId);
-    const omdb = await this.fetchOmdbContent(omdbApiKey, imdbId);
+    const cachedOmdb = await this.runInTransaction((client) => this.omdbCacheRepository.findByImdbId(client, imdbId));
+    if (cachedOmdb) {
+      return {
+        item,
+        omdb: cachedOmdb,
+      };
+    }
+
+    const omdbApiKeys = await this.getOmdbApiKeys(userId);
+    const omdb = await this.fetchOmdbContentFromCandidates(omdbApiKeys, imdbId);
+    await this.runInTransaction((client) => this.omdbCacheRepository.upsert(client, imdbId, omdb));
     return {
       item,
       omdb,
@@ -268,16 +285,40 @@ export class MetadataDirectService {
     return null;
   }
 
-  private async getOmdbApiKey(userId: string): Promise<string> {
-    try {
-      const secret = await this.accountSettingsService.getOmdbApiKeyForUser(userId);
-      return secret.value;
-    } catch (error) {
-      if (error instanceof HttpError && error.statusCode === 404) {
-        throw new HttpError(412, 'OMDb is not configured for this account. Add an OMDb API key in Account Settings.');
-      }
-      throw error;
+  private async getOmdbApiKeys(userId: string): Promise<string[]> {
+    const lookup = await this.accountSettingsService.listOmdbApiKeysForLookup(userId);
+    const candidates = dedupeStrings([
+      ...lookup.ownKeys,
+      ...rotateRoundRobin(parseStringListEnv('OMDB_API_KEYS'), 'server'),
+      ...rotateRoundRobin(lookup.pooledKeys, 'pool'),
+    ]);
+
+    if (!candidates.length) {
+      throw new HttpError(412, 'OMDb is not configured. Add an OMDb API key in Account Settings or configure server OMDb keys.');
     }
+
+    return candidates;
+  }
+
+  private async fetchOmdbContentFromCandidates(apiKeys: string[], imdbId: string): Promise<OmdbContentView> {
+    let lastError: HttpError | null = null;
+
+    for (const apiKey of apiKeys) {
+      try {
+        return await this.fetchOmdbContent(apiKey, imdbId);
+      } catch (error) {
+        if (error instanceof HttpError) {
+          if (error.statusCode === 400 || error.statusCode === 404) {
+            throw error;
+          }
+          lastError = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw lastError ?? new HttpError(502, 'OMDb lookup failed.');
   }
 
   private async fetchOmdbContent(apiKey: string, imdbId: string): Promise<OmdbContentView> {
@@ -313,7 +354,11 @@ export class MetadataDirectService {
     const omdbResponse = asString(record.Response);
     if (omdbResponse?.toLowerCase() === 'false') {
       const message = asString(record.Error) ?? 'OMDb lookup failed.';
-      const statusCode = /not found/i.test(message) ? 404 : 502;
+      const statusCode = /not found/i.test(message)
+        ? 404
+        : /incorrect imdb/i.test(message)
+          ? 400
+          : 502;
       throw new HttpError(statusCode, message);
     }
 
@@ -542,4 +587,18 @@ function parseOmdbInteger(value: unknown): number | null {
 function asOmdbString(value: unknown): string | null {
   const normalized = asString(value);
   return normalized && normalized.toUpperCase() !== 'N/A' ? normalized : null;
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function rotateRoundRobin(values: string[], kind: 'server' | 'pool'): string[] {
+  if (values.length <= 1) {
+    return [...values];
+  }
+
+  const cursor = kind === 'server' ? omdbServerKeyCursor++ : omdbPoolKeyCursor++;
+  const startIndex = cursor % values.length;
+  return [...values.slice(startIndex), ...values.slice(0, startIndex)];
 }
