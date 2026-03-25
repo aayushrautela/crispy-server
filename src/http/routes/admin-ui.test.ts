@@ -48,7 +48,11 @@ test('admin ui requires basic auth and serves html when authorized', async (t) =
   assert.equal(authorized.statusCode, 200);
   assert.match(String(authorized.headers['content-type']), /text\/html/);
   assert.match(authorized.body, /Crispy Control Plane/);
+  assert.match(authorized.body, /Overview/);
   assert.match(authorized.body, /Worker Jobs/);
+  assert.match(authorized.body, /Notifications/);
+  assert.match(authorized.body, /data-nav-target="accounts"/);
+  assert.match(authorized.body, /id="notification-panel"/);
 });
 
 test('admin api proxies worker jobs and diagnostics behind admin auth', async (t) => {
