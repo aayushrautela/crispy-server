@@ -1044,7 +1044,7 @@ const ADMIN_PAGE = `<!doctype html>
         + '  <span>skipped ' + escapeHtml(String(job.progress && job.progress.skipped || 0)) + '</span>'
         + '  <span>errors ' + escapeHtml(String(job.progress && job.progress.errors || 0)) + '</span>'
         + '</div>'
-        + '<div class="code">' + escapeHtml(args + '\n\nstdout:\n' + ((job.stdoutTail || []).join('\n') || '(empty)') + '\n\nstderr:\n' + ((job.stderrTail || []).join('\n') || '(empty)')) + '</div>'
+        + '<div class="code">' + escapeHtml(args + '\\n\\nstdout:\\n' + ((job.stdoutTail || []).join('\\n') || '(empty)') + '\\n\\nstderr:\\n' + ((job.stderrTail || []).join('\\n') || '(empty)')) + '</div>'
         + '</article>';
     }
 
