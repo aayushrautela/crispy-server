@@ -67,7 +67,7 @@ test('internal account routes resolve account by email and profile-scoped data u
     return { accountId, profileId, sourceKey: input.sourceKey, algorithmVersion: input.algorithmVersion } as never;
   };
   ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile = async function (accountId, profileId) {
-    return { appUserId: accountId, key: 'ai.openrouter_key', value: `or:${profileId}` } as never;
+    return { appUserId: accountId, key: 'ai.api_key', value: `ai:${profileId}` } as never;
   };
   AccountSettingsService.prototype.getSecretForAccountProfile = async function (accountId, profileId, field) {
     return { appUserId: accountId, key: field, value: `secret:${profileId}` } as never;
@@ -136,13 +136,10 @@ test('internal account routes resolve account by email and profile-scoped data u
   assert.equal(recommendations.statusCode, 200);
   assert.equal(recommendations.json().recommendations.algorithmVersion, 'v2');
 
-  const secret = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/openrouter-key' });
-  assert.equal(secret.statusCode, 200);
-  assert.equal(secret.json().secret.value, 'or:profile-1');
-
   const aiSecret = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/ai-api-key' });
   assert.equal(aiSecret.statusCode, 200);
-  assert.equal(aiSecret.json().secret.value, 'or:profile-1');
+  assert.equal(aiSecret.json().secret.value, 'ai:profile-1');
+  assert.equal(aiSecret.json().secret.key, 'ai.api_key');
 
   const omdb = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/omdb-api-key' });
   assert.equal(omdb.statusCode, 200);

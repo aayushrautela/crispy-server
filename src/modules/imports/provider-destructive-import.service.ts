@@ -3,6 +3,7 @@ import type { DbClient } from '../../lib/db.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
+import { deriveProgressPercent } from '../watch/heartbeat-policy.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
 import { parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
@@ -182,6 +183,7 @@ export class ProviderDestructiveImportService {
     for (const event of params.importedEvents) {
       const eventId = randomUUID();
       const identity = identityFromDraft(event);
+      const progressPercent = deriveProgressPercent(event.positionSeconds, event.durationSeconds);
       await client.query(
         `
           INSERT INTO watch_events (
@@ -225,14 +227,10 @@ export class ProviderDestructiveImportService {
             NULL,
             $12,
             $13,
-            CASE
-              WHEN $12 IS NOT NULL AND $13 IS NOT NULL AND $13 > 0
-                THEN ROUND(($12::numeric / $13::numeric) * 100, 2)
-              ELSE NULL
-            END,
             $14,
-            $15::timestamptz,
-            $16::jsonb
+            $15,
+            $16::timestamptz,
+            $17::jsonb
           )
         `,
         [
@@ -249,6 +247,7 @@ export class ProviderDestructiveImportService {
           identity.episodeNumber,
           event.positionSeconds ?? null,
           event.durationSeconds ?? null,
+          progressPercent,
           event.rating ?? null,
           event.occurredAt,
           JSON.stringify({

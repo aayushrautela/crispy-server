@@ -17,15 +17,15 @@ async function loadService() {
   return import('./profile-secret-access.service.js');
 }
 
-test('getOpenRouterKeyForAccountProfile returns allowed key', async () => {
+test('getAiApiKeyForAccountProfile returns allowed key', async () => {
   const { ProfileSecretAccessService } = await loadService();
   const service = new ProfileSecretAccessService(
     {
       getSecretForAccountProfile: async (accountId: string, profileId: string, fieldKey: string) => {
         assert.equal(accountId, 'account-1');
         assert.equal(profileId, 'profile-1');
-        assert.equal(fieldKey, 'ai.openrouter_key');
-        return { appUserId: 'user-1', key: 'ai.openrouter_key', value: 'openrouter-secret' };
+        assert.equal(fieldKey, 'ai.api_key');
+        return { appUserId: 'user-1', key: 'ai.api_key', value: 'ai-secret' };
       },
     } as never,
     {
@@ -38,33 +38,14 @@ test('getOpenRouterKeyForAccountProfile returns allowed key', async () => {
     async (work) => work({} as never),
   );
 
-  assert.deepEqual(await service.getOpenRouterKeyForAccountProfile('account-1', 'profile-1'), {
-    appUserId: 'user-1',
-    key: 'ai.openrouter_key',
-    value: 'openrouter-secret',
-  });
-});
-
-test('getAiApiKeyForAccountProfile aliases the account AI key lookup', async () => {
-  const { ProfileSecretAccessService } = await loadService();
-  const service = new ProfileSecretAccessService(
-    {
-      getSecretForAccountProfile: async () => ({ appUserId: 'user-1', key: 'ai.openrouter_key', value: 'ai-secret' }),
-    } as never,
-    {
-      findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
-    } as never,
-    async (work) => work({} as never),
-  );
-
   assert.deepEqual(await service.getAiApiKeyForAccountProfile('account-1', 'profile-1'), {
     appUserId: 'user-1',
-    key: 'ai.openrouter_key',
+    key: 'ai.api_key',
     value: 'ai-secret',
   });
 });
 
-test('getOpenRouterKeyForAccountProfile rejects missing profile', async () => {
+test('getAiApiKeyForAccountProfile rejects missing profile', async () => {
   const { ProfileSecretAccessService } = await loadService();
   const service = new ProfileSecretAccessService(
     {} as never,
@@ -74,7 +55,7 @@ test('getOpenRouterKeyForAccountProfile rejects missing profile', async () => {
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getOpenRouterKeyForAccountProfile('account-1', 'missing'), (error: unknown) => {
+  await assert.rejects(() => service.getAiApiKeyForAccountProfile('account-1', 'missing'), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 404);
     assert.equal(error.message, 'Profile not found for account.');
@@ -82,7 +63,7 @@ test('getOpenRouterKeyForAccountProfile rejects missing profile', async () => {
   });
 });
 
-test('getOpenRouterKeyForAccountProfile rejects missing secret', async () => {
+test('getAiApiKeyForAccountProfile rejects missing secret', async () => {
   const { ProfileSecretAccessService } = await loadService();
   const service = new ProfileSecretAccessService(
     {
@@ -96,7 +77,7 @@ test('getOpenRouterKeyForAccountProfile rejects missing secret', async () => {
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getOpenRouterKeyForAccountProfile('account-1', 'profile-1'), (error: unknown) => {
+  await assert.rejects(() => service.getAiApiKeyForAccountProfile('account-1', 'profile-1'), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 404);
     assert.equal(error.message, 'Account secret not found.');

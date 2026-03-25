@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
 
-export type AccountSecretField = 'ai.openrouter_key' | 'metadata.omdb_api_key';
+export type AccountSecretField = 'ai.api_key' | 'metadata.omdb_api_key';
 
 export type AccountSecretValue = {
   appUserId: string;
@@ -18,8 +18,8 @@ export type OmdbApiKeyLookup = {
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.openrouter_key', 'metadata.omdb_api_key']);
-const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai.openrouter_key', 'metadata.omdb_api_key', 'addons']);
+const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key', 'metadata.omdb_api_key']);
+const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai.api_key', 'metadata.omdb_api_key', 'addons']);
 
 export class AccountSettingsService {
   constructor(
@@ -37,24 +37,16 @@ export class AccountSettingsService {
     return this.runInTransaction((client) => this.accountSettingsRepository.patchSettingsForUser(client, userId, normalizedPatch));
   }
 
-  async getOpenRouterKeyForUser(userId: string): Promise<AccountSecretValue> {
-    return this.getSecretForUser(userId, 'ai.openrouter_key');
-  }
-
   async getAiApiKeyForUser(userId: string): Promise<AccountSecretValue> {
-    return this.getOpenRouterKeyForUser(userId);
+    return this.getSecretForUser(userId, 'ai.api_key');
   }
 
   async getOmdbApiKeyForUser(userId: string): Promise<AccountSecretValue> {
     return this.getSecretForUser(userId, 'metadata.omdb_api_key');
   }
 
-  async setOpenRouterKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
-    return this.setSecretForUser(userId, 'ai.openrouter_key', value);
-  }
-
   async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
-    return this.setOpenRouterKeyForUser(userId, value);
+    return this.setSecretForUser(userId, 'ai.api_key', value);
   }
 
   async setOmdbApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
@@ -71,12 +63,8 @@ export class AccountSettingsService {
     });
   }
 
-  async clearOpenRouterKeyForUser(userId: string): Promise<boolean> {
-    return this.clearSecretForUser(userId, 'ai.openrouter_key');
-  }
-
   async clearAiApiKeyForUser(userId: string): Promise<boolean> {
-    return this.clearOpenRouterKeyForUser(userId);
+    return this.clearSecretForUser(userId, 'ai.api_key');
   }
 
   async clearOmdbApiKeyForUser(userId: string): Promise<boolean> {
@@ -140,17 +128,12 @@ export class AccountSettingsService {
 
 export function mergeAccountScopedSettings(
   accountSettings: Record<string, unknown>,
-  options?: { hasOpenRouterKey?: boolean; hasAiApiKey?: boolean; hasOmdbApiKey?: boolean; aiEndpointUrl?: string },
+  options?: { hasAiApiKey?: boolean; hasOmdbApiKey?: boolean; aiEndpointUrl?: string },
 ): Record<string, unknown> {
   const merged = { ...accountSettings };
-  if (
-    options?.hasOpenRouterKey !== undefined
-    || options?.hasAiApiKey !== undefined
-    || options?.aiEndpointUrl !== undefined
-  ) {
+  if (options?.hasAiApiKey !== undefined || options?.aiEndpointUrl !== undefined) {
     merged.ai = {
       ...(isRecord(merged.ai) ? merged.ai : {}),
-      ...(options?.hasOpenRouterKey !== undefined ? { hasOpenRouterKey: options.hasOpenRouterKey } : {}),
       ...(options?.hasAiApiKey !== undefined ? { hasAiApiKey: options.hasAiApiKey } : {}),
       ...(options?.aiEndpointUrl !== undefined ? { endpointUrl: options.aiEndpointUrl } : {}),
     };

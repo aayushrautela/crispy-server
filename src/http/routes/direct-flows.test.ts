@@ -191,10 +191,10 @@ test('account routes expose AI endpoint metadata and AI API key aliases', async 
     return { addons: { trakt: true } } as never;
   };
   AccountSettingsService.prototype.getAiApiKeyForUser = async function (userId) {
-    return { appUserId: userId, key: 'ai.openrouter_key', value: 'ai-key' } as never;
+    return { appUserId: userId, key: 'ai.api_key', value: 'ai-key' } as never;
   };
   AccountSettingsService.prototype.setAiApiKeyForUser = async function (userId, value) {
-    return { appUserId: userId, key: 'ai.openrouter_key', value } as never;
+    return { appUserId: userId, key: 'ai.api_key', value } as never;
   };
   AccountSettingsService.prototype.clearAiApiKeyForUser = async function () {
     return true;
@@ -223,7 +223,6 @@ test('account routes expose AI endpoint metadata and AI API key aliases', async 
   });
   assert.equal(settingsResponse.statusCode, 200);
   assert.equal(settingsResponse.json().settings.ai.hasAiApiKey, true);
-  assert.equal(settingsResponse.json().settings.ai.hasOpenRouterKey, true);
   assert.equal(settingsResponse.json().settings.ai.endpointUrl, 'https://api.openai.com/v1/chat/completions');
 
   const aiSecretResponse = await accountApp.inject({
@@ -233,14 +232,7 @@ test('account routes expose AI endpoint metadata and AI API key aliases', async 
   });
   assert.equal(aiSecretResponse.statusCode, 200);
   assert.equal(aiSecretResponse.json().secret.value, 'ai-key');
-
-  const legacySecretResponse = await accountApp.inject({
-    method: 'GET',
-    url: '/v1/account/secrets/openrouter-key',
-    headers: { authorization: 'Bearer test' },
-  });
-  assert.equal(legacySecretResponse.statusCode, 200);
-  assert.equal(legacySecretResponse.json().secret.value, 'ai-key');
+  assert.equal(aiSecretResponse.json().secret.key, 'ai.api_key');
 
   const meResponse = await meApp.inject({
     method: 'GET',

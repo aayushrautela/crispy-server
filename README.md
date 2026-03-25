@@ -138,9 +138,6 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `GET /v1/account/secrets/ai-api-key` - read account AI API key
 - `PUT /v1/account/secrets/ai-api-key` - set account AI API key
 - `DELETE /v1/account/secrets/ai-api-key` - delete account AI API key
-- `GET /v1/account/secrets/openrouter-key` - legacy alias for the account AI API key
-- `PUT /v1/account/secrets/openrouter-key` - legacy alias for setting the account AI API key
-- `DELETE /v1/account/secrets/openrouter-key` - legacy alias for deleting the account AI API key
 - `GET /v1/account/secrets/omdb-api-key` - read account OMDb key
 - `PUT /v1/account/secrets/omdb-api-key` - set account OMDb key
 - `DELETE /v1/account/secrets/omdb-api-key` - delete account OMDb key
@@ -273,7 +270,6 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - write recommendations under the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/ai-api-key` - read account-shared AI API key after confirming the profile belongs to the account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/openrouter-key` - legacy alias for the account-shared AI API key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/omdb-api-key` - read account-shared OMDb key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/connection` - provider connection summary after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/token-status` - provider token status after confirming the profile belongs to the account

@@ -19,7 +19,6 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
       .catch(() => false);
     return {
       settings: mergeAccountScopedSettings(baseSettings, {
-        hasOpenRouterKey: hasAiApiKey,
         hasAiApiKey,
         hasOmdbApiKey,
         aiEndpointUrl: env.aiEndpointUrl,
@@ -54,31 +53,6 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
   });
 
   app.delete('/v1/account/secrets/ai-api-key', async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    return {
-      deleted: await accountSettingsService.clearAiApiKeyForUser(actor.appUserId),
-    };
-  });
-
-  app.get('/v1/account/secrets/openrouter-key', async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    return {
-      secret: await accountSettingsService.getAiApiKeyForUser(actor.appUserId),
-    };
-  });
-
-  app.put('/v1/account/secrets/openrouter-key', async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    const body = (request.body ?? {}) as Record<string, unknown>;
-    return {
-      secret: await accountSettingsService.setAiApiKeyForUser(actor.appUserId, String(body.value ?? '')),
-    };
-  });
-
-  app.delete('/v1/account/secrets/openrouter-key', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request);
     return {

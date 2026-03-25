@@ -21,7 +21,7 @@ test('patchSettings rejects account-scoped keys in profile settings payloads', a
     /account-scoped/,
   );
   assert.throws(
-    () => normalizeSettingsPatch({ 'ai.openrouter_key': 'secret' }),
+    () => normalizeSettingsPatch({ 'ai.api_key': 'secret' }),
     /account-scoped/,
   );
 });
@@ -33,8 +33,8 @@ test('getSecretForAccountProfile resolves account secret through account-owned p
     {
       getSecretForUser: async (_client: unknown, userId: string, fieldKey: string) => {
         assert.equal(userId, 'user-1');
-        assert.equal(fieldKey, 'ai.openrouter_key');
-        return 'openrouter-secret';
+        assert.equal(fieldKey, 'ai.api_key');
+        return 'ai-secret';
       },
     } as never,
     {
@@ -47,11 +47,11 @@ test('getSecretForAccountProfile resolves account secret through account-owned p
     async (work) => work({} as never),
   );
 
-  const result = await service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.openrouter_key');
+  const result = await service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.api_key');
   assert.deepEqual(result, {
     appUserId: 'user-1',
-    key: 'ai.openrouter_key',
-    value: 'openrouter-secret',
+    key: 'ai.api_key',
+    value: 'ai-secret',
   });
 });
 
@@ -68,7 +68,7 @@ test('getSecretForAccountProfile rejects missing account secret', async () => {
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.openrouter_key'), (error: unknown) => {
+  await assert.rejects(() => service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.api_key'), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 404);
     assert.equal(error.message, 'Account secret not found.');
@@ -83,14 +83,12 @@ test('mergeAccountScopedSettings includes AI endpoint metadata', async () => {
   assert.deepEqual(
     mergeAccountScopedSettings({}, {
       hasAiApiKey: true,
-      hasOpenRouterKey: true,
       hasOmdbApiKey: false,
       aiEndpointUrl: 'https://example.com/v1/chat/completions',
     }),
     {
       ai: {
         hasAiApiKey: true,
-        hasOpenRouterKey: true,
         endpointUrl: 'https://example.com/v1/chat/completions',
       },
       metadata: {

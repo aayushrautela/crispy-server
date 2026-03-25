@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 import { ProfileRepository } from './profile.repo.js';
 
-export type ProfileSecretField = 'ai.openrouter_key';
+export type ProfileSecretField = 'ai.api_key';
 
 export type ProfileSecretValue = {
   appUserId: string;
@@ -20,16 +20,12 @@ export class ProfileSecretAccessService {
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
-  async getOpenRouterKeyForAccountProfile(accountId: string, profileId: string): Promise<ProfileSecretValue> {
-    return this.getSecretForAccountProfile(accountId, profileId, 'ai.openrouter_key');
-  }
-
   async getAiApiKeyForAccountProfile(accountId: string, profileId: string): Promise<ProfileSecretValue> {
-    return this.getOpenRouterKeyForAccountProfile(accountId, profileId);
+    return this.getSecretForAccountProfile(accountId, profileId, 'ai.api_key');
   }
 
   async getSecretForAccountProfile(accountId: string, profileId: string, field: string): Promise<ProfileSecretValue> {
-    if (field !== 'ai.openrouter_key') {
+    if (field !== 'ai.api_key') {
       throw new HttpError(403, 'Secret field not allowed.');
     }
 
@@ -42,7 +38,7 @@ export class ProfileSecretAccessService {
       const secret = await this.accountSettingsService.getSecretForAccountProfile(accountId, profile.id, field);
       return {
         appUserId: secret.appUserId,
-        key: 'ai.openrouter_key',
+        key: 'ai.api_key',
         value: secret.value,
       } satisfies ProfileSecretValue;
     });

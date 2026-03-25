@@ -62,7 +62,7 @@ export class AiInsightsService {
         throw new HttpError(404, 'Profile not found.');
       }
 
-      const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.openrouter_key')) ?? '';
+      const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.api_key')) ?? '';
       if (!key) {
         throw new HttpError(412, 'AI insights are not configured for this account. Add an AI API key in Account Settings.');
       }

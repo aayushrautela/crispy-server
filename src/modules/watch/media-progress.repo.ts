@@ -46,10 +46,10 @@ export class MediaProgressRepository {
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7, NULL, NULL, NULL, NULL,
-          $12, $13, $14, $15, $16::uuid, $17::timestamptz,
-          CASE WHEN $15 = 'completed' THEN $17::timestamptz ELSE NULL END,
-          $18::timestamptz,
-          $19::jsonb,
+          $8, $9, $10, $11, $12::uuid, $13::timestamptz,
+          CASE WHEN $11 = 'completed' THEN $13::timestamptz ELSE NULL END,
+          $14::timestamptz,
+          $15::jsonb,
           now()
         )
         ON CONFLICT (profile_id, media_key)

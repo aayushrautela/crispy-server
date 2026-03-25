@@ -14,7 +14,7 @@ export class WatchlistRepository {
         INSERT INTO watchlist_items (
           profile_id, media_key, media_type, tmdb_id, title, subtitle, poster_url, backdrop_url, added_at, source_event_id, payload
         )
-        VALUES ($1::uuid, $2, $3, $4, NULL, NULL, NULL, NULL, $9::timestamptz, $10::uuid, $11::jsonb)
+        VALUES ($1::uuid, $2, $3, $4, NULL, NULL, NULL, NULL, $5::timestamptz, $6::uuid, $7::jsonb)
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
           title = COALESCE(watchlist_items.title, EXCLUDED.title),

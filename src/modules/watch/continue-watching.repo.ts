@@ -25,8 +25,8 @@ export class ContinueWatchingRepository {
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7,
-          NULL, NULL, NULL, NULL, $12, $13,
-          $14, $15::timestamptz, $16::timestamptz, $17::jsonb, now()
+          NULL, NULL, NULL, NULL, $8, $9,
+          $10, $11::timestamptz, $12::timestamptz, $13::jsonb, now()
         )
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET

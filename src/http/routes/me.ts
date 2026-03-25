@@ -26,7 +26,6 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
         email: auth.email,
       },
       accountSettings: mergeAccountScopedSettings(baseSettings, {
-        hasOpenRouterKey: hasAiApiKey,
         hasAiApiKey,
         hasOmdbApiKey,
         aiEndpointUrl: env.aiEndpointUrl,
