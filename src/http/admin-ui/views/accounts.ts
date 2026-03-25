@@ -1,21 +1,16 @@
 export function renderAccountsView(): string {
   return `
     <section class="view" data-view="accounts" hidden>
-      <div class="view-hero compact">
-        <div>
-          <div class="view-eyebrow">Account operations</div>
-          <h2>Account Inspector</h2>
-          <p>Resolve email to account, inspect provider/import state, review watch data, and keep profile detail in its own workspace.</p>
-        </div>
-      </div>
+      <header class="view-header compact">
+        <h1>Account Inspector</h1>
+      </header>
 
       <div class="accounts-layout">
         <section class="panel profile-directory">
           <div class="panel-head">
-            <div>
-              <h3>Lookup</h3>
-              <p class="panel-note">Search by account email and choose a profile to inspect.</p>
-            </div>
+          <div class="panel-head">
+            <h2>Lookup</h2>
+          </div>
           </div>
           <div class="panel-body section-stack">
             <form id="account-lookup-form">
@@ -41,7 +36,7 @@ export function renderAccountsView(): string {
             <div class="panel-head profile-detail-head">
               <div>
                 <h3 id="profile-detail-title">Profile workspace</h3>
-                <p class="panel-note" id="profile-detail-meta">No profile selected.</p>
+                <p id="profile-detail-meta">No profile selected.</p>
               </div>
               <div class="hero-actions">
                 <button type="button" class="secondary" id="refresh-profile-detail">Refresh profile view</button>

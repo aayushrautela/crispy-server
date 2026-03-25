@@ -1,16 +1,12 @@
 export function renderJobsView(): string {
   return `
     <section class="view" data-view="jobs" hidden>
-      <div class="view-hero compact">
-        <div>
-          <div class="view-eyebrow">Worker orchestration</div>
-          <h2>Worker Jobs</h2>
-          <p>Trigger, watch, cancel, and clean up jobs without leaving the dashboard shell.</p>
-        </div>
+      <header class="view-header compact">
+        <h1>Worker Jobs</h1>
         <div class="hero-actions">
           <button type="button" class="secondary" id="refresh-jobs">Refresh status</button>
         </div>
-      </div>
+      </header>
 
       <section class="panel">
         <div class="panel-body">
@@ -60,10 +56,7 @@ export function renderJobsView(): string {
       <div class="two-panel-grid">
         <section class="panel">
           <div class="panel-head">
-            <div>
-              <h3>Active + queued</h3>
-              <p class="panel-note">Execution happens on the worker; orchestration and inspection live here.</p>
-            </div>
+            <h2>Active + queued</h2>
           </div>
           <div class="panel-body">
             <div id="job-list-active"></div>
@@ -72,10 +65,7 @@ export function renderJobsView(): string {
 
         <section class="panel">
           <div class="panel-head">
-            <div>
-              <h3>Recent runs</h3>
-              <p class="panel-note">Completed and canceled jobs stay visible until deleted.</p>
-            </div>
+            <h2>Recent runs</h2>
           </div>
           <div class="panel-body">
             <div id="job-list-recent"></div>

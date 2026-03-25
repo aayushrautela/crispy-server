@@ -16,61 +16,34 @@ export function renderAdminPage(): string {
   <div class="dashboard-shell">
     <aside class="sidebar" id="admin-sidebar" aria-label="Admin sidebar">
       <div class="sidebar-brand">
-        <div class="brand-kicker">Crispy Control Plane</div>
         <strong>Crispy Ops</strong>
-        <span>API-hosted admin shell inspired by dashboard workflows, without dragging in a full template stack.</span>
       </div>
 
       <div class="nav-group">
-        <div class="nav-section-title">Workspaces</div>
         <nav class="nav-list" aria-label="Workspace navigation">
           <button type="button" class="nav-item" data-nav-target="overview" aria-current="page">
-            <span>
-              <strong>Overview</strong>
-              <small>Health, activity, quick lanes</small>
-            </span>
-            <span class="nav-badge">Home</span>
+            <span><strong>Overview</strong></span>
           </button>
           <button type="button" class="nav-item" data-nav-target="jobs">
-            <span>
-              <strong>Worker Jobs</strong>
-              <small>Triggers, progress, queue control</small>
-            </span>
-            <span class="nav-badge" id="nav-jobs-badge">0</span>
+            <span><strong>Worker Jobs</strong></span>
+            <span id="nav-jobs-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="diagnostics">
-            <span>
-              <strong>Diagnostics</strong>
-              <small>Backlog, lag, token health</small>
-            </span>
-            <span class="nav-badge" id="nav-diagnostics-badge">0</span>
+            <span><strong>Diagnostics</strong></span>
+            <span id="nav-diagnostics-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="accounts">
-            <span>
-              <strong>Accounts</strong>
-              <small>Lookup accounts and profile ops</small>
-            </span>
-            <span class="nav-badge" id="nav-accounts-badge">Find</span>
+            <span><strong>Accounts</strong></span>
           </button>
           <button type="button" class="nav-item" data-nav-target="worker-control">
-            <span>
-              <strong>Worker Control</strong>
-              <small>Bridge state and raw payload</small>
-            </span>
-            <span class="nav-badge" id="nav-bridge-badge">Check</span>
+            <span><strong>Worker Control</strong></span>
           </button>
         </nav>
       </div>
 
       <div class="sidebar-status">
-        <div class="status-card">
-          <span class="status-label">Running jobs</span>
-          <div class="status-value" id="sidebar-running-status">Checking worker queue...</div>
-        </div>
-        <div class="status-card">
-          <span class="status-label">Worker link</span>
-          <div class="status-value" id="sidebar-bridge-status">Checking worker control...</div>
-        </div>
+        <div id="sidebar-running-status">Checking worker queue...</div>
+        <div id="sidebar-bridge-status">Checking worker control...</div>
       </div>
     </aside>
 
@@ -82,17 +55,16 @@ export function renderAdminPage(): string {
           <button type="button" class="sidebar-toggle secondary" id="sidebar-toggle" aria-label="Toggle sidebar"><span></span></button>
           <div class="topbar-copy">
             <h1 id="current-view-title">Overview</h1>
-            <p id="current-view-description">System health, live worker activity, and quick access to the main control surfaces.</p>
           </div>
         </div>
 
         <div class="topbar-right">
-          <div class="topbar-chip"><strong id="topbar-running-count">0</strong><span>running or queued</span></div>
-          <div class="topbar-chip" id="worker-control-pill"><strong>Checking</strong><span>worker status</span></div>
-          <div class="topbar-chip"><strong id="topbar-last-update">Starting</strong><span>last refresh</span></div>
+          <div><strong id="topbar-running-count">0</strong> running or queued</div>
+          <div id="worker-control-pill">Checking worker status</div>
+          <div>Last update: <strong id="topbar-last-update">Starting</strong></div>
           <button type="button" class="secondary notification-toggle" id="notifications-toggle">
             Notifications
-            <span class="notification-dot" id="notifications-unread" hidden>0</span>
+            <span id="notifications-unread" hidden>0</span>
           </button>
         </div>
       </header>

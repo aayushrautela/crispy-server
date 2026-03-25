@@ -1,16 +1,12 @@
 export function renderDiagnosticsView(): string {
   return `
     <section class="view" data-view="diagnostics" hidden>
-      <div class="view-hero compact">
-        <div>
-          <div class="view-eyebrow">Hosted state</div>
-          <h2>Diagnostics</h2>
-          <p>Low-level hosted diagnostics already live on the API server. This workspace composes them for humans.</p>
-        </div>
+      <header class="view-header compact">
+        <h1>Diagnostics</h1>
         <div class="hero-actions">
           <button type="button" class="secondary" id="refresh-diagnostics">Refresh diagnostics</button>
         </div>
-      </div>
+      </header>
 
       <section class="panel">
         <div class="panel-body section-stack">

@@ -1,13 +1,9 @@
 export function renderWorkerControlView(): string {
   return `
     <section class="view" data-view="worker-control" hidden>
-      <div class="view-hero compact">
-        <div>
-          <div class="view-eyebrow">Bridge health</div>
-          <h2>Worker Control</h2>
-          <p>Health and configuration for the API-server-to-worker control link.</p>
-        </div>
-      </div>
+      <header class="view-header compact">
+        <h1>Worker Control</h1>
+      </header>
 
       <section class="panel narrow-panel">
         <div class="panel-body section-stack">
@@ -17,7 +13,6 @@ export function renderWorkerControlView(): string {
           </div>
           <div class="mini-panel">
             <h4>Bridge payload</h4>
-            <p class="panel-note">This is the raw control-status payload returned by the API server.</p>
           </div>
           <div class="code" id="bridge-json">Loading...</div>
         </div>
