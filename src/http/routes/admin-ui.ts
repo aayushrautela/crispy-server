@@ -6,6 +6,7 @@ const ADMIN_PAGE = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Crispy Control Plane</title>
+  <link rel="icon" href="data:,">
   <style>
     :root {
       --bg: #f5efe2;
@@ -491,6 +492,115 @@ const ADMIN_PAGE = `<!doctype html>
       font-size: 15px;
     }
 
+    .profile-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .profile-ops {
+      display: grid;
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .provider-card {
+      border: 1px solid rgba(91, 70, 48, 0.12);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255, 250, 240, 0.86);
+      display: grid;
+      gap: 10px;
+    }
+
+    .section-stack {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .section-card {
+      border: 1px solid rgba(91, 70, 48, 0.12);
+      border-radius: 16px;
+      padding: 12px;
+      background: rgba(255, 250, 240, 0.74);
+      display: grid;
+      gap: 10px;
+    }
+
+    .item-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .item-row {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255, 250, 240, 0.78);
+      border: 1px solid rgba(91, 70, 48, 0.1);
+    }
+
+    .item-row strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .item-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .kv-pair {
+      padding: 10px 12px;
+      border: 1px solid rgba(91, 70, 48, 0.1);
+      border-radius: 14px;
+      background: rgba(255, 250, 240, 0.74);
+    }
+
+    .kv-pair .label {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+    }
+
+    .kv-pair .value {
+      display: block;
+      font-size: 13px;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
     .muted {
       color: var(--muted);
       font-size: 13px;
@@ -500,6 +610,11 @@ const ADMIN_PAGE = `<!doctype html>
       opacity: 0.7;
       pointer-events: none;
     }
+
+    .badge.ok { background: rgba(47, 122, 77, 0.12); color: var(--ok); }
+    .badge.info { background: rgba(56, 113, 156, 0.1); color: #285d8b; }
+    .badge.warn { background: rgba(163, 106, 24, 0.12); color: var(--warn); }
+    .badge.err { background: rgba(160, 60, 57, 0.12); color: var(--err); }
 
     @media (max-width: 1080px) {
       .layout { grid-template-columns: 1fr; }
@@ -652,10 +767,11 @@ const ADMIN_PAGE = `<!doctype html>
                 <table>
                   <thead>
                     <tr>
-                      <th>Import connection</th>
+                      <th>Account + profile</th>
                       <th>Status</th>
                       <th>Provider user</th>
                       <th>Expires</th>
+                      <th>Refresh failures</th>
                     </tr>
                   </thead>
                   <tbody id="import-rows"></tbody>
@@ -671,7 +787,7 @@ const ADMIN_PAGE = `<!doctype html>
           <div class="panel-head">
             <div>
               <h2>Account Inspector</h2>
-              <p class="panel-note">Resolve email to account, then inspect account-owned profiles and the latest recommendation state.</p>
+              <p class="panel-note">Resolve email to account, inspect provider/import state, review watch data, and trigger profile-level import actions.</p>
             </div>
           </div>
           <div class="panel-body">
@@ -786,14 +902,34 @@ const ADMIN_PAGE = `<!doctype html>
       return payload;
     }
 
+    async function safeFetchJson(url, options) {
+      try {
+        return await fetchJson(url, options);
+      } catch (error) {
+        return {
+          error: error && error.message ? error.message : 'Request failed',
+          details: error && error.payload ? error.payload : null,
+        };
+      }
+    }
+
     async function loadBridgeStatus() {
       try {
         const payload = await fetchJson('/admin/api/worker/control-status');
-        const configured = payload.workerControl && payload.workerControl.configured;
-        elements.bridgePill.textContent = configured ? 'Worker status: ready' : 'Worker status: not configured';
-        elements.bridgeText.textContent = configured
-          ? 'API server can reach the recommendation engine worker-control surface.'
-          : 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable worker control.';
+        const workerControl = payload && payload.workerControl ? payload.workerControl : {};
+        const configured = workerControl.configured === true;
+        const reachable = workerControl.reachable === true;
+        if (!configured) {
+          elements.bridgePill.textContent = 'Worker status: not configured';
+          elements.bridgeText.textContent = 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable worker control.';
+        } else if (reachable) {
+          elements.bridgePill.textContent = 'Worker status: reachable';
+          elements.bridgeText.textContent = 'API server can reach the recommendation engine worker-control surface.'
+            + (workerControl.serverTime ? ' Worker clock: ' + formatDate(workerControl.serverTime) + '.' : '');
+        } else {
+          elements.bridgePill.textContent = 'Worker status: unreachable';
+          elements.bridgeText.textContent = workerControl.error || 'Worker control is configured, but the API server cannot reach the worker right now.';
+        }
         elements.bridgeJson.textContent = JSON.stringify(payload, null, 2);
       } catch (error) {
         elements.bridgePill.textContent = 'Worker status: unavailable';
@@ -812,9 +948,10 @@ const ADMIN_PAGE = `<!doctype html>
         setMessage(elements.jobMessage, 'info', 'Worker job state refreshed.');
       } catch (error) {
         renderJobStats(null);
-          elements.activeJobs.innerHTML = emptyState('Worker job control is unavailable.');
+        elements.activeJobs.innerHTML = emptyState('Worker job control is unavailable.');
         elements.recentJobs.innerHTML = emptyState('No recent worker data available.');
         setMessage(elements.jobMessage, 'error', error.message || 'Failed to load worker jobs.');
+        void loadBridgeStatus();
       } finally {
         setBusy('jobsBusy', false);
       }
@@ -835,7 +972,7 @@ const ADMIN_PAGE = `<!doctype html>
         elements.outboxSummary.textContent = 'Unavailable';
         elements.importSummary.textContent = 'Unavailable';
         elements.backlogRows.innerHTML = emptyTableRow('Diagnostics unavailable.', 4);
-        elements.importRows.innerHTML = emptyTableRow('Import diagnostics unavailable.', 4);
+        elements.importRows.innerHTML = emptyTableRow('Import diagnostics unavailable.', 5);
       } finally {
         setBusy('diagnosticsBusy', false);
       }
@@ -878,7 +1015,11 @@ const ADMIN_PAGE = `<!doctype html>
         const profiles = Array.isArray(profilesResponse.profiles) ? profilesResponse.profiles : [];
         elements.accountSummary.hidden = false;
         elements.accountSummary.innerHTML = '<h4>Account</h4>'
-          + '<p><strong>' + escapeHtml(account.accountId) + '</strong><br><span class="muted">' + escapeHtml(account.email || email) + '</span></p>';
+          + '<div class="kv-grid">'
+          + kvPair('Account id', account.accountId)
+          + kvPair('Email', account.email || email)
+          + kvPair('Profiles', String(profiles.length))
+          + '</div>';
 
         if (profiles.length === 0) {
           elements.profileList.innerHTML = emptyState('No profiles found for this account.');
@@ -896,19 +1037,34 @@ const ADMIN_PAGE = `<!doctype html>
     }
 
     async function inspectProfile(accountId, profileId, container) {
-      container.innerHTML = '<div class="muted">Loading taste profile, recommendation snapshot, and watch history...</div>';
+      const messageEl = document.getElementById(container.id + '-message');
+      if (messageEl) {
+        setMessage(messageEl, '', '');
+      }
+      container.innerHTML = '<div class="muted">Loading provider state, imports, watch data, and recommendations...</div>';
       try {
-        const [taste, recommendations, history] = await Promise.all([
-          fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/taste-profile?sourceKey=default').catch((error) => ({ error: error.message })),
-          fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations?sourceKey=default').catch((error) => ({ error: error.message })),
-          fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watch-history?limit=5').catch((error) => ({ error: error.message })),
+        const [importsOverview, taste, recommendations, history, continueWatching, watchlist, ratings, trackedSeries] = await Promise.all([
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/overview'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/taste-profile?sourceKey=default'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations?sourceKey=default'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watch-history?limit=8'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/continue-watching?limit=6'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watchlist?limit=8'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/ratings?limit=8'),
+          safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/tracked-series?limit=8'),
         ]);
 
         container.innerHTML = [
-          summaryPanel('Taste profile', summarizeJson(taste)),
-          summaryPanel('Recommendations', summarizeJson(recommendations)),
-          summaryPanel('Recent watch history', summarizeJson(history)),
+          renderImportOverview(importsOverview),
+          renderMediaSection('Recent watch history', history, 'history'),
+          renderMediaSection('Continue watching', continueWatching, 'continue'),
+          renderMediaSection('Watchlist', watchlist, 'watchlist'),
+          renderMediaSection('Ratings', ratings, 'ratings'),
+          renderTrackedSeriesSection(trackedSeries),
+          renderTasteProfileSection(taste),
+          renderRecommendationsSection(recommendations),
         ].join('');
+        bindProfileActionButtons(accountId, profileId, container);
       } catch (error) {
         container.innerHTML = '<div class="message error">' + escapeHtml(error.message || 'Unable to inspect profile.') + '</div>';
       }
@@ -916,14 +1072,19 @@ const ADMIN_PAGE = `<!doctype html>
 
     function renderProfileCard(account, profile) {
       const targetId = 'profile-inspect-' + escapeHtml(profile.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const messageId = targetId + '-message';
       return '<div class="profile-card">'
         + '<strong>' + escapeHtml(profile.name || profile.id) + '</strong>'
         + '<div class="muted">Profile id: ' + escapeHtml(profile.id) + '</div>'
-        + '<div class="muted">Updated: ' + escapeHtml(profile.updatedAt || 'unknown') + '</div>'
-        + '<div class="jobs-toolbar" style="margin-top: 12px;">'
-        + '<button class="secondary" type="button" data-inspect-profile="' + escapeHtml(profile.id) + '" data-account-id="' + escapeHtml(account.accountId) + '" data-target="' + targetId + '">Inspect profile data</button>'
+        + '<div class="profile-meta">'
+        + badge(profile.isKids ? 'kids profile' : 'standard profile', profile.isKids ? 'warn' : 'info')
+        + badge('updated ' + formatDate(profile.updatedAt || 'unknown'), 'info')
         + '</div>'
-        + '<div id="' + targetId + '" style="margin-top: 12px;"></div>'
+        + '<div class="jobs-toolbar" style="margin-top: 12px;">'
+        + '<button class="secondary" type="button" data-inspect-profile="' + escapeHtml(profile.id) + '" data-account-id="' + escapeHtml(account.accountId) + '" data-target="' + targetId + '">Open profile ops</button>'
+        + '</div>'
+        + '<div id="' + messageId + '" class="message info" hidden></div>'
+        + '<div id="' + targetId + '" class="profile-ops"></div>'
         + '</div>';
     }
 
@@ -938,6 +1099,69 @@ const ADMIN_PAGE = `<!doctype html>
           if (!container) return;
           void inspectProfile(accountId, profileId, container);
         });
+      }
+    }
+
+    function bindProfileActionButtons(accountId, profileId, container) {
+      const messageEl = document.getElementById(container.id + '-message');
+
+      const importButtons = Array.from(container.querySelectorAll('[data-start-import]'));
+      for (const button of importButtons) {
+        button.onclick = async () => {
+          const provider = button.getAttribute('data-start-import');
+          if (!provider) return;
+          button.disabled = true;
+          setMessage(messageEl, 'info', 'Starting ' + provider + ' import...');
+          try {
+            const payload = await fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/start', {
+              method: 'POST',
+              body: JSON.stringify({ provider }),
+            });
+            if (payload.authUrl) {
+              setHtmlMessage(messageEl, 'info', 'Authorization required for ' + escapeHtml(provider) + '. <a href="' + escapeHtml(String(payload.authUrl)) + '" target="_blank" rel="noopener noreferrer">Open provider auth</a>.');
+            } else {
+              setMessage(messageEl, 'success', 'Queued ' + provider + ' import for this profile.');
+            }
+            await inspectProfile(accountId, profileId, container);
+          } catch (error) {
+            setMessage(messageEl, 'error', error.message || 'Unable to start import.');
+          } finally {
+            button.disabled = false;
+          }
+        };
+      }
+
+      const refreshButtons = Array.from(container.querySelectorAll('[data-refresh-provider-token]'));
+      for (const button of refreshButtons) {
+        button.onclick = async () => {
+          const provider = button.getAttribute('data-refresh-provider-token');
+          if (!provider) return;
+          button.disabled = true;
+          setMessage(messageEl, 'info', 'Refreshing ' + provider + ' token...');
+          try {
+            await fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/providers/' + encodeURIComponent(provider) + '/refresh-token', {
+              method: 'POST',
+            });
+            setMessage(messageEl, 'success', 'Refreshed ' + provider + ' token.');
+            await inspectProfile(accountId, profileId, container);
+          } catch (error) {
+            setMessage(messageEl, 'error', error.message || 'Unable to refresh provider token.');
+          } finally {
+            button.disabled = false;
+          }
+        };
+      }
+
+      const refreshViewButtons = Array.from(container.querySelectorAll('[data-refresh-profile-view]'));
+      for (const button of refreshViewButtons) {
+        button.onclick = async () => {
+          button.disabled = true;
+          try {
+            await inspectProfile(accountId, profileId, container);
+          } finally {
+            button.disabled = false;
+          }
+        };
       }
     }
 
@@ -970,8 +1194,11 @@ const ADMIN_PAGE = `<!doctype html>
         : emptyTableRow('No backlog rows.', 4);
 
       elements.importRows.innerHTML = connections.length
-        ? connections.map((row) => '<tr><td>' + escapeHtml(String(row.profileId || 'unknown')) + '<br><span class="muted">' + escapeHtml(String(row.provider || '')) + '</span></td><td>' + badge(String(row.status || 'unknown')) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td></tr>').join('')
-        : emptyTableRow('No import connection diagnostics.', 4);
+        ? connections.map((row) => '<tr><td>'
+          + '<strong>' + escapeHtml(String(row.accountId || 'unknown-account')) + '</strong><br>'
+          + '<span class="muted">' + escapeHtml(String(row.profileId || 'unknown-profile')) + ' · ' + escapeHtml(String(row.provider || 'unknown-provider')) + '</span>'
+          + '</td><td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.refreshFailureCount || 0)) + '</td></tr>').join('')
+        : emptyTableRow('No import connection diagnostics.', 5);
     }
 
     function renderJobStats(payload) {
@@ -1126,6 +1353,9 @@ const ADMIN_PAGE = `<!doctype html>
     }
 
     function setMessage(element, kind, text) {
+      if (!element) {
+        return;
+      }
       if (!text) {
         element.hidden = true;
         return;
@@ -1139,10 +1369,6 @@ const ADMIN_PAGE = `<!doctype html>
       return '<div class="stat-card"><div class="stat-label">' + escapeHtml(String(label)) + '</div><div class="stat-value">' + escapeHtml(String(value)) + '</div><div class="stat-subtext">' + escapeHtml(String(subtext || '')) + '</div></div>';
     }
 
-    function summaryPanel(title, content) {
-      return '<div class="mini-panel"><h4>' + escapeHtml(title) + '</h4><div class="code" style="margin-top: 10px;">' + escapeHtml(content) + '</div></div>';
-    }
-
     function emptyState(text) {
       return '<div class="empty">' + escapeHtml(text) + '</div>';
     }
@@ -1151,12 +1377,256 @@ const ADMIN_PAGE = `<!doctype html>
       return '<tr><td colspan="' + span + '" class="muted">' + escapeHtml(text) + '</td></tr>';
     }
 
-    function badge(value) {
-      return '<span class="badge">' + escapeHtml(value) + '</span>';
+    function badge(value, tone) {
+      const className = tone ? 'badge ' + tone : 'badge';
+      return '<span class="' + escapeHtml(className) + '">' + escapeHtml(value) + '</span>';
     }
 
-    function summarizeJson(value) {
-      return JSON.stringify(value, null, 2);
+    function renderImportOverview(result) {
+      if (result && result.error) {
+        return sectionCard('Provider + import state', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      }
+
+      const watchDataState = result && result.watchDataState ? result.watchDataState : null;
+      const jobs = result && Array.isArray(result.jobs) ? result.jobs : [];
+      const providers = result && Array.isArray(result.providers) ? result.providers : [];
+
+      const providerCards = providers.length
+        ? '<div class="provider-grid">' + providers.map((provider) => renderProviderCard(provider)).join('') + '</div>'
+        : emptyState('No provider states returned.');
+
+      const jobsMarkup = jobs.length
+        ? '<div class="section-stack">' + jobs.slice(0, 4).map((job) => renderImportJobCard(job)).join('') + '</div>'
+        : emptyState('No import jobs yet for this profile.');
+
+      return sectionCard('Provider + import state',
+        '<div class="inline-actions">'
+          + '<button type="button" class="secondary" data-refresh-profile-view="true">Refresh profile panel</button>'
+          + '<button type="button" data-start-import="trakt">Import Trakt history + watchlist</button>'
+          + '<button type="button" data-start-import="simkl">Import Simkl history + watchlist</button>'
+        + '</div>'
+        + '<div class="kv-grid">'
+          + kvPair('Current origin', watchDataState && watchDataState.currentOrigin ? watchDataState.currentOrigin : 'native')
+          + kvPair('History generation', watchDataState && watchDataState.historyGeneration !== undefined ? String(watchDataState.historyGeneration) : 'n/a')
+          + kvPair('Last import provider', watchDataState && watchDataState.lastImportProvider ? watchDataState.lastImportProvider : 'none')
+          + kvPair('Last import completed', watchDataState && watchDataState.lastImportCompletedAt ? formatDate(watchDataState.lastImportCompletedAt) : 'n/a')
+        + '</div>'
+        + providerCards
+        + '<div style="margin-top: 12px;">' + jobsMarkup + '</div>'
+      );
+    }
+
+    function renderProviderCard(provider) {
+      const connection = provider && provider.connection ? provider.connection : null;
+      const tokenStatus = provider && provider.tokenStatus ? provider.tokenStatus : null;
+      const connected = provider && provider.connected === true;
+      const tone = connected ? statusTone(tokenStatus && tokenStatus.tokenState ? tokenStatus.tokenState : 'connected') : 'warn';
+      return '<div class="provider-card">'
+        + '<div><strong>' + escapeHtml(String(provider.provider || 'provider')) + '</strong></div>'
+        + '<div class="inline-actions">'
+        + badge(connected ? 'connected' : 'not connected', tone)
+        + (tokenStatus && tokenStatus.tokenState ? badge(tokenStatus.tokenState, statusTone(tokenStatus.tokenState)) : '')
+        + '</div>'
+        + '<div class="kv-grid">'
+          + kvPair('User', connection ? (connection.externalUsername || connection.providerUserId || 'connected') : 'not connected')
+          + kvPair('Expires', tokenStatus && tokenStatus.accessTokenExpiresAt ? formatDate(tokenStatus.accessTokenExpiresAt) : 'n/a')
+          + kvPair('Last refresh', tokenStatus && tokenStatus.lastRefreshAt ? formatDate(tokenStatus.lastRefreshAt) : 'n/a')
+          + kvPair('Refresh error', tokenStatus && tokenStatus.lastRefreshError ? tokenStatus.lastRefreshError : (provider.error || 'none'))
+        + '</div>'
+        + '<div class="inline-actions">'
+          + '<button type="button" class="ghost" data-refresh-provider-token="' + escapeHtml(String(provider.provider || '')) + '"' + (connected ? '' : ' disabled') + '>Refresh token</button>'
+        + '</div>'
+      + '</div>';
+    }
+
+    function renderImportJobCard(job) {
+      return '<div class="section-card">'
+        + '<div class="inline-actions">'
+          + badge(String(job.status || 'unknown'), statusTone(String(job.status || 'unknown')))
+          + badge(String(job.provider || 'provider'), 'info')
+        + '</div>'
+        + '<div class="kv-grid">'
+          + kvPair('Requested', formatDate(job.createdAt || 'n/a'))
+          + kvPair('Started', job.startedAt ? formatDate(job.startedAt) : 'n/a')
+          + kvPair('Finished', job.finishedAt ? formatDate(job.finishedAt) : 'n/a')
+          + kvPair('Job id', job.id || 'n/a')
+        + '</div>'
+      + '</div>';
+    }
+
+    function renderMediaSection(title, result, kind) {
+      if (result && result.error) {
+        return sectionCard(title, '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      }
+
+      const items = result && Array.isArray(result.items) ? result.items : [];
+      if (items.length === 0) {
+        return sectionCard(title, emptyState('No ' + title.toLowerCase() + ' yet.'));
+      }
+
+      return sectionCard(title, '<div class="item-list">' + items.map((item) => renderMediaRow(item, kind)).join('') + '</div>');
+    }
+
+    function renderTrackedSeriesSection(result) {
+      if (result && result.error) {
+        return sectionCard('Tracked series', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      }
+      const items = result && Array.isArray(result.items) ? result.items : [];
+      if (items.length === 0) {
+        return sectionCard('Tracked series', emptyState('No tracked series for this profile.'));
+      }
+      return sectionCard('Tracked series', '<div class="item-list">' + items.map((item) => {
+        const media = item && item.show ? item.show : null;
+        return '<div class="item-row">'
+          + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
+          + '<div class="muted">' + escapeHtml(item.reason || 'no reason captured') + '</div>'
+          + '<div class="item-meta">'
+            + '<span>next ' + escapeHtml(item.nextEpisodeAirDate ? formatDate(item.nextEpisodeAirDate) : 'n/a') + '</span>'
+            + '<span>last interacted ' + escapeHtml(item.lastInteractedAt ? formatDate(item.lastInteractedAt) : 'n/a') + '</span>'
+          + '</div>'
+        + '</div>';
+      }).join('') + '</div>');
+    }
+
+    function renderTasteProfileSection(result) {
+      if (result && result.error) {
+        return sectionCard('Taste profile', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      }
+      const tasteProfile = result && result.tasteProfile ? result.tasteProfile : result;
+      if (!tasteProfile || tasteProfile === null) {
+        return sectionCard('Taste profile', emptyState('No taste profile stored yet.'));
+      }
+      return sectionCard('Taste profile',
+        '<div class="kv-grid">'
+          + kvPair('Source key', tasteProfile.sourceKey || 'default')
+          + kvPair('Updated', tasteProfile.updatedAt ? formatDate(tasteProfile.updatedAt) : 'n/a')
+          + kvPair('Watching pace', tasteProfile.watchingPace || 'n/a')
+          + kvPair('Version', tasteProfile.version !== undefined ? String(tasteProfile.version) : 'n/a')
+        + '</div>'
+        + (tasteProfile.aiSummary ? '<div class="section-card"><strong>AI summary</strong><div class="muted" style="margin-top:8px;">' + escapeHtml(tasteProfile.aiSummary) + '</div></div>' : '')
+      );
+    }
+
+    function renderRecommendationsSection(result) {
+      if (result && result.error) {
+        return sectionCard('Recommendations', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      }
+      const recommendations = result && result.recommendations ? result.recommendations : result;
+      if (!recommendations || recommendations === null) {
+        return sectionCard('Recommendations', emptyState('No recommendation snapshot stored yet.'));
+      }
+      const sections = Array.isArray(recommendations.sections) ? recommendations.sections : [];
+      return sectionCard('Recommendations',
+        '<div class="kv-grid">'
+          + kvPair('Source key', recommendations.sourceKey || 'default')
+          + kvPair('Algorithm', recommendations.algorithmVersion || 'default')
+          + kvPair('Generated', recommendations.generatedAt ? formatDate(recommendations.generatedAt) : 'n/a')
+          + kvPair('Sections', String(sections.length))
+        + '</div>'
+        + (sections.length
+          ? '<div class="section-stack">' + sections.slice(0, 3).map((section) => '<div class="section-card"><strong>' + escapeHtml(section.title || section.id || 'Section') + '</strong><div class="muted" style="margin-top:8px;">' + escapeHtml(renderRecommendationItems(section.items || [])) + '</div></div>').join('') + '</div>'
+          : emptyState('Recommendation snapshot has no sections.'))
+      );
+    }
+
+    function renderRecommendationItems(items) {
+      return items.slice(0, 5).map((item) => {
+        const media = item && item.media ? item.media : null;
+        const reason = item && item.reason ? ' - ' + item.reason : '';
+        return mediaTitle(media) + reason;
+      }).join('\n');
+    }
+
+    function renderMediaRow(item, kind) {
+      const media = item && item.media ? item.media : null;
+      const meta = [];
+      if (kind === 'history' && item && item.watchedAt) meta.push('watched ' + formatDate(item.watchedAt));
+      if (kind === 'continue' && item && item.lastActivityAt) meta.push('last played ' + formatDate(item.lastActivityAt));
+      if (kind === 'watchlist' && item && item.addedAt) meta.push('added ' + formatDate(item.addedAt));
+      if (kind === 'ratings' && item && item.rating && item.rating.ratedAt) meta.push('rated ' + formatDate(item.rating.ratedAt));
+      if (kind === 'ratings' && item && item.rating) meta.push('score ' + String(item.rating.value));
+      if (kind === 'continue' && item && item.progress) meta.push('progress ' + formatProgress(item.progress));
+
+      return '<div class="item-row">'
+        + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
+        + '<div class="muted">' + escapeHtml(mediaSubtitle(media)) + '</div>'
+        + '<div class="item-meta">' + meta.map((value) => '<span>' + escapeHtml(value) + '</span>').join('') + '</div>'
+      + '</div>';
+    }
+
+    function mediaTitle(media) {
+      if (!media) return 'Unknown title';
+      return media.title || media.subtitle || media.mediaKey || media.id || 'Unknown title';
+    }
+
+    function mediaSubtitle(media) {
+      if (!media) return 'No metadata available';
+      const parts = [];
+      if (media.subtitle) parts.push(media.subtitle);
+      if (media.releaseYear) parts.push(String(media.releaseYear));
+      else if (media.releaseDate) parts.push(String(media.releaseDate).slice(0, 10));
+      if (media.runtimeMinutes) parts.push(String(media.runtimeMinutes) + ' min');
+      return parts.length ? parts.join(' · ') : 'No extra metadata';
+    }
+
+    function formatProgress(progress) {
+      if (!progress) return 'n/a';
+      if (typeof progress.progressPercent === 'number') {
+        return Math.round(progress.progressPercent) + '%';
+      }
+      if (typeof progress.positionSeconds === 'number' && typeof progress.durationSeconds === 'number' && progress.durationSeconds > 0) {
+        return Math.round((progress.positionSeconds / progress.durationSeconds) * 100) + '%';
+      }
+      return 'n/a';
+    }
+
+    function sectionCard(title, body) {
+      return '<div class="mini-panel"><h4>' + escapeHtml(title) + '</h4><div style="margin-top: 10px;">' + body + '</div></div>';
+    }
+
+    function kvPair(label, value) {
+      return '<div class="kv-pair"><span class="label">' + escapeHtml(label) + '</span><span class="value">' + escapeHtml(value == null ? 'n/a' : String(value)) + '</span></div>';
+    }
+
+    function setHtmlMessage(element, kind, html) {
+      if (!element) {
+        return;
+      }
+      if (!html) {
+        element.hidden = true;
+        return;
+      }
+      element.hidden = false;
+      element.className = 'message ' + kind;
+      element.innerHTML = html;
+    }
+
+    function statusTone(value) {
+      switch (String(value || '')) {
+        case 'connected':
+        case 'valid':
+        case 'success':
+        case 'succeeded':
+        case 'succeeded_with_warnings':
+          return 'ok';
+        case 'expiring':
+        case 'queued':
+        case 'running':
+        case 'oauth_pending':
+        case 'pending':
+          return 'info';
+        case 'expired':
+        case 'revoked':
+        case 'cancelled':
+        case 'canceled':
+          return 'warn';
+        case 'failed':
+        case 'error':
+        case 'missing_access_token':
+          return 'err';
+        default:
+          return '';
+      }
     }
 
     function lagText(lag) {

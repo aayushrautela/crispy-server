@@ -3,6 +3,8 @@ import { HttpError } from '../../lib/errors.js';
 import { WorkerControlClient, type WorkerControlJobTarget } from '../../modules/admin/worker-control-client.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
 import { ProviderAdminService } from '../../modules/imports/provider-admin.service.js';
+import { ProviderImportService, parseImportProvider } from '../../modules/imports/provider-import.service.js';
+import { ProviderTokenAccessService } from '../../modules/imports/provider-token-access.service.js';
 import type {
   ProviderImportConnectionStatus,
   ProviderImportJobStatus,
@@ -12,7 +14,7 @@ import { isProviderImportProvider } from '../../modules/imports/provider-import.
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
-import { mapProviderImportJobAdminView } from '../../modules/imports/provider-import.views.js';
+import { mapConnectionView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/imports/provider-import.views.js';
 
 const CONNECTION_STATUSES = new Set<ProviderImportConnectionStatus>(['pending', 'connected', 'expired', 'revoked']);
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
@@ -29,6 +31,8 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const workerControlClient = new WorkerControlClient();
   const recommendationAdminService = new RecommendationAdminService();
   const providerAdminService = new ProviderAdminService();
+  const providerImportService = new ProviderImportService();
+  const providerTokenAccessService = new ProviderTokenAccessService();
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
   const recommendationOutputService = new RecommendationOutputService();
@@ -39,11 +43,37 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
 
   app.get('/admin/api/worker/control-status', async (request, reply) => {
     await requireAdmin(request, reply);
-    return {
-      workerControl: {
-        configured: workerControlClient.isConfigured(),
-      },
-    };
+    const configured = workerControlClient.isConfigured();
+    if (!configured) {
+      return {
+        workerControl: {
+          configured: false,
+          reachable: false,
+          error: null,
+        },
+      };
+    }
+
+    try {
+      const status = await workerControlClient.getJobStatus();
+      return {
+        workerControl: {
+          configured: true,
+          reachable: true,
+          serverTime: status.serverTime,
+          error: null,
+        },
+      };
+    } catch (error) {
+      return {
+        workerControl: {
+          configured: true,
+          reachable: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+
   });
 
   app.get('/admin/api/worker/jobs/status', async (request, reply) => {
@@ -141,6 +171,58 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     };
   });
 
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/continue-watching', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    return {
+      items: await recommendationDataService.getContinueWatchingForAccountService(
+        params.accountId,
+        params.profileId,
+        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
+      ),
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/watchlist', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    return {
+      items: await recommendationDataService.getWatchlistForAccountService(
+        params.accountId,
+        params.profileId,
+        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
+      ),
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/ratings', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    return {
+      items: await recommendationDataService.getRatingsForAccountService(
+        params.accountId,
+        params.profileId,
+        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
+      ),
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/tracked-series', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    return {
+      items: await recommendationDataService.getTrackedSeriesForAccountService(
+        params.accountId,
+        params.profileId,
+        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
+      ),
+    };
+  });
+
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/taste-profile', async (request, reply) => {
     await requireAdmin(request, reply);
     const params = parseAccountProfileParams(request.params);
@@ -171,6 +253,108 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
       ),
     };
   });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/imports/overview', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseAccountProfileParams(request.params);
+    const [connectionsResult, jobsResult, providerStates] = await Promise.all([
+      providerImportService.listConnections(params.accountId, params.profileId),
+      providerImportService.listJobs(params.accountId, params.profileId),
+      loadProviderStates(providerTokenAccessService, params.accountId, params.profileId),
+    ]);
+
+    return {
+      watchDataState: connectionsResult.watchDataState ?? jobsResult.watchDataState,
+      connections: connectionsResult.connections,
+      jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
+      providers: providerStates,
+    };
+  });
+
+  app.post('/admin/api/accounts/:accountId/profiles/:profileId/imports/start', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseAccountProfileParams(request.params);
+    const body = asRecord(request.body);
+    const started = await providerImportService.startReplaceImport(
+      params.accountId,
+      params.profileId,
+      parseImportProvider(body.provider),
+    );
+    reply.code(started.nextAction === 'queued' ? 202 : 201);
+    return {
+      nextAction: started.nextAction,
+      authUrl: started.authUrl,
+      watchDataState: started.watchDataState,
+      connection: started.connection ? mapConnectionView(started.connection) : null,
+      job: mapProviderImportJobView(started.job),
+    };
+  });
+
+  app.post('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/refresh-token', async (request, reply) => {
+    await requireAdmin(request, reply);
+    const params = parseProviderParams(request.params);
+    await providerTokenAccessService.getAccessTokenForAccountProfile(
+      params.accountId,
+      params.profileId,
+      params.provider,
+      { forceRefresh: true },
+    );
+
+    return {
+      provider: params.provider,
+      refreshed: true,
+      connection: await providerTokenAccessService.getConnectionForAccountProfile(
+        params.accountId,
+        params.profileId,
+        params.provider,
+      ),
+      tokenStatus: await providerTokenAccessService.getTokenStatusForAccountProfile(
+        params.accountId,
+        params.profileId,
+        params.provider,
+      ),
+    };
+  });
+}
+
+async function loadProviderStates(
+  providerTokenAccessService: ProviderTokenAccessService,
+  accountId: string,
+  profileId: string,
+): Promise<Array<{
+  provider: ProviderImportProvider;
+  connected: boolean;
+  connection: Awaited<ReturnType<ProviderTokenAccessService['getConnectionForAccountProfile']>> | null;
+  tokenStatus: Awaited<ReturnType<ProviderTokenAccessService['getTokenStatusForAccountProfile']>> | null;
+  error: string | null;
+}>> {
+  const providers: ProviderImportProvider[] = ['trakt', 'simkl'];
+  return Promise.all(providers.map(async (provider) => {
+    try {
+      const [connection, tokenStatus] = await Promise.all([
+        providerTokenAccessService.getConnectionForAccountProfile(accountId, profileId, provider),
+        providerTokenAccessService.getTokenStatusForAccountProfile(accountId, profileId, provider),
+      ]);
+      return {
+        provider,
+        connected: true,
+        connection,
+        tokenStatus,
+        error: null,
+      };
+    } catch (error) {
+      if (error instanceof HttpError && error.statusCode === 404) {
+        return {
+          provider,
+          connected: false,
+          connection: null,
+          tokenStatus: null,
+          error: null,
+        };
+      }
+      throw error;
+    }
+  }));
 }
 
 function parseTriggerInput(body: unknown): { target: WorkerControlJobTarget; options?: Record<string, unknown> } {
@@ -194,6 +378,18 @@ function parseAccountProfileParams(value: unknown): { accountId: string; profile
   return {
     accountId: readRequiredString(params.accountId, 'accountId'),
     profileId: readRequiredString(params.profileId, 'profileId'),
+  };
+}
+
+function parseProviderParams(value: unknown): { accountId: string; profileId: string; provider: ProviderImportProvider } {
+  const params = parseAccountProfileParams(value);
+  const raw = asRecord(value).provider;
+  if (!isProviderImportProvider(raw)) {
+    throw new HttpError(400, 'Invalid provider.');
+  }
+  return {
+    ...params,
+    provider: raw,
   };
 }
 
