@@ -22,18 +22,16 @@
 
    - The signed-in account is the only auth actor and the ownership root.
    - Profiles are child personas under that account, not separate users.
-   - Shared management data stays account-scoped: addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+   - Shared management data stays account-scoped: addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
    - Personal experience data stays profile-scoped: profile settings, Trakt and Simkl connections, imports, watch history, continue watching, watchlist, ratings, tracked series, taste profiles, and recommendations.
    - Privileged routes are account-rooted: resolve the owning account first, then target a profile under that account for personal data.
 
-   Example auth config when Supabase is the auth provider:
-   ```env
-   AUTH_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
-   AUTH_JWT_ISSUER=https://your-project.supabase.co/auth/v1
-   AUTH_JWT_AUDIENCE=authenticated
-   AUTH_ADMIN_URL=https://your-project.supabase.co/auth/v1
-   AUTH_ADMIN_TOKEN=replace_with_auth_admin_token
-   ```
+    Example auth config when Supabase is the auth provider:
+    ```env
+    SUPABASE_URL=https://your-project.supabase.co
+    AUTH_JWT_AUDIENCE=authenticated
+    SUPABASE_SECRET_KEY=replace_with_supabase_secret_key
+    ```
 
    The API requires `SERVICE_CLIENTS_JSON` for service-to-service authentication. Internal callers such as the recommendation worker must send `x-service-id` and `x-api-key`, and those values must match an active entry in `SERVICE_CLIENTS_JSON`.
 

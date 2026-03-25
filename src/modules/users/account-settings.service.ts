@@ -41,12 +41,20 @@ export class AccountSettingsService {
     return this.getSecretForUser(userId, 'ai.openrouter_key');
   }
 
+  async getAiApiKeyForUser(userId: string): Promise<AccountSecretValue> {
+    return this.getOpenRouterKeyForUser(userId);
+  }
+
   async getOmdbApiKeyForUser(userId: string): Promise<AccountSecretValue> {
     return this.getSecretForUser(userId, 'metadata.omdb_api_key');
   }
 
   async setOpenRouterKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
     return this.setSecretForUser(userId, 'ai.openrouter_key', value);
+  }
+
+  async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
+    return this.setOpenRouterKeyForUser(userId, value);
   }
 
   async setOmdbApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
@@ -65,6 +73,10 @@ export class AccountSettingsService {
 
   async clearOpenRouterKeyForUser(userId: string): Promise<boolean> {
     return this.clearSecretForUser(userId, 'ai.openrouter_key');
+  }
+
+  async clearAiApiKeyForUser(userId: string): Promise<boolean> {
+    return this.clearOpenRouterKeyForUser(userId);
   }
 
   async clearOmdbApiKeyForUser(userId: string): Promise<boolean> {
@@ -128,13 +140,19 @@ export class AccountSettingsService {
 
 export function mergeAccountScopedSettings(
   accountSettings: Record<string, unknown>,
-  options?: { hasOpenRouterKey?: boolean; hasOmdbApiKey?: boolean },
+  options?: { hasOpenRouterKey?: boolean; hasAiApiKey?: boolean; hasOmdbApiKey?: boolean; aiEndpointUrl?: string },
 ): Record<string, unknown> {
   const merged = { ...accountSettings };
-  if (options?.hasOpenRouterKey !== undefined) {
+  if (
+    options?.hasOpenRouterKey !== undefined
+    || options?.hasAiApiKey !== undefined
+    || options?.aiEndpointUrl !== undefined
+  ) {
     merged.ai = {
       ...(isRecord(merged.ai) ? merged.ai : {}),
-      hasOpenRouterKey: options.hasOpenRouterKey,
+      ...(options?.hasOpenRouterKey !== undefined ? { hasOpenRouterKey: options.hasOpenRouterKey } : {}),
+      ...(options?.hasAiApiKey !== undefined ? { hasAiApiKey: options.hasAiApiKey } : {}),
+      ...(options?.aiEndpointUrl !== undefined ? { endpointUrl: options.aiEndpointUrl } : {}),
     };
   }
   if (options?.hasOmdbApiKey !== undefined) {

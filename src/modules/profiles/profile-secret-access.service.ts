@@ -24,6 +24,10 @@ export class ProfileSecretAccessService {
     return this.getSecretForAccountProfile(accountId, profileId, 'ai.openrouter_key');
   }
 
+  async getAiApiKeyForAccountProfile(accountId: string, profileId: string): Promise<ProfileSecretValue> {
+    return this.getOpenRouterKeyForAccountProfile(accountId, profileId);
+  }
+
   async getSecretForAccountProfile(accountId: string, profileId: string, field: string): Promise<ProfileSecretValue> {
     if (field !== 'ai.openrouter_key') {
       throw new HttpError(403, 'Secret field not allowed.');

@@ -144,7 +144,16 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
     app.requireScopes(request, ['profile-secrets:read']);
     const params = request.params as { accountId: string; profileId: string };
     return {
-      secret: await profileSecretAccessService.getOpenRouterKeyForAccountProfile(params.accountId, params.profileId),
+      secret: await profileSecretAccessService.getAiApiKeyForAccountProfile(params.accountId, params.profileId),
+    };
+  });
+
+  app.get('/internal/v1/accounts/:accountId/profiles/:profileId/secrets/ai-api-key', async (request) => {
+    await app.requireServiceAuth(request);
+    app.requireScopes(request, ['profile-secrets:read']);
+    const params = request.params as { accountId: string; profileId: string };
+    return {
+      secret: await profileSecretAccessService.getAiApiKeyForAccountProfile(params.accountId, params.profileId),
     };
   });
 

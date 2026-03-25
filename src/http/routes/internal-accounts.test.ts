@@ -6,8 +6,7 @@ function seedTestEnv(): void {
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ??= 'postgres://test:test@127.0.0.1:5432/test';
   process.env.REDIS_URL ??= 'redis://127.0.0.1:6379/0';
-  process.env.AUTH_JWKS_URL ??= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
-  process.env.AUTH_JWT_ISSUER ??= 'https://example.supabase.co/auth/v1';
+  process.env.SUPABASE_URL ??= 'https://example.supabase.co';
   process.env.AUTH_JWT_AUDIENCE ??= 'authenticated';
   process.env.TMDB_API_KEY ??= 'tmdb-test-key';
   process.env.SERVICE_CLIENTS_JSON ??= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh"]}]';
@@ -31,7 +30,7 @@ test('internal account routes resolve account by email and profile-scoped data u
   const originalGetContinueWatchingForAccountService = RecommendationDataService.prototype.getContinueWatchingForAccountService;
   const originalGetTasteProfileForAccountService = RecommendationOutputService.prototype.getTasteProfileForAccountService;
   const originalUpsertRecommendationsForAccountService = RecommendationOutputService.prototype.upsertRecommendationsForAccountService;
-  const originalGetOpenRouterKeyForAccountProfile = ProfileSecretAccessService.prototype.getOpenRouterKeyForAccountProfile;
+  const originalGetAiApiKeyForAccountProfile = ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile;
   const originalGetSecretForAccountProfile = AccountSettingsService.prototype.getSecretForAccountProfile;
   const originalGetConnectionForAccountProfile = ProviderTokenAccessService.prototype.getConnectionForAccountProfile;
   const originalGetAccessTokenForAccountProfile = ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile;
@@ -43,7 +42,7 @@ test('internal account routes resolve account by email and profile-scoped data u
     RecommendationDataService.prototype.getContinueWatchingForAccountService = originalGetContinueWatchingForAccountService;
     RecommendationOutputService.prototype.getTasteProfileForAccountService = originalGetTasteProfileForAccountService;
     RecommendationOutputService.prototype.upsertRecommendationsForAccountService = originalUpsertRecommendationsForAccountService;
-    ProfileSecretAccessService.prototype.getOpenRouterKeyForAccountProfile = originalGetOpenRouterKeyForAccountProfile;
+    ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile = originalGetAiApiKeyForAccountProfile;
     AccountSettingsService.prototype.getSecretForAccountProfile = originalGetSecretForAccountProfile;
     ProviderTokenAccessService.prototype.getConnectionForAccountProfile = originalGetConnectionForAccountProfile;
     ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile = originalGetAccessTokenForAccountProfile;
@@ -67,7 +66,7 @@ test('internal account routes resolve account by email and profile-scoped data u
   RecommendationOutputService.prototype.upsertRecommendationsForAccountService = async function (accountId, profileId, input) {
     return { accountId, profileId, sourceKey: input.sourceKey, algorithmVersion: input.algorithmVersion } as never;
   };
-  ProfileSecretAccessService.prototype.getOpenRouterKeyForAccountProfile = async function (accountId, profileId) {
+  ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile = async function (accountId, profileId) {
     return { appUserId: accountId, key: 'ai.openrouter_key', value: `or:${profileId}` } as never;
   };
   AccountSettingsService.prototype.getSecretForAccountProfile = async function (accountId, profileId, field) {
@@ -140,6 +139,10 @@ test('internal account routes resolve account by email and profile-scoped data u
   const secret = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/openrouter-key' });
   assert.equal(secret.statusCode, 200);
   assert.equal(secret.json().secret.value, 'or:profile-1');
+
+  const aiSecret = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/ai-api-key' });
+  assert.equal(aiSecret.statusCode, 200);
+  assert.equal(aiSecret.json().secret.value, 'or:profile-1');
 
   const omdb = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/omdb-api-key' });
   assert.equal(omdb.statusCode, 200);

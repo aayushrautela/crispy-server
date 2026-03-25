@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from '../users/account-settings.repo.js';
-import { OpenRouterClient } from './openrouter.client.js';
+import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import type { AiInsightsMediaType, AiInsightsPayload } from './ai.types.js';
 
@@ -29,7 +29,7 @@ export class AiInsightsService {
     private readonly profileRepository = new ProfileRepository(),
     private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
-    private readonly openRouterClient = new OpenRouterClient(),
+    private readonly aiClient = new OpenAiCompatibleClient(),
   ) {}
 
   async getInsights(userId: string, input: {
@@ -52,11 +52,11 @@ export class AiInsightsService {
     if (!profileId) {
       throw new HttpError(400, 'Profile is required.');
     }
-    if (!env.aiInsightsOpenrouterModel) {
+    if (!env.aiInsightsModel) {
       throw new HttpError(503, 'AI insights model is not configured.');
     }
 
-    const openRouterKey = await withTransaction(async (client) => {
+    const aiApiKey = await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -64,7 +64,7 @@ export class AiInsightsService {
 
       const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.openrouter_key')) ?? '';
       if (!key) {
-        throw new HttpError(412, 'AI insights are not configured for this account. Add an OpenRouter key in Account Settings.');
+        throw new HttpError(412, 'AI insights are not configured for this account. Add an AI API key in Account Settings.');
       }
       return key;
     });
@@ -86,9 +86,9 @@ export class AiInsightsService {
       throw new HttpError(404, 'Unable to load title data for AI insights.');
     }
 
-    const generated = await this.openRouterClient.generateJson({
-      apiKey: openRouterKey,
-      model: env.aiInsightsOpenrouterModel,
+    const generated = await this.aiClient.generateJson({
+      apiKey: aiApiKey,
+      model: env.aiInsightsModel,
       userPrompt: buildPrompt(titleContext),
     });
     const payload = normalizeInsightsPayload(generated);
@@ -102,7 +102,7 @@ export class AiInsightsService {
         mediaType,
         locale,
         generationVersion: GENERATION_VERSION,
-        modelName: env.aiInsightsOpenrouterModel,
+        modelName: env.aiInsightsModel,
         payload,
         generatedByProfileId: profileId,
       });

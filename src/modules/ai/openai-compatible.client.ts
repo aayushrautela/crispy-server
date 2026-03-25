@@ -1,23 +1,21 @@
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-export class OpenRouterClient {
+export class OpenAiCompatibleClient {
   async generateJson(args: {
     apiKey: string;
     model: string;
     systemPrompt?: string;
     userPrompt: string;
   }): Promise<Record<string, unknown>> {
-    const response = await fetch(OPENROUTER_URL, {
+    const response = await fetch(env.aiEndpointUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${args.apiKey}`,
-        'HTTP-Referer': env.openrouterHttpReferer,
-        'X-Title': env.openrouterTitle,
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...(env.aiHttpReferer ? { 'HTTP-Referer': env.aiHttpReferer } : {}),
+        ...(env.aiTitle ? { 'X-Title': env.aiTitle } : {}),
       },
       body: JSON.stringify({
         model: args.model,
@@ -33,8 +31,8 @@ export class OpenRouterClient {
 
     const rawBody = await response.text();
     if (!response.ok) {
-      throw new HttpError(502, extractProviderMessage(rawBody) ?? 'OpenRouter request failed.', {
-        provider: 'openrouter',
+      throw new HttpError(502, extractProviderMessage(rawBody) ?? 'AI provider request failed.', {
+        provider: 'openai-compatible',
         providerStatus: response.status,
         responseBody: rawBody.slice(0, 500),
       });
@@ -53,8 +51,8 @@ export class OpenRouterClient {
     const message = isRecord(first?.message) ? first?.message : null;
     const content = typeof message?.content === 'string' ? message.content : '';
     if (!content.trim()) {
-      throw new HttpError(502, 'OpenRouter returned empty data.', {
-        provider: 'openrouter',
+      throw new HttpError(502, 'AI provider returned empty data.', {
+        provider: 'openai-compatible',
         providerStatus: response.status,
       });
     }
@@ -62,12 +60,12 @@ export class OpenRouterClient {
     try {
       const parsedContent = JSON.parse(extractJsonObject(content)) as unknown;
       if (!isRecord(parsedContent)) {
-        throw new Error('OpenRouter response was not a JSON object.');
+        throw new Error('AI provider response was not a JSON object.');
       }
       return parsedContent;
     } catch {
-      throw new HttpError(502, 'OpenRouter returned invalid data.', {
-        provider: 'openrouter',
+      throw new HttpError(502, 'AI provider returned invalid data.', {
+        provider: 'openai-compatible',
         providerStatus: response.status,
       });
     }

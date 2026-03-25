@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from '../users/account-settings.repo.js';
-import { OpenRouterClient } from './openrouter.client.js';
+import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 import type { AiCandidateMediaType, AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
 
 type QueryAnalysis = {
@@ -24,7 +24,7 @@ export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly accountSettingsRepository = new AccountSettingsRepository(),
-    private readonly openRouterClient = new OpenRouterClient(),
+    private readonly aiClient = new OpenAiCompatibleClient(),
   ) {}
 
   async search(userId: string, input: {
@@ -46,7 +46,7 @@ export class AiSearchService {
       throw new HttpError(400, 'Profile is required.');
     }
 
-    const openRouterKey = await withTransaction(async (client) => {
+    const aiApiKey = await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -54,15 +54,15 @@ export class AiSearchService {
 
       const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.openrouter_key')) ?? '';
       if (!key) {
-        throw new HttpError(412, 'AI search is not configured for this account. Add an OpenRouter key in Account Settings.');
+        throw new HttpError(412, 'AI search is not configured for this account. Add an AI API key in Account Settings.');
       }
 
       return key;
     });
 
-    const generated = await this.openRouterClient.generateJson({
-      apiKey: openRouterKey,
-      model: env.aiSearchOpenrouterModel,
+    const generated = await this.aiClient.generateJson({
+      apiKey: aiApiKey,
+      model: env.aiSearchModel,
       systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real movie or TV titles only.',
       userPrompt: buildSearchPrompt(query, filter, locale, analysis),
     });

@@ -26,7 +26,7 @@ If an AI agent or doc says this service "uses Supabase" without that auth-only q
 - Postgres via `pg`
 - Redis + BullMQ
 - TMDB for metadata
-- OpenRouter for AI features
+- OpenAI-compatible endpoints for AI features
 - Trakt and Simkl for provider imports
 - Supabase for external auth only
 
@@ -75,7 +75,7 @@ Redis backs BullMQ and cached API surfaces such as home and calendar.
 - Profiles are child personas under one account, similar to Netflix-style labels such as `me`, `mom`, `dad`, or `tom`.
 - Profiles do not have their own API keys or bearer tokens.
 - Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
-- Shared account-level settings and secrets include addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+- Shared account-level settings and secrets include addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
 - Profile-personal data includes profile settings, watch history, continue watching, ratings, watchlist, tracked series, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl connections remain per-profile.
 - Internal and external privileged consumers should treat the account as the owning identity and use profile ids only to select which profile's personal experience data to read or write.
@@ -99,18 +99,16 @@ Redis backs BullMQ and cached API surfaces such as home and calendar.
 
 ## Auth envs
 
-When Supabase is the external auth provider, these values normally line up like this:
+When Supabase is the external auth provider, configure the backend with the project base URL and a server-only secret key:
 
 ```env
-AUTH_JWT_ISSUER=https://<project-ref>.supabase.co/auth/v1
-AUTH_ADMIN_URL=https://<project-ref>.supabase.co/auth/v1
-AUTH_JWKS_URL=https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_URL=https://<project-ref>.supabase.co
 AUTH_JWT_AUDIENCE=authenticated
-AUTH_ADMIN_TOKEN=<service_role key>
+SUPABASE_SECRET_KEY=<sb_secret key>
 ```
 
-- `AUTH_JWT_ISSUER` and `AUTH_ADMIN_URL` usually share the same base URL.
-- `AUTH_ADMIN_TOKEN` is the Supabase `service_role` key.
+- The backend derives the JWT issuer, JWKS URL, and auth admin URL from `SUPABASE_URL`.
+- `SUPABASE_SECRET_KEY` must be a server-only secret key. Do not use a publishable or anon key.
 
 ## Endpoint rules
 
@@ -137,9 +135,12 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `GET /v1/me` - current account summary, account settings flags, and profiles
 - `GET /v1/account/settings` - account-shared settings
 - `PATCH /v1/account/settings` - update account-shared settings such as addons
-- `GET /v1/account/secrets/openrouter-key` - read account OpenRouter key
-- `PUT /v1/account/secrets/openrouter-key` - set account OpenRouter key
-- `DELETE /v1/account/secrets/openrouter-key` - delete account OpenRouter key
+- `GET /v1/account/secrets/ai-api-key` - read account AI API key
+- `PUT /v1/account/secrets/ai-api-key` - set account AI API key
+- `DELETE /v1/account/secrets/ai-api-key` - delete account AI API key
+- `GET /v1/account/secrets/openrouter-key` - legacy alias for the account AI API key
+- `PUT /v1/account/secrets/openrouter-key` - legacy alias for setting the account AI API key
+- `DELETE /v1/account/secrets/openrouter-key` - legacy alias for deleting the account AI API key
 - `GET /v1/account/secrets/omdb-api-key` - read account OMDb key
 - `PUT /v1/account/secrets/omdb-api-key` - set account OMDb key
 - `DELETE /v1/account/secrets/omdb-api-key` - delete account OMDb key
@@ -271,7 +272,8 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - write taste profile under the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - write recommendations under the owning account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/openrouter-key` - read account-shared OpenRouter key after confirming the profile belongs to the account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/ai-api-key` - read account-shared AI API key after confirming the profile belongs to the account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/openrouter-key` - legacy alias for the account-shared AI API key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/omdb-api-key` - read account-shared OMDb key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/connection` - provider connection summary after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/token-status` - provider token status after confirming the profile belongs to the account
@@ -294,7 +296,7 @@ Internal and admin continue-watching responses expose the same item `id` field a
 ## Current product-scoping rules
 
 - Ownership root: the signed-in account owns the profile group; profiles are child personas under that account.
-- Account-shared: addons, OpenRouter key, OMDb key, PATs, account deletion, and profile roster management.
+- Account-shared: addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
 - Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
 - Profile-targeted paths select which persona under the account is being addressed; they are not separate logins or separate API clients.
 - Some internals still use older ownership plumbing. That is an implementation detail pending cleanup, not the intended product contract.

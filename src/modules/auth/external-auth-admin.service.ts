@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 
 export class ExternalAuthAdminService {
   isConfigured(): boolean {
-    return Boolean(env.authAdminUrl && env.authAdminToken);
+    return Boolean(env.authAdminUrl && env.supabaseSecretKey);
   }
 
   async deleteUser(authSubject: string): Promise<boolean> {
@@ -14,8 +14,8 @@ export class ExternalAuthAdminService {
     const response = await fetch(`${env.authAdminUrl.replace(/\/$/, '')}/admin/users/${encodeURIComponent(authSubject)}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${env.authAdminToken}`,
-        apikey: env.authAdminToken,
+        Authorization: `Bearer ${env.supabaseSecretKey}`,
+        apikey: env.supabaseSecretKey,
       },
     });
 

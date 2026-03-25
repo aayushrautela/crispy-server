@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { env } from '../../config/env.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
 import { mapProfileView } from '../../modules/profiles/profile.views.js';
@@ -11,7 +12,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const baseSettings = await accountSettingsService.getSettings(actor.appUserId);
-    const hasOpenRouterKey = await accountSettingsService.getOpenRouterKeyForUser(actor.appUserId)
+    const hasAiApiKey = await accountSettingsService.getAiApiKeyForUser(actor.appUserId)
       .then(() => true)
       .catch(() => false);
     const hasOmdbApiKey = await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId)
@@ -25,8 +26,10 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
         email: auth.email,
       },
       accountSettings: mergeAccountScopedSettings(baseSettings, {
-        hasOpenRouterKey,
+        hasOpenRouterKey: hasAiApiKey,
+        hasAiApiKey,
         hasOmdbApiKey,
+        aiEndpointUrl: env.aiEndpointUrl,
       }),
       profiles: profiles.map((profile) => mapProfileView(profile)),
     };

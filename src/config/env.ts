@@ -40,6 +40,13 @@ function parseNumber(name: string, fallback: number): number {
   return parsed;
 }
 
+function requireBaseUrl(name: string): string {
+  return requireEnv(name).replace(/\/+$/, '');
+}
+
+const supabaseUrl = requireBaseUrl('SUPABASE_URL');
+const supabaseAuthBaseUrl = `${supabaseUrl}/auth/v1`;
+
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
   serverHost: process.env.SERVER_HOST?.trim() || '0.0.0.0',
@@ -49,11 +56,12 @@ export const env = {
   adminUiPassword: optionalEnv('ADMIN_UI_PASSWORD') ?? '',
   databaseUrl: requireEnv('DATABASE_URL'),
   redisUrl: requireEnv('REDIS_URL'),
-  authJwksUrl: requireEnv('AUTH_JWKS_URL'),
-  authJwtIssuer: requireEnv('AUTH_JWT_ISSUER'),
+  supabaseUrl,
+  supabaseSecretKey: optionalEnv('SUPABASE_SECRET_KEY') ?? '',
+  authJwksUrl: `${supabaseAuthBaseUrl}/.well-known/jwks.json`,
+  authJwtIssuer: supabaseAuthBaseUrl,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
-  authAdminUrl: optionalEnv('AUTH_ADMIN_URL') ?? '',
-  authAdminToken: optionalEnv('AUTH_ADMIN_TOKEN') ?? '',
+  authAdminUrl: supabaseAuthBaseUrl,
   defaultProfileGroupName: process.env.DEFAULT_PROFILE_GROUP_NAME?.trim() || 'Crispy Profile Group',
   defaultProfileName: process.env.DEFAULT_PROFILE_NAME?.trim() || 'Main',
   homeCacheTtlSeconds: parseNumber('HOME_CACHE_TTL_SECONDS', 120),
@@ -64,10 +72,11 @@ export const env = {
   tmdbMovieTtlHours: parseNumber('TMDB_MOVIE_TTL_HOURS', 168),
   tmdbShowTtlHours: parseNumber('TMDB_SHOW_TTL_HOURS', 24),
   tmdbSeasonTtlHours: parseNumber('TMDB_SEASON_TTL_HOURS', 24),
-  aiSearchOpenrouterModel: process.env.AI_SEARCH_OPENROUTER_MODEL?.trim() || 'arcee-ai/trinity-large-preview:free',
-  aiInsightsOpenrouterModel: process.env.AI_INSIGHTS_OPENROUTER_MODEL?.trim() || '',
-  openrouterHttpReferer: process.env.OPENROUTER_HTTP_REFERER?.trim() || 'https://crispy-app.com',
-  openrouterTitle: process.env.OPENROUTER_TITLE?.trim() || 'Crispy Rewrite',
+  aiSearchModel: optionalEnv('AI_SEARCH_MODEL') ?? optionalEnv('AI_SEARCH_OPENROUTER_MODEL') ?? 'gpt-4o-mini',
+  aiInsightsModel: optionalEnv('AI_INSIGHTS_MODEL') ?? optionalEnv('AI_INSIGHTS_OPENROUTER_MODEL') ?? '',
+  aiEndpointUrl: optionalEnv('AI_ENDPOINT_URL') ?? 'https://api.openai.com/v1/chat/completions',
+  aiHttpReferer: optionalEnv('AI_HTTP_REFERER') ?? optionalEnv('OPENROUTER_HTTP_REFERER') ?? '',
+  aiTitle: optionalEnv('AI_TITLE') ?? optionalEnv('OPENROUTER_TITLE') ?? '',
   traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
   traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',
   traktImportRedirectUri: process.env.TRAKT_IMPORT_REDIRECT_URI?.trim() || '',

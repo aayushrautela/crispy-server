@@ -7,8 +7,7 @@ function seedTestEnv(): void {
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ??= 'postgres://test:test@127.0.0.1:5432/test';
   process.env.REDIS_URL ??= 'redis://127.0.0.1:6379/0';
-  process.env.AUTH_JWKS_URL ??= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
-  process.env.AUTH_JWT_ISSUER ??= 'https://example.supabase.co/auth/v1';
+  process.env.SUPABASE_URL ??= 'https://example.supabase.co';
   process.env.AUTH_JWT_AUDIENCE ??= 'authenticated';
   process.env.TMDB_API_KEY ??= 'tmdb-test-key';
   process.env.SERVICE_CLIENTS_JSON ??= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
@@ -166,6 +165,90 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   });
   assert.equal(playbackResponse.statusCode, 200);
   assert.equal(playbackResponse.json().input.id, 'crisp:movie:55');
+});
+
+test('account routes expose AI endpoint metadata and AI API key aliases', async (t) => {
+  const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
+  const { ProfileService } = await import('../../modules/profiles/profile.service.js');
+
+  const originalGetSettings = AccountSettingsService.prototype.getSettings;
+  const originalGetAiApiKeyForUser = AccountSettingsService.prototype.getAiApiKeyForUser;
+  const originalSetAiApiKeyForUser = AccountSettingsService.prototype.setAiApiKeyForUser;
+  const originalClearAiApiKeyForUser = AccountSettingsService.prototype.clearAiApiKeyForUser;
+  const originalGetOmdbApiKeyForUser = AccountSettingsService.prototype.getOmdbApiKeyForUser;
+  const originalListForAccount = ProfileService.prototype.listForAccount;
+
+  t.after(() => {
+    AccountSettingsService.prototype.getSettings = originalGetSettings;
+    AccountSettingsService.prototype.getAiApiKeyForUser = originalGetAiApiKeyForUser;
+    AccountSettingsService.prototype.setAiApiKeyForUser = originalSetAiApiKeyForUser;
+    AccountSettingsService.prototype.clearAiApiKeyForUser = originalClearAiApiKeyForUser;
+    AccountSettingsService.prototype.getOmdbApiKeyForUser = originalGetOmdbApiKeyForUser;
+    ProfileService.prototype.listForAccount = originalListForAccount;
+  });
+
+  AccountSettingsService.prototype.getSettings = async function () {
+    return { addons: { trakt: true } } as never;
+  };
+  AccountSettingsService.prototype.getAiApiKeyForUser = async function (userId) {
+    return { appUserId: userId, key: 'ai.openrouter_key', value: 'ai-key' } as never;
+  };
+  AccountSettingsService.prototype.setAiApiKeyForUser = async function (userId, value) {
+    return { appUserId: userId, key: 'ai.openrouter_key', value } as never;
+  };
+  AccountSettingsService.prototype.clearAiApiKeyForUser = async function () {
+    return true;
+  };
+  AccountSettingsService.prototype.getOmdbApiKeyForUser = async function (userId) {
+    return { appUserId: userId, key: 'metadata.omdb_api_key', value: 'omdb-key' } as never;
+  };
+  ProfileService.prototype.listForAccount = async function () {
+    return [] as never;
+  };
+
+  const { registerAccountRoutes } = await import('./account.js');
+  const { registerMeRoutes } = await import('./me.js');
+  const accountApp = await buildRouteTestApp(registerAccountRoutes);
+  const meApp = await buildRouteTestApp(registerMeRoutes);
+
+  t.after(async () => {
+    await accountApp.close();
+    await meApp.close();
+  });
+
+  const settingsResponse = await accountApp.inject({
+    method: 'GET',
+    url: '/v1/account/settings',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(settingsResponse.statusCode, 200);
+  assert.equal(settingsResponse.json().settings.ai.hasAiApiKey, true);
+  assert.equal(settingsResponse.json().settings.ai.hasOpenRouterKey, true);
+  assert.equal(settingsResponse.json().settings.ai.endpointUrl, 'https://api.openai.com/v1/chat/completions');
+
+  const aiSecretResponse = await accountApp.inject({
+    method: 'GET',
+    url: '/v1/account/secrets/ai-api-key',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(aiSecretResponse.statusCode, 200);
+  assert.equal(aiSecretResponse.json().secret.value, 'ai-key');
+
+  const legacySecretResponse = await accountApp.inject({
+    method: 'GET',
+    url: '/v1/account/secrets/openrouter-key',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(legacySecretResponse.statusCode, 200);
+  assert.equal(legacySecretResponse.json().secret.value, 'ai-key');
+
+  const meResponse = await meApp.inject({
+    method: 'GET',
+    url: '/v1/me',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(meResponse.statusCode, 200);
+  assert.equal(meResponse.json().accountSettings.ai.endpointUrl, 'https://api.openai.com/v1/chat/completions');
 });
 
 test('watch routes expose continue-watching ids and forward dismiss params', async (t) => {

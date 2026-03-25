@@ -6,8 +6,7 @@ function seedTestEnv(): void {
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
   process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
-  process.env.AUTH_JWKS_URL ||= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
-  process.env.AUTH_JWT_ISSUER ||= 'https://example.supabase.co/auth/v1';
+  process.env.SUPABASE_URL ||= 'https://example.supabase.co';
   process.env.AUTH_JWT_AUDIENCE ||= 'authenticated';
   process.env.TMDB_API_KEY ||= 'tmdb-key';
   process.env.SERVICE_CLIENTS_JSON ||= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
@@ -75,4 +74,28 @@ test('getSecretForAccountProfile rejects missing account secret', async () => {
     assert.equal(error.message, 'Account secret not found.');
     return true;
   });
+});
+
+test('mergeAccountScopedSettings includes AI endpoint metadata', async () => {
+  seedTestEnv();
+  const { mergeAccountScopedSettings } = await import('./account-settings.service.js');
+
+  assert.deepEqual(
+    mergeAccountScopedSettings({}, {
+      hasAiApiKey: true,
+      hasOpenRouterKey: true,
+      hasOmdbApiKey: false,
+      aiEndpointUrl: 'https://example.com/v1/chat/completions',
+    }),
+    {
+      ai: {
+        hasAiApiKey: true,
+        hasOpenRouterKey: true,
+        endpointUrl: 'https://example.com/v1/chat/completions',
+      },
+      metadata: {
+        hasOmdbApiKey: false,
+      },
+    },
+  );
 });

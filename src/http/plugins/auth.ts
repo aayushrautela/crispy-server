@@ -43,7 +43,13 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
-    const payload = await verifyAuthJwt(token);
+    let payload;
+    try {
+      payload = await verifyAuthJwt(token);
+    } catch {
+      throw new HttpError(401, 'Invalid bearer token.');
+    }
+
     const auth = await userService.ensureAppUser({
       authSubject: payload.sub,
       email: typeof payload.email === 'string' ? payload.email : null,

@@ -6,8 +6,7 @@ function seedTestEnv(): void {
   process.env.NODE_ENV ??= 'test';
   process.env.DATABASE_URL ??= 'postgres://test:test@127.0.0.1:5432/test';
   process.env.REDIS_URL ??= 'redis://127.0.0.1:6379/0';
-  process.env.AUTH_JWKS_URL ??= 'https://example.supabase.co/auth/v1/.well-known/jwks.json';
-  process.env.AUTH_JWT_ISSUER ??= 'https://example.supabase.co/auth/v1';
+  process.env.SUPABASE_URL ??= 'https://example.supabase.co';
   process.env.AUTH_JWT_AUDIENCE ??= 'authenticated';
   process.env.TMDB_API_KEY ??= 'tmdb-test-key';
   process.env.SERVICE_CLIENTS_JSON ??= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
@@ -43,6 +42,25 @@ test('getOpenRouterKeyForAccountProfile returns allowed key', async () => {
     appUserId: 'user-1',
     key: 'ai.openrouter_key',
     value: 'openrouter-secret',
+  });
+});
+
+test('getAiApiKeyForAccountProfile aliases the account AI key lookup', async () => {
+  const { ProfileSecretAccessService } = await loadService();
+  const service = new ProfileSecretAccessService(
+    {
+      getSecretForAccountProfile: async () => ({ appUserId: 'user-1', key: 'ai.openrouter_key', value: 'ai-secret' }),
+    } as never,
+    {
+      findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
+    } as never,
+    async (work) => work({} as never),
+  );
+
+  assert.deepEqual(await service.getAiApiKeyForAccountProfile('account-1', 'profile-1'), {
+    appUserId: 'user-1',
+    key: 'ai.openrouter_key',
+    value: 'ai-secret',
   });
 });
 
