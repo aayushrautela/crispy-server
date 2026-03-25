@@ -1,9 +1,12 @@
 import Fastify from 'fastify';
 import { loggerOptions } from '../config/logger.js';
+import adminUiAuthPlugin from './plugins/admin-ui-auth.js';
 import authPlugin from './plugins/auth.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
 import serviceAuthPlugin from './plugins/service-auth.js';
 import { registerAccountRoutes } from './routes/account.js';
+import { registerAdminApiRoutes } from './routes/admin-api.js';
+import { registerAdminUiRoutes } from './routes/admin-ui.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
@@ -12,9 +15,8 @@ import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerInternalAdminImportRoutes } from './routes/internal-admin-imports.js';
+import { registerInternalAccountRoutes } from './routes/internal-accounts.js';
 import { registerInternalAdminRecommendationRoutes } from './routes/internal-admin-recommendations.js';
-import { registerInternalProfileSecretRoutes } from './routes/internal-profile-secrets.js';
-import { registerInternalProviderAuthRoutes } from './routes/internal-provider-auth.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
@@ -39,10 +41,13 @@ export async function buildApp() {
   });
 
   await app.register(errorHandlerPlugin);
+  await app.register(adminUiAuthPlugin);
   await app.register(authPlugin);
   await app.register(serviceAuthPlugin);
 
   await registerHealthRoutes(app);
+  await registerAdminUiRoutes(app);
+  await registerAdminApiRoutes(app);
   await registerAccountRoutes(app);
   await registerAiRoutes(app);
   await registerMeRoutes(app);
@@ -54,8 +59,7 @@ export async function buildApp() {
   await registerRecommendationDataRoutes(app);
   await registerRecommendationOutputRoutes(app);
   await registerRecommendationWorkRoutes(app);
-  await registerInternalProfileSecretRoutes(app);
-  await registerInternalProviderAuthRoutes(app);
+  await registerInternalAccountRoutes(app);
   await registerInternalAdminRecommendationRoutes(app);
   await registerInternalAdminImportRoutes(app);
   await registerHomeRoutes(app);

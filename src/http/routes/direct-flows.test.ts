@@ -151,11 +151,15 @@ test('library routes forward source and limit to service', async (t) => {
   const originalGetProfileLibrary = LibraryService.prototype.getProfileLibrary;
   const originalRequireOwnedProfile = LibraryService.prototype.requireOwnedProfile;
   const originalGetProviderAuthState = LibraryService.prototype.getProviderAuthState;
+  const originalSetWatchlist = LibraryService.prototype.setWatchlist;
+  const originalSetRating = LibraryService.prototype.setRating;
 
   t.after(() => {
     LibraryService.prototype.getProfileLibrary = originalGetProfileLibrary;
     LibraryService.prototype.requireOwnedProfile = originalRequireOwnedProfile;
     LibraryService.prototype.getProviderAuthState = originalGetProviderAuthState;
+    LibraryService.prototype.setWatchlist = originalSetWatchlist;
+    LibraryService.prototype.setRating = originalSetRating;
   });
 
   LibraryService.prototype.getProfileLibrary = async function (userId, profileId, options) {
@@ -171,8 +175,32 @@ test('library routes forward source and limit to service', async (t) => {
   };
 
   LibraryService.prototype.requireOwnedProfile = async function () {};
-  LibraryService.prototype.getProviderAuthState = async function (profileId) {
+  LibraryService.prototype.getProviderAuthState = async function (_accountId, profileId) {
     return [{ provider: 'trakt', connected: true, status: 'connected', tokenState: 'valid', externalUsername: profileId, lastImportCompletedAt: null, lastUsedAt: null, message: null }] as never;
+  };
+  LibraryService.prototype.setWatchlist = async function (_userId, _profileId, input) {
+    return {
+      source: input.source ?? 'all',
+      action: 'watchlist',
+      watchlist: input.inWatchlist,
+      rating: null,
+      media: { id: input.id ?? input.imdbId ?? 'fallback' },
+      results: [],
+      statusMessage: 'Saved to watchlist.',
+      input,
+    } as never;
+  };
+  LibraryService.prototype.setRating = async function (_userId, _profileId, input) {
+    return {
+      source: input.source ?? 'all',
+      action: 'rating',
+      watchlist: null,
+      rating: input.rating,
+      media: { id: input.id ?? input.imdbId ?? 'fallback' },
+      results: [],
+      statusMessage: 'Rated 8/10.',
+      input,
+    } as never;
   };
 
   const { registerLibraryRoutes } = await import('./library.js');
@@ -198,6 +226,37 @@ test('library routes forward source and limit to service', async (t) => {
   });
   assert.equal(authStateResponse.statusCode, 200);
   assert.equal(authStateResponse.json().providers[0].externalUsername, 'profile-1');
+
+  const watchlistResponse = await app.inject({
+    method: 'POST',
+    url: '/v1/profiles/profile-1/library/watchlist',
+    headers: { authorization: 'Bearer test' },
+    payload: {
+      source: 'simkl',
+      inWatchlist: true,
+      imdbId: 'tt1234567',
+      mediaType: 'movie',
+    },
+  });
+  assert.equal(watchlistResponse.statusCode, 200);
+  assert.equal(watchlistResponse.json().source, 'simkl');
+  assert.equal(watchlistResponse.json().input.imdbId, 'tt1234567');
+  assert.equal(watchlistResponse.json().input.inWatchlist, true);
+
+  const ratingResponse = await app.inject({
+    method: 'POST',
+    url: '/v1/profiles/profile-1/library/rating',
+    headers: { authorization: 'Bearer test' },
+    payload: {
+      source: 'trakt',
+      rating: 8,
+      id: 'crisp:movie:12',
+    },
+  });
+  assert.equal(ratingResponse.statusCode, 200);
+  assert.equal(ratingResponse.json().source, 'trakt');
+  assert.equal(ratingResponse.json().input.id, 'crisp:movie:12');
+  assert.equal(ratingResponse.json().input.rating, 8);
 });
 
 test('library route rejects invalid source', async (t) => {

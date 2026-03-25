@@ -25,6 +25,20 @@ export class UserRepository {
     return result.rows[0] ? mapUserRow(result.rows[0]) : null;
   }
 
+  async listByEmail(client: DbClient, email: string): Promise<AppUser[]> {
+    const normalizedEmail = email.trim();
+    const result = await client.query(
+      `
+        SELECT id, auth_subject, email, created_at, updated_at, last_seen_at
+        FROM app_users
+        WHERE lower(email) = lower($1)
+        ORDER BY last_seen_at DESC, updated_at DESC, created_at DESC
+      `,
+      [normalizedEmail],
+    );
+    return result.rows.map((row) => mapUserRow(row));
+  }
+
   async findByAuthSubject(client: DbClient, authSubject: string): Promise<AppUser | null> {
     const result = await client.query(
       `

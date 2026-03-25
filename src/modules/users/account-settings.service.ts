@@ -56,14 +56,6 @@ export class AccountSettingsService {
     return this.clearSecretForUser(userId, 'metadata.omdb_api_key');
   }
 
-  async getOpenRouterKeyForProfile(profileId: string): Promise<AccountSecretValue> {
-    return this.getSecretForProfile(profileId, 'ai.openrouter_key');
-  }
-
-  async getOmdbApiKeyForProfile(profileId: string): Promise<AccountSecretValue> {
-    return this.getSecretForProfile(profileId, 'metadata.omdb_api_key');
-  }
-
   async getSecretForUser(userId: string, field: string): Promise<AccountSecretValue> {
     return this.runInTransaction(async (client) => {
       const secretField = normalizeSecretField(field);
@@ -97,26 +89,21 @@ export class AccountSettingsService {
     return this.runInTransaction((client) => this.accountSettingsRepository.deleteSecretForUser(client, userId, secretField));
   }
 
-  async getSecretForProfile(profileId: string, field: string): Promise<AccountSecretValue> {
+  async getSecretForAccountProfile(accountId: string, profileId: string, field: string): Promise<AccountSecretValue> {
     return this.runInTransaction(async (client) => {
       const secretField = normalizeSecretField(field);
-      const profile = await this.profileRepository.findById(client, profileId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
       if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
+        throw new HttpError(404, 'Profile not found for account.');
       }
 
-      const appUserId = await this.profileRepository.findOwnerUserIdById(client, profileId);
-      if (!appUserId) {
-        throw new HttpError(409, 'Profile account not found.');
-      }
-
-      const value = await this.accountSettingsRepository.getSecretForUser(client, appUserId, secretField);
+      const value = await this.accountSettingsRepository.getSecretForUser(client, accountId, secretField);
       if (!value) {
         throw new HttpError(404, 'Account secret not found.');
       }
 
       return {
-        appUserId,
+        appUserId: accountId,
         key: secretField,
         value,
       } satisfies AccountSecretValue;

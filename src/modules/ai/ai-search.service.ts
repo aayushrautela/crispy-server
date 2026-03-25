@@ -47,7 +47,7 @@ export class AiSearchService {
     }
 
     const openRouterKey = await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }

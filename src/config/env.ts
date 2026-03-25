@@ -33,6 +33,8 @@ export const env = {
   serverHost: process.env.SERVER_HOST?.trim() || '0.0.0.0',
   serverPort: parseNumber('SERVER_PORT', 18765),
   logLevel: process.env.LOG_LEVEL?.trim() || 'info',
+  adminUiUser: optionalEnv('ADMIN_UI_USER') ?? '',
+  adminUiPassword: optionalEnv('ADMIN_UI_PASSWORD') ?? '',
   databaseUrl: requireEnv('DATABASE_URL'),
   redisUrl: requireEnv('REDIS_URL'),
   authJwksUrl: requireEnv('AUTH_JWKS_URL'),
@@ -60,6 +62,8 @@ export const env = {
   simklImportClientId: process.env.SIMKL_IMPORT_CLIENT_ID?.trim() || '',
   simklImportClientSecret: process.env.SIMKL_IMPORT_CLIENT_SECRET?.trim() || '',
   simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
+  recommendationEngineWorkerBaseUrl: optionalEnv('RECOMMENDATION_ENGINE_WORKER_BASE_URL') ?? '',
+  recommendationEngineWorkerApiKey: optionalEnv('RECOMMENDATION_ENGINE_WORKER_API_KEY') ?? '',
   serviceClients: parseServiceClientRegistryConfig(requireEnv('SERVICE_CLIENTS_JSON')),
 };
 

@@ -72,7 +72,7 @@ export class ProviderImportService {
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
     assertProviderEnabled(provider);
     const started = await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -247,7 +247,7 @@ export class ProviderImportService {
 
   async listJobs(userId: string, profileId: string): Promise<{ jobs: ProviderImportJobRecord[]; watchDataState: ProfileWatchDataStateRecord | null }> {
     return withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -266,7 +266,7 @@ export class ProviderImportService {
     profileId: string,
   ): Promise<{ connections: ProviderImportConnectionView[]; watchDataState: ProfileWatchDataStateRecord | null }> {
     return withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -291,7 +291,7 @@ export class ProviderImportService {
     assertProviderEnabled(provider);
 
     const disconnected = await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -321,7 +321,7 @@ export class ProviderImportService {
 
   async getJob(userId: string, profileId: string, jobId: string): Promise<ProviderImportJobRecord> {
     return withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }

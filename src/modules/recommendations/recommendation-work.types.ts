@@ -1,6 +1,7 @@
 export type RecommendationWorkItem = {
   consumerId: string;
   sourceKey: string;
+  accountId: string;
   profileId: string;
   leaseId: string;
   leaseExpiresAt: string;

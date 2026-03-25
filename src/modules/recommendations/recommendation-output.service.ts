@@ -50,33 +50,25 @@ export class RecommendationOutputService {
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
   ) {}
 
-  async listTasteProfilesForUser(userId: string, profileId: string): Promise<TasteProfilePayload[]> {
+  async listTasteProfilesForAccount(accountId: string, profileId: string): Promise<TasteProfilePayload[]> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.tasteProfileRepository.listForProfile(client, profileId);
       return rows.map((row) => mapTasteProfile(row));
     });
   }
 
-  async getTasteProfileForUser(userId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
+  async getTasteProfileForAccount(accountId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const row = await this.tasteProfileRepository.findByProfileAndSourceKey(client, profileId, sourceKey);
       return row ? mapTasteProfile(row) : null;
     });
   }
 
-  async getTasteProfileForService(profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
+  async upsertTasteProfileForAccount(accountId: string, profileId: string, input: RecommendationTasteProfileInput): Promise<TasteProfilePayload> {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      const row = await this.tasteProfileRepository.findByProfileAndSourceKey(client, profileId, sourceKey);
-      return row ? mapTasteProfile(row) : null;
-    });
-  }
-
-  async upsertTasteProfileForUser(userId: string, profileId: string, input: RecommendationTasteProfileInput): Promise<TasteProfilePayload> {
-    return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const row = await this.tasteProfileRepository.upsert(client, {
         profileId,
         sourceKey: input.sourceKey,
@@ -90,17 +82,30 @@ export class RecommendationOutputService {
         aiSummary: input.aiSummary,
         source: input.source,
         updatedByKind: 'user',
-        updatedById: userId,
+        updatedById: accountId,
       });
       return mapTasteProfile(row);
     });
   }
 
-  async upsertTasteProfileForService(profileId: string, input: RecommendationTasteProfileInput & { updatedById?: string | null }): Promise<TasteProfilePayload> {
+
+  async getTasteProfileForAccountService(accountId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
+      const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
+      const row = await this.tasteProfileRepository.findByProfileAndSourceKey(client, targetProfileId, sourceKey);
+      return row ? mapTasteProfile(row) : null;
+    });
+  }
+
+  async upsertTasteProfileForAccountService(
+    accountId: string,
+    profileId: string,
+    input: RecommendationTasteProfileInput & { updatedById?: string | null },
+  ): Promise<TasteProfilePayload> {
+    return withTransaction(async (client) => {
+      const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
       const row = await this.tasteProfileRepository.upsert(client, {
-        profileId,
+        profileId: targetProfileId,
         sourceKey: input.sourceKey,
         genres: input.genres,
         preferredActors: input.preferredActors,
@@ -118,33 +123,35 @@ export class RecommendationOutputService {
     });
   }
 
-  async listRecommendationsForUser(userId: string, profileId: string): Promise<RecommendationSnapshotPayload[]> {
+  async listRecommendationsForAccount(accountId: string, profileId: string): Promise<RecommendationSnapshotPayload[]> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.snapshotsRepository.listForProfile(client, profileId);
       return Promise.all(rows.map((row) => this.mapRecommendationSnapshot(client, row)));
     });
   }
 
-  async getRecommendationsForUser(userId: string, profileId: string, sourceKey: string, algorithmVersion: string): Promise<RecommendationSnapshotPayload | null> {
+  async getRecommendationsForAccount(
+    accountId: string,
+    profileId: string,
+    sourceKey: string,
+    algorithmVersion: string,
+  ): Promise<RecommendationSnapshotPayload | null> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const row = await this.snapshotsRepository.findByProfileSourceAndAlgorithm(client, profileId, sourceKey, algorithmVersion);
       return row ? this.mapRecommendationSnapshot(client, row) : null;
     });
   }
 
-  async getRecommendationsForService(profileId: string, sourceKey: string, algorithmVersion: string): Promise<RecommendationSnapshotPayload | null> {
-    return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      const row = await this.snapshotsRepository.findByProfileSourceAndAlgorithm(client, profileId, sourceKey, algorithmVersion);
-      return row ? this.mapRecommendationSnapshot(client, row) : null;
-    });
-  }
 
-  async upsertRecommendationsForUser(userId: string, profileId: string, input: RecommendationSnapshotInput): Promise<RecommendationSnapshotPayload> {
+  async upsertRecommendationsForAccount(
+    accountId: string,
+    profileId: string,
+    input: RecommendationSnapshotInput,
+  ): Promise<RecommendationSnapshotPayload> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const row = await this.snapshotsRepository.upsert(client, {
         profileId,
         sourceKey: input.sourceKey,
@@ -156,17 +163,35 @@ export class RecommendationOutputService {
         items: input.sections,
         source: input.source,
         updatedByKind: 'user',
-        updatedById: userId,
+        updatedById: accountId,
       });
       return this.mapRecommendationSnapshot(client, row);
     });
   }
 
-  async upsertRecommendationsForService(profileId: string, input: RecommendationSnapshotInput): Promise<RecommendationSnapshotPayload> {
+
+  async getRecommendationsForAccountService(
+    accountId: string,
+    profileId: string,
+    sourceKey: string,
+    algorithmVersion: string,
+  ): Promise<RecommendationSnapshotPayload | null> {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
+      const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
+      const row = await this.snapshotsRepository.findByProfileSourceAndAlgorithm(client, targetProfileId, sourceKey, algorithmVersion);
+      return row ? this.mapRecommendationSnapshot(client, row) : null;
+    });
+  }
+
+  async upsertRecommendationsForAccountService(
+    accountId: string,
+    profileId: string,
+    input: RecommendationSnapshotInput,
+  ): Promise<RecommendationSnapshotPayload> {
+    return withTransaction(async (client) => {
+      const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
       const row = await this.snapshotsRepository.upsert(client, {
-        profileId,
+        profileId: targetProfileId,
         sourceKey: input.sourceKey,
         historyGeneration: input.historyGeneration,
         algorithmVersion: input.algorithmVersion,
@@ -182,24 +207,28 @@ export class RecommendationOutputService {
     });
   }
 
-  async getActiveSourceKeyForUser(userId: string, profileId: string): Promise<string | null> {
+  async getActiveSourceKeyForAccount(accountId: string, profileId: string): Promise<string | null> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       return this.profileSettingsRepository.getActiveRecommenderSource(profileId, client);
     });
   }
 
-  async setActiveSourceKeyForUser(userId: string, profileId: string, sourceKey: string): Promise<string> {
+  async setActiveSourceKeyForAccount(accountId: string, profileId: string, sourceKey: string): Promise<string> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       await this.profileSettingsRepository.setActiveRecommenderSource(client, profileId, sourceKey);
       return sourceKey;
     });
   }
 
-  async getActiveRecommendationForUser(userId: string, profileId: string, algorithmVersion: string): Promise<RecommendationSnapshotPayload | null> {
+  async getActiveRecommendationForAccount(
+    accountId: string,
+    profileId: string,
+    algorithmVersion: string,
+  ): Promise<RecommendationSnapshotPayload | null> {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const sourceKey = await this.profileSettingsRepository.getActiveRecommenderSource(profileId, client);
       if (!sourceKey) {
         return null;
@@ -214,18 +243,19 @@ export class RecommendationOutputService {
     await this.snapshotsRepository.clearForProfile(client, profileId);
   }
 
-  private async requireOwnedProfile(client: DbClient, userId: string, profileId: string): Promise<void> {
-    const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+  private async requireOwnedProfile(client: DbClient, accountId: string, profileId: string): Promise<void> {
+    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
     if (!profile) {
       throw new HttpError(404, 'Profile not found.');
     }
   }
 
-  private async requireExistingProfile(client: DbClient, profileId: string): Promise<void> {
-    const profile = await this.profileRepository.findById(client, profileId);
+  private async requireOwnedProfileForAccount(client: DbClient, accountId: string, profileId: string): Promise<string> {
+    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
     if (!profile) {
-      throw new HttpError(404, 'Profile not found.');
+      throw new HttpError(404, 'Profile not found for account.');
     }
+    return profile.id;
   }
 
   private async mapRecommendationSnapshot(client: DbClient, row: RecommendationSnapshotRecord): Promise<RecommendationSnapshotPayload> {

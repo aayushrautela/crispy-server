@@ -9,6 +9,8 @@ import { TrackedSeriesRepository } from '../watch/tracked-series.repo.js';
 import { WatchHistoryRepository } from '../watch/watch-history.repo.js';
 import { WatchlistRepository } from '../watch/watchlist.repo.js';
 
+export type RecommendationDataListKind = 'watch-history' | 'continue-watching' | 'watchlist' | 'ratings' | 'tracked-series';
+
 type ProfileSummary = {
   id: string;
   accountId: string | null;
@@ -30,25 +32,23 @@ export class RecommendationDataService {
     private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
   ) {}
 
-  async listOwnedProfiles(userId: string): Promise<ProfileSummary[]> {
+  async listAccountProfiles(accountId: string): Promise<ProfileSummary[]> {
     return withTransaction(async (client) => {
-      const profiles = await this.profileRepository.listForUser(client, userId);
+      const profiles = await this.profileRepository.listForOwnerUser(client, accountId);
       return Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile)));
     });
   }
 
-  async listAllProfiles(limit: number, offset: number): Promise<{ profiles: ProfileSummary[] }> {
+  async listAccountProfilesForService(accountId: string): Promise<ProfileSummary[]> {
     return withTransaction(async (client) => {
-      const profiles = await this.profileRepository.listAll(client, limit, offset);
-      return {
-        profiles: await Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile))),
-      };
+      const profiles = await this.profileRepository.listForOwnerUser(client, accountId);
+      return Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile)));
     });
   }
 
-  async getWatchHistoryForUser(userId: string, profileId: string, limit: number) {
+  async getWatchHistoryForAccount(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchHistoryRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
@@ -58,10 +58,10 @@ export class RecommendationDataService {
     });
   }
 
-  async getWatchHistoryForService(profileId: string, limit: number) {
+  async getWatchHistoryForAccountService(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      const rows = await this.watchHistoryRepository.list(client, profileId, limit);
+      const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
+      const rows = await this.watchHistoryRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
         watchedAt: String(row.watched_at),
@@ -70,9 +70,9 @@ export class RecommendationDataService {
     });
   }
 
-  async getContinueWatchingForUser(userId: string, profileId: string, limit: number) {
+  async getContinueWatchingForAccount(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.continueWatchingRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
@@ -88,10 +88,10 @@ export class RecommendationDataService {
     });
   }
 
-  async getContinueWatchingForService(profileId: string, limit: number) {
+  async getContinueWatchingForAccountService(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      const rows = await this.continueWatchingRepository.list(client, profileId, limit);
+      const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
+      const rows = await this.continueWatchingRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
         progress: {
@@ -106,9 +106,9 @@ export class RecommendationDataService {
     });
   }
 
-  async getWatchlistForUser(userId: string, profileId: string, limit: number) {
+  async getWatchlistForAccount(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchlistRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
@@ -118,10 +118,10 @@ export class RecommendationDataService {
     });
   }
 
-  async getWatchlistForService(profileId: string, limit: number) {
+  async getWatchlistForAccountService(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      const rows = await this.watchlistRepository.list(client, profileId, limit);
+      const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
+      const rows = await this.watchlistRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
         addedAt: String(row.added_at),
@@ -130,9 +130,9 @@ export class RecommendationDataService {
     });
   }
 
-  async getRatingsForUser(userId: string, profileId: string, limit: number) {
+  async getRatingsForAccount(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.ratingsRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
@@ -145,10 +145,10 @@ export class RecommendationDataService {
     });
   }
 
-  async getRatingsForService(profileId: string, limit: number) {
+  async getRatingsForAccountService(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      const rows = await this.ratingsRepository.list(client, profileId, limit);
+      const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
+      const rows = await this.ratingsRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
         rating: {
@@ -160,32 +160,33 @@ export class RecommendationDataService {
     });
   }
 
-  async getTrackedSeriesForUser(userId: string, profileId: string, limit: number) {
+  async getTrackedSeriesForAccount(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireOwnedProfile(client, userId, profileId);
+      await this.requireOwnedProfile(client, accountId, profileId);
       return this.loadTrackedSeries(client, profileId, limit);
     });
   }
 
-  async getTrackedSeriesForService(profileId: string, limit: number) {
+  async getTrackedSeriesForAccountService(accountId: string, profileId: string, limit: number) {
     return withTransaction(async (client) => {
-      await this.requireExistingProfile(client, profileId);
-      return this.loadTrackedSeries(client, profileId, limit);
+      const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
+      return this.loadTrackedSeries(client, targetProfileId, limit);
     });
   }
 
-  private async requireOwnedProfile(client: DbClient, userId: string, profileId: string): Promise<void> {
-    const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+  private async requireOwnedProfile(client: DbClient, accountId: string, profileId: string): Promise<void> {
+    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
     if (!profile) {
       throw new HttpError(404, 'Profile not found.');
     }
   }
 
-  private async requireExistingProfile(client: DbClient, profileId: string): Promise<void> {
-    const profile = await this.profileRepository.findById(client, profileId);
+  private async resolveOwnedProfileId(client: DbClient, accountId: string, profileId: string): Promise<string> {
+    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
     if (!profile) {
-      throw new HttpError(404, 'Profile not found.');
+      throw new HttpError(404, 'Profile not found for account.');
     }
+    return profile.id;
   }
 
   private async loadTrackedSeries(client: DbClient, profileId: string, limit: number) {

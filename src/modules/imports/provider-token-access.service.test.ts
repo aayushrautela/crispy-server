@@ -44,24 +44,24 @@ function createConnection(overrides: Partial<ProviderImportConnectionRecord> = {
   };
 }
 
-test('getConnection returns connected token metadata', async () => {
+test('getConnectionForAccountProfile returns connected token metadata', async () => {
   const { ProviderTokenAccessService } = await loadService();
   const connection = createConnection();
   const service = new ProviderTokenAccessService(
-    { findById: async () => ({ id: 'profile-1' }) } as never,
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     { findLatestConnectedForProfile: async () => connection } as never,
     { getRecommendedDelayMs: () => 30000 } as never,
     async (work) => work({} as never),
   );
 
-  const result = await service.getConnection('profile-1', 'trakt');
+  const result = await service.getConnectionForAccountProfile('account-1', 'profile-1', 'trakt');
   assert.equal(result.connectionId, 'connection-1');
   assert.equal(result.hasAccessToken, true);
   assert.equal(result.hasRefreshToken, true);
   assert.equal(result.recommendedRefreshDelayMs, 30000);
 });
 
-test('getAccessToken forces refresh and returns refreshed token', async () => {
+test('getAccessTokenForAccountProfile forces refresh and returns refreshed token', async () => {
   const { ProviderTokenAccessService } = await loadService();
   const initial = createConnection({
     credentialsJson: {
@@ -79,7 +79,7 @@ test('getAccessToken forces refresh and returns refreshed token', async () => {
   });
 
   const service = new ProviderTokenAccessService(
-    { findById: async () => ({ id: 'profile-1' }) } as never,
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     { findLatestConnectedForProfile: async () => initial } as never,
     {
       refreshConnection: async (_connection: ProviderImportConnectionRecord, options?: { force?: boolean }) => {
@@ -91,7 +91,7 @@ test('getAccessToken forces refresh and returns refreshed token', async () => {
     async (work) => work({} as never),
   );
 
-  const result = await service.getAccessToken('profile-1', 'trakt', { forceRefresh: true });
+  const result = await service.getAccessTokenForAccountProfile('account-1', 'profile-1', 'trakt', { forceRefresh: true });
   assert.deepEqual(result, {
     connectionId: 'connection-1',
     profileId: 'profile-1',
@@ -102,7 +102,7 @@ test('getAccessToken forces refresh and returns refreshed token', async () => {
   });
 });
 
-test('getTokenStatus reports expiring state', async () => {
+test('getTokenStatusForAccountProfile reports expiring state', async () => {
   const { ProviderTokenAccessService } = await loadService();
   const expiring = createConnection({
     credentialsJson: {
@@ -112,27 +112,27 @@ test('getTokenStatus reports expiring state', async () => {
     },
   });
   const service = new ProviderTokenAccessService(
-    { findById: async () => ({ id: 'profile-1' }) } as never,
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     { findLatestConnectedForProfile: async () => expiring } as never,
     { getRecommendedDelayMs: () => 30000 } as never,
     async (work) => work({} as never),
   );
 
-  const result = await service.getTokenStatus('profile-1', 'trakt');
+  const result = await service.getTokenStatusForAccountProfile('account-1', 'profile-1', 'trakt');
   assert.equal(result.tokenState, 'expiring');
   assert.equal(result.canRefresh, true);
 });
 
-test('getConnection rejects missing connection', async () => {
+test('getConnectionForAccountProfile rejects missing connection', async () => {
   const { ProviderTokenAccessService } = await loadService();
   const service = new ProviderTokenAccessService(
-    { findById: async () => ({ id: 'profile-1' }) } as never,
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     { findLatestConnectedForProfile: async () => null } as never,
     {} as never,
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getConnection('profile-1', 'trakt'), (error: unknown) => {
+  await assert.rejects(() => service.getConnectionForAccountProfile('account-1', 'profile-1', 'trakt'), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 404);
     assert.equal(error.message, 'Provider connection not found.');
@@ -140,10 +140,10 @@ test('getConnection rejects missing connection', async () => {
   });
 });
 
-test('getAccessToken maps refresh failures into stable internal errors', async () => {
+test('getAccessTokenForAccountProfile maps refresh failures into stable internal errors', async () => {
   const { ProviderTokenAccessService } = await loadService();
   const service = new ProviderTokenAccessService(
-    { findById: async () => ({ id: 'profile-1' }) } as never,
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     { findLatestConnectedForProfile: async () => createConnection() } as never,
     {
       refreshConnection: async () => {
@@ -154,7 +154,7 @@ test('getAccessToken maps refresh failures into stable internal errors', async (
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getAccessToken('profile-1', 'trakt', { forceRefresh: true }), (error: unknown) => {
+  await assert.rejects(() => service.getAccessTokenForAccountProfile('account-1', 'profile-1', 'trakt', { forceRefresh: true }), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 502);
     assert.equal(error.message, 'Provider access token refresh failed.');

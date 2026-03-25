@@ -27,7 +27,7 @@ test('patchSettings rejects account-scoped keys in profile settings payloads', a
   );
 });
 
-test('getSecretForProfile resolves account secret through profile owner', async () => {
+test('getSecretForAccountProfile resolves account secret through account-owned profile', async () => {
   seedTestEnv();
   const { AccountSettingsService } = await import('./account-settings.service.js');
   const service = new AccountSettingsService(
@@ -39,16 +39,16 @@ test('getSecretForProfile resolves account secret through profile owner', async 
       },
     } as never,
     {
-      findById: async (_client: unknown, profileId: string) => ({ id: profileId }),
-      findOwnerUserIdById: async (_client: unknown, profileId: string) => {
+      findByIdForOwnerUser: async (_client: unknown, profileId: string, accountId: string) => {
         assert.equal(profileId, 'profile-1');
-        return 'user-1';
+        assert.equal(accountId, 'user-1');
+        return { id: profileId };
       },
     } as never,
     async (work) => work({} as never),
   );
 
-  const result = await service.getOpenRouterKeyForProfile('profile-1');
+  const result = await service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.openrouter_key');
   assert.deepEqual(result, {
     appUserId: 'user-1',
     key: 'ai.openrouter_key',
@@ -56,7 +56,7 @@ test('getSecretForProfile resolves account secret through profile owner', async 
   });
 });
 
-test('getSecretForProfile rejects missing account secret', async () => {
+test('getSecretForAccountProfile rejects missing account secret', async () => {
   seedTestEnv();
   const { AccountSettingsService } = await import('./account-settings.service.js');
   const service = new AccountSettingsService(
@@ -64,13 +64,12 @@ test('getSecretForProfile rejects missing account secret', async () => {
       getSecretForUser: async () => null,
     } as never,
     {
-      findById: async () => ({ id: 'profile-1' }),
-      findOwnerUserIdById: async () => 'user-1',
+      findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
     } as never,
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getOpenRouterKeyForProfile('profile-1'), (error: unknown) => {
+  await assert.rejects(() => service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.openrouter_key'), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 404);
     assert.equal(error.message, 'Account secret not found.');

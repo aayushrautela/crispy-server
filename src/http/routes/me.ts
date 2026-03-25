@@ -18,7 +18,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
       .then(() => true)
       .catch(() => false);
     const auth = request.auth!;
-    const profiles = await profileService.listForUser(actor.appUserId);
+    const profiles = await profileService.listForAccount(actor.appUserId);
     return {
       user: {
         id: actor.appUserId,

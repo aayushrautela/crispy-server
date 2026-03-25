@@ -88,17 +88,17 @@ export class ProfileRepository {
       .filter((value): value is string => value !== null);
   }
 
-  async listForUser(client: DbClient, userId: string): Promise<ProfileRecord[]> {
+  async listForOwnerUser(client: DbClient, ownerUserId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT DISTINCT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order,
+        SELECT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order,
                p.created_by_user_id, p.created_at, p.updated_at
         FROM profiles p
-        INNER JOIN profile_group_members pgm ON pgm.profile_group_id = p.profile_group_id
-        WHERE pgm.user_id = $1::uuid
+        INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
+        WHERE pg.owner_user_id = $1::uuid
         ORDER BY p.sort_order ASC, p.created_at ASC
       `,
-      [userId],
+      [ownerUserId],
     );
     return result.rows.map((row) => mapProfile(row));
   }
@@ -116,15 +116,15 @@ export class ProfileRepository {
     return result.rows.map((row) => mapProfile(row));
   }
 
-  async findByIdForUser(client: DbClient, profileId: string, userId: string): Promise<ProfileRecord | null> {
+  async findByIdForOwnerUser(client: DbClient, profileId: string, ownerUserId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
         SELECT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order, p.created_by_user_id, p.created_at, p.updated_at
         FROM profiles p
-        INNER JOIN profile_group_members pgm ON pgm.profile_group_id = p.profile_group_id
-        WHERE p.id = $1::uuid AND pgm.user_id = $2::uuid
+        INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
+        WHERE p.id = $1::uuid AND pg.owner_user_id = $2::uuid
       `,
-      [profileId, userId],
+      [profileId, ownerUserId],
     );
     return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }
@@ -150,13 +150,13 @@ export class ProfileRepository {
 
   async update(client: DbClient, params: {
     profileId: string;
-    userId: string;
+    ownerUserId: string;
     name?: string;
     avatarKey?: string | null;
     isKids?: boolean;
     sortOrder?: number;
   }): Promise<ProfileRecord | null> {
-    const current = await this.findByIdForUser(client, params.profileId, params.userId);
+    const current = await this.findByIdForOwnerUser(client, params.profileId, params.ownerUserId);
     if (!current) {
       return null;
     }

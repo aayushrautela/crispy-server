@@ -112,7 +112,7 @@ export class WatchEventIngestService {
   async dismissContinueWatching(userId: string, profileId: string, projectionId: string): Promise<WatchIngestResult> {
     let mediaKey: string | null = null;
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -161,7 +161,7 @@ export class WatchEventIngestService {
   private async ingestPlaybackEventSynchronously(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     const identity = inferMediaIdentity(input);
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -190,7 +190,7 @@ export class WatchEventIngestService {
 
   private async bufferPlaybackHeartbeat(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -220,7 +220,7 @@ export class WatchEventIngestService {
     }) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -264,7 +264,7 @@ export class WatchEventIngestService {
     apply: (client: import('../../lib/db.js').DbClient) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }

@@ -35,7 +35,7 @@ export class HomeService {
       calendarItems: calendar.items,
     });
 
-    const activeRecommendation = await this.recommendationOutputService.getActiveRecommendationForUser(userId, profileId, 'default');
+    const activeRecommendation = await this.recommendationOutputService.getActiveRecommendationForAccount(userId, profileId, 'default');
     if (activeRecommendation?.sections.length) {
       response.sections = [
         ...response.sections,

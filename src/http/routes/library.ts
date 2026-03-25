@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
 import { LibraryService } from '../../modules/library/library.service.js';
-import type { LibraryProviderSource } from '../../modules/library/library.types.js';
+import type { LibraryMutationSource, LibraryProviderSource } from '../../modules/library/library.types.js';
 
 export async function registerLibraryRoutes(app: FastifyInstance): Promise<void> {
   const libraryService = new LibraryService();
@@ -26,8 +26,34 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
 
     await libraryService.requireOwnedProfile(actor.appUserId, profileId);
     return {
-      providers: await libraryService.getProviderAuthState(profileId),
+      providers: await libraryService.getProviderAuthState(actor.appUserId, profileId),
     };
+  });
+
+  app.post('/v1/profiles/:profileId/library/watchlist', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const params = request.params as { profileId?: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+
+    return libraryService.setWatchlist(actor.appUserId, getProfileIdFromParams(params), {
+      source: parseMutationSource(body.source),
+      inWatchlist: parseRequiredBoolean(body.inWatchlist, 'inWatchlist'),
+      ...parseResolveBody(body),
+    });
+  });
+
+  app.post('/v1/profiles/:profileId/library/rating', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const params = request.params as { profileId?: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+
+    return libraryService.setRating(actor.appUserId, getProfileIdFromParams(params), {
+      source: parseMutationSource(body.source),
+      rating: parseNullableRating(body.rating),
+      ...parseResolveBody(body),
+    });
   });
 }
 
@@ -51,6 +77,29 @@ function parseLibrarySource(value: unknown): LibraryProviderSource | null {
   throw new HttpError(400, 'Invalid library source.');
 }
 
+function parseMutationSource(value: unknown): LibraryMutationSource | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (value === 'trakt' || value === 'simkl' || value === 'all') {
+    return value;
+  }
+  throw new HttpError(400, 'Invalid mutation source.');
+}
+
+function parseResolveBody(body: Record<string, unknown>) {
+  const id = parseOptionalString(body.id);
+  return {
+    id: id ?? undefined,
+    tmdbId: parseOptionalPositiveNumber(body.tmdbId, 'tmdbId'),
+    imdbId: parseOptionalString(body.imdbId),
+    tvdbId: parseOptionalPositiveNumber(body.tvdbId, 'tvdbId'),
+    mediaType: parseOptionalSupportedMediaType(body.mediaType),
+    seasonNumber: parseOptionalPositiveNumber(body.seasonNumber, 'seasonNumber'),
+    episodeNumber: parseOptionalPositiveNumber(body.episodeNumber, 'episodeNumber'),
+  };
+}
+
 function parseOptionalPositiveNumber(value: unknown, field: string): number | null {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -60,4 +109,36 @@ function parseOptionalPositiveNumber(value: unknown, field: string): number | nu
     throw new HttpError(400, `Invalid ${field}.`);
   }
   return parsed;
+}
+
+function parseNullableRating(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = parseOptionalPositiveNumber(value, 'rating');
+  if (parsed === null || parsed > 10) {
+    throw new HttpError(400, 'Invalid rating.');
+  }
+  return parsed;
+}
+
+function parseRequiredBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new HttpError(400, `Invalid ${field}.`);
+  }
+  return value;
+}
+
+function parseOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function parseOptionalSupportedMediaType(value: unknown): 'movie' | 'show' | 'episode' | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (value === 'movie' || value === 'show' || value === 'episode') {
+    return value;
+  }
+  throw new HttpError(400, 'Unsupported media type.');
 }

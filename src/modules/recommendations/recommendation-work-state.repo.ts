@@ -24,6 +24,7 @@ function mapWorkState(row: Record<string, unknown>): RecommendationProfileWorkSt
 }
 
 type PendingCandidate = {
+  accountId: string;
   profileId: string;
   throughEventId: number;
   historyGeneration: number;
@@ -122,6 +123,7 @@ export class RecommendationWorkStateRepository {
       claimed.push({
         consumerId: input.consumerId,
         sourceKey: input.sourceKey,
+        accountId: candidate.accountId,
         profileId: candidate.profileId,
         leaseId: state.leaseId!,
         leaseExpiresAt: state.leaseExpiresAt!,
@@ -324,9 +326,10 @@ export class RecommendationWorkStateRepository {
     const query = input.restrictToUserId
       ? `
           WITH eligible_profiles AS (
-            SELECT p.id, p.name, p.is_kids, p.updated_at
+            SELECT p.id, p.name, p.is_kids, p.updated_at, pg.owner_user_id AS account_id
             FROM profiles p
             INNER JOIN profile_group_members pgm ON pgm.profile_group_id = p.profile_group_id
+            INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
             WHERE pgm.user_id = $2::uuid
           ), work AS (
             SELECT
@@ -334,6 +337,7 @@ export class RecommendationWorkStateRepository {
               ep.name,
               ep.is_kids,
               ep.updated_at,
+              ep.account_id,
               COALESCE(rpws.last_completed_event_id, 0) AS last_completed_event_id,
               rpws.lease_expires_at
             FROM eligible_profiles ep
@@ -344,18 +348,19 @@ export class RecommendationWorkStateRepository {
             reo.profile_id,
             MAX(reo.id) AS through_event_id,
             MAX(reo.history_generation) AS history_generation,
-            COUNT(*)::integer AS pending_event_count,
-            MIN(reo.occurred_at) AS oldest_occurred_at,
-            work.name,
-            work.is_kids,
-            work.updated_at
-          FROM work
-          INNER JOIN recommendation_event_outbox reo ON reo.profile_id = work.profile_id
-          WHERE reo.id > work.last_completed_event_id
-            AND (work.lease_expires_at IS NULL OR work.lease_expires_at < now())
-          GROUP BY reo.profile_id, work.name, work.is_kids, work.updated_at
-          ORDER BY oldest_occurred_at ASC, through_event_id ASC
-          LIMIT $3
+             COUNT(*)::integer AS pending_event_count,
+             MIN(reo.occurred_at) AS oldest_occurred_at,
+             work.name,
+             work.is_kids,
+             work.updated_at,
+             work.account_id
+           FROM work
+           INNER JOIN recommendation_event_outbox reo ON reo.profile_id = work.profile_id
+           WHERE reo.id > work.last_completed_event_id
+             AND (work.lease_expires_at IS NULL OR work.lease_expires_at < now())
+           GROUP BY reo.profile_id, work.name, work.is_kids, work.updated_at, work.account_id
+           ORDER BY oldest_occurred_at ASC, through_event_id ASC
+           LIMIT $3
         `
       : `
           WITH work AS (
@@ -364,9 +369,11 @@ export class RecommendationWorkStateRepository {
               p.name,
               p.is_kids,
               p.updated_at,
+              pg.owner_user_id AS account_id,
               COALESCE(rpws.last_completed_event_id, 0) AS last_completed_event_id,
               rpws.lease_expires_at
             FROM profiles p
+            INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
             LEFT JOIN recommendation_profile_work_state rpws
               ON rpws.consumer_id = $1::uuid AND rpws.profile_id = p.id
           )
@@ -374,18 +381,19 @@ export class RecommendationWorkStateRepository {
             reo.profile_id,
             MAX(reo.id) AS through_event_id,
             MAX(reo.history_generation) AS history_generation,
-            COUNT(*)::integer AS pending_event_count,
-            MIN(reo.occurred_at) AS oldest_occurred_at,
-            work.name,
-            work.is_kids,
-            work.updated_at
-          FROM work
-          INNER JOIN recommendation_event_outbox reo ON reo.profile_id = work.profile_id
-          WHERE reo.id > work.last_completed_event_id
-            AND (work.lease_expires_at IS NULL OR work.lease_expires_at < now())
-          GROUP BY reo.profile_id, work.name, work.is_kids, work.updated_at
-          ORDER BY oldest_occurred_at ASC, through_event_id ASC
-          LIMIT $2
+             COUNT(*)::integer AS pending_event_count,
+             MIN(reo.occurred_at) AS oldest_occurred_at,
+             work.name,
+             work.is_kids,
+             work.updated_at,
+             work.account_id
+           FROM work
+           INNER JOIN recommendation_event_outbox reo ON reo.profile_id = work.profile_id
+           WHERE reo.id > work.last_completed_event_id
+             AND (work.lease_expires_at IS NULL OR work.lease_expires_at < now())
+           GROUP BY reo.profile_id, work.name, work.is_kids, work.updated_at, work.account_id
+           ORDER BY oldest_occurred_at ASC, through_event_id ASC
+           LIMIT $2
         `;
 
     const params = input.restrictToUserId
@@ -394,6 +402,7 @@ export class RecommendationWorkStateRepository {
 
     const result = await client.query(query, params);
     return result.rows.map((row) => ({
+      accountId: String(row.account_id),
       profileId: String(row.profile_id),
       throughEventId: Number(row.through_event_id),
       historyGeneration: Number(row.history_generation),

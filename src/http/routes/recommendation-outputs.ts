@@ -45,7 +45,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     app.requireScopes(request, ['taste-profile:read']);
     const params = request.params as { profileId: string };
     return {
-      items: await outputService.listTasteProfilesForUser(actor.appUserId, params.profileId),
+      items: await outputService.listTasteProfilesForAccount(actor.appUserId, params.profileId),
     };
   });
 
@@ -57,7 +57,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const query = (request.query ?? {}) as Record<string, unknown>;
     const sourceKey = parseSourceKey(query.sourceKey);
     return {
-      tasteProfile: await outputService.getTasteProfileForUser(actor.appUserId, params.profileId, sourceKey),
+      tasteProfile: await outputService.getTasteProfileForAccount(actor.appUserId, params.profileId, sourceKey),
     };
   });
 
@@ -67,7 +67,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     app.requireScopes(request, ['taste-profile:write']);
     const params = request.params as { profileId: string };
     return {
-      tasteProfile: await outputService.upsertTasteProfileForUser(actor.appUserId, params.profileId, parseTasteProfileInput(request.body)),
+      tasteProfile: await outputService.upsertTasteProfileForAccount(actor.appUserId, params.profileId, parseTasteProfileInput(request.body)),
     };
   });
 
@@ -80,7 +80,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const activeOnly = query.active === true || query.active === 'true';
     if (activeOnly) {
       return {
-        recommendations: await outputService.getActiveRecommendationForUser(
+        recommendations: await outputService.getActiveRecommendationForAccount(
           actor.appUserId,
           params.profileId,
           parseAlgorithmVersion(query.algorithmVersion),
@@ -90,7 +90,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
 
     const sourceKey = parseSourceKey(query.sourceKey);
     return {
-      recommendations: await outputService.getRecommendationsForUser(
+      recommendations: await outputService.getRecommendationsForAccount(
         actor.appUserId,
         params.profileId,
         sourceKey,
@@ -105,7 +105,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     app.requireScopes(request, ['recommendations:write']);
     const params = request.params as { profileId: string };
     return {
-      recommendations: await outputService.upsertRecommendationsForUser(actor.appUserId, params.profileId, parseRecommendationSnapshotInput(request.body)),
+      recommendations: await outputService.upsertRecommendationsForAccount(actor.appUserId, params.profileId, parseRecommendationSnapshotInput(request.body)),
     };
   });
 
@@ -114,7 +114,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     const params = request.params as { profileId: string };
     return {
-      activeSourceKey: await outputService.getActiveSourceKeyForUser(actor.appUserId, params.profileId),
+      activeSourceKey: await outputService.getActiveSourceKeyForAccount(actor.appUserId, params.profileId),
     };
   });
 
@@ -125,51 +125,10 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const body = (request.body ?? {}) as Record<string, unknown>;
     const sourceKey = parseSourceKey(body.sourceKey);
     return {
-      activeSourceKey: await outputService.setActiveSourceKeyForUser(actor.appUserId, params.profileId, sourceKey),
+      activeSourceKey: await outputService.setActiveSourceKeyForAccount(actor.appUserId, params.profileId, sourceKey),
     };
   });
 
-  app.get('/internal/v1/profiles/:profileId/taste-profile', async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['taste-profile:read']);
-    const params = request.params as { profileId: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
-    return {
-      tasteProfile: await outputService.getTasteProfileForService(params.profileId, parseSourceKey(query.sourceKey)),
-    };
-  });
-
-  app.put('/internal/v1/profiles/:profileId/taste-profile', async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['taste-profile:write']);
-    const params = request.params as { profileId: string };
-    return {
-      tasteProfile: await outputService.upsertTasteProfileForService(params.profileId, parseTasteProfileInput(request.body)),
-    };
-  });
-
-  app.get('/internal/v1/profiles/:profileId/recommendations', async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['recommendations:read']);
-    const params = request.params as { profileId: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
-    return {
-      recommendations: await outputService.getRecommendationsForService(
-        params.profileId,
-        parseSourceKey(query.sourceKey),
-        parseAlgorithmVersion(query.algorithmVersion),
-      ),
-    };
-  });
-
-  app.put('/internal/v1/profiles/:profileId/recommendations', async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['recommendations:write']);
-    const params = request.params as { profileId: string };
-    return {
-      recommendations: await outputService.upsertRecommendationsForService(params.profileId, parseRecommendationSnapshotInput(request.body)),
-    };
-  });
 }
 
 function parseTasteProfileInput(body: unknown) {

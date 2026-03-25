@@ -3,6 +3,8 @@ import type { MetadataView } from '../metadata/tmdb.types.js';
 
 export type LibraryProviderSource = 'local' | 'trakt' | 'simkl' | 'all';
 
+export type LibraryMutationSource = 'trakt' | 'simkl' | 'all';
+
 export type ProviderAuthStateView = {
   provider: 'trakt' | 'simkl';
   connected: boolean;
@@ -58,4 +60,20 @@ export type ProfileLibraryResponse = {
   };
   native: NativeLibraryView | null;
   providers: ProviderLibrarySnapshotView[];
+};
+
+export type ProviderMutationResultView = {
+  provider: 'trakt' | 'simkl';
+  status: 'success' | 'skipped' | 'error';
+  message: string | null;
+};
+
+export type LibraryMutationResponse = {
+  source: LibraryMutationSource;
+  action: 'watchlist' | 'rating';
+  media: MetadataView;
+  watchlist: boolean | null;
+  rating: number | null;
+  results: ProviderMutationResultView[];
+  statusMessage: string;
 };

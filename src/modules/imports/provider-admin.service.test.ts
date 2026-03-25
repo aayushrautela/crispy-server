@@ -27,7 +27,7 @@ test('listConnections forwards admin filters to repository', async () => {
         assert.equal(filters.refreshFailuresOnly, true);
         assert.equal(typeof filters.expiringBefore, 'string');
         assert.equal(filters.limit, 25);
-        return [{ id: 'connection-1', profileId: 'profile-1', provider: 'trakt', status: 'connected', stateToken: null, providerUserId: 'user-1', externalUsername: 'crispy', credentialsJson: {}, createdByUserId: 'creator-1', expiresAt: null, lastUsedAt: null, createdAt: 'a', updatedAt: 'b', accessTokenExpiresAt: null, lastRefreshAt: null, lastRefreshError: null, lastImportJobId: null, lastImportCompletedAt: null, hasAccessToken: true, hasRefreshToken: true }];
+        return [{ id: 'connection-1', profileId: 'profile-1', accountId: 'account-1', provider: 'trakt', status: 'connected', stateToken: null, providerUserId: 'user-1', externalUsername: 'crispy', credentialsJson: {}, createdByUserId: 'creator-1', expiresAt: null, lastUsedAt: null, createdAt: 'a', updatedAt: 'b', accessTokenExpiresAt: null, lastRefreshAt: null, lastRefreshError: null, lastImportJobId: null, lastImportCompletedAt: null, hasAccessToken: true, hasRefreshToken: true }];
       },
     } as never,
     {} as never,
@@ -42,6 +42,7 @@ test('listConnections forwards admin filters to repository', async () => {
     limit: 25,
   });
   assert.equal(result.connections[0]?.id, 'connection-1');
+  assert.equal(result.connections[0]?.accountId, 'account-1');
 });
 
 test('listJobs forwards admin filters to repository', async () => {

@@ -17,7 +17,7 @@ export class WatchReadService {
 
   async listContinueWatching(userId: string, profileId: string, limit: number): Promise<HydratedWatchItem[]> {
     return withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
@@ -52,7 +52,7 @@ export class WatchReadService {
 
   async listHistory(userId: string, profileId: string, limit: number): Promise<HydratedWatchItem[]> {
     return withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForUser(client, profileId, userId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }

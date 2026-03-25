@@ -43,6 +43,8 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Internal privileged routes live under `/internal/v1/...`.
 - Do not guess route shapes from old discussions; verify them against `src/http/app.ts` and `src/http/routes/*.ts`.
 - The README contains a maintained endpoint map and should stay in sync with the route files.
+- Do not reintroduce legacy profile-only internal compatibility routes; privileged integrations should use `/internal/v1/accounts/...`.
+- Human admin and orchestration UI belongs on the API server control plane, not on the recommendation worker.
 - Profile-targeted user routes use explicit `:profileId` path params.
 - Do not reintroduce header-based or body-based profile targeting fallbacks.
 

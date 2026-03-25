@@ -60,22 +60,31 @@ export class ProviderTokenAccessService {
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
-  async getConnection(profileId: string, provider: ProviderImportProvider): Promise<ProviderConnectionAccessView> {
-    const connection = await this.requireConnectedConnection(profileId, provider);
+  async getConnectionForAccountProfile(
+    accountId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderConnectionAccessView> {
+    const connection = await this.requireConnectedConnectionForAccountProfile(accountId, profileId, provider);
     return this.toConnectionView(connection);
   }
 
-  async getTokenStatus(profileId: string, provider: ProviderImportProvider): Promise<ProviderTokenStatusView> {
-    const connection = await this.requireConnectedConnection(profileId, provider);
+  async getTokenStatusForAccountProfile(
+    accountId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderTokenStatusView> {
+    const connection = await this.requireConnectedConnectionForAccountProfile(accountId, profileId, provider);
     return this.toTokenStatusView(connection);
   }
 
-  async getAccessToken(
+  async getAccessTokenForAccountProfile(
+    accountId: string,
     profileId: string,
     provider: ProviderImportProvider,
     options?: { forceRefresh?: boolean },
   ): Promise<ProviderAccessTokenView> {
-    const connection = await this.requireConnectedConnection(profileId, provider);
+    const connection = await this.requireConnectedConnectionForAccountProfile(accountId, profileId, provider);
 
     let refreshed = false;
     let activeConnection = connection;
@@ -103,14 +112,18 @@ export class ProviderTokenAccessService {
     };
   }
 
-  private async requireConnectedConnection(profileId: string, provider: ProviderImportProvider): Promise<ProviderImportConnectionRecord> {
+  private async requireConnectedConnectionForAccountProfile(
+    accountId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderImportConnectionRecord> {
     return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findById(client, profileId);
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
       if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
+        throw new HttpError(404, 'Profile not found for account.');
       }
 
-      const connection = await this.connectionsRepository.findLatestConnectedForProfile(client, profileId, provider);
+      const connection = await this.connectionsRepository.findLatestConnectedForProfile(client, profile.id, provider);
       if (!connection) {
         throw new HttpError(404, 'Provider connection not found.');
       }

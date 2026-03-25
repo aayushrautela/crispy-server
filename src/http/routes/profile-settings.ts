@@ -9,7 +9,7 @@ export async function registerProfileSettingsRoutes(app: FastifyInstance): Promi
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     return {
-      settings: await profileService.getSettings(actor.appUserId, params.profileId),
+      settings: await profileService.getSettingsForAccount(actor.appUserId, params.profileId),
     };
   });
 
@@ -19,7 +19,7 @@ export async function registerProfileSettingsRoutes(app: FastifyInstance): Promi
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     return {
-      settings: await profileService.patchSettings(actor.appUserId, params.profileId, body),
+      settings: await profileService.patchSettingsForAccount(actor.appUserId, params.profileId, body),
     };
   });
 }

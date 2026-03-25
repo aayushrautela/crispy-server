@@ -208,32 +208,26 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 ### Internal service routes
 
-#### Profile data and outputs
+#### Account-rooted internal routes
 
-- These profile-targeted internal routes select a child persona under the owning account. They do not imply that profiles are standalone auth principals.
-- `GET /internal/v1/profiles` - list profiles known to this API instance
-- `GET /internal/v1/profiles/:profileId/watch-history` - profile watch history
-- `GET /internal/v1/profiles/:profileId/continue-watching` - profile continue watching
-- `GET /internal/v1/profiles/:profileId/watchlist` - profile watchlist
-- `GET /internal/v1/profiles/:profileId/ratings` - profile ratings
-- `GET /internal/v1/profiles/:profileId/tracked-series` - profile tracked series
-- `GET /internal/v1/profiles/:profileId/taste-profile` - read taste profile by source
-- `PUT /internal/v1/profiles/:profileId/taste-profile` - write taste profile
-- `GET /internal/v1/profiles/:profileId/recommendations` - read recommendations by source and algorithm version
-- `PUT /internal/v1/profiles/:profileId/recommendations` - write recommendations
-
-#### Shared account secrets currently resolved from profile id
-
-- These routes return account-shared secrets by inferring the owning account from the profile id. This path shape is legacy and does not make the secret profile-owned.
-- `GET /internal/v1/profiles/:profileId/secrets/openrouter-key` - read account-shared OpenRouter key for the profile owner
-- `GET /internal/v1/profiles/:profileId/secrets/omdb-api-key` - read account-shared OMDb key for the profile owner
-
-#### Provider auth helpers
-
-- `GET /internal/v1/profiles/:profileId/providers/:provider/connection` - connection summary for Trakt or Simkl
-- `GET /internal/v1/profiles/:profileId/providers/:provider/token-status` - token status
-- `POST /internal/v1/profiles/:profileId/providers/:provider/access-token` - fetch access token, optionally refreshing
-- `POST /internal/v1/profiles/:profileId/providers/:provider/refresh` - force refresh provider token
+- These are the only supported privileged routes for engines that start from account identity or email.
+- `GET /internal/v1/accounts/by-email/:email` - resolve an owning account id from email
+- `GET /internal/v1/accounts/:accountId/profiles` - list profiles under one account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/watch-history` - profile watch history scoped to the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/continue-watching` - profile continue watching scoped to the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/watchlist` - profile watchlist scoped to the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/ratings` - profile ratings scoped to the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/tracked-series` - tracked series scoped to the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - read taste profile by source under the owning account
+- `PUT /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - write taste profile under the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account
+- `PUT /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - write recommendations under the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/openrouter-key` - read account-shared OpenRouter key after confirming the profile belongs to the account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/omdb-api-key` - read account-shared OMDb key after confirming the profile belongs to the account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/connection` - provider connection summary after confirming the profile belongs to the account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/token-status` - provider token status after confirming the profile belongs to the account
+- `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/access-token` - fetch provider access token after confirming the profile belongs to the account
+- `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/refresh` - refresh provider token after confirming the profile belongs to the account
 
 #### Recommendation work and diagnostics
 
@@ -253,8 +247,15 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
 - Profile-targeted paths select which persona under the account is being addressed; they are not separate logins or separate API clients.
 - Some internals still use older ownership plumbing. That is an implementation detail pending cleanup, not the intended product contract.
-- Internal services can target any profile id the API knows about.
+- Internal services should resolve an account first, then target a profile that belongs to that account.
 - End users can only access profiles that belong to their account.
+
+## Admin control plane
+
+- `GET /admin` is the API-server-hosted admin UI for recommendation-worker operations and diagnostics.
+- Admin UI access uses HTTP Basic Auth configured by `ADMIN_UI_USER` and `ADMIN_UI_PASSWORD`.
+- Worker control uses the recommendation engine worker-control endpoint configured with `RECOMMENDATION_ENGINE_WORKER_BASE_URL` and `RECOMMENDATION_ENGINE_WORKER_API_KEY`.
+- The API server now hosts the operator UI and human-readable admin backend. The recommendation engine should be treated as a worker compute node with a narrow control surface, not the primary admin surface.
 
 ## Major feature areas
 

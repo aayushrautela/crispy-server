@@ -12,7 +12,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     return {
-      profiles: (await profileService.listForUser(actor.appUserId)).map((profile) => mapProfileView(profile)),
+      profiles: (await profileService.listForAccount(actor.appUserId)).map((profile) => mapProfileView(profile)),
     };
   });
 
