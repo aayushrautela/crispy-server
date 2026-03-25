@@ -127,11 +127,20 @@ export class ProviderTokenRefreshService {
     const rawBody = await response.text();
     const payload = parseProviderJson(rawBody);
     if (!response.ok || !payload || typeof payload.access_token !== 'string') {
-      throw new HttpError(response.status || 502, 'Unable to refresh the Trakt access token.', {
-        provider: 'trakt',
-        providerStatus: response.status,
-        responseBody: rawBody.slice(0, 500),
-      });
+      throw new HttpError(
+        response.status || 502,
+        resolveProviderError(payload, 'Unable to refresh the Trakt access token.'),
+        rawBody.trim()
+          ? {
+              provider: 'trakt',
+              providerStatus: response.status,
+              responseBody: rawBody.slice(0, 500),
+            }
+          : {
+              provider: 'trakt',
+              providerStatus: response.status,
+            },
+      );
     }
 
     return {
@@ -165,11 +174,20 @@ export class ProviderTokenRefreshService {
     const rawBody = await response.text();
     const payload = parseProviderJson(rawBody);
     if (!response.ok || !payload || typeof payload.access_token !== 'string') {
-      throw new HttpError(response.status || 502, 'Unable to refresh the Simkl access token.', {
-        provider: 'simkl',
-        providerStatus: response.status,
-        responseBody: rawBody.slice(0, 500),
-      });
+      throw new HttpError(
+        response.status || 502,
+        resolveProviderError(payload, 'Unable to refresh the Simkl access token.'),
+        rawBody.trim()
+          ? {
+              provider: 'simkl',
+              providerStatus: response.status,
+              responseBody: rawBody.slice(0, 500),
+            }
+          : {
+              provider: 'simkl',
+              providerStatus: response.status,
+            },
+      );
     }
 
     return {
@@ -201,6 +219,16 @@ function expiresAtIsoFromNow(value: unknown): string | null {
   }
 
   return new Date(Date.now() + value * 1000).toISOString();
+}
+
+function resolveProviderError(payload: Record<string, unknown> | null, fallback: string): string {
+  if (typeof payload?.error_description === 'string' && payload.error_description.trim()) {
+    return payload.error_description;
+  }
+  if (typeof payload?.error === 'string' && payload.error.trim()) {
+    return payload.error;
+  }
+  return fallback;
 }
 
 function parseProviderJson(rawBody: string): Record<string, unknown> | null {

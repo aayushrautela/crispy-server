@@ -68,3 +68,43 @@ test('exchangeTraktAuthorizationCode includes helpful details for non-json failu
     globalThis.fetch = originalFetch;
   }
 });
+
+test('traktGetArray includes upstream response details for import failures', async () => {
+  seedTestEnv();
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { HttpError } = await import('../../lib/errors.js');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return Response.json({
+      error: 'invalid_grant',
+      error_description: 'Trakt rejected the current access token.',
+    }, {
+      status: 401,
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+  }) as typeof fetch;
+
+  try {
+    const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    await assert.rejects(
+      () => (service as any).traktGetArray('/sync/history', 'access-123'),
+      (error: unknown) => {
+        assert.ok(error instanceof HttpError);
+        assert.equal(error.statusCode, 401);
+        assert.equal(error.message, 'Trakt rejected the current access token.');
+        assert.deepEqual(error.details, {
+          provider: 'trakt',
+          providerStatus: 401,
+          requestPath: '/sync/history',
+          responseBody: '{"error":"invalid_grant","error_description":"Trakt rejected the current access token."}',
+        });
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

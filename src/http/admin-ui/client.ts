@@ -734,8 +734,9 @@ export const ADMIN_UI_CLIENT = String.raw`
           }
           await inspectProfile(accountId, profileId);
         } catch (error) {
-          setMessage(messageEl, 'error', error.message || 'Unable to start import.');
-          pushNotification('error', 'Import start failed', error.message || 'Unable to start import.', true);
+          const description = describeApiError(error, 'Unable to start import.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'Import start failed', description, true);
         } finally {
           button.disabled = false;
         }
@@ -757,8 +758,9 @@ export const ADMIN_UI_CLIENT = String.raw`
           pushNotification('success', 'Token refreshed', 'Refreshed ' + provider + ' token for profile ' + profileId + '.', true);
           await inspectProfile(accountId, profileId);
         } catch (error) {
-          setMessage(messageEl, 'error', error.message || 'Unable to refresh provider token.');
-          pushNotification('error', 'Token refresh failed', error.message || 'Unable to refresh provider token.', true);
+          const description = describeApiError(error, 'Unable to refresh provider token.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'Token refresh failed', description, true);
         } finally {
           button.disabled = false;
         }
@@ -1002,6 +1004,33 @@ export const ADMIN_UI_CLIENT = String.raw`
     element.innerHTML = html;
   }
 
+  function describeApiError(error, fallback) {
+    const message = error && error.message ? error.message : fallback;
+    const payload = error && error.payload ? error.payload : null;
+    const details = payload && payload.details ? payload.details : null;
+    const detailParts = [];
+
+    if (details && typeof details === 'object' && !Array.isArray(details)) {
+      if (typeof details.providerStatus === 'number') {
+        detailParts.push('upstream status ' + String(details.providerStatus));
+      } else if (typeof details.upstreamStatusCode === 'number') {
+        detailParts.push('upstream status ' + String(details.upstreamStatusCode));
+      }
+      if (typeof details.requestPath === 'string' && details.requestPath) {
+        detailParts.push('request ' + details.requestPath);
+      }
+      if (typeof details.responseBody === 'string' && details.responseBody.trim()) {
+        detailParts.push('response ' + summarizeErrorText(details.responseBody));
+      }
+    }
+
+    return detailParts.length ? message + ' (' + detailParts.join('; ') + ')' : message;
+  }
+
+  function summarizeErrorText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+  }
+
   function statCard(label, value, subtext) {
     return '<div class="stat-card"><div class="stat-label">' + escapeHtml(String(label)) + '</div><div class="stat-value">' + escapeHtml(String(value)) + '</div><div class="stat-subtext">' + escapeHtml(String(subtext || '')) + '</div></div>';
   }
@@ -1077,6 +1106,8 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function renderImportJobCard(job) {
+    const errorSummary = describeImportJobError(job && job.errorJson);
+    const warnings = listImportJobWarnings(job);
     return '<div class="section-card">'
       + '<div class="inline-actions">'
         + badge(String(job.status || 'unknown'), statusTone(String(job.status || 'unknown')))
@@ -1088,7 +1119,52 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Finished', job.finishedAt ? formatDate(job.finishedAt) : 'n/a')
         + kvPair('Job id', job.id || 'n/a')
       + '</div>'
+      + (errorSummary ? '<div class="message error">' + escapeHtml(errorSummary) + '</div>' : '')
+      + (warnings.length ? '<div class="message warn">' + escapeHtml('Warnings: ' + warnings.join(' | ')) + '</div>' : '')
     + '</div>';
+  }
+
+  function describeImportJobError(errorJson) {
+    if (!errorJson || typeof errorJson !== 'object' || Array.isArray(errorJson)) {
+      return '';
+    }
+
+    const parts = [];
+    if (typeof errorJson.message === 'string' && errorJson.message.trim()) {
+      parts.push(errorJson.message.trim());
+    }
+    if (typeof errorJson.code === 'string' && errorJson.code.trim()) {
+      parts.push('code ' + errorJson.code.trim());
+    }
+    if (typeof errorJson.requestId === 'string' && errorJson.requestId.trim()) {
+      parts.push('request ' + errorJson.requestId.trim());
+    }
+
+    const details = errorJson.details;
+    if (details && typeof details === 'object' && !Array.isArray(details)) {
+      if (typeof details.providerStatus === 'number') {
+        parts.push('upstream status ' + String(details.providerStatus));
+      }
+      if (typeof details.requestPath === 'string' && details.requestPath) {
+        parts.push('request path ' + details.requestPath);
+      }
+      if (typeof details.responseBody === 'string' && details.responseBody.trim()) {
+        parts.push('response ' + summarizeErrorText(details.responseBody));
+      }
+    }
+
+    return parts.join(' | ');
+  }
+
+  function listImportJobWarnings(job) {
+    const summaryWarnings = job && job.summaryJson && Array.isArray(job.summaryJson.warnings)
+      ? job.summaryJson.warnings
+      : [];
+    const checkpointWarnings = job && job.checkpointJson && Array.isArray(job.checkpointJson.warnings)
+      ? job.checkpointJson.warnings
+      : [];
+    const warnings = summaryWarnings.concat(checkpointWarnings).filter((value) => typeof value === 'string' && value.trim());
+    return Array.from(new Set(warnings.map((value) => String(value).trim()))).slice(0, 4);
   }
 
   function renderMediaSection(title, result, kind) {

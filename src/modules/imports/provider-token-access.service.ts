@@ -188,13 +188,37 @@ function mapRefreshError(provider: ProviderImportProvider, error: unknown): Http
   }
 
   if (error instanceof HttpError) {
-    return new HttpError(502, 'Provider access token refresh failed.', {
-      provider,
-      upstreamStatusCode: error.statusCode,
-    });
+    return new HttpError(502, error.message || 'Provider access token refresh failed.', mergeRefreshErrorDetails(provider, error));
   }
 
   return new HttpError(502, 'Provider access token refresh failed.', { provider });
+}
+
+function mergeRefreshErrorDetails(
+  provider: ProviderImportProvider,
+  error: HttpError,
+): Record<string, unknown> {
+  const details: Record<string, unknown> = {
+    provider,
+    upstreamStatusCode: error.statusCode,
+  };
+
+  if (isRecord(error.details)) {
+    return {
+      ...details,
+      ...error.details,
+    };
+  }
+
+  if (error.details !== undefined) {
+    details.upstreamDetails = error.details;
+  }
+
+  return details;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function asString(value: unknown): string | null {

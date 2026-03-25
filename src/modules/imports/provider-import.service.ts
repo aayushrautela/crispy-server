@@ -468,6 +468,9 @@ export class ProviderImportService {
             ? 'provider_import_not_implemented'
             : 'provider_import_failed',
           message: error instanceof Error ? error.message : 'Provider import failed.',
+          ...(error instanceof HttpError && error.details !== undefined
+            ? { details: error.details }
+            : {}),
           retryable: false,
           requestId,
         });
@@ -1347,9 +1350,25 @@ export class ProviderImportService {
       headers: buildTraktHeaders({ accessToken }),
     });
 
-    const payload = (await response.json().catch(() => null)) as unknown;
+    const rawBody = await response.text();
+    const payload = parseProviderPayload(rawBody);
     if (!response.ok || !Array.isArray(payload)) {
-      throw new HttpError(response.status || 502, `Trakt import request failed for ${path}.`);
+      throw new HttpError(
+        response.status || 502,
+        resolveProviderError(isRecord(payload) ? payload : null, `Trakt import request failed for ${path}.`),
+        rawBody.trim()
+          ? {
+              provider: 'trakt',
+              providerStatus: response.status,
+              requestPath: path,
+              responseBody: rawBody.slice(0, 500),
+            }
+          : {
+              provider: 'trakt',
+              providerStatus: response.status,
+              requestPath: path,
+            },
+      );
     }
 
     return payload.filter(isRecord);
@@ -1544,6 +1563,18 @@ function parseProviderJson(rawBody: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(rawBody) as unknown;
     return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseProviderPayload(rawBody: string): unknown {
+  if (!rawBody.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody) as unknown;
   } catch {
     return null;
   }

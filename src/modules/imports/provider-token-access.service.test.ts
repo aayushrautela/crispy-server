@@ -140,14 +140,18 @@ test('getConnectionForAccountProfile rejects missing connection', async () => {
   });
 });
 
-test('getAccessTokenForAccountProfile maps refresh failures into stable internal errors', async () => {
+test('getAccessTokenForAccountProfile preserves upstream refresh details for admin diagnostics', async () => {
   const { ProviderTokenAccessService } = await loadService();
   const service = new ProviderTokenAccessService(
     { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     { findLatestConnectedForProfile: async () => createConnection() } as never,
     {
       refreshConnection: async () => {
-        throw new HttpError(401, 'Unable to refresh the Trakt access token.');
+        throw new HttpError(401, 'invalid_grant', {
+          provider: 'trakt',
+          providerStatus: 401,
+          responseBody: '{"error":"invalid_grant"}',
+        });
       },
       getRecommendedDelayMs: () => 30000,
     } as never,
@@ -157,9 +161,11 @@ test('getAccessTokenForAccountProfile maps refresh failures into stable internal
   await assert.rejects(() => service.getAccessTokenForAccountProfile('account-1', 'profile-1', 'trakt', { forceRefresh: true }), (error: unknown) => {
     assert.ok(error instanceof HttpError);
     assert.equal(error.statusCode, 502);
-    assert.equal(error.message, 'Provider access token refresh failed.');
+    assert.equal(error.message, 'invalid_grant');
     assert.deepEqual(error.details, {
       provider: 'trakt',
+      providerStatus: 401,
+      responseBody: '{"error":"invalid_grant"}',
       upstreamStatusCode: 401,
     });
     return true;
