@@ -351,7 +351,7 @@ export const ADMIN_UI_STYLES = `
 
   .view {
     display: grid;
-    gap: 20px;
+    gap: 24px;
     align-content: start;
   }
 
@@ -424,9 +424,10 @@ export const ADMIN_UI_STYLES = `
   .profile-ops,
   .profile-detail-body,
   .profile-list,
-  .item-list {
+  .item-list,
+  .diagnostics-grid {
     display: grid;
-    gap: 14px;
+    gap: 16px;
     min-width: 0;
   }
 
@@ -437,6 +438,13 @@ export const ADMIN_UI_STYLES = `
     gap: 18px;
     min-width: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-side-stack {
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+    align-content: start;
   }
 
   .accounts-layout {
@@ -455,9 +463,10 @@ export const ADMIN_UI_STYLES = `
   }
 
   .profile-empty-state {
-    min-height: 320px;
+    min-height: 200px;
     display: flex;
     align-items: center;
+    justify-content: center;
   }
 
   .profile-detail-head {
@@ -502,12 +511,25 @@ export const ADMIN_UI_STYLES = `
   .profile-card,
   .provider-card,
   .section-card,
-  .job-card,
   .item-row,
-  .kv-pair {
+  .kv-pair,
+  .job-card {
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--surface-soft);
+    padding: 14px;
+  }
+
+  .quick-card {
+    width: 100%;
+    justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
+    display: grid;
+    gap: 6px;
+    background: var(--surface-soft);
+    color: var(--ink);
+    border-color: var(--line);
   }
 
   .quick-card {
@@ -535,18 +557,6 @@ export const ADMIN_UI_STYLES = `
   .quick-card span {
     color: var(--muted);
     font-size: 13px;
-  }
-
-  .stat-card,
-  .mini-panel,
-  .profile-card,
-  .provider-card,
-  .section-card,
-  .item-row,
-  .kv-pair,
-  .trigger-card,
-  .job-card {
-    padding: 14px;
   }
 
   .stat-label,
@@ -787,17 +797,21 @@ export const ADMIN_UI_STYLES = `
   .section-body,
   .meta-spaced,
   .section-copy {
-    margin-top: 10px;
+    margin-top: 12px;
   }
 
   .empty {
     width: 100%;
+    min-height: 120px;
     padding: 18px;
     border: 1px dashed var(--line-soft);
     border-radius: 8px;
     color: var(--muted);
     text-align: center;
     background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .loading {
@@ -805,8 +819,43 @@ export const ADMIN_UI_STYLES = `
     pointer-events: none;
   }
 
+  .loading-skeleton {
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .content-placeholder {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 13px;
+    border: 1px dashed var(--line-soft);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.01);
+  }
+
+  section.view[data-view]:not(.is-active) {
+    display: none;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  [data-view]:not(.is-active) {
+    display: none;
+  }
+
   .narrow-panel {
     max-width: 960px;
+    display: grid;
+    gap: 18px;
   }
 
   .notification-panel {
@@ -919,6 +968,10 @@ export const ADMIN_UI_STYLES = `
   }
 
   .sidebar-overlay {
+    display: none;
+  }
+
+  [data-view]:not(.is-active) {
     display: none;
   }
 

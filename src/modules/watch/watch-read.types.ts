@@ -30,6 +30,7 @@ export type RatingStateView = {
 };
 
 export type HydratedWatchItem = {
+  id?: string;
   media: MetadataView;
   progress?: WatchProgressView;
   watchedAt?: string;

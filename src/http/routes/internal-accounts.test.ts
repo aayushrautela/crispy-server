@@ -28,6 +28,7 @@ test('internal account routes resolve account by email and profile-scoped data u
   const originalGetByEmail = AccountLookupService.prototype.getByEmail;
   const originalListAccountProfilesForService = RecommendationDataService.prototype.listAccountProfilesForService;
   const originalGetWatchHistoryForAccountService = RecommendationDataService.prototype.getWatchHistoryForAccountService;
+  const originalGetContinueWatchingForAccountService = RecommendationDataService.prototype.getContinueWatchingForAccountService;
   const originalGetTasteProfileForAccountService = RecommendationOutputService.prototype.getTasteProfileForAccountService;
   const originalUpsertRecommendationsForAccountService = RecommendationOutputService.prototype.upsertRecommendationsForAccountService;
   const originalGetOpenRouterKeyForAccountProfile = ProfileSecretAccessService.prototype.getOpenRouterKeyForAccountProfile;
@@ -39,6 +40,7 @@ test('internal account routes resolve account by email and profile-scoped data u
     AccountLookupService.prototype.getByEmail = originalGetByEmail;
     RecommendationDataService.prototype.listAccountProfilesForService = originalListAccountProfilesForService;
     RecommendationDataService.prototype.getWatchHistoryForAccountService = originalGetWatchHistoryForAccountService;
+    RecommendationDataService.prototype.getContinueWatchingForAccountService = originalGetContinueWatchingForAccountService;
     RecommendationOutputService.prototype.getTasteProfileForAccountService = originalGetTasteProfileForAccountService;
     RecommendationOutputService.prototype.upsertRecommendationsForAccountService = originalUpsertRecommendationsForAccountService;
     ProfileSecretAccessService.prototype.getOpenRouterKeyForAccountProfile = originalGetOpenRouterKeyForAccountProfile;
@@ -55,6 +57,9 @@ test('internal account routes resolve account by email and profile-scoped data u
   };
   RecommendationDataService.prototype.getWatchHistoryForAccountService = async function (accountId, profileId, limit) {
     return [{ accountId, profileId, limit }] as never;
+  };
+  RecommendationDataService.prototype.getContinueWatchingForAccountService = async function (accountId, profileId, limit) {
+    return [{ id: 'cw-1', accountId, profileId, limit, lastActivityAt: '2026-03-25T00:00:00.000Z' }] as never;
   };
   RecommendationOutputService.prototype.getTasteProfileForAccountService = async function (accountId, profileId, sourceKey) {
     return { accountId, profileId, sourceKey } as never;
@@ -107,6 +112,11 @@ test('internal account routes resolve account by email and profile-scoped data u
   const history = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/watch-history?limit=22' });
   assert.equal(history.statusCode, 200);
   assert.deepEqual(history.json().items[0], { accountId: 'account-1', profileId: 'profile-1', limit: 22 });
+
+  const continueWatching = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/continue-watching?limit=9' });
+  assert.equal(continueWatching.statusCode, 200);
+  assert.equal(continueWatching.json().items[0].id, 'cw-1');
+  assert.equal(continueWatching.json().items[0].limit, 9);
 
   const taste = await app.inject({ method: 'GET', url: '/internal/v1/accounts/account-1/profiles/profile-1/taste-profile?sourceKey=engine-x' });
   assert.equal(taste.statusCode, 200);

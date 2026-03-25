@@ -47,12 +47,14 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   const originalGetPersonDetail = MetadataDirectService.prototype.getPersonDetail;
   const originalListEpisodes = MetadataDirectService.prototype.listEpisodes;
   const originalGetNextEpisode = MetadataDirectService.prototype.getNextEpisode;
+  const originalGetTitleContent = MetadataDirectService.prototype.getTitleContent;
   const originalResolvePlayback = MetadataDirectService.prototype.resolvePlayback;
 
   t.after(() => {
     MetadataDirectService.prototype.getPersonDetail = originalGetPersonDetail;
     MetadataDirectService.prototype.listEpisodes = originalListEpisodes;
     MetadataDirectService.prototype.getNextEpisode = originalGetNextEpisode;
+    MetadataDirectService.prototype.getTitleContent = originalGetTitleContent;
     MetadataDirectService.prototype.resolvePlayback = originalResolvePlayback;
   });
 
@@ -93,6 +95,17 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       receivedShowId: input.showId,
       receivedNowMs: input.nowMs,
       item: null,
+    } as never;
+  };
+
+  MetadataDirectService.prototype.getTitleContent = async function (userId, id) {
+    return {
+      item: { id },
+      omdb: {
+        imdbId: 'tt1234567',
+        title: 'Movie',
+        userId,
+      },
     } as never;
   };
 
@@ -137,6 +150,15 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(nextEpisodeResponse.json().receivedShowId, 'tt1');
   assert.equal(nextEpisodeResponse.json().receivedNowMs, 1700000000000);
 
+  const contentResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/titles/crisp:movie:55/content',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(contentResponse.statusCode, 200);
+  assert.equal(contentResponse.json().item.id, 'crisp:movie:55');
+  assert.equal(contentResponse.json().omdb.userId, 'user-1');
+
   const playbackResponse = await app.inject({
     method: 'GET',
     url: '/v1/playback/resolve?id=crisp:movie:55',
@@ -144,6 +166,57 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   });
   assert.equal(playbackResponse.statusCode, 200);
   assert.equal(playbackResponse.json().input.id, 'crisp:movie:55');
+});
+
+test('watch routes expose continue-watching ids and forward dismiss params', async (t) => {
+  const { ContinueWatchingService } = await import('../../modules/watch/continue-watching.service.js');
+  const { WatchEventIngestService } = await import('../../modules/watch/event-ingest.service.js');
+
+  const originalList = ContinueWatchingService.prototype.list;
+  const originalDismissContinueWatching = WatchEventIngestService.prototype.dismissContinueWatching;
+
+  t.after(() => {
+    ContinueWatchingService.prototype.list = originalList;
+    WatchEventIngestService.prototype.dismissContinueWatching = originalDismissContinueWatching;
+  });
+
+  ContinueWatchingService.prototype.list = async function (userId, profileId, limit) {
+    return [{ id: 'cw-1', media: { id: 'crisp:movie:1' }, userId, profileId, limit }] as never;
+  };
+
+  WatchEventIngestService.prototype.dismissContinueWatching = async function (userId, profileId, id) {
+    return { dismissed: true, userId, profileId, id } as never;
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildRouteTestApp(registerWatchRoutes);
+  t.after(async () => {
+    await app.close();
+  });
+
+  const listResponse = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/continue-watching?limit=7',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(listResponse.statusCode, 200);
+  assert.equal(listResponse.json().items[0].id, 'cw-1');
+  assert.equal(listResponse.json().items[0].userId, 'user-1');
+  assert.equal(listResponse.json().items[0].profileId, 'profile-1');
+  assert.equal(listResponse.json().items[0].limit, 7);
+
+  const dismissResponse = await app.inject({
+    method: 'DELETE',
+    url: '/v1/profiles/profile-1/watch/continue-watching/cw-1',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(dismissResponse.statusCode, 200);
+  assert.deepEqual(dismissResponse.json(), {
+    dismissed: true,
+    userId: 'user-1',
+    profileId: 'profile-1',
+    id: 'cw-1',
+  });
 });
 
 test('library routes forward source and limit to service', async (t) => {

@@ -75,6 +75,7 @@ export class RecommendationDataService {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.continueWatchingRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
+        id: typeof row.id === 'string' ? row.id : String(row.id),
         media: await this.buildMedia(client, row),
         progress: {
           positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
@@ -93,6 +94,7 @@ export class RecommendationDataService {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.continueWatchingRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
+        id: typeof row.id === 'string' ? row.id : String(row.id),
         media: await this.buildMedia(client, row),
         progress: {
           positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),

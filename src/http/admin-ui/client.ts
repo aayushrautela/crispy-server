@@ -1559,56 +1559,54 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (!elements.overviewBridge) return;
     const workerControl = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
     if (!workerControl) {
-      elements.overviewBridge.innerHTML = sectionCard('Worker bridge', emptyState('Worker bridge has not reported yet.'));
+      elements.overviewBridge.innerHTML = emptyState('Worker bridge has not reported yet.');
       return;
     }
     const tone = workerControl.reachable ? 'ok' : workerControl.configured ? 'err' : 'warn';
-    elements.overviewBridge.innerHTML = sectionCard('Worker bridge',
+    elements.overviewBridge.innerHTML =
       '<div class="inline-actions">' + badge(workerControl.reachable ? 'reachable' : workerControl.configured ? 'unreachable' : 'not configured', tone) + '</div>'
       + '<div class="kv-grid">'
       + kvPair('Configured', workerControl.configured ? 'yes' : 'no')
       + kvPair('Reachable', workerControl.reachable ? 'yes' : 'no')
       + kvPair('Worker clock', workerControl.serverTime ? formatDate(workerControl.serverTime) : 'n/a')
       + kvPair('Error', workerControl.error || 'none')
-      + '</div>'
-    );
+      + '</div>';
   }
 
   function renderOverviewDiagnostics() {
     if (!elements.overviewDiagnostics) return;
     const diagnostics = state.diagnosticsPayload;
     if (!diagnostics) {
-      elements.overviewDiagnostics.innerHTML = sectionCard('Diagnostics', emptyState('Diagnostics have not loaded yet.'));
+      elements.overviewDiagnostics.innerHTML = emptyState('Diagnostics have not loaded yet.');
       return;
     }
     const backlog = diagnostics.workState && Array.isArray(diagnostics.workState.backlog) ? diagnostics.workState.backlog : [];
     const imports = diagnostics.imports && Array.isArray(diagnostics.imports.connections) ? diagnostics.imports.connections : [];
     const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
     const refreshFailures = imports.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
-    elements.overviewDiagnostics.innerHTML = sectionCard('Diagnostics',
+    elements.overviewDiagnostics.innerHTML =
       '<div class="kv-grid">'
       + kvPair('Backlog buckets', String(backlog.length))
       + kvPair('Pending items', String(sum(backlog.map((row) => Number(row.pendingCount || 0)))))
       + kvPair('Refresh failures', String(refreshFailures))
       + kvPair('Outbox lag', lagText(outbox))
-      + '</div>'
-    );
+      + '</div>';
   }
 
   function renderOverviewNotifications() {
     if (!elements.overviewNotifications) return;
     const items = state.notifications.slice(0, 3);
     if (!items.length) {
-      elements.overviewNotifications.innerHTML = sectionCard('Recent events', emptyState('Notifications will appear here as jobs and bridge states change.'));
+      elements.overviewNotifications.innerHTML = emptyState('Notifications will appear here as jobs and bridge states change.');
       return;
     }
-    elements.overviewNotifications.innerHTML = sectionCard('Recent events', '<div class="notification-feed notification-feed-inline">'
+    elements.overviewNotifications.innerHTML = '<div class="notification-feed notification-feed-inline">'
       + items.map((item) => '<article class="notification-item ' + (item.read ? '' : 'unread') + '">'
         + '<div class="notification-item-head"><strong>' + escapeHtml(item.title) + '</strong>' + badge(item.kind, item.kind) + '</div>'
         + '<p>' + escapeHtml(item.text) + '</p>'
         + '<div class="item-meta meta-spaced"><span>' + escapeHtml(formatTimeAgo(item.createdAt)) + '</span></div>'
       + '</article>').join('')
-      + '</div>');
+      + '</div>';
   }
 })();
 `;

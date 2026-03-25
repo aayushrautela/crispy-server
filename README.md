@@ -184,10 +184,59 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 - `GET /v1/metadata/resolve` - resolve metadata identity
 - `GET /v1/metadata/titles/:id` - title detail
+- `GET /v1/metadata/titles/:id/content` - title content enriched with OMDb data
 - `GET /v1/metadata/titles/:id/seasons/:seasonNumber` - season detail
 - `GET /v1/search/titles` - TMDB-backed search
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile
 - `POST /v1/profiles/:profileId/ai/insights` - AI insights for a title and profile
+
+`GET /v1/metadata/titles/:id/content` returns the existing metadata item plus an `omdb` object resolved from the stored account OMDb key and the title's IMDb id.
+
+Example response shape:
+
+```json
+{
+  "item": {
+    "id": "crisp:movie:55",
+    "title": "Arrival",
+    "externalIds": {
+      "imdb": "tt2543164"
+    }
+  },
+  "omdb": {
+    "imdbId": "tt2543164",
+    "title": "Arrival",
+    "type": "movie",
+    "year": "2016",
+    "rated": "PG-13",
+    "released": "11 Nov 2016",
+    "runtime": "116 min",
+    "genres": ["Drama", "Mystery", "Sci-Fi"],
+    "directors": ["Denis Villeneuve"],
+    "writers": ["Eric Heisserer", "Ted Chiang"],
+    "actors": ["Amy Adams", "Jeremy Renner", "Forest Whitaker"],
+    "plot": "A linguist works with the military to communicate with alien lifeforms after mysterious spacecraft appear around the world.",
+    "languages": ["English", "Russian", "Mandarin"],
+    "countries": ["United States", "Canada"],
+    "awards": "Won 1 Oscar. 73 wins & 265 nominations total",
+    "posterUrl": "https://...",
+    "ratings": [
+      { "source": "Internet Movie Database", "value": "7.9/10" },
+      { "source": "Rotten Tomatoes", "value": "94%" },
+      { "source": "Metacritic", "value": "81/100" }
+    ],
+    "imdbRating": 7.9,
+    "imdbVotes": 756123,
+    "metascore": 81,
+    "boxOffice": "$100,546,139",
+    "production": "Paramount Pictures",
+    "website": null,
+    "totalSeasons": null
+  }
+}
+```
+
+Continue-watching items include a Crispy projection `id`; pass that same value to `DELETE /v1/profiles/:profileId/watch/continue-watching/:id` when dismissing an item.
 
 #### Recommendations
 
@@ -228,6 +277,8 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/token-status` - provider token status after confirming the profile belongs to the account
 - `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/access-token` - fetch provider access token after confirming the profile belongs to the account
 - `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/refresh` - refresh provider token after confirming the profile belongs to the account
+
+Internal and admin continue-watching responses expose the same item `id` field as the user-facing route so downstream consumers can dismiss or correlate items without extra lookups.
 
 #### Recommendation work and diagnostics
 

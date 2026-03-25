@@ -35,6 +35,7 @@ export class WatchReadService {
           });
           const media = await this.metadataViewService.buildMetadataView(client, identity);
           return {
+            id: String(row.id),
             media,
             progress: {
               positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),

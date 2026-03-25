@@ -155,6 +155,43 @@ export type MetadataNextEpisodeResponse = {
   item: MetadataEpisodeView | null;
 };
 
+export type OmdbRatingEntry = {
+  source: string;
+  value: string;
+};
+
+export type OmdbContentView = {
+  imdbId: string;
+  title: string | null;
+  type: string | null;
+  year: string | null;
+  rated: string | null;
+  released: string | null;
+  runtime: string | null;
+  genres: string[];
+  directors: string[];
+  writers: string[];
+  actors: string[];
+  plot: string | null;
+  languages: string[];
+  countries: string[];
+  awards: string | null;
+  posterUrl: string | null;
+  ratings: OmdbRatingEntry[];
+  imdbRating: number | null;
+  imdbVotes: number | null;
+  metascore: number | null;
+  boxOffice: string | null;
+  production: string | null;
+  website: string | null;
+  totalSeasons: number | null;
+};
+
+export type MetadataTitleContentResponse = {
+  item: MetadataView;
+  omdb: OmdbContentView;
+};
+
 export type PlaybackResolveResponse = {
   item: MetadataView;
   show: MetadataView | null;

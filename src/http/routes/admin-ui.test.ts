@@ -178,7 +178,7 @@ test('admin api proxies worker jobs and diagnostics behind admin auth', async (t
     return [{ accountId, profileId, limit }] as never;
   };
   RecommendationDataService.prototype.getContinueWatchingForAccountService = async function (accountId, profileId, limit) {
-    return [{ accountId, profileId, limit, lastActivityAt: '2026-03-25T00:00:00.000Z', progress: { progressPercent: 50 } }] as never;
+    return [{ id: 'cw-1', accountId, profileId, limit, lastActivityAt: '2026-03-25T00:00:00.000Z', progress: { progressPercent: 50 } }] as never;
   };
   RecommendationDataService.prototype.getWatchlistForAccountService = async function (accountId, profileId, limit) {
     return [{ accountId, profileId, limit, addedAt: '2026-03-25T00:00:00.000Z' }] as never;
@@ -245,6 +245,11 @@ test('admin api proxies worker jobs and diagnostics behind admin auth', async (t
   const watchHistory = await app.inject({ method: 'GET', url: '/admin/api/accounts/account-1/profiles/profile-1/watch-history?limit=3', headers: authHeader });
   assert.equal(watchHistory.statusCode, 200);
   assert.equal(watchHistory.json().items[0].limit, 3);
+
+  const continueWatching = await app.inject({ method: 'GET', url: '/admin/api/accounts/account-1/profiles/profile-1/continue-watching?limit=4', headers: authHeader });
+  assert.equal(continueWatching.statusCode, 200);
+  assert.equal(continueWatching.json().items[0].id, 'cw-1');
+  assert.equal(continueWatching.json().items[0].limit, 4);
 
   const taste = await app.inject({ method: 'GET', url: '/admin/api/accounts/account-1/profiles/profile-1/taste-profile?sourceKey=default', headers: authHeader });
   assert.equal(taste.statusCode, 200);

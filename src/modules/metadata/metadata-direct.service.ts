@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { withTransaction } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
+import { AccountSettingsService } from '../users/account-settings.service.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
 import { inferMediaIdentity, type MediaIdentity } from '../watch/media-key.js';
 import {
@@ -21,11 +22,16 @@ import type {
   MetadataPersonDetail,
   MetadataPersonKnownForItem,
   MetadataSeasonView,
+  MetadataTitleContentResponse,
   MetadataView,
+  OmdbContentView,
+  OmdbRatingEntry,
   PlaybackResolveResponse,
   TmdbEpisodeRecord,
   TmdbTitleRecord,
 } from './tmdb.types.js';
+
+type FetchLike = typeof fetch;
 
 type ResolveMetadataInput = {
   id?: string;
@@ -51,6 +57,8 @@ export class MetadataDirectService {
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly tmdbClient = new TmdbClient(),
+    private readonly accountSettingsService = new AccountSettingsService(),
+    private readonly fetcher: FetchLike = fetch,
   ) {}
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
@@ -138,6 +146,21 @@ export class MetadataDirectService {
       currentSeasonNumber: input.currentSeasonNumber,
       currentEpisodeNumber: input.currentEpisodeNumber,
       item: nextEpisode ? episodeList.episodes.find((episode) => episode.id === nextEpisode.id) ?? null : null,
+    };
+  }
+
+  async getTitleContent(userId: string, id: string): Promise<MetadataTitleContentResponse> {
+    const item = await this.resolveMetadataView({ id });
+    const imdbId = normalizeImdbId(item.externalIds.imdb);
+    if (!imdbId) {
+      throw new HttpError(404, 'IMDb id not available for this title.');
+    }
+
+    const omdbApiKey = await this.getOmdbApiKey(userId);
+    const omdb = await this.fetchOmdbContent(omdbApiKey, imdbId);
+    return {
+      item,
+      omdb,
     };
   }
 
@@ -243,6 +266,58 @@ export class MetadataDirectService {
     }
 
     return null;
+  }
+
+  private async getOmdbApiKey(userId: string): Promise<string> {
+    try {
+      const secret = await this.accountSettingsService.getOmdbApiKeyForUser(userId);
+      return secret.value;
+    } catch (error) {
+      if (error instanceof HttpError && error.statusCode === 404) {
+        throw new HttpError(412, 'OMDb is not configured for this account. Add an OMDb API key in Account Settings.');
+      }
+      throw error;
+    }
+  }
+
+  private async fetchOmdbContent(apiKey: string, imdbId: string): Promise<OmdbContentView> {
+    const url = new URL('https://www.omdbapi.com/');
+    url.searchParams.set('apikey', apiKey);
+    url.searchParams.set('i', imdbId);
+    url.searchParams.set('plot', 'full');
+    url.searchParams.set('tomatoes', 'true');
+
+    let response: Response;
+    try {
+      response = await this.fetcher(url.toString(), {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+    } catch (error) {
+      throw new HttpError(502, 'OMDb request failed.', {
+        cause: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (!response.ok) {
+      throw new HttpError(502, `OMDb request failed with HTTP ${response.status}.`);
+    }
+
+    const payload = await response.json().catch(() => null);
+    const record = asRecord(payload);
+    if (!record) {
+      throw new HttpError(502, 'OMDb returned an invalid response.');
+    }
+
+    const omdbResponse = asString(record.Response);
+    if (omdbResponse?.toLowerCase() === 'false') {
+      const message = asString(record.Error) ?? 'OMDb lookup failed.';
+      const statusCode = /not found/i.test(message) ? 404 : 502;
+      throw new HttpError(statusCode, message);
+    }
+
+    return buildOmdbContentView(record, imdbId);
   }
 }
 
@@ -388,4 +463,83 @@ function asPositiveNumber(value: unknown): number | null {
 function asFiniteNumber(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildOmdbContentView(payload: Record<string, unknown>, fallbackImdbId: string): OmdbContentView {
+  return {
+    imdbId: normalizeImdbId(asString(payload.imdbID)) ?? fallbackImdbId,
+    title: asOmdbString(payload.Title),
+    type: asOmdbString(payload.Type),
+    year: asOmdbString(payload.Year),
+    rated: asOmdbString(payload.Rated),
+    released: asOmdbString(payload.Released),
+    runtime: asOmdbString(payload.Runtime),
+    genres: parseOmdbList(payload.Genre),
+    directors: parseOmdbList(payload.Director),
+    writers: parseOmdbList(payload.Writer),
+    actors: parseOmdbList(payload.Actors),
+    plot: asOmdbString(payload.Plot),
+    languages: parseOmdbList(payload.Language),
+    countries: parseOmdbList(payload.Country),
+    awards: asOmdbString(payload.Awards),
+    posterUrl: asOmdbString(payload.Poster),
+    ratings: parseOmdbRatings(payload.Ratings),
+    imdbRating: parseOmdbNumber(payload.imdbRating),
+    imdbVotes: parseOmdbInteger(payload.imdbVotes),
+    metascore: parseOmdbInteger(payload.Metascore),
+    boxOffice: asOmdbString(payload.BoxOffice),
+    production: asOmdbString(payload.Production),
+    website: asOmdbString(payload.Website),
+    totalSeasons: parseOmdbInteger(payload.totalSeasons),
+  };
+}
+
+function parseOmdbList(value: unknown): string[] {
+  return typeof value === 'string'
+    ? value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0 && entry.toUpperCase() !== 'N/A')
+    : [];
+}
+
+function parseOmdbRatings(value: unknown): OmdbRatingEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => {
+      const source = asOmdbString(entry.Source);
+      const ratingValue = asOmdbString(entry.Value);
+      if (!source || !ratingValue) {
+        return null;
+      }
+      return {
+        source,
+        value: ratingValue,
+      } satisfies OmdbRatingEntry;
+    })
+    .filter((entry): entry is OmdbRatingEntry => entry !== null);
+}
+
+function parseOmdbNumber(value: unknown): number | null {
+  const normalized = asOmdbString(value);
+  if (!normalized) {
+    return null;
+  }
+  const parsed = Number(normalized.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseOmdbInteger(value: unknown): number | null {
+  const parsed = parseOmdbNumber(value);
+  return parsed !== null && Number.isInteger(parsed) ? parsed : null;
+}
+
+function asOmdbString(value: unknown): string | null {
+  const normalized = asString(value);
+  return normalized && normalized.toUpperCase() !== 'N/A' ? normalized : null;
 }

@@ -1,22 +1,29 @@
 export function renderWorkerControlView(): string {
   return `
     <section class="view" data-view="worker-control" hidden>
-      <header class="view-header compact">
+      <header class="view-header">
         <h2>Worker Control</h2>
       </header>
 
-      <section class="panel narrow-panel">
-        <div class="panel-body section-stack">
-          <div id="bridge-summary" class="mini-panel">
-            <h4>Worker control status</h4>
+      <div class="narrow-panel">
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Worker control status</h3>
+          </div>
+          <div class="panel-body">
             <p id="bridge-text">Checking worker control configuration...</p>
           </div>
-          <div class="mini-panel">
-            <h4>Bridge payload</h4>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Bridge payload</h3>
           </div>
-          <div class="code" id="bridge-json">Loading...</div>
-        </div>
-      </section>
+          <div class="panel-body">
+            <div class="code" id="bridge-json">Loading...</div>
+          </div>
+        </section>
+      </div>
     </section>
   `;
 }

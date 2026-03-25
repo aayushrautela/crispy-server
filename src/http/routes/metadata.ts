@@ -30,6 +30,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     return metadataQueryService.getTitleDetailById(params.id);
   });
 
+  app.get('/v1/metadata/titles/:id/content', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const params = request.params as { id: string };
+    return metadataDirectService.getTitleContent(actor.appUserId, params.id);
+  });
+
   app.get('/v1/metadata/titles/:id/seasons/:seasonNumber', async (request) => {
     await app.requireAuth(request);
     const params = request.params as { id: string; seasonNumber: string };
