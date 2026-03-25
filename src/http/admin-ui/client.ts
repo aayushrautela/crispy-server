@@ -23,6 +23,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     },
   };
 
+  const apiBase = String((document.body && document.body.getAttribute('data-admin-api-base')) || '/admin/api').replace(/\/$/, '');
+
   const state = {
     activeView: 'overview',
     jobsBusy: false,
@@ -299,6 +301,10 @@ export const ADMIN_UI_CLIENT = String.raw`
     return VIEW_META[value] ? value : '';
   }
 
+  function apiPath(path) {
+    return apiBase + path;
+  }
+
   function startPolling() {
     if (state.pollersStarted) return;
     state.pollersStarted = true;
@@ -357,7 +363,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   async function loadBridgeStatus(options) {
     state.bridgeBusy = true;
     try {
-      const payload = await fetchJson('/admin/api/worker/control-status');
+      const payload = await fetchJson(apiPath('/worker/control-status'));
       state.bridgePayload = payload;
       renderBridgeStatus(payload);
       maybeNotifyBridge(payload, options && options.silent === true);
@@ -382,18 +388,18 @@ export const ADMIN_UI_CLIENT = String.raw`
     const configured = workerControl.configured === true;
     const reachable = workerControl.reachable === true;
     if (!configured) {
-      updateBridgeTexts('Worker status: not configured', 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable worker control.', 'Not configured');
+      updateBridgeTexts('Worker status: not configured', 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable worker control.', 'setup');
     } else if (reachable) {
       updateBridgeTexts(
         'Worker status: reachable',
         'API server can reach the recommendation engine worker-control surface.' + (workerControl.serverTime ? ' Worker clock: ' + formatDate(workerControl.serverTime) + '.' : ''),
-        'Reachable'
+        'live'
       );
     } else {
       updateBridgeTexts(
         'Worker status: unreachable',
         workerControl.error || 'Worker control is configured, but the API server cannot reach the worker right now.',
-        'Unreachable'
+        'down'
       );
     }
     if (elements.bridgeJson) {
@@ -420,7 +426,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   async function loadJobs(options) {
     setBusy('jobsBusy', true);
     try {
-      const payload = await fetchJson('/admin/api/worker/jobs/status');
+      const payload = await fetchJson(apiPath('/worker/jobs/status'));
       const activeJobs = Array.isArray(payload.activeJobs) ? payload.activeJobs : [];
       const queuedJobs = Array.isArray(payload.queuedJobs) ? payload.queuedJobs : [];
       const recentJobs = Array.isArray(payload.recentJobs) ? payload.recentJobs : [];
@@ -478,9 +484,9 @@ export const ADMIN_UI_CLIENT = String.raw`
     setBusy('diagnosticsBusy', true);
     try {
       const result = await Promise.all([
-        fetchJson('/admin/api/diagnostics/recommendations/work-state?limit=8'),
-        fetchJson('/admin/api/diagnostics/recommendations/outbox?limit=8'),
-        fetchJson('/admin/api/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false'),
+        fetchJson(apiPath('/diagnostics/recommendations/work-state?limit=8')),
+        fetchJson(apiPath('/diagnostics/recommendations/outbox?limit=8')),
+        fetchJson(apiPath('/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false')),
       ]);
       const payload = {
         workState: result[0],
@@ -526,7 +532,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (form) setFormDisabled(form, true);
     setMessage(elements.jobMessage, 'info', 'Sending worker trigger request...');
     try {
-      const response = await fetchJson('/admin/api/worker/jobs/trigger', {
+      const response = await fetchJson(apiPath('/worker/jobs/trigger'), {
         method: 'POST',
         body: JSON.stringify(payload),
       });
@@ -560,12 +566,15 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (elements.accountSummary) {
       elements.accountSummary.hidden = true;
     }
+    if (elements.navAccountsBadge) {
+      elements.navAccountsBadge.textContent = '0';
+    }
     clearProfileWorkspace();
 
     try {
-      const accountResponse = await fetchJson('/admin/api/accounts/lookup-by-email/' + encodeURIComponent(email));
+      const accountResponse = await fetchJson(apiPath('/accounts/lookup-by-email/' + encodeURIComponent(email)));
       const account = accountResponse.account;
-      const profilesResponse = await fetchJson('/admin/api/accounts/' + encodeURIComponent(account.accountId) + '/profiles');
+      const profilesResponse = await fetchJson(apiPath('/accounts/' + encodeURIComponent(account.accountId) + '/profiles'));
       const profiles = Array.isArray(profilesResponse.profiles) ? profilesResponse.profiles : [];
       state.selectedAccount = account;
       state.selectedProfile = null;
@@ -595,6 +604,9 @@ export const ADMIN_UI_CLIENT = String.raw`
       pushNotification('success', 'Account resolved', 'Loaded ' + profiles.length + ' profiles for ' + (account.email || email) + '.', false);
     } catch (error) {
       setMessage(elements.lookupMessage, 'error', error.message || 'Unable to resolve account.');
+      if (elements.navAccountsBadge) {
+        elements.navAccountsBadge.textContent = '0';
+      }
       pushNotification('error', 'Account lookup failed', error.message || 'Unable to resolve account.', true);
     } finally {
       state.lookupBusy = false;
@@ -624,8 +636,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     const cards = Array.from(document.querySelectorAll('[data-profile-card]'));
     for (const card of cards) {
       const selected = card.getAttribute('data-profile-card') === profileId;
-      card.style.borderColor = selected ? 'rgba(196, 93, 52, 0.38)' : 'rgba(91, 70, 48, 0.12)';
-      card.style.boxShadow = selected ? '0 12px 24px rgba(196, 93, 52, 0.12)' : 'none';
+      card.classList.toggle('selected', selected);
     }
   }
 
@@ -656,14 +667,14 @@ export const ADMIN_UI_CLIENT = String.raw`
 
     try {
       const results = await Promise.all([
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/overview'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/taste-profile?sourceKey=default'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations?sourceKey=default'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watch-history?limit=8'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/continue-watching?limit=6'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watchlist?limit=8'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/ratings?limit=8'),
-        safeFetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/tracked-series?limit=8'),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/overview')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/taste-profile?sourceKey=default')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations?sourceKey=default')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watch-history?limit=8')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/continue-watching?limit=6')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watchlist?limit=8')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/ratings?limit=8')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/tracked-series?limit=8')),
       ]);
 
       elements.profileDetailBody.innerHTML = [
@@ -693,7 +704,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       + badge(profile.isKids ? 'kids profile' : 'standard profile', profile.isKids ? 'warn' : 'info')
       + badge('updated ' + formatDate(profile.updatedAt || 'unknown'), 'info')
       + '</div>'
-      + '<div class="jobs-toolbar" style="margin-top: 12px;">'
+      + '<div class="jobs-toolbar profile-card-actions">'
       + '<button class="secondary" type="button" data-select-profile="' + escapeHtml(profile.id) + '" data-account-id="' + escapeHtml(account.accountId) + '">Open profile ops</button>'
       + '</div>'
       + '</div>';
@@ -710,7 +721,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         button.disabled = true;
         setMessage(messageEl, 'info', 'Starting ' + provider + ' import...');
         try {
-          const payload = await fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/start', {
+          const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/start'), {
             method: 'POST',
             body: JSON.stringify({ provider: provider }),
           });
@@ -739,7 +750,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         button.disabled = true;
         setMessage(messageEl, 'info', 'Refreshing ' + provider + ' token...');
         try {
-          await fetchJson('/admin/api/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/providers/' + encodeURIComponent(provider) + '/refresh-token', {
+          await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/providers/' + encodeURIComponent(provider) + '/refresh-token'), {
             method: 'POST',
           });
           setMessage(messageEl, 'success', 'Refreshed ' + provider + ' token.');
@@ -878,7 +889,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       + '  <div class="job-actions">' + actions.join('') + '</div>'
       + '</div>'
       + '<div><strong>' + escapeHtml(job.progress && job.progress.phase || 'No phase') + '</strong><div class="muted">' + escapeHtml(job.progress && job.progress.message || 'No message') + '</div></div>'
-      + '<div class="progress"><span style="width:' + percent + '%"></span></div>'
+      + '<div class="progress"><span class="progress-bar" style="width:' + percent + '%"></span></div>'
       + '<div class="job-meta">'
       + '  <span>processed ' + escapeHtml(String(job.progress && job.progress.processed || 0)) + '</span>'
       + '  <span>skipped ' + escapeHtml(String(job.progress && job.progress.skipped || 0)) + '</span>'
@@ -896,7 +907,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         if (!jobId) return;
         button.disabled = true;
         try {
-          const payload = await fetchJson('/admin/api/worker/jobs/' + encodeURIComponent(jobId) + '/cancel', { method: 'POST' });
+          const payload = await fetchJson(apiPath('/worker/jobs/' + encodeURIComponent(jobId) + '/cancel'), { method: 'POST' });
           setMessage(elements.jobMessage, 'success', payload.message || 'Cancellation requested.');
           pushNotification('warn', 'Job cancellation requested', payload.message || ('Requested cancellation for ' + jobId + '.'), true);
           await loadJobs({ silent: true });
@@ -916,7 +927,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         if (!jobId) return;
         button.disabled = true;
         try {
-          const payload = await fetchJson('/admin/api/worker/jobs/' + encodeURIComponent(jobId), { method: 'DELETE' });
+          const payload = await fetchJson(apiPath('/worker/jobs/' + encodeURIComponent(jobId)), { method: 'DELETE' });
           setMessage(elements.jobMessage, 'success', payload.message || 'Job deleted.');
           pushNotification('info', 'Job deleted', payload.message || ('Deleted ' + jobId + '.'), true);
           await loadJobs({ silent: true });
@@ -1038,7 +1049,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Last import completed', watchDataState && watchDataState.lastImportCompletedAt ? formatDate(watchDataState.lastImportCompletedAt) : 'n/a')
       + '</div>'
       + providerCards
-      + '<div style="margin-top: 12px;">' + jobsMarkup + '</div>'
+      + '<div class="section-spacer">' + jobsMarkup + '</div>'
     );
   }
 
@@ -1129,7 +1140,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Watching pace', tasteProfile.watchingPace || 'n/a')
         + kvPair('Version', tasteProfile.version !== undefined ? String(tasteProfile.version) : 'n/a')
       + '</div>'
-      + (tasteProfile.aiSummary ? '<div class="section-card"><strong>AI summary</strong><div class="muted" style="margin-top:8px;">' + escapeHtml(tasteProfile.aiSummary) + '</div></div>' : '')
+      + (tasteProfile.aiSummary ? '<div class="section-card"><strong>AI summary</strong><div class="muted section-copy">' + escapeHtml(tasteProfile.aiSummary) + '</div></div>' : '')
     );
   }
 
@@ -1150,7 +1161,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Sections', String(sections.length))
       + '</div>'
       + (sections.length
-        ? '<div class="section-stack">' + sections.slice(0, 3).map((section) => '<div class="section-card"><strong>' + escapeHtml(section.title || section.id || 'Section') + '</strong><div class="muted" style="margin-top:8px;">' + escapeHtml(renderRecommendationItems(section.items || [])) + '</div></div>').join('') + '</div>'
+        ? '<div class="section-stack">' + sections.slice(0, 3).map((section) => '<div class="section-card"><strong>' + escapeHtml(section.title || section.id || 'Section') + '</strong><div class="muted section-copy">' + escapeHtml(renderRecommendationItems(section.items || [])) + '</div></div>').join('') + '</div>'
         : emptyState('Recommendation snapshot has no sections.'))
     );
   }
@@ -1207,7 +1218,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function sectionCard(title, body) {
-    return '<div class="mini-panel"><h4>' + escapeHtml(title) + '</h4><div style="margin-top: 10px;">' + body + '</div></div>';
+    return '<div class="mini-panel"><h4>' + escapeHtml(title) + '</h4><div class="section-body">' + body + '</div></div>';
   }
 
   function kvPair(label, value) {
@@ -1387,7 +1398,7 @@ export const ADMIN_UI_CLIENT = String.raw`
             + badge(item.kind, item.kind)
             + '</div>'
             + '<p>' + escapeHtml(item.text) + '</p>'
-            + '<div class="item-meta" style="margin-top:8px;"><span>' + escapeHtml(formatTimeAgo(item.createdAt)) + '</span></div>'
+            + '<div class="item-meta meta-spaced"><span>' + escapeHtml(formatTimeAgo(item.createdAt)) + '</span></div>'
             + '</article>';
         }).join('');
       }
@@ -1472,11 +1483,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (!elements.overviewBridge) return;
     const workerControl = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
     if (!workerControl) {
-      elements.overviewBridge.innerHTML = sectionCard('Bridge state', emptyState('Worker bridge has not reported yet.'));
+      elements.overviewBridge.innerHTML = sectionCard('Worker bridge', emptyState('Worker bridge has not reported yet.'));
       return;
     }
     const tone = workerControl.reachable ? 'ok' : workerControl.configured ? 'err' : 'warn';
-    elements.overviewBridge.innerHTML = sectionCard('Bridge state',
+    elements.overviewBridge.innerHTML = sectionCard('Worker bridge',
       '<div class="inline-actions">' + badge(workerControl.reachable ? 'reachable' : workerControl.configured ? 'unreachable' : 'not configured', tone) + '</div>'
       + '<div class="kv-grid">'
       + kvPair('Configured', workerControl.configured ? 'yes' : 'no')
@@ -1491,14 +1502,14 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (!elements.overviewDiagnostics) return;
     const diagnostics = state.diagnosticsPayload;
     if (!diagnostics) {
-      elements.overviewDiagnostics.innerHTML = sectionCard('Operational pulse', emptyState('Diagnostics have not loaded yet.'));
+      elements.overviewDiagnostics.innerHTML = sectionCard('Diagnostics', emptyState('Diagnostics have not loaded yet.'));
       return;
     }
     const backlog = diagnostics.workState && Array.isArray(diagnostics.workState.backlog) ? diagnostics.workState.backlog : [];
     const imports = diagnostics.imports && Array.isArray(diagnostics.imports.connections) ? diagnostics.imports.connections : [];
     const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
     const refreshFailures = imports.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
-    elements.overviewDiagnostics.innerHTML = sectionCard('Operational pulse',
+    elements.overviewDiagnostics.innerHTML = sectionCard('Diagnostics',
       '<div class="kv-grid">'
       + kvPair('Backlog buckets', String(backlog.length))
       + kvPair('Pending items', String(sum(backlog.map((row) => Number(row.pendingCount || 0)))))
@@ -1515,11 +1526,11 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.overviewNotifications.innerHTML = sectionCard('Recent events', emptyState('Notifications will appear here as jobs and bridge states change.'));
       return;
     }
-    elements.overviewNotifications.innerHTML = sectionCard('Recent events', '<div class="notification-feed" style="padding:0; overflow:visible;">'
+    elements.overviewNotifications.innerHTML = sectionCard('Recent events', '<div class="notification-feed notification-feed-inline">'
       + items.map((item) => '<article class="notification-item ' + (item.read ? '' : 'unread') + '">'
         + '<div class="notification-item-head"><strong>' + escapeHtml(item.title) + '</strong>' + badge(item.kind, item.kind) + '</div>'
         + '<p>' + escapeHtml(item.text) + '</p>'
-        + '<div class="item-meta" style="margin-top:8px;"><span>' + escapeHtml(formatTimeAgo(item.createdAt)) + '</span></div>'
+        + '<div class="item-meta meta-spaced"><span>' + escapeHtml(formatTimeAgo(item.createdAt)) + '</span></div>'
       + '</article>').join('')
       + '</div>');
   }

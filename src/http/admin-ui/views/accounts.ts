@@ -2,15 +2,13 @@ export function renderAccountsView(): string {
   return `
     <section class="view" data-view="accounts" hidden>
       <header class="view-header compact">
-        <h1>Account Inspector</h1>
+        <h2>Account Inspector</h2>
       </header>
 
       <div class="accounts-layout">
         <section class="panel profile-directory">
           <div class="panel-head">
-          <div class="panel-head">
-            <h2>Lookup</h2>
-          </div>
+            <h3>Lookup</h3>
           </div>
           <div class="panel-body section-stack">
             <form id="account-lookup-form">
@@ -38,7 +36,7 @@ export function renderAccountsView(): string {
                 <h3 id="profile-detail-title">Profile workspace</h3>
                 <p id="profile-detail-meta">No profile selected.</p>
               </div>
-              <div class="hero-actions">
+              <div class="view-header-actions">
                 <button type="button" class="secondary" id="refresh-profile-detail">Refresh profile view</button>
               </div>
             </div>

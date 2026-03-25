@@ -2,8 +2,8 @@ export function renderJobsView(): string {
   return `
     <section class="view" data-view="jobs" hidden>
       <header class="view-header compact">
-        <h1>Worker Jobs</h1>
-        <div class="hero-actions">
+        <h2>Worker Jobs</h2>
+        <div class="view-header-actions">
           <button type="button" class="secondary" id="refresh-jobs">Refresh status</button>
         </div>
       </header>
@@ -56,7 +56,7 @@ export function renderJobsView(): string {
       <div class="two-panel-grid">
         <section class="panel">
           <div class="panel-head">
-            <h2>Active + queued</h2>
+            <h3>Active and queued</h3>
           </div>
           <div class="panel-body">
             <div id="job-list-active"></div>
@@ -65,7 +65,7 @@ export function renderJobsView(): string {
 
         <section class="panel">
           <div class="panel-head">
-            <h2>Recent runs</h2>
+            <h3>Recent runs</h3>
           </div>
           <div class="panel-body">
             <div id="job-list-recent"></div>

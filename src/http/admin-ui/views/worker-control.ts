@@ -2,7 +2,7 @@ export function renderWorkerControlView(): string {
   return `
     <section class="view" data-view="worker-control" hidden>
       <header class="view-header compact">
-        <h1>Worker Control</h1>
+        <h2>Worker Control</h2>
       </header>
 
       <section class="panel narrow-panel">

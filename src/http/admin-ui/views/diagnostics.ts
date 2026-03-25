@@ -2,8 +2,8 @@ export function renderDiagnosticsView(): string {
   return `
     <section class="view" data-view="diagnostics" hidden>
       <header class="view-header compact">
-        <h1>Diagnostics</h1>
-        <div class="hero-actions">
+        <h2>Diagnostics</h2>
+        <div class="view-header-actions">
           <button type="button" class="secondary" id="refresh-diagnostics">Refresh diagnostics</button>
         </div>
       </header>
@@ -32,7 +32,7 @@ export function renderDiagnosticsView(): string {
               <table>
                 <thead>
                   <tr>
-                    <th>Recommendation backlog</th>
+                    <th>Source</th>
                     <th>Pending</th>
                     <th>Active</th>
                     <th>Oldest</th>

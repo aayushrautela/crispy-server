@@ -5,6 +5,7 @@ export async function registerAdminUiRoutes(app: FastifyInstance): Promise<void>
   app.get('/admin', async (request, reply) => {
     await app.requireAdminUi(request, reply);
     reply.header('cache-control', 'no-store');
+    reply.header('color-scheme', 'dark');
     reply.type('text/html; charset=utf-8');
     return renderAdminPage();
   });

@@ -8,35 +8,41 @@ export function renderAdminPage(): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <meta name="theme-color" content="#171514">
   <title>Crispy Control Plane</title>
   <link rel="icon" href="data:,">
   <style>${ADMIN_UI_STYLES}</style>
 </head>
-<body>
+<body data-admin-api-base="/admin/api">
   <div class="dashboard-shell">
     <aside class="sidebar" id="admin-sidebar" aria-label="Admin sidebar">
       <div class="sidebar-brand">
         <strong>Crispy Ops</strong>
+        <span>Admin workspace</span>
       </div>
 
       <div class="nav-group">
         <nav class="nav-list" aria-label="Workspace navigation">
           <button type="button" class="nav-item" data-nav-target="overview" aria-current="page">
-            <span><strong>Overview</strong></span>
+            <span>Overview</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="jobs">
-            <span><strong>Worker Jobs</strong></span>
-            <span id="nav-jobs-badge">0</span>
+            <span>Worker Jobs</span>
+            <span class="nav-meta" id="nav-jobs-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="diagnostics">
-            <span><strong>Diagnostics</strong></span>
-            <span id="nav-diagnostics-badge">0</span>
+            <span>Diagnostics</span>
+            <span class="nav-meta" id="nav-diagnostics-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="accounts">
-            <span><strong>Accounts</strong></span>
+            <span>Accounts</span>
+            <span class="nav-meta" id="nav-accounts-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="worker-control">
-            <span><strong>Worker Control</strong></span>
+            <span>Worker Control</span>
+            <span class="nav-meta" id="nav-bridge-badge">check</span>
           </button>
         </nav>
       </div>
@@ -55,16 +61,17 @@ export function renderAdminPage(): string {
           <button type="button" class="sidebar-toggle secondary" id="sidebar-toggle" aria-label="Toggle sidebar"><span></span></button>
           <div class="topbar-copy">
             <h1 id="current-view-title">Overview</h1>
+            <p id="current-view-description">System health, live worker activity, and quick access to the main control surfaces.</p>
           </div>
         </div>
 
         <div class="topbar-right">
-          <div><strong id="topbar-running-count">0</strong> running or queued</div>
-          <div id="worker-control-pill">Checking worker status</div>
-          <div>Last update: <strong id="topbar-last-update">Starting</strong></div>
+          <div class="topbar-stat"><strong id="topbar-running-count">0</strong><span>running or queued</span></div>
+          <div class="topbar-stat" id="worker-control-pill"><strong>Checking</strong><span>worker status</span></div>
+          <div class="topbar-stat"><strong id="topbar-last-update">Starting</strong><span>last update</span></div>
           <button type="button" class="secondary notification-toggle" id="notifications-toggle">
             Notifications
-            <span id="notifications-unread" hidden>0</span>
+            <span class="nav-meta" id="notifications-unread" hidden>0</span>
           </button>
         </div>
       </header>
@@ -79,7 +86,7 @@ export function renderAdminPage(): string {
     <div class="notification-head">
       <div>
         <h3>Notifications</h3>
-        <p class="panel-note">Meaningful worker and control-plane events only.</p>
+        <p class="panel-note">Worker and control-plane events.</p>
       </div>
       <button type="button" class="secondary" id="notifications-clear">Mark all read</button>
     </div>
