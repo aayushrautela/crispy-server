@@ -167,7 +167,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(playbackResponse.json().input.id, 'crisp:movie:55');
 });
 
-test('account routes expose AI endpoint metadata and AI API key aliases', async (t) => {
+test('account routes expose AI endpoint metadata and AI API key routes', async (t) => {
   const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
   const { ProfileService } = await import('../../modules/profiles/profile.service.js');
 
