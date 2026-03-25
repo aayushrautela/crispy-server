@@ -1534,7 +1534,7 @@ const ADMIN_PAGE = `<!doctype html>
         const media = item && item.media ? item.media : null;
         const reason = item && item.reason ? ' - ' + item.reason : '';
         return mediaTitle(media) + reason;
-      }).join('\n');
+      }).join('\\n');
     }
 
     function renderMediaRow(item, kind) {
