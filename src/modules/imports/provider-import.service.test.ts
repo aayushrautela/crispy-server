@@ -107,3 +107,96 @@ test('traktGetArray includes upstream response details for import failures', asy
     globalThis.fetch = originalFetch;
   }
 });
+
+test('disconnectConnection falls back to revoking without credential rewrite if sanitizing payload fails at the database layer', async () => {
+  seedTestEnv();
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { db } = await import('../../lib/db.js');
+
+  const profileRepository = {
+    async findByIdForOwnerUser() {
+      return {
+        id: 'profile-1',
+        profileGroupId: 'group-1',
+        name: 'Main',
+      };
+    },
+  };
+
+  const connectedRecord = {
+    id: 'connection-1',
+    profileId: 'profile-1',
+    provider: 'trakt',
+    status: 'connected',
+    stateToken: null,
+    providerUserId: 'provider-user-1',
+    externalUsername: 'crispy',
+    credentialsJson: {
+      lastImportJobId: 'job-1',
+      lastImportCompletedAt: 'Wed Aug 09 2023 16:57:00 GMT+0000 (Coordinated Universal Time)',
+      lastRefreshAt: 'Thu Aug 10 2023 12:00:00 GMT+0000 (Coordinated Universal Time)',
+      accessToken: 'secret',
+      refreshToken: 'refresh-secret',
+    },
+    createdByUserId: 'user-1',
+    expiresAt: null,
+    lastUsedAt: null,
+    createdAt: '2026-03-25T00:00:00.000Z',
+    updatedAt: '2026-03-26T00:00:00.000Z',
+  };
+
+  const revokedRecord = {
+    ...connectedRecord,
+    status: 'revoked',
+    credentialsJson: connectedRecord.credentialsJson,
+    lastUsedAt: '2026-03-26T12:00:00.000Z',
+    updatedAt: '2026-03-26T12:00:00.000Z',
+  };
+
+  const revokeCalls: Array<{ connectionId: string; lastUsedAt?: string | null; credentialsJson?: Record<string, unknown> }> = [];
+  const connectionsRepository = {
+    async findLatestConnectedForProfile() {
+      return connectedRecord;
+    },
+    async revokeConnection(_client: unknown, params: { connectionId: string; lastUsedAt?: string | null; credentialsJson?: Record<string, unknown> }) {
+      revokeCalls.push(params);
+      if (revokeCalls.length === 1) {
+        throw new Error('invalid input syntax for type timestamp with time zone');
+      }
+      return revokedRecord;
+    },
+  };
+
+  const service = new ProviderImportService(
+    profileRepository as never,
+    connectionsRepository as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const originalConnect = db.connect.bind(db);
+  (db as { connect: typeof db.connect }).connect = async () => ({
+    async query() {
+      return { rows: [], rowCount: 0 } as never;
+    },
+    release() {
+    },
+  } as never);
+
+  try {
+    const result = await service.disconnectConnection('user-1', 'profile-1', 'trakt');
+
+    assert.equal(revokeCalls.length, 2);
+    assert.equal(revokeCalls[0]?.connectionId, 'connection-1');
+    assert.equal(revokeCalls[1]?.connectionId, 'connection-1');
+    assert.equal('credentialsJson' in revokeCalls[1], false);
+    assert.equal(result.connection.status, 'revoked');
+    assert.equal(result.connection.provider, 'trakt');
+  } finally {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  }
+});

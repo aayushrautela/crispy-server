@@ -303,11 +303,26 @@ export class ProviderImportService {
       }
 
       const disconnectedAt = new Date().toISOString();
-      const updated = await this.connectionsRepository.revokeConnection(client, {
-        connectionId: connection.id,
-        lastUsedAt: disconnectedAt,
-        credentialsJson: sanitizeDisconnectedCredentials(connection.credentialsJson, disconnectedAt, userId),
-      });
+      let updated: ProviderImportConnectionRecord | null;
+      try {
+        updated = await this.connectionsRepository.revokeConnection(client, {
+          connectionId: connection.id,
+          lastUsedAt: disconnectedAt,
+          credentialsJson: sanitizeDisconnectedCredentials(connection.credentialsJson, disconnectedAt, userId),
+        });
+      } catch (error) {
+        logger.warn({
+          err: error,
+          connectionId: connection.id,
+          profileId,
+          provider,
+        }, 'provider disconnect credential scrub failed; retrying revoke without credential rewrite');
+        updated = await this.connectionsRepository.revokeConnection(client, {
+          connectionId: connection.id,
+          lastUsedAt: disconnectedAt,
+        });
+      }
+
       if (!updated) {
         throw new HttpError(404, 'Provider connection not found.');
       }
@@ -1469,14 +1484,15 @@ function assertProviderEnabled(provider: ProviderImportProvider): void {
 }
 
 function sanitizeDisconnectedCredentials(
-  credentials: Record<string, unknown>,
+  credentials: unknown,
   disconnectedAt: string,
   disconnectedByUserId: string,
 ): Record<string, unknown> {
+  const safeCredentials = isRecord(credentials) ? credentials : {};
   return {
-    lastImportJobId: asString(credentials.lastImportJobId),
-    lastImportCompletedAt: asIsoString(credentials.lastImportCompletedAt),
-    lastRefreshAt: asIsoString(credentials.lastRefreshAt),
+    lastImportJobId: asString(safeCredentials.lastImportJobId),
+    lastImportCompletedAt: asIsoString(safeCredentials.lastImportCompletedAt),
+    lastRefreshAt: asIsoString(safeCredentials.lastRefreshAt),
     lastRefreshError: null,
     disconnectedAt,
     disconnectedByUserId,
