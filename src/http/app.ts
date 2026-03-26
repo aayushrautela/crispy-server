@@ -45,6 +45,18 @@ export async function buildApp() {
   await app.register(authPlugin);
   await app.register(serviceAuthPlugin);
 
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
+    if (body === '') {
+      return done(null, {});
+    }
+    try {
+      const parsed = JSON.parse(body as string);
+      done(null, parsed);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
   await registerAdminApiRoutes(app);
