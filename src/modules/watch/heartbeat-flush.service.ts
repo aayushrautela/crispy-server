@@ -36,6 +36,16 @@ export class HeartbeatFlushService {
         return { action: 'deferred' as const, reason: decision.reason };
       }
 
+      const identity = {
+        mediaKey: snapshot.mediaKey,
+        mediaType: ensureSupportedMediaType(snapshot.mediaType),
+        tmdbId: snapshot.tmdbId,
+        showTmdbId: snapshot.showTmdbId,
+        seasonNumber: snapshot.seasonNumber,
+        episodeNumber: snapshot.episodeNumber,
+      };
+      const projection = await this.projector.buildProjection(client, identity);
+
       const event = await this.watchEventsRepository.insert(client, {
         profileGroupId: snapshot.profileGroupId,
         profileId,
@@ -56,26 +66,13 @@ export class HeartbeatFlushService {
             ingest_mode: 'buffered_flush',
           },
         },
-        identity: {
-          mediaKey: snapshot.mediaKey,
-          mediaType: ensureSupportedMediaType(snapshot.mediaType),
-          tmdbId: snapshot.tmdbId,
-          showTmdbId: snapshot.showTmdbId,
-          seasonNumber: snapshot.seasonNumber,
-          episodeNumber: snapshot.episodeNumber,
-        },
+        identity,
+        projection,
       });
 
       await this.projector.applyPlaybackEvent(client, {
         profileId,
-        identity: {
-          mediaKey: snapshot.mediaKey,
-          mediaType: ensureSupportedMediaType(snapshot.mediaType),
-          tmdbId: snapshot.tmdbId,
-          showTmdbId: snapshot.showTmdbId,
-          seasonNumber: snapshot.seasonNumber,
-          episodeNumber: snapshot.episodeNumber,
-        },
+        identity,
         eventId: event.id,
         eventType: 'playback_progress_snapshot',
         occurredAt: snapshot.occurredAt,
@@ -85,6 +82,7 @@ export class HeartbeatFlushService {
           ...snapshot.payload,
           ingest_mode: 'buffered_flush',
         },
+        projection,
       });
 
       return { action: 'persisted' as const, reason: decision.reason };

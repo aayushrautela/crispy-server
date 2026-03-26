@@ -78,7 +78,11 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     return providerImportService.listConnections(actor.appUserId, params.profileId);
   });
 
-  app.delete('/v1/profiles/:profileId/import-connections/:provider', async (request) => {
+  app.delete('/v1/profiles/:profileId/import-connections/:provider', {
+    schema: {
+      body: { type: 'object', additionalProperties: false },
+    },
+  }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; provider: string };

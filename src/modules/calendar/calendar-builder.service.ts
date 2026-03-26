@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
 import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
-import type { TmdbEpisodeRecord } from '../metadata/tmdb.types.js';
+import type { MetadataCardView, TmdbEpisodeRecord } from '../metadata/tmdb.types.js';
 import { inferMediaIdentity } from '../watch/media-key.js';
 import { TrackedSeriesRepository } from '../watch/tracked-series.repo.js';
 import { WatchHistoryRepository } from '../watch/watch-history.repo.js';
@@ -30,7 +30,7 @@ export class CalendarBuilderService {
       }
 
       const showIdentity = inferMediaIdentity({ mediaType: 'show', tmdbId: row.showTmdbId });
-      const relatedShow = await this.metadataViewService.buildMetadataView(client, showIdentity);
+      const relatedShow = await this.metadataViewService.buildMetadataCardView(client, showIdentity);
       const watchedEpisodeKeys = await this.watchHistoryRepository.listWatchedEpisodeKeys(client, profileId, row.showTmdbId);
       const nextEpisode = extractNextEpisodeToAir(title);
 
@@ -78,13 +78,13 @@ export class CalendarBuilderService {
     client: DbClient,
     showTmdbId: number,
     episode: TmdbEpisodeRecord,
-    relatedShow: ReturnType<MetadataViewService['buildMetadataView']> extends Promise<infer T> ? T : never,
+    relatedShow: MetadataCardView,
     watchedEpisodeKeys: Set<string>,
     nowMs: number,
   ): Promise<CalendarItem | null> {
     const mediaKey = `episode:tmdb:${showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
     const watched = watchedEpisodeKeys.has(mediaKey);
-    const media = await this.metadataViewService.buildMetadataView(
+    const media = await this.metadataViewService.buildMetadataCardView(
       client,
       inferMediaIdentity({
         mediaType: 'episode',

@@ -62,8 +62,8 @@ export class TmdbClient {
     });
   }
 
-  async searchTitles(query: string, page = 1): Promise<TmdbSearchApiResponse> {
-    return fetchTmdbJson('/search/multi', {
+  async searchTitles(mediaType: TmdbTitleType, query: string, page = 1): Promise<TmdbSearchApiResponse> {
+    return fetchTmdbJson(`/search/${mediaType}`, {
       query,
       page,
       include_adult: 'false',

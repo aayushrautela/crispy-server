@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { withTransaction } from '../../lib/db.js';
+import { withDbClient, withTransaction } from '../../lib/db.js';
 import { parseStringListEnv } from '../../config/env.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
@@ -99,7 +99,7 @@ export class MetadataDirectService {
   }
 
   async resolveMetadataView(input: ResolveMetadataInput): Promise<MetadataView> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
       return this.metadataViewService.buildMetadataView(client, identity);
     });
@@ -111,7 +111,7 @@ export class MetadataDirectService {
   }
 
   async listEpisodes(id: string, requestedSeasonNumber?: number | null): Promise<MetadataEpisodeListResponse> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const showIdentity = await this.resolveShowIdentity(client, id);
       const title = assertPresent(
         await this.tmdbCacheService.ensureTitleCached(client, 'tv', showIdentity.tmdbId),
@@ -182,7 +182,7 @@ export class MetadataDirectService {
   }
 
   async resolvePlayback(input: ResolveMetadataInput): Promise<PlaybackResolveResponse> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
       const item = await this.metadataViewService.buildMetadataView(client, identity);
       let show: MetadataView | null = null;

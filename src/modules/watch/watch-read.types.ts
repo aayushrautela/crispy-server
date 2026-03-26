@@ -1,4 +1,4 @@
-import type { MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataCardView, MetadataView } from '../metadata/tmdb.types.js';
 
 export type WatchProgressView = {
   positionSeconds: number | null;
@@ -31,7 +31,7 @@ export type RatingStateView = {
 
 export type HydratedWatchItem = {
   id?: string;
-  media: MetadataView;
+  media: MetadataCardView;
   progress?: WatchProgressView;
   watchedAt?: string;
   lastActivityAt?: string;
@@ -39,13 +39,13 @@ export type HydratedWatchItem = {
 };
 
 export type HydratedWatchlistItem = {
-  media: MetadataView;
+  media: MetadataCardView;
   addedAt: string;
   payload?: Record<string, unknown>;
 };
 
 export type HydratedRatingItem = {
-  media: MetadataView;
+  media: MetadataCardView;
   rating: RatingStateView;
   payload?: Record<string, unknown>;
 };
@@ -73,8 +73,8 @@ export type CalendarBucket = 'up_next' | 'this_week' | 'upcoming' | 'recently_re
 
 export type CalendarItem = {
   bucket: CalendarBucket;
-  media: MetadataView;
-  relatedShow: MetadataView;
+  media: MetadataCardView;
+  relatedShow: MetadataCardView;
   airDate: string | null;
   watched: boolean;
 };

@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { withTransaction } from '../../lib/db.js';
+import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
 import { inferMediaIdentity } from '../watch/media-key.js';
@@ -14,6 +14,7 @@ import type {
   TmdbTitleRecord,
   MetadataTitleDetail,
   MetadataSeasonDetail,
+  TmdbTitleType,
 } from './tmdb.types.js';
 
 type ResolveInput = {
@@ -46,7 +47,7 @@ export class MetadataQueryService {
   ) {}
 
   async resolve(input: ResolveInput): Promise<MetadataResolveResponse> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
       return {
         item: await this.metadataViewService.buildMetadataView(client, identity),
@@ -55,7 +56,7 @@ export class MetadataQueryService {
   }
 
   async getTitleDetailById(id: string): Promise<MetadataTitleDetail> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const identity = parseMetadataId(id);
       if (identity.mediaType === 'episode') {
         return this.metadataViewService.getTitleDetail(client, {
@@ -73,7 +74,7 @@ export class MetadataQueryService {
   }
 
   async getSeasonDetailByShowId(showId: string, seasonNumber: number): Promise<MetadataSeasonDetail> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const identity = parseMetadataId(showId);
       if (identity.mediaType !== 'show' || !identity.tmdbId) {
         throw new HttpError(400, 'Season details require a show id.');
@@ -96,7 +97,8 @@ export class MetadataQueryService {
       };
     }
 
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
+      const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
       const matches = genreMapping
         ? await this.tmdbCacheService.discoverTitlesByGenre(client, {
             movieGenreId: genreMapping.movieGenreId,
@@ -104,9 +106,9 @@ export class MetadataQueryService {
             filter: normalizedFilter,
             limit,
           })
-        : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit);
+        : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit, mediaTypes);
       const filteredMatches = matches.filter((match) => matchesSearchFilter(match, normalizedFilter));
-      const items = await this.metadataViewService.buildViews(
+      const items = await this.metadataViewService.buildCardViews(
         client,
         filteredMatches.map((match: TmdbTitleRecord) =>
           inferMediaIdentity({
@@ -192,6 +194,16 @@ function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilte
     return match.mediaType === 'tv';
   }
   return true;
+}
+
+export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTitleType[] {
+  if (filter === 'movies') {
+    return ['movie'];
+  }
+  if (filter === 'series') {
+    return ['tv'];
+  }
+  return ['movie', 'tv'];
 }
 
 function normalizeGenreKey(value: string): string {

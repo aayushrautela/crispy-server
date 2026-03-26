@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
+import type { WatchMediaProjection } from './watch.types.js';
 
 export class MediaProgressRepository {
   async upsert(client: DbClient, params: {
@@ -13,6 +14,7 @@ export class MediaProgressRepository {
     status: string;
     dismissedAt?: string | null;
     payload?: Record<string, unknown>;
+    projection?: WatchMediaProjection;
   }): Promise<void> {
     const progressPercent =
       params.positionSeconds && params.durationSeconds && params.durationSeconds > 0
@@ -45,11 +47,11 @@ export class MediaProgressRepository {
           updated_at
         )
         VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7, NULL, NULL, NULL, NULL,
-          $8, $9, $10, $11, $12::uuid, $13::timestamptz,
-          CASE WHEN $11 = 'completed' THEN $13::timestamptz ELSE NULL END,
-          $14::timestamptz,
-          $15::jsonb,
+          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16::uuid, $17::timestamptz,
+          CASE WHEN $15 = 'completed' THEN $17::timestamptz ELSE NULL END,
+          $18::timestamptz,
+          $19::jsonb,
           now()
         )
         ON CONFLICT (profile_id, media_key)
@@ -77,6 +79,10 @@ export class MediaProgressRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
+        params.projection?.title ?? null,
+        params.projection?.subtitle ?? null,
+        params.projection?.posterUrl ?? null,
+        params.projection?.backdropUrl ?? null,
         params.positionSeconds ?? 0,
         params.durationSeconds ?? null,
         progressPercent,

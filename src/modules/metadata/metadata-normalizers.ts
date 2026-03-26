@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import type { MediaIdentity } from '../watch/media-key.js';
 import type {
+  MetadataCardView,
   MetadataEpisodePreview,
   MetadataEpisodeView,
   MetadataExternalIds,
@@ -270,18 +271,38 @@ export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisode
   };
 }
 
-export function buildMetadataView(params: {
+export function buildMetadataCardView(params: {
   identity: MediaIdentity;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
-  nextEpisode?: TmdbEpisodeRecord | null;
-}): MetadataView {
+  titleOverride?: string | null;
+  subtitleOverride?: string | null;
+  summaryOverride?: string | null;
+  overviewOverride?: string | null;
+  posterUrlOverride?: string | null;
+  backdropUrlOverride?: string | null;
+}): MetadataCardView {
   const { identity, title } = params;
   const currentEpisode = params.currentEpisode ?? null;
   const releaseDate = extractReleaseDate(title, currentEpisode);
   const images = buildMetadataImages(title, currentEpisode);
   const resolvedMediaType = identity.mediaType === 'show' || identity.mediaType === 'episode' ? identity.mediaType : 'movie';
-  const titleName = currentEpisode?.name ?? title?.name ?? title?.originalName ?? null;
+  const titleName = params.titleOverride ?? (
+    resolvedMediaType === 'episode'
+      ? title?.name ?? title?.originalName ?? currentEpisode?.name ?? null
+      : currentEpisode?.name ?? title?.name ?? title?.originalName ?? null
+  );
+  const subtitle = params.subtitleOverride ?? (
+    resolvedMediaType === 'episode'
+      ? currentEpisode?.name ?? (
+        identity.seasonNumber !== null && identity.episodeNumber !== null
+          ? `S${padded(identity.seasonNumber)} E${padded(identity.episodeNumber)}`
+          : null
+      )
+      : title?.status ?? null
+  );
+  const posterUrl = params.posterUrlOverride ?? images.posterUrl;
+  const backdropUrl = params.backdropUrlOverride ?? images.backdropUrl;
 
   return {
     id: buildMetadataId({
@@ -299,24 +320,41 @@ export function buildMetadataView(params: {
     seasonNumber: identity.seasonNumber,
     episodeNumber: identity.episodeNumber,
     title: titleName,
-    subtitle:
-      resolvedMediaType === 'episode' && identity.seasonNumber !== null && identity.episodeNumber !== null
-        ? `S${padded(identity.seasonNumber)} E${padded(identity.episodeNumber)}`
-        : title?.status ?? null,
-    summary: currentEpisode?.overview ?? title?.overview ?? null,
-    overview: currentEpisode?.overview ?? title?.overview ?? null,
+    subtitle,
+    summary: params.summaryOverride ?? currentEpisode?.overview ?? title?.overview ?? null,
+    overview: params.overviewOverride ?? currentEpisode?.overview ?? title?.overview ?? null,
     artwork: {
-      posterUrl: images.posterUrl,
-      backdropUrl: images.backdropUrl,
+      posterUrl,
+      backdropUrl,
       stillUrl: images.stillUrl,
     },
-    images,
+    images: {
+      ...images,
+      posterUrl,
+      backdropUrl,
+    },
     releaseDate,
     releaseYear: extractReleaseYear(releaseDate),
     runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
     rating: extractRating(title, currentEpisode),
-    certification: extractCertification(title),
     status: title?.status ?? null,
+  };
+}
+
+export function buildMetadataView(params: {
+  identity: MediaIdentity;
+  title: TmdbTitleRecord | null;
+  currentEpisode?: TmdbEpisodeRecord | null;
+  nextEpisode?: TmdbEpisodeRecord | null;
+}): MetadataView {
+  const card = buildMetadataCardView(params);
+  const { identity, title } = params;
+  const currentEpisode = params.currentEpisode ?? null;
+
+  return {
+    ...card,
+    runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
+    certification: extractCertification(title),
     genres: extractGenres(title),
     externalIds: extractExternalIds(title),
     seasonCount: title?.numberOfSeasons ?? null,

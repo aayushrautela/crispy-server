@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from './media-key.js';
+import type { WatchMediaProjection } from './watch.types.js';
 
 export class RatingsRepository {
   async put(client: DbClient, params: {
@@ -9,13 +10,14 @@ export class RatingsRepository {
     ratedAt: string;
     rating: number;
     payload?: Record<string, unknown>;
+    projection?: WatchMediaProjection;
   }): Promise<void> {
     await client.query(
       `
         INSERT INTO ratings (
           profile_id, media_key, media_type, tmdb_id, title, subtitle, poster_url, backdrop_url, rating, rated_at, source_event_id, payload
         )
-        VALUES ($1::uuid, $2, $3, $4, NULL, NULL, NULL, NULL, $5, $6::timestamptz, $7::uuid, $8::jsonb)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz, $11::uuid, $12::jsonb)
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
           title = COALESCE(ratings.title, EXCLUDED.title),
@@ -32,6 +34,10 @@ export class RatingsRepository {
         params.identity.mediaKey,
         params.identity.mediaType,
         params.identity.tmdbId,
+        params.projection?.title ?? null,
+        params.projection?.subtitle ?? null,
+        params.projection?.posterUrl ?? null,
+        params.projection?.backdropUrl ?? null,
         params.rating,
         params.ratedAt,
         params.sourceEventId,
@@ -56,6 +62,7 @@ export class RatingsRepository {
     const result = await client.query(
       `
         SELECT media_key, media_type, tmdb_id, rating, rated_at, payload
+             , title, subtitle, poster_url, backdrop_url
         FROM ratings
         WHERE profile_id = $1::uuid
         ORDER BY rated_at DESC

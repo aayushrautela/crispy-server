@@ -24,6 +24,29 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
   };
 }
 
+function mapSearchTitle(row: Record<string, unknown>): TmdbTitleRecord {
+  return {
+    mediaType: String(row.media_type) as TmdbTitleType,
+    tmdbId: Number(row.tmdb_id),
+    name: typeof row.name === 'string' ? row.name : null,
+    originalName: typeof row.original_name === 'string' ? row.original_name : null,
+    overview: typeof row.overview === 'string' ? row.overview : null,
+    releaseDate: row.release_date ? String(row.release_date) : null,
+    firstAirDate: row.first_air_date ? String(row.first_air_date) : null,
+    status: typeof row.status === 'string' ? row.status : null,
+    posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
+    backdropPath: typeof row.backdrop_path === 'string' ? row.backdrop_path : null,
+    runtime: null,
+    episodeRunTime: [],
+    numberOfSeasons: null,
+    numberOfEpisodes: null,
+    externalIds: {},
+    raw: {},
+    fetchedAt: String(row.fetched_at),
+    expiresAt: String(row.expires_at),
+  };
+}
+
 function mapEpisode(row: Record<string, unknown>): TmdbEpisodeRecord {
   return {
     showTmdbId: Number(row.show_tmdb_id),
@@ -58,29 +81,31 @@ function mapSeason(row: Record<string, unknown>): TmdbSeasonRecord {
 }
 
 export class TmdbRepository {
-  async searchTitles(client: DbClient, query: string, limit: number): Promise<TmdbTitleRecord[]> {
+  async searchTitles(client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[]): Promise<TmdbTitleRecord[]> {
     const result = await client.query(
       `
         SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
-               poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
-               external_ids, raw, fetched_at, expires_at,
+               poster_path, backdrop_path, fetched_at, expires_at,
                CASE
-                 WHEN lower(coalesce(name, '')) = lower($1) THEN 0
-                 WHEN lower(coalesce(original_name, '')) = lower($1) THEN 1
+                  WHEN lower(coalesce(name, '')) = lower($1) THEN 0
+                  WHEN lower(coalesce(original_name, '')) = lower($1) THEN 1
                  WHEN lower(coalesce(name, '')) LIKE lower($1) || '%' THEN 2
                  WHEN lower(coalesce(original_name, '')) LIKE lower($1) || '%' THEN 3
                  ELSE 4
                END AS rank_order
         FROM tmdb_titles
-        WHERE lower(coalesce(name, '')) LIKE '%' || lower($1) || '%'
+        WHERE media_type = ANY($3::text[])
+          AND (
+            lower(coalesce(name, '')) LIKE '%' || lower($1) || '%'
            OR lower(coalesce(original_name, '')) LIKE '%' || lower($1) || '%'
+          )
         ORDER BY rank_order ASC, fetched_at DESC
         LIMIT $2
       `,
-      [query, limit],
+      [query, limit, mediaTypes],
     );
 
-    return result.rows.map((row) => mapTitle(row));
+    return result.rows.map((row) => mapSearchTitle(row));
   }
 
   async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
@@ -163,6 +188,25 @@ export class TmdbRepository {
     );
 
     return result.rows[0] ? mapSeason(result.rows[0]) : null;
+  }
+
+  async getEpisode(
+    client: DbClient,
+    showTmdbId: number,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): Promise<TmdbEpisodeRecord | null> {
+    const result = await client.query(
+      `
+        SELECT show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
+               runtime, still_path, vote_average, raw, fetched_at, expires_at
+        FROM tmdb_tv_episodes
+        WHERE show_tmdb_id = $1 AND season_number = $2 AND episode_number = $3
+      `,
+      [showTmdbId, seasonNumber, episodeNumber],
+    );
+
+    return result.rows[0] ? mapEpisode(result.rows[0]) : null;
   }
 
   async replaceSeasonEpisodes(client: DbClient, params: {

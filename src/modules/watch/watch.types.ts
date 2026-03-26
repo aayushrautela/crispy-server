@@ -21,6 +21,13 @@ export type WatchIngestResult = {
   mode: WatchIngestMode;
 };
 
+export type WatchMediaProjection = {
+  title: string | null;
+  subtitle: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+};
+
 export function sanitizeWatchEventInput(input: WatchEventInput): WatchEventInput {
   return {
     ...input,

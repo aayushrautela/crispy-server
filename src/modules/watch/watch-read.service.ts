@@ -1,8 +1,7 @@
-import { withTransaction } from '../../lib/db.js';
+import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { inferMediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
 import type { HydratedWatchItem } from './watch-read.types.js';
@@ -16,7 +15,7 @@ export class WatchReadService {
   ) {}
 
   async listContinueWatching(userId: string, profileId: string, limit: number): Promise<HydratedWatchItem[]> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -25,15 +24,7 @@ export class WatchReadService {
       const rows = await this.continueWatchingRepository.list(client, profileId, limit);
       return Promise.all(
         rows.map(async (row) => {
-          const identity = inferMediaIdentity({
-            mediaKey: String(row.media_key),
-            mediaType: String(row.media_type),
-            tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
-            showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
-            seasonNumber: row.season_number === null ? null : Number(row.season_number),
-            episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
-          });
-          const media = await this.metadataViewService.buildMetadataView(client, identity);
+          const media = await this.metadataViewService.buildMetadataCardViewFromRow(client, row);
           return {
             id: String(row.id),
             media,
@@ -52,7 +43,7 @@ export class WatchReadService {
   }
 
   async listHistory(userId: string, profileId: string, limit: number): Promise<HydratedWatchItem[]> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -61,15 +52,7 @@ export class WatchReadService {
       const rows = await this.watchHistoryRepository.list(client, profileId, limit);
       return Promise.all(
         rows.map(async (row) => {
-          const identity = inferMediaIdentity({
-            mediaKey: String(row.media_key),
-            mediaType: String(row.media_type),
-            tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
-            showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
-            seasonNumber: row.season_number === null ? null : Number(row.season_number),
-            episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
-          });
-          const media = await this.metadataViewService.buildMetadataView(client, identity);
+          const media = await this.metadataViewService.buildMetadataCardViewFromRow(client, row);
           return {
             media,
             watchedAt: String(row.watched_at),

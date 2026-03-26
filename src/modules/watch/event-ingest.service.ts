@@ -9,7 +9,7 @@ import { inferMediaIdentity, parseMediaKey } from './media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
-import { sanitizeWatchEventInput, type WatchEventInput, type WatchIngestResult, type WatchMutationInput } from './watch.types.js';
+import { sanitizeWatchEventInput, type WatchEventInput, type WatchIngestResult, type WatchMediaProjection, type WatchMutationInput } from './watch.types.js';
 
 export class WatchEventIngestService {
   constructor(
@@ -141,6 +141,7 @@ export class WatchEventIngestService {
           payload: {},
         },
         identity,
+        projection: await this.buildProjection(client, identity),
       });
 
       await this.projector.dismissContinueWatching(client, {
@@ -165,11 +166,13 @@ export class WatchEventIngestService {
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
+      const projection = await this.buildProjection(client, identity);
       const event = await this.watchEventsRepository.insert(client, {
         profileGroupId: profile.profileGroupId,
         profileId,
         input,
         identity,
+        projection,
       });
       await this.projector.applyPlaybackEvent(client, {
         profileId,
@@ -180,6 +183,7 @@ export class WatchEventIngestService {
         positionSeconds: input.positionSeconds,
         durationSeconds: input.durationSeconds,
         payload: input.payload,
+        projection,
       });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
@@ -217,6 +221,7 @@ export class WatchEventIngestService {
       occurredAt: string;
       rating?: number;
       payload?: Record<string, unknown>;
+      projection?: WatchMediaProjection;
     }) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
@@ -226,6 +231,7 @@ export class WatchEventIngestService {
       }
       const occurredAt = input.occurredAt ?? new Date().toISOString();
       const identity = inferMediaIdentity(input);
+      const projection = await this.buildProjection(client, identity);
       const event = await this.watchEventsRepository.insert(client, {
         profileGroupId: profile.profileGroupId,
         profileId,
@@ -243,6 +249,7 @@ export class WatchEventIngestService {
           payload: input.payload,
         },
         identity,
+        projection,
       });
 
       await apply(client, {
@@ -252,6 +259,7 @@ export class WatchEventIngestService {
         occurredAt,
         rating: typeof input.rating === 'number' ? input.rating : undefined,
         payload: input.payload,
+        projection,
       });
     });
   }
@@ -270,6 +278,7 @@ export class WatchEventIngestService {
       }
 
       const identity = parseMediaKey(mediaKey);
+      const projection = await this.buildProjection(client, identity);
       await this.watchEventsRepository.insert(client, {
         profileGroupId: profile.profileGroupId,
         profileId,
@@ -286,9 +295,17 @@ export class WatchEventIngestService {
           payload: {},
         },
         identity,
+        projection,
       });
 
       await apply(client);
     });
+  }
+
+  private async buildProjection(
+    client: import('../../lib/db.js').DbClient,
+    identity: ReturnType<typeof inferMediaIdentity>,
+  ): Promise<WatchMediaProjection> {
+    return this.projector.buildProjection(client, identity);
   }
 }

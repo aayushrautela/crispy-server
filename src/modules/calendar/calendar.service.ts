@@ -1,6 +1,6 @@
 import { redis } from '../../lib/redis.js';
 import { env } from '../../config/env.js';
-import { withTransaction } from '../../lib/db.js';
+import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import type { CalendarResponse } from '../watch/watch-read.types.js';
@@ -19,7 +19,7 @@ export class CalendarService {
       return JSON.parse(cached) as CalendarResponse;
     }
 
-    const items = await withTransaction(async (client) => {
+    const items = await withDbClient(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');

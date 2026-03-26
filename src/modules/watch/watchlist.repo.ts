@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from './media-key.js';
+import type { WatchMediaProjection } from './watch.types.js';
 
 export class WatchlistRepository {
   async put(client: DbClient, params: {
@@ -8,13 +9,14 @@ export class WatchlistRepository {
     sourceEventId: string;
     addedAt: string;
     payload?: Record<string, unknown>;
+    projection?: WatchMediaProjection;
   }): Promise<void> {
     await client.query(
       `
         INSERT INTO watchlist_items (
           profile_id, media_key, media_type, tmdb_id, title, subtitle, poster_url, backdrop_url, added_at, source_event_id, payload
         )
-        VALUES ($1::uuid, $2, $3, $4, NULL, NULL, NULL, NULL, $5::timestamptz, $6::uuid, $7::jsonb)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10::uuid, $11::jsonb)
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
           title = COALESCE(watchlist_items.title, EXCLUDED.title),
@@ -30,6 +32,10 @@ export class WatchlistRepository {
         params.identity.mediaKey,
         params.identity.mediaType,
         params.identity.tmdbId,
+        params.projection?.title ?? null,
+        params.projection?.subtitle ?? null,
+        params.projection?.posterUrl ?? null,
+        params.projection?.backdropUrl ?? null,
         params.addedAt,
         params.sourceEventId,
         JSON.stringify(params.payload ?? {}),
@@ -53,6 +59,7 @@ export class WatchlistRepository {
     const result = await client.query(
       `
         SELECT media_key, media_type, tmdb_id, added_at, payload
+             , title, subtitle, poster_url, backdrop_url
         FROM watchlist_items
         WHERE profile_id = $1::uuid
         ORDER BY added_at DESC

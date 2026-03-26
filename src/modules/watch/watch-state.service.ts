@@ -1,4 +1,4 @@
-import { withTransaction } from '../../lib/db.js';
+import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
@@ -22,7 +22,7 @@ export class WatchStateService {
   ) {}
 
   async getState(userId: string, profileId: string, input: WatchStateLookupInput): Promise<WatchStateResponse> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');

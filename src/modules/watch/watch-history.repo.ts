@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from './media-key.js';
+import type { WatchMediaProjection } from './watch.types.js';
 
 export class WatchHistoryRepository {
   async upsertWatched(client: DbClient, params: {
@@ -8,6 +9,7 @@ export class WatchHistoryRepository {
     watchedAt: string;
     sourceEventId: string;
     payload?: Record<string, unknown>;
+    projection?: WatchMediaProjection;
   }): Promise<void> {
     await client.query(
       `
@@ -27,7 +29,7 @@ export class WatchHistoryRepository {
           source_event_id,
           payload
         )
-        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, NULL, NULL, NULL, NULL, $8::timestamptz, $9::uuid, $10::jsonb)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz, $13::uuid, $14::jsonb)
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
           title = COALESCE(watch_history.title, EXCLUDED.title),
@@ -46,6 +48,10 @@ export class WatchHistoryRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
+        params.projection?.title ?? null,
+        params.projection?.subtitle ?? null,
+        params.projection?.posterUrl ?? null,
+        params.projection?.backdropUrl ?? null,
         params.watchedAt,
         params.sourceEventId,
         JSON.stringify(params.payload ?? {}),

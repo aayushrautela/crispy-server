@@ -316,7 +316,11 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     };
   });
 
-  app.delete('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/connection', async (request, reply) => {
+  app.delete('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/connection', {
+    schema: {
+      body: { type: 'object', additionalProperties: false },
+    },
+  }, async (request, reply) => {
     await requireAdmin(request, reply);
     const params = parseProviderParams(request.params);
     return providerImportService.disconnectConnection(

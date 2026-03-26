@@ -9,6 +9,7 @@ import { TrackedSeriesRepository } from './tracked-series.repo.js';
 import { WatchEventsRepository, type RebuildableWatchEvent } from './watch-events.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
 import { WatchlistRepository } from './watchlist.repo.js';
+import type { WatchMediaProjection } from './watch.types.js';
 
 type FoldedProgress = {
   identity: MediaIdentity;
@@ -19,6 +20,7 @@ type FoldedProgress = {
   status: string;
   dismissedAt?: string | null;
   payload?: Record<string, unknown>;
+  projection?: WatchMediaProjection;
 };
 
 type FoldedContinueWatching = {
@@ -28,6 +30,7 @@ type FoldedContinueWatching = {
   occurredAt: string;
   dismissedAt?: string | null;
   payload?: Record<string, unknown>;
+  projection?: WatchMediaProjection;
 };
 
 type FoldedWatchHistory = {
@@ -35,6 +38,7 @@ type FoldedWatchHistory = {
   watchedAt: string;
   sourceEventId: string;
   payload?: Record<string, unknown>;
+  projection?: WatchMediaProjection;
 };
 
 type FoldedWatchlist = {
@@ -42,6 +46,7 @@ type FoldedWatchlist = {
   addedAt: string;
   sourceEventId: string;
   payload?: Record<string, unknown>;
+  projection?: WatchMediaProjection;
 };
 
 type FoldedRating = {
@@ -50,6 +55,7 @@ type FoldedRating = {
   sourceEventId: string;
   rating: number;
   payload?: Record<string, unknown>;
+  projection?: WatchMediaProjection;
 };
 
 type FoldedTrackedSeries = {
@@ -105,6 +111,7 @@ export class ProjectionRebuildService {
         status: row.status,
         dismissedAt: row.dismissedAt,
         payload: row.payload,
+        projection: row.projection,
       });
     }
 
@@ -115,6 +122,7 @@ export class ProjectionRebuildService {
         watchedAt: row.watchedAt,
         sourceEventId: row.sourceEventId,
         payload: row.payload,
+        projection: row.projection,
       });
     }
 
@@ -125,6 +133,7 @@ export class ProjectionRebuildService {
         addedAt: row.addedAt,
         sourceEventId: row.sourceEventId,
         payload: row.payload,
+        projection: row.projection,
       });
     }
 
@@ -136,6 +145,7 @@ export class ProjectionRebuildService {
         sourceEventId: row.sourceEventId,
         rating: row.rating,
         payload: row.payload,
+        projection: row.projection,
       });
     }
 
@@ -148,6 +158,7 @@ export class ProjectionRebuildService {
         occurredAt: row.occurredAt,
         dismissedAt: row.dismissedAt,
         payload: row.payload,
+        projection: row.projection,
       });
     }
 
@@ -220,6 +231,7 @@ function foldEvents(events: RebuildableWatchEvent[]): {
           watchedAt: event.occurredAt,
           sourceEventId: event.id,
           payload: event.payload,
+          projection: projectionFromEvent(event),
         });
         continueWatching.delete(identity.mediaKey);
         mediaProgress.set(identity.mediaKey, {
@@ -256,6 +268,7 @@ function foldEvents(events: RebuildableWatchEvent[]): {
             sourceEventId: event.id,
             rating: event.rating,
             payload: event.payload,
+            projection: projectionFromEvent(event),
           });
         }
         break;
@@ -318,6 +331,7 @@ function foldPlaybackLikeEvent(params: {
     status,
     dismissedAt: null,
     payload: event.payload,
+    projection: projectionFromEvent(event),
   });
 
   if (status === 'completed') {
@@ -326,6 +340,7 @@ function foldPlaybackLikeEvent(params: {
       watchedAt: event.occurredAt,
       sourceEventId: event.id,
       payload: event.payload,
+      projection: projectionFromEvent(event),
     });
     continueWatching.delete(identity.mediaKey);
     return;
@@ -342,7 +357,17 @@ function foldPlaybackLikeEvent(params: {
     occurredAt: event.occurredAt,
     dismissedAt: null,
     payload: event.payload,
+    projection: projectionFromEvent(event),
   });
+}
+
+function projectionFromEvent(event: RebuildableWatchEvent): WatchMediaProjection {
+  return {
+    title: event.title,
+    subtitle: event.subtitle,
+    posterUrl: event.posterUrl,
+    backdropUrl: event.backdropUrl,
+  };
 }
 
 function identityFromEvent(event: RebuildableWatchEvent): MediaIdentity {

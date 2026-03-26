@@ -1,4 +1,4 @@
-import type { MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataCardView } from '../metadata/tmdb.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;
@@ -20,7 +20,7 @@ export type TasteProfilePayload = {
 };
 
 export type RecommendationSectionItem = {
-  media: MetadataView;
+  media: MetadataCardView;
   reason: string | null;
   score: number | null;
   rank: number | null;

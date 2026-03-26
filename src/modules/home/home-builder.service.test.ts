@@ -33,17 +33,7 @@ function createWatchItem(mediaKey: string): HydratedWatchItem {
       releaseYear: null,
       runtimeMinutes: null,
       rating: null,
-      certification: null,
       status: null,
-      genres: [],
-      externalIds: {
-        tmdb: 1,
-        imdb: null,
-        tvdb: null,
-      },
-      seasonCount: mediaKey.startsWith('episode:') ? 5 : null,
-      episodeCount: mediaKey.startsWith('episode:') ? 50 : null,
-      nextEpisode: null,
     },
   };
 }

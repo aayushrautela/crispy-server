@@ -1,6 +1,7 @@
-import { withTransaction, type DbClient } from '../../lib/db.js';
+import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
+import type { MetadataCardView } from '../metadata/tmdb.types.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
 import { inferMediaIdentity } from '../watch/media-key.js';
 import { ContinueWatchingRepository } from '../watch/continue-watching.repo.js';
@@ -19,7 +20,7 @@ type ProfileSummary = {
   updatedAt: string;
 };
 
-type HydratedMedia = Awaited<ReturnType<MetadataViewService['buildMetadataView']>>;
+type HydratedMedia = MetadataCardView;
 
 export class RecommendationDataService {
   constructor(
@@ -33,21 +34,21 @@ export class RecommendationDataService {
   ) {}
 
   async listAccountProfiles(accountId: string): Promise<ProfileSummary[]> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const profiles = await this.profileRepository.listForOwnerUser(client, accountId);
       return Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile)));
     });
   }
 
   async listAccountProfilesForService(accountId: string): Promise<ProfileSummary[]> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const profiles = await this.profileRepository.listForOwnerUser(client, accountId);
       return Promise.all(profiles.map((profile) => toProfileSummary(this.profileRepository, client, profile)));
     });
   }
 
   async getWatchHistoryForAccount(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchHistoryRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -59,7 +60,7 @@ export class RecommendationDataService {
   }
 
   async getWatchHistoryForAccountService(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.watchHistoryRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -71,7 +72,7 @@ export class RecommendationDataService {
   }
 
   async getContinueWatchingForAccount(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.continueWatchingRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -90,7 +91,7 @@ export class RecommendationDataService {
   }
 
   async getContinueWatchingForAccountService(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.continueWatchingRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -109,7 +110,7 @@ export class RecommendationDataService {
   }
 
   async getWatchlistForAccount(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchlistRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -121,7 +122,7 @@ export class RecommendationDataService {
   }
 
   async getWatchlistForAccountService(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.watchlistRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -133,7 +134,7 @@ export class RecommendationDataService {
   }
 
   async getRatingsForAccount(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.ratingsRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -148,7 +149,7 @@ export class RecommendationDataService {
   }
 
   async getRatingsForAccountService(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.ratingsRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
@@ -163,14 +164,14 @@ export class RecommendationDataService {
   }
 
   async getTrackedSeriesForAccount(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       return this.loadTrackedSeries(client, profileId, limit);
     });
   }
 
   async getTrackedSeriesForAccountService(accountId: string, profileId: string, limit: number) {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       return this.loadTrackedSeries(client, targetProfileId, limit);
     });
@@ -194,7 +195,7 @@ export class RecommendationDataService {
   private async loadTrackedSeries(client: DbClient, profileId: string, limit: number) {
     const rows = await this.trackedSeriesRepository.listForProfile(client, profileId, limit);
     return Promise.all(rows.map(async (row) => ({
-      show: await this.metadataViewService.buildMetadataView(client, inferMediaIdentity({ mediaType: 'show', tmdbId: row.showTmdbId })),
+      show: await this.metadataViewService.buildMetadataCardView(client, inferMediaIdentity({ mediaType: 'show', tmdbId: row.showTmdbId })),
       reason: row.reason,
       lastInteractedAt: row.lastInteractedAt,
       nextEpisodeAirDate: row.nextEpisodeAirDate,
@@ -204,47 +205,60 @@ export class RecommendationDataService {
   }
 
   private async buildMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedMedia> {
-    return this.metadataViewService.buildMetadataView(
-      client,
-      inferMediaIdentity({
-        mediaKey:
-          typeof row.media_key === 'string'
-            ? row.media_key
-            : typeof row.mediaKey === 'string'
-              ? row.mediaKey
-              : undefined,
-        mediaType:
-          typeof row.media_type === 'string'
-            ? row.media_type
-            : typeof row.mediaType === 'string'
-              ? row.mediaType
-              : 'movie',
-        tmdbId:
-          typeof row.tmdb_id === 'number'
-            ? row.tmdb_id
-            : typeof row.tmdbId === 'number'
-              ? row.tmdbId
-              : null,
-        showTmdbId:
-          typeof row.show_tmdb_id === 'number'
-            ? row.show_tmdb_id
-            : typeof row.showTmdbId === 'number'
-              ? row.showTmdbId
-              : null,
-        seasonNumber:
-          typeof row.season_number === 'number'
-            ? row.season_number
-            : typeof row.seasonNumber === 'number'
-              ? row.seasonNumber
-              : null,
-        episodeNumber:
-          typeof row.episode_number === 'number'
-            ? row.episode_number
-            : typeof row.episodeNumber === 'number'
-              ? row.episodeNumber
-              : null,
-      }),
-    );
+    return this.metadataViewService.buildMetadataCardViewFromRow(client, {
+      media_key:
+        typeof row.media_key === 'string'
+          ? row.media_key
+          : typeof row.mediaKey === 'string'
+            ? row.mediaKey
+            : null,
+      media_type:
+        typeof row.media_type === 'string'
+          ? row.media_type
+          : typeof row.mediaType === 'string'
+            ? row.mediaType
+            : 'movie',
+      tmdb_id:
+        typeof row.tmdb_id === 'number'
+          ? row.tmdb_id
+          : typeof row.tmdbId === 'number'
+            ? row.tmdbId
+            : null,
+      show_tmdb_id:
+        typeof row.show_tmdb_id === 'number'
+          ? row.show_tmdb_id
+          : typeof row.showTmdbId === 'number'
+            ? row.showTmdbId
+            : null,
+      season_number:
+        typeof row.season_number === 'number'
+          ? row.season_number
+          : typeof row.seasonNumber === 'number'
+            ? row.seasonNumber
+            : null,
+      episode_number:
+        typeof row.episode_number === 'number'
+          ? row.episode_number
+          : typeof row.episodeNumber === 'number'
+            ? row.episodeNumber
+            : null,
+      title:
+        typeof row.title === 'string'
+          ? row.title
+          : null,
+      subtitle:
+        typeof row.subtitle === 'string'
+          ? row.subtitle
+          : null,
+      poster_url:
+        typeof row.poster_url === 'string'
+          ? row.poster_url
+          : null,
+      backdrop_url:
+        typeof row.backdrop_url === 'string'
+          ? row.backdrop_url
+          : null,
+    });
   }
 }
 

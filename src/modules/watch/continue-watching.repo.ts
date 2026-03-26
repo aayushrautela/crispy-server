@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from './media-key.js';
+import type { WatchMediaProjection } from './watch.types.js';
 
 export class ContinueWatchingRepository {
   async upsert(client: DbClient, params: {
@@ -10,6 +11,7 @@ export class ContinueWatchingRepository {
     occurredAt: string;
     dismissedAt?: string | null;
     payload?: Record<string, unknown>;
+    projection?: WatchMediaProjection;
   }): Promise<void> {
     const progressPercent =
       params.positionSeconds && params.durationSeconds && params.durationSeconds > 0
@@ -25,8 +27,8 @@ export class ContinueWatchingRepository {
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7,
-          NULL, NULL, NULL, NULL, $8, $9,
-          $10, $11::timestamptz, $12::timestamptz, $13::jsonb, now()
+          $8, $9, $10, $11, $12, $13,
+          $14, $15::timestamptz, $16::timestamptz, $17::jsonb, now()
         )
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
@@ -50,6 +52,10 @@ export class ContinueWatchingRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
+        params.projection?.title ?? null,
+        params.projection?.subtitle ?? null,
+        params.projection?.posterUrl ?? null,
+        params.projection?.backdropUrl ?? null,
         params.positionSeconds ?? 0,
         params.durationSeconds ?? null,
         progressPercent,

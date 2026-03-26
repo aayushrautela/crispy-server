@@ -81,6 +81,28 @@ export type MetadataEpisodePreview = {
   images: MetadataImages;
 };
 
+export type MetadataCardView = {
+  id: string;
+  mediaKey: string;
+  mediaType: 'movie' | 'show' | 'episode';
+  kind: 'title' | 'episode';
+  tmdbId: number | null;
+  showTmdbId: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  title: string | null;
+  subtitle: string | null;
+  summary: string | null;
+  overview: string | null;
+  artwork: MetadataArtwork;
+  images: MetadataImages;
+  releaseDate: string | null;
+  releaseYear: number | null;
+  runtimeMinutes: number | null;
+  rating: number | null;
+  status: string | null;
+};
+
 export type MetadataView = {
   id: string;
   mediaKey: string;
@@ -225,7 +247,7 @@ export type MetadataPersonDetail = {
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series';
 
-export type MetadataSearchResult = MetadataView;
+export type MetadataSearchResult = MetadataCardView;
 
 export type MetadataSearchResponse = {
   query: string;
@@ -239,5 +261,9 @@ export type MetadataResolveResponse = {
 export type TmdbTitleApiResponse = Record<string, unknown>;
 export type TmdbSeasonApiResponse = Record<string, unknown>;
 export type TmdbSearchApiResponse = Record<string, unknown>;
+export type TmdbSearchResultItem = {
+  id?: unknown;
+  media_type?: unknown;
+};
 export type TmdbDiscoverApiResponse = Record<string, unknown>;
 export type TmdbPersonApiResponse = Record<string, unknown>;
