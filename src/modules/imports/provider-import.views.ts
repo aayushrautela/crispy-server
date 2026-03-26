@@ -1,3 +1,4 @@
+import { normalizeIsoString } from '../../lib/time.js';
 import type { ProviderImportConnectionRecord } from './provider-import-connections.repo.js';
 import type { ProviderImportJobAdminRecord, ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
@@ -56,5 +57,5 @@ function asIsoString(value: unknown): string | null {
   if (!text) {
     return null;
   }
-  return Number.isNaN(Date.parse(text)) ? null : text;
+  return normalizeIsoString(text);
 }

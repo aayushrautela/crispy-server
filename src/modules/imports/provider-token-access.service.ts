@@ -1,5 +1,6 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { normalizeIsoString } from '../../lib/time.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import {
   ProviderImportConnectionsRepository,
@@ -231,5 +232,5 @@ function asIsoString(value: unknown): string | null {
     return null;
   }
 
-  return Number.isNaN(Date.parse(text)) ? null : text;
+  return normalizeIsoString(text);
 }

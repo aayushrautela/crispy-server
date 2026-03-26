@@ -110,7 +110,7 @@ test('library service hydrates provider items and mutates providers', async (t) 
     const method = init?.method ?? 'GET';
 
     if (method === 'GET' && url.includes('api.trakt.tv/sync/watchlist/movies')) {
-      return new Response(JSON.stringify([{ listed_at: '2024-01-01T00:00:00.000Z', movie: { title: 'Movie', ids: { imdb: 'tt1111111', tmdb: 11 }, images: {} } }]), { status: 200 });
+      return new Response(JSON.stringify([{ listed_at: 'Wed Aug 09 2023 16:57:00 GMT+0000 (Coordinated Universal Time)', movie: { title: 'Movie', ids: { imdb: 'tt1111111', tmdb: 11 }, images: {} } }]), { status: 200 });
     }
     if (method === 'GET' && url.includes('api.trakt.tv/sync/watchlist/shows')) {
       return new Response(JSON.stringify([]), { status: 200 });
@@ -181,6 +181,7 @@ test('library service hydrates provider items and mutates providers', async (t) 
   assert.ok(simkl);
   assert.equal(trakt?.items[0]?.media?.title, 'Hydrated tt1111111');
   assert.equal(simkl?.items[0]?.media?.title, 'Hydrated tt2222222');
+  assert.equal(trakt?.items[0]?.addedAt, '2023-08-09T16:57:00.000Z');
 
   const watchlistResult = await service.setWatchlist('user-1', 'profile-1', {
     source: 'all',

@@ -76,6 +76,7 @@ test('admin api proxies worker jobs and diagnostics behind admin auth', async (t
   const originalImportListConnections = ProviderImportService.prototype.listConnections;
   const originalImportListJobs = ProviderImportService.prototype.listJobs;
   const originalStartReplaceImport = ProviderImportService.prototype.startReplaceImport;
+  const originalDisconnectConnection = ProviderImportService.prototype.disconnectConnection;
   const originalGetConnectionForAccountProfile = ProviderTokenAccessService.prototype.getConnectionForAccountProfile;
   const originalGetTokenStatusForAccountProfile = ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile;
   const originalGetAccessTokenForAccountProfile = ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile;
@@ -99,6 +100,7 @@ test('admin api proxies worker jobs and diagnostics behind admin auth', async (t
     ProviderImportService.prototype.listConnections = originalImportListConnections;
     ProviderImportService.prototype.listJobs = originalImportListJobs;
     ProviderImportService.prototype.startReplaceImport = originalStartReplaceImport;
+    ProviderImportService.prototype.disconnectConnection = originalDisconnectConnection;
     ProviderTokenAccessService.prototype.getConnectionForAccountProfile = originalGetConnectionForAccountProfile;
     ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile = originalGetTokenStatusForAccountProfile;
     ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile = originalGetAccessTokenForAccountProfile;
@@ -156,6 +158,23 @@ test('admin api proxies worker jobs and diagnostics behind admin auth', async (t
       watchDataState: { profileId: 'profile-1', historyGeneration: 5, currentOrigin: 'trakt_import', lastImportProvider: provider, lastImportJobId: 'job-2', lastResetAt: null, lastImportCompletedAt: '2026-03-25T00:00:00.000Z', updatedAt: '2026-03-25T00:00:00.000Z' },
       connection: { id: 'conn-1', profileId: 'profile-1', provider, status: 'connected', providerUserId: 'user-1', externalUsername: 'demo', createdAt: '2026-03-24T00:00:00.000Z', updatedAt: '2026-03-25T00:00:00.000Z', lastUsedAt: null, credentialsJson: { lastImportJobId: 'job-2', lastImportCompletedAt: '2026-03-25T00:00:00.000Z' } },
       job: { id: 'job-2', profileId: 'profile-1', profileGroupId: 'group-1', provider, mode: 'replace_import', status: 'queued', requestedByUserId: 'account-1', connectionId: 'conn-1', checkpointJson: {}, summaryJson: {}, errorJson: {}, createdAt: '2026-03-25T00:00:00.000Z', startedAt: null, finishedAt: null, updatedAt: '2026-03-25T00:00:00.000Z' },
+    } as never;
+  };
+  ProviderImportService.prototype.disconnectConnection = async function (_accountId, profileId, provider) {
+    return {
+      connection: {
+        id: 'conn-1',
+        provider,
+        status: 'revoked',
+        providerUserId: 'user-1',
+        externalUsername: 'demo',
+        createdAt: '2026-03-24T00:00:00.000Z',
+        updatedAt: '2026-03-25T00:00:00.000Z',
+        lastUsedAt: '2026-03-25T00:00:00.000Z',
+        lastImportJobId: 'job-2',
+        lastImportCompletedAt: '2026-03-25T00:00:00.000Z',
+        profileId,
+      },
     } as never;
   };
   ProviderTokenAccessService.prototype.getConnectionForAccountProfile = async function (_accountId, profileId, provider) {
@@ -270,6 +289,10 @@ test('admin api proxies worker jobs and diagnostics behind admin auth', async (t
   const refreshToken = await app.inject({ method: 'POST', url: '/admin/api/accounts/account-1/profiles/profile-1/providers/trakt/refresh-token', headers: authHeader });
   assert.equal(refreshToken.statusCode, 200);
   assert.equal(refreshToken.json().refreshed, true);
+
+  const disconnect = await app.inject({ method: 'DELETE', url: '/admin/api/accounts/account-1/profiles/profile-1/providers/trakt/connection', headers: authHeader });
+  assert.equal(disconnect.statusCode, 200);
+  assert.equal(disconnect.json().connection.status, 'revoked');
 });
 
 test('admin api worker control status shows unreachable worker separately from config', async (t) => {

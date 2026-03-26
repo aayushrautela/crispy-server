@@ -5,6 +5,7 @@ import { env } from '../../config/env.js';
 import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.js';
 import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
+import { normalizeIsoString } from '../../lib/time.js';
 import { TmdbExternalIdResolverService } from '../metadata/tmdb-external-id-resolver.service.js';
 import { TmdbRefreshService } from '../metadata/tmdb-refresh.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
@@ -1526,7 +1527,7 @@ function asIsoString(value: unknown): string | null {
   if (!text) {
     return null;
   }
-  return Number.isNaN(Date.parse(text)) ? null : text;
+  return normalizeIsoString(text);
 }
 
 function asPositiveInt(value: unknown): number | null {

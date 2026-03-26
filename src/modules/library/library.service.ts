@@ -1,5 +1,6 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { normalizeIsoString } from '../../lib/time.js';
 import { env } from '../../config/env.js';
 import { MetadataDirectService } from '../metadata/metadata-direct.service.js';
 import type { MetadataView } from '../metadata/tmdb.types.js';
@@ -1087,7 +1088,7 @@ function asString(value: unknown): string | null {
 
 function asIsoString(value: unknown): string | null {
   const text = asString(value);
-  return text && !Number.isNaN(Date.parse(text)) ? text : null;
+  return text ? normalizeIsoString(text) : null;
 }
 
 function asPositiveInt(value: unknown): number | null {

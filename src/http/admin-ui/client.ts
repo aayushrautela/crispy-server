@@ -767,6 +767,30 @@ export const ADMIN_UI_CLIENT = String.raw`
       };
     }
 
+    const disconnectButtons = Array.from(container.querySelectorAll('[data-disconnect-provider]'));
+    for (const button of disconnectButtons) {
+      button.onclick = async () => {
+        const provider = button.getAttribute('data-disconnect-provider');
+        if (!provider) return;
+        button.disabled = true;
+        setMessage(messageEl, 'info', 'Disconnecting ' + provider + '...');
+        try {
+          await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/providers/' + encodeURIComponent(provider) + '/connection'), {
+            method: 'DELETE',
+          });
+          setMessage(messageEl, 'success', 'Disconnected ' + provider + '.');
+          pushNotification('info', 'Provider disconnected', 'Disconnected ' + provider + ' for profile ' + profileId + '.', true);
+          await inspectProfile(accountId, profileId);
+        } catch (error) {
+          const description = describeApiError(error, 'Unable to disconnect provider.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'Disconnect failed', description, true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
+
     const refreshViewButtons = Array.from(container.querySelectorAll('[data-refresh-profile-view]'));
     for (const button of refreshViewButtons) {
       button.onclick = async () => {
@@ -1068,8 +1092,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard('Provider + import state',
       '<div class="inline-actions">'
         + '<button type="button" class="secondary" data-refresh-profile-view="true">Refresh profile panel</button>'
-        + '<button type="button" data-start-import="trakt">Import Trakt history + watchlist</button>'
-        + '<button type="button" data-start-import="simkl">Import Simkl history + watchlist</button>'
+        + '<button type="button" data-start-import="trakt">Import Trakt watch data</button>'
+        + '<button type="button" data-start-import="simkl">Import Simkl watch data</button>'
       + '</div>'
       + '<div class="kv-grid">'
         + kvPair('Current origin', watchDataState && watchDataState.currentOrigin ? watchDataState.currentOrigin : 'native')
@@ -1101,6 +1125,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       + '</div>'
       + '<div class="inline-actions">'
         + '<button type="button" class="ghost" data-refresh-provider-token="' + escapeHtml(String(provider.provider || '')) + '"' + (connected ? '' : ' disabled') + '>Refresh token</button>'
+        + '<button type="button" class="ghost" data-disconnect-provider="' + escapeHtml(String(provider.provider || '')) + '"' + (connected ? '' : ' disabled') + '>Disconnect</button>'
       + '</div>'
     + '</div>';
   }
