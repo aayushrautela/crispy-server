@@ -5,6 +5,7 @@ import { HttpError, assertPresent } from './errors.js';
 test('HttpError stores statusCode, message, and optional details', () => {
   const error = new HttpError(404, 'Not found');
   assert.equal(error.statusCode, 404);
+  assert.equal(error.code, 'not_found');
   assert.equal(error.message, 'Not found');
   assert.equal(error.details, undefined);
   assert.ok(error instanceof Error);
@@ -14,7 +15,13 @@ test('HttpError stores details when provided', () => {
   const details = { field: 'id', reason: 'missing' };
   const error = new HttpError(422, 'Validation failed', details);
   assert.equal(error.statusCode, 422);
+  assert.equal(error.code, 'validation_failed');
   assert.deepEqual(error.details, details);
+});
+
+test('HttpError accepts an explicit code override', () => {
+  const error = new HttpError(400, 'Bad request', undefined, 'invalid_request');
+  assert.equal(error.code, 'invalid_request');
 });
 
 test('assertPresent returns value when present', () => {

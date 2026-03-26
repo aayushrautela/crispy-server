@@ -1,3 +1,5 @@
+import { normalizeOptionalIsoString } from '../../lib/time.js';
+
 export type WatchEventInput = {
   clientEventId: string;
   eventType: string;
@@ -35,7 +37,12 @@ export function sanitizeWatchEventInput(input: WatchEventInput): WatchEventInput
     eventType: input.eventType.trim(),
     mediaKey: input.mediaKey?.trim() || undefined,
     mediaType: input.mediaType.trim(),
+    occurredAt: normalizeOptionalIsoString(input.occurredAt, 'occurredAt'),
   };
+}
+
+export function normalizeWatchOccurredAt(value: string | null | undefined, fieldName = 'occurredAt'): string {
+  return normalizeOptionalIsoString(value, fieldName) ?? new Date().toISOString();
 }
 
 export type WatchMutationInput = {

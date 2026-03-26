@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { normalizeIsoString } from '../../lib/time.js';
 import { env } from '../../config/env.js';
 import { MetadataDirectService } from '../metadata/metadata-direct.service.js';
-import type { MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataExternalIds, MetadataView } from '../metadata/tmdb.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProfileWatchDataStateRepository } from '../imports/profile-watch-data-state.repo.js';
 import { ProviderImportConnectionsRepository } from '../imports/provider-import-connections.repo.js';
@@ -354,7 +354,8 @@ export class LibraryService {
       const media = item.resolveInput ? cache.get(resolveCacheKey(item.resolveInput)) ?? null : null;
       return {
         ...item,
-        contentId: media?.externalIds.imdb ?? item.contentId,
+        contentId: media?.id ?? item.contentId,
+        externalIds: media?.externalIds ?? item.externalIds,
         title: item.title || media?.title || item.contentId,
         posterUrl: item.posterUrl ?? media?.artwork.posterUrl ?? null,
         backdropUrl: item.backdropUrl ?? media?.artwork.backdropUrl ?? null,
@@ -727,6 +728,7 @@ function mapTraktPlaybackItems(items: Array<Record<string, unknown>>, folderId: 
         folderId,
         contentId,
         contentType: 'movie',
+        externalIds: providerExternalIds(ids),
         title: asString(movie.title) ?? contentId,
         posterUrl: traktPosterUrl(asRecord(movie.images)),
         backdropUrl: traktBackdropUrl(asRecord(movie.images)),
@@ -755,6 +757,7 @@ function mapTraktPlaybackItems(items: Array<Record<string, unknown>>, folderId: 
         folderId,
         contentId,
         contentType: 'show',
+        externalIds: providerExternalIds(ids),
         title: asString(show.title) ?? contentId,
         posterUrl: traktPosterUrl(asRecord(show.images)),
         backdropUrl: traktBackdropUrl(asRecord(show.images)),
@@ -789,6 +792,7 @@ function mapTraktWatchedItems(
       folderId,
       contentId,
       contentType: type,
+      externalIds: providerExternalIds(ids),
       title: asString(node.title) ?? contentId,
       posterUrl: traktPosterUrl(asRecord(node.images)),
       backdropUrl: traktBackdropUrl(asRecord(node.images)),
@@ -821,6 +825,7 @@ function mapTraktListItems(
       folderId,
       contentId,
       contentType: type,
+      externalIds: providerExternalIds(ids),
       title: asString(node.title) ?? contentId,
       posterUrl: traktPosterUrl(asRecord(node.images)),
       backdropUrl: traktBackdropUrl(asRecord(node.images)),
@@ -857,6 +862,7 @@ function mapSimklPlaybackItems(
       folderId,
       contentId,
       contentType,
+      externalIds: providerExternalIds(ids),
       title: asString(content.title) ?? contentId,
       posterUrl: asString(content.poster),
       backdropUrl: asString(content.fanart),
@@ -888,6 +894,7 @@ function mapSimklAllItems(
       folderId,
       contentId,
       contentType,
+      externalIds: providerExternalIds(ids),
       title: asString(content.title) ?? contentId,
       posterUrl: asString(content.poster),
       backdropUrl: asString(content.fanart),
@@ -916,6 +923,7 @@ function mapSimklRatingsItems(items: Array<Record<string, unknown>>): MappedProv
       folderId: 'ratings',
       contentId,
       contentType: mediaType,
+      externalIds: providerExternalIds(ids),
       title: asString(content.title) ?? contentId,
       posterUrl: asString(content.poster),
       backdropUrl: asString(content.fanart),
@@ -981,6 +989,20 @@ function normalizedProviderContentId(ids: Record<string, unknown> | null): strin
   }
   const tmdb = asPositiveInt(ids?.tmdb);
   return tmdb ? `tmdb:${tmdb}` : null;
+}
+
+function providerExternalIds(ids: Record<string, unknown> | null): MetadataExternalIds | null {
+  if (!ids) {
+    return null;
+  }
+
+  const externalIds: MetadataExternalIds = {
+    tmdb: asPositiveInt(ids.tmdb),
+    imdb: normalizeImdbId(asString(ids.imdb)),
+    tvdb: asPositiveInt(ids.tvdb),
+  };
+
+  return externalIds.tmdb || externalIds.imdb || externalIds.tvdb ? externalIds : null;
 }
 
 function traktPosterUrl(images: Record<string, unknown> | null): string | null {

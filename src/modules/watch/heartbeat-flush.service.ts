@@ -8,6 +8,7 @@ import { MediaProgressRepository } from './media-progress.repo.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
+import { normalizeWatchOccurredAt } from './watch.types.js';
 
 export class HeartbeatFlushService {
   constructor(
@@ -23,6 +24,8 @@ export class HeartbeatFlushService {
     if (!snapshot) {
       return { action: 'missing', reason: 'buffer_empty' };
     }
+
+    const normalizedOccurredAt = normalizeWatchOccurredAt(snapshot.occurredAt);
 
     const outcome = await withTransaction(async (client) => {
       const current = await this.mediaProgressRepository.getByMediaKey(client, profileId, mediaKey);
@@ -50,7 +53,7 @@ export class HeartbeatFlushService {
         profileGroupId: snapshot.profileGroupId,
         profileId,
         input: {
-          clientEventId: `heartbeat-flush:${profileId}:${mediaKey}:${snapshot.occurredAt}:${randomUUID()}`,
+          clientEventId: `heartbeat-flush:${profileId}:${mediaKey}:${normalizedOccurredAt}:${randomUUID()}`,
           eventType: 'playback_progress_snapshot',
           mediaKey: snapshot.mediaKey,
           mediaType: snapshot.mediaType,
@@ -60,7 +63,7 @@ export class HeartbeatFlushService {
           episodeNumber: snapshot.episodeNumber,
           positionSeconds: snapshot.positionSeconds,
           durationSeconds: snapshot.durationSeconds,
-          occurredAt: snapshot.occurredAt,
+          occurredAt: normalizedOccurredAt,
           payload: {
             ...snapshot.payload,
             ingest_mode: 'buffered_flush',
@@ -75,7 +78,7 @@ export class HeartbeatFlushService {
         identity,
         eventId: event.id,
         eventType: 'playback_progress_snapshot',
-        occurredAt: snapshot.occurredAt,
+        occurredAt: normalizedOccurredAt,
         positionSeconds: snapshot.positionSeconds,
         durationSeconds: snapshot.durationSeconds,
         payload: {

@@ -4,8 +4,14 @@ import { seedTestEnv, createMockMetadataView } from '../../test-helpers.js';
 
 seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-id', SIMKL_IMPORT_CLIENT_ID: 'simkl-id' });
 
-function createMockService() {
+function createMockService(metadataDirectServiceOverrides: Record<string, unknown> = {}) {
   return import('./library.service.js').then(({ LibraryService }) => {
+    const metadataDirectService = {
+      resolveMetadataView: async () => createMockMetadataView(),
+      resolvePlayback: async () => ({ item: createMockMetadataView(), show: null, season: null }),
+      ...metadataDirectServiceOverrides,
+    };
+
     const service = new LibraryService(
       { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
       { getForProfile: async () => null } as never,
@@ -14,7 +20,7 @@ function createMockService() {
       { list: async () => [] } as never,
       { list: async () => [] } as never,
       { listWatchlist: async () => [], listRatings: async () => [] } as never,
-      { resolvePlayback: async () => ({ item: createMockMetadataView(), show: null, season: null }) } as never,
+      metadataDirectService as never,
     );
     service.requireOwnedProfile = async () => {};
     service.getProviderAuthState = async () => [];
@@ -78,4 +84,34 @@ test('setRating returns success for valid rating', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('hydrateProviderItems keeps canonical ids and explicit external ids', async () => {
+  const service = await createMockService({
+    resolveMetadataView: async () => createMockMetadataView({
+      id: '55555555-5555-4555-8555-555555555555',
+      externalIds: { tmdb: 77, imdb: 'tt1234567', tvdb: 88 },
+    }),
+  });
+
+  const hydrated = await (service as any).hydrateProviderItems([
+    {
+      provider: 'trakt',
+      folderId: 'watchlist',
+      contentId: 'tt1234567',
+      contentType: 'movie',
+      externalIds: { tmdb: 77, imdb: 'tt1234567', tvdb: 88 },
+      title: 'Fallback title',
+      posterUrl: null,
+      backdropUrl: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      addedAt: '2024-01-01T00:00:00.000Z',
+      media: null,
+      resolveInput: { imdbId: 'tt1234567', mediaType: 'movie' },
+    },
+  ]);
+
+  assert.equal(hydrated[0]?.contentId, '55555555-5555-4555-8555-555555555555');
+  assert.deepEqual(hydrated[0]?.externalIds, { tmdb: 77, imdb: 'tt1234567', tvdb: 88 });
 });

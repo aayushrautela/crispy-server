@@ -1,4 +1,13 @@
 import type { FastifyInstance } from 'fastify';
+import {
+  libraryRatingRouteSchema,
+  libraryWatchlistRouteSchema,
+  profileLibraryRouteSchema,
+  providerAuthStateRouteSchema,
+  type LibraryMutationBody,
+  type LibraryProfileParams,
+  type LibraryQuery,
+} from '../contracts/library.js';
 import { HttpError } from '../../lib/errors.js';
 import { LibraryService } from '../../modules/library/library.service.js';
 import type { LibraryMutationSource, LibraryProviderSource } from '../../modules/library/library.types.js';
@@ -6,11 +15,11 @@ import type { LibraryMutationSource, LibraryProviderSource } from '../../modules
 export async function registerLibraryRoutes(app: FastifyInstance): Promise<void> {
   const libraryService = new LibraryService();
 
-  app.get('/v1/profiles/:profileId/library', async (request) => {
+  app.get('/v1/profiles/:profileId/library', { schema: profileLibraryRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as { profileId?: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const params = request.params as Partial<LibraryProfileParams>;
+    const query = (request.query ?? {}) as LibraryQuery;
 
     return libraryService.getProfileLibrary(actor.appUserId, getProfileIdFromParams(params), {
       source: parseLibrarySource(query.source),
@@ -18,10 +27,10 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     });
   });
 
-  app.get('/v1/profiles/:profileId/provider-auth/state', async (request) => {
+  app.get('/v1/profiles/:profileId/provider-auth/state', { schema: providerAuthStateRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as { profileId?: string };
+    const params = request.params as Partial<LibraryProfileParams>;
     const profileId = getProfileIdFromParams(params);
 
     await libraryService.requireOwnedProfile(actor.appUserId, profileId);
@@ -30,11 +39,11 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     };
   });
 
-  app.post('/v1/profiles/:profileId/library/watchlist', async (request) => {
+  app.post('/v1/profiles/:profileId/library/watchlist', { schema: libraryWatchlistRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as { profileId?: string };
-    const body = (request.body ?? {}) as Record<string, unknown>;
+    const params = request.params as Partial<LibraryProfileParams>;
+    const body = (request.body ?? {}) as LibraryMutationBody;
 
     return libraryService.setWatchlist(actor.appUserId, getProfileIdFromParams(params), {
       source: parseMutationSource(body.source),
@@ -43,11 +52,11 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     });
   });
 
-  app.post('/v1/profiles/:profileId/library/rating', async (request) => {
+  app.post('/v1/profiles/:profileId/library/rating', { schema: libraryRatingRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as { profileId?: string };
-    const body = (request.body ?? {}) as Record<string, unknown>;
+    const params = request.params as Partial<LibraryProfileParams>;
+    const body = (request.body ?? {}) as LibraryMutationBody;
 
     return libraryService.setRating(actor.appUserId, getProfileIdFromParams(params), {
       source: parseMutationSource(body.source),

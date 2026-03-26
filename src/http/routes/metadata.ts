@@ -1,4 +1,22 @@
 import type { FastifyInstance } from 'fastify';
+import {
+  metadataEpisodesRouteSchema,
+  metadataNextEpisodeRouteSchema,
+  metadataPersonRouteSchema,
+  metadataResolveRouteSchema,
+  metadataSearchRouteSchema,
+  metadataSeasonRouteSchema,
+  metadataTitleParamsRouteSchema,
+  playbackResolveRouteSchema,
+  type MetadataEpisodesQuery,
+  type MetadataNextEpisodeQuery,
+  type MetadataPersonParams,
+  type MetadataPersonQuery,
+  type MetadataResolveQuery,
+  type MetadataSearchQuery,
+  type MetadataSeasonParams,
+  type MetadataTitleParams,
+} from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDirectService } from '../../modules/metadata/metadata-direct.service.js';
 import { MetadataQueryService } from '../../modules/metadata/metadata-query.service.js';
@@ -9,9 +27,9 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const metadataQueryService = new MetadataQueryService();
   const metadataDirectService = new MetadataDirectService();
 
-  app.get('/v1/metadata/resolve', async (request) => {
+  app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const query = (request.query ?? {}) as MetadataResolveQuery;
 
     return metadataQueryService.resolve({
       id: asUndefinedString(query.id),
@@ -24,44 +42,44 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     });
   });
 
-  app.get('/v1/metadata/titles/:id', async (request) => {
+  app.get('/v1/metadata/titles/:id', { schema: metadataTitleParamsRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const params = request.params as { id: string };
+    const params = request.params as MetadataTitleParams;
     return metadataQueryService.getTitleDetailById(params.id);
   });
 
-  app.get('/v1/metadata/titles/:id/content', async (request) => {
+  app.get('/v1/metadata/titles/:id/content', { schema: metadataTitleParamsRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as { id: string };
+    const params = request.params as MetadataTitleParams;
     return metadataDirectService.getTitleContent(actor.appUserId, params.id);
   });
 
-  app.get('/v1/metadata/titles/:id/seasons/:seasonNumber', async (request) => {
+  app.get('/v1/metadata/titles/:id/seasons/:seasonNumber', { schema: metadataSeasonRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const params = request.params as { id: string; seasonNumber: string };
+    const params = request.params as MetadataSeasonParams;
     const seasonNumber = parseRequiredPositiveNumber(params.seasonNumber, 'seasonNumber');
     return metadataQueryService.getSeasonDetailByShowId(params.id, seasonNumber);
   });
 
-  app.get('/v1/metadata/people/:id', async (request) => {
+  app.get('/v1/metadata/people/:id', { schema: metadataPersonRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const params = request.params as { id: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const params = request.params as MetadataPersonParams;
+    const query = (request.query ?? {}) as MetadataPersonQuery;
     return metadataDirectService.getPersonDetail(params.id, asOptionalString(query.language));
   });
 
-  app.get('/v1/metadata/titles/:id/episodes', async (request) => {
+  app.get('/v1/metadata/titles/:id/episodes', { schema: metadataEpisodesRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const params = request.params as { id: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const params = request.params as MetadataTitleParams;
+    const query = (request.query ?? {}) as MetadataEpisodesQuery;
     return metadataDirectService.listEpisodes(params.id, parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'));
   });
 
-  app.get('/v1/metadata/titles/:id/next-episode', async (request) => {
+  app.get('/v1/metadata/titles/:id/next-episode', { schema: metadataNextEpisodeRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const params = request.params as { id: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const params = request.params as MetadataTitleParams;
+    const query = (request.query ?? {}) as MetadataNextEpisodeQuery;
     return metadataDirectService.getNextEpisode(params.id, {
       currentSeasonNumber: parseRequiredPositiveQueryNumber(query.currentSeasonNumber, 'currentSeasonNumber'),
       currentEpisodeNumber: parseRequiredPositiveQueryNumber(query.currentEpisodeNumber, 'currentEpisodeNumber'),
@@ -71,9 +89,9 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     });
   });
 
-  app.get('/v1/playback/resolve', async (request) => {
+  app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const query = (request.query ?? {}) as MetadataResolveQuery;
     return metadataDirectService.resolvePlayback({
       id: asUndefinedString(query.id),
       tmdbId: parseOptionalNumber(query.tmdbId),
@@ -85,9 +103,9 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     });
   });
 
-  app.get('/v1/search/titles', async (request) => {
+  app.get('/v1/search/titles', { schema: metadataSearchRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const query = (request.query ?? {}) as Record<string, unknown>;
+    const query = (request.query ?? {}) as MetadataSearchQuery;
     const searchQuery = asOptionalString(query.query) ?? '';
     const genre = asOptionalString(query.genre);
     const filter = parseSearchFilter(query.filter);
@@ -136,7 +154,7 @@ function parseRequiredPositiveQueryNumber(value: unknown, field: string): number
   return parsed;
 }
 
-function parseRequiredPositiveNumber(value: string, field: string): number {
+function parseRequiredPositiveNumber(value: string | number, field: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new HttpError(400, `Invalid ${field}.`);

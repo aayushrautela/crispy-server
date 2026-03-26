@@ -119,36 +119,45 @@ export class ContentIdentityService {
       }
     }
 
+    const unresolved = identities.filter((identity) => canMaterializeIdentity(identity) && !resolved.has(identity.mediaKey));
+    for (const identity of unresolved) {
+      try {
+        resolved.set(identity.mediaKey, await this.ensureContentId(client, identity));
+      } catch {
+        continue;
+      }
+    }
+
     return resolved;
   }
 
   async ensureTitleContentId(client: DbClient, input: TitleIdentityInput): Promise<string> {
-    const [record] = await this.repository.ensureProviderRefs(client, [toTitleRef(input)]);
+    const [record] = await this.ensureProviderRefRecords(client, [toTitleRef(input)]);
     return assertContentId(record);
   }
 
   async ensureTitleContentIds(client: DbClient, inputs: TitleIdentityInput[]): Promise<Map<string, string>> {
-    const records = await this.repository.ensureProviderRefs(client, inputs.map((input) => toTitleRef(input)));
+    const records = await this.ensureProviderRefRecords(client, inputs.map((input) => toTitleRef(input)));
     return new Map(records.map((record) => [titleKey(record.entityType as 'movie' | 'show', record.externalId), record.contentId]));
   }
 
   async ensureEpisodeContentId(client: DbClient, input: EpisodeIdentityInput): Promise<string> {
-    const [record] = await this.repository.ensureProviderRefs(client, [toEpisodeRef(input)]);
+    const [record] = await this.ensureProviderRefRecords(client, [toEpisodeRef(input)]);
     return assertContentId(record);
   }
 
   async ensureEpisodeContentIds(client: DbClient, inputs: EpisodeIdentityInput[]): Promise<Map<string, string>> {
-    const records = await this.repository.ensureProviderRefs(client, inputs.map((input) => toEpisodeRef(input)));
+    const records = await this.ensureProviderRefRecords(client, inputs.map((input) => toEpisodeRef(input)));
     return new Map(records.map((record) => [record.externalId, record.contentId]));
   }
 
   async ensureSeasonContentId(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<string> {
-    const [record] = await this.repository.ensureProviderRefs(client, [toSeasonRef(showTmdbId, seasonNumber)]);
+    const [record] = await this.ensureProviderRefRecords(client, [toSeasonRef(showTmdbId, seasonNumber)]);
     return assertContentId(record);
   }
 
   async ensureSeasonContentIds(client: DbClient, showTmdbId: number, seasonNumbers: number[]): Promise<Map<number, string>> {
-    const records = await this.repository.ensureProviderRefs(
+    const records = await this.ensureProviderRefRecords(
       client,
       seasonNumbers.map((seasonNumber) => toSeasonRef(showTmdbId, seasonNumber)),
     );
@@ -161,8 +170,41 @@ export class ContentIdentityService {
   }
 
   async ensurePersonContentId(client: DbClient, tmdbPersonId: number): Promise<string> {
-    const [record] = await this.repository.ensureProviderRefs(client, [toPersonRef(tmdbPersonId)]);
+    const [record] = await this.ensureProviderRefRecords(client, [toPersonRef(tmdbPersonId)]);
     return assertContentId(record);
+  }
+
+  private async ensureProviderRefRecords(
+    client: DbClient,
+    refs: ContentProviderRefInput[],
+  ): Promise<ContentProviderRefRecord[]> {
+    const requested = dedupeProviderRefs(refs);
+    if (!requested.length) {
+      return [];
+    }
+
+    const resolved = new Map<string, ContentProviderRefRecord>();
+    const initial = await this.repository.ensureProviderRefs(client, requested);
+    for (const record of initial) {
+      resolved.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
+    }
+
+    const missing = requested.filter((ref) => !resolved.has(providerRefKey(ref.provider, ref.entityType, ref.externalId)));
+    for (const ref of missing) {
+      try {
+        const [record] = await this.repository.ensureProviderRefs(client, [ref]);
+        if (record?.contentId) {
+          resolved.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return requested.flatMap((ref) => {
+      const record = resolved.get(providerRefKey(ref.provider, ref.entityType, ref.externalId));
+      return record ? [record] : [];
+    });
   }
 
   async resolveMediaIdentity(client: DbClient, contentId: string): Promise<MediaIdentity> {
@@ -354,4 +396,28 @@ function assertContentId(record: ContentProviderRefRecord | undefined): string {
 
 function titleKey(mediaType: 'movie' | 'show', externalId: string): string {
   return `${mediaType}:${externalId}`;
+}
+
+function providerRefKey(provider: string, entityType: ContentEntityType, externalId: string): string {
+  return `${provider}:${entityType}:${externalId}`;
+}
+
+function dedupeProviderRefs(refs: ContentProviderRefInput[]): ContentProviderRefInput[] {
+  const deduped = new Map<string, ContentProviderRefInput>();
+  for (const ref of refs) {
+    const key = providerRefKey(ref.provider, ref.entityType, ref.externalId);
+    if (!deduped.has(key)) {
+      deduped.set(key, ref);
+    }
+  }
+
+  return [...deduped.values()];
+}
+
+function canMaterializeIdentity(identity: MediaIdentity): boolean {
+  if (identity.mediaType === 'episode') {
+    return Boolean(identity.showTmdbId && identity.seasonNumber !== null && identity.episodeNumber !== null);
+  }
+
+  return Boolean(identity.tmdbId);
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
+import { requireNormalizedIsoString } from '../../lib/time.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
@@ -78,9 +79,17 @@ export class ProviderDestructiveImportService {
     payload: ProviderReplaceImportPayload;
   }): Promise<ProviderReplaceImportResult> {
     const { job, provider, payload } = params;
-    const resetAt = payload.importedAt;
-    const sortedEvents = [...payload.importedEvents].sort(compareOccurredAt);
-    const sortedHistoryEntries = [...payload.importedHistoryEntries].sort((left, right) => left.watchedAt.localeCompare(right.watchedAt));
+    const resetAt = requireNormalizedIsoString(payload.importedAt, 'importedAt');
+    const normalizedEvents = payload.importedEvents.map((event) => ({
+      ...event,
+      occurredAt: requireNormalizedIsoString(event.occurredAt, 'occurredAt'),
+    }));
+    const normalizedHistoryEntries = payload.importedHistoryEntries.map((entry) => ({
+      ...entry,
+      watchedAt: requireNormalizedIsoString(entry.watchedAt, 'watchedAt'),
+    }));
+    const sortedEvents = [...normalizedEvents].sort(compareOccurredAt);
+    const sortedHistoryEntries = [...normalizedHistoryEntries].sort((left, right) => left.watchedAt.localeCompare(right.watchedAt));
     const mediaKeysToRefresh = dedupeMediaKeys([
       ...(payload.mediaKeysToRefresh ?? []),
       ...collectMediaKeys(sortedEvents),
@@ -116,7 +125,7 @@ export class ProviderDestructiveImportService {
       profileId: job.profileId,
       historyGeneration: watchDataState.historyGeneration,
       eventType: 'history_reset',
-      occurredAt: payload.importedAt,
+      occurredAt: resetAt,
       payload: {
         provider,
         importJobId: job.id,
@@ -128,7 +137,7 @@ export class ProviderDestructiveImportService {
       profileId: job.profileId,
       historyGeneration: watchDataState.historyGeneration,
       eventType: 'provider_import_completed',
-      occurredAt: payload.importedAt,
+      occurredAt: resetAt,
       payload: {
         provider,
         importJobId: job.id,
@@ -142,7 +151,7 @@ export class ProviderDestructiveImportService {
       profileId: job.profileId,
       provider,
       importJobId: job.id,
-      completedAt: payload.importedAt,
+      completedAt: resetAt,
     });
 
     return {

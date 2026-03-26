@@ -25,7 +25,7 @@ test('auth rejects missing bearer token with 401', async (t) => {
 
   const response = await app.inject({ method: 'GET', url: '/user-test' });
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'Missing bearer token.' });
+  assert.deepEqual(response.json(), { code: 'missing_bearer_token', message: 'Missing bearer token.' });
 });
 
 test('auth rejects invalid bearer token with 401', async (t) => {
@@ -39,7 +39,7 @@ test('auth rejects invalid bearer token with 401', async (t) => {
   });
 
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'Invalid bearer token.' });
+  assert.deepEqual(response.json(), { code: 'invalid_bearer_token', message: 'Invalid bearer token.' });
 });
 
 test('auth rejects malformed authorization header', async (t) => {

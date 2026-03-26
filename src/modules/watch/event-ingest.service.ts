@@ -9,7 +9,14 @@ import { inferMediaIdentity, parseMediaKey } from './media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
-import { sanitizeWatchEventInput, type WatchEventInput, type WatchIngestResult, type WatchMediaProjection, type WatchMutationInput } from './watch.types.js';
+import {
+  normalizeWatchOccurredAt,
+  sanitizeWatchEventInput,
+  type WatchEventInput,
+  type WatchIngestResult,
+  type WatchMediaProjection,
+  type WatchMutationInput,
+} from './watch.types.js';
 
 export class WatchEventIngestService {
   constructor(
@@ -179,7 +186,7 @@ export class WatchEventIngestService {
         identity,
         eventId: event.id,
         eventType: input.eventType,
-        occurredAt: input.occurredAt ?? new Date().toISOString(),
+        occurredAt: normalizeWatchOccurredAt(input.occurredAt),
         positionSeconds: input.positionSeconds,
         durationSeconds: input.durationSeconds,
         payload: input.payload,
@@ -229,7 +236,7 @@ export class WatchEventIngestService {
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      const occurredAt = input.occurredAt ?? new Date().toISOString();
+      const occurredAt = normalizeWatchOccurredAt(input.occurredAt);
       const identity = inferMediaIdentity(input);
       const projection = await this.buildProjection(client, identity);
       const event = await this.watchEventsRepository.insert(client, {

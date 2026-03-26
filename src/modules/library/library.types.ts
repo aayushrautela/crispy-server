@@ -1,5 +1,5 @@
 import type { HydratedRatingItem, HydratedWatchItem, HydratedWatchlistItem } from '../watch/watch-read.types.js';
-import type { MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataExternalIds, MetadataView } from '../metadata/tmdb.types.js';
 
 export type LibraryProviderSource = 'local' | 'trakt' | 'simkl' | 'all';
 
@@ -35,6 +35,7 @@ export type ProviderLibraryItemView = {
   folderId: string;
   contentId: string;
   contentType: 'movie' | 'show';
+  externalIds: MetadataExternalIds | null;
   title: string;
   posterUrl: string | null;
   backdropUrl: string | null;

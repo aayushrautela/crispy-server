@@ -115,21 +115,26 @@ export class MetadataQueryService {
         tmdbId: match.tmdbId,
       }));
       const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
+      const items = await Promise.all(filteredMatches.map(async (match: TmdbTitleRecord) => {
+        const identity = inferMediaIdentity({
+          mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+          tmdbId: match.tmdbId,
+        });
+        const contentId = contentIds.get(identity.mediaKey) ?? await this.contentIdentityService.ensureContentId(client, identity).catch(() => null);
+        if (!contentId) {
+          return null;
+        }
+
+        return buildMetadataCardView({
+          id: contentId,
+          identity,
+          title: match,
+        });
+      }));
 
       return {
         query: normalizedQuery,
-        items: filteredMatches.map((match: TmdbTitleRecord) => {
-          const identity = inferMediaIdentity({
-            mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
-            tmdbId: match.tmdbId,
-          });
-
-          return buildMetadataCardView({
-            id: assertPresent(contentIds.get(identity.mediaKey), 'Unable to resolve canonical content id.'),
-            identity,
-            title: match,
-          });
-        }),
+        items: items.filter((item): item is MetadataSearchResponse['items'][number] => item !== null),
       };
     });
   }

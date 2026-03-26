@@ -162,7 +162,7 @@ export class MetadataDirectService {
         releaseDate: episode.airDate,
       })),
       watchedKeys: input.watchedKeys ?? null,
-      showId: input.showId ?? episodeList.show.externalIds.imdb,
+      showId: input.showId ?? episodeList.show.id,
       nowMs: input.nowMs ?? null,
     });
 
@@ -482,13 +482,17 @@ async function buildKnownForItems(
   return items
     .sort((left, right) => right.popularity - left.popularity)
     .slice(0, 20)
-    .map(({ popularity: _popularity, ...item }) => ({
-      ...item,
-      id: assertPresent(
-        contentIds.get(`${item.mediaType}:${item.tmdbId}`),
-        'Unable to resolve canonical content id.',
-      ),
-    }));
+    .flatMap(({ popularity: _popularity, ...item }) => {
+      const id = contentIds.get(`${item.mediaType}:${item.tmdbId}`);
+      if (!id) {
+        return [];
+      }
+
+      return [{
+        ...item,
+        id,
+      }];
+    });
 }
 
 function parseYear(value: string): number | null {

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeIsoString, toIsoString, nowIso } from './time.js';
+import { HttpError } from './errors.js';
+import { normalizeIsoString, normalizeOptionalIsoString, requireNormalizedIsoString, toIsoString, nowIso } from './time.js';
 
 test('nowIso returns a valid ISO string', () => {
   const result = nowIso();
@@ -39,4 +40,24 @@ test('normalizeIsoString returns null for null and undefined', () => {
 test('normalizeIsoString handles Date objects', () => {
   const date = new Date('2024-06-15T12:00:00.000Z');
   assert.equal(normalizeIsoString(date), '2024-06-15T12:00:00.000Z');
+});
+
+test('normalizeOptionalIsoString returns null for blank values', () => {
+  assert.equal(normalizeOptionalIsoString('', 'occurredAt'), null);
+  assert.equal(normalizeOptionalIsoString('   ', 'occurredAt'), null);
+  assert.equal(normalizeOptionalIsoString(null, 'occurredAt'), null);
+});
+
+test('requireNormalizedIsoString throws HttpError for invalid timestamps', () => {
+  assert.throws(
+    () => requireNormalizedIsoString('not-a-date', 'occurredAt'),
+    (error: unknown) => {
+      assert.ok(error instanceof HttpError);
+      assert.equal(error.statusCode, 400);
+      assert.equal(error.code, 'invalid_timestamp');
+      assert.equal(error.message, 'Invalid occurredAt timestamp.');
+      assert.deepEqual(error.details, { field: 'occurredAt', value: 'not-a-date' });
+      return true;
+    },
+  );
 });

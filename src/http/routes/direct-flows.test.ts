@@ -173,5 +173,5 @@ test('library route rejects invalid source', async (t) => {
 
   const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library?source=bad', headers: { authorization: 'Bearer test' } });
   assert.equal(response.statusCode, 400);
-  assert.deepEqual(response.json(), { error: 'Invalid library source.' });
+  assert.deepEqual(response.json(), { code: 'invalid_library_source', message: 'Invalid library source.' });
 });

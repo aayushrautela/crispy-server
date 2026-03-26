@@ -3,7 +3,7 @@ import type { DbClient } from '../../lib/db.js';
 export type ContentEntityType = 'movie' | 'show' | 'episode' | 'season' | 'person';
 
 export type ContentProviderRefInput = {
-  provider: 'tmdb';
+  provider: string;
   entityType: ContentEntityType;
   externalId: string;
   metadata?: Record<string, unknown>;

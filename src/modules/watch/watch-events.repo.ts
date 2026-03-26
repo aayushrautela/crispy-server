@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { normalizeWatchOccurredAt } from './watch.types.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
@@ -37,6 +38,7 @@ export class WatchEventsRepository {
     identity: MediaIdentity;
     projection?: WatchMediaProjection;
   }): Promise<PersistedWatchEvent> {
+    const occurredAt = normalizeWatchOccurredAt(params.input.occurredAt);
     const result = await client.query(
       `
         INSERT INTO watch_events (
@@ -106,10 +108,10 @@ export class WatchEventsRepository {
          params.input.durationSeconds ?? null,
          deriveProgressPercent(params.input.positionSeconds, params.input.durationSeconds),
          params.input.rating ?? null,
-         params.input.occurredAt ?? new Date().toISOString(),
-         JSON.stringify(params.input.payload ?? {}),
-       ],
-     );
+         occurredAt,
+          JSON.stringify(params.input.payload ?? {}),
+        ],
+      );
 
     return {
       id: String(result.rows[0].id),

@@ -34,9 +34,9 @@ test('service auth rejects missing x-service-id header', async (t) => {
     url: '/internal-test',
     headers: { 'x-api-key': 'secret' },
   });
-
+  
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'Missing service id.' });
+  assert.deepEqual(response.json(), { code: 'missing_service_id', message: 'Missing service id.' });
 });
 
 test('service auth rejects missing x-api-key header', async (t) => {
@@ -48,9 +48,9 @@ test('service auth rejects missing x-api-key header', async (t) => {
     url: '/internal-test',
     headers: { 'x-service-id': 'svc' },
   });
-
+  
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'Missing API key.' });
+  assert.deepEqual(response.json(), { code: 'missing_api_key', message: 'Missing API key.' });
 });
 
 test('service auth rejects invalid credentials', async (t) => {
@@ -62,9 +62,9 @@ test('service auth rejects invalid credentials', async (t) => {
     url: '/internal-test',
     headers: { 'x-service-id': 'svc', 'x-api-key': 'wrong' },
   });
-
+  
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'Invalid service credentials.' });
+  assert.deepEqual(response.json(), { code: 'invalid_service_credentials', message: 'Invalid service credentials.' });
 });
 
 test('service auth rejects disabled clients', async (t) => {
@@ -76,9 +76,9 @@ test('service auth rejects disabled clients', async (t) => {
     url: '/internal-test',
     headers: { 'x-service-id': 'svc-disabled', 'x-api-key': 'disabled-secret' },
   });
-
+  
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { error: 'Invalid service credentials.' });
+  assert.deepEqual(response.json(), { code: 'invalid_service_credentials', message: 'Invalid service credentials.' });
 });
 
 test('service auth authenticates valid active clients', async (t) => {
