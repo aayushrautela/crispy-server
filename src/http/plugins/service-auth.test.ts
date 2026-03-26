@@ -1,40 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import Fastify from 'fastify';
+import { setTestEnv } from '../../test-helpers.js';
 
-const TEST_SERVICE_CLIENTS_JSON = JSON.stringify([
-  {
-    serviceId: 'svc',
-    apiKey: 'secret',
-    scopes: ['profiles:read'],
-    status: 'active',
-  },
-  {
-    serviceId: 'svc-disabled',
-    apiKey: 'disabled-secret',
-    scopes: ['profiles:read'],
-    status: 'disabled',
-  },
-  {
-    serviceId: 'crispy-recommendation-engine',
-    apiKey: 'engine-secret',
-    scopes: ['profiles:read', 'recommendation-work:claim'],
-    status: 'active',
-  },
+const SERVICE_CLIENTS = JSON.stringify([
+  { serviceId: 'svc', apiKey: 'secret', scopes: ['profiles:read'], status: 'active' },
+  { serviceId: 'svc-disabled', apiKey: 'disabled-secret', scopes: ['profiles:read'], status: 'disabled' },
+  { serviceId: 'crispy-recommendation-engine', apiKey: 'engine-secret', scopes: ['profiles:read', 'recommendation-work:claim'], status: 'active' },
 ]);
 
-function configureTestEnv(): void {
-  process.env.NODE_ENV = 'test';
-  process.env.DATABASE_URL = 'postgres://test:test@127.0.0.1:5432/test';
-  process.env.REDIS_URL = 'redis://127.0.0.1:6379/0';
-  process.env.SUPABASE_URL = 'https://example.supabase.co';
-  process.env.AUTH_JWT_AUDIENCE = 'authenticated';
-  process.env.TMDB_API_KEY = 'tmdb-test-key';
-  process.env.SERVICE_CLIENTS_JSON = TEST_SERVICE_CLIENTS_JSON;
-}
+setTestEnv({ SERVICE_CLIENTS_JSON: SERVICE_CLIENTS });
 
 async function buildServiceAuthApp() {
-  configureTestEnv();
+  const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('./error-handler.js');
   const { default: serviceAuthPlugin } = await import('./service-auth.js');
 
@@ -50,16 +27,12 @@ async function buildServiceAuthApp() {
 
 test('service auth rejects missing x-service-id header', async (t) => {
   const app = await buildServiceAuthApp();
-  t.after(async () => {
-    await app.close();
-  });
+  t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
     url: '/internal-test',
-    headers: {
-      'x-api-key': 'secret',
-    },
+    headers: { 'x-api-key': 'secret' },
   });
 
   assert.equal(response.statusCode, 401);
@@ -68,16 +41,12 @@ test('service auth rejects missing x-service-id header', async (t) => {
 
 test('service auth rejects missing x-api-key header', async (t) => {
   const app = await buildServiceAuthApp();
-  t.after(async () => {
-    await app.close();
-  });
+  t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
     url: '/internal-test',
-    headers: {
-      'x-service-id': 'svc',
-    },
+    headers: { 'x-service-id': 'svc' },
   });
 
   assert.equal(response.statusCode, 401);
@@ -86,17 +55,12 @@ test('service auth rejects missing x-api-key header', async (t) => {
 
 test('service auth rejects invalid credentials', async (t) => {
   const app = await buildServiceAuthApp();
-  t.after(async () => {
-    await app.close();
-  });
+  t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
     url: '/internal-test',
-    headers: {
-      'x-service-id': 'svc',
-      'x-api-key': 'wrong',
-    },
+    headers: { 'x-service-id': 'svc', 'x-api-key': 'wrong' },
   });
 
   assert.equal(response.statusCode, 401);
@@ -105,17 +69,12 @@ test('service auth rejects invalid credentials', async (t) => {
 
 test('service auth rejects disabled clients', async (t) => {
   const app = await buildServiceAuthApp();
-  t.after(async () => {
-    await app.close();
-  });
+  t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
     url: '/internal-test',
-    headers: {
-      'x-service-id': 'svc-disabled',
-      'x-api-key': 'disabled-secret',
-    },
+    headers: { 'x-service-id': 'svc-disabled', 'x-api-key': 'disabled-secret' },
   });
 
   assert.equal(response.statusCode, 401);
@@ -124,17 +83,12 @@ test('service auth rejects disabled clients', async (t) => {
 
 test('service auth authenticates valid active clients', async (t) => {
   const app = await buildServiceAuthApp();
-  t.after(async () => {
-    await app.close();
-  });
+  t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
     url: '/internal-test',
-    headers: {
-      'x-service-id': 'crispy-recommendation-engine',
-      'x-api-key': 'engine-secret',
-    },
+    headers: { 'x-service-id': 'crispy-recommendation-engine', 'x-api-key': 'engine-secret' },
   });
 
   assert.equal(response.statusCode, 200);

@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { ensureSupportedMediaType, type MediaIdentity } from '../watch/media-key.js';
 import { assertPresent } from '../../lib/errors.js';
+import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
 import {
   buildMetadataCardView,
   buildEpisodeView,
@@ -12,20 +13,24 @@ import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type {
   MetadataCardView,
-  MetadataEpisodeView,
   MetadataSeasonDetail,
   MetadataTitleDetail,
-  MetadataView,
   TmdbEpisodeRecord,
   TmdbTitleRecord,
+  MetadataView,
 } from './tmdb.types.js';
 
 export class MetadataViewService {
-  constructor(private readonly tmdbCacheService = new TmdbCacheService()) {}
+  constructor(
+    private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly contentIdentityService = new ContentIdentityService(),
+  ) {}
 
   async buildMetadataCardView(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
+    const id = await this.contentIdentityService.ensureContentId(client, identity);
     const context = await this.loadCardContext(client, identity);
     return buildMetadataCardView({
+      id,
       identity,
       title: context.title,
       currentEpisode: context.currentEpisode,
@@ -34,6 +39,7 @@ export class MetadataViewService {
 
   async buildMetadataCardViewFromRow(client: DbClient, row: Record<string, unknown>): Promise<MetadataCardView> {
     const identity = this.identityFromRow(row);
+    const id = await this.contentIdentityService.ensureContentId(client, identity);
     const rowTitle = typeof row.title === 'string' && row.title.trim() ? row.title : null;
     const rowSubtitle = typeof row.subtitle === 'string' && row.subtitle.trim() ? row.subtitle : null;
     const rowPosterUrl = typeof row.poster_url === 'string' && row.poster_url.trim() ? row.poster_url : null;
@@ -48,6 +54,7 @@ export class MetadataViewService {
       : await this.loadCardContext(client, identity);
 
     return buildMetadataCardView({
+      id,
       identity,
       title: context.title,
       currentEpisode: context.currentEpisode,
@@ -62,12 +69,22 @@ export class MetadataViewService {
 
   async buildMetadataView(client: DbClient, identity: MediaIdentity): Promise<MetadataView> {
     const { title, currentEpisode, nextEpisode } = await this.loadIdentityContext(client, identity);
+    const id = await this.contentIdentityService.ensureContentId(client, identity);
+    const nextEpisodeId = nextEpisode
+      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
+          showTmdbId: nextEpisode.showTmdbId,
+          seasonNumber: nextEpisode.seasonNumber,
+          episodeNumber: nextEpisode.episodeNumber,
+        })
+      : null;
 
     return buildMetadataView({
+      id,
       identity,
       title,
       currentEpisode,
       nextEpisode,
+      nextEpisodeId,
     });
   }
 
@@ -77,15 +94,27 @@ export class MetadataViewService {
       : identity;
     const { title, nextEpisode } = await this.loadIdentityContext(client, normalizedIdentity);
     const resolvedTitle = assertPresent(title, 'Metadata title not found.');
+    const showId = await this.contentIdentityService.ensureContentId(client, normalizedIdentity);
+    const seasonNumbers = extractSeasonNumbersFromTitle(resolvedTitle);
+    const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, resolvedTitle.tmdbId, seasonNumbers);
+    const nextEpisodeId = nextEpisode
+      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
+          showTmdbId: nextEpisode.showTmdbId,
+          seasonNumber: nextEpisode.seasonNumber,
+          episodeNumber: nextEpisode.episodeNumber,
+        })
+      : null;
 
     return {
       item: buildMetadataView({
+        id: showId,
         identity: normalizedIdentity,
         title: resolvedTitle,
         currentEpisode: null,
         nextEpisode,
+        nextEpisodeId,
       }),
-      seasons: buildSeasonViewFromTitleRaw(resolvedTitle),
+      seasons: buildSeasonViewFromTitleRaw(resolvedTitle, showId, seasonIds),
     };
   }
 
@@ -104,16 +133,43 @@ export class MetadataViewService {
     const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
     const resolvedSeason = assertPresent(seasonRecord, 'Season metadata not found.');
     const episodes = await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber);
+    const showId = await this.contentIdentityService.ensureTitleContentId(client, { mediaType: 'show', tmdbId: showTmdbId });
+    const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, showTmdbId, seasonNumber);
+    const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
+      client,
+      episodes.map((episode) => ({
+        showTmdbId: episode.showTmdbId,
+        seasonNumber: episode.seasonNumber,
+        episodeNumber: episode.episodeNumber,
+      })),
+    );
+    const nextEpisodeId = nextEpisode
+      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
+          showTmdbId: nextEpisode.showTmdbId,
+          seasonNumber: nextEpisode.seasonNumber,
+          episodeNumber: nextEpisode.episodeNumber,
+        })
+      : null;
 
     return {
       show: buildMetadataView({
+        id: showId,
         identity: showIdentity,
         title: resolvedTitle,
         currentEpisode: null,
         nextEpisode,
+        nextEpisodeId,
       }),
-      season: buildSeasonViewFromRecord(showTmdbId, resolvedSeason),
-      episodes: episodes.map((episode) => buildEpisodeView(resolvedTitle, episode)),
+      season: buildSeasonViewFromRecord(showTmdbId, resolvedSeason, seasonId, showId),
+      episodes: episodes.map((episode) => buildEpisodeView(
+        resolvedTitle,
+        episode,
+        assertPresent(
+          episodeIds.get(episodeRefMapKey(episode.showTmdbId, episode.seasonNumber, episode.episodeNumber)),
+          'Episode metadata not found.',
+        ),
+        showId,
+      )),
     };
   }
 
@@ -156,7 +212,6 @@ export class MetadataViewService {
     title: TmdbTitleRecord | null;
     currentEpisode: TmdbEpisodeRecord | null;
     nextEpisode: TmdbEpisodeRecord | null;
-    episodes: MetadataEpisodeView[] | null;
   }> {
     const titleType = identity.mediaType === 'movie' ? 'movie' : 'tv';
     const titleTmdbId = identity.mediaType === 'episode' ? identity.showTmdbId : identity.tmdbId;
@@ -164,7 +219,6 @@ export class MetadataViewService {
 
     let currentEpisode: TmdbEpisodeRecord | null = null;
     let nextEpisode: TmdbEpisodeRecord | null = null;
-    let mappedEpisodes: MetadataEpisodeView[] | null = null;
 
     if (identity.showTmdbId) {
       const seasonsToEnsure = collectRelevantSeasonNumbers(identity, title);
@@ -181,19 +235,22 @@ export class MetadataViewService {
       if (identity.mediaType === 'episode') {
         nextEpisode = selectNextEpisode(identity, title, episodes);
       }
-
-      if (title) {
-        mappedEpisodes = episodes.map((episode) => buildEpisodeView(title, episode));
-      }
     }
 
     return {
       title,
       currentEpisode,
       nextEpisode,
-      episodes: mappedEpisodes,
     };
   }
+}
+
+function extractSeasonNumbersFromTitle(title: TmdbTitleRecord): number[] {
+  const rawSeasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
+  return rawSeasons
+    .map((entry) => (typeof entry === 'object' && entry !== null ? Number((entry as Record<string, unknown>).season_number) : NaN))
+    .filter((seasonNumber) => Number.isInteger(seasonNumber) && seasonNumber >= 0)
+    .sort((left, right) => left - right);
 }
 
 function buildEpisodeSubtitle(seasonNumber: number | null, episodeNumber: number | null): string | null {

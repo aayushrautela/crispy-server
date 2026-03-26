@@ -8,7 +8,105 @@ import type { MetadataSearchFilter, TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTit
 
 type SearchPayloadItem = {
   id?: unknown;
+  title?: unknown;
+  name?: unknown;
+  original_title?: unknown;
+  original_name?: unknown;
+  overview?: unknown;
+  release_date?: unknown;
+  first_air_date?: unknown;
+  poster_path?: unknown;
+  backdrop_path?: unknown;
+  status?: unknown;
 };
+
+function searchRank(query: string, candidate: string | null): number {
+  if (!candidate) {
+    return 4;
+  }
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedCandidate = candidate.trim().toLowerCase();
+  if (!normalizedQuery || !normalizedCandidate) {
+    return 4;
+  }
+  if (normalizedCandidate === normalizedQuery) {
+    return 0;
+  }
+  if (normalizedCandidate.startsWith(normalizedQuery)) {
+    return 1;
+  }
+  if (normalizedCandidate.includes(normalizedQuery)) {
+    return 2;
+  }
+  return 3;
+}
+
+function searchPopularity(item: SearchPayloadItem): number {
+  const value = item && typeof item === 'object' ? (item as Record<string, unknown>).popularity : null;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function toSearchTitleRecord(mediaType: TmdbTitleType, item: SearchPayloadItem): TmdbTitleRecord | null {
+  const tmdbId = typeof item?.id === 'number' ? item.id : null;
+  if (!tmdbId) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  return {
+    mediaType,
+    tmdbId,
+    name: toNullableString(item.title) ?? toNullableString(item.name),
+    originalName: toNullableString(item.original_title) ?? toNullableString(item.original_name),
+    overview: toNullableString(item.overview),
+    releaseDate: toNullableString(item.release_date),
+    firstAirDate: toNullableString(item.first_air_date),
+    status: toNullableString(item.status),
+    posterPath: toNullableString(item.poster_path),
+    backdropPath: toNullableString(item.backdrop_path),
+    runtime: null,
+    episodeRunTime: [],
+    numberOfSeasons: null,
+    numberOfEpisodes: null,
+    externalIds: {},
+    raw: item as Record<string, unknown>,
+    fetchedAt: now,
+    expiresAt: now,
+  };
+}
+
+function dedupeTitles(records: TmdbTitleRecord[]): TmdbTitleRecord[] {
+  const seen = new Set<string>();
+  const deduped: TmdbTitleRecord[] = [];
+  for (const record of records) {
+    const key = `${record.mediaType}:${record.tmdbId}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(record);
+  }
+  return deduped;
+}
+
+function sortSearchResults(query: string, records: TmdbTitleRecord[]): TmdbTitleRecord[] {
+  return [...records].sort((left, right) => {
+    const leftRank = Math.min(searchRank(query, left.name), searchRank(query, left.originalName));
+    const rightRank = Math.min(searchRank(query, right.name), searchRank(query, right.originalName));
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+
+    return searchPopularity(right.raw as SearchPayloadItem) - searchPopularity(left.raw as SearchPayloadItem);
+  });
+}
+
+function sortDiscoverResults(records: TmdbTitleRecord[]): TmdbTitleRecord[] {
+  return [...records].sort((left, right) => {
+    return searchPopularity(right.raw as SearchPayloadItem) - searchPopularity(left.raw as SearchPayloadItem);
+  });
+}
 
 function toNullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
@@ -149,102 +247,47 @@ export class TmdbCacheService {
     return this.tmdbRepository.listEpisodesForSeason(client, showTmdbId, seasonNumber);
   }
 
-  async searchTitles(client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[]): Promise<TmdbTitleRecord[]> {
-    const cached = await this.tmdbRepository.searchTitles(client, query, limit, mediaTypes);
-    if (cached.length >= Math.min(limit, 5)) {
-      return cached;
-    }
+  async searchTitles(query: string, limit: number, mediaTypes: TmdbTitleType[]): Promise<TmdbTitleRecord[]> {
+    const payloads = await Promise.all(mediaTypes.map((mediaType) => this.tmdbClient.searchTitles(mediaType, query)));
+    const records = payloads.flatMap((payload, index) => {
+      const mediaType = mediaTypes[index] as TmdbTitleType;
+      const items = Array.isArray(payload.results) ? payload.results as SearchPayloadItem[] : [];
+      return items
+        .map((item) => toSearchTitleRecord(mediaType, item))
+        .filter((item): item is TmdbTitleRecord => item !== null);
+    });
 
-    for (const mediaType of mediaTypes) {
-      await this.primeSearchType(client, mediaType, query);
-    }
-
-    return this.tmdbRepository.searchTitles(client, query, limit, mediaTypes);
+    return sortSearchResults(query, dedupeTitles(records)).slice(0, limit);
   }
 
-  async discoverTitlesByGenre(
-    client: DbClient,
-    params: {
+  async discoverTitlesByGenre(params: {
       movieGenreId?: number | null;
       tvGenreId?: number | null;
       filter: MetadataSearchFilter;
       limit: number;
-    },
-  ): Promise<TmdbTitleRecord[]> {
-    const results: TmdbTitleRecord[] = [];
-    const seen = new Set<string>();
-
-    const loadGenre = async (mediaType: TmdbTitleType, genreId: number | null | undefined): Promise<void> => {
-      if (!genreId || results.length >= params.limit) {
-        return;
-      }
-
-      const payload = await this.tmdbClient.discoverTitlesByGenre(mediaType, genreId);
-      const items = Array.isArray(payload.results) ? payload.results : [];
-      for (const item of items) {
-        const tmdbId = item && typeof item === 'object' && typeof item.id === 'number' ? item.id : null;
-        if (!tmdbId) {
-          continue;
-        }
-
-        try {
-          await this.ensureTitleCached(client, mediaType, tmdbId);
-        } catch (error) {
-          if (!(error instanceof HttpError && error.statusCode === 404)) {
-            throw error;
-          }
-        }
-
-        const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId);
-        if (!cached) {
-          continue;
-        }
-
-        const key = `${cached.mediaType}:${cached.tmdbId}`;
-        if (seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        results.push(cached);
-
-        if (results.length >= params.limit) {
-          return;
-        }
-      }
-    };
-
-    if (params.filter === 'movies') {
-      await loadGenre('movie', params.movieGenreId);
-      return results;
+    }): Promise<TmdbTitleRecord[]> {
+    const requestedTypes: Array<{ mediaType: TmdbTitleType; genreId: number }> = [];
+    if (params.filter !== 'series' && params.movieGenreId) {
+      requestedTypes.push({ mediaType: 'movie', genreId: params.movieGenreId });
+    }
+    if (params.filter !== 'movies' && params.tvGenreId) {
+      requestedTypes.push({ mediaType: 'tv', genreId: params.tvGenreId });
     }
 
-    if (params.filter === 'series') {
-      await loadGenre('tv', params.tvGenreId);
-      return results;
-    }
-
-    await loadGenre('movie', params.movieGenreId);
-    await loadGenre('tv', params.tvGenreId);
-    return results;
-  }
-
-  private async primeSearchType(client: DbClient, mediaType: TmdbTitleType, query: string): Promise<void> {
-    const payload = await this.tmdbClient.searchTitles(mediaType, query);
-    const results = Array.isArray(payload.results) ? payload.results as SearchPayloadItem[] : [];
-
-    for (const result of results) {
-      const tmdbId = typeof result?.id === 'number' ? result.id : null;
-      if (!tmdbId) {
-        continue;
+    const payloads = await Promise.all(
+      requestedTypes.map(({ mediaType, genreId }) => this.tmdbClient.discoverTitlesByGenre(mediaType, genreId)),
+    );
+    const records = payloads.flatMap((payload, index) => {
+      const mediaType = requestedTypes[index]?.mediaType;
+      if (!mediaType) {
+        return [];
       }
+      const items = Array.isArray(payload.results) ? payload.results as SearchPayloadItem[] : [];
+      return items
+        .map((item) => toSearchTitleRecord(mediaType, item))
+        .filter((item): item is TmdbTitleRecord => item !== null);
+    });
 
-      try {
-        await this.ensureTitleCached(client, mediaType, tmdbId);
-      } catch (error) {
-        if (!(error instanceof HttpError && error.statusCode === 404)) {
-          throw error;
-        }
-      }
-    }
+    return sortDiscoverResults(dedupeTitles(records)).slice(0, params.limit);
   }
 }

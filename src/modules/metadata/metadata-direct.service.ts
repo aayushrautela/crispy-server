@@ -8,10 +8,9 @@ import { inferMediaIdentity, type MediaIdentity } from '../watch/media-key.js';
 import {
   buildEpisodeView,
   buildImageUrl,
-  buildMetadataId,
   buildSeasonViewFromRecord,
-  parseMetadataId,
 } from './metadata-normalizers.js';
+import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { findNextEpisode } from './next-episode.js';
 import { OmdbCacheRepository } from './omdb-cache.repo.js';
@@ -67,35 +66,34 @@ export class MetadataDirectService {
     private readonly fetcher: FetchLike = fetch,
     private readonly omdbCacheRepository = new OmdbCacheRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
+    private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
-    const tmdbPersonId = parsePersonTmdbId(personId);
-    if (!tmdbPersonId) {
-      throw new HttpError(400, 'Invalid person id.');
-    }
+    return withDbClient(async (client) => {
+      const tmdbPersonId = await this.contentIdentityService.resolvePersonTmdbId(client, personId);
+      const payload = await this.tmdbClient.fetchPerson(tmdbPersonId, language ?? null);
+      const name = asString(payload.name);
+      if (!name) {
+        throw new HttpError(404, 'Person metadata not found.');
+      }
 
-    const payload = await this.tmdbClient.fetchPerson(tmdbPersonId, language ?? null);
-    const name = asString(payload.name);
-    if (!name) {
-      throw new HttpError(404, 'Person metadata not found.');
-    }
-
-    const externalIds = asRecord(payload.external_ids);
-    return {
-      id: `crisp:person:${tmdbPersonId}`,
-      tmdbPersonId,
-      name,
-      knownForDepartment: asString(payload.known_for_department),
-      biography: asString(payload.biography),
-      birthday: asString(payload.birthday),
-      placeOfBirth: asString(payload.place_of_birth),
-      profileUrl: buildImageUrl(asString(payload.profile_path), 'h632'),
-      imdbId: normalizeImdbId(asString(externalIds?.imdb_id)),
-      instagramId: asString(externalIds?.instagram_id),
-      twitterId: asString(externalIds?.twitter_id),
-      knownFor: buildKnownForItems(payload),
-    };
+      const externalIds = asRecord(payload.external_ids);
+      return {
+        id: await this.contentIdentityService.ensurePersonContentId(client, tmdbPersonId),
+        tmdbPersonId,
+        name,
+        knownForDepartment: asString(payload.known_for_department),
+        biography: asString(payload.biography),
+        birthday: asString(payload.birthday),
+        placeOfBirth: asString(payload.place_of_birth),
+        profileUrl: buildImageUrl(asString(payload.profile_path), 'h632'),
+        imdbId: normalizeImdbId(asString(externalIds?.imdb_id)),
+        instagramId: asString(externalIds?.instagram_id),
+        twitterId: asString(externalIds?.twitter_id),
+        knownFor: await buildKnownForItems(client, this.contentIdentityService, payload),
+      };
+    });
   }
 
   async resolveMetadataView(input: ResolveMetadataInput): Promise<MetadataView> {
@@ -124,9 +122,28 @@ export class MetadataDirectService {
         episodes.push(...await this.tmdbCacheService.listEpisodesForSeason(client, showIdentity.tmdbId, seasonNumber));
       }
 
-      const uniqueEpisodes = dedupeEpisodes(episodes).map((episode) => buildEpisodeView(title, episode));
+      const show = await this.metadataViewService.buildMetadataView(client, showIdentity);
+      const dedupedEpisodes = dedupeEpisodes(episodes);
+      const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
+        client,
+        dedupedEpisodes.map((episode) => ({
+          showTmdbId: episode.showTmdbId,
+          seasonNumber: episode.seasonNumber,
+          episodeNumber: episode.episodeNumber,
+        })),
+      );
+      const uniqueEpisodes = dedupedEpisodes.map((episode) => buildEpisodeView(
+        title,
+        episode,
+        assertPresent(
+          episodeIds.get(episodeRefMapKey(episode.showTmdbId, episode.seasonNumber, episode.episodeNumber)),
+          'Episode metadata not found.',
+        ),
+        show.id,
+      ));
+
       return {
-        show: await this.metadataViewService.buildMetadataView(client, showIdentity),
+        show,
         requestedSeasonNumber: requestedSeasonNumber ?? null,
         effectiveSeasonNumber: seasonNumbers[0] ?? 1,
         includedSeasonNumbers: seasonNumbers,
@@ -194,7 +211,8 @@ export class MetadataDirectService {
         if (identity.seasonNumber !== null) {
           const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, identity.showTmdbId, identity.seasonNumber);
           if (seasonRecord) {
-            season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord);
+            const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, identity.showTmdbId, identity.seasonNumber);
+            season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, show.id);
           }
         }
       }
@@ -208,7 +226,7 @@ export class MetadataDirectService {
   }
 
   private async resolveShowIdentity(_client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'show'; tmdbId: number }> {
-    const parsed = parseMetadataId(id);
+    const parsed = await this.contentIdentityService.resolveMediaIdentity(_client, id);
     if (parsed.mediaType === 'show' && parsed.tmdbId) {
       return {
         ...parsed,
@@ -231,7 +249,7 @@ export class MetadataDirectService {
 
   private async resolveIdentity(client: DbClient, input: ResolveMetadataInput): Promise<MediaIdentity> {
     if (input.id?.trim()) {
-      return parseMetadataId(input.id.trim());
+      return this.contentIdentityService.resolveMediaIdentity(client, input.id.trim());
     }
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
@@ -409,10 +427,15 @@ function normalizeResolveMediaType(
   return 'movie';
 }
 
-function buildKnownForItems(payload: Record<string, unknown>): MetadataPersonKnownForItem[] {
+async function buildKnownForItems(
+  client: DbClient,
+  contentIdentityService: ContentIdentityService,
+  payload: Record<string, unknown>,
+): Promise<MetadataPersonKnownForItem[]> {
   const cast = asArray(asRecord(payload.combined_credits)?.cast);
   const seen = new Set<string>();
   const items: Array<MetadataPersonKnownForItem & { popularity: number }> = [];
+  const refs: Array<{ mediaType: 'movie' | 'show'; tmdbId: number }> = [];
 
   for (const value of cast) {
     const record = asRecord(value);
@@ -439,9 +462,11 @@ function buildKnownForItems(payload: Record<string, unknown>): MetadataPersonKno
       continue;
     }
 
+    refs.push({ mediaType, tmdbId });
+
     const releaseDate = mediaType === 'movie' ? asString(record.release_date) : asString(record.first_air_date);
     items.push({
-      id: buildMetadataId({ mediaType, tmdbId }),
+      id: '',
       mediaType,
       tmdbId,
       title,
@@ -452,24 +477,18 @@ function buildKnownForItems(payload: Record<string, unknown>): MetadataPersonKno
     });
   }
 
+  const contentIds = await contentIdentityService.ensureTitleContentIds(client, refs);
+
   return items
     .sort((left, right) => right.popularity - left.popularity)
     .slice(0, 20)
-    .map(({ popularity: _popularity, ...item }) => item);
-}
-
-function parsePersonTmdbId(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const direct = asPositiveNumber(trimmed);
-  if (direct) {
-    return direct;
-  }
-
-  const match = trimmed.match(/(\d+)/);
-  return match ? asPositiveNumber(match[1]) : null;
+    .map(({ popularity: _popularity, ...item }) => ({
+      ...item,
+      id: assertPresent(
+        contentIds.get(`${item.mediaType}:${item.tmdbId}`),
+        'Unable to resolve canonical content id.',
+      ),
+    }));
 }
 
 function parseYear(value: string): number | null {

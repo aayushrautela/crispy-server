@@ -1,5 +1,4 @@
 import { env } from '../../config/env.js';
-import { HttpError } from '../../lib/errors.js';
 import type { MediaIdentity } from '../watch/media-key.js';
 import type {
   MetadataCardView,
@@ -40,86 +39,6 @@ export function buildImageUrl(path: string | null, size: string): string | null 
   }
 
   return `${env.tmdbImageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
-}
-
-export function buildMetadataId(identity: {
-  mediaType: 'movie' | 'show' | 'episode';
-  tmdbId?: number | null;
-  showTmdbId?: number | null;
-  seasonNumber?: number | null;
-  episodeNumber?: number | null;
-}): string {
-  if (identity.mediaType === 'movie' && identity.tmdbId) {
-    return `crisp:movie:${identity.tmdbId}`;
-  }
-
-  if (identity.mediaType === 'show' && identity.tmdbId) {
-    return `crisp:show:${identity.tmdbId}`;
-  }
-
-  if (
-    identity.mediaType === 'episode' &&
-    identity.showTmdbId &&
-    identity.seasonNumber !== null &&
-    identity.seasonNumber !== undefined &&
-    identity.episodeNumber !== null &&
-    identity.episodeNumber !== undefined
-  ) {
-    return `crisp:episode:${identity.showTmdbId}:${identity.seasonNumber}:${identity.episodeNumber}`;
-  }
-
-  throw new HttpError(400, 'Unable to build metadata id.');
-}
-
-export function parseMetadataId(id: string): MediaIdentity {
-  const normalized = id.trim();
-  const parts = normalized.split(':');
-  if (parts.length < 3 || parts[0] !== 'crisp') {
-    throw new HttpError(400, 'Invalid metadata id.');
-  }
-
-  const mediaType = parts[1];
-  if ((mediaType === 'movie' || mediaType === 'show') && parts.length === 3) {
-    const tmdbId = Number(parts[2]);
-    if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
-      throw new HttpError(400, 'Invalid metadata id.');
-    }
-    return {
-      mediaKey: `${mediaType}:tmdb:${tmdbId}`,
-      mediaType,
-      tmdbId,
-      showTmdbId: mediaType === 'show' ? tmdbId : null,
-      seasonNumber: null,
-      episodeNumber: null,
-    };
-  }
-
-  if (mediaType === 'episode' && parts.length === 5) {
-    const showTmdbId = Number(parts[2]);
-    const seasonNumber = Number(parts[3]);
-    const episodeNumber = Number(parts[4]);
-    if (
-      !Number.isInteger(showTmdbId) ||
-      showTmdbId <= 0 ||
-      !Number.isInteger(seasonNumber) ||
-      seasonNumber < 0 ||
-      !Number.isInteger(episodeNumber) ||
-      episodeNumber <= 0
-    ) {
-      throw new HttpError(400, 'Invalid metadata id.');
-    }
-
-    return {
-      mediaKey: `episode:tmdb:${showTmdbId}:${seasonNumber}:${episodeNumber}`,
-      mediaType: 'episode',
-      tmdbId: null,
-      showTmdbId,
-      seasonNumber,
-      episodeNumber,
-    };
-  }
-
-  throw new HttpError(400, 'Invalid metadata id.');
 }
 
 export function metadataMediaTypeFromTitle(title: TmdbTitleRecord): 'movie' | 'show' {
@@ -247,16 +166,15 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
   };
 }
 
-export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisodeRecord): MetadataEpisodePreview {
+export function buildEpisodePreview(
+  title: TmdbTitleRecord,
+  episode: TmdbEpisodeRecord,
+  contentId: string,
+): MetadataEpisodePreview {
   const images = buildMetadataImages(title, episode);
 
   return {
-    id: buildMetadataId({
-      mediaType: 'episode',
-      showTmdbId: episode.showTmdbId,
-      seasonNumber: episode.seasonNumber,
-      episodeNumber: episode.episodeNumber,
-    }),
+    id: contentId,
     mediaType: 'episode',
     tmdbId: episode.tmdbId,
     showTmdbId: episode.showTmdbId,
@@ -272,6 +190,7 @@ export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisode
 }
 
 export function buildMetadataCardView(params: {
+  id: string;
   identity: MediaIdentity;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
@@ -305,13 +224,7 @@ export function buildMetadataCardView(params: {
   const backdropUrl = params.backdropUrlOverride ?? images.backdropUrl;
 
   return {
-    id: buildMetadataId({
-      mediaType: resolvedMediaType,
-      tmdbId: resolvedMediaType === 'movie' || resolvedMediaType === 'show' ? identity.tmdbId : null,
-      showTmdbId: identity.showTmdbId,
-      seasonNumber: identity.seasonNumber,
-      episodeNumber: identity.episodeNumber,
-    }),
+    id: params.id,
     mediaKey: identity.mediaKey,
     mediaType: resolvedMediaType,
     kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
@@ -342,10 +255,12 @@ export function buildMetadataCardView(params: {
 }
 
 export function buildMetadataView(params: {
+  id: string;
   identity: MediaIdentity;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
   nextEpisode?: TmdbEpisodeRecord | null;
+  nextEpisodeId?: string | null;
 }): MetadataView {
   const card = buildMetadataCardView(params);
   const { identity, title } = params;
@@ -359,11 +274,17 @@ export function buildMetadataView(params: {
     externalIds: extractExternalIds(title),
     seasonCount: title?.numberOfSeasons ?? null,
     episodeCount: title?.numberOfEpisodes ?? null,
-    nextEpisode: title && params.nextEpisode ? buildEpisodePreview(title, params.nextEpisode) : null,
+    nextEpisode: title && params.nextEpisode && params.nextEpisodeId
+      ? buildEpisodePreview(title, params.nextEpisode, params.nextEpisodeId)
+      : null,
   };
 }
 
-export function buildSeasonViewFromTitleRaw(title: TmdbTitleRecord): MetadataSeasonView[] {
+export function buildSeasonViewFromTitleRaw(
+  title: TmdbTitleRecord,
+  showId: string,
+  seasonIds: Map<number, string>,
+): MetadataSeasonView[] {
   const seasons = asArray(title.raw.seasons)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
@@ -373,9 +294,14 @@ export function buildSeasonViewFromTitleRaw(title: TmdbTitleRecord): MetadataSea
         return null;
       }
 
+      const seasonId = seasonIds.get(seasonNumber);
+      if (!seasonId) {
+        return null;
+      }
+
       return {
-        id: `crisp:season:${title.tmdbId}:${seasonNumber}`,
-        showId: buildMetadataId({ mediaType: 'show', tmdbId: title.tmdbId }),
+        id: seasonId,
+        showId,
         showTmdbId: title.tmdbId,
         seasonNumber,
         title: asString(season.name),
@@ -393,10 +319,15 @@ export function buildSeasonViewFromTitleRaw(title: TmdbTitleRecord): MetadataSea
   return seasons;
 }
 
-export function buildSeasonViewFromRecord(showTmdbId: number, season: TmdbSeasonRecord): MetadataSeasonView {
+export function buildSeasonViewFromRecord(
+  showTmdbId: number,
+  season: TmdbSeasonRecord,
+  seasonId: string,
+  showId: string,
+): MetadataSeasonView {
   return {
-    id: `crisp:season:${showTmdbId}:${season.seasonNumber}`,
-    showId: buildMetadataId({ mediaType: 'show', tmdbId: showTmdbId }),
+    id: seasonId,
+    showId,
     showTmdbId,
     seasonNumber: season.seasonNumber,
     title: season.name,
@@ -409,10 +340,15 @@ export function buildSeasonViewFromRecord(showTmdbId: number, season: TmdbSeason
   };
 }
 
-export function buildEpisodeView(title: TmdbTitleRecord, episode: TmdbEpisodeRecord): MetadataEpisodeView {
+export function buildEpisodeView(
+  title: TmdbTitleRecord,
+  episode: TmdbEpisodeRecord,
+  contentId: string,
+  showId: string,
+): MetadataEpisodeView {
   return {
-    ...buildEpisodePreview(title, episode),
-    showId: buildMetadataId({ mediaType: 'show', tmdbId: title.tmdbId }),
+    ...buildEpisodePreview(title, episode, contentId),
+    showId,
     showTitle: title.name ?? title.originalName,
     showExternalIds: extractExternalIds(title),
   };

@@ -1,19 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import Fastify from 'fastify';
+import { seedTestEnv } from '../../test-helpers.js';
 
-function configureTestEnv(): void {
-  process.env.NODE_ENV = 'test';
-  process.env.DATABASE_URL = 'postgres://test:test@127.0.0.1:5432/test';
-  process.env.REDIS_URL = 'redis://127.0.0.1:6379/0';
-  process.env.SUPABASE_URL = 'https://example.supabase.co';
-  process.env.AUTH_JWT_AUDIENCE = 'authenticated';
-  process.env.TMDB_API_KEY = 'tmdb-test-key';
-  process.env.SERVICE_CLIENTS_JSON = '[]';
-}
+seedTestEnv();
 
 async function buildAuthApp() {
-  configureTestEnv();
+  const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('./error-handler.js');
   const { default: authPlugin } = await import('./auth.js');
 
@@ -27,20 +19,38 @@ async function buildAuthApp() {
   return app;
 }
 
+test('auth rejects missing bearer token with 401', async (t) => {
+  const app = await buildAuthApp();
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({ method: 'GET', url: '/user-test' });
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.json(), { error: 'Missing bearer token.' });
+});
+
 test('auth rejects invalid bearer token with 401', async (t) => {
   const app = await buildAuthApp();
-  t.after(async () => {
-    await app.close();
-  });
+  t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
     url: '/user-test',
-    headers: {
-      authorization: 'Bearer not-a-real-token',
-    },
+    headers: { authorization: 'Bearer not-a-real-token' },
   });
 
   assert.equal(response.statusCode, 401);
   assert.deepEqual(response.json(), { error: 'Invalid bearer token.' });
+});
+
+test('auth rejects malformed authorization header', async (t) => {
+  const app = await buildAuthApp();
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/user-test',
+    headers: { authorization: 'Basic abc123' },
+  });
+
+  assert.equal(response.statusCode, 401);
 });

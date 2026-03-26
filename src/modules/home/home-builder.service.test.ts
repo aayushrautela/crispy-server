@@ -18,17 +18,8 @@ function createWatchItem(mediaKey: string): HydratedWatchItem {
       subtitle: null,
       summary: null,
       overview: null,
-      artwork: {
-        posterUrl: null,
-        backdropUrl: null,
-        stillUrl: null,
-      },
-      images: {
-        posterUrl: null,
-        backdropUrl: null,
-        stillUrl: null,
-        logoUrl: null,
-      },
+      artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+      images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
       releaseDate: null,
       releaseYear: null,
       runtimeMinutes: null,
@@ -40,16 +31,10 @@ function createWatchItem(mediaKey: string): HydratedWatchItem {
 
 function createCalendarItem(bucket: CalendarItem['bucket'], mediaKey: string): CalendarItem {
   const media = createWatchItem(mediaKey).media;
-  return {
-    bucket,
-    media,
-    relatedShow: media,
-    airDate: null,
-    watched: false,
-  };
+  return { bucket, media, relatedShow: media, airDate: null, watched: false };
 }
 
-test('HomeBuilderService returns typed thin-client sections', () => {
+test('build returns typed sections with correct ordering', () => {
   const service = new HomeBuilderService();
 
   const response = service.build({
@@ -63,13 +48,59 @@ test('HomeBuilderService returns typed thin-client sections', () => {
   });
 
   assert.equal(response.sections.length, 5);
-  assert.deepEqual(response.sections.map((section) => section.id), [
-    'continue-watching',
-    'up-next',
-    'this-week',
-    'recently-released',
-    'recent-history',
+  assert.deepEqual(response.sections.map((s) => s.id), [
+    'continue-watching', 'up-next', 'this-week', 'recently-released', 'recent-history',
   ]);
-  assert.equal(response.sections[1]?.items.length, 2);
-  assert.equal(response.sections[3]?.items.length, 1);
+});
+
+test('build groups up_next and this_week into up-next section', () => {
+  const service = new HomeBuilderService();
+
+  const response = service.build({
+    continueWatching: [],
+    history: [],
+    calendarItems: [
+      createCalendarItem('up_next', 'episode:tmdb:10:1:2'),
+      createCalendarItem('this_week', 'episode:tmdb:10:1:3'),
+      createCalendarItem('recently_released', 'episode:tmdb:10:1:4'),
+    ],
+  });
+
+  const upNext = response.sections.find((s) => s.id === 'up-next');
+  assert.equal(upNext?.items.length, 2);
+});
+
+test('build includes calendar items in this-week section', () => {
+  const service = new HomeBuilderService();
+
+  const response = service.build({
+    continueWatching: [],
+    history: [],
+    calendarItems: [
+      createCalendarItem('up_next', 'episode:tmdb:10:1:2'),
+      createCalendarItem('this_week', 'episode:tmdb:10:1:3'),
+    ],
+  });
+
+  const thisWeek = response.sections.find((s) => s.id === 'this-week');
+  assert.equal(thisWeek?.items.length, 2);
+});
+
+test('build limits up-next to 10 items', () => {
+  const service = new HomeBuilderService();
+  const items = Array.from({ length: 15 }, (_, i) => createCalendarItem('up_next', `episode:tmdb:10:1:${i + 1}`));
+
+  const response = service.build({ continueWatching: [], history: [], calendarItems: items });
+
+  const upNext = response.sections.find((s) => s.id === 'up-next');
+  assert.equal(upNext?.items.length, 10);
+});
+
+test('build handles empty inputs', () => {
+  const service = new HomeBuilderService();
+
+  const response = service.build({ continueWatching: [], history: [], calendarItems: [] });
+
+  assert.equal(response.sections.length, 5);
+  assert.equal(response.sections.every((s) => s.items.length === 0), true);
 });

@@ -1,99 +1,91 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HttpError } from '../../lib/errors.js';
+import { seedTestEnv } from '../../test-helpers.js';
 
-function seedTestEnv(): void {
-  process.env.NODE_ENV ??= 'test';
-  process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
-  process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
-  process.env.SUPABASE_URL ||= 'https://example.supabase.co';
-  process.env.AUTH_JWT_AUDIENCE ||= 'authenticated';
-  process.env.TMDB_API_KEY ||= 'tmdb-key';
-  process.env.SERVICE_CLIENTS_JSON ||= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
-}
+seedTestEnv();
 
-test('patchSettings rejects account-scoped keys in profile settings payloads', async () => {
-  seedTestEnv();
-  const { normalizeSettingsPatch } = await import('./account-settings.service.js');
+const { HttpError } = await import('../../lib/errors.js');
+const { AccountSettingsService } = await import('./account-settings.service.js');
 
-  assert.throws(
-    () => normalizeSettingsPatch({ addons: { trakt: true } }),
-    /account-scoped/,
-  );
-  assert.throws(
-    () => normalizeSettingsPatch({ 'ai.api_key': 'secret' }),
-    /account-scoped/,
-  );
-});
-
-test('getSecretForAccountProfile resolves account secret through account-owned profile', async () => {
-  seedTestEnv();
-  const { AccountSettingsService } = await import('./account-settings.service.js');
+test('getSettings delegates to repository', async () => {
+  const settings = { addons: { trakt: true } };
   const service = new AccountSettingsService(
-    {
-      getSecretForUser: async (_client: unknown, userId: string, fieldKey: string) => {
-        assert.equal(userId, 'user-1');
-        assert.equal(fieldKey, 'ai.api_key');
-        return 'ai-secret';
-      },
-    } as never,
-    {
-      findByIdForOwnerUser: async (_client: unknown, profileId: string, accountId: string) => {
-        assert.equal(profileId, 'profile-1');
-        assert.equal(accountId, 'user-1');
-        return { id: profileId };
-      },
-    } as never,
+    { getSettingsForUser: async () => settings } as never,
+    {} as never,
     async (work) => work({} as never),
   );
 
-  const result = await service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.api_key');
-  assert.deepEqual(result, {
-    appUserId: 'user-1',
-    key: 'ai.api_key',
-    value: 'ai-secret',
-  });
+  const result = await service.getSettings('user-1');
+  assert.deepEqual(result, settings);
 });
 
-test('getSecretForAccountProfile rejects missing account secret', async () => {
-  seedTestEnv();
-  const { AccountSettingsService } = await import('./account-settings.service.js');
+test('getAiApiKeyForUser returns secret when present', async () => {
   const service = new AccountSettingsService(
-    {
-      getSecretForUser: async () => null,
-    } as never,
-    {
-      findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
-    } as never,
+    { getSecretForUser: async () => 'ai-key-value' } as never,
+    {} as never,
     async (work) => work({} as never),
   );
 
-  await assert.rejects(() => service.getSecretForAccountProfile('user-1', 'profile-1', 'ai.api_key'), (error: unknown) => {
-    assert.ok(error instanceof HttpError);
-    assert.equal(error.statusCode, 404);
-    assert.equal(error.message, 'Account secret not found.');
-    return true;
-  });
+  const result = await service.getAiApiKeyForUser('user-1');
+  assert.equal(result.key, 'ai.api_key');
+  assert.equal(result.value, 'ai-key-value');
+  assert.equal(result.appUserId, 'user-1');
 });
 
-test('mergeAccountScopedSettings includes AI endpoint metadata', async () => {
-  seedTestEnv();
-  const { mergeAccountScopedSettings } = await import('./account-settings.service.js');
+test('getAiApiKeyForUser throws 404 when not found', async () => {
+  const service = new AccountSettingsService(
+    { getSecretForUser: async () => null } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
 
-  assert.deepEqual(
-    mergeAccountScopedSettings({}, {
-      hasAiApiKey: true,
-      hasOmdbApiKey: false,
-      aiEndpointUrl: 'https://example.com/v1/chat/completions',
-    }),
-    {
-      ai: {
-        hasAiApiKey: true,
-        endpointUrl: 'https://example.com/v1/chat/completions',
-      },
-      metadata: {
-        hasOmdbApiKey: false,
-      },
+  await assert.rejects(
+    () => service.getAiApiKeyForUser('user-1'),
+    (error: unknown) => {
+      assert.ok(error instanceof HttpError);
+      assert.equal(error.statusCode, 404);
+      return true;
     },
   );
+});
+
+test('setAiApiKeyForUser delegates to repository', async () => {
+  const service = new AccountSettingsService(
+    { setSecretForUser: async () => {} } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.setAiApiKeyForUser('user-1', 'new-key');
+  assert.equal(result.key, 'ai.api_key');
+  assert.equal(result.value, 'new-key');
+});
+
+test('clearAiApiKeyForUser returns true when secret existed', async () => {
+  const service = new AccountSettingsService(
+    { clearSecretForUser: async () => true } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.clearAiApiKeyForUser('user-1');
+  assert.equal(result, true);
+});
+
+test('listOmdbApiKeysForLookup separates own and pooled keys', async () => {
+  const service = new AccountSettingsService(
+    {
+      listSecretsForField: async () => [
+        { appUserId: 'user-1', value: 'own-key' },
+        { appUserId: 'user-2', value: 'pooled-key-1' },
+        { appUserId: 'user-1', value: 'own-key' },
+      ],
+    } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.listOmdbApiKeysForLookup('user-1');
+  assert.deepEqual(result.ownKeys, ['own-key']);
+  assert.deepEqual(result.pooledKeys, ['pooled-key-1']);
 });

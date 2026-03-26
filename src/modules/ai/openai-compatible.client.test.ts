@@ -1,55 +1,75 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { seedTestEnv } from '../../test-helpers.js';
 
-function seedTestEnv(): void {
-  process.env.NODE_ENV ??= 'test';
-  process.env.DATABASE_URL ||= 'postgres://postgres:postgres@127.0.0.1:5432/crispy_test';
-  process.env.REDIS_URL ||= 'redis://127.0.0.1:6379';
-  process.env.SUPABASE_URL ||= 'https://example.supabase.co';
-  process.env.AUTH_JWT_AUDIENCE ||= 'authenticated';
-  process.env.TMDB_API_KEY ||= 'tmdb-key';
-  process.env.SERVICE_CLIENTS_JSON ||= '[{"serviceId":"test-service","apiKey":"test-key","scopes":["profiles:read"]}]';
-}
+seedTestEnv({ AI_ENDPOINT_URL: 'https://api.openai.com/v1/chat/completions' });
 
-test('generateJson parses fenced JSON responses', async () => {
-  seedTestEnv();
-  process.env.AI_ENDPOINT_URL = 'https://example.com/v1/chat/completions';
+test('generateJson sends correct request and parses response', async (t) => {
   const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
 
   const originalFetch = globalThis.fetch;
-  let requestedUrl = '';
-  globalThis.fetch = (async (input) => {
-    requestedUrl = String(input);
+  let capturedUrl = '';
+  let capturedBody: Record<string, unknown> = {};
+
+  globalThis.fetch = (async (input, init) => {
+    capturedUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : String(input);
+    capturedBody = JSON.parse((init?.body as string) ?? '{}');
     return new Response(JSON.stringify({
-      choices: [
-        {
-          message: {
-            content: '```json\n{"items":["The Matrix"]}\n```',
-          },
-        },
-      ],
-    }), {
-      status: 200,
-      headers: {
-        'content-type': 'application/json',
-      },
-    });
+      choices: [{ message: { content: '{"result": "ok"}' } }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as typeof fetch;
 
-  try {
-    const client = new OpenAiCompatibleClient();
-    const payload = await client.generateJson({
-      apiKey: 'test-key',
-      model: 'test-model',
-      systemPrompt: 'Return JSON only.',
-      userPrompt: 'Suggest one title.',
-    });
+  t.after(() => { globalThis.fetch = originalFetch; });
 
-    assert.equal(requestedUrl, 'https://example.com/v1/chat/completions');
-    assert.deepEqual(payload, {
-      items: ['The Matrix'],
-    });
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const client = new OpenAiCompatibleClient();
+  const result = await client.generateJson({ apiKey: 'test-key', model: 'gpt-4o', userPrompt: 'Hello' });
+
+  assert.deepEqual(result, { result: 'ok' });
+  assert.equal(capturedUrl, 'https://api.openai.com/v1/chat/completions');
+  assert.equal(capturedBody.model, 'gpt-4o');
+  assert.equal((capturedBody.messages as unknown[]).length, 1);
+});
+
+test('generateJson throws 502 on provider error', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response(JSON.stringify({ error: { message: 'Rate limited' } }), { status: 429 });
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  await assert.rejects(
+    () => client.generateJson({ apiKey: 'test-key', model: 'gpt-4o', userPrompt: 'Hello' }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /AI provider request failed/);
+      return true;
+    },
+  );
+});
+
+test('generateJson includes system prompt when provided', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  let capturedBody: unknown = null;
+
+  globalThis.fetch = (async (_input, init) => {
+    capturedBody = JSON.parse(init?.body as string ?? '{}');
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: '{"ok": true}' } }],
+    }), { status: 200 });
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  await client.generateJson({ apiKey: 'test-key', model: 'gpt-4o', systemPrompt: 'Be helpful', userPrompt: 'Hello' });
+
+  assert.equal((capturedBody as any).messages.length, 2);
+  assert.equal((capturedBody as any).messages[0].role, 'system');
+  assert.equal((capturedBody as any).messages[0].content, 'Be helpful');
 });

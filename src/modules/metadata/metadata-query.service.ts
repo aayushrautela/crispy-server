@@ -3,7 +3,8 @@ import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
 import { inferMediaIdentity } from '../watch/media-key.js';
-import { parseMetadataId } from './metadata-normalizers.js';
+import { buildMetadataCardView } from './metadata-normalizers.js';
+import { ContentIdentityService } from './content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { TmdbExternalIdResolverService } from './tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
@@ -44,6 +45,7 @@ export class MetadataQueryService {
     private readonly metadataViewService = new MetadataViewService(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
   async resolve(input: ResolveInput): Promise<MetadataResolveResponse> {
@@ -57,7 +59,7 @@ export class MetadataQueryService {
 
   async getTitleDetailById(id: string): Promise<MetadataTitleDetail> {
     return withDbClient(async (client) => {
-      const identity = parseMetadataId(id);
+      const identity = await this.contentIdentityService.resolveMediaIdentity(client, id);
       if (identity.mediaType === 'episode') {
         return this.metadataViewService.getTitleDetail(client, {
           ...identity,
@@ -75,7 +77,7 @@ export class MetadataQueryService {
 
   async getSeasonDetailByShowId(showId: string, seasonNumber: number): Promise<MetadataSeasonDetail> {
     return withDbClient(async (client) => {
-      const identity = parseMetadataId(showId);
+      const identity = await this.contentIdentityService.resolveMediaIdentity(client, showId);
       if (identity.mediaType !== 'show' || !identity.tmdbId) {
         throw new HttpError(400, 'Season details require a show id.');
       }
@@ -97,37 +99,44 @@ export class MetadataQueryService {
       };
     }
 
+    const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
     return withDbClient(async (client) => {
-      const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
       const matches = genreMapping
-        ? await this.tmdbCacheService.discoverTitlesByGenre(client, {
+        ? await this.tmdbCacheService.discoverTitlesByGenre({
             movieGenreId: genreMapping.movieGenreId,
             tvGenreId: genreMapping.tvGenreId,
             filter: normalizedFilter,
             limit,
           })
-        : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit, mediaTypes);
+        : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes);
       const filteredMatches = matches.filter((match) => matchesSearchFilter(match, normalizedFilter));
-      const items = await this.metadataViewService.buildCardViews(
-        client,
-        filteredMatches.map((match: TmdbTitleRecord) =>
-          inferMediaIdentity({
-            mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
-            tmdbId: match.tmdbId,
-          }),
-        ),
-      );
+      const identities = filteredMatches.map((match) => inferMediaIdentity({
+        mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+        tmdbId: match.tmdbId,
+      }));
+      const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
       return {
         query: normalizedQuery,
-        items,
+        items: filteredMatches.map((match: TmdbTitleRecord) => {
+          const identity = inferMediaIdentity({
+            mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+            tmdbId: match.tmdbId,
+          });
+
+          return buildMetadataCardView({
+            id: assertPresent(contentIds.get(identity.mediaKey), 'Unable to resolve canonical content id.'),
+            identity,
+            title: match,
+          });
+        }),
       };
     });
   }
 
   private async resolveIdentity(client: DbClient, input: ResolveInput) {
     if (input.id?.trim()) {
-      return parseMetadataId(input.id.trim());
+      return this.contentIdentityService.resolveMediaIdentity(client, input.id.trim());
     }
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
