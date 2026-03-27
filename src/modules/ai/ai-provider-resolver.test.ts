@@ -4,6 +4,28 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
+test('resolver skips blocked server model and picks next configured model', async () => {
+  const { AiProviderResolver } = await import('./ai-provider-resolver.js');
+  const state = await import('./ai-server-fallback-state.js');
+
+  state.resetServerFallbackState();
+  state.recordServerModelRateLimit('openai', 'gpt-4o-mini', 120, Date.now());
+
+  const resolver = new AiProviderResolver({
+    getAiProviderIdForUser: async () => 'openrouter',
+    listAiApiKeysForLookup: async () => ({
+      ownKeys: [],
+      pooledKeys: [{ providerId: 'openrouter', apiKey: 'pool-openrouter-key' }],
+    }),
+  } as never, [{ providerId: 'openai', apiKey: 'server-openai-key' }]);
+
+  const result = await resolver.resolveForUser('user-1', 'search');
+  assert.equal(result.providerId, 'openai');
+  assert.equal(result.apiKey, 'server-openai-key');
+  assert.equal(result.credentialSource, 'server');
+  assert.equal(result.model, 'gpt-4.1-mini');
+});
+
 test('resolver prefers user key for selected provider', async () => {
   const { AiProviderResolver } = await import('./ai-provider-resolver.js');
 

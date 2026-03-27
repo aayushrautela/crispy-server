@@ -1,5 +1,5 @@
 import { HttpError } from '../../lib/errors.js';
-import type { AiResolvedProviderConfig } from './ai.types.js';
+import type { AiProviderFailureDetails, AiResolvedProviderConfig } from './ai.types.js';
 
 export class OpenAiCompatibleClient {
   async generateJson(args: {
@@ -9,34 +9,47 @@ export class OpenAiCompatibleClient {
     systemPrompt?: string;
     userPrompt: string;
   }): Promise<Record<string, unknown>> {
-    const response = await fetch(args.provider.endpointUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${args.apiKey}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(args.provider.httpReferer ? { 'HTTP-Referer': args.provider.httpReferer } : {}),
-        ...(args.provider.title ? { 'X-Title': args.provider.title } : {}),
-      },
-      body: JSON.stringify({
-        model: args.model,
-        messages: [
-          ...(args.systemPrompt
-            ? [{ role: 'system', content: args.systemPrompt }]
-            : []),
-          { role: 'user', content: args.userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(args.provider.endpointUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${args.apiKey}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(args.provider.httpReferer ? { 'HTTP-Referer': args.provider.httpReferer } : {}),
+          ...(args.provider.title ? { 'X-Title': args.provider.title } : {}),
+        },
+        body: JSON.stringify({
+          model: args.model,
+          messages: [
+            ...(args.systemPrompt
+              ? [{ role: 'system', content: args.systemPrompt }]
+              : []),
+            { role: 'user', content: args.userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+        }),
+      });
+    } catch (error) {
+      throw new HttpError(502, 'AI provider request failed.', {
+        provider: args.provider.id,
+        failureKind: 'network',
+        errorMessage: error instanceof Error ? error.message : 'Unknown network error',
+      } satisfies AiProviderFailureDetails);
+    }
 
     const rawBody = await response.text();
     if (!response.ok) {
-      throw new HttpError(502, extractProviderMessage(rawBody) ?? 'AI provider request failed.', {
+      const parsedError = extractProviderError(rawBody);
+      throw new HttpError(502, parsedError.message ?? 'AI provider request failed.', {
         provider: args.provider.id,
         providerStatus: response.status,
         responseBody: rawBody.slice(0, 500),
-      });
+        providerErrorCode: parsedError.code,
+        retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after')),
+        failureKind: 'provider_response',
+      } satisfies AiProviderFailureDetails);
     }
 
     let payload: Record<string, unknown> | null = null;
@@ -55,6 +68,7 @@ export class OpenAiCompatibleClient {
       throw new HttpError(502, 'AI provider returned empty data.', {
         provider: args.provider.id,
         providerStatus: response.status,
+        failureKind: 'invalid_response',
       });
     }
 
@@ -68,6 +82,7 @@ export class OpenAiCompatibleClient {
       throw new HttpError(502, 'AI provider returned invalid data.', {
         provider: args.provider.id,
         providerStatus: response.status,
+        failureKind: 'invalid_response',
       });
     }
   }
@@ -85,10 +100,10 @@ function extractJsonObject(text: string): string {
   return start >= 0 && end > start ? unfenced.slice(start, end + 1) : unfenced;
 }
 
-function extractProviderMessage(rawBody: string): string | null {
+function extractProviderError(rawBody: string): { message: string | null; code?: string } {
   const trimmed = rawBody.trim();
   if (!trimmed) {
-    return null;
+    return { message: null };
   }
 
   try {
@@ -96,17 +111,47 @@ function extractProviderMessage(rawBody: string): string | null {
     if (isRecord(parsed)) {
       const error = isRecord(parsed.error) ? parsed.error : null;
       if (typeof error?.message === 'string' && error.message.trim()) {
-        return error.message.trim();
+        return {
+          message: error.message.trim(),
+          code: typeof error.code === 'string' ? error.code.trim() || undefined : undefined,
+        };
       }
       if (typeof parsed.message === 'string' && parsed.message.trim()) {
-        return parsed.message.trim();
+        return {
+          message: parsed.message.trim(),
+          code: typeof parsed.code === 'string' ? parsed.code.trim() || undefined : undefined,
+        };
       }
     }
   } catch {
-    return trimmed;
+    return { message: trimmed };
   }
 
-  return trimmed;
+  return { message: trimmed };
+}
+
+function parseRetryAfterSeconds(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.ceil(seconds);
+  }
+
+  const retryDate = Date.parse(trimmed);
+  if (!Number.isNaN(retryDate)) {
+    const diffMs = retryDate - Date.now();
+    return diffMs > 0 ? Math.ceil(diffMs / 1000) : undefined;
+  }
+
+  return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

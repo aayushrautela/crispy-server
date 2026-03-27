@@ -11,6 +11,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
 COPY migrations ./migrations
 COPY scripts ./scripts
+COPY config ./config
 COPY src ./src
 RUN npm run build
 
@@ -23,6 +24,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY migrations ./migrations
+COPY config ./config
 COPY --from=build /app/dist ./dist
 
 EXPOSE 18765

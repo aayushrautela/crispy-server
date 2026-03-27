@@ -3,8 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { appConfig } from '../../config/app-config.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { AiProviderResolver } from './ai-provider-resolver.js';
-import { OpenAiCompatibleClient } from './openai-compatible.client.js';
+import { AiRequestExecutor } from './ai-request-executor.js';
 import type { AiCandidateMediaType, AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
 
 type QueryAnalysis = {
@@ -24,8 +23,7 @@ const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', '
 export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly aiProviderResolver = new AiProviderResolver(),
-    private readonly aiClient = new OpenAiCompatibleClient(),
+    private readonly aiRequestExecutor = new AiRequestExecutor(),
   ) {}
 
   async search(userId: string, input: {
@@ -53,12 +51,9 @@ export class AiSearchService {
         throw new HttpError(404, 'Profile not found.');
       }
     });
-    const request = await this.aiProviderResolver.resolveForUser(userId, 'search');
-
-    const generated = await this.aiClient.generateJson({
-      provider: request.provider,
-      apiKey: request.apiKey,
-      model: request.model,
+    const { payload: generated } = await this.aiRequestExecutor.generateJsonForUser({
+      userId,
+      feature: 'search',
       systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real movie or TV titles only.',
       userPrompt: buildSearchPrompt(query, filter, locale, analysis),
     });

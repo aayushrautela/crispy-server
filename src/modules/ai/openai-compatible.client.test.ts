@@ -58,6 +58,64 @@ test('generateJson throws 502 on provider error', async (t) => {
   );
 });
 
+test('generateJson exposes retry-after and provider code details', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response(JSON.stringify({ error: { message: 'Rate limited', code: 'rate_limit_exceeded' } }), {
+      status: 429,
+      headers: { 'retry-after': '120' },
+    });
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  await assert.rejects(
+    () => client.generateJson({
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      apiKey: 'test-key',
+      model: 'gpt-4o',
+      userPrompt: 'Hello',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      const details = (error as Error & { details?: Record<string, unknown> }).details;
+      assert.equal(details?.retryAfterSeconds, 120);
+      assert.equal(details?.providerErrorCode, 'rate_limit_exceeded');
+      return true;
+    },
+  );
+});
+
+test('generateJson classifies network failures', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new Error('socket hang up');
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  await assert.rejects(
+    () => client.generateJson({
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      apiKey: 'test-key',
+      model: 'gpt-4o',
+      userPrompt: 'Hello',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      const details = (error as Error & { details?: Record<string, unknown> }).details;
+      assert.equal(details?.failureKind, 'network');
+      return true;
+    },
+  );
+});
+
 test('generateJson includes system prompt when provided', async (t) => {
   const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
 

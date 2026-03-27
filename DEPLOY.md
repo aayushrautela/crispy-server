@@ -18,7 +18,7 @@
 
    Auth is external-only. Application data lives in the local Postgres from `DATABASE_URL`, while JWT verification and optional upstream user deletion use the `AUTH_*` variables.
 
-   Checked-in product defaults such as AI provider definitions, model selection, fallback order, TMDB base URLs, cache TTLs, and default profile names live in `src/config/app-config.ts`. Keep `.env` focused on secrets and deployment-specific wiring.
+   Checked-in product defaults such as AI provider definitions, model selection, fallback order, TMDB base URLs, cache TTLs, and default profile names live in `config/app-config.json`, loaded by `src/config/app-config.ts`. Keep `.env` focused on secrets and deployment-specific wiring.
 
    AI credential fallback is configured in two places:
 

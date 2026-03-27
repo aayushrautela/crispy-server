@@ -3,6 +3,7 @@ import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 import type { AiApiKeyCandidate, AiCredentialSource, AiFeatureId, ResolvedAiRequest } from './ai.types.js';
+import { getHealthyServerModels, isServerProviderBlocked } from './ai-server-fallback-state.js';
 
 const sourceCursors = new Map<string, number>();
 
@@ -12,10 +13,15 @@ export class AiProviderResolver {
     private readonly serverKeys: AiApiKeyCandidate[] = env.aiServerKeys,
   ) {}
 
-  async resolveForUser(userId: string, feature: AiFeatureId): Promise<ResolvedAiRequest> {
+  async resolveForUser(
+    userId: string,
+    feature: AiFeatureId,
+    options?: { excludeRequestKeys?: Set<string> },
+  ): Promise<ResolvedAiRequest> {
     const selectedProviderId = await this.accountSettingsService.getAiProviderIdForUser(userId);
     const lookup = await this.accountSettingsService.listAiApiKeysForLookup(userId);
     const policy = getAiFeaturePolicy(feature);
+    const excludeRequestKeys = options?.excludeRequestKeys ?? new Set<string>();
 
     let hasConfiguredModel = false;
 
@@ -24,17 +30,28 @@ export class AiProviderResolver {
         ? selectedProviderId
         : step.provider.providerId;
       const provider = requireAiProvider(providerId);
-      const model = provider.models[feature].trim();
-      if (!model) {
+      const models = resolveModelsForStep(feature, provider, step.models);
+      if (models.length === 0) {
         continue;
       }
       hasConfiguredModel = true;
 
       const candidates = this.selectCandidates(step.source, provider.id, lookup);
-      const candidate = candidates[0];
-      if (!candidate) {
+      if (candidates.length === 0) {
         continue;
       }
+
+      const availableModels = selectModelsForSource(step.source, provider.id, models);
+      if (availableModels.length === 0) {
+        continue;
+      }
+
+      const resolved = findAvailableCandidate(step.source, provider.id, availableModels, candidates, excludeRequestKeys);
+      if (!resolved) {
+        continue;
+      }
+
+      const { model, candidate } = resolved;
 
       return {
         feature,
@@ -85,6 +102,50 @@ export class AiProviderResolver {
   }
 }
 
+function resolveModelsForStep(
+  feature: AiFeatureId,
+  provider: ReturnType<typeof requireAiProvider>,
+  modelsOverride?: string[],
+): string[] {
+  const fallback = provider.models[feature].trim();
+  const models = (modelsOverride && modelsOverride.length > 0 ? modelsOverride : [fallback])
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return [...new Set(models)];
+}
+
+function selectModelsForSource(source: AiCredentialSource, providerId: string, models: string[]): string[] {
+  if (source !== 'server') {
+    return models;
+  }
+
+  if (isServerProviderBlocked(providerId)) {
+    return [];
+  }
+
+  return getHealthyServerModels(models, providerId);
+}
+
+function findAvailableCandidate(
+  source: AiCredentialSource,
+  providerId: string,
+  models: string[],
+  candidates: AiApiKeyCandidate[],
+  excludeRequestKeys: Set<string>,
+): { model: string; candidate: AiApiKeyCandidate } | null {
+  for (const model of models) {
+    for (const candidate of candidates) {
+      const requestKey = toResolvedRequestKey(source, providerId, model, candidate.apiKey);
+      if (!excludeRequestKeys.has(requestKey)) {
+        return { model, candidate };
+      }
+    }
+  }
+
+  return null;
+}
+
 function rotateCandidates(values: AiApiKeyCandidate[], source: AiCredentialSource, providerId: string): AiApiKeyCandidate[] {
   if (values.length <= 1) {
     return [...values];
@@ -107,4 +168,13 @@ export function buildAiInsightsGenerationVersion(request: Pick<ResolvedAiRequest
 export function listConfiguredServerAiProviders(): string[] {
   const configured = new Set(env.aiServerKeys.map((entry) => entry.providerId));
   return Object.keys(appConfig.ai.providers).filter((providerId) => configured.has(providerId));
+}
+
+export function toResolvedRequestKey(
+  source: AiCredentialSource,
+  providerId: string,
+  model: string,
+  apiKey: string,
+): string {
+  return `${source}:${providerId}:${model}:${apiKey}`;
 }

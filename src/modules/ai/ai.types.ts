@@ -13,6 +13,18 @@ export type AiResolvedProviderConfig = AiProviderView & {
   title: string;
 };
 
+export type AiProviderFailureKind = 'network' | 'provider_response' | 'invalid_response';
+
+export type AiProviderFailureDetails = {
+  provider: string;
+  providerStatus?: number;
+  responseBody?: string;
+  providerErrorCode?: string;
+  retryAfterSeconds?: number;
+  failureKind?: AiProviderFailureKind;
+  errorMessage?: string;
+};
+
 export type AiClientSettings = {
   hasAiApiKey: boolean;
   providerId: string;
@@ -37,6 +49,11 @@ export type ResolvedAiRequest = {
   model: string;
   apiKey: string;
   credentialSource: AiCredentialSource;
+};
+
+export type AiExecutionResult = {
+  request: ResolvedAiRequest;
+  payload: Record<string, unknown>;
 };
 
 export type AiSearchFilter = 'all' | 'movies' | 'series';

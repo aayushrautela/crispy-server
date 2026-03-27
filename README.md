@@ -401,7 +401,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
     - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
     - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
     - `OMDB_API_KEYS` remains a comma-separated server-managed OMDb fallback list.
-    - Checked-in runtime defaults such as AI providers/models/fallback policy, TMDB base URLs, cache TTLs, and default profile names now live in `src/config/app-config.ts`.
+    - Runtime defaults now live in `config/app-config.json`, loaded by `src/config/app-config.ts`. Override the path with `APP_CONFIG_PATH` if needed.
 
 3. Start the stack:
 
@@ -438,6 +438,7 @@ See `DEPLOY.md` for the VPS flow and the expected service-to-service auth setup 
 
 When in doubt, verify against these files:
 
+- `config/app-config.json`
 - `src/config/app-config.ts`
 - `src/config/env.ts`
 - `src/lib/db.ts`

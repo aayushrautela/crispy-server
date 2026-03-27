@@ -3,8 +3,8 @@ import { HttpError } from '../../lib/errors.js';
 import { appConfig } from '../../config/app-config.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
+import { AiRequestExecutor } from './ai-request-executor.js';
 import { AiProviderResolver, buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsMediaType, AiInsightsPayload } from './ai.types.js';
 
@@ -30,7 +30,7 @@ export class AiInsightsService {
     private readonly profileRepository = new ProfileRepository(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
     private readonly aiProviderResolver = new AiProviderResolver(),
-    private readonly aiClient = new OpenAiCompatibleClient(),
+    private readonly aiRequestExecutor = new AiRequestExecutor(),
   ) {}
 
   async getInsights(userId: string, input: {
@@ -79,12 +79,13 @@ export class AiInsightsService {
       throw new HttpError(404, 'Unable to load title data for AI insights.');
     }
 
-    const generated = await this.aiClient.generateJson({
-      provider: request.provider,
-      apiKey: request.apiKey,
-      model: request.model,
+    const execution = await this.aiRequestExecutor.generateJsonForUser({
+      userId,
+      feature: 'insights',
       userPrompt: buildPrompt(titleContext),
     });
+    const generated = execution.payload;
+    const actualGenerationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(execution.request)}`;
     const payload = normalizeInsightsPayload(generated);
     if (!payload) {
       throw new HttpError(502, 'AI insights returned invalid data.');
@@ -95,8 +96,8 @@ export class AiInsightsService {
         tmdbId,
         mediaType,
         locale,
-        generationVersion,
-        modelName: `${request.providerId}:${request.model}`,
+        generationVersion: actualGenerationVersion,
+        modelName: `${execution.request.providerId}:${execution.request.model}`,
         payload,
         generatedByProfileId: profileId,
       });

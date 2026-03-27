@@ -67,7 +67,8 @@ This repository is easy to misread if you only scan env vars. Read this first be
 
 ## Source-of-truth files
 
-- `src/config/app-config.ts` - checked-in product defaults and AI provider policy
+- `config/app-config.json` - editable runtime defaults and AI provider policy
+- `src/config/app-config.ts` - config loader and validation
 - `src/config/env.ts` - auth env and local infra configuration
 - `src/lib/db.ts` - direct Postgres access
 - `src/lib/jwks.ts` - remote JWT verification
