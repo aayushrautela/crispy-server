@@ -128,13 +128,17 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `GET /healthz` - liveness check
 - `GET /v1/imports/:provider/callback` - completes Trakt or Simkl OAuth callback
 
+### Admin routes
+
+- `GET /admin` - API-server-hosted operator UI protected by admin basic auth
+
 ### User routes
 
 #### Account and identity
 
-- `GET /v1/me` - current account summary, account settings flags, and profiles
-- `GET /v1/account/settings` - account-shared settings
-- `PATCH /v1/account/settings` - update account-shared settings such as addons
+- `GET /v1/me` - current account summary, account-shared settings contract, and profiles
+- `GET /v1/account/settings` - account-shared settings including AI client metadata and OMDb availability flags
+- `PATCH /v1/account/settings` - update account-shared settings such as addons and `ai.providerId`
 - `GET /v1/account/secrets/ai-api-key` - read account AI API key
 - `PUT /v1/account/secrets/ai-api-key` - set account AI API key
 - `DELETE /v1/account/secrets/ai-api-key` - delete account AI API key
@@ -178,17 +182,69 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `PUT /v1/profiles/:profileId/watch/rating/:mediaKey` - set rating
 - `DELETE /v1/profiles/:profileId/watch/rating/:mediaKey` - remove rating
 
+#### Library and provider auth
+
+- `GET /v1/profiles/:profileId/library` - combined library view across local and provider-backed sources
+- `GET /v1/profiles/:profileId/provider-auth/state` - provider auth summary for a profile
+- `POST /v1/profiles/:profileId/library/watchlist` - write watchlist state through the library facade
+- `POST /v1/profiles/:profileId/library/rating` - write rating state through the library facade
+
 #### Metadata and AI
 
 - `GET /v1/metadata/resolve` - resolve metadata identity
 - `GET /v1/metadata/titles/:id` - title detail
 - `GET /v1/metadata/titles/:id/content` - title content enriched with OMDb data
 - `GET /v1/metadata/titles/:id/seasons/:seasonNumber` - season detail
+- `GET /v1/playback/resolve` - resolve playback context for a title, season, or episode lookup
 - `GET /v1/search/titles` - TMDB-backed search
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile
 - `POST /v1/profiles/:profileId/ai/insights` - AI insights for a title and profile
 
 `GET /v1/metadata/titles/:id/content` returns the existing metadata item plus an `omdb` object resolved from a cached OMDb enrichment when available, otherwise using keys in this order: the requesting account's OMDb key, server-managed keys from `OMDB_API_KEYS`, then the shared pool of other stored account OMDb keys.
+
+`GET /v1/account/settings`, `PATCH /v1/account/settings`, and `GET /v1/me` now expose the account-level AI client contract under `settings.ai` or `accountSettings.ai`:
+
+```json
+{
+  "ai": {
+    "providerId": "openrouter",
+    "hasAiApiKey": true,
+    "defaultProviderId": "openai",
+    "providers": [
+      {
+        "id": "openai",
+        "label": "OpenAI",
+        "endpointUrl": "https://api.openai.com/v1/chat/completions"
+      },
+      {
+        "id": "openrouter",
+        "label": "OpenRouter",
+        "endpointUrl": "https://openrouter.ai/api/v1/chat/completions"
+      }
+    ]
+  },
+  "metadata": {
+    "hasOmdbApiKey": false
+  }
+}
+```
+
+Important account-settings rules:
+
+- `ai.providerId` is editable via `PATCH /v1/account/settings` and selects which provider should be used for account-owned AI keys and pooled-key fallback.
+- `GET/PUT/DELETE /v1/account/secrets/ai-api-key` still manage only the raw secret value. Provider choice is stored separately in account settings.
+- `/v1/profiles/:profileId/settings` remains profile-only and rejects account-scoped keys such as top-level `ai`, `ai.api_key`, `metadata.omdb_api_key`, and `addons`.
+- The old derived field `ai.endpointUrl` is no longer returned. Clients should use `ai.providerId` plus the `ai.providers[]` catalog instead.
+
+Example account settings patch body:
+
+```json
+{
+  "ai": {
+    "providerId": "openrouter"
+  }
+}
+```
 
 Example response shape:
 
@@ -278,6 +334,19 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 
 Internal and admin continue-watching responses expose the same item `id` field as the user-facing route so downstream consumers can dismiss or correlate items without extra lookups.
 
+The internal AI secret route now returns provider metadata alongside the secret value so downstream services can choose the correct OpenAI-compatible endpoint and model family for that key:
+
+```json
+{
+  "secret": {
+    "appUserId": "user-123",
+    "key": "ai.api_key",
+    "value": "sk-...",
+    "providerId": "openrouter"
+  }
+}
+```
+
 #### Recommendation work and diagnostics
 
 - `POST /internal/v1/recommendation-work/claim` - claim recommendation work
@@ -293,6 +362,7 @@ Internal and admin continue-watching responses expose the same item `id` field a
 
 - Ownership root: the signed-in account owns the profile group; profiles are child personas under that account.
 - Account-shared: addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
+- Account-shared AI settings also include non-secret provider selection metadata such as `ai.providerId`.
 - Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
 - Profile-targeted paths select which persona under the account is being addressed; they are not separate logins or separate API clients.
 - Some internals still use older ownership plumbing. That is an implementation detail pending cleanup, not the intended product contract.
@@ -326,9 +396,12 @@ Internal and admin continue-watching responses expose the same item `id` field a
 
 2. Fill the required values in `.env`.
 
-   - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
-   - `AUTH_*` values are only used for external auth.
-   - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
+    - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
+    - `AUTH_*` values are only used for external auth.
+    - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
+    - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
+    - `OMDB_API_KEYS` remains a comma-separated server-managed OMDb fallback list.
+    - Checked-in runtime defaults such as AI providers/models/fallback policy, TMDB base URLs, cache TTLs, and default profile names now live in `src/config/app-config.ts`.
 
 3. Start the stack:
 
@@ -365,6 +438,7 @@ See `DEPLOY.md` for the VPS flow and the expected service-to-service auth setup 
 
 When in doubt, verify against these files:
 
+- `src/config/app-config.ts`
 - `src/config/env.ts`
 - `src/lib/db.ts`
 - `src/lib/jwks.ts`

@@ -18,6 +18,15 @@
 
    Auth is external-only. Application data lives in the local Postgres from `DATABASE_URL`, while JWT verification and optional upstream user deletion use the `AUTH_*` variables.
 
+   Checked-in product defaults such as AI provider definitions, model selection, fallback order, TMDB base URLs, cache TTLs, and default profile names live in `src/config/app-config.ts`. Keep `.env` focused on secrets and deployment-specific wiring.
+
+   AI credential fallback is configured in two places:
+
+   - per-account secret value: `GET/PUT/DELETE /v1/account/secrets/ai-api-key`
+   - optional server fallback credentials: `AI_SERVER_KEYS_JSON`, for example `[{"providerId":"openai","apiKey":"sk-..."}]`
+
+   If `AI_SERVER_KEYS_JSON` is empty, AI requests fall back from the account's own key straight to the shared pool of other stored account keys for the selected provider.
+
    Ownership contract for hosted and internal consumers:
 
    - The signed-in account is the only auth actor and the ownership root.

@@ -16,10 +16,19 @@ async function buildInternalApp() {
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
   const { default: serviceAuthPlugin } = await import('../plugins/service-auth.js');
   const { registerInternalAccountRoutes } = await import('./internal-accounts.js');
+  const { HttpError } = await import('../../lib/errors.js');
 
   const app = Fastify();
   await app.register(errorHandlerPlugin);
   await app.register(serviceAuthPlugin);
+  app.decorate('requireScopes', (request, scopes) => {
+    const granted = new Set(request.auth?.scopes ?? []);
+    for (const scope of scopes) {
+      if (!granted.has(scope)) {
+        throw new HttpError(403, `Missing required scope: ${scope}`);
+      }
+    }
+  });
   await registerInternalAccountRoutes(app);
   return app;
 }
@@ -56,4 +65,41 @@ test('internal accounts route accepts valid service auth structure', async (t) =
   });
 
   assert.ok([200, 404, 500].includes(response.statusCode));
+});
+
+test('internal AI secret route returns provider-aware secret contract', async (t) => {
+  const { ProfileSecretAccessService } = await import('../../modules/profiles/profile-secret-access.service.js');
+  const original = ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile;
+
+  ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile = async function () {
+    return {
+      appUserId: 'account-1',
+      key: 'ai.api_key',
+      value: 'secret-value',
+      providerId: 'openrouter',
+    } as never;
+  };
+
+  t.after(() => {
+    ProfileSecretAccessService.prototype.getAiApiKeyForAccountProfile = original;
+  });
+
+  const app = await buildInternalApp();
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/internal/v1/accounts/account-1/profiles/profile-1/secrets/ai-api-key',
+    headers: { 'x-service-id': 'test-service', 'x-api-key': 'test-key' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    secret: {
+      appUserId: 'account-1',
+      key: 'ai.api_key',
+      value: 'secret-value',
+      providerId: 'openrouter',
+    },
+  });
 });

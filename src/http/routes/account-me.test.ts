@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { HttpError } from '../../lib/errors.js';
 import { buildTestApp, seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
@@ -89,6 +90,38 @@ test('account settings patch route returns merged AI client configuration envelo
   assert.equal(payload.settings.ai.providerId, 'openrouter');
   assert.equal(payload.settings.ai.hasAiApiKey, false);
   assert.equal(payload.settings.metadata.hasOmdbApiKey, false);
+});
+
+test('account settings patch route returns API error contract for unsupported AI provider', async (t) => {
+  const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
+  const originals = {
+    patchSettings: AccountSettingsService.prototype.patchSettings,
+  };
+
+  t.after(() => {
+    Object.assign(AccountSettingsService.prototype, originals);
+  });
+
+  AccountSettingsService.prototype.patchSettings = async function () {
+    throw new HttpError(400, 'AI provider is not supported.');
+  };
+
+  const { registerAccountRoutes } = await import('./account.js');
+  const app = await buildTestApp(registerAccountRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'PATCH',
+    url: '/v1/account/settings',
+    headers: { authorization: 'Bearer test' },
+    payload: { ai: { providerId: 'bad-provider' } },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), {
+    code: 'ai_provider_is_not_supported',
+    message: 'AI provider is not supported.',
+  });
 });
 
 test('me route returns AI client configuration in account settings', async (t) => {
