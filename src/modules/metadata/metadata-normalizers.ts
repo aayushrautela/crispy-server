@@ -286,7 +286,7 @@ export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRe
   return asArray(asRecord(title?.raw.similar)?.results)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry) => {
+    .map((entry): TmdbTitleRecord | null => {
       const tmdbId = asNumber(entry.id);
       if (!tmdbId || !title) {
         return null;
@@ -311,7 +311,7 @@ export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRe
         raw: entry,
         fetchedAt: title.fetchedAt,
         expiresAt: title.expiresAt,
-      } satisfies TmdbTitleRecord;
+      };
     })
     .filter((entry): entry is TmdbTitleRecord => entry !== null)
     .slice(0, 20);
