@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { requireDbIsoString } from '../../lib/time.js';
+import { normalizeDateOnlyString, requireDbIsoString } from '../../lib/time.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
@@ -9,8 +9,8 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
     name: typeof row.name === 'string' ? row.name : null,
     originalName: typeof row.original_name === 'string' ? row.original_name : null,
     overview: typeof row.overview === 'string' ? row.overview : null,
-    releaseDate: row.release_date ? String(row.release_date) : null,
-    firstAirDate: row.first_air_date ? String(row.first_air_date) : null,
+    releaseDate: normalizeDateOnlyString(row.release_date as Date | string | null | undefined),
+    firstAirDate: normalizeDateOnlyString(row.first_air_date as Date | string | null | undefined),
     status: typeof row.status === 'string' ? row.status : null,
     posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
     backdropPath: typeof row.backdrop_path === 'string' ? row.backdrop_path : null,
@@ -32,8 +32,8 @@ function mapSearchTitle(row: Record<string, unknown>): TmdbTitleRecord {
     name: typeof row.name === 'string' ? row.name : null,
     originalName: typeof row.original_name === 'string' ? row.original_name : null,
     overview: typeof row.overview === 'string' ? row.overview : null,
-    releaseDate: row.release_date ? String(row.release_date) : null,
-    firstAirDate: row.first_air_date ? String(row.first_air_date) : null,
+    releaseDate: normalizeDateOnlyString(row.release_date as Date | string | null | undefined),
+    firstAirDate: normalizeDateOnlyString(row.first_air_date as Date | string | null | undefined),
     status: typeof row.status === 'string' ? row.status : null,
     posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
     backdropPath: typeof row.backdrop_path === 'string' ? row.backdrop_path : null,
@@ -56,7 +56,7 @@ function mapEpisode(row: Record<string, unknown>): TmdbEpisodeRecord {
     tmdbId: row.tmdb_id === null || row.tmdb_id === undefined ? null : Number(row.tmdb_id),
     name: typeof row.name === 'string' ? row.name : null,
     overview: typeof row.overview === 'string' ? row.overview : null,
-    airDate: row.air_date ? String(row.air_date) : null,
+    airDate: normalizeDateOnlyString(row.air_date as Date | string | null | undefined),
     runtime: row.runtime === null || row.runtime === undefined ? null : Number(row.runtime),
     stillPath: typeof row.still_path === 'string' ? row.still_path : null,
     voteAverage: row.vote_average === null || row.vote_average === undefined ? null : Number(row.vote_average),
@@ -72,7 +72,7 @@ function mapSeason(row: Record<string, unknown>): TmdbSeasonRecord {
     seasonNumber: Number(row.season_number),
     name: typeof row.name === 'string' ? row.name : null,
     overview: typeof row.overview === 'string' ? row.overview : null,
-    airDate: row.air_date ? String(row.air_date) : null,
+    airDate: normalizeDateOnlyString(row.air_date as Date | string | null | undefined),
     posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
     episodeCount: row.episode_count === null || row.episode_count === undefined ? null : Number(row.episode_count),
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},

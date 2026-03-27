@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { ensureSupportedMediaType, type MediaIdentity } from '../watch/media-key.js';
+import { ensureSupportedMediaType, inferMediaIdentity, type MediaIdentity } from '../watch/media-key.js';
 import { assertPresent } from '../../lib/errors.js';
 import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
 import {
@@ -14,6 +14,7 @@ import {
   extractCrewByJob,
   extractProduction,
   extractReviews,
+  extractSimilarTitles,
   extractVideos,
 } from './metadata-normalizers.js';
 import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
@@ -104,6 +105,12 @@ export class MetadataViewService {
     const showId = await this.contentIdentityService.ensureContentId(client, normalizedIdentity);
     const seasonNumbers = extractSeasonNumbersFromTitle(resolvedTitle);
     const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, resolvedTitle.tmdbId, seasonNumbers);
+    const similarTitles = extractSimilarTitles(resolvedTitle);
+    const similarIdentities = similarTitles.map((title) => inferMediaIdentity({
+      mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+      tmdbId: title.tmdbId,
+    }));
+    const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
     const nextEpisodeId = nextEpisode
       ? await this.contentIdentityService.ensureEpisodeContentId(client, {
           showTmdbId: nextEpisode.showTmdbId,
@@ -129,6 +136,16 @@ export class MetadataViewService {
       reviews: extractReviews(resolvedTitle),
       production: extractProduction(resolvedTitle),
       collection: extractCollection(resolvedTitle),
+      similar: similarTitles.flatMap((title) => {
+        const identity = inferMediaIdentity({
+          mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+          tmdbId: title.tmdbId,
+        });
+        const contentId = similarContentIds.get(identity.mediaKey);
+        return contentId
+          ? [buildMetadataCardView({ id: contentId, identity, title })]
+          : [];
+      }),
     };
   }
 

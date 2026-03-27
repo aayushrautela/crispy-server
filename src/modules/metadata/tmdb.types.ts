@@ -217,6 +217,7 @@ export type MetadataTitleDetail = {
   reviews: MetadataReviewView[];
   production: MetadataProductionInfoView;
   collection: MetadataCollectionView | null;
+  similar: MetadataCardView[];
 };
 
 export type MetadataSeasonDetail = {

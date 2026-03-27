@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import type { MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, parseMediaKey, type MediaIdentity } from './media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
 
 export class ContinueWatchingRepository {
@@ -13,6 +13,7 @@ export class ContinueWatchingRepository {
     payload?: Record<string, unknown>;
     projection?: WatchMediaProjection;
   }): Promise<void> {
+    const canonicalMediaKey = canonicalContinueWatchingMediaKey(params.identity);
     const progressPercent =
       params.positionSeconds && params.durationSeconds && params.durationSeconds > 0
         ? Number(((params.positionSeconds / params.durationSeconds) * 100).toFixed(2))
@@ -21,21 +22,27 @@ export class ContinueWatchingRepository {
     await client.query(
       `
         INSERT INTO continue_watching_projection (
-          profile_id, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+          profile_id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
           title, subtitle, poster_url, backdrop_url, position_seconds, duration_seconds,
           progress_percent, last_activity_at, dismissed_at, payload, updated_at
         )
         VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13,
-          $14, $15::timestamptz, $16::timestamptz, $17::jsonb, now()
+          $1::uuid, $2, $3, $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13, $14,
+          $15, $16::timestamptz, $17::timestamptz, $18::jsonb, now()
         )
-        ON CONFLICT (profile_id, media_key)
+        ON CONFLICT (profile_id, canonical_media_key)
         DO UPDATE SET
-          title = COALESCE(continue_watching_projection.title, EXCLUDED.title),
-          subtitle = COALESCE(continue_watching_projection.subtitle, EXCLUDED.subtitle),
-          poster_url = COALESCE(continue_watching_projection.poster_url, EXCLUDED.poster_url),
-          backdrop_url = COALESCE(continue_watching_projection.backdrop_url, EXCLUDED.backdrop_url),
+          media_key = EXCLUDED.media_key,
+          media_type = EXCLUDED.media_type,
+          tmdb_id = EXCLUDED.tmdb_id,
+          show_tmdb_id = EXCLUDED.show_tmdb_id,
+          season_number = EXCLUDED.season_number,
+          episode_number = EXCLUDED.episode_number,
+          title = COALESCE(EXCLUDED.title, continue_watching_projection.title),
+          subtitle = COALESCE(EXCLUDED.subtitle, continue_watching_projection.subtitle),
+          poster_url = COALESCE(EXCLUDED.poster_url, continue_watching_projection.poster_url),
+          backdrop_url = COALESCE(EXCLUDED.backdrop_url, continue_watching_projection.backdrop_url),
           position_seconds = EXCLUDED.position_seconds,
           duration_seconds = EXCLUDED.duration_seconds,
           progress_percent = EXCLUDED.progress_percent,
@@ -46,6 +53,7 @@ export class ContinueWatchingRepository {
       `,
       [
         params.profileId,
+        canonicalMediaKey,
         params.identity.mediaKey,
         params.identity.mediaType,
         params.identity.tmdbId,
@@ -67,9 +75,16 @@ export class ContinueWatchingRepository {
   }
 
   async delete(client: DbClient, profileId: string, mediaKey: string): Promise<void> {
+    const identity = parseMediaKey(mediaKey);
+    const canonicalMediaKey = canonicalContinueWatchingMediaKey(identity);
     await client.query(
-      `DELETE FROM continue_watching_projection WHERE profile_id = $1::uuid AND media_key = $2`,
-      [profileId, mediaKey],
+      `
+        DELETE FROM continue_watching_projection
+        WHERE profile_id = $1::uuid
+          AND canonical_media_key = $2
+          AND ($3 = 'show' OR $3 = 'movie' OR media_key = $4)
+      `,
+      [profileId, canonicalMediaKey, identity.mediaType, identity.mediaKey],
     );
   }
 
@@ -85,20 +100,24 @@ export class ContinueWatchingRepository {
   }
 
   async dismissByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<void> {
+    const identity = parseMediaKey(mediaKey);
+    const canonicalMediaKey = canonicalContinueWatchingMediaKey(identity);
     await client.query(
       `
         UPDATE continue_watching_projection
         SET dismissed_at = now(), updated_at = now()
-        WHERE profile_id = $1::uuid AND media_key = $2
+        WHERE profile_id = $1::uuid
+          AND canonical_media_key = $2
+          AND ($3 = 'show' OR $3 = 'movie' OR media_key = $4)
       `,
-      [profileId, mediaKey],
+      [profileId, canonicalMediaKey, identity.mediaType, identity.mediaKey],
     );
   }
 
   async list(client: DbClient, profileId: string, limit: number): Promise<Record<string, unknown>[]> {
     const result = await client.query(
       `
-        SELECT id, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+        SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
                title, subtitle, poster_url, backdrop_url, position_seconds, duration_seconds,
                progress_percent, last_activity_at, payload
         FROM continue_watching_projection
@@ -112,14 +131,16 @@ export class ContinueWatchingRepository {
   }
 
   async getByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<Record<string, unknown> | null> {
+    const identity = parseMediaKey(mediaKey);
+    const canonicalMediaKey = canonicalContinueWatchingMediaKey(identity);
     const result = await client.query(
       `
-        SELECT id, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+        SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
                position_seconds, duration_seconds, progress_percent, last_activity_at, payload
         FROM continue_watching_projection
-        WHERE profile_id = $1::uuid AND media_key = $2 AND dismissed_at IS NULL
+        WHERE profile_id = $1::uuid AND canonical_media_key = $2 AND dismissed_at IS NULL
       `,
-      [profileId, mediaKey],
+      [profileId, canonicalMediaKey],
     );
     return result.rows[0] ?? null;
   }
@@ -127,7 +148,7 @@ export class ContinueWatchingRepository {
   async findById(client: DbClient, profileId: string, projectionId: string): Promise<Record<string, unknown> | null> {
     const result = await client.query(
       `
-        SELECT id, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+        SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
                position_seconds, duration_seconds, progress_percent, last_activity_at, payload
         FROM continue_watching_projection
         WHERE id = $1::uuid AND profile_id = $2::uuid AND dismissed_at IS NULL

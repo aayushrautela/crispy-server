@@ -26,6 +26,19 @@ export function showTmdbIdForIdentity(identity: MediaIdentity): number | null {
   return identity.showTmdbId;
 }
 
+export function canonicalContinueWatchingMediaKey(identity: MediaIdentity): string {
+  if (identity.mediaType === 'movie' && identity.tmdbId) {
+    return `movie:tmdb:${identity.tmdbId}`;
+  }
+
+  const showTmdbId = showTmdbIdForIdentity(identity);
+  if (showTmdbId) {
+    return `show:tmdb:${showTmdbId}`;
+  }
+
+  throw new HttpError(400, 'Unable to infer canonical continue watching media key.');
+}
+
 export function parseMediaKey(mediaKey: string): MediaIdentity {
   const parts = mediaKey.split(':');
   if (parts.length < 3 || parts[1] !== 'tmdb') {

@@ -36,8 +36,8 @@ async function fetchTmdbJson(
 export class TmdbClient {
   async fetchTitle(mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleApiResponse> {
     const appendToResponse = mediaType === 'movie'
-      ? 'images,release_dates,videos,credits,reviews'
-      : 'images,content_ratings,videos,credits,reviews';
+      ? 'images,release_dates,videos,credits,reviews,similar'
+      : 'images,content_ratings,videos,credits,reviews,similar';
     return fetchTmdbJson(`/${mediaType}/${tmdbId}`, {
       append_to_response: appendToResponse,
       include_image_language: 'en,null',

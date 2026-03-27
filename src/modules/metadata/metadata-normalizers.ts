@@ -282,6 +282,41 @@ export function extractCollection(title: TmdbTitleRecord | null): MetadataCollec
   };
 }
 
+export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRecord[] {
+  return asArray(asRecord(title?.raw.similar)?.results)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => {
+      const tmdbId = asNumber(entry.id);
+      if (!tmdbId || !title) {
+        return null;
+      }
+
+      return {
+        mediaType: title.mediaType,
+        tmdbId,
+        name: asString(entry.title) ?? asString(entry.name),
+        originalName: asString(entry.original_title) ?? asString(entry.original_name),
+        overview: asString(entry.overview),
+        releaseDate: asString(entry.release_date),
+        firstAirDate: asString(entry.first_air_date),
+        status: null,
+        posterPath: asString(entry.poster_path),
+        backdropPath: asString(entry.backdrop_path),
+        runtime: null,
+        episodeRunTime: [],
+        numberOfSeasons: null,
+        numberOfEpisodes: null,
+        externalIds: {},
+        raw: entry,
+        fetchedAt: title.fetchedAt,
+        expiresAt: title.expiresAt,
+      } satisfies TmdbTitleRecord;
+    })
+    .filter((entry): entry is TmdbTitleRecord => entry !== null)
+    .slice(0, 20);
+}
+
 function extractBestLogoPath(raw: Record<string, unknown>): string | null {
   const images = asRecord(raw.images);
   const logos = asArray(images?.logos)

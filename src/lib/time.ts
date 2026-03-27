@@ -62,6 +62,28 @@ export function requireNormalizedIsoString(value: NullableTimestampLike, fieldNa
   );
 }
 
+export function normalizeDateOnlyString(value: Date | string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const parsed = parseTimestamp(trimmed);
+    return parsed ? parsed.toISOString().slice(0, 10) : null;
+  }
+
+  const parsed = parseTimestamp(value);
+  return parsed ? parsed.toISOString().slice(0, 10) : null;
+}
+
 export function toDbIsoString(value: NullableTimestampLike, fieldName: string): string | null {
   if (value === null || value === undefined || isBlankString(value)) {
     return null;

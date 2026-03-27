@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from './errors.js';
 import {
+  normalizeDateOnlyString,
   normalizeIsoString,
   normalizeOptionalIsoString,
   nowIso,
@@ -52,6 +53,14 @@ test('normalizeIsoString returns null for null and undefined', () => {
 test('normalizeIsoString handles Date objects', () => {
   const date = new Date('2024-06-15T12:00:00.000Z');
   assert.equal(normalizeIsoString(date), '2024-06-15T12:00:00.000Z');
+});
+
+test('normalizeDateOnlyString preserves date-only values and normalizes Date inputs', () => {
+  assert.equal(normalizeDateOnlyString('2024-06-15'), '2024-06-15');
+  assert.equal(normalizeDateOnlyString('Sat Jun 15 2024 00:00:00 GMT+0000 (Coordinated Universal Time)'), '2024-06-15');
+  assert.equal(normalizeDateOnlyString(new Date('2024-06-15T12:00:00.000Z')), '2024-06-15');
+  assert.equal(normalizeDateOnlyString(''), null);
+  assert.equal(normalizeDateOnlyString('not-a-date'), null);
 });
 
 test('toDbIsoString normalizes Date and string DB values', () => {

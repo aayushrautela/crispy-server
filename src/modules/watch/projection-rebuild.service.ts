@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { ensureSupportedMediaType, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
@@ -226,6 +226,7 @@ function foldEvents(events: RebuildableWatchEvent[]): {
 
     switch (event.eventType) {
       case 'mark_watched': {
+        const continueWatchingKey = canonicalContinueWatchingMediaKey(identity);
         watchHistory.set(identity.mediaKey, {
           identity,
           watchedAt: event.occurredAt,
@@ -233,7 +234,7 @@ function foldEvents(events: RebuildableWatchEvent[]): {
           payload: event.payload,
           projection: projectionFromEvent(event),
         });
-        continueWatching.delete(identity.mediaKey);
+        continueWatching.delete(continueWatchingKey);
         mediaProgress.set(identity.mediaKey, {
           identity,
           eventId: event.id,
@@ -276,16 +277,17 @@ function foldEvents(events: RebuildableWatchEvent[]): {
         ratings.delete(identity.mediaKey);
         break;
       case 'continue_watching_dismissed': {
+        const continueWatchingKey = canonicalContinueWatchingMediaKey(identity);
         const currentProgress = mediaProgress.get(identity.mediaKey);
         if (currentProgress) {
           currentProgress.dismissedAt = event.occurredAt;
           mediaProgress.set(identity.mediaKey, currentProgress);
         }
 
-        const currentContinueWatching = continueWatching.get(identity.mediaKey);
+        const currentContinueWatching = continueWatching.get(continueWatchingKey);
         if (currentContinueWatching) {
           currentContinueWatching.dismissedAt = event.occurredAt;
-          continueWatching.set(identity.mediaKey, currentContinueWatching);
+          continueWatching.set(continueWatchingKey, currentContinueWatching);
         }
         break;
       }
@@ -319,6 +321,7 @@ function foldPlaybackLikeEvent(params: {
   watchHistory: Map<string, FoldedWatchHistory>;
 }): void {
   const { event, identity, mediaProgress, continueWatching, watchHistory } = params;
+  const continueWatchingKey = canonicalContinueWatchingMediaKey(identity);
   const progressPercent = deriveProgressPercent(event.positionSeconds, event.durationSeconds);
   const status = progressPercent >= 90 || event.eventType === 'playback_completed' ? 'completed' : 'in_progress';
 
@@ -342,7 +345,7 @@ function foldPlaybackLikeEvent(params: {
       payload: event.payload,
       projection: projectionFromEvent(event),
     });
-    continueWatching.delete(identity.mediaKey);
+    continueWatching.delete(continueWatchingKey);
     return;
   }
 
@@ -350,7 +353,7 @@ function foldPlaybackLikeEvent(params: {
     return;
   }
 
-  continueWatching.set(identity.mediaKey, {
+  continueWatching.set(continueWatchingKey, {
     identity,
     positionSeconds: event.positionSeconds,
     durationSeconds: event.durationSeconds,

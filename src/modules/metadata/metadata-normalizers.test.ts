@@ -205,6 +205,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
     extractReviews,
     extractProduction,
     extractCollection,
+    extractSimilarTitles,
   } = await loadModule();
 
   const title: TmdbTitleRecord = {
@@ -242,6 +243,11 @@ test('rich detail extractors map videos, people, reviews, production, and collec
       production_companies: [{ id: 20, name: 'Studio One', logo_path: '/studio.jpg', origin_country: 'US' }],
       networks: [{ id: 21, name: 'Network One', logo_path: '/network.jpg', origin_country: 'US' }],
       belongs_to_collection: { id: 99, name: 'Saga Collection', poster_path: '/collection-poster.jpg', backdrop_path: '/collection-backdrop.jpg' },
+      similar: {
+        results: [
+          { id: 77, name: 'Breaking Point: Aftermath', original_name: 'Breaking Point: Aftermath', overview: 'Another chapter.', first_air_date: '2025-01-01', poster_path: '/similar-poster.jpg', backdrop_path: '/similar-backdrop.jpg' },
+        ],
+      },
     },
     fetchedAt: '2026-03-22T00:00:00.000Z',
     expiresAt: '2026-03-23T00:00:00.000Z',
@@ -255,4 +261,6 @@ test('rich detail extractors map videos, people, reviews, production, and collec
   assert.equal(extractProduction(title).originalLanguage, 'en');
   assert.equal(extractProduction(title).companies[0]?.name, 'Studio One');
   assert.equal(extractCollection(title)?.name, 'Saga Collection');
+  assert.equal(extractSimilarTitles(title)[0]?.tmdbId, 77);
+  assert.equal(extractSimilarTitles(title)[0]?.name, 'Breaking Point: Aftermath');
 });
