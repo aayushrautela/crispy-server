@@ -1,5 +1,5 @@
 import { addHours } from './tmdb-time.js';
-import { env } from '../../config/env.js';
+import { appConfig } from '../../config/app-config.js';
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
@@ -143,7 +143,7 @@ export class TmdbCacheService {
     const title = await this.tmdbClient.fetchTitle(mediaType, tmdbId);
     const externalIds = await this.tmdbClient.fetchExternalIds(mediaType, tmdbId);
     const now = new Date().toISOString();
-    const ttlHours = mediaType === 'movie' ? env.tmdbMovieTtlHours : env.tmdbShowTtlHours;
+    const ttlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
     const record: TmdbTitleRecord = {
       mediaType,
       tmdbId,
@@ -175,7 +175,7 @@ export class TmdbCacheService {
   async refreshSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<void> {
     const season = await this.tmdbClient.fetchSeason(showTmdbId, seasonNumber);
     const now = new Date().toISOString();
-    const expiresAt = addHours(now, env.tmdbSeasonTtlHours);
+    const expiresAt = addHours(now, appConfig.cache.tmdb.seasonTtlHours);
     const episodes: TmdbEpisodeRecord[] = Array.isArray(season.episodes)
       ? season.episodes.map((episode) => ({
           showTmdbId,

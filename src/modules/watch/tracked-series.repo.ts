@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 
 export type TrackedSeriesRecord = {
   profileId: string;
@@ -17,9 +18,9 @@ function mapTrackedSeries(row: Record<string, unknown>): TrackedSeriesRecord {
     showTmdbId: Number(row.show_tmdb_id),
     reason: String(row.reason),
     lastSourceEventId: typeof row.last_source_event_id === 'string' ? row.last_source_event_id : null,
-    lastInteractedAt: String(row.last_interacted_at),
-    nextEpisodeAirDate: row.next_episode_air_date ? String(row.next_episode_air_date) : null,
-    metadataRefreshedAt: row.metadata_refreshed_at ? String(row.metadata_refreshed_at) : null,
+    lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_tracked_series.last_interacted_at'),
+    nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_tracked_series.next_episode_air_date'),
+    metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_tracked_series.metadata_refreshed_at'),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
   };
 }

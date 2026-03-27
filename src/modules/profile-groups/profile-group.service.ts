@@ -1,4 +1,4 @@
-import { env } from '../../config/env.js';
+import { appConfig } from '../../config/app-config.js';
 import type { DbClient } from '../../lib/db.js';
 import { ProfileGroupRepository } from './profile-group.repo.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
@@ -18,12 +18,12 @@ export class ProfileGroupService {
 
     const profileGroupId = await this.profileGroupRepository.createDefaultProfileGroup(client, {
       userId: params.userId,
-      profileGroupName: env.defaultProfileGroupName,
+      profileGroupName: appConfig.defaults.profileGroupName,
     });
 
     await this.profileRepository.create(client, {
       profileGroupId,
-      name: env.defaultProfileName,
+      name: appConfig.defaults.profileName,
       sortOrder: 0,
       createdByUserId: params.userId,
     });

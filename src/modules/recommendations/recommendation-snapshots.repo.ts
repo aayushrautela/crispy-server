@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 
 export type RecommendationSnapshotRecord = {
   profileId: string;
@@ -22,13 +23,13 @@ function mapSnapshot(row: Record<string, unknown>): RecommendationSnapshotRecord
     historyGeneration: Number(row.history_generation),
     algorithmVersion: String(row.algorithm_version),
     sourceCursor: typeof row.source_cursor === 'string' ? row.source_cursor : null,
-    generatedAt: String(row.generated_at),
-    expiresAt: typeof row.expires_at === 'string' ? row.expires_at : null,
+    generatedAt: requireDbIsoString(row.generated_at as Date | string | null | undefined, 'recommendation_snapshots.generated_at'),
+    expiresAt: toDbIsoString(row.expires_at as Date | string | null | undefined, 'recommendation_snapshots.expires_at'),
     items: Array.isArray(row.items) ? row.items : [],
     source: String(row.source ?? 'unknown'),
     updatedByKind: String(row.updated_by_kind ?? 'service'),
     updatedById: typeof row.updated_by_id === 'string' ? row.updated_by_id : null,
-    updatedAt: String(row.updated_at),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'recommendation_snapshots.updated_at'),
   };
 }
 

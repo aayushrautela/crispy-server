@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { ProviderImportConnectionStatus, ProviderImportProvider } from './provider-import.types.js';
 
 export type ProviderImportConnectionRecord = {
@@ -40,10 +41,10 @@ function mapConnection(row: Record<string, unknown>): ProviderImportConnectionRe
     externalUsername: typeof row.external_username === 'string' ? row.external_username : null,
     credentialsJson: (row.credentials_json as Record<string, unknown> | undefined) ?? {},
     createdByUserId: String(row.created_by_user_id),
-    expiresAt: typeof row.expires_at === 'string' ? row.expires_at : null,
-    lastUsedAt: typeof row.last_used_at === 'string' ? row.last_used_at : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    expiresAt: toDbIsoString(row.expires_at as Date | string | null | undefined, 'provider_import_connections.expires_at'),
+    lastUsedAt: toDbIsoString(row.last_used_at as Date | string | null | undefined, 'provider_import_connections.last_used_at'),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'provider_import_connections.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'provider_import_connections.updated_at'),
   };
 }
 
@@ -310,11 +311,11 @@ export class ProviderImportConnectionsRepository {
     return result.rows.map((row) => ({
       ...mapConnection(row),
       accountId: String(row.account_id),
-      accessTokenExpiresAt: typeof row.access_token_expires_at === 'string' ? row.access_token_expires_at : null,
-      lastRefreshAt: typeof row.last_refresh_at === 'string' ? row.last_refresh_at : null,
+      accessTokenExpiresAt: toDbIsoString(row.access_token_expires_at as Date | string | null | undefined, 'provider_import_connections.access_token_expires_at'),
+      lastRefreshAt: toDbIsoString(row.last_refresh_at as Date | string | null | undefined, 'provider_import_connections.last_refresh_at'),
       lastRefreshError: typeof row.last_refresh_error === 'string' ? row.last_refresh_error : null,
       lastImportJobId: typeof row.last_import_job_id === 'string' ? row.last_import_job_id : null,
-      lastImportCompletedAt: typeof row.last_import_completed_at === 'string' ? row.last_import_completed_at : null,
+      lastImportCompletedAt: toDbIsoString(row.last_import_completed_at as Date | string | null | undefined, 'provider_import_connections.last_import_completed_at'),
       hasAccessToken: Boolean(row.has_access_token),
       hasRefreshToken: Boolean(row.has_refresh_token),
     }));

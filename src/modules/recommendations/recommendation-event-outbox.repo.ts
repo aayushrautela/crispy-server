@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 
 export type RecommendationEventOutboxRecord = {
   id: number;
@@ -41,9 +42,9 @@ function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecor
     seasonNumber: row.season_number === null ? null : Number(row.season_number),
     episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
     rating: row.rating === null ? null : Number(row.rating),
-    occurredAt: String(row.occurred_at),
+    occurredAt: requireDbIsoString(row.occurred_at as Date | string | null | undefined, 'recommendation_event_outbox.occurred_at'),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
-    createdAt: String(row.created_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'recommendation_event_outbox.created_at'),
   };
 }
 
@@ -121,7 +122,7 @@ export class RecommendationEventOutboxRepository {
 
     return result.rows.map((row) => ({
       ...mapOutbox(row),
-      deliveredAt: typeof row.delivered_at === 'string' ? row.delivered_at : null,
+      deliveredAt: toDbIsoString(row.delivered_at as Date | string | null | undefined, 'recommendation_event_outbox.delivered_at'),
     }));
   }
 
@@ -140,9 +141,9 @@ export class RecommendationEventOutboxRepository {
     const row = result.rows[0] ?? {};
     return {
       undeliveredCount: Number(row.undelivered_count ?? 0),
-      oldestOccurredAt: typeof row.oldest_occurred_at === 'string' ? row.oldest_occurred_at : null,
-      oldestCreatedAt: typeof row.oldest_created_at === 'string' ? row.oldest_created_at : null,
-      newestCreatedAt: typeof row.newest_created_at === 'string' ? row.newest_created_at : null,
+      oldestOccurredAt: toDbIsoString(row.oldest_occurred_at as Date | string | null | undefined, 'recommendation_event_outbox.oldest_occurred_at'),
+      oldestCreatedAt: toDbIsoString(row.oldest_created_at as Date | string | null | undefined, 'recommendation_event_outbox.oldest_created_at'),
+      newestCreatedAt: toDbIsoString(row.newest_created_at as Date | string | null | undefined, 'recommendation_event_outbox.newest_created_at'),
     };
   }
 }

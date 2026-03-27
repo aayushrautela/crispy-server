@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 
 export type TasteProfileRecord = {
   profileId: string;
@@ -35,8 +36,8 @@ function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {
     updatedByKind: String(row.updated_by_kind),
     updatedById: typeof row.updated_by_id === 'string' ? row.updated_by_id : null,
     version: Number(row.version),
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'taste_profiles.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'taste_profiles.updated_at'),
   };
 }
 

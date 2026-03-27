@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
@@ -19,8 +20,8 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
     numberOfEpisodes: row.number_of_episodes === null || row.number_of_episodes === undefined ? null : Number(row.number_of_episodes),
     externalIds: (row.external_ids as Record<string, unknown> | undefined) ?? {},
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
-    fetchedAt: String(row.fetched_at),
-    expiresAt: String(row.expires_at),
+    fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
+    expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_titles.expires_at'),
   };
 }
 
@@ -42,8 +43,8 @@ function mapSearchTitle(row: Record<string, unknown>): TmdbTitleRecord {
     numberOfEpisodes: null,
     externalIds: {},
     raw: {},
-    fetchedAt: String(row.fetched_at),
-    expiresAt: String(row.expires_at),
+    fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
+    expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_titles.expires_at'),
   };
 }
 
@@ -60,8 +61,8 @@ function mapEpisode(row: Record<string, unknown>): TmdbEpisodeRecord {
     stillPath: typeof row.still_path === 'string' ? row.still_path : null,
     voteAverage: row.vote_average === null || row.vote_average === undefined ? null : Number(row.vote_average),
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
-    fetchedAt: String(row.fetched_at),
-    expiresAt: String(row.expires_at),
+    fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_tv_episodes.fetched_at'),
+    expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_tv_episodes.expires_at'),
   };
 }
 
@@ -75,8 +76,8 @@ function mapSeason(row: Record<string, unknown>): TmdbSeasonRecord {
     posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
     episodeCount: row.episode_count === null || row.episode_count === undefined ? null : Number(row.episode_count),
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
-    fetchedAt: String(row.fetched_at),
-    expiresAt: String(row.expires_at),
+    fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_tv_seasons.fetched_at'),
+    expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_tv_seasons.expires_at'),
   };
 }
 

@@ -8,6 +8,13 @@ import {
   buildMetadataView,
   buildSeasonViewFromRecord,
   buildSeasonViewFromTitleRaw,
+  extractCast,
+  extractCollection,
+  extractCreators,
+  extractCrewByJob,
+  extractProduction,
+  extractReviews,
+  extractVideos,
 } from './metadata-normalizers.js';
 import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
@@ -115,6 +122,13 @@ export class MetadataViewService {
         nextEpisodeId,
       }),
       seasons: buildSeasonViewFromTitleRaw(resolvedTitle, showId, seasonIds),
+      videos: extractVideos(resolvedTitle),
+      cast: extractCast(resolvedTitle),
+      directors: extractCrewByJob(resolvedTitle, 'Director'),
+      creators: extractCreators(resolvedTitle),
+      reviews: extractReviews(resolvedTitle),
+      production: extractProduction(resolvedTitle),
+      collection: extractCollection(resolvedTitle),
     };
   }
 

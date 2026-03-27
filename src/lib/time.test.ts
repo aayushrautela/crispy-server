@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from './errors.js';
-import { normalizeIsoString, normalizeOptionalIsoString, requireNormalizedIsoString, toIsoString, nowIso } from './time.js';
+import {
+  normalizeIsoString,
+  normalizeOptionalIsoString,
+  nowIso,
+  requireDbIsoString,
+  requireNormalizedIsoString,
+  toDbIsoString,
+  toIsoString,
+} from './time.js';
 
 test('nowIso returns a valid ISO string', () => {
   const result = nowIso();
@@ -17,6 +25,10 @@ test('toIsoString converts Date to ISO string', () => {
 
 test('toIsoString parses string input to ISO string', () => {
   assert.equal(toIsoString('2024-01-15T10:30:00.000Z'), '2024-01-15T10:30:00.000Z');
+});
+
+test('toIsoString throws for invalid timestamps', () => {
+  assert.throws(() => toIsoString('not-a-date'));
 });
 
 test('normalizeIsoString converts parseable timestamps', () => {
@@ -40,6 +52,47 @@ test('normalizeIsoString returns null for null and undefined', () => {
 test('normalizeIsoString handles Date objects', () => {
   const date = new Date('2024-06-15T12:00:00.000Z');
   assert.equal(normalizeIsoString(date), '2024-06-15T12:00:00.000Z');
+});
+
+test('toDbIsoString normalizes Date and string DB values', () => {
+  const date = new Date('2024-06-15T12:00:00.000Z');
+  assert.equal(toDbIsoString(date, 'createdAt'), '2024-06-15T12:00:00.000Z');
+  assert.equal(toDbIsoString('2024-01-15 10:30:00+00', 'createdAt'), '2024-01-15T10:30:00.000Z');
+});
+
+test('toDbIsoString returns null for nullable DB values', () => {
+  assert.equal(toDbIsoString(null, 'createdAt'), null);
+  assert.equal(toDbIsoString(undefined, 'createdAt'), null);
+  assert.equal(toDbIsoString('   ', 'createdAt'), null);
+});
+
+test('toDbIsoString throws for invalid DB timestamps', () => {
+  assert.throws(
+    () => toDbIsoString('not-a-date', 'createdAt'),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal(error.message, 'Invalid DB timestamp for createdAt.');
+      return true;
+    },
+  );
+});
+
+test('requireDbIsoString throws when DB timestamp is missing', () => {
+  assert.throws(
+    () => requireDbIsoString(null, 'createdAt'),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal(error.message, 'Missing DB timestamp for createdAt.');
+      return true;
+    },
+  );
+});
+
+test('requireDbIsoString normalizes DB Date values', () => {
+  assert.equal(
+    requireDbIsoString(new Date('2024-06-15T12:00:00.000Z'), 'createdAt'),
+    '2024-06-15T12:00:00.000Z',
+  );
 });
 
 test('normalizeOptionalIsoString returns null for blank values', () => {

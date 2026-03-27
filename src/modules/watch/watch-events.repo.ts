@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import { normalizeWatchOccurredAt } from './watch.types.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
@@ -119,7 +120,7 @@ export class WatchEventsRepository {
       profileGroupId: String(result.rows[0].profile_group_id),
       eventType: String(result.rows[0].event_type),
       mediaKey: String(result.rows[0].media_key),
-      occurredAt: String(result.rows[0].occurred_at),
+      occurredAt: requireDbIsoString(result.rows[0].occurred_at as Date | string | null | undefined, 'watch_events.occurred_at'),
     };
   }
 
@@ -155,7 +156,7 @@ export class WatchEventsRepository {
       positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
       durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
       rating: row.rating === null ? null : Number(row.rating),
-      occurredAt: String(row.occurred_at),
+      occurredAt: requireDbIsoString(row.occurred_at as Date | string | null | undefined, 'watch_events.occurred_at'),
       payload: (row.payload as Record<string, unknown> | undefined) ?? {},
     }));
   }

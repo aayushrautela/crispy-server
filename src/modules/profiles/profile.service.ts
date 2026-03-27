@@ -1,7 +1,7 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileGroupService } from '../profile-groups/profile-group.service.js';
-import { normalizeSettingsPatch, stripAccountScopedProfileSettings } from '../users/account-settings.service.js';
+import { normalizeProfileSettingsPatch, stripAccountScopedProfileSettings } from '../users/account-settings.service.js';
 import { ProfileRepository, type ProfileRecord } from './profile.repo.js';
 import { ProfileSettingsRepository } from './profile-settings.repo.js';
 
@@ -70,7 +70,7 @@ export class ProfileService {
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-      const normalizedPatch = normalizeSettingsPatch(patch);
+      const normalizedPatch = normalizeProfileSettingsPatch(patch);
       const settings = await this.profileSettingsRepository.patchForProfile(client, profileId, normalizedPatch);
       return stripAccountScopedProfileSettings(settings);
     });

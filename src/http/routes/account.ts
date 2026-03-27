@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { env } from '../../config/env.js';
 import { AccountDeletionService } from '../../modules/users/account-deletion.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
 
@@ -11,17 +10,14 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserActor(request);
     const baseSettings = await accountSettingsService.getSettings(actor.appUserId);
-    const hasAiApiKey = await accountSettingsService.getAiApiKeyForUser(actor.appUserId)
-      .then(() => true)
-      .catch(() => false);
+    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
     const hasOmdbApiKey = await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId)
       .then(() => true)
       .catch(() => false);
     return {
       settings: mergeAccountScopedSettings(baseSettings, {
-        hasAiApiKey,
+        ai,
         hasOmdbApiKey,
-        aiEndpointUrl: env.aiEndpointUrl,
       }),
     };
   });
@@ -30,8 +26,16 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserActor(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
+    const baseSettings = await accountSettingsService.patchSettings(actor.appUserId, body);
+    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
+    const hasOmdbApiKey = await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId)
+      .then(() => true)
+      .catch(() => false);
     return {
-      settings: await accountSettingsService.patchSettings(actor.appUserId, body),
+      settings: mergeAccountScopedSettings(baseSettings, {
+        ai,
+        hasOmdbApiKey,
+      }),
     };
   });
 

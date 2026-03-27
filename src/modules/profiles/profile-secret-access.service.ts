@@ -1,7 +1,5 @@
-import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
-import { ProfileRepository } from './profile.repo.js';
 
 export type ProfileSecretField = 'ai.api_key';
 
@@ -9,15 +7,12 @@ export type ProfileSecretValue = {
   appUserId: string;
   key: ProfileSecretField;
   value: string;
+  providerId: string;
 };
-
-type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export class ProfileSecretAccessService {
   constructor(
     private readonly accountSettingsService = new AccountSettingsService(),
-    private readonly profileRepository = new ProfileRepository(),
-    private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
   async getAiApiKeyForAccountProfile(accountId: string, profileId: string): Promise<ProfileSecretValue> {
@@ -29,18 +24,16 @@ export class ProfileSecretAccessService {
       throw new HttpError(403, 'Secret field not allowed.');
     }
 
-    return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found for account.');
-      }
+    const [secret, providerId] = await Promise.all([
+      this.accountSettingsService.getSecretForAccountProfile(accountId, profileId, field),
+      this.accountSettingsService.getAiProviderIdForUser(accountId),
+    ]);
 
-      const secret = await this.accountSettingsService.getSecretForAccountProfile(accountId, profile.id, field);
-      return {
-        appUserId: secret.appUserId,
-        key: 'ai.api_key',
-        value: secret.value,
-      } satisfies ProfileSecretValue;
-    });
+    return {
+      appUserId: secret.appUserId,
+      key: 'ai.api_key',
+      value: secret.value,
+      providerId,
+    } satisfies ProfileSecretValue;
   }
 }

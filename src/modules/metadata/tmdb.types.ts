@@ -151,9 +151,72 @@ export type MetadataEpisodeView = MetadataEpisodePreview & {
   showExternalIds: MetadataExternalIds;
 };
 
+export type MetadataVideoView = {
+  id: string;
+  key: string;
+  name: string | null;
+  site: string | null;
+  type: string | null;
+  official: boolean;
+  publishedAt: string | null;
+  url: string | null;
+  thumbnailUrl: string | null;
+};
+
+export type MetadataPersonRefView = {
+  id: string;
+  tmdbPersonId: number;
+  name: string;
+  role: string | null;
+  department: string | null;
+  profileUrl: string | null;
+};
+
+export type MetadataReviewView = {
+  id: string;
+  author: string | null;
+  username: string | null;
+  content: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  url: string | null;
+  rating: number | null;
+  avatarUrl: string | null;
+};
+
+export type MetadataCompanyView = {
+  id: number;
+  name: string;
+  logoUrl: string | null;
+  originCountry: string | null;
+};
+
+export type MetadataCollectionView = {
+  id: number;
+  name: string;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+};
+
+export type MetadataProductionInfoView = {
+  originalLanguage: string | null;
+  originCountries: string[];
+  spokenLanguages: string[];
+  productionCountries: string[];
+  companies: MetadataCompanyView[];
+  networks: MetadataCompanyView[];
+};
+
 export type MetadataTitleDetail = {
   item: MetadataView;
   seasons: MetadataSeasonView[];
+  videos: MetadataVideoView[];
+  cast: MetadataPersonRefView[];
+  directors: MetadataPersonRefView[];
+  creators: MetadataPersonRefView[];
+  reviews: MetadataReviewView[];
+  production: MetadataProductionInfoView;
+  collection: MetadataCollectionView | null;
 };
 
 export type MetadataSeasonDetail = {

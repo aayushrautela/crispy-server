@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 
 export type WatchHistoryEntryRecord = {
   id: string;
@@ -28,11 +29,11 @@ function mapEntry(row: Record<string, unknown>): WatchHistoryEntryRecord {
     showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
     seasonNumber: row.season_number === null ? null : Number(row.season_number),
     episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
-    watchedAt: String(row.watched_at),
+    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history_entries.watched_at'),
     sourceWatchEventId: typeof row.source_watch_event_id === 'string' ? row.source_watch_event_id : null,
     sourceKind: String(row.source_kind),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
-    createdAt: String(row.created_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'watch_history_entries.created_at'),
   };
 }
 

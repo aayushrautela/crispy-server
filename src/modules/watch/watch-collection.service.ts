@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
@@ -44,7 +45,7 @@ export class WatchCollectionService {
 
     return {
       media,
-      addedAt: String(row.added_at),
+      addedAt: requireDbIsoString(row.added_at as Date | string | null | undefined, 'watchlist_items.added_at'),
       payload: (row.payload as Record<string, unknown> | undefined) ?? {},
     };
   }
@@ -56,7 +57,7 @@ export class WatchCollectionService {
       media,
       rating: {
         value: Number(row.rating),
-        ratedAt: String(row.rated_at),
+        ratedAt: requireDbIsoString(row.rated_at as Date | string | null | undefined, 'ratings.rated_at'),
       },
       payload: (row.payload as Record<string, unknown> | undefined) ?? {},
     };

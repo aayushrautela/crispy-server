@@ -1,12 +1,18 @@
-import { env } from '../../config/env.js';
+import { appConfig } from '../../config/app-config.js';
 import type { MediaIdentity } from '../watch/media-key.js';
 import type {
   MetadataCardView,
+  MetadataCollectionView,
+  MetadataCompanyView,
   MetadataEpisodePreview,
   MetadataEpisodeView,
   MetadataExternalIds,
   MetadataImages,
+  MetadataPersonRefView,
+  MetadataProductionInfoView,
+  MetadataReviewView,
   MetadataSeasonView,
+  MetadataVideoView,
   MetadataView,
   TmdbEpisodeRecord,
   TmdbSeasonRecord,
@@ -29,6 +35,10 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function asBoolean(value: unknown): boolean {
+  return value === true;
+}
+
 function padded(value: number): string {
   return String(value).padStart(2, '0');
 }
@@ -38,7 +48,7 @@ export function buildImageUrl(path: string | null, size: string): string | null 
     return null;
   }
 
-  return `${env.tmdbImageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
+  return `${appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
 }
 
 export function metadataMediaTypeFromTitle(title: TmdbTitleRecord): 'movie' | 'show' {
@@ -80,6 +90,196 @@ export function extractGenres(title: TmdbTitleRecord | null): string[] {
   return asArray(raw.genres)
     .map((genre) => asString(asRecord(genre)?.name))
     .filter((value): value is string => value !== null);
+}
+
+function uniqueStrings(values: Array<string | null>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => value !== null)));
+}
+
+function preferNonEmpty<T>(...values: Array<T | null | undefined>): T | null {
+  for (const value of values) {
+    if (value !== null && value !== undefined) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function normalizeAvatarUrl(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  if (value.startsWith('/http://') || value.startsWith('/https://')) {
+    return value.slice(1);
+  }
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    return value;
+  }
+  return buildImageUrl(value, 'w185');
+}
+
+export function extractVideos(title: TmdbTitleRecord | null): MetadataVideoView[] {
+  const results = asArray(asRecord(title?.raw.videos)?.results)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+  return results
+    .map((video) => {
+      const id = asString(video.id);
+      const key = asString(video.key);
+      if (!id || !key) {
+        return null;
+      }
+
+      const site = asString(video.site);
+      return {
+        id,
+        key,
+        name: asString(video.name),
+        site,
+        type: asString(video.type),
+        official: asBoolean(video.official),
+        publishedAt: asString(video.published_at),
+        url: site === 'YouTube' ? `https://www.youtube.com/watch?v=${key}` : null,
+        thumbnailUrl: site === 'YouTube' ? `https://img.youtube.com/vi/${key}/hqdefault.jpg` : null,
+      } satisfies MetadataVideoView;
+    })
+    .filter((video): video is MetadataVideoView => video !== null);
+}
+
+function buildPersonRefView(record: Record<string, unknown>): MetadataPersonRefView | null {
+  const tmdbPersonId = asNumber(record.id);
+  const name = asString(record.name);
+  if (!tmdbPersonId || !name) {
+    return null;
+  }
+
+  return {
+    id: `person:tmdb:${tmdbPersonId}`,
+    tmdbPersonId,
+    name,
+    role: preferNonEmpty(asString(record.character), asString(record.job)),
+    department: asString(record.known_for_department) ?? asString(record.department),
+    profileUrl: buildImageUrl(asString(record.profile_path), 'w185'),
+  };
+}
+
+export function extractCast(title: TmdbTitleRecord | null): MetadataPersonRefView[] {
+  return asArray(asRecord(title?.raw.credits)?.cast)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => buildPersonRefView(entry))
+    .filter((entry): entry is MetadataPersonRefView => entry !== null)
+    .slice(0, 20);
+}
+
+export function extractCrewByJob(title: TmdbTitleRecord | null, job: string): MetadataPersonRefView[] {
+  const normalizedJob = job.trim().toLowerCase();
+  const seen = new Set<number>();
+
+  return asArray(asRecord(title?.raw.credits)?.crew)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .filter((entry) => asString(entry.job)?.toLowerCase() === normalizedJob)
+    .map((entry) => buildPersonRefView(entry))
+    .filter((entry): entry is MetadataPersonRefView => {
+      if (!entry || seen.has(entry.tmdbPersonId)) {
+        return false;
+      }
+      seen.add(entry.tmdbPersonId);
+      return true;
+    });
+}
+
+export function extractCreators(title: TmdbTitleRecord | null): MetadataPersonRefView[] {
+  return asArray(title?.raw.created_by)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => buildPersonRefView(entry))
+    .filter((entry): entry is MetadataPersonRefView => entry !== null);
+}
+
+export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewView[] {
+  return asArray(asRecord(title?.raw.reviews)?.results)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((review) => {
+      const id = asString(review.id);
+      const content = asString(review.content);
+      if (!id || !content) {
+        return null;
+      }
+
+      const authorDetails = asRecord(review.author_details);
+      return {
+        id,
+        author: asString(review.author),
+        username: asString(authorDetails?.username),
+        content,
+        createdAt: asString(review.created_at),
+        updatedAt: asString(review.updated_at),
+        url: asString(review.url),
+        rating: asNumber(authorDetails?.rating),
+        avatarUrl: normalizeAvatarUrl(asString(authorDetails?.avatar_path)),
+      } satisfies MetadataReviewView;
+    })
+    .filter((review): review is MetadataReviewView => review !== null)
+    .slice(0, 10);
+}
+
+function buildCompanyView(record: Record<string, unknown>): MetadataCompanyView | null {
+  const id = asNumber(record.id);
+  const name = asString(record.name);
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    logoUrl: buildImageUrl(asString(record.logo_path), 'w185'),
+    originCountry: asString(record.origin_country),
+  };
+}
+
+export function extractProduction(title: TmdbTitleRecord | null): MetadataProductionInfoView {
+  const raw = title?.raw ?? {};
+  return {
+    originalLanguage: asString(raw.original_language),
+    originCountries: uniqueStrings(asArray(raw.origin_country).map((entry) => asString(entry))),
+    spokenLanguages: uniqueStrings(asArray(raw.spoken_languages).map((entry) => asString(asRecord(entry)?.english_name) ?? asString(asRecord(entry)?.name))),
+    productionCountries: uniqueStrings(asArray(raw.production_countries).map((entry) => asString(asRecord(entry)?.name))),
+    companies: asArray(raw.production_companies)
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => buildCompanyView(entry))
+      .filter((entry): entry is MetadataCompanyView => entry !== null),
+    networks: asArray(raw.networks)
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => buildCompanyView(entry))
+      .filter((entry): entry is MetadataCompanyView => entry !== null),
+  };
+}
+
+export function extractCollection(title: TmdbTitleRecord | null): MetadataCollectionView | null {
+  const collection = asRecord(title?.raw.belongs_to_collection);
+  if (!collection) {
+    return null;
+  }
+
+  const id = asNumber(collection.id);
+  const name = asString(collection.name);
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    posterUrl: buildImageUrl(asString(collection.poster_path), 'w500'),
+    backdropUrl: buildImageUrl(asString(collection.backdrop_path), 'w780'),
+  };
 }
 
 function extractBestLogoPath(raw: Record<string, unknown>): string | null {

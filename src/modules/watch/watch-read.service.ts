@@ -1,5 +1,6 @@
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
@@ -32,9 +33,9 @@ export class WatchReadService {
               positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
               durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
               progressPercent: Number(row.progress_percent ?? 0),
-              lastPlayedAt: String(row.last_activity_at),
+              lastPlayedAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
             },
-            lastActivityAt: String(row.last_activity_at),
+            lastActivityAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
             payload: (row.payload as Record<string, unknown> | undefined) ?? {},
           } satisfies HydratedWatchItem;
         }),
@@ -55,7 +56,7 @@ export class WatchReadService {
           const media = await this.metadataViewService.buildMetadataCardViewFromRow(client, row);
           return {
             media,
-            watchedAt: String(row.watched_at),
+            watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
             payload: (row.payload as Record<string, unknown> | undefined) ?? {},
           } satisfies HydratedWatchItem;
         }),

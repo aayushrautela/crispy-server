@@ -1,8 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { seedTestEnv } from '../../test-helpers.js';
-
-seedTestEnv({ AI_ENDPOINT_URL: 'https://api.openai.com/v1/chat/completions' });
 
 test('generateJson sends correct request and parses response', async (t) => {
   const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
@@ -22,7 +19,12 @@ test('generateJson sends correct request and parses response', async (t) => {
   t.after(() => { globalThis.fetch = originalFetch; });
 
   const client = new OpenAiCompatibleClient();
-  const result = await client.generateJson({ apiKey: 'test-key', model: 'gpt-4o', userPrompt: 'Hello' });
+  const result = await client.generateJson({
+    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+    apiKey: 'test-key',
+    model: 'gpt-4o',
+    userPrompt: 'Hello',
+  });
 
   assert.deepEqual(result, { result: 'ok' });
   assert.equal(capturedUrl, 'https://api.openai.com/v1/chat/completions');
@@ -42,10 +44,15 @@ test('generateJson throws 502 on provider error', async (t) => {
 
   const client = new OpenAiCompatibleClient();
   await assert.rejects(
-    () => client.generateJson({ apiKey: 'test-key', model: 'gpt-4o', userPrompt: 'Hello' }),
+    () => client.generateJson({
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      apiKey: 'test-key',
+      model: 'gpt-4o',
+      userPrompt: 'Hello',
+    }),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /AI provider request failed/);
+      assert.match(error.message, /Rate limited/);
       return true;
     },
   );
@@ -67,7 +74,13 @@ test('generateJson includes system prompt when provided', async (t) => {
   t.after(() => { globalThis.fetch = originalFetch; });
 
   const client = new OpenAiCompatibleClient();
-  await client.generateJson({ apiKey: 'test-key', model: 'gpt-4o', systemPrompt: 'Be helpful', userPrompt: 'Hello' });
+  await client.generateJson({
+    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+    apiKey: 'test-key',
+    model: 'gpt-4o',
+    systemPrompt: 'Be helpful',
+    userPrompt: 'Hello',
+  });
 
   assert.equal((capturedBody as any).messages.length, 2);
   assert.equal((capturedBody as any).messages[0].role, 'system');

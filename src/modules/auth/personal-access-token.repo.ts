@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { AuthScope } from './auth.types.js';
 
 export type PersonalAccessTokenRecord = {
@@ -23,11 +24,11 @@ function mapPersonalAccessToken(row: Record<string, unknown>): PersonalAccessTok
     tokenHash: String(row.token_hash),
     tokenPreview: String(row.token_preview),
     scopes: Array.isArray(row.scopes) ? row.scopes.filter((scope): scope is AuthScope => typeof scope === 'string') : [],
-    expiresAt: typeof row.expires_at === 'string' ? row.expires_at : null,
-    lastUsedAt: typeof row.last_used_at === 'string' ? row.last_used_at : null,
-    revokedAt: typeof row.revoked_at === 'string' ? row.revoked_at : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    expiresAt: toDbIsoString(row.expires_at as Date | string | null | undefined, 'personal_access_tokens.expires_at'),
+    lastUsedAt: toDbIsoString(row.last_used_at as Date | string | null | undefined, 'personal_access_tokens.last_used_at'),
+    revokedAt: toDbIsoString(row.revoked_at as Date | string | null | undefined, 'personal_access_tokens.revoked_at'),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'personal_access_tokens.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'personal_access_tokens.updated_at'),
   };
 }
 

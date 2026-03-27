@@ -9,21 +9,21 @@ const { ProfileSecretAccessService } = await import('./profile-secret-access.ser
 
 test('getAiApiKeyForAccountProfile returns secret when profile exists', async () => {
   const service = new ProfileSecretAccessService(
-    { getSecretForAccountProfile: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'ai-key' }) } as never,
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
-    async (work) => work({} as never),
+    {
+      getSecretForAccountProfile: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'ai-key' }),
+      getAiProviderIdForUser: async () => 'openrouter',
+    } as never,
   );
 
   const result = await service.getAiApiKeyForAccountProfile('user-1', 'profile-1');
   assert.equal(result.key, 'ai.api_key');
   assert.equal(result.value, 'ai-key');
+  assert.equal(result.providerId, 'openrouter');
 });
 
 test('getSecretForAccountProfile rejects unknown fields', async () => {
   const service = new ProfileSecretAccessService(
     {} as never,
-    {} as never,
-    async (work) => work({} as never),
   );
 
   await assert.rejects(
@@ -38,9 +38,12 @@ test('getSecretForAccountProfile rejects unknown fields', async () => {
 
 test('getSecretForAccountProfile throws 404 when profile not found', async () => {
   const service = new ProfileSecretAccessService(
-    {} as never,
-    { findByIdForOwnerUser: async () => null } as never,
-    async (work) => work({} as never),
+    {
+      getSecretForAccountProfile: async () => {
+        throw new HttpError(404, 'Profile not found for account.');
+      },
+      getAiProviderIdForUser: async () => 'openai',
+    } as never,
   );
 
   await assert.rejects(

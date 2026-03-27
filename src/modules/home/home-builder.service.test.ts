@@ -51,9 +51,15 @@ test('build returns typed sections with correct ordering', () => {
   assert.deepEqual(response.sections.map((s) => s.id), [
     'continue-watching', 'up-next', 'this-week', 'recently-released', 'recent-history',
   ]);
+  assert.deepEqual(response.sections.map((section) => section.kind), [
+    'watch', 'calendar', 'calendar', 'calendar', 'watch',
+  ]);
+  assert.deepEqual(response.sections.map((section) => section.source), [
+    'canonical_watch', 'canonical_calendar', 'canonical_calendar', 'canonical_calendar', 'canonical_watch',
+  ]);
 });
 
-test('build groups up_next and this_week into up-next section', () => {
+test('build keeps up_next items only in up-next section', () => {
   const service = new HomeBuilderService();
 
   const response = service.build({
@@ -67,10 +73,11 @@ test('build groups up_next and this_week into up-next section', () => {
   });
 
   const upNext = response.sections.find((s) => s.id === 'up-next');
-  assert.equal(upNext?.items.length, 2);
+  assert.equal(upNext?.items.length, 1);
+  assert.equal(upNext?.items[0]?.media.mediaKey, 'episode:tmdb:10:1:2');
 });
 
-test('build includes calendar items in this-week section', () => {
+test('build keeps this_week items only in this-week section', () => {
   const service = new HomeBuilderService();
 
   const response = service.build({
@@ -83,7 +90,8 @@ test('build includes calendar items in this-week section', () => {
   });
 
   const thisWeek = response.sections.find((s) => s.id === 'this-week');
-  assert.equal(thisWeek?.items.length, 2);
+  assert.equal(thisWeek?.items.length, 1);
+  assert.equal(thisWeek?.items[0]?.media.mediaKey, 'episode:tmdb:10:1:3');
 });
 
 test('build limits up-next to 10 items', () => {

@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import type { AppUser } from './user.types.js';
 
 function mapUserRow(row: Record<string, unknown>): AppUser {
@@ -6,9 +7,9 @@ function mapUserRow(row: Record<string, unknown>): AppUser {
     id: String(row.id),
     authSubject: String(row.auth_subject),
     email: typeof row.email === 'string' ? row.email : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
-    lastSeenAt: String(row.last_seen_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'app_users.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'app_users.updated_at'),
+    lastSeenAt: requireDbIsoString(row.last_seen_at as Date | string | null | undefined, 'app_users.last_seen_at'),
   };
 }
 

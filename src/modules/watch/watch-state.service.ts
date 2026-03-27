@@ -1,5 +1,6 @@
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
@@ -60,23 +61,23 @@ export class WatchStateService {
               positionSeconds: continueWatching.position_seconds === null ? null : Number(continueWatching.position_seconds),
               durationSeconds: continueWatching.duration_seconds === null ? null : Number(continueWatching.duration_seconds),
               progressPercent: Number(continueWatching.progress_percent ?? 0),
-              lastActivityAt: String(continueWatching.last_activity_at),
+              lastActivityAt: requireDbIsoString(continueWatching.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
             }
           : null,
         watched: watched
           ? {
-              watchedAt: String(watched.watched_at),
+              watchedAt: requireDbIsoString(watched.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
             }
           : null,
         watchlist: watchlist
           ? {
-              addedAt: String(watchlist.added_at),
+              addedAt: requireDbIsoString(watchlist.added_at as Date | string | null | undefined, 'watchlist_items.added_at'),
             }
           : null,
         rating: rating
           ? {
               value: Number(rating.rating),
-              ratedAt: String(rating.rated_at),
+              ratedAt: requireDbIsoString(rating.rated_at as Date | string | null | undefined, 'ratings.rated_at'),
             }
           : null,
         watchedEpisodeKeys,

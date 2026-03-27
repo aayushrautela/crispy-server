@@ -1,8 +1,9 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { appConfig } from '../../config/app-config.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { AccountSettingsRepository } from '../users/account-settings.repo.js';
+import { AiProviderResolver } from './ai-provider-resolver.js';
 import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 import type { AiCandidateMediaType, AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
 
@@ -23,7 +24,7 @@ const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', '
 export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly accountSettingsRepository = new AccountSettingsRepository(),
+    private readonly aiProviderResolver = new AiProviderResolver(),
     private readonly aiClient = new OpenAiCompatibleClient(),
   ) {}
 
@@ -46,23 +47,18 @@ export class AiSearchService {
       throw new HttpError(400, 'Profile is required.');
     }
 
-    const aiApiKey = await withTransaction(async (client) => {
+    await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-
-      const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.api_key')) ?? '';
-      if (!key) {
-        throw new HttpError(412, 'AI search is not configured for this account. Add an AI API key in Account Settings.');
-      }
-
-      return key;
     });
+    const request = await this.aiProviderResolver.resolveForUser(userId, 'search');
 
     const generated = await this.aiClient.generateJson({
-      apiKey: aiApiKey,
-      model: env.aiSearchModel,
+      provider: request.provider,
+      apiKey: request.apiKey,
+      model: request.model,
       systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real movie or TV titles only.',
       userPrompt: buildSearchPrompt(query, filter, locale, analysis),
     });
@@ -183,7 +179,7 @@ async function resolveSuggestion(title: string, filter: AiSearchFilter, locale: 
 }
 
 async function searchTmdb(mediaType: AiCandidateMediaType, params: Record<string, string>): Promise<AiSearchItem[]> {
-  const url = new URL(`${env.tmdbBaseUrl.replace(/\/$/, '')}/search/${mediaType}`);
+  const url = new URL(`${appConfig.metadata.tmdb.baseUrl.replace(/\/$/, '')}/search/${mediaType}`);
   url.searchParams.set('api_key', env.tmdbApiKey);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
@@ -448,7 +444,7 @@ function tmdbImageUrl(path: string | null, size: string): string | null {
   if (!path) {
     return null;
   }
-  const base = env.tmdbImageBaseUrl.replace(/\/$/, '');
+  const base = appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '');
   return `${base}/${size}${path.startsWith('/') ? path : `/${path}`}`;
 }
 

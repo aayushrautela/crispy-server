@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
 import type { MediaIdentity } from './media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
@@ -126,7 +127,7 @@ export class MediaProgressRepository {
       durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
       progressPercent: Number(row.progress_percent ?? 0),
       status: String(row.status),
-      lastPlayedAt: String(row.last_played_at),
+      lastPlayedAt: requireDbIsoString(row.last_played_at as Date | string | null | undefined, 'media_progress.last_played_at'),
     };
   }
 }

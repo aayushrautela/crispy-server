@@ -40,6 +40,44 @@ function parseNumber(name: string, fallback: number): number {
   return parsed;
 }
 
+function parseAiServerKeysEnv(name: string): Array<{ providerId: string; apiKey: string }> {
+  const raw = optionalEnv(name);
+  if (!raw) {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Invalid JSON environment variable: ${name}`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Invalid AI server key configuration: ${name}`);
+  }
+
+  return parsed.map((entry, index) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error(`Invalid AI server key entry at index ${index} in ${name}`);
+    }
+
+    const record = entry as Record<string, unknown>;
+    const providerId = typeof record.providerId === 'string'
+      ? record.providerId.trim()
+      : '';
+    const apiKey = typeof record.apiKey === 'string'
+      ? record.apiKey.trim()
+      : '';
+
+    if (!providerId || !apiKey) {
+      throw new Error(`Invalid AI server key entry at index ${index} in ${name}`);
+    }
+
+    return { providerId, apiKey };
+  });
+}
+
 function requireBaseUrl(name: string): string {
   return requireEnv(name).replace(/\/+$/, '');
 }
@@ -62,21 +100,8 @@ export const env = {
   authJwtIssuer: supabaseAuthBaseUrl,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: supabaseAuthBaseUrl,
-  defaultProfileGroupName: process.env.DEFAULT_PROFILE_GROUP_NAME?.trim() || 'Crispy Profile Group',
-  defaultProfileName: process.env.DEFAULT_PROFILE_NAME?.trim() || 'Main',
-  homeCacheTtlSeconds: parseNumber('HOME_CACHE_TTL_SECONDS', 120),
-  calendarCacheTtlSeconds: parseNumber('CALENDAR_CACHE_TTL_SECONDS', 300),
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
-  tmdbBaseUrl: process.env.TMDB_BASE_URL?.trim() || 'https://api.themoviedb.org/3',
-  tmdbImageBaseUrl: process.env.TMDB_IMAGE_BASE_URL?.trim() || 'https://image.tmdb.org/t/p',
-  tmdbMovieTtlHours: parseNumber('TMDB_MOVIE_TTL_HOURS', 168),
-  tmdbShowTtlHours: parseNumber('TMDB_SHOW_TTL_HOURS', 24),
-  tmdbSeasonTtlHours: parseNumber('TMDB_SEASON_TTL_HOURS', 24),
-  aiSearchModel: optionalEnv('AI_SEARCH_MODEL') ?? 'gpt-4o-mini',
-  aiInsightsModel: optionalEnv('AI_INSIGHTS_MODEL') ?? '',
-  aiEndpointUrl: optionalEnv('AI_ENDPOINT_URL') ?? 'https://api.openai.com/v1/chat/completions',
-  aiHttpReferer: optionalEnv('AI_HTTP_REFERER') ?? '',
-  aiTitle: optionalEnv('AI_TITLE') ?? '',
+  aiServerKeys: parseAiServerKeysEnv('AI_SERVER_KEYS_JSON'),
   traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
   traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',
   traktImportRedirectUri: process.env.TRAKT_IMPORT_REDIRECT_URI?.trim() || '',

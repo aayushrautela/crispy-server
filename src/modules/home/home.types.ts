@@ -1,4 +1,5 @@
 import type { CalendarItem, HydratedWatchItem } from '../watch/watch-read.types.js';
+import type { RecommendationSectionItem } from '../recommendations/recommendation.types.js';
 
 export type HomeSectionId =
   | 'continue-watching'
@@ -8,12 +9,38 @@ export type HomeSectionId =
   | 'recent-history'
   | string;
 
-export type HomeSection = {
+export type HomeSectionKind = 'watch' | 'calendar' | 'recommendation';
+
+export type HomeWatchSection = {
   id: HomeSectionId;
   title: string;
-  items: HydratedWatchItem[] | CalendarItem[];
+  kind: 'watch';
+  source: 'canonical_watch';
+  items: HydratedWatchItem[];
 };
 
+export type HomeCalendarSection = {
+  id: HomeSectionId;
+  title: string;
+  kind: 'calendar';
+  source: 'canonical_calendar';
+  items: CalendarItem[];
+};
+
+export type HomeRecommendationSection = {
+  id: HomeSectionId;
+  title: string;
+  kind: 'recommendation';
+  source: 'recommendation';
+  items: RecommendationSectionItem[];
+  meta: Record<string, unknown>;
+};
+
+export type HomeSection = HomeWatchSection | HomeCalendarSection | HomeRecommendationSection;
+
 export type HomeResponse = {
+  profileId: string;
+  source: 'canonical_home';
+  generatedAt: string;
   sections: HomeSection[];
 };

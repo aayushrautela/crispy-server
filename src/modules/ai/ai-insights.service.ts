@@ -1,10 +1,11 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { appConfig } from '../../config/app-config.js';
 import { env } from '../../config/env.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { AccountSettingsRepository } from '../users/account-settings.repo.js';
 import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
+import { AiProviderResolver, buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsMediaType, AiInsightsPayload } from './ai.types.js';
 
 type TmdbTitleContext = {
@@ -22,13 +23,13 @@ type TmdbTitleContext = {
   }>;
 };
 
-const GENERATION_VERSION = 'v1';
+const GENERATION_VERSION = 'v2';
 
 export class AiInsightsService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
+    private readonly aiProviderResolver = new AiProviderResolver(),
     private readonly aiClient = new OpenAiCompatibleClient(),
   ) {}
 
@@ -52,29 +53,21 @@ export class AiInsightsService {
     if (!profileId) {
       throw new HttpError(400, 'Profile is required.');
     }
-    if (!env.aiInsightsModel) {
-      throw new HttpError(503, 'AI insights model is not configured.');
-    }
-
-    const aiApiKey = await withTransaction(async (client) => {
+    await withTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
-
-      const key = (await this.accountSettingsRepository.getSecretForUser(client, userId, 'ai.api_key')) ?? '';
-      if (!key) {
-        throw new HttpError(412, 'AI insights are not configured for this account. Add an AI API key in Account Settings.');
-      }
-      return key;
     });
+    const request = await this.aiProviderResolver.resolveForUser(userId, 'insights');
+    const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
     const cached = await withTransaction(async (client) => {
       return this.cacheRepository.findByKey(client, {
         tmdbId,
         mediaType,
         locale,
-        generationVersion: GENERATION_VERSION,
+        generationVersion,
       });
     });
     if (cached) {
@@ -87,8 +80,9 @@ export class AiInsightsService {
     }
 
     const generated = await this.aiClient.generateJson({
-      apiKey: aiApiKey,
-      model: env.aiInsightsModel,
+      provider: request.provider,
+      apiKey: request.apiKey,
+      model: request.model,
       userPrompt: buildPrompt(titleContext),
     });
     const payload = normalizeInsightsPayload(generated);
@@ -101,8 +95,8 @@ export class AiInsightsService {
         tmdbId,
         mediaType,
         locale,
-        generationVersion: GENERATION_VERSION,
-        modelName: env.aiInsightsModel,
+        generationVersion,
+        modelName: `${request.providerId}:${request.model}`,
         payload,
         generatedByProfileId: profileId,
       });
@@ -111,7 +105,7 @@ export class AiInsightsService {
 }
 
 async function loadTmdbTitleContext(tmdbId: number, mediaType: AiInsightsMediaType, locale: string): Promise<TmdbTitleContext | null> {
-  const url = new URL(`${env.tmdbBaseUrl.replace(/\/$/, '')}/${mediaType === 'movie' ? 'movie' : 'tv'}/${tmdbId}`);
+  const url = new URL(`${appConfig.metadata.tmdb.baseUrl.replace(/\/$/, '')}/${mediaType === 'movie' ? 'movie' : 'tv'}/${tmdbId}`);
   url.searchParams.set('api_key', env.tmdbApiKey);
   url.searchParams.set('language', locale);
   url.searchParams.set('append_to_response', 'reviews');

@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 
 export type TmdbExternalIdRecord = {
   source: string;
@@ -17,8 +18,8 @@ function mapExternalId(row: Record<string, unknown>): TmdbExternalIdRecord {
     mediaType: String(row.media_type),
     tmdbId: Number(row.tmdb_id),
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'tmdb_external_ids.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'tmdb_external_ids.updated_at'),
   };
 }
 

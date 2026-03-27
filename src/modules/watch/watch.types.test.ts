@@ -51,3 +51,10 @@ test('normalizeWatchOccurredAt normalizes parseable strings', () => {
     '2023-08-09T16:57:00.000Z',
   );
 });
+
+test('normalizeWatchOccurredAt normalizes Date objects from DB-like flows', () => {
+  assert.equal(
+    normalizeWatchOccurredAt(new Date('2024-06-15T12:00:00.000Z') as never),
+    '2024-06-15T12:00:00.000Z',
+  );
+});

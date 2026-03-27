@@ -1,3 +1,44 @@
+export type AiFeatureId = 'search' | 'insights';
+
+export type AiCredentialSource = 'user' | 'server' | 'shared_pool';
+
+export type AiProviderView = {
+  id: string;
+  label: string;
+  endpointUrl: string;
+};
+
+export type AiResolvedProviderConfig = AiProviderView & {
+  httpReferer: string;
+  title: string;
+};
+
+export type AiClientSettings = {
+  hasAiApiKey: boolean;
+  providerId: string;
+  defaultProviderId: string;
+  providers: AiProviderView[];
+};
+
+export type AiApiKeyCandidate = {
+  providerId: string;
+  apiKey: string;
+};
+
+export type AiApiKeyLookup = {
+  ownKeys: AiApiKeyCandidate[];
+  pooledKeys: AiApiKeyCandidate[];
+};
+
+export type ResolvedAiRequest = {
+  feature: AiFeatureId;
+  providerId: string;
+  provider: AiResolvedProviderConfig;
+  model: string;
+  apiKey: string;
+  credentialSource: AiCredentialSource;
+};
+
 export type AiSearchFilter = 'all' | 'movies' | 'series';
 
 export type AiCandidateMediaType = 'movie' | 'tv';

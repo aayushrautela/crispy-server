@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
+import type { TmdbTitleRecord } from './tmdb.types.js';
 
 seedTestEnv();
 
@@ -193,4 +194,65 @@ test('extractReleaseYear returns year from date string', async () => {
   assert.equal(extractReleaseYear('2024-01-15'), 2024);
   assert.equal(extractReleaseYear(null), null);
   assert.equal(extractReleaseYear(''), null);
+});
+
+test('rich detail extractors map videos, people, reviews, production, and collection', async () => {
+  const {
+    extractVideos,
+    extractCast,
+    extractCrewByJob,
+    extractCreators,
+    extractReviews,
+    extractProduction,
+    extractCollection,
+  } = await loadModule();
+
+  const title: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 42,
+    name: 'Breaking Point',
+    originalName: 'Breaking Point',
+    overview: null,
+    releaseDate: null,
+    firstAirDate: '2024-01-01',
+    status: 'Returning Series',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: null,
+    episodeRunTime: [45],
+    numberOfSeasons: 3,
+    numberOfEpisodes: 30,
+    externalIds: {},
+    raw: {
+      videos: {
+        results: [{ id: 'vid1', key: 'abc123', name: 'Official Trailer', site: 'YouTube', type: 'Trailer', official: true, published_at: '2024-01-01T00:00:00.000Z' }],
+      },
+      credits: {
+        cast: [{ id: 10, name: 'Lead Actor', character: 'Hero', known_for_department: 'Acting', profile_path: '/actor.jpg' }],
+        crew: [{ id: 11, name: 'Director Name', job: 'Director', department: 'Directing', profile_path: '/director.jpg' }],
+      },
+      created_by: [{ id: 12, name: 'Creator Name', known_for_department: 'Writing', profile_path: '/creator.jpg' }],
+      reviews: {
+        results: [{ id: 'review-1', author: 'Critic', content: 'Excellent.', url: 'https://example.com/review', created_at: '2024-01-02T00:00:00.000Z', updated_at: '2024-01-03T00:00:00.000Z', author_details: { username: 'critic1', rating: 8, avatar_path: '/https://cdn.example/avatar.png' } }],
+      },
+      original_language: 'en',
+      origin_country: ['US'],
+      spoken_languages: [{ english_name: 'English' }],
+      production_countries: [{ name: 'United States of America' }],
+      production_companies: [{ id: 20, name: 'Studio One', logo_path: '/studio.jpg', origin_country: 'US' }],
+      networks: [{ id: 21, name: 'Network One', logo_path: '/network.jpg', origin_country: 'US' }],
+      belongs_to_collection: { id: 99, name: 'Saga Collection', poster_path: '/collection-poster.jpg', backdrop_path: '/collection-backdrop.jpg' },
+    },
+    fetchedAt: '2026-03-22T00:00:00.000Z',
+    expiresAt: '2026-03-23T00:00:00.000Z',
+  };
+
+  assert.equal(extractVideos(title)[0]?.url, 'https://www.youtube.com/watch?v=abc123');
+  assert.equal(extractCast(title)[0]?.name, 'Lead Actor');
+  assert.equal(extractCrewByJob(title, 'Director')[0]?.name, 'Director Name');
+  assert.equal(extractCreators(title)[0]?.name, 'Creator Name');
+  assert.equal(extractReviews(title)[0]?.avatarUrl, 'https://cdn.example/avatar.png');
+  assert.equal(extractProduction(title).originalLanguage, 'en');
+  assert.equal(extractProduction(title).companies[0]?.name, 'Studio One');
+  assert.equal(extractCollection(title)?.name, 'Saga Collection');
 });

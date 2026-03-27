@@ -1,5 +1,8 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
+import { appConfig, isAiProviderId, normalizeAiProviderId } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
+import type { AiApiKeyLookup, AiClientSettings } from '../ai/ai.types.js';
+import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-account-settings.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
 
@@ -19,7 +22,8 @@ export type OmdbApiKeyLookup = {
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key', 'metadata.omdb_api_key']);
-const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai.api_key', 'metadata.omdb_api_key', 'addons']);
+const ACCOUNT_SECRET_SETTING_KEYS = new Set(['ai.api_key', 'metadata.omdb_api_key']);
+const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', 'ai.api_key', 'metadata.omdb_api_key', 'addons']);
 
 export class AccountSettingsService {
   constructor(
@@ -33,7 +37,7 @@ export class AccountSettingsService {
   }
 
   async patchSettings(userId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const normalizedPatch = normalizeSettingsPatch(patch);
+    const normalizedPatch = normalizeAccountSettingsPatch(patch);
     return this.runInTransaction((client) => this.accountSettingsRepository.patchSettingsForUser(client, userId, normalizedPatch));
   }
 
@@ -51,6 +55,39 @@ export class AccountSettingsService {
 
   async setOmdbApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
     return this.setSecretForUser(userId, 'metadata.omdb_api_key', value);
+  }
+
+  async getAiProviderIdForUser(userId: string): Promise<string> {
+    const settings = await this.getSettings(userId);
+    return getAiProviderIdFromSettings(settings);
+  }
+
+  async getAiClientSettingsForUser(userId: string): Promise<AiClientSettings> {
+    const settings = await this.getSettings(userId);
+    const hasAiApiKey = await this.getAiApiKeyForUser(userId)
+      .then(() => true)
+      .catch(() => false);
+    return buildAiClientSettings(settings, hasAiApiKey);
+  }
+
+  async listAiApiKeysForLookup(userId: string): Promise<AiApiKeyLookup> {
+    return this.runInTransaction(async (client) => {
+      const entries = await this.accountSettingsRepository.listAiSecretsForLookup(client, appConfig.ai.defaultProviderId);
+      const normalized = dedupeAiApiKeyCandidates(entries.map((entry) => ({
+        appUserId: entry.appUserId,
+        providerId: normalizeAiProviderId(entry.providerId),
+        apiKey: entry.apiKey,
+      })));
+
+      return {
+        ownKeys: normalized
+          .filter((entry) => entry.appUserId === userId)
+          .map(({ providerId, apiKey }) => ({ providerId, apiKey })),
+        pooledKeys: normalized
+          .filter((entry) => entry.appUserId !== userId)
+          .map(({ providerId, apiKey }) => ({ providerId, apiKey })),
+      } satisfies AiApiKeyLookup;
+    });
   }
 
   async listOmdbApiKeysForLookup(userId: string): Promise<OmdbApiKeyLookup> {
@@ -128,14 +165,13 @@ export class AccountSettingsService {
 
 export function mergeAccountScopedSettings(
   accountSettings: Record<string, unknown>,
-  options?: { hasAiApiKey?: boolean; hasOmdbApiKey?: boolean; aiEndpointUrl?: string },
+  options?: { ai?: AiClientSettings; hasOmdbApiKey?: boolean },
 ): Record<string, unknown> {
   const merged = { ...accountSettings };
-  if (options?.hasAiApiKey !== undefined || options?.aiEndpointUrl !== undefined) {
+  if (options?.ai) {
     merged.ai = {
       ...(isRecord(merged.ai) ? merged.ai : {}),
-      ...(options?.hasAiApiKey !== undefined ? { hasAiApiKey: options.hasAiApiKey } : {}),
-      ...(options?.aiEndpointUrl !== undefined ? { endpointUrl: options.aiEndpointUrl } : {}),
+      ...options.ai,
     };
   }
   if (options?.hasOmdbApiKey !== undefined) {
@@ -155,7 +191,41 @@ export function stripAccountScopedProfileSettings(settings: Record<string, unkno
   return next;
 }
 
-export function normalizeSettingsPatch(value: unknown): Record<string, unknown> {
+export function normalizeAccountSettingsPatch(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new HttpError(400, 'Settings patch must be an object.');
+  }
+
+  const normalized = { ...value };
+
+  for (const key of Object.keys(value)) {
+    if (ACCOUNT_SECRET_SETTING_KEYS.has(key)) {
+      throw new HttpError(400, `Setting '${key}' is secret and must be updated on /v1/account/secrets.`);
+    }
+  }
+
+  if (Object.hasOwn(normalized, 'ai')) {
+    const aiSettings = normalizeEditableAiSettings(normalized.ai);
+    if (Object.keys(aiSettings).length > 0) {
+      normalized.ai = aiSettings;
+    } else {
+      delete normalized.ai;
+    }
+  }
+
+  if (Object.hasOwn(normalized, 'metadata')) {
+    const metadataSettings = normalizeEditableMetadataSettings(normalized.metadata);
+    if (Object.keys(metadataSettings).length > 0) {
+      normalized.metadata = metadataSettings;
+    } else {
+      delete normalized.metadata;
+    }
+  }
+
+  return normalized;
+}
+
+export function normalizeProfileSettingsPatch(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) {
     throw new HttpError(400, 'Settings patch must be an object.');
   }
@@ -190,4 +260,66 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function dedupeStrings(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function dedupeAiApiKeyCandidates(values: Array<{ appUserId: string; providerId: string; apiKey: string }>): Array<{ appUserId: string; providerId: string; apiKey: string }> {
+  const seen = new Set<string>();
+  const deduped: Array<{ appUserId: string; providerId: string; apiKey: string }> = [];
+
+  for (const value of values) {
+    const providerId = value.providerId.trim();
+    const apiKey = value.apiKey.trim();
+    if (!providerId || !apiKey) {
+      continue;
+    }
+
+    const key = `${value.appUserId}:${providerId}:${apiKey}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push({
+      appUserId: value.appUserId,
+      providerId,
+      apiKey,
+    });
+  }
+
+  return deduped;
+}
+
+function normalizeEditableAiSettings(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new HttpError(400, 'AI settings patch must be an object.');
+  }
+
+  const aiSettings = { ...value };
+  delete aiSettings.hasAiApiKey;
+  delete aiSettings.defaultProviderId;
+  delete aiSettings.providers;
+  delete aiSettings.endpointUrl;
+
+  if (Object.hasOwn(aiSettings, 'providerId')) {
+    const rawProviderId = typeof aiSettings.providerId === 'string'
+      ? aiSettings.providerId.trim()
+      : '';
+
+    if (rawProviderId && !isAiProviderId(rawProviderId)) {
+      throw new HttpError(400, 'AI provider is not supported.');
+    }
+
+    aiSettings.providerId = rawProviderId || appConfig.ai.defaultProviderId;
+  }
+
+  return aiSettings;
+}
+
+function normalizeEditableMetadataSettings(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new HttpError(400, 'Metadata settings patch must be an object.');
+  }
+
+  const metadataSettings = { ...value };
+  delete metadataSettings.hasOmdbApiKey;
+  return metadataSettings;
 }

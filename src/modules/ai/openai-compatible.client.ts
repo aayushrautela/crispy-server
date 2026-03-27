@@ -1,21 +1,22 @@
-import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
+import type { AiResolvedProviderConfig } from './ai.types.js';
 
 export class OpenAiCompatibleClient {
   async generateJson(args: {
+    provider: AiResolvedProviderConfig;
     apiKey: string;
     model: string;
     systemPrompt?: string;
     userPrompt: string;
   }): Promise<Record<string, unknown>> {
-    const response = await fetch(env.aiEndpointUrl, {
+    const response = await fetch(args.provider.endpointUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${args.apiKey}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        ...(env.aiHttpReferer ? { 'HTTP-Referer': env.aiHttpReferer } : {}),
-        ...(env.aiTitle ? { 'X-Title': env.aiTitle } : {}),
+        ...(args.provider.httpReferer ? { 'HTTP-Referer': args.provider.httpReferer } : {}),
+        ...(args.provider.title ? { 'X-Title': args.provider.title } : {}),
       },
       body: JSON.stringify({
         model: args.model,
@@ -32,7 +33,7 @@ export class OpenAiCompatibleClient {
     const rawBody = await response.text();
     if (!response.ok) {
       throw new HttpError(502, extractProviderMessage(rawBody) ?? 'AI provider request failed.', {
-        provider: 'openai-compatible',
+        provider: args.provider.id,
         providerStatus: response.status,
         responseBody: rawBody.slice(0, 500),
       });
@@ -52,7 +53,7 @@ export class OpenAiCompatibleClient {
     const content = typeof message?.content === 'string' ? message.content : '';
     if (!content.trim()) {
       throw new HttpError(502, 'AI provider returned empty data.', {
-        provider: 'openai-compatible',
+        provider: args.provider.id,
         providerStatus: response.status,
       });
     }
@@ -65,7 +66,7 @@ export class OpenAiCompatibleClient {
       return parsedContent;
     } catch {
       throw new HttpError(502, 'AI provider returned invalid data.', {
-        provider: 'openai-compatible',
+        provider: args.provider.id,
         providerStatus: response.status,
       });
     }

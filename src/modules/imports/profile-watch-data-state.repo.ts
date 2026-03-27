@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { ProfileWatchDataOrigin, ProviderImportProvider } from './provider-import.types.js';
 
 export type ProfileWatchDataStateRecord = {
@@ -19,9 +20,9 @@ function mapState(row: Record<string, unknown>): ProfileWatchDataStateRecord {
     currentOrigin: String(row.current_origin) as ProfileWatchDataOrigin,
     lastImportProvider: typeof row.last_import_provider === 'string' ? (row.last_import_provider as ProviderImportProvider) : null,
     lastImportJobId: typeof row.last_import_job_id === 'string' ? row.last_import_job_id : null,
-    lastResetAt: typeof row.last_reset_at === 'string' ? row.last_reset_at : null,
-    lastImportCompletedAt: typeof row.last_import_completed_at === 'string' ? row.last_import_completed_at : null,
-    updatedAt: String(row.updated_at),
+    lastResetAt: toDbIsoString(row.last_reset_at as Date | string | null | undefined, 'profile_watch_data_state.last_reset_at'),
+    lastImportCompletedAt: toDbIsoString(row.last_import_completed_at as Date | string | null | undefined, 'profile_watch_data_state.last_import_completed_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'profile_watch_data_state.updated_at'),
   };
 }
 

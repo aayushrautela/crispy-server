@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { RecommendationConsumerOwnerKind, RecommendationConsumerRecord } from './recommendation-consumer.types.js';
 
 export type RecommendationConsumerAdminRecord = RecommendationConsumerRecord & {
@@ -18,8 +19,8 @@ function mapConsumer(row: Record<string, unknown>): RecommendationConsumerRecord
     sourceKey: String(row.source_key),
     isInternal: Boolean(row.is_internal),
     status: String(row.status) as 'active' | 'revoked',
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'recommendation_consumers.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'recommendation_consumers.updated_at'),
   };
 }
 
@@ -105,7 +106,7 @@ export class RecommendationConsumerRepository {
       ...mapConsumer(row),
       activeLeaseCount: Number(row.active_lease_count ?? 0),
       trackedProfileCount: Number(row.tracked_profile_count ?? 0),
-      latestWorkStateUpdatedAt: typeof row.latest_work_state_updated_at === 'string' ? row.latest_work_state_updated_at : null,
+      latestWorkStateUpdatedAt: toDbIsoString(row.latest_work_state_updated_at as Date | string | null | undefined, 'recommendation_profile_work_state.latest_work_state_updated_at'),
     }));
   }
 

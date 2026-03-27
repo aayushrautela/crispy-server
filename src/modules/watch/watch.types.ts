@@ -41,7 +41,7 @@ export function sanitizeWatchEventInput(input: WatchEventInput): WatchEventInput
   };
 }
 
-export function normalizeWatchOccurredAt(value: string | null | undefined, fieldName = 'occurredAt'): string {
+export function normalizeWatchOccurredAt(value: Date | string | null | undefined, fieldName = 'occurredAt'): string {
   return normalizeOptionalIsoString(value, fieldName) ?? new Date().toISOString();
 }
 

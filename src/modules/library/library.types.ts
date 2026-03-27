@@ -23,6 +23,29 @@ export type NativeLibraryView = {
   ratings: HydratedRatingItem[];
 };
 
+export type CanonicalLibraryItemView = {
+  key: string;
+  mediaKey: string | null;
+  contentId: string;
+  contentType: 'movie' | 'show';
+  externalIds: MetadataExternalIds | null;
+  title: string;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  addedAt: string;
+  providers: Array<'trakt' | 'simkl'>;
+  folderIds: string[];
+  media: MetadataView | null;
+};
+
+export type CanonicalLibraryView = NativeLibraryView & {
+  source: 'canonical_library';
+  generatedAt: string;
+  items: CanonicalLibraryItemView[];
+};
+
 export type ProviderLibraryFolderView = {
   id: string;
   label: string;
@@ -53,14 +76,22 @@ export type ProviderLibrarySnapshotView = {
   items: ProviderLibraryItemView[];
 };
 
+export type LibraryDiagnosticsView = {
+  source: 'provider_diagnostics';
+  generatedAt: string;
+  providers: ProviderLibrarySnapshotView[];
+};
+
 export type ProfileLibraryResponse = {
   profileId: string;
   source: LibraryProviderSource;
+  generatedAt: string;
   auth: {
     providers: ProviderAuthStateView[];
   };
+  canonical: CanonicalLibraryView;
   native: NativeLibraryView | null;
-  providers: ProviderLibrarySnapshotView[];
+  diagnostics: LibraryDiagnosticsView;
 };
 
 export type ProviderMutationResultView = {

@@ -1,5 +1,6 @@
 import { redis } from '../../lib/redis.js';
-import { env } from '../../config/env.js';
+import { appConfig } from '../../config/app-config.js';
+import { nowIso } from '../../lib/time.js';
 import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { WatchHistoryQueryService } from '../watch/history.service.js';
 import { CalendarService } from '../calendar/calendar.service.js';
@@ -17,7 +18,7 @@ export class HomeService {
   ) {}
 
   async getHome(userId: string, profileId: string): Promise<HomeResponse> {
-    const cacheKey = `home:${profileId}`;
+    const cacheKey = `home:v2:${profileId}`;
     const cached = await redis.get(cacheKey);
     if (cached) {
       return JSON.parse(cached) as HomeResponse;
@@ -29,6 +30,7 @@ export class HomeService {
       this.calendarService.getCalendar(userId, profileId),
     ]);
 
+    const generatedAt = nowIso();
     const response = this.homeBuilderService.build({
       continueWatching,
       history,
@@ -42,15 +44,22 @@ export class HomeService {
         ...activeRecommendation.sections.map((section) => ({
           id: section.id,
           title: section.title,
-          items: section.items.map((item) => ({
-            media: item.media,
-            payload: item.payload,
-          })),
+          kind: 'recommendation' as const,
+          source: 'recommendation' as const,
+          items: section.items,
+          meta: section.meta,
         })),
       ];
     }
 
-    await redis.set(cacheKey, JSON.stringify(response), 'EX', env.homeCacheTtlSeconds);
-    return response;
+    const payload: HomeResponse = {
+      profileId,
+      source: 'canonical_home',
+      generatedAt,
+      sections: response.sections,
+    };
+
+    await redis.set(cacheKey, JSON.stringify(payload), 'EX', appConfig.cache.homeTtlSeconds);
+    return payload;
   }
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { RecommendationProfileWorkStateRecord } from './recommendation-consumer.types.js';
 import type {
   ClaimRecommendationWorkInput,
@@ -18,8 +19,8 @@ function mapWorkState(row: Record<string, unknown>): RecommendationProfileWorkSt
     claimedHistoryGeneration: row.claimed_history_generation === null ? null : Number(row.claimed_history_generation),
     leaseId: typeof row.lease_id === 'string' ? row.lease_id : null,
     leaseOwner: typeof row.lease_owner === 'string' ? row.lease_owner : null,
-    leaseExpiresAt: typeof row.lease_expires_at === 'string' ? row.lease_expires_at : null,
-    updatedAt: String(row.updated_at),
+    leaseExpiresAt: toDbIsoString(row.lease_expires_at as Date | string | null | undefined, 'recommendation_profile_work_state.lease_expires_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'recommendation_profile_work_state.updated_at'),
   };
 }
 
@@ -267,7 +268,7 @@ export class RecommendationWorkStateRepository {
       sourceKey: String(row.source_key),
       pendingProfileCount: Number(row.pending_profile_count ?? 0),
       pendingEventCount: Number(row.pending_event_count ?? 0),
-      oldestOccurredAt: typeof row.oldest_occurred_at === 'string' ? row.oldest_occurred_at : null,
+      oldestOccurredAt: toDbIsoString(row.oldest_occurred_at as Date | string | null | undefined, 'recommendation_event_outbox.oldest_occurred_at'),
       newestEventId: row.newest_event_id === null ? null : Number(row.newest_event_id),
     }));
   }
@@ -315,10 +316,10 @@ export class RecommendationWorkStateRepository {
       profileName: String(row.profile_name),
       leaseId: String(row.lease_id),
       leaseOwner: String(row.lease_owner),
-      leaseExpiresAt: String(row.lease_expires_at),
+      leaseExpiresAt: requireDbIsoString(row.lease_expires_at as Date | string | null | undefined, 'recommendation_profile_work_state.lease_expires_at'),
       claimedHistoryGeneration: row.claimed_history_generation === null ? null : Number(row.claimed_history_generation),
       pendingEventCount: Number(row.pending_event_count ?? 0),
-      updatedAt: String(row.updated_at),
+      updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'recommendation_profile_work_state.updated_at'),
     }));
   }
 
@@ -409,7 +410,7 @@ export class RecommendationWorkStateRepository {
       pendingEventCount: Number(row.pending_event_count),
       name: String(row.name),
       isKids: Boolean(row.is_kids),
-      updatedAt: String(row.updated_at),
+      updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'profiles.updated_at'),
     }));
   }
 }

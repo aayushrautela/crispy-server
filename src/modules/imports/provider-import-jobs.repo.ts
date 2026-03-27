@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { ProviderImportJobMode, ProviderImportJobStatus, ProviderImportProvider } from './provider-import.types.js';
 
 export type ProviderImportJobRecord = {
@@ -37,10 +38,10 @@ function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
     checkpointJson: (row.checkpoint_json as Record<string, unknown> | undefined) ?? {},
     summaryJson: (row.summary_json as Record<string, unknown> | undefined) ?? {},
     errorJson: (row.error_json as Record<string, unknown> | undefined) ?? {},
-    createdAt: String(row.created_at),
-    startedAt: typeof row.started_at === 'string' ? row.started_at : null,
-    finishedAt: typeof row.finished_at === 'string' ? row.finished_at : null,
-    updatedAt: String(row.updated_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'provider_import_jobs.created_at'),
+    startedAt: toDbIsoString(row.started_at as Date | string | null | undefined, 'provider_import_jobs.started_at'),
+    finishedAt: toDbIsoString(row.finished_at as Date | string | null | undefined, 'provider_import_jobs.finished_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'provider_import_jobs.updated_at'),
   };
 }
 

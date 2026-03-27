@@ -1,3 +1,4 @@
+import { appConfig } from '../../config/app-config.js';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import type {
@@ -13,7 +14,7 @@ async function fetchTmdbJson(
   pathname: string,
   query: Record<string, string | number | undefined> = {},
 ): Promise<Record<string, unknown>> {
-  const url = new URL(`${env.tmdbBaseUrl.replace(/\/$/, '')}${pathname}`);
+  const url = new URL(`${appConfig.metadata.tmdb.baseUrl.replace(/\/$/, '')}${pathname}`);
   url.searchParams.set('api_key', env.tmdbApiKey);
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) {
@@ -34,7 +35,9 @@ async function fetchTmdbJson(
 
 export class TmdbClient {
   async fetchTitle(mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleApiResponse> {
-    const appendToResponse = mediaType === 'movie' ? 'images,release_dates' : 'images,content_ratings';
+    const appendToResponse = mediaType === 'movie'
+      ? 'images,release_dates,videos,credits,reviews'
+      : 'images,content_ratings,videos,credits,reviews';
     return fetchTmdbJson(`/${mediaType}/${tmdbId}`, {
       append_to_response: appendToResponse,
       include_image_language: 'en,null',

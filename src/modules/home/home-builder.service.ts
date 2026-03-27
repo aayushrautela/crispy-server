@@ -1,14 +1,15 @@
 import type { HydratedWatchItem } from '../watch/watch-read.types.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
-import type { HomeResponse } from './home.types.js';
+import type { HomeSection } from './home.types.js';
 
 export class HomeBuilderService {
   build(params: {
     continueWatching: HydratedWatchItem[];
     history: HydratedWatchItem[];
     calendarItems: CalendarItem[];
-  }): HomeResponse {
-    const upNext = params.calendarItems.filter((item) => item.bucket === 'up_next' || item.bucket === 'this_week').slice(0, 10);
+  }): { sections: HomeSection[] } {
+    const upNext = params.calendarItems.filter((item) => item.bucket === 'up_next').slice(0, 10);
+    const thisWeek = params.calendarItems.filter((item) => item.bucket === 'this_week').slice(0, 10);
     const recentlyReleased = params.calendarItems.filter((item) => item.bucket === 'recently_released').slice(0, 10);
 
     return {
@@ -16,26 +17,36 @@ export class HomeBuilderService {
         {
           id: 'continue-watching',
           title: 'Continue Watching',
+          kind: 'watch',
+          source: 'canonical_watch',
           items: params.continueWatching,
         },
         {
           id: 'up-next',
           title: 'Up Next',
+          kind: 'calendar',
+          source: 'canonical_calendar',
           items: upNext,
         },
         {
           id: 'this-week',
           title: 'This Week',
-          items: params.calendarItems,
+          kind: 'calendar',
+          source: 'canonical_calendar',
+          items: thisWeek,
         },
         {
           id: 'recently-released',
           title: 'Recently Released',
+          kind: 'calendar',
+          source: 'canonical_calendar',
           items: recentlyReleased,
         },
         {
           id: 'recent-history',
           title: 'Recent History',
+          kind: 'watch',
+          source: 'canonical_watch',
           items: params.history,
         },
       ],

@@ -1,5 +1,6 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import type { MetadataCardView } from '../metadata/tmdb.types.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
@@ -53,7 +54,7 @@ export class RecommendationDataService {
       const rows = await this.watchHistoryRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
-        watchedAt: String(row.watched_at),
+        watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
         payload: asRecord(row.payload),
       })));
     });
@@ -65,7 +66,7 @@ export class RecommendationDataService {
       const rows = await this.watchHistoryRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
-        watchedAt: String(row.watched_at),
+        watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
         payload: asRecord(row.payload),
       })));
     });
@@ -82,9 +83,9 @@ export class RecommendationDataService {
           positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
           durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
           progressPercent: Number(row.progress_percent ?? 0),
-          lastPlayedAt: String(row.last_activity_at),
+          lastPlayedAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
         },
-        lastActivityAt: String(row.last_activity_at),
+        lastActivityAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
         payload: asRecord(row.payload),
       })));
     });
@@ -101,9 +102,9 @@ export class RecommendationDataService {
           positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
           durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
           progressPercent: Number(row.progress_percent ?? 0),
-          lastPlayedAt: String(row.last_activity_at),
+          lastPlayedAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
         },
-        lastActivityAt: String(row.last_activity_at),
+        lastActivityAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
         payload: asRecord(row.payload),
       })));
     });
@@ -115,7 +116,7 @@ export class RecommendationDataService {
       const rows = await this.watchlistRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
-        addedAt: String(row.added_at),
+        addedAt: requireDbIsoString(row.added_at as Date | string | null | undefined, 'watchlist_items.added_at'),
         payload: asRecord(row.payload),
       })));
     });
@@ -127,7 +128,7 @@ export class RecommendationDataService {
       const rows = await this.watchlistRepository.list(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         media: await this.buildMedia(client, row),
-        addedAt: String(row.added_at),
+        addedAt: requireDbIsoString(row.added_at as Date | string | null | undefined, 'watchlist_items.added_at'),
         payload: asRecord(row.payload),
       })));
     });
@@ -141,7 +142,7 @@ export class RecommendationDataService {
         media: await this.buildMedia(client, row),
         rating: {
           value: Number(row.rating),
-          ratedAt: String(row.rated_at),
+          ratedAt: requireDbIsoString(row.rated_at as Date | string | null | undefined, 'ratings.rated_at'),
         },
         payload: asRecord(row.payload),
       })));
@@ -156,7 +157,7 @@ export class RecommendationDataService {
         media: await this.buildMedia(client, row),
         rating: {
           value: Number(row.rating),
-          ratedAt: String(row.rated_at),
+          ratedAt: requireDbIsoString(row.rated_at as Date | string | null | undefined, 'ratings.rated_at'),
         },
         payload: asRecord(row.payload),
       })));

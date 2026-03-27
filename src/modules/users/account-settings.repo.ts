@@ -5,6 +5,12 @@ export type AccountSecretRecord = {
   value: string;
 };
 
+export type AccountAiSecretRecord = {
+  appUserId: string;
+  providerId: string;
+  apiKey: string;
+};
+
 export class AccountSettingsRepository {
   async getSettingsForUser(client: DbClient, userId: string): Promise<Record<string, unknown>> {
     const result = await client.query(
@@ -96,5 +102,29 @@ export class AccountSettingsRepository {
         value: String(row.field_value),
       }))
       .filter((row) => row.value.trim().length > 0);
+  }
+
+  async listAiSecretsForLookup(client: DbClient, defaultProviderId: string): Promise<AccountAiSecretRecord[]> {
+    const result = await client.query(
+      `
+        SELECT account_secrets.app_user_id::text AS app_user_id,
+               btrim(account_secrets.secrets_json ->> 'ai.api_key') AS api_key,
+               COALESCE(NULLIF(btrim(account_settings.settings_json #>> '{ai,providerId}'), ''), $1::text) AS provider_id
+        FROM account_secrets
+        LEFT JOIN account_settings ON account_settings.app_user_id = account_secrets.app_user_id
+        WHERE account_secrets.secrets_json ? 'ai.api_key'
+          AND btrim(COALESCE(account_secrets.secrets_json ->> 'ai.api_key', '')) <> ''
+        ORDER BY account_secrets.updated_at DESC, account_secrets.app_user_id ASC
+      `,
+      [defaultProviderId],
+    );
+
+    return result.rows
+      .map((row) => ({
+        appUserId: String(row.app_user_id),
+        providerId: String(row.provider_id),
+        apiKey: String(row.api_key),
+      }))
+      .filter((row) => row.apiKey.trim().length > 0);
   }
 }

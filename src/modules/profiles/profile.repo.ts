@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { requireDbIsoString } from '../../lib/time.js';
 
 export type ProfileRecord = {
   id: string;
@@ -21,8 +22,8 @@ function mapProfile(row: Record<string, unknown>): ProfileRecord {
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
     createdByUserId: typeof row.created_by_user_id === 'string' ? row.created_by_user_id : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'profiles.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'profiles.updated_at'),
   };
 }
 

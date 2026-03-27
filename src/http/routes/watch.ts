@@ -22,6 +22,7 @@ import { WatchEventIngestService } from '../../modules/watch/event-ingest.servic
 import { WatchHistoryQueryService } from '../../modules/watch/history.service.js';
 import { WatchCollectionService } from '../../modules/watch/watch-collection.service.js';
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
+import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
@@ -63,7 +64,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
+    const generatedAt = nowIso();
     return {
+      profileId,
+      kind: 'continue-watching' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
       items: await continueWatchingService.list(actor.appUserId, profileId, limit),
     };
   });
@@ -82,7 +88,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
+    const generatedAt = nowIso();
     return {
+      profileId,
+      kind: 'history' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
       items: await historyService.list(actor.appUserId, profileId, limit),
     };
   });
@@ -93,7 +104,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
+    const generatedAt = nowIso();
     return {
+      profileId,
+      kind: 'watchlist' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
       items: await watchCollectionService.listWatchlist(actor.appUserId, profileId, limit),
     };
   });
@@ -104,7 +120,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
+    const generatedAt = nowIso();
     return {
+      profileId,
+      kind: 'ratings' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
       items: await watchCollectionService.listRatings(actor.appUserId, profileId, limit),
     };
   });
@@ -114,7 +135,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchStateLookupContract;
-    return watchStateService.getState(actor.appUserId, profileId, mapStateLookupInput(query));
+    return {
+      profileId,
+      source: 'canonical_watch' as const,
+      generatedAt: nowIso(),
+      item: await watchStateService.getState(actor.appUserId, profileId, mapStateLookupInput(query)),
+    };
   });
 
   app.post('/v1/profiles/:profileId/watch/states', { schema: watchStatesRouteSchema }, async (request) => {
@@ -125,6 +151,9 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const items = Array.isArray(body.items) ? body.items : [];
 
     return {
+      profileId,
+      source: 'canonical_watch' as const,
+      generatedAt: nowIso(),
       items: await watchStateService.getStates(
         actor.appUserId,
         profileId,

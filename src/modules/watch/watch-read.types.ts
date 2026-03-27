@@ -50,6 +50,30 @@ export type HydratedRatingItem = {
   payload?: Record<string, unknown>;
 };
 
+export type CanonicalWatchCollectionKind = 'continue-watching' | 'history' | 'watchlist' | 'ratings';
+
+export type CanonicalWatchCollectionResponse<TItem> = {
+  profileId: string;
+  kind: CanonicalWatchCollectionKind;
+  source: 'canonical_watch';
+  generatedAt: string;
+  items: TItem[];
+};
+
+export type WatchStateEnvelope = {
+  profileId: string;
+  source: 'canonical_watch';
+  generatedAt: string;
+  item: WatchStateResponse;
+};
+
+export type WatchStatesEnvelope = {
+  profileId: string;
+  source: 'canonical_watch';
+  generatedAt: string;
+  items: WatchStateResponse[];
+};
+
 export type WatchStateLookupInput = {
   mediaKey?: string;
   mediaType?: string;
@@ -80,6 +104,8 @@ export type CalendarItem = {
 };
 
 export type CalendarResponse = {
+  profileId: string;
+  source: 'canonical_calendar';
   generatedAt: string;
   items: CalendarItem[];
 };

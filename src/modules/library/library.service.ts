@@ -1,6 +1,6 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { normalizeIsoString } from '../../lib/time.js';
+import { normalizeIsoString, nowIso } from '../../lib/time.js';
 import { env } from '../../config/env.js';
 import { MetadataDirectService } from '../metadata/metadata-direct.service.js';
 import type { MetadataExternalIds, MetadataView } from '../metadata/tmdb.types.js';
@@ -12,6 +12,7 @@ import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { WatchHistoryQueryService } from '../watch/history.service.js';
 import { WatchCollectionService } from '../watch/watch-collection.service.js';
 import type {
+  CanonicalLibraryItemView,
   LibraryMutationResponse,
   LibraryMutationSource,
   LibraryProviderSource,
@@ -65,6 +66,7 @@ export class LibraryService {
   ): Promise<ProfileLibraryResponse> {
     const source = normalizeSource(options?.source);
     const limitPerFolder = clampLimit(options?.limitPerFolder ?? 100, 1, 250);
+    const generatedAt = nowIso();
 
     await this.requireOwnedProfile(userId, profileId);
 
@@ -77,11 +79,17 @@ export class LibraryService {
     return {
       profileId,
       source,
+      generatedAt,
       auth: {
         providers: auth,
       },
+      canonical: buildCanonicalLibrary(native, providers, generatedAt),
       native,
-      providers,
+      diagnostics: {
+        source: 'provider_diagnostics',
+        generatedAt,
+        providers,
+      },
     };
   }
 
@@ -536,6 +544,121 @@ function normalizeMutationSource(source: LibraryMutationSource | null | undefine
     return source;
   }
   return 'all';
+}
+
+function buildCanonicalLibrary(
+  native: Awaited<ReturnType<LibraryService['getNativeLibrary']>> | null,
+  providers: ProviderLibrarySnapshotView[],
+  generatedAt: string,
+) {
+  const nativeLibrary = native ?? {
+    continueWatching: [],
+    history: [],
+    watchlist: [],
+    ratings: [],
+  };
+
+  return {
+    source: 'canonical_library' as const,
+    generatedAt,
+    ...nativeLibrary,
+    items: dedupeProviderItems(providers),
+  };
+}
+
+function dedupeProviderItems(providers: ProviderLibrarySnapshotView[]): CanonicalLibraryItemView[] {
+  const itemsByKey = new Map<string, CanonicalLibraryItemView>();
+
+  for (const snapshot of providers) {
+    for (const item of snapshot.items) {
+      const key = canonicalLibraryItemKey(item);
+      const existing = itemsByKey.get(key);
+      if (!existing) {
+        itemsByKey.set(key, {
+          key,
+          mediaKey: item.media?.mediaKey ?? null,
+          contentId: item.contentId,
+          contentType: item.contentType,
+          externalIds: item.externalIds,
+          title: item.title,
+          posterUrl: item.posterUrl,
+          backdropUrl: item.backdropUrl,
+          seasonNumber: item.seasonNumber,
+          episodeNumber: item.episodeNumber,
+          addedAt: item.addedAt,
+          providers: [item.provider],
+          folderIds: [item.folderId],
+          media: item.media,
+        });
+        continue;
+      }
+
+      existing.providers = mergeUniqueStrings(existing.providers, [item.provider]);
+      existing.folderIds = mergeUniqueStrings(existing.folderIds, [item.folderId]);
+
+      if (Date.parse(item.addedAt) > Date.parse(existing.addedAt)) {
+        existing.addedAt = item.addedAt;
+      }
+
+      if (!existing.media && item.media) {
+        existing.media = item.media;
+        existing.mediaKey = item.media.mediaKey;
+      }
+      if (!existing.externalIds && item.externalIds) {
+        existing.externalIds = item.externalIds;
+      }
+      if (!existing.posterUrl && item.posterUrl) {
+        existing.posterUrl = item.posterUrl;
+      }
+      if (!existing.backdropUrl && item.backdropUrl) {
+        existing.backdropUrl = item.backdropUrl;
+      }
+      if ((!existing.title || existing.title === existing.contentId) && item.title) {
+        existing.title = item.title;
+      }
+    }
+  }
+
+  return Array.from(itemsByKey.values()).sort((left, right) => Date.parse(right.addedAt) - Date.parse(left.addedAt));
+}
+
+function canonicalLibraryItemKey(item: ProviderLibraryItemView): string {
+  if (item.media?.mediaKey) {
+    return item.media.mediaKey;
+  }
+
+  const tmdbId = item.externalIds?.tmdb;
+  if (item.contentType === 'movie') {
+    if (tmdbId) {
+      return `movie:tmdb:${tmdbId}`;
+    }
+    if (item.externalIds?.imdb) {
+      return `movie:imdb:${item.externalIds.imdb}`;
+    }
+  }
+
+  if (tmdbId && item.seasonNumber && item.episodeNumber) {
+    return `episode:tmdb:${tmdbId}:${item.seasonNumber}:${item.episodeNumber}`;
+  }
+
+  if (tmdbId) {
+    return `show:tmdb:${tmdbId}`;
+  }
+
+  if (item.externalIds?.imdb && item.seasonNumber && item.episodeNumber) {
+    return `episode:imdb:${item.externalIds.imdb}:${item.seasonNumber}:${item.episodeNumber}`;
+  }
+
+  return [
+    item.contentType,
+    item.externalIds?.imdb ?? item.contentId,
+    item.seasonNumber ?? 'season:none',
+    item.episodeNumber ?? 'episode:none',
+  ].join(':');
+}
+
+function mergeUniqueStrings<T extends string>(existing: T[], incoming: T[]): T[] {
+  return Array.from(new Set([...existing, ...incoming]));
 }
 
 function providersForMutationSource(source: LibraryMutationSource): ProviderKey[] {
