@@ -205,6 +205,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
     extractReviews,
     extractProduction,
     extractCollection,
+    extractCollectionParts,
     extractSimilarTitles,
   } = await loadModule();
 
@@ -243,6 +244,10 @@ test('rich detail extractors map videos, people, reviews, production, and collec
       production_companies: [{ id: 20, name: 'Studio One', logo_path: '/studio.jpg', origin_country: 'US' }],
       networks: [{ id: 21, name: 'Network One', logo_path: '/network.jpg', origin_country: 'US' }],
       belongs_to_collection: { id: 99, name: 'Saga Collection', poster_path: '/collection-poster.jpg', backdrop_path: '/collection-backdrop.jpg' },
+      parts: [
+        { id: 101, title: 'Saga Collection: Part I', overview: 'The beginning.', release_date: '2020-01-01', poster_path: '/part1-poster.jpg', backdrop_path: '/part1-backdrop.jpg' },
+        { id: 102, title: 'Saga Collection: Part II', overview: 'The sequel.', release_date: '2021-01-01', poster_path: '/part2-poster.jpg', backdrop_path: '/part2-backdrop.jpg' },
+      ],
       similar: {
         results: [
           { id: 77, name: 'Breaking Point: Aftermath', original_name: 'Breaking Point: Aftermath', overview: 'Another chapter.', first_air_date: '2025-01-01', poster_path: '/similar-poster.jpg', backdrop_path: '/similar-backdrop.jpg' },
@@ -261,6 +266,8 @@ test('rich detail extractors map videos, people, reviews, production, and collec
   assert.equal(extractProduction(title).originalLanguage, 'en');
   assert.equal(extractProduction(title).companies[0]?.name, 'Studio One');
   assert.equal(extractCollection(title)?.name, 'Saga Collection');
+  assert.equal(extractCollectionParts(title.raw)[0]?.tmdbId, 101);
+  assert.equal(extractCollectionParts(title.raw)[1]?.name, 'Saga Collection: Part II');
   assert.equal(extractSimilarTitles(title)[0]?.tmdbId, 77);
   assert.equal(extractSimilarTitles(title)[0]?.name, 'Breaking Point: Aftermath');
 });

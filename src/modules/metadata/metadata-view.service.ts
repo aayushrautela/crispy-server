@@ -10,6 +10,7 @@ import {
   buildSeasonViewFromTitleRaw,
   extractCast,
   extractCollection,
+  extractCollectionParts,
   extractCreators,
   extractCrewByJob,
   extractProduction,
@@ -105,6 +106,14 @@ export class MetadataViewService {
     const showId = await this.contentIdentityService.ensureContentId(client, normalizedIdentity);
     const seasonNumbers = extractSeasonNumbersFromTitle(resolvedTitle);
     const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, resolvedTitle.tmdbId, seasonNumbers);
+    const collection = extractCollection(resolvedTitle);
+    const collectionRaw = collection ? await this.tmdbCacheService.getCollection(client, collection.id).catch(() => null) : null;
+    const collectionParts = extractCollectionParts(collectionRaw);
+    const collectionIdentities = collectionParts.map((title) => inferMediaIdentity({
+      mediaType: 'movie',
+      tmdbId: title.tmdbId,
+    }));
+    const collectionContentIds = await this.contentIdentityService.ensureContentIds(client, collectionIdentities);
     const similarTitles = extractSimilarTitles(resolvedTitle);
     const similarIdentities = similarTitles.map((title) => inferMediaIdentity({
       mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
@@ -135,7 +144,18 @@ export class MetadataViewService {
       creators: extractCreators(resolvedTitle),
       reviews: extractReviews(resolvedTitle),
       production: extractProduction(resolvedTitle),
-      collection: extractCollection(resolvedTitle),
+      collection: collection
+        ? {
+            ...collection,
+            parts: collectionParts.flatMap((title) => {
+              const identity = inferMediaIdentity({ mediaType: 'movie', tmdbId: title.tmdbId });
+              const contentId = collectionContentIds.get(identity.mediaKey);
+              return contentId
+                ? [buildMetadataCardView({ id: contentId, identity, title })]
+                : [];
+            }),
+          }
+        : null,
       similar: similarTitles.flatMap((title) => {
         const identity = inferMediaIdentity({
           mediaType: title.mediaType === 'movie' ? 'movie' : 'show',

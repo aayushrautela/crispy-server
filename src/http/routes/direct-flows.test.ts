@@ -43,7 +43,35 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       creators: [{ id: 'person:tmdb:12', tmdbPersonId: 12, name: 'Creator Name', role: null, department: 'Writing', profileUrl: null }],
       reviews: [{ id: 'review-1', author: 'Critic', username: 'critic1', content: 'Great movie', createdAt: '2024-01-02T00:00:00.000Z', updatedAt: '2024-01-03T00:00:00.000Z', url: 'https://example.com/review', rating: 8, avatarUrl: null }],
       production: { originalLanguage: 'en', originCountries: ['US'], spokenLanguages: ['English'], productionCountries: ['United States of America'], companies: [], networks: [] },
-      collection: { id: 99, name: 'Saga Collection', posterUrl: null, backdropUrl: null },
+      collection: {
+        id: 99,
+        name: 'Saga Collection',
+        posterUrl: null,
+        backdropUrl: null,
+        parts: [
+          {
+            id: '44444444-4444-4444-8444-444444444444',
+            mediaKey: 'movie:tmdb:101',
+            mediaType: 'movie',
+            kind: 'title',
+            tmdbId: 101,
+            showTmdbId: null,
+            seasonNumber: null,
+            episodeNumber: null,
+            title: 'Saga Collection: Part I',
+            subtitle: null,
+            summary: 'The beginning',
+            overview: 'The beginning',
+            artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+            images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+            releaseDate: '2020-01-01',
+            releaseYear: 2020,
+            runtimeMinutes: null,
+            rating: 7.1,
+            status: null,
+          },
+        ],
+      },
       similar: [{ id: '33333333-3333-4333-8333-333333333333', mediaKey: 'movie:tmdb:77', mediaType: 'movie', kind: 'title', tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
     } as never;
   };
@@ -78,6 +106,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(titleDetailResponse.json().reviews[0].id, 'review-1');
   assert.equal(titleDetailResponse.json().production.originalLanguage, 'en');
   assert.equal(titleDetailResponse.json().collection.name, 'Saga Collection');
+  assert.equal(titleDetailResponse.json().collection.parts[0].tmdbId, 101);
   assert.equal(titleDetailResponse.json().similar[0].tmdbId, 77);
 
   const nextEpisodeResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showId}/next-episode?currentSeasonNumber=1&currentEpisodeNumber=2&watchedKeys=tt1:1:3,tt1:1:4&showId=tt1&nowMs=1700000000000`, headers: auth });

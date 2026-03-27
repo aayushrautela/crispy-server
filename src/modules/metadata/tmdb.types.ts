@@ -196,6 +196,7 @@ export type MetadataCollectionView = {
   name: string;
   posterUrl: string | null;
   backdropUrl: string | null;
+  parts: MetadataCardView[];
 };
 
 export type MetadataProductionInfoView = {
@@ -323,6 +324,7 @@ export type MetadataResolveResponse = {
 };
 
 export type TmdbTitleApiResponse = Record<string, unknown>;
+export type TmdbCollectionApiResponse = Record<string, unknown>;
 export type TmdbSeasonApiResponse = Record<string, unknown>;
 export type TmdbSearchApiResponse = Record<string, unknown>;
 export type TmdbSearchResultItem = {

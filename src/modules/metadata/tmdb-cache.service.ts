@@ -168,6 +168,17 @@ export class TmdbCacheService {
     return record;
   }
 
+  async getCollection(client: DbClient, collectionId: number): Promise<Record<string, unknown> | null> {
+    try {
+      return await this.tmdbClient.fetchCollection(collectionId);
+    } catch (error) {
+      if (error instanceof HttpError && error.statusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async ensureTitleCached(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
     return this.getTitle(client, mediaType, tmdbId);
   }

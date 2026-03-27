@@ -279,7 +279,50 @@ export function extractCollection(title: TmdbTitleRecord | null): MetadataCollec
     name,
     posterUrl: buildImageUrl(asString(collection.poster_path), 'w500'),
     backdropUrl: buildImageUrl(asString(collection.backdrop_path), 'w780'),
+    parts: [],
   };
+}
+
+export function extractCollectionParts(collectionRaw: Record<string, unknown> | null): TmdbTitleRecord[] {
+  return asArray(collectionRaw?.parts)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry): TmdbTitleRecord | null => {
+      const tmdbId = asNumber(entry.id);
+      if (!tmdbId) {
+        return null;
+      }
+
+      return {
+        mediaType: 'movie',
+        tmdbId,
+        name: asString(entry.title) ?? asString(entry.name),
+        originalName: asString(entry.original_title) ?? asString(entry.original_name),
+        overview: asString(entry.overview),
+        releaseDate: asString(entry.release_date),
+        firstAirDate: asString(entry.first_air_date),
+        status: null,
+        posterPath: asString(entry.poster_path),
+        backdropPath: asString(entry.backdrop_path),
+        runtime: asNumber(entry.runtime),
+        episodeRunTime: [],
+        numberOfSeasons: null,
+        numberOfEpisodes: null,
+        externalIds: {},
+        raw: entry,
+        fetchedAt: '',
+        expiresAt: '',
+      };
+    })
+    .filter((entry): entry is TmdbTitleRecord => entry !== null)
+    .sort((left, right) => {
+      const leftDate = left.releaseDate ?? '';
+      const rightDate = right.releaseDate ?? '';
+      if (leftDate !== rightDate) {
+        return leftDate.localeCompare(rightDate);
+      }
+      return left.tmdbId - right.tmdbId;
+    });
 }
 
 export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRecord[] {

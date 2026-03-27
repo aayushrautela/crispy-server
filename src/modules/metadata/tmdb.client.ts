@@ -2,6 +2,7 @@ import { appConfig } from '../../config/app-config.js';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import type {
+  TmdbCollectionApiResponse,
   TmdbDiscoverApiResponse,
   TmdbPersonApiResponse,
   TmdbSeasonApiResponse,
@@ -42,6 +43,10 @@ export class TmdbClient {
       append_to_response: appendToResponse,
       include_image_language: 'en,null',
     });
+  }
+
+  async fetchCollection(collectionId: number): Promise<TmdbCollectionApiResponse> {
+    return fetchTmdbJson(`/collection/${collectionId}`);
   }
 
   async findByExternalId(externalId: string, externalSource: string): Promise<Record<string, unknown>> {
