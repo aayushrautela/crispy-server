@@ -7,7 +7,7 @@ type FetchLike = typeof fetch;
 const TVDB_TOKEN_TTL_MS = 27 * 24 * 60 * 60 * 1000;
 
 function tvdbBaseUrl(): string {
-  return env.tvdbBaseUrl || appConfig.metadata.tvdb.baseUrl;
+  return appConfig.metadata.tvdb.baseUrl;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

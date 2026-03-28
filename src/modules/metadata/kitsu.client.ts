@@ -1,11 +1,10 @@
 import { appConfig } from '../../config/app-config.js';
-import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 
 type FetchLike = typeof fetch;
 
 function kitsuBaseUrl(): string {
-  return env.kitsuBaseUrl || appConfig.metadata.kitsu.baseUrl;
+  return appConfig.metadata.kitsu.baseUrl;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
