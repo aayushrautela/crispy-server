@@ -61,7 +61,8 @@ export const aiInsightsRouteSchema = withDefaultErrorResponses({
     type: 'object',
     additionalProperties: false,
     properties: {
-      tmdbId: positiveIntegerLikeSchema,
+      provider: stringSchema,
+      providerId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
       locale: stringSchema,
     },

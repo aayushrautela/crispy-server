@@ -20,11 +20,12 @@ export type LibraryMutationBody = {
   inWatchlist?: boolean;
   rating?: number | string | null;
   id?: string;
-  tmdbId?: number | string;
   imdbId?: string;
-  tvdbId?: number | string;
-  kitsuId?: number | string;
   mediaType?: string;
+  provider?: string;
+  providerId?: number | string;
+  parentProvider?: string;
+  parentProviderId?: number | string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
 };
@@ -54,11 +55,12 @@ export const libraryWatchlistRouteSchema = withDefaultErrorResponses({
       source: stringSchema,
       inWatchlist: booleanSchema,
       id: stringSchema,
-      tmdbId: positiveIntegerLikeSchema,
       imdbId: stringSchema,
-      tvdbId: positiveIntegerLikeSchema,
-      kitsuId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: positiveIntegerLikeSchema,
+      parentProvider: stringSchema,
+      parentProviderId: positiveIntegerLikeSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,
     },
@@ -79,11 +81,12 @@ export const libraryRatingRouteSchema = withDefaultErrorResponses({
         ],
       },
       id: stringSchema,
-      tmdbId: positiveIntegerLikeSchema,
       imdbId: stringSchema,
-      tvdbId: positiveIntegerLikeSchema,
-      kitsuId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: positiveIntegerLikeSchema,
+      parentProvider: stringSchema,
+      parentProviderId: positiveIntegerLikeSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,
     },

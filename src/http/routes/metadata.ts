@@ -22,6 +22,7 @@ import { MetadataDirectService } from '../../modules/metadata/metadata-direct.se
 import { MetadataQueryService } from '../../modules/metadata/metadata-query.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata.types.js';
 import type { SupportedMediaType } from '../../modules/watch/media-key.js';
+import { ensureSupportedProvider } from '../../modules/watch/media-key.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataQueryService = new MetadataQueryService();
@@ -30,13 +31,14 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
+    const resolvedProviderInput = mapProviderResolveQuery(query);
 
     return metadataQueryService.resolve({
       id: asUndefinedString(query.id),
-      tmdbId: parseOptionalNumber(query.tmdbId),
+      tmdbId: resolvedProviderInput.tmdbId,
       imdbId: asOptionalString(query.imdbId),
-      tvdbId: parseOptionalNumber(query.tvdbId),
-      kitsuId: parseOptionalStringOrNumber(query.kitsuId),
+      tvdbId: resolvedProviderInput.tvdbId,
+      kitsuId: resolvedProviderInput.kitsuId,
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalNumber(query.seasonNumber),
       episodeNumber: parseOptionalNumber(query.episodeNumber),
@@ -93,12 +95,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
+    const resolvedProviderInput = mapProviderResolveQuery(query);
     return metadataDirectService.resolvePlayback({
       id: asUndefinedString(query.id),
-      tmdbId: parseOptionalNumber(query.tmdbId),
+      tmdbId: resolvedProviderInput.tmdbId,
       imdbId: asOptionalString(query.imdbId),
-      tvdbId: parseOptionalNumber(query.tvdbId),
-      kitsuId: parseOptionalStringOrNumber(query.kitsuId),
+      tvdbId: resolvedProviderInput.tvdbId,
+      kitsuId: resolvedProviderInput.kitsuId,
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
       episodeNumber: parseOptionalPositiveNumber(query.episodeNumber, 'episodeNumber'),
@@ -191,6 +194,70 @@ function parseOptionalStringOrNumber(value: unknown): string | number | null {
   }
 
   return null;
+}
+
+function parseOptionalProvider(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  return ensureSupportedProvider(value.trim());
+}
+
+function mapProviderResolveQuery(query: MetadataResolveQuery): {
+  tmdbId: number | null;
+  tvdbId: number | null;
+  kitsuId: string | number | null;
+} {
+  const mediaType = parseSupportedMediaType(query.mediaType);
+  const provider = parseOptionalProvider(query.provider);
+  const providerId = parseOptionalStringOrNumber(query.providerId);
+  const parentProvider = parseOptionalProvider(query.parentProvider);
+  const parentProviderId = parseOptionalStringOrNumber(query.parentProviderId);
+
+  if (mediaType === 'episode') {
+    return mapProviderReference(parentProvider, parentProviderId);
+  }
+
+  return mapProviderReference(provider, providerId);
+}
+
+function mapProviderReference(
+  provider: ReturnType<typeof parseOptionalProvider>,
+  providerId: string | number | null,
+): {
+  tmdbId: number | null;
+  tvdbId: number | null;
+  kitsuId: string | number | null;
+} {
+  if (provider === 'tmdb') {
+    return {
+      tmdbId: parseOptionalNumber(providerId),
+      tvdbId: null,
+      kitsuId: null,
+    };
+  }
+
+  if (provider === 'tvdb') {
+    return {
+      tmdbId: null,
+      tvdbId: parseOptionalNumber(providerId),
+      kitsuId: null,
+    };
+  }
+
+  if (provider === 'kitsu') {
+    return {
+      tmdbId: null,
+      tvdbId: null,
+      kitsuId: providerId,
+    };
+  }
+
+  return {
+    tmdbId: null,
+    tvdbId: null,
+    kitsuId: null,
+  };
 }
 
 function parseStringList(value: unknown): string[] | null {

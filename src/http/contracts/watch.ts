@@ -34,10 +34,6 @@ export type WatchStateLookupContract = {
   providerId?: string;
   parentProvider?: string;
   parentProviderId?: string;
-  tmdbId?: number | string;
-  tvdbId?: number | string;
-  kitsuId?: number | string;
-  showTmdbId?: number | string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
   absoluteEpisodeNumber?: number | string;
@@ -52,10 +48,6 @@ export type WatchEventBody = {
   providerId?: string;
   parentProvider?: string;
   parentProviderId?: string;
-  tmdbId?: number | string | null;
-  tvdbId?: number | string | null;
-  kitsuId?: number | string | null;
-  showTmdbId?: number | string | null;
   seasonNumber?: number | string | null;
   episodeNumber?: number | string | null;
   absoluteEpisodeNumber?: number | string | null;
@@ -73,10 +65,6 @@ export type WatchMutationBody = {
   providerId?: string;
   parentProvider?: string;
   parentProviderId?: string;
-  tmdbId?: number | string | null;
-  tvdbId?: number | string | null;
-  kitsuId?: number | string | null;
-  showTmdbId?: number | string | null;
   seasonNumber?: number | string | null;
   episodeNumber?: number | string | null;
   absoluteEpisodeNumber?: number | string | null;
@@ -103,30 +91,6 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
       providerId: stringSchema,
       parentProvider: stringSchema,
       parentProviderId: stringSchema,
-      tmdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      tvdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      kitsuId: {
-        anyOf: [
-          stringSchema,
-          { type: 'null' },
-        ],
-      },
-      showTmdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
       seasonNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
@@ -194,10 +158,6 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
       providerId: stringSchema,
       parentProvider: stringSchema,
       parentProviderId: stringSchema,
-      tmdbId: positiveIntegerLikeSchema,
-      tvdbId: positiveIntegerLikeSchema,
-      kitsuId: stringSchema,
-      showTmdbId: positiveIntegerLikeSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,
       absoluteEpisodeNumber: positiveIntegerLikeSchema,
@@ -223,10 +183,6 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
             providerId: stringSchema,
             parentProvider: stringSchema,
             parentProviderId: stringSchema,
-            tmdbId: positiveIntegerLikeSchema,
-            tvdbId: positiveIntegerLikeSchema,
-            kitsuId: stringSchema,
-            showTmdbId: positiveIntegerLikeSchema,
             seasonNumber: positiveIntegerLikeSchema,
             episodeNumber: positiveIntegerLikeSchema,
             absoluteEpisodeNumber: positiveIntegerLikeSchema,
@@ -249,30 +205,6 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
       providerId: stringSchema,
       parentProvider: stringSchema,
       parentProviderId: stringSchema,
-      tmdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      tvdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      kitsuId: {
-        anyOf: [
-          stringSchema,
-          { type: 'null' },
-        ],
-      },
-      showTmdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
       seasonNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
@@ -315,30 +247,6 @@ export const watchMediaKeyMutationRouteSchema = withDefaultErrorResponses({
       providerId: stringSchema,
       parentProvider: stringSchema,
       parentProviderId: stringSchema,
-      tmdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      tvdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      kitsuId: {
-        anyOf: [
-          stringSchema,
-          { type: 'null' },
-        ],
-      },
-      showTmdbId: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
       seasonNumber: {
         anyOf: [
           positiveIntegerLikeSchema,

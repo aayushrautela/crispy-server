@@ -9,11 +9,12 @@ import {
 
 export type MetadataResolveQuery = {
   id?: string;
-  tmdbId?: number | string;
   imdbId?: string;
-  tvdbId?: number | string;
-  kitsuId?: number | string;
   mediaType?: string;
+  provider?: string;
+  providerId?: number | string;
+  parentProvider?: string;
+  parentProviderId?: number | string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
 };
@@ -60,11 +61,12 @@ export const metadataResolveRouteSchema = withDefaultErrorResponses({
     additionalProperties: false,
     properties: {
       id: stringSchema,
-      tmdbId: positiveIntegerLikeSchema,
       imdbId: stringSchema,
-      tvdbId: positiveIntegerLikeSchema,
-      kitsuId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: positiveIntegerLikeSchema,
+      parentProvider: stringSchema,
+      parentProviderId: positiveIntegerLikeSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,
     },

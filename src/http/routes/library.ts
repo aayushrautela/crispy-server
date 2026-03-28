@@ -11,6 +11,7 @@ import {
 import { HttpError } from '../../lib/errors.js';
 import { LibraryService } from '../../modules/library/library.service.js';
 import type { LibraryMutationSource, LibraryProviderSource } from '../../modules/library/library.types.js';
+import { ensureSupportedProvider } from '../../modules/watch/media-key.js';
 
 export async function registerLibraryRoutes(app: FastifyInstance): Promise<void> {
   const libraryService = new LibraryService();
@@ -98,13 +99,22 @@ function parseMutationSource(value: unknown): LibraryMutationSource | null {
 
 function parseResolveBody(body: Record<string, unknown>) {
   const id = parseOptionalString(body.id);
+  const provider = parseOptionalProvider(body.provider);
+  const providerId = parseOptionalPositiveNumber(body.providerId, 'providerId');
+  const parentProvider = parseOptionalProvider(body.parentProvider);
+  const parentProviderId = parseOptionalPositiveNumber(body.parentProviderId, 'parentProviderId');
+  const mediaType = parseOptionalSupportedMediaType(body.mediaType);
+  const resolvedProviderInput = mapProviderReference(
+    mediaType === 'episode' ? parentProvider : provider,
+    mediaType === 'episode' ? parentProviderId : providerId,
+  );
   return {
     id: id ?? undefined,
-    tmdbId: parseOptionalPositiveNumber(body.tmdbId, 'tmdbId'),
+    tmdbId: resolvedProviderInput.tmdbId,
     imdbId: parseOptionalString(body.imdbId),
-    tvdbId: parseOptionalPositiveNumber(body.tvdbId, 'tvdbId'),
-    kitsuId: parseOptionalPositiveNumber(body.kitsuId, 'kitsuId'),
-    mediaType: parseOptionalSupportedMediaType(body.mediaType),
+    tvdbId: resolvedProviderInput.tvdbId,
+    kitsuId: resolvedProviderInput.kitsuId,
+    mediaType,
     seasonNumber: parseOptionalPositiveNumber(body.seasonNumber, 'seasonNumber'),
     episodeNumber: parseOptionalPositiveNumber(body.episodeNumber, 'episodeNumber'),
   };
@@ -143,6 +153,13 @@ function parseOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function parseOptionalProvider(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  return ensureSupportedProvider(value.trim());
+}
+
 function parseOptionalSupportedMediaType(value: unknown): 'movie' | 'show' | 'anime' | 'episode' | null {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -151,4 +168,24 @@ function parseOptionalSupportedMediaType(value: unknown): 'movie' | 'show' | 'an
     return value;
   }
   throw new HttpError(400, 'Unsupported media type.');
+}
+
+function mapProviderReference(
+  provider: ReturnType<typeof parseOptionalProvider>,
+  providerId: number | null,
+): {
+  tmdbId: number | null;
+  tvdbId: number | null;
+  kitsuId: number | null;
+} {
+  if (provider === 'tmdb') {
+    return { tmdbId: providerId, tvdbId: null, kitsuId: null };
+  }
+  if (provider === 'tvdb') {
+    return { tmdbId: null, tvdbId: providerId, kitsuId: null };
+  }
+  if (provider === 'kitsu') {
+    return { tmdbId: null, tvdbId: null, kitsuId: providerId };
+  }
+  return { tmdbId: null, tvdbId: null, kitsuId: null };
 }

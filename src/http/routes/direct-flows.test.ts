@@ -282,3 +282,61 @@ test('library route rejects invalid source', async (t) => {
   assert.equal(response.statusCode, 400);
   assert.deepEqual(response.json(), { code: 'invalid_library_source', message: 'Invalid library source.' });
 });
+
+test('metadata resolve route accepts provider-shaped query input', async (t) => {
+  const { MetadataQueryService } = await import('../../modules/metadata/metadata-query.service.js');
+  const originalResolve = MetadataQueryService.prototype.resolve;
+
+  t.after(() => {
+    MetadataQueryService.prototype.resolve = originalResolve;
+  });
+
+  MetadataQueryService.prototype.resolve = async function (input) {
+    return { item: input } as never;
+  };
+
+  const { registerMetadataRoutes } = await import('./metadata.js');
+  const app = await buildTestApp(registerMetadataRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/resolve?mediaType=anime&provider=kitsu&providerId=123',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().item.mediaType, 'anime');
+  assert.equal(response.json().item.kitsuId, 123);
+  assert.equal(response.json().item.tmdbId, null);
+  assert.equal(response.json().item.tvdbId, null);
+});
+
+test('library watchlist route accepts provider-shaped body input', async (t) => {
+  const { LibraryService } = await import('../../modules/library/library.service.js');
+  const originalSetWatchlist = LibraryService.prototype.setWatchlist;
+
+  t.after(() => {
+    LibraryService.prototype.setWatchlist = originalSetWatchlist;
+  });
+
+  LibraryService.prototype.setWatchlist = async function (_userId, _profileId, input) {
+    return { source: input.source ?? 'all', action: 'watchlist', watchlist: input.inWatchlist, rating: null, media: { id: 'resolved' }, results: [], statusMessage: 'ok', input } as never;
+  };
+
+  const { registerLibraryRoutes } = await import('./library.js');
+  const app = await buildTestApp(registerLibraryRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/profiles/profile-1/library/watchlist',
+    headers: { authorization: 'Bearer test' },
+    payload: { source: 'simkl', inWatchlist: true, provider: 'kitsu', providerId: 321, mediaType: 'anime' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().input.mediaType, 'anime');
+  assert.equal(response.json().input.kitsuId, 321);
+  assert.equal(response.json().input.tmdbId, null);
+});
