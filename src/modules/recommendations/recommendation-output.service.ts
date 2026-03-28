@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
-import { inferMediaIdentity } from '../watch/media-key.js';
+import { inferMediaIdentity, parseMediaKey } from '../watch/media-key.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -291,15 +291,20 @@ export class RecommendationOutputService {
 
   private async mapRecommendationItem(client: DbClient, value: unknown, index: number): Promise<RecommendationSectionItem> {
     const row = asRecord(value);
+    const mediaKey = typeof row.mediaKey === 'string' ? row.mediaKey : typeof row.media_key === 'string' ? row.media_key : null;
+    const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : 'movie';
+    const identity = mediaKey
+      ? parseMediaKey(mediaKey)
+      : inferMediaIdentity({
+          mediaType,
+          tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
+          showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
+          seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
+          episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
+        });
+
     return {
-      media: await this.metadataViewService.buildMetadataCardView(client, inferMediaIdentity({
-        mediaKey: typeof row.mediaKey === 'string' ? row.mediaKey : typeof row.media_key === 'string' ? row.media_key : undefined,
-        mediaType: typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : 'movie',
-        tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
-        showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
-        seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
-        episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
-      })),
+      media: await this.metadataViewService.buildMetadataCardView(client, identity),
       reason: typeof row.reason === 'string' ? row.reason : null,
       score: typeof row.score === 'number' ? row.score : null,
       rank: typeof row.rank === 'number' ? row.rank : index + 1,

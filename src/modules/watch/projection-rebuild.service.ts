@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, ensureSupportedProvider, inferMediaIdentity, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
@@ -389,10 +389,15 @@ function identityFromEvent(event: RebuildableWatchEvent): MediaIdentity {
   return inferMediaIdentity({
     mediaKey: event.mediaKey,
     mediaType: ensureSupportedMediaType(event.mediaType),
+    provider: event.provider ? ensureSupportedProvider(event.provider) : null,
+    providerId: event.providerId,
+    parentProvider: event.parentProvider ? ensureSupportedProvider(event.parentProvider) : null,
+    parentProviderId: event.parentProviderId,
     tmdbId: event.tmdbId,
     showTmdbId: event.showTmdbId,
     seasonNumber: event.seasonNumber,
     episodeNumber: event.episodeNumber,
+    absoluteEpisodeNumber: event.absoluteEpisodeNumber,
   });
 }
 

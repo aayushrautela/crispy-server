@@ -201,7 +201,6 @@ export class RecommendationDataService {
         mediaType: row.trackedMediaType,
         provider: row.provider,
         providerId: row.providerId,
-        tmdbId: row.showTmdbId,
       })),
       reason: row.reason,
       lastInteractedAt: row.lastInteractedAt,

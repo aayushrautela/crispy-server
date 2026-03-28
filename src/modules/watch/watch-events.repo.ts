@@ -17,10 +17,15 @@ export type PersistedWatchEvent = {
 
 export type RebuildableWatchEvent = PersistedWatchEvent & {
   mediaType: string;
+  provider: string | null;
+  providerId: string | null;
+  parentProvider: string | null;
+  parentProviderId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
   title: string | null;
   subtitle: string | null;
   posterUrl: string | null;
@@ -49,10 +54,15 @@ export class WatchEventsRepository {
           event_type,
           media_key,
           media_type,
+          provider,
+          provider_id,
+          parent_provider,
+          parent_provider_id,
           tmdb_id,
           show_tmdb_id,
           season_number,
           episode_number,
+          absolute_episode_number,
           title,
           subtitle,
           poster_url,
@@ -75,7 +85,7 @@ export class WatchEventsRepository {
           $8,
           $9,
           $10,
-           $11,
+          $11,
            $12,
            $13,
            $14,
@@ -83,8 +93,13 @@ export class WatchEventsRepository {
            $16,
            $17,
            $18,
-           $19::timestamptz,
-           $20::jsonb
+           $19,
+           $20,
+           $21,
+           $22,
+           $23,
+           $24::timestamptz,
+           $25::jsonb
         )
         ON CONFLICT (profile_id, client_event_id)
         DO UPDATE SET occurred_at = EXCLUDED.occurred_at
@@ -97,21 +112,26 @@ export class WatchEventsRepository {
         params.input.eventType,
         params.identity.mediaKey,
         params.identity.mediaType,
+        params.identity.provider,
+        params.identity.providerId,
+        params.identity.parentProvider,
+        params.identity.parentProviderId,
         params.identity.tmdbId,
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
-         params.projection?.title ?? null,
-         params.projection?.subtitle ?? null,
-         params.projection?.posterUrl ?? null,
-         params.projection?.backdropUrl ?? null,
-         params.input.positionSeconds ?? null,
-         params.input.durationSeconds ?? null,
-         deriveProgressPercent(params.input.positionSeconds, params.input.durationSeconds),
-         params.input.rating ?? null,
-         occurredAt,
-          JSON.stringify(params.input.payload ?? {}),
-        ],
+        params.identity.absoluteEpisodeNumber ?? null,
+        params.projection?.title ?? null,
+        params.projection?.subtitle ?? null,
+        params.projection?.posterUrl ?? null,
+        params.projection?.backdropUrl ?? null,
+        params.input.positionSeconds ?? null,
+        params.input.durationSeconds ?? null,
+        deriveProgressPercent(params.input.positionSeconds, params.input.durationSeconds),
+        params.input.rating ?? null,
+        occurredAt,
+        JSON.stringify(params.input.payload ?? {}),
+      ],
       );
 
     return {
@@ -128,7 +148,8 @@ export class WatchEventsRepository {
     const result = await client.query(
       `
         SELECT id, profile_id, profile_group_id, event_type, media_key, media_type,
-               tmdb_id, show_tmdb_id, season_number, episode_number,
+               provider, provider_id, parent_provider, parent_provider_id,
+               tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number,
                title, subtitle, poster_url, backdrop_url,
                position_seconds, duration_seconds, rating, occurred_at, payload
         FROM watch_events
@@ -145,10 +166,15 @@ export class WatchEventsRepository {
       eventType: String(row.event_type),
       mediaKey: String(row.media_key),
       mediaType: String(row.media_type),
+      provider: typeof row.provider === 'string' ? row.provider : null,
+      providerId: typeof row.provider_id === 'string' ? row.provider_id : null,
+      parentProvider: typeof row.parent_provider === 'string' ? row.parent_provider : null,
+      parentProviderId: typeof row.parent_provider_id === 'string' ? row.parent_provider_id : null,
       tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
       showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
       seasonNumber: row.season_number === null ? null : Number(row.season_number),
       episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
+      absoluteEpisodeNumber: row.absolute_episode_number === null ? null : Number(row.absolute_episode_number),
       title: typeof row.title === 'string' ? row.title : null,
       subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
       posterUrl: typeof row.poster_url === 'string' ? row.poster_url : null,

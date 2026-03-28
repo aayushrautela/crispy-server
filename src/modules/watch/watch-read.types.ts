@@ -82,10 +82,6 @@ export type WatchStateLookupInput = {
   providerId?: string | null;
   parentProvider?: SupportedProvider | null;
   parentProviderId?: string | null;
-  tmdbId?: number | null;
-  tvdbId?: number | null;
-  kitsuId?: string | null;
-  showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
   absoluteEpisodeNumber?: number | null;

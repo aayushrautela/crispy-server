@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity } from '../watch/media-key.js';
+import { ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
 import { assertPresent } from '../../lib/errors.js';
 import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
 import {
@@ -394,6 +394,11 @@ export class MetadataViewService {
   }
 
   private identityFromRow(row: Record<string, unknown>): MediaIdentity {
+    const mediaKey = typeof row.media_key === 'string' ? row.media_key : null;
+    if (mediaKey) {
+      return parseMediaKey(mediaKey);
+    }
+
     return inferMediaIdentity({
       mediaKey: String(row.media_key),
       mediaType: ensureSupportedMediaType(String(row.media_type)),
