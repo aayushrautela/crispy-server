@@ -6,7 +6,7 @@ import { RecommendationOutputService } from '../recommendations/recommendation-o
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
 import { deriveProgressPercent } from '../watch/heartbeat-policy.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
-import { parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
+import { ensureSupportedProvider, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../watch/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
@@ -23,10 +23,17 @@ export type ImportedWatchEventDraft = {
     | 'rating_put';
   mediaKey: string;
   mediaType: string;
+  provider?: SupportedProvider | null;
+  providerId?: string | null;
+  parentProvider?: SupportedProvider | null;
+  parentProviderId?: string | null;
   tmdbId?: number | null;
+  tvdbId?: number | null;
+  kitsuId?: string | null;
   showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
   rating?: number | null;
@@ -37,10 +44,17 @@ export type ImportedWatchEventDraft = {
 export type ImportedHistoryEntryDraft = {
   mediaKey: string;
   mediaType: string;
+  provider?: SupportedProvider | null;
+  providerId?: string | null;
+  parentProvider?: SupportedProvider | null;
+  parentProviderId?: string | null;
   tmdbId?: number | null;
+  tvdbId?: number | null;
+  kitsuId?: string | null;
   showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
   watchedAt: string;
   sourceKind: string;
   payload?: Record<string, unknown>;
@@ -342,18 +356,31 @@ export class ProviderDestructiveImportService {
 function identityFromDraft(draft: {
   mediaKey: string;
   mediaType: string;
+  provider?: SupportedProvider | null;
+  providerId?: string | null;
+  parentProvider?: SupportedProvider | null;
+  parentProviderId?: string | null;
   tmdbId?: number | null;
+  tvdbId?: number | null;
+  kitsuId?: string | null;
   showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
 }): MediaIdentity {
   const parsed = parseMediaKey(draft.mediaKey);
   return {
     ...parsed,
+    provider: draft.provider ? ensureSupportedProvider(draft.provider) : parsed.provider,
+    providerId: draft.providerId ?? parsed.providerId,
+    parentProvider: draft.parentProvider ? ensureSupportedProvider(draft.parentProvider) : parsed.parentProvider,
+    parentProviderId: draft.parentProviderId ?? parsed.parentProviderId,
     tmdbId: draft.tmdbId ?? parsed.tmdbId,
+    providerMetadata: parsed.providerMetadata,
     showTmdbId: draft.showTmdbId ?? parsed.showTmdbId,
     seasonNumber: draft.seasonNumber ?? parsed.seasonNumber,
     episodeNumber: draft.episodeNumber ?? parsed.episodeNumber,
+    absoluteEpisodeNumber: draft.absoluteEpisodeNumber ?? parsed.absoluteEpisodeNumber,
   };
 }
 

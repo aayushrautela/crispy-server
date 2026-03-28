@@ -79,10 +79,17 @@ export type BufferedHeartbeatSnapshot = {
   eventType: string;
   mediaKey: string;
   mediaType: string;
+  provider: SupportedProvider | null;
+  providerId: string | null;
+  parentProvider: SupportedProvider | null;
+  parentProviderId: string | null;
   tmdbId: number | null;
+  tvdbId: number | null;
+  kitsuId: string | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
   positionSeconds: number | null;
   durationSeconds: number | null;
   occurredAt: string;

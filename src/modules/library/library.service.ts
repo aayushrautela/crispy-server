@@ -632,6 +632,8 @@ function canonicalLibraryItemKey(item: ProviderLibraryItemView): string {
   }
 
   const tmdbId = item.externalIds?.tmdb;
+  const tvdbId = normalizeProviderKeyId(item.externalIds?.tvdb);
+  const kitsuId = normalizeProviderKeyId(item.externalIds?.kitsu);
   if (item.contentType === 'movie') {
     if (tmdbId) {
       return `movie:tmdb:${tmdbId}`;
@@ -641,8 +643,24 @@ function canonicalLibraryItemKey(item: ProviderLibraryItemView): string {
     }
   }
 
+  if (item.contentType === 'show' && tvdbId && item.seasonNumber && item.episodeNumber) {
+    return `episode:tvdb:${tvdbId}:${item.seasonNumber}:${item.episodeNumber}`;
+  }
+
+  if (item.contentType === 'anime' && kitsuId && item.seasonNumber && item.episodeNumber) {
+    return `episode:kitsu:${kitsuId}:${item.seasonNumber}:${item.episodeNumber}`;
+  }
+
   if (tmdbId && item.seasonNumber && item.episodeNumber) {
     return `episode:tmdb:${tmdbId}:${item.seasonNumber}:${item.episodeNumber}`;
+  }
+
+  if (item.contentType === 'show' && tvdbId) {
+    return `show:tvdb:${tvdbId}`;
+  }
+
+  if (item.contentType === 'anime' && kitsuId) {
+    return `anime:kitsu:${kitsuId}`;
   }
 
   if (tmdbId) {
@@ -1123,6 +1141,10 @@ function normalizedProviderContentId(ids: Record<string, unknown> | null): strin
   if (imdb) {
     return imdb;
   }
+  const tvdb = normalizeProviderKeyId(ids?.tvdb);
+  if (tvdb) {
+    return `tvdb:${tvdb}`;
+  }
   const kitsu = asPositiveInt(ids?.kitsu);
   if (kitsu) {
     return `kitsu:${kitsu}`;
@@ -1133,6 +1155,16 @@ function normalizedProviderContentId(ids: Record<string, unknown> | null): strin
   }
   const tmdb = asPositiveInt(ids?.tmdb);
   return tmdb ? `tmdb:${tmdb}` : null;
+}
+
+function normalizeProviderKeyId(value: unknown): string | null {
+  const numeric = asPositiveInt(value);
+  if (numeric) {
+    return String(numeric);
+  }
+
+  const stringValue = asString(value);
+  return stringValue ? stringValue.trim() : null;
 }
 
 function providerExternalIds(ids: Record<string, unknown> | null): MetadataExternalIds | null {
