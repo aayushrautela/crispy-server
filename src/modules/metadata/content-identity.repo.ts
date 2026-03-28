@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 
-export type ContentEntityType = 'movie' | 'show' | 'episode' | 'season' | 'person';
+export type ContentEntityType = 'movie' | 'show' | 'anime' | 'episode' | 'season' | 'person';
 
 export type ContentProviderRefInput = {
   provider: string;

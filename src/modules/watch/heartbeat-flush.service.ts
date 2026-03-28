@@ -3,7 +3,7 @@ import { withTransaction } from '../../lib/db.js';
 import { enqueueHeartbeatFlush } from '../../lib/queue.js';
 import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
-import { ensureSupportedMediaType } from './media-key.js';
+import { ensureSupportedMediaType, inferMediaIdentity } from './media-key.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
@@ -39,14 +39,14 @@ export class HeartbeatFlushService {
         return { action: 'deferred' as const, reason: decision.reason };
       }
 
-      const identity = {
+      const identity = inferMediaIdentity({
         mediaKey: snapshot.mediaKey,
         mediaType: ensureSupportedMediaType(snapshot.mediaType),
         tmdbId: snapshot.tmdbId,
         showTmdbId: snapshot.showTmdbId,
         seasonNumber: snapshot.seasonNumber,
         episodeNumber: snapshot.episodeNumber,
-      };
+      });
       const projection = await this.projector.buildProjection(client, identity);
 
       const event = await this.watchEventsRepository.insert(client, {

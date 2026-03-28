@@ -349,8 +349,7 @@ function identityFromDraft(draft: {
 }): MediaIdentity {
   const parsed = parseMediaKey(draft.mediaKey);
   return {
-    mediaKey: parsed.mediaKey,
-    mediaType: parsed.mediaType,
+    ...parsed,
     tmdbId: draft.tmdbId ?? parsed.tmdbId,
     showTmdbId: draft.showTmdbId ?? parsed.showTmdbId,
     seasonNumber: draft.seasonNumber ?? parsed.seasonNumber,

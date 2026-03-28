@@ -180,7 +180,7 @@ export class MetadataQueryService {
       return this.externalIdResolver.resolve(client, {
         source: 'imdb_id',
         externalId: input.imdbId,
-        mediaType,
+        mediaType: normalizeTmdbResolvableMediaType(mediaType),
       });
     }
 
@@ -188,7 +188,7 @@ export class MetadataQueryService {
       return this.externalIdResolver.resolve(client, {
         source: 'tvdb_id',
         externalId: String(input.tvdbId),
-        mediaType,
+        mediaType: normalizeTmdbResolvableMediaType(mediaType),
       });
     }
 
@@ -261,4 +261,8 @@ function normalizeResolveMediaType(
   }
 
   return 'movie';
+}
+
+function normalizeTmdbResolvableMediaType(mediaType: SupportedMediaType): 'movie' | 'show' | 'episode' {
+  return mediaType === 'episode' ? 'episode' : mediaType === 'show' ? 'show' : 'movie';
 }

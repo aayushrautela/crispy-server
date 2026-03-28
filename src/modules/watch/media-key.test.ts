@@ -56,7 +56,7 @@ test('canonicalContinueWatchingMediaKey rejects unsupported incomplete identitie
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Unable to infer canonical continue watching media key.');
+      assert.equal(error.message, 'Unsupported media key format.');
       return true;
     },
   );

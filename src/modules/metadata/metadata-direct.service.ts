@@ -127,7 +127,9 @@ export class MetadataDirectService {
       const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
         client,
         dedupedEpisodes.map((episode) => ({
-          showTmdbId: episode.showTmdbId,
+          parentMediaType: 'show' as const,
+          provider: 'tmdb' as const,
+          parentProviderId: episode.showTmdbId,
           seasonNumber: episode.seasonNumber,
           episodeNumber: episode.episodeNumber,
         })),
@@ -211,7 +213,12 @@ export class MetadataDirectService {
         if (identity.seasonNumber !== null) {
           const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, identity.showTmdbId, identity.seasonNumber);
           if (seasonRecord) {
-            const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, identity.showTmdbId, identity.seasonNumber);
+            const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
+              parentMediaType: 'show',
+              provider: 'tmdb',
+              parentProviderId: identity.showTmdbId,
+              seasonNumber: identity.seasonNumber,
+            });
             season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, show.id);
           }
         }
@@ -236,12 +243,9 @@ export class MetadataDirectService {
     }
     if (parsed.mediaType === 'episode' && parsed.showTmdbId) {
       return {
-        mediaKey: `show:tmdb:${parsed.showTmdbId}`,
+        ...inferMediaIdentity({ mediaType: 'show', tmdbId: parsed.showTmdbId }),
         mediaType: 'show',
         tmdbId: parsed.showTmdbId,
-        showTmdbId: parsed.showTmdbId,
-        seasonNumber: null,
-        episodeNumber: null,
       };
     }
     throw new HttpError(400, 'Episode listing requires a show id.');
@@ -288,7 +292,7 @@ export class MetadataDirectService {
       return this.externalIdResolver.resolve(client, {
         source: 'imdb_id',
         externalId: imdbId,
-        mediaType,
+        mediaType: normalizeTmdbResolvableMediaType(mediaType),
       });
     }
 
@@ -296,7 +300,7 @@ export class MetadataDirectService {
       return this.externalIdResolver.resolve(client, {
         source: 'tvdb_id',
         externalId: String(input.tvdbId),
-        mediaType,
+        mediaType: normalizeTmdbResolvableMediaType(mediaType),
       });
     }
 
@@ -427,6 +431,10 @@ function normalizeResolveMediaType(
   return 'movie';
 }
 
+function normalizeTmdbResolvableMediaType(mediaType: SupportedMediaType): 'movie' | 'show' | 'episode' {
+  return mediaType === 'episode' ? 'episode' : mediaType === 'show' ? 'show' : 'movie';
+}
+
 async function buildKnownForItems(
   client: DbClient,
   contentIdentityService: ContentIdentityService,
@@ -477,7 +485,11 @@ async function buildKnownForItems(
     });
   }
 
-  const contentIds = await contentIdentityService.ensureTitleContentIds(client, refs);
+  const contentIds = await contentIdentityService.ensureTitleContentIds(client, refs.map((ref) => ({
+    mediaType: ref.mediaType,
+    provider: 'tmdb',
+    providerId: ref.tmdbId,
+  })));
 
   return items
     .sort((left, right) => right.popularity - left.popularity)

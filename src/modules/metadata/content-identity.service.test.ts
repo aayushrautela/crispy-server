@@ -72,8 +72,8 @@ test('ensureTitleContentIds falls back to individual materialization when batch 
   const service = new ContentIdentityService(repository as never);
 
   const contentIds = await service.ensureTitleContentIds({} as never, [
-    { mediaType: 'movie', tmdbId: 77 },
-    { mediaType: 'show', tmdbId: 88 },
+    { mediaType: 'movie', provider: 'tmdb', providerId: 77 },
+    { mediaType: 'show', provider: 'tmdb', providerId: 88 },
   ]);
 
   assert.equal(contentIds.get('movie:77'), 'content-movie-77');
@@ -93,19 +93,19 @@ test('ensureEpisodeContentIds falls back to individual materialization when batc
   const service = new ContentIdentityService(repository as never);
 
   const contentIds = await service.ensureEpisodeContentIds({} as never, [
-    { showTmdbId: 44, seasonNumber: 1, episodeNumber: 2 },
-    { showTmdbId: 44, seasonNumber: 1, episodeNumber: 3 },
+    { parentMediaType: 'show', provider: 'tmdb', parentProviderId: 44, seasonNumber: 1, episodeNumber: 2 },
+    { parentMediaType: 'show', provider: 'tmdb', parentProviderId: 44, seasonNumber: 1, episodeNumber: 3 },
   ]);
 
-  assert.equal(contentIds.get('44:1:2'), 'content-episode-44:1:2');
-  assert.equal(contentIds.get('44:1:3'), 'content-episode-44:1:3');
+  assert.equal(contentIds.get('44:s1:e2'), 'content-episode-44:s1:e2');
+  assert.equal(contentIds.get('44:s1:e3'), 'content-episode-44:s1:e3');
   assert.deepEqual(calls, [
     [
-      { provider: 'tmdb', entityType: 'episode', externalId: '44:1:2' },
-      { provider: 'tmdb', entityType: 'episode', externalId: '44:1:3' },
+      { provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e2' },
+      { provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e3' },
     ],
-    [{ provider: 'tmdb', entityType: 'episode', externalId: '44:1:2' }],
-    [{ provider: 'tmdb', entityType: 'episode', externalId: '44:1:3' }],
+    [{ provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e2' }],
+    [{ provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e3' }],
   ]);
 });
 
@@ -113,16 +113,20 @@ test('ensureSeasonContentIds falls back to individual materialization when batch
   const { repository, calls } = createStubRepository({ skipBatchEntityTypes: ['season'] });
   const service = new ContentIdentityService(repository as never);
 
-  const contentIds = await service.ensureSeasonContentIds({} as never, 44, [1, 2]);
+  const contentIds = await service.ensureSeasonContentIds({} as never, {
+    parentMediaType: 'show',
+    provider: 'tmdb',
+    parentProviderId: 44,
+  }, [1, 2]);
 
-  assert.equal(contentIds.get(1), 'content-season-44:1');
-  assert.equal(contentIds.get(2), 'content-season-44:2');
+  assert.equal(contentIds.get(1), 'content-season-44:s1');
+  assert.equal(contentIds.get(2), 'content-season-44:s2');
   assert.deepEqual(calls, [
     [
-      { provider: 'tmdb', entityType: 'season', externalId: '44:1' },
-      { provider: 'tmdb', entityType: 'season', externalId: '44:2' },
+      { provider: 'tmdb', entityType: 'season', externalId: '44:s1' },
+      { provider: 'tmdb', entityType: 'season', externalId: '44:s2' },
     ],
-    [{ provider: 'tmdb', entityType: 'season', externalId: '44:1' }],
-    [{ provider: 'tmdb', entityType: 'season', externalId: '44:2' }],
+    [{ provider: 'tmdb', entityType: 'season', externalId: '44:s1' }],
+    [{ provider: 'tmdb', entityType: 'season', externalId: '44:s2' }],
   ]);
 });

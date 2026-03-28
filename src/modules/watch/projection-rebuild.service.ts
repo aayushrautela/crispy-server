@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, inferMediaIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
@@ -374,14 +374,14 @@ function projectionFromEvent(event: RebuildableWatchEvent): WatchMediaProjection
 }
 
 function identityFromEvent(event: RebuildableWatchEvent): MediaIdentity {
-  return {
+  return inferMediaIdentity({
     mediaKey: event.mediaKey,
     mediaType: ensureSupportedMediaType(event.mediaType),
     tmdbId: event.tmdbId,
     showTmdbId: event.showTmdbId,
     seasonNumber: event.seasonNumber,
     episodeNumber: event.episodeNumber,
-  };
+  });
 }
 
 function shouldTrackSeries(eventType: string): boolean {
