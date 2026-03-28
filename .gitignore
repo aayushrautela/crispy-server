@@ -21,3 +21,5 @@ coverage/
 *.tsbuildinfo
 
 postgres-data/
+
+config/app-config.json

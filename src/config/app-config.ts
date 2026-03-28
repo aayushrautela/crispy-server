@@ -110,9 +110,19 @@ export function getAiFeaturePolicy(feature: AiFeatureId): AiFeaturePolicy {
 
 function resolveAppConfigPath(): string {
   const configuredPath = process.env.APP_CONFIG_PATH?.trim();
-  return configuredPath
-    ? path.resolve(process.cwd(), configuredPath)
-    : path.resolve(process.cwd(), 'config/app-config.json');
+  if (configuredPath) {
+    return path.resolve(process.cwd(), configuredPath);
+  }
+
+  const localPath = path.resolve(process.cwd(), 'config/app-config.json');
+  const examplePath = path.resolve(process.cwd(), 'config/app-config.json.example');
+
+  try {
+    readFileSync(localPath, 'utf8');
+    return localPath;
+  } catch {
+    return examplePath;
+  }
 }
 
 function loadAppConfig(filePath: string): AppConfig {

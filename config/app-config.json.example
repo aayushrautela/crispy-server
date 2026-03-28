@@ -1,0 +1,107 @@
+{
+  "defaults": {
+    "profileGroupName": "Crispy Profile Group",
+    "profileName": "Main"
+  },
+  "cache": {
+    "homeTtlSeconds": 120,
+    "calendarTtlSeconds": 300,
+    "tmdb": {
+      "movieTtlHours": 168,
+      "showTtlHours": 24,
+      "seasonTtlHours": 24
+    },
+    "tvdb": {
+      "showTtlHours": 24
+    },
+    "kitsu": {
+      "animeTtlHours": 24
+    }
+  },
+  "metadata": {
+    "tmdb": {
+      "baseUrl": "https://api.themoviedb.org/3",
+      "imageBaseUrl": "https://image.tmdb.org/t/p"
+    },
+    "tvdb": {
+      "baseUrl": "https://api4.thetvdb.com/v4"
+    },
+    "kitsu": {
+      "baseUrl": "https://kitsu.io/api/edge"
+    }
+  },
+  "ai": {
+    "defaultProviderId": "openai",
+    "providers": [
+      {
+        "id": "openai",
+        "label": "OpenAI",
+        "endpointUrl": "https://api.openai.com/v1/chat/completions",
+        "httpReferer": "",
+        "title": "",
+        "models": {
+          "search": "gpt-4o-mini",
+          "insights": "gpt-4o-mini"
+        }
+      },
+      {
+        "id": "openrouter",
+        "label": "OpenRouter",
+        "endpointUrl": "https://openrouter.ai/api/v1/chat/completions",
+        "httpReferer": "",
+        "title": "",
+        "models": {
+          "search": "openai/gpt-4o-mini",
+          "insights": "openai/gpt-4o-mini"
+        }
+      }
+    ],
+    "features": {
+      "search": {
+        "fallback": [
+          {
+            "source": "user",
+            "provider": "account"
+          },
+          {
+            "source": "server",
+            "provider": "openai",
+            "models": [
+              "gpt-4o-mini",
+              "gpt-4.1-mini"
+            ]
+          },
+          {
+            "source": "shared_pool",
+            "provider": "account"
+          }
+        ]
+      },
+      "insights": {
+        "fallback": [
+          {
+            "source": "user",
+            "provider": "account"
+          },
+          {
+            "source": "server",
+            "provider": "openai",
+            "models": [
+              "gpt-4o-mini",
+              "gpt-4.1-mini"
+            ]
+          },
+          {
+            "source": "shared_pool",
+            "provider": "account"
+          }
+        ]
+      }
+    },
+    "serverFallback": {
+      "transientCooldownSeconds": [30, 60, 120],
+      "rateLimitCooldownSeconds": [120, 900, 3600, 21600, 86400],
+      "providerBlockSeconds": 86400
+    }
+  }
+}
