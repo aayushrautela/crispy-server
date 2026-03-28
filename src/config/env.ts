@@ -82,6 +82,11 @@ function requireBaseUrl(name: string): string {
   return requireEnv(name).replace(/\/+$/, '');
 }
 
+function optionalBaseUrl(name: string): string | undefined {
+  const value = optionalEnv(name);
+  return value ? value.replace(/\/+$/, '') : undefined;
+}
+
 const supabaseUrl = requireBaseUrl('SUPABASE_URL');
 const supabaseAuthBaseUrl = `${supabaseUrl}/auth/v1`;
 
@@ -101,6 +106,10 @@ export const env = {
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: supabaseAuthBaseUrl,
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
+  tvdbApiKey: requireEnv('TVDB_API_KEY'),
+  tvdbPin: optionalEnv('TVDB_PIN') ?? '',
+  tvdbBaseUrl: optionalBaseUrl('TVDB_BASE_URL') ?? '',
+  kitsuBaseUrl: optionalBaseUrl('KITSU_BASE_URL') ?? '',
   aiServerKeys: parseAiServerKeysEnv('AI_SERVER_KEYS_JSON'),
   traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
   traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',

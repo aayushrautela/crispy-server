@@ -22,10 +22,10 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   });
 
   MetadataDirectService.prototype.getPersonDetail = async function (id, language) {
-    return { id: `person:${id}`, tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [], language } as never;
+    return { id: `person:${id}`, provider: 'tmdb', providerId: '44', tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [], language } as never;
   };
   MetadataDirectService.prototype.listEpisodes = async function (id, seasonNumber) {
-    return { show: { id, externalIds: { imdb: 'tt123' } }, requestedSeasonNumber: seasonNumber ?? null, effectiveSeasonNumber: seasonNumber ?? 1, includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1], episodes: [] } as never;
+    return { show: { id, externalIds: { tmdb: null, imdb: 'tt123', tvdb: null, kitsu: null } }, requestedSeasonNumber: seasonNumber ?? null, effectiveSeasonNumber: seasonNumber ?? 1, includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1], episodes: [] } as never;
   };
   MetadataDirectService.prototype.getNextEpisode = async function (id, input) {
     return { show: { id }, currentSeasonNumber: input.currentSeasonNumber, currentEpisodeNumber: input.currentEpisodeNumber, receivedWatchedKeys: input.watchedKeys, receivedShowId: input.showId, receivedNowMs: input.nowMs, item: null } as never;
@@ -38,9 +38,9 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       item: { id },
       seasons: [],
       videos: [{ id: 'video-1', key: 'abc123', name: 'Trailer', site: 'YouTube', type: 'Trailer', official: true, publishedAt: '2024-01-01T00:00:00.000Z', url: 'https://www.youtube.com/watch?v=abc123', thumbnailUrl: 'https://img.youtube.com/vi/abc123/hqdefault.jpg' }],
-      cast: [{ id: 'person:tmdb:10', tmdbPersonId: 10, name: 'Lead Actor', role: 'Hero', department: 'Acting', profileUrl: 'https://image.tmdb.org/t/p/w185/actor.jpg' }],
-      directors: [{ id: 'person:tmdb:11', tmdbPersonId: 11, name: 'Director Name', role: 'Director', department: 'Directing', profileUrl: null }],
-      creators: [{ id: 'person:tmdb:12', tmdbPersonId: 12, name: 'Creator Name', role: null, department: 'Writing', profileUrl: null }],
+      cast: [{ id: 'person:tmdb:10', provider: 'tmdb', providerId: '10', tmdbPersonId: 10, name: 'Lead Actor', role: 'Hero', department: 'Acting', profileUrl: 'https://image.tmdb.org/t/p/w185/actor.jpg' }],
+      directors: [{ id: 'person:tmdb:11', provider: 'tmdb', providerId: '11', tmdbPersonId: 11, name: 'Director Name', role: 'Director', department: 'Directing', profileUrl: null }],
+      creators: [{ id: 'person:tmdb:12', provider: 'tmdb', providerId: '12', tmdbPersonId: 12, name: 'Creator Name', role: null, department: 'Writing', profileUrl: null }],
       reviews: [{ id: 'review-1', author: 'Critic', username: 'critic1', content: 'Great movie', createdAt: '2024-01-02T00:00:00.000Z', updatedAt: '2024-01-03T00:00:00.000Z', url: 'https://example.com/review', rating: 8, avatarUrl: null }],
       production: { originalLanguage: 'en', originCountries: ['US'], spokenLanguages: ['English'], productionCountries: ['United States of America'], companies: [], networks: [] },
       collection: {
@@ -54,10 +54,16 @@ test('metadata direct routes parse inputs and return service payloads', async (t
             mediaKey: 'movie:tmdb:101',
             mediaType: 'movie',
             kind: 'title',
+            provider: 'tmdb',
+            providerId: '101',
+            parentMediaType: null,
+            parentProvider: null,
+            parentProviderId: null,
             tmdbId: 101,
             showTmdbId: null,
             seasonNumber: null,
             episodeNumber: null,
+            absoluteEpisodeNumber: null,
             title: 'Saga Collection: Part I',
             subtitle: null,
             summary: 'The beginning',
@@ -72,7 +78,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
           },
         ],
       },
-      similar: [{ id: '33333333-3333-4333-8333-333333333333', mediaKey: 'movie:tmdb:77', mediaType: 'movie', kind: 'title', tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
+      similar: [{ id: '33333333-3333-4333-8333-333333333333', mediaKey: 'movie:tmdb:77', mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '77', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
     } as never;
   };
   MetadataDirectService.prototype.resolvePlayback = async function (input) {

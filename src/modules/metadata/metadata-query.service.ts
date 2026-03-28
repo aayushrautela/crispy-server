@@ -3,15 +3,17 @@ import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
 import { inferMediaIdentity } from '../watch/media-key.js';
-import { buildMetadataCardView } from './metadata-normalizers.js';
+import { buildMetadataCardView, buildProviderMetadataCardView } from './metadata-normalizers.js';
 import { ContentIdentityService } from './content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
+import { ProviderMetadataService } from './provider-metadata.service.js';
 import { TmdbExternalIdResolverService } from './tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type {
   MetadataResolveResponse,
   MetadataSearchResponse,
   MetadataSearchFilter,
+  ProviderTitleRecord,
   TmdbTitleRecord,
   MetadataTitleDetail,
   MetadataSeasonDetail,
@@ -23,6 +25,7 @@ type ResolveInput = {
   tmdbId?: number | null;
   imdbId?: string | null;
   tvdbId?: number | null;
+  kitsuId?: string | number | null;
   mediaType?: SupportedMediaType | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
@@ -46,6 +49,7 @@ export class MetadataQueryService {
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
+    private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
 
   async resolve(input: ResolveInput): Promise<MetadataResolveResponse> {
@@ -78,11 +82,11 @@ export class MetadataQueryService {
   async getSeasonDetailByShowId(showId: string, seasonNumber: number): Promise<MetadataSeasonDetail> {
     return withDbClient(async (client) => {
       const identity = await this.contentIdentityService.resolveMediaIdentity(client, showId);
-      if (identity.mediaType !== 'show' || !identity.tmdbId) {
+      if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
         throw new HttpError(400, 'Season details require a show id.');
       }
 
-      return this.metadataViewService.getSeasonDetail(client, identity.tmdbId, seasonNumber);
+      return this.metadataViewService.getSeasonDetail(client, identity, seasonNumber);
     });
   }
 
@@ -101,7 +105,7 @@ export class MetadataQueryService {
 
     const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
     return withDbClient(async (client) => {
-      const matches = genreMapping
+      const tmdbMatches = genreMapping
         ? await this.tmdbCacheService.discoverTitlesByGenre({
             movieGenreId: genreMapping.movieGenreId,
             tvGenreId: genreMapping.tvGenreId,
@@ -109,13 +113,28 @@ export class MetadataQueryService {
             limit,
           })
         : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes);
-      const filteredMatches = matches.filter((match) => matchesSearchFilter(match, normalizedFilter));
-      const identities = filteredMatches.map((match) => inferMediaIdentity({
+      const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
+      const providerMatches = normalizedQuery || normalizedFilter === 'anime' || normalizedFilter === 'series'
+        ? await this.providerMetadataService.searchTitles(client, normalizedQuery, normalizedFilter, limit)
+        : [];
+
+      const tmdbIdentities = filteredTmdbMatches.map((match) => inferMediaIdentity({
         mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
         tmdbId: match.tmdbId,
       }));
-      const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
-      const items = await Promise.all(filteredMatches.map(async (match: TmdbTitleRecord) => {
+
+      const providerIdentities = providerMatches.map((match) => inferMediaIdentity({
+        mediaType: match.mediaType,
+        provider: match.provider,
+        providerId: match.providerId,
+      }));
+
+      const contentIds = await this.contentIdentityService.ensureContentIds(client, [
+        ...tmdbIdentities,
+        ...providerIdentities,
+      ]);
+
+      const tmdbItems = await Promise.all(filteredTmdbMatches.map(async (match: TmdbTitleRecord) => {
         const identity = inferMediaIdentity({
           mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
           tmdbId: match.tmdbId,
@@ -132,9 +151,22 @@ export class MetadataQueryService {
         });
       }));
 
+      const providerItems = providerMatches.flatMap((match: ProviderTitleRecord) => {
+        const identity = inferMediaIdentity({
+          mediaType: match.mediaType,
+          provider: match.provider,
+          providerId: match.providerId,
+        });
+        const contentId = contentIds.get(identity.mediaKey);
+        return contentId
+          ? [buildProviderMetadataCardView({ id: contentId, identity, title: match })]
+          : [];
+      });
+
       return {
         query: normalizedQuery,
-        items: items.filter((item): item is MetadataSearchResponse['items'][number] => item !== null),
+        items: [...tmdbItems.filter((item): item is MetadataSearchResponse['items'][number] => item !== null), ...providerItems]
+          .slice(0, limit),
       };
     });
   }
@@ -145,6 +177,55 @@ export class MetadataQueryService {
     }
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
+
+    if (mediaType === 'show' && typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
+      return inferMediaIdentity({
+        mediaType: 'show',
+        provider: 'tvdb',
+        providerId: input.tvdbId,
+      });
+    }
+
+    if (mediaType === 'anime' && input.kitsuId !== null && input.kitsuId !== undefined && String(input.kitsuId).trim()) {
+      return inferMediaIdentity({
+        mediaType: 'anime',
+        provider: 'kitsu',
+        providerId: input.kitsuId,
+      });
+    }
+
+    if (mediaType === 'episode') {
+      if (typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
+        if (input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
+          throw new HttpError(400, 'Episode resolution requires show id, season number, and episode number.');
+        }
+
+        return inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'tvdb',
+          parentProvider: 'tvdb',
+          parentProviderId: input.tvdbId,
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+        });
+      }
+
+      if (input.kitsuId !== null && input.kitsuId !== undefined && String(input.kitsuId).trim()) {
+        if (input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
+          throw new HttpError(400, 'Episode resolution requires anime id, season number, and episode number.');
+        }
+
+        return inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'kitsu',
+          parentProvider: 'kitsu',
+          parentProviderId: input.kitsuId,
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+        });
+      }
+    }
+
     const showTmdbId = await this.resolveTmdbId(client, input, mediaType);
 
     if (mediaType === 'episode') {
@@ -197,7 +278,7 @@ export class MetadataQueryService {
 }
 
 function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined): MetadataSearchFilter {
-  return filter === 'movies' || filter === 'series' ? filter : 'all';
+  return filter === 'movies' || filter === 'series' || filter === 'anime' ? filter : 'all';
 }
 
 function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilter): boolean {
@@ -206,6 +287,9 @@ function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilte
   }
   if (filter === 'series') {
     return match.mediaType === 'tv';
+  }
+  if (filter === 'anime') {
+    return false;
   }
   return true;
 }
@@ -252,7 +336,7 @@ function normalizeResolveMediaType(
   seasonNumber: number | null | undefined,
   episodeNumber: number | null | undefined,
 ): SupportedMediaType {
-  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'episode') {
+  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime' || mediaType === 'episode') {
     return mediaType;
   }
 

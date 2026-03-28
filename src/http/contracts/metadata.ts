@@ -12,6 +12,7 @@ export type MetadataResolveQuery = {
   tmdbId?: number | string;
   imdbId?: string;
   tvdbId?: number | string;
+  kitsuId?: number | string;
   mediaType?: string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
@@ -62,6 +63,7 @@ export const metadataResolveRouteSchema = withDefaultErrorResponses({
       tmdbId: positiveIntegerLikeSchema,
       imdbId: stringSchema,
       tvdbId: positiveIntegerLikeSchema,
+      kitsuId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,

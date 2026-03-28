@@ -1,5 +1,5 @@
 import { appConfig } from '../../config/app-config.js';
-import type { MediaIdentity } from '../watch/media-key.js';
+import { buildEpisodeProviderId, buildSeasonProviderId, parentMediaTypeForIdentity, type MediaIdentity } from '../watch/media-key.js';
 import type {
   MetadataCardView,
   MetadataCollectionView,
@@ -8,8 +8,12 @@ import type {
   MetadataEpisodeView,
   MetadataExternalIds,
   MetadataImages,
+  MetadataParentMediaType,
   MetadataPersonRefView,
   MetadataProductionInfoView,
+  ProviderEpisodeRecord,
+  ProviderSeasonRecord,
+  ProviderTitleRecord,
   MetadataReviewView,
   MetadataSeasonView,
   MetadataVideoView,
@@ -46,6 +50,10 @@ function padded(value: number): string {
 export function buildImageUrl(path: string | null, size: string): string | null {
   if (!path) {
     return null;
+  }
+
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
   }
 
   return `${appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
@@ -156,6 +164,8 @@ function buildPersonRefView(record: Record<string, unknown>): MetadataPersonRefV
 
   return {
     id: `person:tmdb:${tmdbPersonId}`,
+    provider: 'tmdb',
+    providerId: String(tmdbPersonId),
     tmdbPersonId,
     name,
     role: preferNonEmpty(asString(record.character), asString(record.job)),
@@ -432,6 +442,7 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
     tmdb: title?.tmdbId ?? null,
     imdb,
     tvdb,
+    kitsu: null,
   };
 }
 
@@ -441,6 +452,18 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
     backdropUrl: buildImageUrl(title?.backdropPath ?? null, 'w780'),
     stillUrl: buildImageUrl(episode?.stillPath ?? null, 'w500'),
     logoUrl: title ? buildImageUrl(extractBestLogoPath(title.raw), 'w500') : null,
+  };
+}
+
+export function buildProviderMetadataImages(
+  title: ProviderTitleRecord | null,
+  episode: ProviderEpisodeRecord | null,
+): MetadataImages {
+  return {
+    posterUrl: title?.posterUrl ?? null,
+    backdropUrl: title?.backdropUrl ?? null,
+    stillUrl: episode?.stillUrl ?? null,
+    logoUrl: title?.logoUrl ?? null,
   };
 }
 
@@ -454,15 +477,50 @@ export function buildEpisodePreview(
   return {
     id: contentId,
     mediaType: 'episode',
+    provider: 'tmdb',
+    providerId: buildEpisodeProviderId(String(episode.showTmdbId), episode.seasonNumber, episode.episodeNumber),
+    parentMediaType: 'show',
+    parentProvider: 'tmdb',
+    parentProviderId: String(episode.showTmdbId),
     tmdbId: episode.tmdbId,
     showTmdbId: episode.showTmdbId,
     seasonNumber: episode.seasonNumber,
     episodeNumber: episode.episodeNumber,
+    absoluteEpisodeNumber: null,
     title: episode.name,
     summary: episode.overview,
     airDate: episode.airDate,
     runtimeMinutes: episode.runtime,
     rating: episode.voteAverage,
+    images,
+  };
+}
+
+export function buildProviderEpisodePreview(
+  title: ProviderTitleRecord,
+  episode: ProviderEpisodeRecord,
+  contentId: string,
+): MetadataEpisodePreview {
+  const images = buildProviderMetadataImages(title, episode);
+
+  return {
+    id: contentId,
+    mediaType: 'episode',
+    provider: episode.provider,
+    providerId: episode.providerId,
+    parentMediaType: episode.parentMediaType,
+    parentProvider: episode.parentProvider,
+    parentProviderId: episode.parentProviderId,
+    tmdbId: null,
+    showTmdbId: null,
+    seasonNumber: episode.seasonNumber ?? 1,
+    episodeNumber: episode.episodeNumber ?? episode.absoluteEpisodeNumber ?? 1,
+    absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+    title: episode.title,
+    summary: episode.summary,
+    airDate: episode.airDate,
+    runtimeMinutes: episode.runtimeMinutes,
+    rating: episode.rating,
     images,
   };
 }
@@ -483,7 +541,11 @@ export function buildMetadataCardView(params: {
   const currentEpisode = params.currentEpisode ?? null;
   const releaseDate = extractReleaseDate(title, currentEpisode);
   const images = buildMetadataImages(title, currentEpisode);
-  const resolvedMediaType = identity.mediaType === 'show' || identity.mediaType === 'episode' ? identity.mediaType : 'movie';
+  const resolvedMediaType = identity.mediaType === 'show'
+    || identity.mediaType === 'episode'
+    || identity.mediaType === 'anime'
+    ? identity.mediaType
+    : 'movie';
   const titleName = params.titleOverride ?? (
     resolvedMediaType === 'episode'
       ? title?.name ?? title?.originalName ?? currentEpisode?.name ?? null
@@ -506,10 +568,18 @@ export function buildMetadataCardView(params: {
     mediaKey: identity.mediaKey,
     mediaType: resolvedMediaType,
     kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
+    provider: identity.provider ?? 'tmdb',
+    providerId: identity.providerId ?? String(identity.tmdbId ?? identity.showTmdbId ?? params.id),
+    parentMediaType: identity.mediaType === 'episode' || identity.mediaType === 'season'
+      ? (parentMediaTypeForIdentity(identity) === 'anime' ? 'anime' : 'show')
+      : null,
+    parentProvider: identity.parentProvider ?? null,
+    parentProviderId: identity.parentProviderId ?? null,
     tmdbId: identity.tmdbId,
     showTmdbId: identity.showTmdbId,
     seasonNumber: identity.seasonNumber,
     episodeNumber: identity.episodeNumber,
+    absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? null,
     title: titleName,
     subtitle,
     summary: params.summaryOverride ?? currentEpisode?.overview ?? title?.overview ?? null,
@@ -558,6 +628,113 @@ export function buildMetadataView(params: {
   };
 }
 
+function resolveProviderParentMediaType(identity: MediaIdentity): MetadataParentMediaType | null {
+  if (identity.mediaType !== 'episode' && identity.mediaType !== 'season') {
+    return null;
+  }
+
+  return parentMediaTypeForIdentity(identity) === 'anime' ? 'anime' : 'show';
+}
+
+function buildProviderEpisodeSubtitle(episode: ProviderEpisodeRecord | null): string | null {
+  if (!episode) {
+    return null;
+  }
+
+  if (episode.title?.trim()) {
+    return episode.title;
+  }
+
+  if (episode.seasonNumber !== null && episode.episodeNumber !== null) {
+    return `S${padded(episode.seasonNumber)} E${padded(episode.episodeNumber)}`;
+  }
+
+  if (episode.absoluteEpisodeNumber !== null) {
+    return `Episode ${episode.absoluteEpisodeNumber}`;
+  }
+
+  return null;
+}
+
+export function buildProviderMetadataCardView(params: {
+  id: string;
+  identity: MediaIdentity;
+  title: ProviderTitleRecord;
+  currentEpisode?: ProviderEpisodeRecord | null;
+}): MetadataCardView {
+  const { identity, title } = params;
+  const currentEpisode = params.currentEpisode ?? null;
+  const images = buildProviderMetadataImages(title, currentEpisode);
+  const releaseDate = currentEpisode?.airDate ?? title.releaseDate;
+  const resolvedMediaType = identity.mediaType === 'episode'
+    ? 'episode'
+    : identity.mediaType === 'anime'
+      ? 'anime'
+      : identity.mediaType === 'show'
+        ? 'show'
+        : 'movie';
+
+  return {
+    id: params.id,
+    mediaKey: identity.mediaKey,
+    mediaType: resolvedMediaType,
+    kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
+    provider: currentEpisode?.provider ?? title.provider,
+    providerId: currentEpisode?.providerId ?? title.providerId,
+    parentMediaType: resolveProviderParentMediaType(identity),
+    parentProvider: identity.parentProvider ?? currentEpisode?.parentProvider ?? null,
+    parentProviderId: identity.parentProviderId ?? currentEpisode?.parentProviderId ?? null,
+    tmdbId: identity.tmdbId,
+    showTmdbId: identity.showTmdbId,
+    seasonNumber: identity.seasonNumber,
+    episodeNumber: identity.episodeNumber,
+    absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? currentEpisode?.absoluteEpisodeNumber ?? null,
+    title: resolvedMediaType === 'episode'
+      ? title.title
+      : currentEpisode?.title ?? title.title,
+    subtitle: resolvedMediaType === 'episode'
+      ? buildProviderEpisodeSubtitle(currentEpisode)
+      : title.status,
+    summary: currentEpisode?.summary ?? title.summary,
+    overview: currentEpisode?.summary ?? title.overview,
+    artwork: {
+      posterUrl: images.posterUrl,
+      backdropUrl: images.backdropUrl,
+      stillUrl: images.stillUrl,
+    },
+    images,
+    releaseDate,
+    releaseYear: extractReleaseYear(releaseDate),
+    runtimeMinutes: currentEpisode?.runtimeMinutes ?? title.runtimeMinutes,
+    rating: currentEpisode?.rating ?? title.rating,
+    status: title.status,
+  };
+}
+
+export function buildProviderMetadataView(params: {
+  id: string;
+  identity: MediaIdentity;
+  title: ProviderTitleRecord;
+  currentEpisode?: ProviderEpisodeRecord | null;
+  nextEpisode?: ProviderEpisodeRecord | null;
+  nextEpisodeId?: string | null;
+}): MetadataView {
+  const card = buildProviderMetadataCardView(params);
+
+  return {
+    ...card,
+    runtimeMinutes: params.currentEpisode?.runtimeMinutes ?? params.title.runtimeMinutes,
+    certification: params.title.certification,
+    genres: params.title.genres,
+    externalIds: params.title.externalIds,
+    seasonCount: params.title.seasonCount,
+    episodeCount: params.title.episodeCount,
+    nextEpisode: params.nextEpisode && params.nextEpisodeId
+      ? buildProviderEpisodePreview(params.title, params.nextEpisode, params.nextEpisodeId)
+      : null,
+  };
+}
+
 export function buildSeasonViewFromTitleRaw(
   title: TmdbTitleRecord,
   showId: string,
@@ -580,6 +757,11 @@ export function buildSeasonViewFromTitleRaw(
       return {
         id: seasonId,
         showId,
+        provider: 'tmdb',
+        providerId: buildSeasonProviderId(String(title.tmdbId), seasonNumber),
+        parentMediaType: 'show',
+        parentProvider: 'tmdb',
+        parentProviderId: String(title.tmdbId),
         showTmdbId: title.tmdbId,
         seasonNumber,
         title: asString(season.name),
@@ -591,7 +773,7 @@ export function buildSeasonViewFromTitleRaw(
         },
       } satisfies MetadataSeasonView;
     })
-    .filter((season): season is MetadataSeasonView => season !== null)
+    .filter((season): season is NonNullable<typeof season> => season !== null)
     .sort((left, right) => left.seasonNumber - right.seasonNumber);
 
   return seasons;
@@ -606,6 +788,11 @@ export function buildSeasonViewFromRecord(
   return {
     id: seasonId,
     showId,
+    provider: 'tmdb',
+    providerId: buildSeasonProviderId(String(showTmdbId), season.seasonNumber),
+    parentMediaType: 'show',
+    parentProvider: 'tmdb',
+    parentProviderId: String(showTmdbId),
     showTmdbId,
     seasonNumber: season.seasonNumber,
     title: season.name,
@@ -614,6 +801,32 @@ export function buildSeasonViewFromRecord(
     episodeCount: season.episodeCount,
     images: {
       posterUrl: buildImageUrl(season.posterPath, 'w500'),
+    },
+  };
+}
+
+export function buildProviderSeasonViewFromRecord(
+  season: ProviderSeasonRecord,
+  seasonId: string,
+  showId: string,
+  showTmdbId: number | null = null,
+): MetadataSeasonView {
+  return {
+    id: seasonId,
+    showId,
+    provider: season.provider,
+    providerId: season.providerId,
+    parentMediaType: season.parentMediaType,
+    parentProvider: season.parentProvider,
+    parentProviderId: season.parentProviderId,
+    showTmdbId,
+    seasonNumber: season.seasonNumber,
+    title: season.title,
+    summary: season.summary,
+    airDate: season.airDate,
+    episodeCount: season.episodeCount,
+    images: {
+      posterUrl: season.posterUrl,
     },
   };
 }
@@ -629,5 +842,19 @@ export function buildEpisodeView(
     showId,
     showTitle: title.name ?? title.originalName,
     showExternalIds: extractExternalIds(title),
+  };
+}
+
+export function buildProviderEpisodeView(
+  title: ProviderTitleRecord,
+  episode: ProviderEpisodeRecord,
+  contentId: string,
+  showId: string,
+): MetadataEpisodeView {
+  return {
+    ...buildProviderEpisodePreview(title, episode, contentId),
+    showId,
+    showTitle: title.title,
+    showExternalIds: title.externalIds,
   };
 }

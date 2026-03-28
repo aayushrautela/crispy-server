@@ -1,4 +1,10 @@
+import type { SupportedProvider } from '../watch/media-key.js';
+
 export type TmdbTitleType = 'movie' | 'tv';
+
+export type MetadataTitleMediaType = 'movie' | 'show' | 'anime';
+export type MetadataViewMediaType = MetadataTitleMediaType | 'episode';
+export type MetadataParentMediaType = 'show' | 'anime';
 
 export type TmdbTitleRecord = {
   mediaType: TmdbTitleType;
@@ -64,15 +70,79 @@ export type MetadataExternalIds = {
   tmdb: number | null;
   imdb: string | null;
   tvdb: number | null;
+  kitsu: string | null;
+};
+
+export type ProviderTitleRecord = {
+  mediaType: MetadataTitleMediaType;
+  provider: SupportedProvider;
+  providerId: string;
+  title: string | null;
+  originalTitle: string | null;
+  summary: string | null;
+  overview: string | null;
+  releaseDate: string | null;
+  status: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  logoUrl: string | null;
+  runtimeMinutes: number | null;
+  rating: number | null;
+  certification: string | null;
+  genres: string[];
+  externalIds: MetadataExternalIds;
+  seasonCount: number | null;
+  episodeCount: number | null;
+  raw: Record<string, unknown>;
+};
+
+export type ProviderEpisodeRecord = {
+  mediaType: 'episode';
+  provider: SupportedProvider;
+  providerId: string;
+  parentMediaType: MetadataParentMediaType;
+  parentProvider: SupportedProvider;
+  parentProviderId: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
+  title: string | null;
+  summary: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+  rating: number | null;
+  stillUrl: string | null;
+  raw: Record<string, unknown>;
+};
+
+export type ProviderSeasonRecord = {
+  provider: SupportedProvider;
+  providerId: string;
+  parentMediaType: MetadataParentMediaType;
+  parentProvider: SupportedProvider;
+  parentProviderId: string;
+  seasonNumber: number;
+  title: string | null;
+  summary: string | null;
+  airDate: string | null;
+  episodeCount: number | null;
+  posterUrl: string | null;
+  raw: Record<string, unknown>;
 };
 
 export type MetadataEpisodePreview = {
   id: string;
   mediaType: 'episode';
+  provider: SupportedProvider;
+  providerId: string;
+  parentMediaType: MetadataParentMediaType;
+  parentProvider: SupportedProvider;
+  parentProviderId: string;
   tmdbId: number | null;
-  showTmdbId: number;
+  showTmdbId: number | null;
   seasonNumber: number;
   episodeNumber: number;
+  absoluteEpisodeNumber: number | null;
   title: string | null;
   summary: string | null;
   airDate: string | null;
@@ -84,12 +154,18 @@ export type MetadataEpisodePreview = {
 export type MetadataCardView = {
   id: string;
   mediaKey: string;
-  mediaType: 'movie' | 'show' | 'episode';
+  mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
+  provider: SupportedProvider;
+  providerId: string;
+  parentMediaType: MetadataParentMediaType | null;
+  parentProvider: SupportedProvider | null;
+  parentProviderId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
   title: string | null;
   subtitle: string | null;
   summary: string | null;
@@ -106,12 +182,18 @@ export type MetadataCardView = {
 export type MetadataView = {
   id: string;
   mediaKey: string;
-  mediaType: 'movie' | 'show' | 'episode';
+  mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
+  provider: SupportedProvider;
+  providerId: string;
+  parentMediaType: MetadataParentMediaType | null;
+  parentProvider: SupportedProvider | null;
+  parentProviderId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
   title: string | null;
   subtitle: string | null;
   summary: string | null;
@@ -134,7 +216,12 @@ export type MetadataView = {
 export type MetadataSeasonView = {
   id: string;
   showId: string;
-  showTmdbId: number;
+  provider: SupportedProvider;
+  providerId: string;
+  parentMediaType: MetadataParentMediaType;
+  parentProvider: SupportedProvider;
+  parentProviderId: string;
+  showTmdbId: number | null;
   seasonNumber: number;
   title: string | null;
   summary: string | null;
@@ -165,6 +252,8 @@ export type MetadataVideoView = {
 
 export type MetadataPersonRefView = {
   id: string;
+  provider: 'tmdb';
+  providerId: string;
   tmdbPersonId: number;
   name: string;
   role: string | null;
@@ -287,7 +376,9 @@ export type PlaybackResolveResponse = {
 
 export type MetadataPersonKnownForItem = {
   id: string;
-  mediaType: 'movie' | 'show';
+  mediaType: MetadataTitleMediaType;
+  provider: SupportedProvider;
+  providerId: string;
   tmdbId: number;
   title: string;
   posterUrl: string | null;
@@ -297,6 +388,8 @@ export type MetadataPersonKnownForItem = {
 
 export type MetadataPersonDetail = {
   id: string;
+  provider: 'tmdb';
+  providerId: string;
   tmdbPersonId: number;
   name: string;
   knownForDepartment: string | null;
@@ -310,7 +403,7 @@ export type MetadataPersonDetail = {
   knownFor: MetadataPersonKnownForItem[];
 };
 
-export type MetadataSearchFilter = 'all' | 'movies' | 'series';
+export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'anime';
 
 export type MetadataSearchResult = MetadataCardView;
 

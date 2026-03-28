@@ -4,13 +4,16 @@ import { parseStringListEnv } from '../../config/env.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
-import { inferMediaIdentity, type MediaIdentity } from '../watch/media-key.js';
+import { inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity } from '../watch/media-key.js';
 import {
   buildEpisodeView,
   buildImageUrl,
+  buildProviderEpisodeView,
+  buildProviderSeasonViewFromRecord,
   buildSeasonViewFromRecord,
 } from './metadata-normalizers.js';
 import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
+import { ProviderMetadataService } from './provider-metadata.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { findNextEpisode } from './next-episode.js';
 import { OmdbCacheRepository } from './omdb-cache.repo.js';
@@ -43,6 +46,7 @@ type ResolveMetadataInput = {
   tmdbId?: number | null;
   imdbId?: string | null;
   tvdbId?: number | null;
+  kitsuId?: string | number | null;
   mediaType?: SupportedMediaType | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
@@ -67,6 +71,7 @@ export class MetadataDirectService {
     private readonly omdbCacheRepository = new OmdbCacheRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly contentIdentityService = new ContentIdentityService(),
+    private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
@@ -81,6 +86,8 @@ export class MetadataDirectService {
       const externalIds = asRecord(payload.external_ids);
       return {
         id: await this.contentIdentityService.ensurePersonContentId(client, tmdbPersonId),
+        provider: 'tmdb',
+        providerId: String(tmdbPersonId),
         tmdbPersonId,
         name,
         knownForDepartment: asString(payload.known_for_department),
@@ -111,15 +118,47 @@ export class MetadataDirectService {
   async listEpisodes(id: string, requestedSeasonNumber?: number | null): Promise<MetadataEpisodeListResponse> {
     return withDbClient(async (client) => {
       const showIdentity = await this.resolveShowIdentity(client, id);
+      const providerContext = await this.providerMetadataService.loadIdentityContext(client, showIdentity);
+      if (providerContext?.title) {
+        const show = await this.metadataViewService.buildMetadataView(client, showIdentity);
+        const seasonNumbers = selectProviderSeasonNumbers(providerContext.episodes, providerContext.title.seasonCount, requestedSeasonNumber ?? null);
+        const filteredEpisodes = providerContext.episodes.filter((episode) => seasonNumbers.includes(episode.seasonNumber ?? 1));
+        const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
+          client,
+          filteredEpisodes.map((episode) => ({
+            parentMediaType: episode.parentMediaType,
+            provider: episode.provider,
+            parentProviderId: episode.parentProviderId,
+            seasonNumber: episode.seasonNumber,
+            episodeNumber: episode.episodeNumber,
+            absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+          })),
+        );
+
+        return {
+          show,
+          requestedSeasonNumber: requestedSeasonNumber ?? null,
+          effectiveSeasonNumber: seasonNumbers[0] ?? 1,
+          includedSeasonNumbers: seasonNumbers,
+          episodes: filteredEpisodes.flatMap((episode) => {
+            const contentId = episodeIds.get(episode.providerId);
+            return contentId
+              ? [buildProviderEpisodeView(providerContext.title!, episode, contentId, show.id)]
+              : [];
+          }),
+        };
+      }
+
+      const showTmdbId = assertPresent(showIdentity.tmdbId, 'Show metadata not found.');
       const title = assertPresent(
-        await this.tmdbCacheService.ensureTitleCached(client, 'tv', showIdentity.tmdbId),
+        await this.tmdbCacheService.ensureTitleCached(client, 'tv', showTmdbId),
         'Show metadata not found.',
       );
       const seasonNumbers = selectEpisodeSeasonNumbers(title, requestedSeasonNumber ?? null);
       const episodes: TmdbEpisodeRecord[] = [];
       for (const seasonNumber of seasonNumbers) {
-        await this.tmdbCacheService.ensureSeasonCached(client, showIdentity.tmdbId, seasonNumber);
-        episodes.push(...await this.tmdbCacheService.listEpisodesForSeason(client, showIdentity.tmdbId, seasonNumber));
+        await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
+        episodes.push(...await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber));
       }
 
       const show = await this.metadataViewService.buildMetadataView(client, showIdentity);
@@ -207,19 +246,42 @@ export class MetadataDirectService {
       let show: MetadataView | null = null;
       let season: MetadataSeasonView | null = null;
 
-      if (identity.mediaType === 'episode' && identity.showTmdbId) {
-        const showIdentity = inferMediaIdentity({ mediaType: 'show', tmdbId: identity.showTmdbId });
+      if (identity.mediaType === 'episode' && identity.parentProvider && identity.parentProviderId) {
+        const parentMediaType = parentMediaTypeForIdentity(identity);
+        const showIdentity = inferMediaIdentity({
+          mediaType: parentMediaType,
+          provider: identity.parentProvider,
+          providerId: identity.parentProviderId,
+          tmdbId: identity.showTmdbId,
+        });
         show = await this.metadataViewService.buildMetadataView(client, showIdentity);
+
         if (identity.seasonNumber !== null) {
-          const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, identity.showTmdbId, identity.seasonNumber);
-          if (seasonRecord) {
+          const providerSeasonContext = await this.providerMetadataService.loadSeasonContext(client, identity, identity.seasonNumber);
+          if (providerSeasonContext?.season) {
             const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
-              parentMediaType: 'show',
-              provider: 'tmdb',
-              parentProviderId: identity.showTmdbId,
+              parentMediaType: providerSeasonContext.season.parentMediaType,
+              provider: providerSeasonContext.season.provider,
+              parentProviderId: providerSeasonContext.season.parentProviderId,
               seasonNumber: identity.seasonNumber,
             });
-            season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, show.id);
+            season = buildProviderSeasonViewFromRecord(
+              providerSeasonContext.season,
+              seasonId,
+              show.id,
+              show.externalIds.tmdb ?? null,
+            );
+          } else if (identity.showTmdbId) {
+            const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, identity.showTmdbId, identity.seasonNumber);
+            if (seasonRecord) {
+              const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
+                parentMediaType: 'show',
+                provider: 'tmdb',
+                parentProviderId: identity.showTmdbId,
+                seasonNumber: identity.seasonNumber,
+              });
+              season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, show.id);
+            }
           }
         }
       }
@@ -232,20 +294,28 @@ export class MetadataDirectService {
     });
   }
 
-  private async resolveShowIdentity(_client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'show'; tmdbId: number }> {
+  private async resolveShowIdentity(_client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'show' | 'anime' }> {
     const parsed = await this.contentIdentityService.resolveMediaIdentity(_client, id);
-    if (parsed.mediaType === 'show' && parsed.tmdbId) {
+    if (parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
       return {
         ...parsed,
-        mediaType: 'show',
-        tmdbId: parsed.tmdbId,
+        mediaType: parsed.mediaType,
       };
     }
-    if (parsed.mediaType === 'episode' && parsed.showTmdbId) {
+    if (parsed.mediaType === 'episode' && parsed.parentProvider && parsed.parentProviderId) {
+      const parentMediaType = parentMediaTypeForIdentity(parsed);
+      if (parentMediaType !== 'show' && parentMediaType !== 'anime') {
+        throw new HttpError(400, 'Episode listing requires a show id.');
+      }
+
       return {
-        ...inferMediaIdentity({ mediaType: 'show', tmdbId: parsed.showTmdbId }),
-        mediaType: 'show',
-        tmdbId: parsed.showTmdbId,
+        ...inferMediaIdentity({
+          mediaType: parentMediaType,
+          provider: parsed.parentProvider,
+          providerId: parsed.parentProviderId,
+          tmdbId: parsed.showTmdbId,
+        }),
+        mediaType: parentMediaType,
       };
     }
     throw new HttpError(400, 'Episode listing requires a show id.');
@@ -257,6 +327,55 @@ export class MetadataDirectService {
     }
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
+
+    if (mediaType === 'show' && typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
+      return inferMediaIdentity({
+        mediaType: 'show',
+        provider: 'tvdb',
+        providerId: input.tvdbId,
+      });
+    }
+
+    if (mediaType === 'anime' && input.kitsuId !== null && input.kitsuId !== undefined && String(input.kitsuId).trim()) {
+      return inferMediaIdentity({
+        mediaType: 'anime',
+        provider: 'kitsu',
+        providerId: input.kitsuId,
+      });
+    }
+
+    if (mediaType === 'episode') {
+      if (typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
+        if (input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
+          throw new HttpError(400, 'Episode resolution requires show id, season number, and episode number.');
+        }
+
+        return inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'tvdb',
+          parentProvider: 'tvdb',
+          parentProviderId: input.tvdbId,
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+        });
+      }
+
+      if (input.kitsuId !== null && input.kitsuId !== undefined && String(input.kitsuId).trim()) {
+        if (input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
+          throw new HttpError(400, 'Episode resolution requires anime id, season number, and episode number.');
+        }
+
+        return inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'kitsu',
+          parentProvider: 'kitsu',
+          parentProviderId: input.kitsuId,
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+        });
+      }
+    }
+
     const resolvedTmdbId = await this.resolveTmdbId(client, input, mediaType);
 
     if (mediaType === 'episode') {
@@ -420,7 +539,7 @@ function normalizeResolveMediaType(
   seasonNumber: number | null | undefined,
   episodeNumber: number | null | undefined,
 ): SupportedMediaType {
-  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'episode') {
+  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime' || mediaType === 'episode') {
     return mediaType;
   }
 
@@ -429,6 +548,33 @@ function normalizeResolveMediaType(
   }
 
   return 'movie';
+}
+
+function selectProviderSeasonNumbers(
+  episodes: Array<{ seasonNumber: number | null }>,
+  seasonCount: number | null,
+  requestedSeasonNumber: number | null,
+): number[] {
+  if (requestedSeasonNumber && requestedSeasonNumber > 0) {
+    return [requestedSeasonNumber];
+  }
+
+  const values = new Set<number>();
+  for (const episode of episodes) {
+    values.add(episode.seasonNumber ?? 1);
+  }
+
+  if (!values.size && seasonCount && seasonCount > 0) {
+    for (let seasonNumber = 1; seasonNumber <= seasonCount; seasonNumber += 1) {
+      values.add(seasonNumber);
+    }
+  }
+
+  if (!values.size) {
+    values.add(1);
+  }
+
+  return Array.from(values).sort((left, right) => left - right);
 }
 
 function normalizeTmdbResolvableMediaType(mediaType: SupportedMediaType): 'movie' | 'show' | 'episode' {
@@ -476,6 +622,8 @@ async function buildKnownForItems(
     items.push({
       id: '',
       mediaType,
+      provider: 'tmdb',
+      providerId: String(tmdbId),
       tmdbId,
       title,
       posterUrl: buildImageUrl(asString(record.poster_path), 'w500'),

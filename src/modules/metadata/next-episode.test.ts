@@ -109,10 +109,16 @@ test('episodeViewToLookup extracts episode-like fields', () => {
   const episode = {
     id: 'uuid-ep',
     mediaType: 'episode' as const,
+    provider: 'tmdb' as const,
+    providerId: '42:s1:e3',
+    parentMediaType: 'show' as const,
+    parentProvider: 'tmdb' as const,
+    parentProviderId: '42',
     tmdbId: 555,
     showTmdbId: 42,
     seasonNumber: 1,
     episodeNumber: 3,
+    absoluteEpisodeNumber: null,
     title: 'Episode 3',
     summary: 'Summary.',
     airDate: '2024-01-15',
@@ -121,7 +127,7 @@ test('episodeViewToLookup extracts episode-like fields', () => {
     images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
     showId: 'uuid-show',
     showTitle: 'Test Show',
-    showExternalIds: { tmdb: 42, imdb: 'tt123', tvdb: null },
+    showExternalIds: { tmdb: 42, imdb: 'tt123', tvdb: null, kitsu: null },
   };
 
   const lookup = episodeViewToLookup(episode);

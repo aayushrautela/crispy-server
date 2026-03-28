@@ -1123,9 +1123,10 @@ function providerExternalIds(ids: Record<string, unknown> | null): MetadataExter
     tmdb: asPositiveInt(ids.tmdb),
     imdb: normalizeImdbId(asString(ids.imdb)),
     tvdb: asPositiveInt(ids.tvdb),
+    kitsu: asString(ids.kitsu),
   };
 
-  return externalIds.tmdb || externalIds.imdb || externalIds.tvdb ? externalIds : null;
+  return externalIds.tmdb || externalIds.imdb || externalIds.tvdb || externalIds.kitsu ? externalIds : null;
 }
 
 function traktPosterUrl(images: Record<string, unknown> | null): string | null {

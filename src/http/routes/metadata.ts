@@ -36,6 +36,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       tmdbId: parseOptionalNumber(query.tmdbId),
       imdbId: asOptionalString(query.imdbId),
       tvdbId: parseOptionalNumber(query.tvdbId),
+      kitsuId: parseOptionalStringOrNumber(query.kitsuId),
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalNumber(query.seasonNumber),
       episodeNumber: parseOptionalNumber(query.episodeNumber),
@@ -97,6 +98,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       tmdbId: parseOptionalNumber(query.tmdbId),
       imdbId: asOptionalString(query.imdbId),
       tvdbId: parseOptionalNumber(query.tvdbId),
+      kitsuId: parseOptionalStringOrNumber(query.kitsuId),
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
       episodeNumber: parseOptionalPositiveNumber(query.episodeNumber, 'episodeNumber'),
@@ -163,20 +165,32 @@ function parseRequiredPositiveNumber(value: string | number, field: string): num
 }
 
 function parseSupportedMediaType(value: unknown): SupportedMediaType | null {
-  if (value === 'movie' || value === 'show' || value === 'episode') {
+  if (value === 'movie' || value === 'show' || value === 'anime' || value === 'episode') {
     return value;
   }
   return null;
 }
 
 function parseSearchFilter(value: unknown): MetadataSearchFilter {
-  if (value === 'movies' || value === 'series') {
+  if (value === 'movies' || value === 'series' || value === 'anime') {
     return value;
   }
   if (value === undefined || value === null || value === '' || value === 'all') {
     return 'all';
   }
   throw new HttpError(400, 'Invalid search filter.');
+}
+
+function parseOptionalStringOrNumber(value: unknown): string | number | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  return null;
 }
 
 function parseStringList(value: unknown): string[] | null {
