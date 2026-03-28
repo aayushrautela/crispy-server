@@ -1,3 +1,4 @@
+import { parseMediaKey } from './media-key.js';
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from './media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
@@ -106,6 +107,31 @@ export class WatchHistoryRepository {
     );
     return new Set(
       result.rows.map((row) => `episode:tmdb:${showTmdbId}:${Number(row.season_number)}:${Number(row.episode_number)}`),
+    );
+  }
+
+  async listWatchedEpisodeKeysForTrackedMedia(client: DbClient, profileId: string, trackedMediaKey: string): Promise<Set<string>> {
+    const trackedIdentity = parseMediaKey(trackedMediaKey);
+    if (trackedIdentity.mediaType !== 'show' && trackedIdentity.mediaType !== 'anime') {
+      return new Set();
+    }
+
+    const prefix = `episode:${trackedIdentity.provider}:${trackedIdentity.providerId}:`;
+    const result = await client.query(
+      `
+        SELECT media_key
+        FROM watch_history
+        WHERE profile_id = $1::uuid
+          AND media_type = 'episode'
+          AND media_key LIKE $2
+      `,
+      [profileId, `${prefix}%`],
+    );
+
+    return new Set(
+      result.rows
+        .map((row) => (typeof row.media_key === 'string' ? row.media_key : null))
+        .filter((value): value is string => Boolean(value)),
     );
   }
 }

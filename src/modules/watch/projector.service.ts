@@ -2,9 +2,10 @@ import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
 import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
+import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
-import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
@@ -12,6 +13,12 @@ import { TrackedSeriesRepository } from './tracked-series.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
 import { WatchlistRepository } from './watchlist.repo.js';
 import type { WatchMediaProjection } from './watch.types.js';
+
+type TrackedMediaIdentity = MediaIdentity & {
+  mediaType: 'show' | 'anime';
+  provider: NonNullable<MediaIdentity['provider']>;
+  providerId: NonNullable<MediaIdentity['providerId']>;
+};
 
 export class WatchProjectorService {
   constructor(
@@ -22,6 +29,7 @@ export class WatchProjectorService {
     private readonly ratingsRepository = new RatingsRepository(),
     private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
     private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly providerMetadataService = new ProviderMetadataService(),
     private readonly metadataViewService = new MetadataViewService(),
   ) {}
 
@@ -187,14 +195,14 @@ export class WatchProjectorService {
     if (params.projectionId) {
       await this.continueWatchingRepository.dismissById(client, params.profileId, params.projectionId);
     } else {
-      await this.continueWatchingRepository.dismissByMediaKey(client, params.profileId, params.mediaKey);
-    }
-    await this.mediaProgressRepository.dismissContinueWatching(client, params.profileId, params.mediaKey);
-    const showTmdbId = parseTrackedShowTmdbId(params.mediaKey);
-    if (showTmdbId) {
+    await this.continueWatchingRepository.dismissByMediaKey(client, params.profileId, params.mediaKey);
+  }
+  await this.mediaProgressRepository.dismissContinueWatching(client, params.profileId, params.mediaKey);
+    const trackedIdentity = parseTrackedIdentity(params.mediaKey);
+    if (trackedIdentity) {
       await this.trackedSeriesRepository.updateMetadataState(client, {
         profileId: params.profileId,
-        showTmdbId,
+        trackedMediaKey: trackedIdentity.mediaKey,
         metadataRefreshedAt: params.occurredAt,
       });
     }
@@ -209,20 +217,28 @@ export class WatchProjectorService {
     payload?: Record<string, unknown>,
     reason = 'watch_activity',
   ): Promise<void> {
-    const showTmdbId = showTmdbIdForIdentity(identity);
-    if (!showTmdbId) {
-      if (identity.mediaType === 'movie' && identity.tmdbId) {
+    const trackedIdentity = toTrackedIdentity(identity);
+    if (!trackedIdentity) {
+      if (identity.mediaType === 'movie' && identity.provider === 'tmdb' && identity.tmdbId) {
         await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId);
       }
       return;
     }
 
-    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
-    const nextEpisode = extractNextEpisodeToAir(title);
+    const nextEpisodeAirDate = await resolveTrackedNextEpisodeAirDate(
+      client,
+      trackedIdentity,
+      this.tmdbCacheService,
+      this.providerMetadataService,
+    );
 
     await this.trackedSeriesRepository.upsert(client, {
       profileId,
-      showTmdbId,
+      trackedMediaKey: trackedIdentity.mediaKey,
+      trackedMediaType: trackedIdentity.mediaType,
+      provider: trackedIdentity.provider,
+      providerId: trackedIdentity.providerId,
+      showTmdbId: trackedIdentity.showTmdbId,
       reason,
       lastSourceEventId: eventId,
       lastInteractedAt: occurredAt,
@@ -231,14 +247,77 @@ export class WatchProjectorService {
 
     await this.trackedSeriesRepository.updateMetadataState(client, {
       profileId,
-      showTmdbId,
-      nextEpisodeAirDate: nextEpisode?.airDate ?? null,
+      trackedMediaKey: trackedIdentity.mediaKey,
+      nextEpisodeAirDate,
       metadataRefreshedAt: new Date().toISOString(),
     });
   }
 }
 
-function parseTrackedShowTmdbId(mediaKey: string): number | null {
+function parseTrackedIdentity(mediaKey: string): TrackedMediaIdentity | null {
   const identity = parseMediaKey(mediaKey);
-  return showTmdbIdForIdentity(identity);
+  return toTrackedIdentity(identity);
+}
+
+function toTrackedIdentity(identity: MediaIdentity): TrackedMediaIdentity | null {
+  if (identity.mediaType === 'show' || identity.mediaType === 'anime') {
+    return identity.provider && identity.providerId
+      ? {
+          ...identity,
+          mediaType: identity.mediaType,
+          provider: identity.provider,
+          providerId: identity.providerId,
+        }
+      : null;
+  }
+
+  if (identity.mediaType === 'season' || identity.mediaType === 'episode') {
+    if (!identity.parentProvider || !identity.parentProviderId) {
+      return null;
+    }
+
+    const mediaType = parentMediaTypeForIdentity(identity);
+    if (mediaType !== 'show' && mediaType !== 'anime') {
+      return null;
+    }
+
+    return {
+      contentId: identity.parentContentId ?? null,
+      mediaKey: `${mediaType}:${identity.parentProvider}:${identity.parentProviderId}`,
+      mediaType,
+      provider: identity.parentProvider,
+      providerId: identity.parentProviderId,
+      parentContentId: null,
+      parentProvider: null,
+      parentProviderId: null,
+      tmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      showTmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      seasonNumber: null,
+      episodeNumber: null,
+      absoluteEpisodeNumber: null,
+      providerMetadata: identity.providerMetadata,
+    };
+  }
+
+  return null;
+}
+
+async function resolveTrackedNextEpisodeAirDate(
+  client: DbClient,
+  trackedIdentity: MediaIdentity,
+  tmdbCacheService: TmdbCacheService,
+  providerMetadataService: ProviderMetadataService,
+): Promise<string | null> {
+  if (trackedIdentity.provider === 'tmdb') {
+    const showTmdbId = showTmdbIdForIdentity(trackedIdentity);
+    if (!showTmdbId) {
+      return null;
+    }
+
+    const title = await tmdbCacheService.getTitle(client, 'tv', showTmdbId);
+    return extractNextEpisodeToAir(title)?.airDate ?? null;
+  }
+
+  const context = await providerMetadataService.loadIdentityContext(client, trackedIdentity);
+  return context?.nextEpisode?.airDate ?? null;
 }

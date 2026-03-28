@@ -7,7 +7,7 @@ import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
 import { normalizeIsoString } from '../../lib/time.js';
 import { TmdbExternalIdResolverService } from '../metadata/tmdb-external-id-resolver.service.js';
-import { TmdbRefreshService } from '../metadata/tmdb-refresh.service.js';
+import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../watch/media-key.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import {
@@ -75,7 +75,7 @@ export class ProviderImportService {
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly destructiveImportService = new ProviderDestructiveImportService(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
-    private readonly tmdbRefreshService = new TmdbRefreshService(),
+    private readonly metadataRefreshService = new MetadataRefreshService(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
   ) {}
 
@@ -1496,7 +1496,7 @@ export class ProviderImportService {
         }
         seen.add(normalized);
         try {
-          const result = await this.tmdbRefreshService.refreshMediaKey(client, profileId, normalized);
+          const result = await this.metadataRefreshService.refreshMediaKey(client, profileId, normalized);
           summary.refreshedTitles += result.refreshedTitles;
           summary.refreshedSeasons += result.refreshedSeasons;
           summary.refreshedTrackedShows += result.refreshedTrackedShows;

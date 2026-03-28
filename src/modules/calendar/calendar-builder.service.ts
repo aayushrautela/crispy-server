@@ -1,10 +1,11 @@
 import type { DbClient } from '../../lib/db.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
+import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
 import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
 import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
-import type { MetadataCardView } from '../metadata/metadata.types.js';
+import type { MetadataCardView, ProviderEpisodeRecord } from '../metadata/metadata.types.js';
 import type { TmdbEpisodeRecord } from '../metadata/tmdb.types.js';
-import { inferMediaIdentity } from '../watch/media-key.js';
+import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
 import { TrackedSeriesRepository } from '../watch/tracked-series.repo.js';
 import { WatchHistoryRepository } from '../watch/watch-history.repo.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
@@ -16,6 +17,7 @@ export class CalendarBuilderService {
     private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
     private readonly watchHistoryRepository = new WatchHistoryRepository(),
     private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly providerMetadataService = new ProviderMetadataService(),
     private readonly metadataViewService = new MetadataViewService(),
   ) {}
 
@@ -25,31 +27,75 @@ export class CalendarBuilderService {
     const items: CalendarItem[] = [];
 
     for (const row of tracked) {
-      const title = await this.tmdbCacheService.getTitle(client, 'tv', row.showTmdbId);
-      if (!title) {
+      const trackedIdentity = parseMediaKey(row.trackedMediaKey);
+      if (trackedIdentity.mediaType !== 'show' && trackedIdentity.mediaType !== 'anime') {
         continue;
       }
 
-      const showIdentity = inferMediaIdentity({ mediaType: 'show', tmdbId: row.showTmdbId });
-      const relatedShow = await this.metadataViewService.buildMetadataCardView(client, showIdentity);
-      const watchedEpisodeKeys = await this.watchHistoryRepository.listWatchedEpisodeKeys(client, profileId, row.showTmdbId);
-      const nextEpisode = extractNextEpisodeToAir(title);
+      const relatedShow = await this.metadataViewService.buildMetadataCardView(client, trackedIdentity);
+      const watchedEpisodeKeys = await this.watchHistoryRepository.listWatchedEpisodeKeysForTrackedMedia(
+        client,
+        profileId,
+        row.trackedMediaKey,
+      );
 
-      if (nextEpisode?.airDate) {
-        const candidate = await this.buildCalendarItem(client, row.showTmdbId, nextEpisode, relatedShow, watchedEpisodeKeys, nowMs);
-        if (candidate) {
-          items.push(candidate);
+      if (trackedIdentity.provider === 'tmdb' && row.showTmdbId) {
+        const title = await this.tmdbCacheService.getTitle(client, 'tv', row.showTmdbId);
+        if (!title) {
           continue;
         }
+
+        const nextEpisode = extractNextEpisodeToAir(title);
+        if (nextEpisode?.airDate) {
+          const candidate = await this.buildTmdbCalendarItem(client, row.showTmdbId, nextEpisode, relatedShow, watchedEpisodeKeys, nowMs);
+          if (candidate) {
+            items.push(candidate);
+            continue;
+          }
+        }
+
+        const episodes = await this.tmdbCacheService.listEpisodesForShow(client, row.showTmdbId);
+        const fallback = episodes.find((episode) => {
+          const key = `episode:tmdb:${row.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
+          return !watchedEpisodeKeys.has(key);
+        });
+
+        if (!fallback) {
+          items.push({
+            bucket: 'no_scheduled',
+            media: relatedShow,
+            relatedShow,
+            airDate: null,
+            watched: false,
+          });
+          continue;
+        }
+
+        const candidate = await this.buildTmdbCalendarItem(client, row.showTmdbId, fallback, relatedShow, watchedEpisodeKeys, nowMs);
+        if (candidate) {
+          items.push(candidate);
+        }
+        continue;
       }
 
-      const episodes = await this.tmdbCacheService.listEpisodesForShow(client, row.showTmdbId);
-      const fallback = episodes.find((episode) => {
-        const key = `episode:tmdb:${row.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
-        return !watchedEpisodeKeys.has(key);
-      });
+      const context = await this.providerMetadataService.loadIdentityContext(client, trackedIdentity);
+      if (!context?.title) {
+        continue;
+      }
 
-      if (!fallback) {
+      const upcomingEpisode = context.nextEpisode ?? context.episodes.find((episode) => {
+        const episodeIdentity = inferMediaIdentity({
+          mediaType: 'episode',
+          provider: trackedIdentity.provider,
+          parentProvider: trackedIdentity.provider,
+          parentProviderId: trackedIdentity.providerId,
+          seasonNumber: episode.seasonNumber,
+          episodeNumber: episode.episodeNumber,
+          absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+        });
+        return !watchedEpisodeKeys.has(episodeIdentity.mediaKey);
+      });
+      if (!upcomingEpisode) {
         items.push({
           bucket: 'no_scheduled',
           media: relatedShow,
@@ -60,7 +106,7 @@ export class CalendarBuilderService {
         continue;
       }
 
-      const candidate = await this.buildCalendarItem(client, row.showTmdbId, fallback, relatedShow, watchedEpisodeKeys, nowMs);
+      const candidate = await this.buildProviderCalendarItem(client, trackedIdentity, upcomingEpisode, relatedShow, watchedEpisodeKeys, nowMs);
       if (candidate) {
         items.push(candidate);
       }
@@ -75,7 +121,7 @@ export class CalendarBuilderService {
       .slice(0, limit);
   }
 
-  private async buildCalendarItem(
+  private async buildTmdbCalendarItem(
     client: DbClient,
     showTmdbId: number,
     episode: TmdbEpisodeRecord,
@@ -94,6 +140,59 @@ export class CalendarBuilderService {
         episodeNumber: episode.episodeNumber,
         tmdbId: episode.tmdbId,
       }),
+    );
+
+    const airDate = episode.airDate;
+    if (!airDate) {
+      return {
+        bucket: 'no_scheduled',
+        media,
+        relatedShow,
+        airDate: null,
+        watched,
+      };
+    }
+
+    const deltaDays = Math.floor((Date.parse(airDate) - nowMs) / DAY_MS);
+    let bucket: CalendarItem['bucket'];
+    if (deltaDays <= 0 && deltaDays >= -7) {
+      bucket = watched ? 'recently_released' : 'up_next';
+    } else if (deltaDays <= 7) {
+      bucket = 'this_week';
+    } else {
+      bucket = 'upcoming';
+    }
+
+    return {
+      bucket,
+      media,
+      relatedShow,
+      airDate,
+      watched,
+    };
+  }
+
+  private async buildProviderCalendarItem(
+    client: DbClient,
+    _trackedIdentity: MediaIdentity,
+    episode: ProviderEpisodeRecord,
+    relatedShow: MetadataCardView,
+    watchedEpisodeKeys: Set<string>,
+    nowMs: number,
+  ): Promise<CalendarItem | null> {
+    const episodeIdentity = inferMediaIdentity({
+      mediaType: 'episode',
+      provider: episode.provider,
+      parentProvider: episode.parentProvider,
+      parentProviderId: episode.parentProviderId,
+      seasonNumber: episode.seasonNumber,
+      episodeNumber: episode.episodeNumber,
+      absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+    });
+    const watched = watchedEpisodeKeys.has(episodeIdentity.mediaKey);
+    const media = await this.metadataViewService.buildMetadataCardView(
+      client,
+      episodeIdentity,
     );
 
     const airDate = episode.airDate;

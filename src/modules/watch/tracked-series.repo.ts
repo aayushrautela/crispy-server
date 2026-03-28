@@ -1,9 +1,14 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
+import type { SupportedProvider } from './media-key.js';
 
 export type TrackedSeriesRecord = {
   profileId: string;
-  showTmdbId: number;
+  trackedMediaKey: string;
+  trackedMediaType: 'show' | 'anime';
+  provider: SupportedProvider;
+  providerId: string;
+  showTmdbId: number | null;
   reason: string;
   lastSourceEventId: string | null;
   lastInteractedAt: string;
@@ -13,9 +18,15 @@ export type TrackedSeriesRecord = {
 };
 
 function mapTrackedSeries(row: Record<string, unknown>): TrackedSeriesRecord {
+  const trackedMediaType = String(row.tracked_media_type);
+  const provider = String(row.provider);
   return {
     profileId: String(row.profile_id),
-    showTmdbId: Number(row.show_tmdb_id),
+    trackedMediaKey: String(row.tracked_media_key),
+    trackedMediaType: trackedMediaType === 'anime' ? 'anime' : 'show',
+    provider: provider === 'tvdb' || provider === 'kitsu' ? provider : 'tmdb',
+    providerId: String(row.provider_id),
+    showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
     reason: String(row.reason),
     lastSourceEventId: typeof row.last_source_event_id === 'string' ? row.last_source_event_id : null,
     lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_tracked_series.last_interacted_at'),
@@ -28,7 +39,11 @@ function mapTrackedSeries(row: Record<string, unknown>): TrackedSeriesRecord {
 export class TrackedSeriesRepository {
   async upsert(client: DbClient, params: {
     profileId: string;
-    showTmdbId: number;
+    trackedMediaKey: string;
+    trackedMediaType: 'show' | 'anime';
+    provider: SupportedProvider;
+    providerId: string;
+    showTmdbId?: number | null;
     reason: string;
     lastSourceEventId?: string | null;
     lastInteractedAt: string;
@@ -38,15 +53,23 @@ export class TrackedSeriesRepository {
       `
         INSERT INTO profile_tracked_series (
           profile_id,
+          tracked_media_key,
+          tracked_media_type,
+          provider,
+          provider_id,
           show_tmdb_id,
           reason,
           last_source_event_id,
           last_interacted_at,
           payload
         )
-        VALUES ($1::uuid, $2, $3, $4::uuid, $5::timestamptz, $6::jsonb)
-        ON CONFLICT (profile_id, show_tmdb_id)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid, $9::timestamptz, $10::jsonb)
+        ON CONFLICT (profile_id, tracked_media_key)
         DO UPDATE SET
+          tracked_media_type = EXCLUDED.tracked_media_type,
+          provider = EXCLUDED.provider,
+          provider_id = EXCLUDED.provider_id,
+          show_tmdb_id = EXCLUDED.show_tmdb_id,
           reason = EXCLUDED.reason,
           last_source_event_id = EXCLUDED.last_source_event_id,
           last_interacted_at = EXCLUDED.last_interacted_at,
@@ -54,7 +77,11 @@ export class TrackedSeriesRepository {
       `,
       [
         params.profileId,
-        params.showTmdbId,
+        params.trackedMediaKey,
+        params.trackedMediaType,
+        params.provider,
+        params.providerId,
+        params.showTmdbId ?? null,
         params.reason,
         params.lastSourceEventId ?? null,
         params.lastInteractedAt,
@@ -65,8 +92,9 @@ export class TrackedSeriesRepository {
 
   async listForProfile(client: DbClient, profileId: string, limit: number): Promise<TrackedSeriesRecord[]> {
     const result = await client.query(
-      `
-        SELECT profile_id, show_tmdb_id, reason, last_source_event_id, last_interacted_at,
+        `
+        SELECT profile_id, tracked_media_key, tracked_media_type, provider, provider_id,
+               show_tmdb_id, reason, last_source_event_id, last_interacted_at,
                next_episode_air_date, metadata_refreshed_at, payload
         FROM profile_tracked_series
         WHERE profile_id = $1::uuid
@@ -80,7 +108,7 @@ export class TrackedSeriesRepository {
 
   async updateMetadataState(client: DbClient, params: {
     profileId: string;
-    showTmdbId: number;
+    trackedMediaKey: string;
     nextEpisodeAirDate?: string | null;
     metadataRefreshedAt: string;
   }): Promise<void> {
@@ -90,9 +118,9 @@ export class TrackedSeriesRepository {
         SET
           next_episode_air_date = $3::date,
           metadata_refreshed_at = $4::timestamptz
-        WHERE profile_id = $1::uuid AND show_tmdb_id = $2
+        WHERE profile_id = $1::uuid AND tracked_media_key = $2
       `,
-      [params.profileId, params.showTmdbId, params.nextEpisodeAirDate ?? null, params.metadataRefreshedAt],
+      [params.profileId, params.trackedMediaKey, params.nextEpisodeAirDate ?? null, params.metadataRefreshedAt],
     );
   }
 }

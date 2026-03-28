@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, inferMediaIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
@@ -59,7 +59,11 @@ type FoldedRating = {
 };
 
 type FoldedTrackedSeries = {
-  showTmdbId: number;
+  trackedMediaKey: string;
+  trackedMediaType: 'show' | 'anime';
+  provider: NonNullable<MediaIdentity['provider']>;
+  providerId: NonNullable<MediaIdentity['providerId']>;
+  showTmdbId: number | null;
   reason: string;
   lastSourceEventId: string;
   lastInteractedAt: string;
@@ -163,14 +167,18 @@ export class ProjectionRebuildService {
     }
 
     for (const row of folded.trackedSeries.values()) {
-      await this.trackedSeriesRepository.upsert(client, {
-        profileId,
-        showTmdbId: row.showTmdbId,
-        reason: row.reason,
-        lastSourceEventId: row.lastSourceEventId,
-        lastInteractedAt: row.lastInteractedAt,
-        payload: row.payload,
-      });
+        await this.trackedSeriesRepository.upsert(client, {
+          profileId,
+          trackedMediaKey: row.trackedMediaKey,
+          trackedMediaType: row.trackedMediaType,
+          provider: row.provider,
+          providerId: row.providerId,
+          showTmdbId: row.showTmdbId,
+          reason: row.reason,
+          lastSourceEventId: row.lastSourceEventId,
+          lastInteractedAt: row.lastInteractedAt,
+          payload: row.payload,
+        });
     }
 
     return {
@@ -201,22 +209,26 @@ function foldEvents(events: RebuildableWatchEvent[]): {
   watchHistory: Map<string, FoldedWatchHistory>;
   watchlist: Map<string, FoldedWatchlist>;
   ratings: Map<string, FoldedRating>;
-  trackedSeries: Map<number, FoldedTrackedSeries>;
+  trackedSeries: Map<string, FoldedTrackedSeries>;
 } {
   const mediaProgress = new Map<string, FoldedProgress>();
   const continueWatching = new Map<string, FoldedContinueWatching>();
   const watchHistory = new Map<string, FoldedWatchHistory>();
   const watchlist = new Map<string, FoldedWatchlist>();
   const ratings = new Map<string, FoldedRating>();
-  const trackedSeries = new Map<number, FoldedTrackedSeries>();
+  const trackedSeries = new Map<string, FoldedTrackedSeries>();
 
   for (const event of events) {
     const identity = identityFromEvent(event);
-    const showTmdbId = showTmdbIdForIdentity(identity);
+    const trackedIdentity = toTrackedIdentity(identity);
 
-    if (showTmdbId && shouldTrackSeries(event.eventType)) {
-      trackedSeries.set(showTmdbId, {
-        showTmdbId,
+    if (trackedIdentity && shouldTrackSeries(event.eventType)) {
+      trackedSeries.set(trackedIdentity.mediaKey, {
+        trackedMediaKey: trackedIdentity.mediaKey,
+        trackedMediaType: trackedIdentity.mediaType,
+        provider: trackedIdentity.provider,
+        providerId: trackedIdentity.providerId,
+        showTmdbId: trackedIdentity.showTmdbId,
         reason: trackedSeriesReason(event.eventType),
         lastSourceEventId: event.id,
         lastInteractedAt: event.occurredAt,
@@ -382,6 +394,47 @@ function identityFromEvent(event: RebuildableWatchEvent): MediaIdentity {
     seasonNumber: event.seasonNumber,
     episodeNumber: event.episodeNumber,
   });
+}
+
+function toTrackedIdentity(identity: MediaIdentity): (MediaIdentity & {
+  mediaType: 'show' | 'anime';
+  provider: NonNullable<MediaIdentity['provider']>;
+  providerId: NonNullable<MediaIdentity['providerId']>;
+}) | null {
+  if ((identity.mediaType === 'show' || identity.mediaType === 'anime') && identity.provider && identity.providerId) {
+    return {
+      ...identity,
+      mediaType: identity.mediaType,
+      provider: identity.provider,
+      providerId: identity.providerId,
+    };
+  }
+
+  if ((identity.mediaType === 'season' || identity.mediaType === 'episode') && identity.parentProvider && identity.parentProviderId) {
+    const mediaType = parentMediaTypeForIdentity(identity);
+    if (mediaType !== 'show' && mediaType !== 'anime') {
+      return null;
+    }
+
+    return {
+      contentId: identity.parentContentId ?? null,
+      mediaKey: `${mediaType}:${identity.parentProvider}:${identity.parentProviderId}`,
+      mediaType,
+      provider: identity.parentProvider,
+      providerId: identity.parentProviderId,
+      parentContentId: null,
+      parentProvider: null,
+      parentProviderId: null,
+      tmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      showTmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      seasonNumber: null,
+      episodeNumber: null,
+      absoluteEpisodeNumber: null,
+      providerMetadata: identity.providerMetadata,
+    };
+  }
+
+  return null;
 }
 
 function shouldTrackSeries(eventType: string): boolean {

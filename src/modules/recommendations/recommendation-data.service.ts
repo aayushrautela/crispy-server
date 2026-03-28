@@ -196,7 +196,13 @@ export class RecommendationDataService {
   private async loadTrackedSeries(client: DbClient, profileId: string, limit: number) {
     const rows = await this.trackedSeriesRepository.listForProfile(client, profileId, limit);
     return Promise.all(rows.map(async (row) => ({
-      show: await this.metadataViewService.buildMetadataCardView(client, inferMediaIdentity({ mediaType: 'show', tmdbId: row.showTmdbId })),
+      show: await this.metadataViewService.buildMetadataCardView(client, inferMediaIdentity({
+        mediaKey: row.trackedMediaKey,
+        mediaType: row.trackedMediaType,
+        provider: row.provider,
+        providerId: row.providerId,
+        tmdbId: row.showTmdbId,
+      })),
       reason: row.reason,
       lastInteractedAt: row.lastInteractedAt,
       nextEpisodeAirDate: row.nextEpisodeAirDate,

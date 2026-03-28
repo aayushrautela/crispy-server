@@ -77,6 +77,10 @@ export class TmdbRefreshService {
     }
 
     for (const row of tracked) {
+      if (row.showTmdbId === null) {
+        summary.skipped += 1;
+        continue;
+      }
       try {
         mergeSummary(summary, await this.refreshShow(client, profileId, row.showTmdbId));
       } catch (error) {
@@ -140,7 +144,7 @@ export class TmdbRefreshService {
 
     await this.trackedSeriesRepository.updateMetadataState(client, {
       profileId,
-      showTmdbId,
+      trackedMediaKey: `show:tmdb:${showTmdbId}`,
       nextEpisodeAirDate: extractNextEpisodeToAir(title)?.airDate ?? null,
       metadataRefreshedAt: new Date().toISOString(),
     });

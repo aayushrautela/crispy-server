@@ -4,7 +4,7 @@ import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
-import { ensureSupportedProvider, inferMediaIdentity, type MediaIdentity, parseMediaKey, showTmdbIdForIdentity } from './media-key.js';
+import { ensureSupportedProvider, inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity, parseMediaKey } from './media-key.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
@@ -39,9 +39,9 @@ export class WatchStateService {
         this.ratingsRepository.getByMediaKey(client, profileId, identity.mediaKey),
       ]);
 
-      const trackedShowTmdbId = showTmdbIdForIdentity(identity);
-      const watchedEpisodeKeys = trackedShowTmdbId
-        ? Array.from(await this.watchHistoryRepository.listWatchedEpisodeKeys(client, profileId, trackedShowTmdbId))
+      const trackedMediaKey = toTrackedMediaKey(identity);
+      const watchedEpisodeKeys = trackedMediaKey
+        ? Array.from(await this.watchHistoryRepository.listWatchedEpisodeKeysForTrackedMedia(client, profileId, trackedMediaKey))
         : [];
 
       return {
@@ -92,6 +92,21 @@ export class WatchStateService {
 
     return Promise.all(inputs.map((input) => this.getState(userId, profileId, input)));
   }
+}
+
+function toTrackedMediaKey(identity: MediaIdentity): string | null {
+  if ((identity.mediaType === 'show' || identity.mediaType === 'anime') && identity.provider && identity.providerId) {
+    return identity.mediaKey;
+  }
+
+  if ((identity.mediaType === 'season' || identity.mediaType === 'episode') && identity.parentProvider && identity.parentProviderId) {
+    const parentMediaType = parentMediaTypeForIdentity(identity);
+    if (parentMediaType === 'show' || parentMediaType === 'anime') {
+      return `${parentMediaType}:${identity.parentProvider}:${identity.parentProviderId}`;
+    }
+  }
+
+  return null;
 }
 
 function resolveIdentity(input: WatchStateLookupInput): MediaIdentity {
