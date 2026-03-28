@@ -8,19 +8,32 @@ import {
 } from '../watch/media-key.js';
 import { KitsuClient } from './kitsu.client.js';
 import type {
-  MetadataParentMediaType,
-  MetadataSearchFilter,
+  MetadataCollectionView,
+  MetadataCompanyView,
   MetadataExternalIds,
+  MetadataParentMediaType,
+  MetadataPersonRefView,
+  MetadataProductionInfoView,
+  MetadataReviewView,
+  MetadataSearchFilter,
+  MetadataVideoView,
   ProviderEpisodeRecord,
   ProviderSeasonRecord,
   ProviderTitleRecord,
-} from './tmdb.types.js';
+} from './metadata.types.js';
 import { TvdbClient } from './tvdb.client.js';
 
 type ProviderTitleBundle = {
   title: ProviderTitleRecord;
   seasons: ProviderSeasonRecord[];
   episodes: ProviderEpisodeRecord[];
+  extras?: {
+    characters?: Record<string, unknown> | null;
+    staff?: Record<string, unknown> | null;
+    relationships?: Record<string, unknown> | null;
+    productions?: Record<string, unknown> | null;
+    reviews?: Record<string, unknown> | null;
+  };
 };
 
 export type ProviderIdentityContext = {
@@ -29,6 +42,14 @@ export type ProviderIdentityContext = {
   nextEpisode: ProviderEpisodeRecord | null;
   seasons: ProviderSeasonRecord[];
   episodes: ProviderEpisodeRecord[];
+  videos: MetadataVideoView[];
+  cast: MetadataPersonRefView[];
+  directors: MetadataPersonRefView[];
+  creators: MetadataPersonRefView[];
+  reviews: MetadataReviewView[];
+  production: MetadataProductionInfoView | null;
+  collection: MetadataCollectionView | null;
+  similar: Array<ProviderTitleRecord>;
 };
 
 export class ProviderMetadataService {
@@ -70,6 +91,14 @@ export class ProviderMetadataService {
       nextEpisode: selectNextEpisode(bundle.episodes, identity, currentEpisode),
       seasons: bundle.seasons,
       episodes: bundle.episodes,
+      videos: buildProviderVideos(bundle.title),
+      cast: buildProviderCast(bundle.title, bundle.extras),
+      directors: buildProviderCrew(bundle.title, bundle.extras, ['director']),
+      creators: buildProviderCrew(bundle.title, bundle.extras, ['creator', 'writer', 'author']),
+      reviews: buildProviderReviews(bundle.title, bundle.extras),
+      production: buildProviderProduction(bundle.title, bundle.extras),
+      collection: buildProviderCollection(bundle.title),
+      similar: buildProviderSimilar(bundle.title, bundle.extras),
     };
   }
 
@@ -163,9 +192,14 @@ export class ProviderMetadataService {
   }
 
   private async loadKitsuAnimeBundle(animeId: string): Promise<ProviderTitleBundle> {
-    const [animePayload, episodesPayload] = await Promise.all([
+    const [animePayload, episodesPayload, charactersPayload, staffPayload, relationshipsPayload, productionsPayload, reviewsPayload] = await Promise.all([
       this.kitsuClient.fetchAnime(animeId),
       this.kitsuClient.fetchAnimeEpisodes(animeId, 100).catch(() => ({ data: [] })),
+      this.kitsuClient.fetchAnimeCharacters(animeId).catch(() => ({ data: [], included: [] })),
+      this.kitsuClient.fetchAnimeStaff(animeId).catch(() => ({ data: [], included: [] })),
+      this.kitsuClient.fetchAnimeRelationships(animeId).catch(() => ({ data: [], included: [] })),
+      this.kitsuClient.fetchAnimeProductions(animeId).catch(() => ({ data: [] })),
+      this.kitsuClient.fetchAnimeReviews(animeId).catch(() => ({ data: [] })),
     ]);
 
     const anime = asRecord(animePayload.data);
@@ -189,6 +223,13 @@ export class ProviderMetadataService {
       },
       seasons,
       episodes,
+      extras: {
+        characters: charactersPayload,
+        staff: staffPayload,
+        relationships: relationshipsPayload,
+        productions: productionsPayload,
+        reviews: reviewsPayload,
+      },
     };
   }
 }
@@ -716,6 +757,377 @@ function extractKitsuCategories(included: unknown[]): string[] {
     .filter((entry) => asString(entry.type) === 'categories')
     .map((entry) => asString(asRecord(entry.attributes)?.title))
     .filter((entry): entry is string => Boolean(entry));
+}
+
+function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoView[] {
+  if (title.provider === 'tvdb') {
+    return asArray(asRecord(asRecord(title.raw)?.data)?.trailers)
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .flatMap((entry) => {
+        const id = asString(entry.id) ?? asString(entry.url);
+        const url = asString(entry.url);
+        if (!id || !url) {
+          return [];
+        }
+
+        return [{
+          id,
+          key: url,
+          name: asString(entry.name),
+          site: 'TVDB',
+          type: 'Trailer',
+          official: true,
+          publishedAt: null,
+          url,
+          thumbnailUrl: null,
+        } satisfies MetadataVideoView];
+      });
+  }
+
+  if (title.provider === 'kitsu') {
+    const attributes = asRecord(asRecord(title.raw)?.data)?.attributes;
+    const key = asString(asRecord(attributes)?.youtubeVideoId);
+    if (!key) {
+      return [];
+    }
+
+    return [{
+      id: key,
+      key,
+      name: title.title,
+      site: 'YouTube',
+      type: 'Trailer',
+      official: true,
+      publishedAt: null,
+      url: `https://www.youtube.com/watch?v=${key}`,
+      thumbnailUrl: `https://img.youtube.com/vi/${key}/hqdefault.jpg`,
+    } satisfies MetadataVideoView];
+  }
+
+  return [];
+}
+
+function buildProviderCast(
+  title: ProviderTitleRecord,
+  extras?: ProviderTitleBundle['extras'],
+): MetadataPersonRefView[] {
+  if (title.provider !== 'tvdb') {
+    return buildKitsuCast(extras);
+  }
+
+  return asArray(asRecord(asRecord(title.raw)?.data)?.characters)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .flatMap((entry) => {
+      const providerId = asString(entry.peopleId) ?? asString(entry.id);
+      const name = asString(entry.personName) ?? asString(entry.name);
+      if (!providerId || !name) {
+        return [];
+      }
+
+      return [{
+        id: `person:tvdb:${providerId}`,
+        provider: 'tvdb' as const,
+        providerId,
+        tmdbPersonId: null,
+        name,
+        role: asString(entry.name),
+        department: asString(entry.peopleType) ?? 'Cast',
+        profileUrl: asString(entry.personImgURL) ?? asString(entry.image),
+      } satisfies MetadataPersonRefView];
+    });
+}
+
+function buildProviderCrew(
+  title: ProviderTitleRecord,
+  extras: ProviderTitleBundle['extras'] | undefined,
+  roles: string[],
+): MetadataPersonRefView[] {
+  const normalizedRoles = roles.map((role) => role.toLowerCase());
+  const seen = new Set<string>();
+  const source = title.provider === 'tvdb' ? buildProviderCast(title, extras) : buildKitsuCrew(extras);
+  return source.filter((entry) => {
+    const department = entry.department?.toLowerCase() ?? '';
+    const role = entry.role?.toLowerCase() ?? '';
+    const matches = normalizedRoles.some((candidate) => department.includes(candidate) || role.includes(candidate));
+    if (!matches || seen.has(entry.id)) {
+      return false;
+    }
+    seen.add(entry.id);
+    return true;
+  });
+}
+
+function buildProviderProduction(
+  title: ProviderTitleRecord,
+  extras?: ProviderTitleBundle['extras'],
+): MetadataProductionInfoView | null {
+  if (title.provider === 'tvdb') {
+    const data = asRecord(asRecord(title.raw)?.data) ?? {};
+    const companies = asArray(data.companies)
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => buildProviderCompany(entry, 'tvdb'))
+      .filter((entry): entry is MetadataCompanyView => entry !== null);
+    const networks = [asRecord(data.originalNetwork), asRecord(data.latestNetwork)]
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => buildProviderCompany(entry, 'tvdb'))
+      .filter((entry): entry is MetadataCompanyView => entry !== null);
+
+    return {
+      originalLanguage: asString(data.originalLanguage),
+      originCountries: uniqueStrings([asString(data.country)]),
+      spokenLanguages: [],
+      productionCountries: companies.map((company) => company.originCountry).filter((entry): entry is string => Boolean(entry)),
+      companies,
+      networks,
+    };
+  }
+
+  return buildKitsuProduction(extras);
+}
+
+function buildProviderCollection(_title: ProviderTitleRecord): MetadataCollectionView | null {
+  return null;
+}
+
+function buildProviderSimilar(title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): ProviderTitleRecord[] {
+  if (title.provider !== 'kitsu') {
+    return [];
+  }
+  return buildKitsuSimilar(title, extras);
+}
+
+function buildProviderReviews(_title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): MetadataReviewView[] {
+  return buildKitsuReviews(extras);
+}
+
+function buildKitsuCast(extras?: ProviderTitleBundle['extras']): MetadataPersonRefView[] {
+  const payload = asRecord(extras?.characters);
+  const included = asArray(payload?.included)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const charactersById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'characters')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+  const peopleById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'people')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+  const voicesById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'characterVoices')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+
+  return asArray(payload?.data)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .flatMap((entry) => {
+      const entryId = asString(entry.id);
+      const attrs = asRecord(entry.attributes);
+      const relationships = asRecord(entry.relationships);
+      const characterId = asString(asRecord(asRecord(relationships?.character)?.data)?.id);
+      const character = characterId ? charactersById.get(characterId) ?? null : null;
+      const voiceRefs = asArray(asRecord(relationships?.voices)?.data)
+        .map((value) => asRecord(value))
+        .filter((value): value is Record<string, unknown> => value !== null);
+      const voicePeople = voiceRefs
+        .map((voiceRef) => asString(voiceRef.id))
+        .filter((value): value is string => Boolean(value))
+        .flatMap((voiceId) => {
+          const voice = voicesById.get(voiceId);
+          const personData = asRecord(asRecord(asRecord(voice?.relationships)?.person)?.data);
+          const personId = asString(personData?.id);
+          return personId ? [peopleById.get(personId)].filter((value): value is Record<string, unknown> => Boolean(value)) : [];
+        });
+      const person = voicePeople[0] ?? null;
+      const personAttrs = asRecord(person?.attributes);
+      const characterAttrs = asRecord(character?.attributes);
+      const providerId = asString(person?.id) ?? entryId;
+      const name = asString(personAttrs?.name) ?? asString(characterAttrs?.canonicalName) ?? asString(characterAttrs?.name);
+      if (!providerId || !name) {
+        return [];
+      }
+
+      const characterName = asString(characterAttrs?.canonicalName) ?? asString(characterAttrs?.name);
+      return [{
+        id: `person:kitsu:${providerId}`,
+        provider: 'kitsu' as const,
+        providerId,
+        tmdbPersonId: null,
+        name,
+        role: characterName,
+        department: asString(attrs?.role) ?? 'Cast',
+        profileUrl: extractKitsuImageUrl(asRecord(personAttrs?.image)) ?? extractKitsuImageUrl(asRecord(characterAttrs?.image)),
+      } satisfies MetadataPersonRefView];
+    });
+}
+
+function buildKitsuCrew(extras?: ProviderTitleBundle['extras']): MetadataPersonRefView[] {
+  const payload = asRecord(extras?.staff);
+  const included = asArray(payload?.included)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const peopleById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'people')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+
+  return asArray(payload?.data)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .flatMap((entry) => {
+      const attrs = asRecord(entry.attributes);
+      const personData = asRecord(asRecord(asRecord(entry.relationships)?.person)?.data);
+      const personId = asString(personData?.id);
+      const person = personId ? peopleById.get(personId) ?? null : null;
+      const personAttrs = asRecord(person?.attributes);
+      const providerId = personId ?? asString(entry.id);
+      const name = asString(personAttrs?.name);
+      if (!providerId || !name) {
+        return [];
+      }
+
+      return [{
+        id: `person:kitsu:${providerId}`,
+        provider: 'kitsu' as const,
+        providerId,
+        tmdbPersonId: null,
+        name,
+        role: asString(attrs?.role),
+        department: asString(attrs?.role),
+        profileUrl: extractKitsuImageUrl(asRecord(personAttrs?.image)),
+      } satisfies MetadataPersonRefView];
+    });
+}
+
+function buildKitsuProduction(extras?: ProviderTitleBundle['extras']): MetadataProductionInfoView | null {
+  const payload = asRecord(extras?.productions);
+  const companies = asArray(payload?.data)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => {
+      const attrs = asRecord(entry.attributes);
+      const providerId = asString(entry.id);
+      const name = asString(attrs?.producer) ?? asString(attrs?.name) ?? asString(attrs?.locale);
+      if (!providerId || !name) {
+        return null;
+      }
+      return {
+        id: providerId,
+        provider: 'kitsu' as const,
+        providerId,
+        name,
+        logoUrl: null,
+        originCountry: asString(attrs?.locale),
+      } satisfies MetadataCompanyView;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  if (!companies.length) {
+    return null;
+  }
+
+  return {
+    originalLanguage: null,
+    originCountries: uniqueStrings(companies.map((company) => company.originCountry)),
+    spokenLanguages: [],
+    productionCountries: uniqueStrings(companies.map((company) => company.originCountry)),
+    companies,
+    networks: [],
+  };
+}
+
+function buildKitsuReviews(extras?: ProviderTitleBundle['extras']): MetadataReviewView[] {
+  const payload = asRecord(extras?.reviews);
+  return asArray(payload?.data)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .flatMap((entry) => {
+      const attrs = asRecord(entry.attributes);
+      const id = asString(entry.id);
+      const content = asString(attrs?.content);
+      if (!id || !content) {
+        return [];
+      }
+
+      return [{
+        id,
+        author: asString(attrs?.source),
+        username: asString(attrs?.source),
+        content,
+        createdAt: asString(attrs?.createdAt),
+        updatedAt: asString(attrs?.updatedAt),
+        url: null,
+        rating: asInteger(attrs?.ratingTwenty) !== null ? Math.round((asInteger(attrs?.ratingTwenty) ?? 0) / 2) : null,
+        avatarUrl: null,
+      } satisfies MetadataReviewView];
+    });
+}
+
+function buildKitsuSimilar(title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): ProviderTitleRecord[] {
+  const payload = asRecord(extras?.relationships);
+  const included = asArray(payload?.included)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const animeById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'anime')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+
+  return asArray(payload?.data)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .flatMap((entry) => {
+      const destinationData = asRecord(asRecord(asRecord(entry.relationships)?.destination)?.data);
+      const destinationId = asString(destinationData?.id);
+      const destination = destinationId ? animeById.get(destinationId) ?? null : null;
+      if (!destination) {
+        return [];
+      }
+      const normalized = normalizeKitsuTitle({ data: destination, included: [] }, destinationId ?? title.providerId);
+      if (normalized.providerId === title.providerId) {
+        return [];
+      }
+      return [normalized];
+    });
+}
+
+function buildProviderCompany(
+  record: Record<string, unknown>,
+  provider: SupportedProvider,
+): MetadataCompanyView | null {
+  const numericId = asInteger(record.id);
+  const providerId = asString(record.id) ?? (numericId === null ? null : String(numericId));
+  const name = asString(record.name);
+  if (!providerId || !name) {
+    return null;
+  }
+
+  return {
+    id: numericId ?? providerId,
+    provider,
+    providerId,
+    name,
+    logoUrl: asString(record.image),
+    originCountry: asString(record.country),
+  };
+}
+
+function uniqueStrings(values: Array<string | null>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
 function findRemoteId(records: Record<string, unknown>[], sources: string[]): string | null {

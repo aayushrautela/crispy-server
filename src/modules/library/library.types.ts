@@ -1,5 +1,5 @@
 import type { HydratedRatingItem, HydratedWatchItem, HydratedWatchlistItem } from '../watch/watch-read.types.js';
-import type { MetadataExternalIds, MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataExternalIds, MetadataView } from '../metadata/metadata.types.js';
 
 export type LibraryProviderSource = 'local' | 'trakt' | 'simkl' | 'all';
 
@@ -27,7 +27,7 @@ export type CanonicalLibraryItemView = {
   key: string;
   mediaKey: string | null;
   contentId: string;
-  contentType: 'movie' | 'show';
+  contentType: 'movie' | 'show' | 'anime';
   externalIds: MetadataExternalIds | null;
   title: string;
   posterUrl: string | null;
@@ -57,7 +57,7 @@ export type ProviderLibraryItemView = {
   provider: 'trakt' | 'simkl';
   folderId: string;
   contentId: string;
-  contentType: 'movie' | 'show';
+  contentType: 'movie' | 'show' | 'anime';
   externalIds: MetadataExternalIds | null;
   title: string;
   posterUrl: string | null;

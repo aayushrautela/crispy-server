@@ -1,4 +1,5 @@
-import type { MetadataCardView, MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataCardView, MetadataView } from '../metadata/metadata.types.js';
+import type { SupportedProvider } from './media-key.js';
 
 export type WatchProgressView = {
   positionSeconds: number | null;
@@ -77,10 +78,17 @@ export type WatchStatesEnvelope = {
 export type WatchStateLookupInput = {
   mediaKey?: string;
   mediaType?: string;
+  provider?: SupportedProvider | null;
+  providerId?: string | null;
+  parentProvider?: SupportedProvider | null;
+  parentProviderId?: string | null;
   tmdbId?: number | null;
+  tvdbId?: number | null;
+  kitsuId?: string | null;
   showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
 };
 
 export type WatchStateResponse = {

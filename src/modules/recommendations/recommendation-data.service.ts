@@ -2,7 +2,7 @@ import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
-import type { MetadataCardView } from '../metadata/tmdb.types.js';
+import type { MetadataCardView } from '../metadata/metadata.types.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
 import { inferMediaIdentity } from '../watch/media-key.js';
 import { ContinueWatchingRepository } from '../watch/continue-watching.repo.js';

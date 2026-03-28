@@ -23,6 +23,7 @@ export type LibraryMutationBody = {
   tmdbId?: number | string;
   imdbId?: string;
   tvdbId?: number | string;
+  kitsuId?: number | string;
   mediaType?: string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
@@ -56,6 +57,7 @@ export const libraryWatchlistRouteSchema = withDefaultErrorResponses({
       tmdbId: positiveIntegerLikeSchema,
       imdbId: stringSchema,
       tvdbId: positiveIntegerLikeSchema,
+      kitsuId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,
@@ -80,6 +82,7 @@ export const libraryRatingRouteSchema = withDefaultErrorResponses({
       tmdbId: positiveIntegerLikeSchema,
       imdbId: stringSchema,
       tvdbId: positiveIntegerLikeSchema,
+      kitsuId: positiveIntegerLikeSchema,
       mediaType: stringSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,

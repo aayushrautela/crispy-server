@@ -45,6 +45,51 @@ export class KitsuClient {
     });
   }
 
+  async fetchAnimeCharacters(
+    animeId: string | number,
+    include = 'character,voices.person',
+    limit = 50,
+  ): Promise<Record<string, unknown>> {
+    return this.request(`/anime/${encodeURIComponent(String(animeId))}/characters`, {
+      include,
+      'page[limit]': limit,
+    });
+  }
+
+  async fetchAnimeStaff(
+    animeId: string | number,
+    include = 'person',
+    limit = 50,
+  ): Promise<Record<string, unknown>> {
+    return this.request(`/anime/${encodeURIComponent(String(animeId))}/staff`, {
+      include,
+      'page[limit]': limit,
+    });
+  }
+
+  async fetchAnimeRelationships(
+    animeId: string | number,
+    include = 'destination',
+    limit = 50,
+  ): Promise<Record<string, unknown>> {
+    return this.request(`/anime/${encodeURIComponent(String(animeId))}/media-relationships`, {
+      include,
+      'page[limit]': limit,
+    });
+  }
+
+  async fetchAnimeProductions(animeId: string | number, limit = 50): Promise<Record<string, unknown>> {
+    return this.request(`/anime/${encodeURIComponent(String(animeId))}/productions`, {
+      'page[limit]': limit,
+    });
+  }
+
+  async fetchAnimeReviews(animeId: string | number, limit = 20): Promise<Record<string, unknown>> {
+    return this.request(`/anime/${encodeURIComponent(String(animeId))}/reviews`, {
+      'page[limit]': limit,
+    });
+  }
+
   private async request(
     pathname: string,
     query: Record<string, string | number | undefined> = {},

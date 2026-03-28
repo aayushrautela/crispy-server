@@ -11,13 +11,15 @@ import { TmdbExternalIdResolverService } from './tmdb-external-id-resolver.servi
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type {
   MetadataResolveResponse,
-  MetadataSearchResponse,
   MetadataSearchFilter,
-  ProviderTitleRecord,
-  TmdbTitleRecord,
-  MetadataTitleDetail,
   MetadataSeasonDetail,
+  MetadataSearchResponse,
+  MetadataTitleDetail,
+  ProviderTitleRecord,
+} from './metadata.types.js';
+import type {
   TmdbTitleType,
+  TmdbTitleRecord,
 } from './tmdb.types.js';
 
 type ResolveInput = {

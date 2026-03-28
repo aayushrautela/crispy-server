@@ -1,5 +1,11 @@
 import { appConfig } from '../../config/app-config.js';
-import { buildEpisodeProviderId, buildSeasonProviderId, parentMediaTypeForIdentity, type MediaIdentity } from '../watch/media-key.js';
+import {
+  buildEpisodeProviderId,
+  buildSeasonProviderId,
+  parentMediaTypeForIdentity,
+  type MediaIdentity,
+  type SupportedProvider,
+} from '../watch/media-key.js';
 import type {
   MetadataCardView,
   MetadataCollectionView,
@@ -11,13 +17,15 @@ import type {
   MetadataParentMediaType,
   MetadataPersonRefView,
   MetadataProductionInfoView,
-  ProviderEpisodeRecord,
-  ProviderSeasonRecord,
-  ProviderTitleRecord,
   MetadataReviewView,
   MetadataSeasonView,
   MetadataVideoView,
   MetadataView,
+  ProviderEpisodeRecord,
+  ProviderSeasonRecord,
+  ProviderTitleRecord,
+} from './metadata.types.js';
+import type {
   TmdbEpisodeRecord,
   TmdbSeasonRecord,
   TmdbTitleRecord,
@@ -185,7 +193,7 @@ export function extractCast(title: TmdbTitleRecord | null): MetadataPersonRefVie
 
 export function extractCrewByJob(title: TmdbTitleRecord | null, job: string): MetadataPersonRefView[] {
   const normalizedJob = job.trim().toLowerCase();
-  const seen = new Set<number>();
+  const seen = new Set<string>();
 
   return asArray(asRecord(title?.raw.credits)?.crew)
     .map((entry) => asRecord(entry))
@@ -193,10 +201,14 @@ export function extractCrewByJob(title: TmdbTitleRecord | null, job: string): Me
     .filter((entry) => asString(entry.job)?.toLowerCase() === normalizedJob)
     .map((entry) => buildPersonRefView(entry))
     .filter((entry): entry is MetadataPersonRefView => {
-      if (!entry || seen.has(entry.tmdbPersonId)) {
+      if (!entry) {
         return false;
       }
-      seen.add(entry.tmdbPersonId);
+      const key = `${entry.provider}:${entry.providerId}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
       return true;
     });
 }
@@ -246,6 +258,8 @@ function buildCompanyView(record: Record<string, unknown>): MetadataCompanyView 
 
   return {
     id,
+    provider: 'tmdb',
+    providerId: String(id),
     name,
     logoUrl: buildImageUrl(asString(record.logo_path), 'w185'),
     originCountry: asString(record.origin_country),
@@ -286,10 +300,177 @@ export function extractCollection(title: TmdbTitleRecord | null): MetadataCollec
 
   return {
     id,
+    provider: 'tmdb',
+    providerId: String(id),
     name,
     posterUrl: buildImageUrl(asString(collection.poster_path), 'w500'),
     backdropUrl: buildImageUrl(asString(collection.backdrop_path), 'w780'),
     parts: [],
+  };
+}
+
+export function buildProviderVideoViews(title: ProviderTitleRecord): MetadataVideoView[] {
+  if (title.provider === 'tvdb') {
+    const payload = asRecord(title.raw);
+    const trailers = asArray(asRecord(payload?.data)?.trailers);
+    return trailers
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .flatMap((trailer) => {
+        const id = asString(trailer.id) ?? asString(trailer.url);
+        const url = asString(trailer.url);
+        if (!id || !url) {
+          return [];
+        }
+
+        return [{
+          id,
+          key: url,
+          name: asString(trailer.name),
+          site: 'TVDB',
+          type: 'Trailer',
+          official: true,
+          publishedAt: null,
+          url,
+          thumbnailUrl: null,
+        } satisfies MetadataVideoView];
+      });
+  }
+
+  if (title.provider === 'kitsu') {
+    const attributes = asRecord(asRecord(title.raw)?.data)?.attributes;
+    const key = asString(asRecord(attributes)?.youtubeVideoId);
+    if (!key) {
+      return [];
+    }
+
+    return [{
+      id: key,
+      key,
+      name: title.title,
+      site: 'YouTube',
+      type: 'Trailer',
+      official: true,
+      publishedAt: null,
+      url: `https://www.youtube.com/watch?v=${key}`,
+      thumbnailUrl: `https://img.youtube.com/vi/${key}/hqdefault.jpg`,
+    } satisfies MetadataVideoView];
+  }
+
+  return [];
+}
+
+export function buildProviderCastViews(title: ProviderTitleRecord): MetadataPersonRefView[] {
+  if (title.provider === 'tvdb') {
+    const characters = asArray(asRecord(asRecord(title.raw)?.data)?.characters);
+    return characters
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .flatMap((entry) => {
+        const providerId = asString(entry.peopleId) ?? asString(entry.id);
+        const name = asString(entry.personName) ?? asString(entry.name);
+        if (!providerId || !name) {
+          return [];
+        }
+
+        return [{
+          id: `person:tvdb:${providerId}`,
+          provider: 'tvdb' as const,
+          providerId,
+          tmdbPersonId: null,
+          name,
+          role: asString(entry.name),
+          department: asString(entry.peopleType) ?? 'Cast',
+          profileUrl: asString(entry.personImgURL) ?? asString(entry.image),
+        } satisfies MetadataPersonRefView];
+      });
+  }
+
+  return [];
+}
+
+export function buildProviderCrewViews(title: ProviderTitleRecord, roles: string[]): MetadataPersonRefView[] {
+  if (title.provider !== 'tvdb') {
+    return [];
+  }
+
+  const normalizedRoles = roles.map((role) => role.toLowerCase());
+  const seen = new Set<string>();
+  return buildProviderCastViews(title).filter((entry) => {
+    const department = entry.department?.toLowerCase() ?? '';
+    const role = entry.role?.toLowerCase() ?? '';
+    const matches = normalizedRoles.some((candidate) => department.includes(candidate) || role.includes(candidate));
+    if (!matches || seen.has(entry.id)) {
+      return false;
+    }
+    seen.add(entry.id);
+    return true;
+  });
+}
+
+export function buildProviderProduction(title: ProviderTitleRecord): MetadataProductionInfoView {
+  if (title.provider === 'tvdb') {
+    const data = asRecord(asRecord(title.raw)?.data) ?? {};
+    const companies = asArray(data.companies)
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => buildProviderCompanyView(entry, 'tvdb'))
+      .filter((entry): entry is MetadataCompanyView => entry !== null);
+    const networks = [asRecord(data.originalNetwork), asRecord(data.latestNetwork)]
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => buildProviderCompanyView(entry, 'tvdb'))
+      .filter((entry): entry is MetadataCompanyView => entry !== null);
+
+    return {
+      originalLanguage: asString(data.originalLanguage),
+      originCountries: uniqueStrings([asString(data.country)]),
+      spokenLanguages: [],
+      productionCountries: companies.map((company) => company.originCountry).filter((entry): entry is string => Boolean(entry)),
+      companies,
+      networks,
+    };
+  }
+
+  return {
+    originalLanguage: null,
+    originCountries: [],
+    spokenLanguages: [],
+    productionCountries: [],
+    companies: [],
+    networks: [],
+  };
+}
+
+export function buildProviderCollection(title: ProviderTitleRecord): MetadataCollectionView | null {
+  return null;
+}
+
+export function buildProviderSimilar(title: ProviderTitleRecord): MetadataCardView[] {
+  return [];
+}
+
+export function buildProviderReviews(_title: ProviderTitleRecord): MetadataReviewView[] {
+  return [];
+}
+
+function buildProviderCompanyView(
+  record: Record<string, unknown>,
+  provider: SupportedProvider,
+): MetadataCompanyView | null {
+  const numericId = asNumber(record.id);
+  const providerId = asString(record.id) ?? (numericId === null ? null : String(numericId));
+  const name = asString(record.name);
+  if (!providerId || !name) {
+    return null;
+  }
+
+  return {
+    id: numericId ?? providerId,
+    provider,
+    providerId,
+    name,
+    logoUrl: asString(record.image) ?? buildImageUrl(asString(record.logo_path), 'w185'),
+    originCountry: asString(record.country) ?? asString(record.origin_country),
   };
 }
 

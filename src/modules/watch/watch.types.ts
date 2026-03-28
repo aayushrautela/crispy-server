@@ -1,14 +1,22 @@
 import { normalizeOptionalIsoString } from '../../lib/time.js';
+import type { SupportedProvider } from './media-key.js';
 
 export type WatchEventInput = {
   clientEventId: string;
   eventType: string;
   mediaKey?: string;
   mediaType: string;
+  provider?: SupportedProvider | null;
+  providerId?: string | null;
+  parentProvider?: SupportedProvider | null;
+  parentProviderId?: string | null;
   tmdbId?: number | null;
+  tvdbId?: number | null;
+  kitsuId?: string | null;
   showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
   rating?: number | null;
@@ -48,10 +56,17 @@ export function normalizeWatchOccurredAt(value: Date | string | null | undefined
 export type WatchMutationInput = {
   mediaKey?: string;
   mediaType: string;
+  provider?: SupportedProvider | null;
+  providerId?: string | null;
+  parentProvider?: SupportedProvider | null;
+  parentProviderId?: string | null;
   tmdbId?: number | null;
+  tvdbId?: number | null;
+  kitsuId?: string | null;
   showTmdbId?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
   occurredAt?: string | null;
   rating?: number | null;
   payload?: Record<string, unknown>;

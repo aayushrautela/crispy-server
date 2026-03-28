@@ -252,9 +252,9 @@ export type MetadataVideoView = {
 
 export type MetadataPersonRefView = {
   id: string;
-  provider: 'tmdb';
+  provider: SupportedProvider;
   providerId: string;
-  tmdbPersonId: number;
+  tmdbPersonId: number | null;
   name: string;
   role: string | null;
   department: string | null;
@@ -274,14 +274,18 @@ export type MetadataReviewView = {
 };
 
 export type MetadataCompanyView = {
-  id: number;
+  id: number | string;
+  provider: SupportedProvider;
+  providerId: string;
   name: string;
   logoUrl: string | null;
   originCountry: string | null;
 };
 
 export type MetadataCollectionView = {
-  id: number;
+  id: number | string;
+  provider: SupportedProvider;
+  providerId: string;
   name: string;
   posterUrl: string | null;
   backdropUrl: string | null;

@@ -30,10 +30,17 @@ export type WatchPaginationQuery = {
 export type WatchStateLookupContract = {
   mediaKey?: string;
   mediaType?: string;
+  provider?: string;
+  providerId?: string;
+  parentProvider?: string;
+  parentProviderId?: string;
   tmdbId?: number | string;
+  tvdbId?: number | string;
+  kitsuId?: number | string;
   showTmdbId?: number | string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
+  absoluteEpisodeNumber?: number | string;
 };
 
 export type WatchEventBody = {
@@ -41,10 +48,17 @@ export type WatchEventBody = {
   eventType?: string;
   mediaKey?: string;
   mediaType?: string;
+  provider?: string;
+  providerId?: string;
+  parentProvider?: string;
+  parentProviderId?: string;
   tmdbId?: number | string | null;
+  tvdbId?: number | string | null;
+  kitsuId?: number | string | null;
   showTmdbId?: number | string | null;
   seasonNumber?: number | string | null;
   episodeNumber?: number | string | null;
+  absoluteEpisodeNumber?: number | string | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
   rating?: number | null;
@@ -55,10 +69,17 @@ export type WatchEventBody = {
 export type WatchMutationBody = {
   mediaKey?: string;
   mediaType?: string;
+  provider?: string;
+  providerId?: string;
+  parentProvider?: string;
+  parentProviderId?: string;
   tmdbId?: number | string | null;
+  tvdbId?: number | string | null;
+  kitsuId?: number | string | null;
   showTmdbId?: number | string | null;
   seasonNumber?: number | string | null;
   episodeNumber?: number | string | null;
+  absoluteEpisodeNumber?: number | string | null;
   occurredAt?: string | null;
   rating?: number | null;
   payload?: Record<string, unknown>;
@@ -78,9 +99,25 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
       eventType: stringSchema,
       mediaKey: stringSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: stringSchema,
+      parentProvider: stringSchema,
+      parentProviderId: stringSchema,
       tmdbId: {
         anyOf: [
           positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      tvdbId: {
+        anyOf: [
+          positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      kitsuId: {
+        anyOf: [
+          stringSchema,
           { type: 'null' },
         ],
       },
@@ -97,6 +134,12 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
         ],
       },
       episodeNumber: {
+        anyOf: [
+          positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      absoluteEpisodeNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
           { type: 'null' },
@@ -147,10 +190,17 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
     properties: {
       mediaKey: stringSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: stringSchema,
+      parentProvider: stringSchema,
+      parentProviderId: stringSchema,
       tmdbId: positiveIntegerLikeSchema,
+      tvdbId: positiveIntegerLikeSchema,
+      kitsuId: stringSchema,
       showTmdbId: positiveIntegerLikeSchema,
       seasonNumber: positiveIntegerLikeSchema,
       episodeNumber: positiveIntegerLikeSchema,
+      absoluteEpisodeNumber: positiveIntegerLikeSchema,
     },
   },
 });
@@ -169,10 +219,17 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
           properties: {
             mediaKey: stringSchema,
             mediaType: stringSchema,
+            provider: stringSchema,
+            providerId: stringSchema,
+            parentProvider: stringSchema,
+            parentProviderId: stringSchema,
             tmdbId: positiveIntegerLikeSchema,
+            tvdbId: positiveIntegerLikeSchema,
+            kitsuId: stringSchema,
             showTmdbId: positiveIntegerLikeSchema,
             seasonNumber: positiveIntegerLikeSchema,
             episodeNumber: positiveIntegerLikeSchema,
+            absoluteEpisodeNumber: positiveIntegerLikeSchema,
           },
         },
       },
@@ -188,9 +245,25 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
     properties: {
       mediaKey: stringSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: stringSchema,
+      parentProvider: stringSchema,
+      parentProviderId: stringSchema,
       tmdbId: {
         anyOf: [
           positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      tvdbId: {
+        anyOf: [
+          positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      kitsuId: {
+        anyOf: [
+          stringSchema,
           { type: 'null' },
         ],
       },
@@ -207,6 +280,12 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
         ],
       },
       episodeNumber: {
+        anyOf: [
+          positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      absoluteEpisodeNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
           { type: 'null' },
@@ -232,9 +311,25 @@ export const watchMediaKeyMutationRouteSchema = withDefaultErrorResponses({
     properties: {
       mediaKey: stringSchema,
       mediaType: stringSchema,
+      provider: stringSchema,
+      providerId: stringSchema,
+      parentProvider: stringSchema,
+      parentProviderId: stringSchema,
       tmdbId: {
         anyOf: [
           positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      tvdbId: {
+        anyOf: [
+          positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      kitsuId: {
+        anyOf: [
+          stringSchema,
           { type: 'null' },
         ],
       },
@@ -251,6 +346,12 @@ export const watchMediaKeyMutationRouteSchema = withDefaultErrorResponses({
         ],
       },
       episodeNumber: {
+        anyOf: [
+          positiveIntegerLikeSchema,
+          { type: 'null' },
+        ],
+      },
+      absoluteEpisodeNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
           { type: 'null' },

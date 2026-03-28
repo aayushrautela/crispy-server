@@ -27,14 +27,17 @@ import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type {
   MetadataCardView,
+  MetadataCollectionView,
   MetadataProductionInfoView,
   MetadataSeasonDetail,
   MetadataTitleDetail,
+  MetadataView,
   ProviderEpisodeRecord,
   ProviderTitleRecord,
+} from './metadata.types.js';
+import type {
   TmdbEpisodeRecord,
   TmdbTitleRecord,
-  MetadataView,
 } from './tmdb.types.js';
 
 export class MetadataViewService {
@@ -166,14 +169,14 @@ export class MetadataViewService {
             ? [buildProviderSeasonViewFromRecord(season, seasonId, showId, showTmdbId)]
             : [];
         }),
-        videos: [],
-        cast: [],
-        directors: [],
-        creators: [],
-        reviews: [],
-        production: emptyProductionInfo(),
-        collection: null,
-        similar: [],
+        videos: providerContext?.videos ?? [],
+        cast: providerContext?.cast ?? [],
+        directors: providerContext?.directors ?? [],
+        creators: providerContext?.creators ?? [],
+        reviews: providerContext?.reviews ?? [],
+        production: providerContext?.production ?? emptyProductionInfo(),
+        collection: providerContext?.collection ?? null,
+        similar: await this.buildProviderSimilarCards(client, providerContext?.similar ?? []),
       };
     }
 
@@ -190,7 +193,9 @@ export class MetadataViewService {
       parentProviderId: resolvedTitle.tmdbId,
     }, seasonNumbers);
     const collection = extractCollection(resolvedTitle);
-    const collectionRaw = collection ? await this.tmdbCacheService.getCollection(client, collection.id).catch(() => null) : null;
+    const collectionRaw = collection && typeof collection.id === 'number'
+      ? await this.tmdbCacheService.getCollection(client, collection.id).catch(() => null)
+      : null;
     const collectionParts = extractCollectionParts(collectionRaw);
     const collectionIdentities = collectionParts.map((title) => inferMediaIdentity({
       mediaType: 'movie',
@@ -471,6 +476,31 @@ export class MetadataViewService {
       seasonNumber: episode.seasonNumber,
       episodeNumber: episode.episodeNumber,
       absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+    });
+  }
+
+  private async buildProviderSimilarCards(client: DbClient, titles: ProviderTitleRecord[]): Promise<MetadataCardView[]> {
+    if (!titles.length) {
+      return [];
+    }
+
+    const identities = titles.map((title) => inferMediaIdentity({
+      mediaType: title.mediaType,
+      provider: title.provider,
+      providerId: title.providerId,
+    }));
+    const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
+
+    return titles.flatMap((title) => {
+      const identity = inferMediaIdentity({
+        mediaType: title.mediaType,
+        provider: title.provider,
+        providerId: title.providerId,
+      });
+      const contentId = contentIds.get(identity.mediaKey);
+      return contentId
+        ? [buildProviderMetadataCardView({ id: contentId, identity, title })]
+        : [];
     });
   }
 }

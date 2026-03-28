@@ -103,6 +103,7 @@ function parseResolveBody(body: Record<string, unknown>) {
     tmdbId: parseOptionalPositiveNumber(body.tmdbId, 'tmdbId'),
     imdbId: parseOptionalString(body.imdbId),
     tvdbId: parseOptionalPositiveNumber(body.tvdbId, 'tvdbId'),
+    kitsuId: parseOptionalPositiveNumber(body.kitsuId, 'kitsuId'),
     mediaType: parseOptionalSupportedMediaType(body.mediaType),
     seasonNumber: parseOptionalPositiveNumber(body.seasonNumber, 'seasonNumber'),
     episodeNumber: parseOptionalPositiveNumber(body.episodeNumber, 'episodeNumber'),
@@ -142,11 +143,11 @@ function parseOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function parseOptionalSupportedMediaType(value: unknown): 'movie' | 'show' | 'episode' | null {
+function parseOptionalSupportedMediaType(value: unknown): 'movie' | 'show' | 'anime' | 'episode' | null {
   if (value === undefined || value === null || value === '') {
     return null;
   }
-  if (value === 'movie' || value === 'show' || value === 'episode') {
+  if (value === 'movie' || value === 'show' || value === 'anime' || value === 'episode') {
     return value;
   }
   throw new HttpError(400, 'Unsupported media type.');

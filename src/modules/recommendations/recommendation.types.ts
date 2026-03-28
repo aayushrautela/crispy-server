@@ -1,4 +1,4 @@
-import type { MetadataCardView } from '../metadata/tmdb.types.js';
+import type { MetadataCardView } from '../metadata/metadata.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;

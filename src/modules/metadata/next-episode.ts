@@ -1,4 +1,4 @@
-import type { MetadataEpisodeView } from './tmdb.types.js';
+import type { MetadataEpisodeView } from './metadata.types.js';
 
 type EpisodeLike = {
   seasonNumber: number;

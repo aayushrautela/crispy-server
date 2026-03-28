@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { normalizeIsoString, nowIso } from '../../lib/time.js';
 import { env } from '../../config/env.js';
 import { MetadataDirectService } from '../metadata/metadata-direct.service.js';
-import type { MetadataExternalIds, MetadataView } from '../metadata/tmdb.types.js';
+import type { MetadataExternalIds, MetadataView } from '../metadata/metadata.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProfileWatchDataStateRepository } from '../imports/profile-watch-data-state.repo.js';
 import { ProviderImportConnectionsRepository } from '../imports/provider-import-connections.repo.js';
@@ -31,14 +31,15 @@ type ResolveInput = {
   tmdbId?: number | null;
   imdbId?: string | null;
   tvdbId?: number | null;
-  mediaType?: 'movie' | 'show' | 'episode' | null;
+  kitsuId?: number | string | null;
+  mediaType?: 'movie' | 'show' | 'anime' | 'episode' | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
 };
 
 type ProviderMutationTarget = {
   media: MetadataView;
-  mediaType: 'movie' | 'show';
+  mediaType: 'movie' | 'show' | 'anime';
   tmdbId: number | null;
   imdbId: string | null;
 };
@@ -335,7 +336,7 @@ export class LibraryService {
       );
       folderItems.set(
         `${status}-anime`,
-        await this.hydrateProviderItems(mapSimklAllItems(listResponses[responseIndex++] ?? [], 'show', `${status}-anime`)).then((items) => items.slice(0, limitPerFolder)),
+        await this.hydrateProviderItems(mapSimklAllItems(listResponses[responseIndex++] ?? [], 'anime', `${status}-anime`)).then((items) => items.slice(0, limitPerFolder)),
       );
     }
 
@@ -379,7 +380,9 @@ export class LibraryService {
       throw new HttpError(404, 'Metadata not found for library mutation.');
     }
     if (media.mediaType !== 'movie' && media.mediaType !== 'show') {
-      throw new HttpError(400, 'Library mutations only support movies and shows.');
+      if (media.mediaType !== 'anime') {
+        throw new HttpError(400, 'Library mutations only support movies, shows, and anime.');
+      }
     }
 
     return {
@@ -490,6 +493,7 @@ export class LibraryService {
         tmdbId: input.tmdbId ?? null,
         imdbId: input.imdbId ?? null,
         tvdbId: input.tvdbId ?? null,
+        kitsuId: input.kitsuId ?? null,
         mediaType: input.mediaType ?? null,
         seasonNumber: input.seasonNumber ?? null,
         episodeNumber: input.episodeNumber ?? null,
@@ -820,8 +824,14 @@ function traktIdsForTarget(target: ProviderMutationTarget): Record<string, unkno
   return Object.keys(ids).length ? ids : null;
 }
 
-function simklTypeKey(mediaType: 'movie' | 'show'): 'movies' | 'shows' {
-  return mediaType === 'movie' ? 'movies' : 'shows';
+function simklTypeKey(mediaType: 'movie' | 'show' | 'anime'): 'movies' | 'shows' | 'anime' {
+  if (mediaType === 'movie') {
+    return 'movies';
+  }
+  if (mediaType === 'anime') {
+    return 'anime';
+  }
+  return 'shows';
 }
 
 function extractProviderArray(payload: unknown, collectionKey?: string): Array<Record<string, unknown>> | null {
@@ -1000,7 +1010,7 @@ function mapSimklPlaybackItems(
 
 function mapSimklAllItems(
   items: Array<Record<string, unknown>>,
-  contentType: 'movie' | 'show',
+  contentType: 'movie' | 'show' | 'anime',
   folderId: string,
 ): MappedProviderItem[] {
   return items.flatMap<MappedProviderItem>((wrapper) => {
@@ -1035,7 +1045,7 @@ function mapSimklRatingsItems(items: Array<Record<string, unknown>>): MappedProv
     const content = asRecord(wrapper.movie) ?? asRecord(wrapper.show) ?? asRecord(wrapper.anime) ?? wrapper;
     const ids = asRecord(content.ids) ?? asRecord(wrapper.ids);
     const contentId = normalizedProviderContentId(ids);
-    const mediaType: 'movie' | 'show' = wrapper.movie ? 'movie' : 'show';
+    const mediaType: 'movie' | 'show' | 'anime' = wrapper.movie ? 'movie' : wrapper.anime ? 'anime' : 'show';
     const resolveInput = buildResolveInputFromIds(ids, mediaType);
     if (!content || !contentId || !resolveInput) {
       return [];
@@ -1061,7 +1071,7 @@ function mapSimklRatingsItems(items: Array<Record<string, unknown>>): MappedProv
 
 function buildResolveInputFromIds(
   ids: Record<string, unknown> | null,
-  mediaType: 'movie' | 'show' | 'episode',
+  mediaType: 'movie' | 'show' | 'anime' | 'episode',
   seasonNumber?: number | null,
   episodeNumber?: number | null,
 ): ResolveInput | null {
@@ -1072,7 +1082,8 @@ function buildResolveInputFromIds(
   const imdbId = normalizeImdbId(asString(ids.imdb));
   const tmdbId = asPositiveInt(ids.tmdb);
   const tvdbId = asPositiveInt(ids.tvdb);
-  if (!imdbId && !tmdbId && !tvdbId) {
+  const kitsuId = asPositiveInt(ids.kitsu) ?? asString(ids.kitsu);
+  if (!imdbId && !tmdbId && !tvdbId && !kitsuId) {
     return null;
   }
   if (mediaType === 'episode' && (!seasonNumber || !episodeNumber)) {
@@ -1083,6 +1094,7 @@ function buildResolveInputFromIds(
     tmdbId,
     imdbId,
     tvdbId,
+    kitsuId,
     mediaType,
     seasonNumber: seasonNumber ?? null,
     episodeNumber: episodeNumber ?? null,
@@ -1095,6 +1107,7 @@ function resolveCacheKey(input: ResolveInput): string {
     tmdbId: input.tmdbId ?? null,
     imdbId: input.imdbId ?? null,
     tvdbId: input.tvdbId ?? null,
+    kitsuId: input.kitsuId ?? null,
     mediaType: input.mediaType ?? null,
     seasonNumber: input.seasonNumber ?? null,
     episodeNumber: input.episodeNumber ?? null,
@@ -1109,6 +1122,14 @@ function normalizedProviderContentId(ids: Record<string, unknown> | null): strin
   const imdb = normalizeImdbId(asString(ids?.imdb));
   if (imdb) {
     return imdb;
+  }
+  const kitsu = asPositiveInt(ids?.kitsu);
+  if (kitsu) {
+    return `kitsu:${kitsu}`;
+  }
+  const kitsuString = asString(ids?.kitsu);
+  if (kitsuString) {
+    return `kitsu:${kitsuString}`;
   }
   const tmdb = asPositiveInt(ids?.tmdb);
   return tmdb ? `tmdb:${tmdb}` : null;

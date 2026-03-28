@@ -31,6 +31,8 @@ import type {
   OmdbContentView,
   OmdbRatingEntry,
   PlaybackResolveResponse,
+} from './metadata.types.js';
+import type {
   TmdbEpisodeRecord,
   TmdbTitleRecord,
 } from './tmdb.types.js';

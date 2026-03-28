@@ -20,7 +20,7 @@ import {
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDirectService } from '../../modules/metadata/metadata-direct.service.js';
 import { MetadataQueryService } from '../../modules/metadata/metadata-query.service.js';
-import type { MetadataSearchFilter } from '../../modules/metadata/tmdb.types.js';
+import type { MetadataSearchFilter } from '../../modules/metadata/metadata.types.js';
 import type { SupportedMediaType } from '../../modules/watch/media-key.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {

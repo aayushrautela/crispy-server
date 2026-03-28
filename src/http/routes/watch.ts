@@ -24,6 +24,7 @@ import { WatchCollectionService } from '../../modules/watch/watch-collection.ser
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
+import { ensureSupportedProvider } from '../../modules/watch/media-key.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
@@ -42,10 +43,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       eventType: String(body.eventType ?? ''),
       mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
       mediaType: String(body.mediaType ?? ''),
+      provider: parseOptionalProvider(body.provider),
+      providerId: parseOptionalString(body.providerId),
+      parentProvider: parseOptionalProvider(body.parentProvider),
+      parentProviderId: parseOptionalString(body.parentProviderId),
       tmdbId: parseNullableNumber(body.tmdbId),
+      tvdbId: parseNullableNumber(body.tvdbId),
+      kitsuId: parseNullableString(body.kitsuId),
       showTmdbId: parseNullableNumber(body.showTmdbId),
       seasonNumber: parseNullableNumber(body.seasonNumber),
       episodeNumber: parseNullableNumber(body.episodeNumber),
+      absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
       rating: typeof body.rating === 'number' ? body.rating : null,
@@ -234,10 +242,17 @@ function mapMutationBody(body: WatchMutationBody) {
   return {
     mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
     mediaType: String(body.mediaType ?? ''),
+    provider: parseOptionalProvider(body.provider),
+    providerId: parseOptionalString(body.providerId),
+    parentProvider: parseOptionalProvider(body.parentProvider),
+    parentProviderId: parseOptionalString(body.parentProviderId),
     tmdbId: parseNullableNumber(body.tmdbId),
+    tvdbId: parseNullableNumber(body.tvdbId),
+    kitsuId: parseNullableString(body.kitsuId),
     showTmdbId: parseNullableNumber(body.showTmdbId),
     seasonNumber: parseNullableNumber(body.seasonNumber),
     episodeNumber: parseNullableNumber(body.episodeNumber),
+    absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
     rating: typeof body.rating === 'number' ? body.rating : null,
     payload: typeof body.payload === 'object' && body.payload !== null ? (body.payload as Record<string, unknown>) : {},
@@ -267,9 +282,34 @@ function mapStateLookupInput(query: WatchStateLookupContract): WatchStateLookupI
   return {
     mediaKey: typeof query.mediaKey === 'string' ? query.mediaKey : undefined,
     mediaType: typeof query.mediaType === 'string' ? query.mediaType : undefined,
+    provider: parseOptionalProvider(query.provider),
+    providerId: parseOptionalString(query.providerId),
+    parentProvider: parseOptionalProvider(query.parentProvider),
+    parentProviderId: parseOptionalString(query.parentProviderId),
     tmdbId: parseOptionalNumber(query.tmdbId),
+    tvdbId: parseOptionalNumber(query.tvdbId),
+    kitsuId: parseOptionalString(query.kitsuId),
     showTmdbId: parseOptionalNumber(query.showTmdbId),
     seasonNumber: parseOptionalNumber(query.seasonNumber),
     episodeNumber: parseOptionalNumber(query.episodeNumber),
+    absoluteEpisodeNumber: parseOptionalNumber(query.absoluteEpisodeNumber),
   };
+}
+
+function parseOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function parseNullableString(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  return parseOptionalString(value);
+}
+
+function parseOptionalProvider(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  return ensureSupportedProvider(value.trim());
 }
