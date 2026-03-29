@@ -218,7 +218,10 @@ export class MetadataDirectService {
   }
 
   async getTitleContent(userId: string, id: string): Promise<MetadataTitleContentResponse> {
-    const item = await this.resolveMetadataView({ id });
+    const item = await withDbClient(async (client) => {
+      const identity = await this.resolveTitleIdentity(client, id);
+      return this.metadataViewService.buildMetadataView(client, identity);
+    });
     const imdbId = normalizeImdbId(item.externalIds.imdb);
     if (!imdbId) {
       throw new HttpError(404, 'IMDb id not available for this title.');
@@ -304,23 +307,19 @@ export class MetadataDirectService {
         mediaType: parsed.mediaType,
       };
     }
-    if (parsed.mediaType === 'episode' && parsed.parentProvider && parsed.parentProviderId) {
-      const parentMediaType = parentMediaTypeForIdentity(parsed);
-      if (parentMediaType !== 'show' && parentMediaType !== 'anime') {
-        throw new HttpError(400, 'Episode listing requires a show id.');
-      }
-
-      return {
-        ...inferMediaIdentity({
-          mediaType: parentMediaType,
-          provider: parsed.parentProvider,
-          providerId: parsed.parentProviderId,
-          tmdbId: parsed.showTmdbId,
-        }),
-        mediaType: parentMediaType,
-      };
-    }
     throw new HttpError(400, 'Episode listing requires a show id.');
+  }
+
+  private async resolveTitleIdentity(client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'movie' | 'show' | 'anime' }> {
+    const parsed = await this.contentIdentityService.resolveMediaIdentity(client, id);
+    if (parsed.mediaType !== 'movie' && parsed.mediaType !== 'show' && parsed.mediaType !== 'anime') {
+      throw new HttpError(400, 'Title content requires a title id.');
+    }
+
+    return {
+      ...parsed,
+      mediaType: parsed.mediaType,
+    };
   }
 
   private async resolveIdentity(client: DbClient, input: ResolveMetadataInput): Promise<MediaIdentity> {

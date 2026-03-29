@@ -272,15 +272,7 @@ function parseNullableNumber(value: unknown): number | null {
 
 function mapStateLookupInput(query: WatchStateLookupContract): WatchStateLookupInput {
   return {
-    mediaKey: typeof query.mediaKey === 'string' ? query.mediaKey : undefined,
-    mediaType: typeof query.mediaType === 'string' ? query.mediaType : undefined,
-    provider: parseOptionalProvider(query.provider),
-    providerId: parseOptionalString(query.providerId),
-    parentProvider: parseOptionalProvider(query.parentProvider),
-    parentProviderId: parseOptionalString(query.parentProviderId),
-    seasonNumber: parseOptionalNumber(query.seasonNumber),
-    episodeNumber: parseOptionalNumber(query.episodeNumber),
-    absoluteEpisodeNumber: parseOptionalNumber(query.absoluteEpisodeNumber),
+    mediaKey: typeof query.mediaKey === 'string' ? query.mediaKey : '',
   };
 }
 

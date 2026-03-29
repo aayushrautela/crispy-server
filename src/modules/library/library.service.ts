@@ -287,10 +287,9 @@ export class LibraryService {
     folderItems.set('watchlist', await this.hydrateProviderItems([
       ...mapTraktListItems(watchlistMovies, 'movie', 'watchlist', 'listed_at'),
       ...mapTraktListItems(watchlistShows, 'show', 'watchlist', 'listed_at'),
-    ]).then((items) => items.slice(0, limitPerFolder)));
-    folderItems.set('collection', await this.hydrateProviderItems([
-      ...mapTraktListItems(collectionMovies, 'movie', 'collection', 'collected_at'),
-      ...mapTraktListItems(collectionShows, 'show', 'collection', 'collected_at'),
+      // Trakt collection is a provider-specific saved list, not a separate product concept.
+      ...mapTraktListItems(collectionMovies, 'movie', 'watchlist', 'collected_at'),
+      ...mapTraktListItems(collectionShows, 'show', 'watchlist', 'collected_at'),
     ]).then((items) => items.slice(0, limitPerFolder)));
     folderItems.set('ratings', await this.hydrateProviderItems([
       ...mapTraktListItems(ratingMovies, 'movie', 'ratings', 'rated_at'),

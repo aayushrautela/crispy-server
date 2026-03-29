@@ -135,10 +135,12 @@ export class CalendarBuilderService {
       client,
       inferMediaIdentity({
         mediaType: 'episode',
+        provider: 'tmdb',
+        parentProvider: 'tmdb',
+        parentProviderId: showTmdbId,
         showTmdbId,
         seasonNumber: episode.seasonNumber,
         episodeNumber: episode.episodeNumber,
-        tmdbId: episode.tmdbId,
       }),
     );
 

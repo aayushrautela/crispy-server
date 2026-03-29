@@ -267,12 +267,17 @@ export class ContentIdentityService {
 
   async resolveContentReference(client: DbClient, contentId: string): Promise<CanonicalContentReference> {
     const normalized = normalizeContentId(contentId);
+    const item = await this.repository.findContentItemById(client, normalized);
+    if (!item) {
+      throw new HttpError(404, 'Metadata not found.');
+    }
+
     const refs = await this.repository.listProviderRefsByContentId(client, normalized);
     if (!refs.length) {
       throw new HttpError(404, 'Metadata not found.');
     }
 
-    const authorityRef = selectAuthorityRef(refs);
+    const authorityRef = selectAuthorityRef(item.entityType, refs);
     if (!authorityRef) {
       throw new HttpError(404, 'Metadata not found.');
     }
@@ -604,25 +609,25 @@ function inferParentMediaType(provider: SupportedProvider, metadata: Record<stri
   return provider === 'kitsu' ? 'anime' : 'show';
 }
 
-function selectAuthorityRef(refs: ContentProviderRefRecord[]): ContentProviderRefRecord | null {
-  const firstRef = refs[0];
+function selectAuthorityRef(entityType: ContentEntityType, refs: ContentProviderRefRecord[]): ContentProviderRefRecord | null {
+  const matchingRefs = refs.filter((record) => record.entityType === entityType);
+  const firstRef = matchingRefs[0];
   if (!firstRef) {
     return null;
   }
-  const entityType = firstRef.entityType;
 
   if (entityType === 'person') {
-    return refs.find((record) => record.provider === 'tmdb') ?? null;
+    return matchingRefs.find((record) => record.provider === 'tmdb') ?? null;
   }
 
   if (entityType === 'movie' || entityType === 'show' || entityType === 'anime') {
     const provider = authorityProviderForEntityType(entityType);
-    return refs.find((record) => record.provider === provider && record.entityType === entityType) ?? null;
+    return matchingRefs.find((record) => record.provider === provider) ?? null;
   }
 
   const parentMediaType = inferParentMediaType(firstRef.provider as SupportedProvider, firstRef.metadata);
   const provider = authorityProviderForEntityType(entityType, parentMediaType);
-  return refs.find((record) => record.provider === provider && record.entityType === entityType) ?? null;
+  return matchingRefs.find((record) => record.provider === provider) ?? null;
 }
 
 function asNullableInteger(value: unknown): number | null {

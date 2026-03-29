@@ -139,6 +139,10 @@ export class MetadataViewService {
   }
 
   async getTitleDetail(client: DbClient, identity: MediaIdentity): Promise<MetadataTitleDetail> {
+    if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+      throw new Error('Title detail normalization requires a title identity.');
+    }
+
     const providerIdentity = this.normalizeProviderTitleIdentity(identity);
     if (providerIdentity) {
       const providerContext = await this.providerMetadataService.loadIdentityContext(client, providerIdentity);
@@ -180,9 +184,7 @@ export class MetadataViewService {
       };
     }
 
-    const normalizedIdentity = identity.mediaType === 'episode'
-      ? { ...identity, mediaType: 'show' as const, tmdbId: identity.showTmdbId, seasonNumber: null, episodeNumber: null }
-      : identity;
+    const normalizedIdentity = identity;
     const { title, nextEpisode } = await this.loadIdentityContext(client, normalizedIdentity);
     const resolvedTitle = assertPresent(title, 'Metadata title not found.');
     const showId = await this.contentIdentityService.ensureContentId(client, normalizedIdentity);

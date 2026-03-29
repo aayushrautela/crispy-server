@@ -29,14 +29,6 @@ export type WatchPaginationQuery = {
 
 export type WatchStateLookupContract = {
   mediaKey?: string;
-  mediaType?: string;
-  provider?: string;
-  providerId?: string;
-  parentProvider?: string;
-  parentProviderId?: string;
-  seasonNumber?: number | string;
-  episodeNumber?: number | string;
-  absoluteEpisodeNumber?: number | string;
 };
 
 export type WatchEventBody = {
@@ -151,16 +143,9 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
   querystring: {
     type: 'object',
     additionalProperties: false,
+    required: ['mediaKey'],
     properties: {
       mediaKey: stringSchema,
-      mediaType: stringSchema,
-      provider: stringSchema,
-      providerId: stringSchema,
-      parentProvider: stringSchema,
-      parentProviderId: stringSchema,
-      seasonNumber: positiveIntegerLikeSchema,
-      episodeNumber: positiveIntegerLikeSchema,
-      absoluteEpisodeNumber: positiveIntegerLikeSchema,
     },
   },
 });
@@ -170,22 +155,16 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
   body: {
     type: 'object',
     additionalProperties: false,
+    required: ['items'],
     properties: {
       items: {
         type: 'array',
         items: {
           type: 'object',
           additionalProperties: false,
+          required: ['mediaKey'],
           properties: {
             mediaKey: stringSchema,
-            mediaType: stringSchema,
-            provider: stringSchema,
-            providerId: stringSchema,
-            parentProvider: stringSchema,
-            parentProviderId: stringSchema,
-            seasonNumber: positiveIntegerLikeSchema,
-            episodeNumber: positiveIntegerLikeSchema,
-            absoluteEpisodeNumber: positiveIntegerLikeSchema,
           },
         },
       },

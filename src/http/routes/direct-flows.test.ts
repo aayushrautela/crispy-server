@@ -155,10 +155,10 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     return { dismissed: true, userId, profileId, id } as never;
   };
   WatchStateService.prototype.getState = async function (_userId, _profileId, input) {
-    return { media: { id: input.mediaKey ?? 'movie:tmdb:1' }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] } as never;
+    return { media: { id: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] } as never;
   };
   WatchStateService.prototype.getStates = async function (_userId, _profileId, inputs) {
-    return inputs.map((input) => ({ media: { id: input.mediaKey ?? 'movie:tmdb:1' }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] })) as never;
+    return inputs.map((input) => ({ media: { id: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] })) as never;
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
@@ -196,6 +196,17 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.equal(statesResponse.json().source, 'canonical_watch');
   assert.equal(typeof statesResponse.json().generatedAt, 'string');
   assert.equal(statesResponse.json().items.length, 2);
+
+  const invalidStateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/state?mediaType=movie', headers: auth });
+  assert.equal(invalidStateResponse.statusCode, 400);
+
+  const invalidStatesResponse = await app.inject({
+    method: 'POST',
+    url: '/v1/profiles/profile-1/watch/states',
+    headers: auth,
+    payload: { items: [{ mediaType: 'movie' }] },
+  });
+  assert.equal(invalidStatesResponse.statusCode, 400);
 
   const dismissResponse = await app.inject({ method: 'DELETE', url: '/v1/profiles/profile-1/watch/continue-watching/cw-1', headers: auth });
   assert.equal(dismissResponse.statusCode, 200);

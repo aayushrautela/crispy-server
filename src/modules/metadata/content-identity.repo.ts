@@ -17,6 +17,11 @@ export type ContentProviderRefRecord = {
   metadata: Record<string, unknown>;
 };
 
+export type ContentItemRecord = {
+  contentId: string;
+  entityType: ContentEntityType;
+};
+
 function mapProviderRef(row: Record<string, unknown>): ContentProviderRefRecord {
   return {
     contentId: String(row.content_id),
@@ -96,6 +101,28 @@ export class ContentIdentityRepository {
     );
 
     return result.rows.map((row) => mapProviderRef(row));
+  }
+
+  async findContentItemById(client: DbClient, contentId: string): Promise<ContentItemRecord | null> {
+    const result = await client.query(
+      `
+        SELECT id, entity_type
+        FROM content_items
+        WHERE id = $1::uuid
+        LIMIT 1
+      `,
+      [contentId],
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      contentId: String(row.id),
+      entityType: String(row.entity_type) as ContentEntityType,
+    };
   }
 }
 

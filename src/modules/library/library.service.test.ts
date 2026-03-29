@@ -203,3 +203,42 @@ test('getProfileLibrary dedupes provider items into canonical library items', as
     media: createMockMetadataView({ mediaKey: 'movie:tmdb:77', tmdbId: 77 }),
   });
 });
+
+test('fetchTraktLibrary folds collection into watchlist', async () => {
+  const service = await createMockService();
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    const url = typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+    const path = new URL(url).pathname + new URL(url).search;
+
+    if (path === '/sync/watchlist/movies?extended=images') {
+      return new Response(JSON.stringify([{
+        listed_at: '2024-01-01T00:00:00.000Z',
+        movie: { title: 'Watchlisted', ids: { tmdb: 77, imdb: 'tt1234567' }, images: {} },
+      }]), { status: 200 });
+    }
+
+    if (path === '/sync/collection/movies?extended=images') {
+      return new Response(JSON.stringify([{
+        collected_at: '2024-01-02T00:00:00.000Z',
+        movie: { title: 'Collected', ids: { tmdb: 88, imdb: 'tt7654321' }, images: {} },
+      }]), { status: 200 });
+    }
+
+    return new Response(JSON.stringify([]), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const snapshot = await (service as any).fetchTraktLibrary('token', 10);
+    assert.deepEqual(snapshot.folders.map((folder: { id: string }) => folder.id), ['watchlist']);
+    assert.equal(snapshot.items.length, 2);
+    assert.ok(snapshot.items.every((item: { folderId: string }) => item.folderId === 'watchlist'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

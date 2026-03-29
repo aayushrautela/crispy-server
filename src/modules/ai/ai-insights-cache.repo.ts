@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import type { AiInsightsMediaType, AiInsightsPayload } from './ai.types.js';
+import type { AiInsightsPayload } from './ai.types.js';
 
 type CachedAiInsightsRecord = {
   payload: AiInsightsPayload;
@@ -7,8 +7,7 @@ type CachedAiInsightsRecord = {
 
 export class AiInsightsCacheRepository {
   async findByKey(client: DbClient, params: {
-    tmdbId: number;
-    mediaType: AiInsightsMediaType;
+    contentId: string;
     locale: string;
     generationVersion: string;
   }): Promise<CachedAiInsightsRecord | null> {
@@ -16,12 +15,11 @@ export class AiInsightsCacheRepository {
       `
         SELECT payload
         FROM ai_insights_cache
-        WHERE tmdb_id = $1
-          AND media_type = $2
-          AND locale = $3
-          AND generation_version = $4
+        WHERE content_id = $1::uuid
+          AND locale = $2
+          AND generation_version = $3
       `,
-      [params.tmdbId, params.mediaType, params.locale, params.generationVersion],
+      [params.contentId, params.locale, params.generationVersion],
     );
 
     const payload = result.rows[0]?.payload;
@@ -29,8 +27,7 @@ export class AiInsightsCacheRepository {
   }
 
   async upsert(client: DbClient, params: {
-    tmdbId: number;
-    mediaType: AiInsightsMediaType;
+    contentId: string;
     locale: string;
     generationVersion: string;
     modelName: string;
@@ -40,8 +37,7 @@ export class AiInsightsCacheRepository {
     const result = await client.query(
       `
         INSERT INTO ai_insights_cache (
-          tmdb_id,
-          media_type,
+          content_id,
           locale,
           generation_version,
           model_name,
@@ -49,8 +45,8 @@ export class AiInsightsCacheRepository {
           generated_by_profile_id,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::uuid, now())
-        ON CONFLICT (tmdb_id, media_type, locale, generation_version)
+        VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6::uuid, now())
+        ON CONFLICT (content_id, locale, generation_version)
         DO UPDATE SET
           model_name = EXCLUDED.model_name,
           payload = EXCLUDED.payload,
@@ -59,8 +55,7 @@ export class AiInsightsCacheRepository {
         RETURNING payload
       `,
       [
-        params.tmdbId,
-        params.mediaType,
+        params.contentId,
         params.locale,
         params.generationVersion,
         params.modelName,

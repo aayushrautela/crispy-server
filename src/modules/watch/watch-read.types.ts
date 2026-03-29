@@ -1,5 +1,4 @@
 import type { MetadataCardView, MetadataView } from '../metadata/metadata.types.js';
-import type { SupportedProvider } from './media-key.js';
 
 export type WatchProgressView = {
   positionSeconds: number | null;
@@ -76,15 +75,7 @@ export type WatchStatesEnvelope = {
 };
 
 export type WatchStateLookupInput = {
-  mediaKey?: string;
-  mediaType?: string;
-  provider?: SupportedProvider | null;
-  providerId?: string | null;
-  parentProvider?: SupportedProvider | null;
-  parentProviderId?: string | null;
-  seasonNumber?: number | null;
-  episodeNumber?: number | null;
-  absoluteEpisodeNumber?: number | null;
+  mediaKey: string;
 };
 
 export type WatchStateResponse = {

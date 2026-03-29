@@ -1,10 +1,10 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { appConfig } from '../../config/app-config.js';
-import { env } from '../../config/env.js';
+import { MetadataQueryService } from '../metadata/metadata-query.service.js';
+import type { MetadataCardView, MetadataSearchFilter } from '../metadata/metadata.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
-import type { AiCandidateMediaType, AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
+import type { AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
 
 type QueryAnalysis = {
   isRecommendation: boolean;
@@ -24,6 +24,7 @@ export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
+    private readonly metadataQueryService = new MetadataQueryService(),
   ) {}
 
   async search(userId: string, input: {
@@ -54,12 +55,12 @@ export class AiSearchService {
     const { payload: generated } = await this.aiRequestExecutor.generateJsonForUser({
       userId,
       feature: 'search',
-      systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real movie or TV titles only.',
+      systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope.',
       userPrompt: buildSearchPrompt(query, filter, locale, analysis),
     });
 
     const suggestedTitles = dedupeTitles(Array.isArray(generated.items) ? generated.items : []);
-    const resolvedSuggestions = await resolveSuggestions(suggestedTitles, filter, locale);
+    const resolvedSuggestions = await resolveSuggestions(this.metadataQueryService, suggestedTitles, filter, locale);
     const items = finalizeResolvedItems(resolvedSuggestions, analysis);
     return { items };
   }
@@ -103,6 +104,9 @@ function catalogScopeInstruction(filter: AiSearchFilter): string {
   if (filter === 'series') {
     return 'Only suggest TV shows.';
   }
+  if (filter === 'anime') {
+    return 'Only suggest anime titles.';
+  }
   return 'You may suggest movies or TV shows.';
 }
 
@@ -141,105 +145,44 @@ function normalizeSuggestedTitle(value: unknown): string | null {
   return normalized || null;
 }
 
-async function resolveSuggestions(titles: string[], filter: AiSearchFilter, locale: string): Promise<ResolvedSuggestion[]> {
+async function resolveSuggestions(
+  metadataQueryService: MetadataQueryService,
+  titles: string[],
+  filter: AiSearchFilter,
+  locale: string,
+): Promise<ResolvedSuggestion[]> {
   const resolved = await Promise.all(
     titles.map(async (title) => {
-      const item = await resolveSuggestion(title, filter, locale);
+      const item = await resolveSuggestion(metadataQueryService, title, filter, locale);
       return item ? { sourceTitle: title, item } : null;
     }),
   );
   return resolved.filter((item): item is ResolvedSuggestion => item !== null);
 }
 
-async function resolveSuggestion(title: string, filter: AiSearchFilter, locale: string): Promise<AiSearchItem | null> {
-  const params: Record<string, string> = {
+async function resolveSuggestion(
+  metadataQueryService: MetadataQueryService,
+  title: string,
+  filter: AiSearchFilter,
+  _locale: string,
+): Promise<AiSearchItem | null> {
+  const response = await metadataQueryService.searchTitles({
     query: title,
-    page: '1',
-    include_adult: 'false',
-    language: locale,
-  };
-
-  if (filter === 'movies') {
-    return selectBestTmdbMatch(await searchTmdb('movie', params), title);
-  }
-  if (filter === 'series') {
-    return selectBestTmdbMatch(await searchTmdb('tv', params), title);
-  }
-
-  const [movies, series] = await Promise.all([
-    searchTmdb('movie', params),
-    searchTmdb('tv', params),
-  ]);
-  return selectBestTmdbMatch([...movies, ...series], title);
-}
-
-async function searchTmdb(mediaType: AiCandidateMediaType, params: Record<string, string>): Promise<AiSearchItem[]> {
-  const url = new URL(`${appConfig.metadata.tmdb.baseUrl.replace(/\/$/, '')}/search/${mediaType}`);
-  url.searchParams.set('api_key', env.tmdbApiKey);
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      Accept: 'application/json',
-    },
+    filter: mapFilterToMetadataFilter(filter),
+    limit: 8,
   });
-  if (!response.ok) {
-    throw new HttpError(502, `TMDB search failed with HTTP ${response.status}.`);
-  }
-
-  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-  const results = Array.isArray(payload.results) ? payload.results : [];
-  return results
-    .map((item) => toTmdbItem(item, mediaType))
-    .filter((item): item is AiSearchItem => item !== null);
+  return selectBestMetadataMatch(response.items, title);
 }
 
-function toTmdbItem(item: unknown, mediaType: AiCandidateMediaType): AiSearchItem | null {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) {
-    return null;
-  }
-
-  const row = item as Record<string, unknown>;
-  const id = typeof row.id === 'number' ? row.id : 0;
-  if (!Number.isInteger(id) || id <= 0) {
-    return null;
-  }
-
-  const rawTitle = mediaType === 'movie' ? row.title : row.name;
-  const title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
-  if (!title) {
-    return null;
-  }
-
-  const rawDate = mediaType === 'movie' ? row.release_date : row.first_air_date;
-  const year = typeof rawDate === 'string' && rawDate.length >= 4 ? rawDate.slice(0, 4) : null;
-  const rating = typeof row.vote_average === 'number' && Number.isFinite(row.vote_average)
-    ? row.vote_average.toFixed(1)
-    : null;
-
-  return {
-    id,
-    mediaType,
-    title,
-    year,
-    posterUrl: tmdbImageUrl(typeof row.poster_path === 'string' ? row.poster_path : null, 'w500'),
-    backdropUrl: tmdbImageUrl(typeof row.backdrop_path === 'string' ? row.backdrop_path : null, 'w780'),
-    rating,
-    overview: typeof row.overview === 'string' ? row.overview.trim() || null : null,
-  };
-}
-
-function selectBestTmdbMatch(items: AiSearchItem[], title: string): AiSearchItem | null {
+function selectBestMetadataMatch(items: MetadataCardView[], title: string): AiSearchItem | null {
   const normalizedTarget = normalizeTitle(title);
-  const sorted = [...items].sort((left, right) => scoreTmdbMatch(right, normalizedTarget) - scoreTmdbMatch(left, normalizedTarget));
+  const sorted = [...items].sort((left, right) => scoreMetadataMatch(right, normalizedTarget) - scoreMetadataMatch(left, normalizedTarget));
   return sorted[0] ?? null;
 }
 
-function scoreTmdbMatch(item: AiSearchItem, normalizedTarget: string): number {
+function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string): number {
   let score = 0;
-  const normalizedTitle = normalizeTitle(item.title);
+  const normalizedTitle = normalizeTitle(item.title ?? '');
   if (normalizedTitle === normalizedTarget) {
     score += 120;
   } else if (normalizedTitle.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedTitle)) {
@@ -249,7 +192,7 @@ function scoreTmdbMatch(item: AiSearchItem, normalizedTarget: string): number {
   }
 
   score += Math.min(sharedTitleTokenCount(normalizedTitle, normalizedTarget) * 12, 36);
-  if (item.posterUrl) {
+  if (item.artwork.posterUrl) {
     score += 10;
   }
   return score;
@@ -268,7 +211,7 @@ function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: QueryAn
       skippedAnchor = true;
       continue;
     }
-    if (kept.some((existing) => isSameTitleFamily(existing.item.title, suggestion.item.title))) {
+    if (kept.some((existing) => isSameTitleFamily(existing.item.title ?? '', suggestion.item.title ?? ''))) {
       continue;
     }
     kept.push(suggestion);
@@ -284,7 +227,7 @@ function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggest
   const seen = new Set<string>();
   const result: ResolvedSuggestion[] = [];
   for (const suggestion of items) {
-    const key = `${suggestion.item.mediaType}:${suggestion.item.id}`;
+    const key = suggestion.item.mediaKey;
     if (seen.has(key)) {
       continue;
     }
@@ -370,7 +313,7 @@ function matchesAnchorSuggestion(suggestion: ResolvedSuggestion, anchorHint: str
   }
 
   return titleMatchesAnchor(suggestion.sourceTitle, normalizedAnchor)
-    || titleMatchesAnchor(suggestion.item.title, normalizedAnchor);
+    || titleMatchesAnchor(suggestion.item.title ?? '', normalizedAnchor);
 }
 
 function titleMatchesAnchor(title: string, normalizedAnchor: string): boolean {
@@ -435,14 +378,6 @@ function normalizeTitle(value: string): string {
     .trim();
 }
 
-function tmdbImageUrl(path: string | null, size: string): string | null {
-  if (!path) {
-    return null;
-  }
-  const base = appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '');
-  return `${base}/${size}${path.startsWith('/') ? path : `/${path}`}`;
-}
-
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -455,7 +390,17 @@ function normalizeFilter(value: unknown): AiSearchFilter {
   if (normalized === 'series') {
     return 'series';
   }
+  if (normalized === 'anime') {
+    return 'anime';
+  }
   return 'all';
+}
+
+function mapFilterToMetadataFilter(filter: AiSearchFilter): MetadataSearchFilter | null {
+  if (filter === 'movies' || filter === 'series' || filter === 'anime') {
+    return filter;
+  }
+  return null;
 }
 
 function normalizeLocale(value: unknown): string {

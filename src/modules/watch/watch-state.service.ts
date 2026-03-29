@@ -4,7 +4,7 @@ import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
-import { ensureSupportedProvider, inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity, parseMediaKey } from './media-key.js';
+import { parentMediaTypeForIdentity, type MediaIdentity, parseMediaKey } from './media-key.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
@@ -110,23 +110,9 @@ function toTrackedMediaKey(identity: MediaIdentity): string | null {
 }
 
 function resolveIdentity(input: WatchStateLookupInput): MediaIdentity {
-  if (input.mediaKey?.trim()) {
+  if (input.mediaKey.trim()) {
     return parseMediaKey(input.mediaKey.trim());
   }
 
-  if (!input.mediaType) {
-    throw new HttpError(400, 'mediaKey or mediaType is required.');
-  }
-
-  return inferMediaIdentity({
-    mediaKey: input.mediaKey,
-    mediaType: input.mediaType,
-    provider: input.provider ? ensureSupportedProvider(input.provider) : null,
-    providerId: input.providerId ?? null,
-    parentProvider: input.parentProvider ? ensureSupportedProvider(input.parentProvider) : null,
-    parentProviderId: input.parentProviderId ?? null,
-    seasonNumber: input.seasonNumber,
-    episodeNumber: input.episodeNumber,
-    absoluteEpisodeNumber: input.absoluteEpisodeNumber,
-  });
+  throw new HttpError(400, 'mediaKey is required.');
 }

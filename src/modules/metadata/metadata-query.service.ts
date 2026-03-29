@@ -66,15 +66,8 @@ export class MetadataQueryService {
   async getTitleDetailById(id: string): Promise<MetadataTitleDetail> {
     return withDbClient(async (client) => {
       const identity = await this.contentIdentityService.resolveMediaIdentity(client, id);
-      if (identity.mediaType === 'episode') {
-        return this.metadataViewService.getTitleDetail(client, {
-          ...identity,
-          mediaType: 'show',
-          mediaKey: `show:tmdb:${identity.showTmdbId}`,
-          tmdbId: identity.showTmdbId,
-          seasonNumber: null,
-          episodeNumber: null,
-        });
+      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+        throw new HttpError(400, 'Title details require a title id.');
       }
 
       return this.metadataViewService.getTitleDetail(client, identity);

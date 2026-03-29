@@ -1,3 +1,5 @@
+import type { MetadataCardView } from '../metadata/metadata.types.js';
+
 export type AiFeatureId = 'search' | 'insights';
 
 export type AiCredentialSource = 'user' | 'server' | 'shared_pool';
@@ -56,20 +58,9 @@ export type AiExecutionResult = {
   payload: Record<string, unknown>;
 };
 
-export type AiSearchFilter = 'all' | 'movies' | 'series';
+export type AiSearchFilter = 'all' | 'movies' | 'series' | 'anime';
 
-export type AiCandidateMediaType = 'movie' | 'tv';
-
-export type AiSearchItem = {
-  id: number;
-  mediaType: AiCandidateMediaType;
-  title: string;
-  year: string | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  rating: string | null;
-  overview: string | null;
-};
+export type AiSearchItem = MetadataCardView;
 
 export type AiSearchResponse = {
   items: AiSearchItem[];
@@ -86,5 +77,3 @@ export type AiInsightsPayload = {
   insights: AiInsightCard[];
   trivia: string;
 };
-
-export type AiInsightsMediaType = 'movie' | 'tv';
