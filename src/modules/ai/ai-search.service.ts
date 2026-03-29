@@ -4,20 +4,16 @@ import { MetadataQueryService } from '../metadata/metadata-query.service.js';
 import type { MetadataCardView, MetadataSearchFilter } from '../metadata/metadata.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
+import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
+import { parseSearchCandidates, resolveCandidateFilter, type AiSearchCandidate } from './ai-search-candidates.js';
 import type { AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
 
-type QueryAnalysis = {
-  isRecommendation: boolean;
-  anchorHint: string | null;
-};
-
 type ResolvedSuggestion = {
-  sourceTitle: string;
+  candidate: AiSearchCandidate;
   item: AiSearchItem;
 };
 
 const FINAL_RESULT_LIMIT = 12;
-const RAW_SUGGESTION_LIMIT = 16;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 export class AiSearchService {
@@ -59,102 +55,23 @@ export class AiSearchService {
       userPrompt: buildSearchPrompt(query, filter, locale, analysis),
     });
 
-    const suggestedTitles = dedupeTitles(Array.isArray(generated.items) ? generated.items : []);
-    const resolvedSuggestions = await resolveSuggestions(this.metadataQueryService, suggestedTitles, filter, locale);
+    const candidates = parseSearchCandidates(Array.isArray(generated.items) ? generated.items : []);
+    const resolvedSuggestions = await resolveSuggestions(this.metadataQueryService, candidates, filter, locale);
     const items = finalizeResolvedItems(resolvedSuggestions, analysis);
     return { items };
   }
 }
 
-function buildSearchPrompt(query: string, filter: AiSearchFilter, locale: string, analysis: QueryAnalysis): string {
-  const lines = [
-    'You help a streaming app answer what-to-watch questions like a smart friend.',
-    `User query: ${query}`,
-    `Catalog scope: ${catalogScopeInstruction(filter)}`,
-    `Preferred locale: ${locale}`,
-    'Suggest real released titles only.',
-    'Prefer canonical English title names that TMDB is likely to recognize.',
-  ];
-
-  if (analysis.isRecommendation) {
-    lines.push('This is a recommendation query, not a direct title lookup.');
-    if (analysis.anchorHint) {
-      lines.push(`Anchor phrase: ${analysis.anchorHint}`);
-    }
-    lines.push(`Return up to ${RAW_SUGGESTION_LIMIT} genuinely diverse titles.`);
-    lines.push('Do not include the exact title or closest obvious match the user already asked about.');
-    lines.push('Include at most one title from the same franchise, collection, series, or shared universe.');
-    lines.push('Avoid sequels, prequels, spinoffs, reboots, or multiple entries from the same property unless the user explicitly asks for that property.');
-    lines.push('If you include one franchise-adjacent pick, use the rest of the list for broader nearby recommendations with similar tone, audience, world, genre, or premise.');
-  } else {
-    lines.push('If the query sounds like a direct title lookup, include that title first.');
-    lines.push(`Return up to ${RAW_SUGGESTION_LIMIT} distinct titles.`);
-  }
-
-  lines.push('Do not include years, media types, numbering, commentary, or markdown.');
-  lines.push('Return ONLY a JSON object with this shape:');
-  lines.push('{"items":["Title One","Title Two"]}');
-  return lines.join('\n\n');
-}
-
-function catalogScopeInstruction(filter: AiSearchFilter): string {
-  if (filter === 'movies') {
-    return 'Only suggest movies.';
-  }
-  if (filter === 'series') {
-    return 'Only suggest TV shows.';
-  }
-  if (filter === 'anime') {
-    return 'Only suggest anime titles.';
-  }
-  return 'You may suggest movies or TV shows.';
-}
-
-function dedupeTitles(items: unknown[]): string[] {
-  const titles: string[] = [];
-  const seen = new Set<string>();
-  for (const item of items) {
-    const title = normalizeSuggestedTitle(item);
-    if (!title) {
-      continue;
-    }
-
-    const key = normalizeTitle(title);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    titles.push(title);
-  }
-  return titles;
-}
-
-function normalizeSuggestedTitle(value: unknown): string | null {
-  const raw = typeof value === 'string'
-    ? value
-    : value && typeof value === 'object' && typeof (value as Record<string, unknown>).title === 'string'
-      ? String((value as Record<string, unknown>).title)
-      : '';
-
-  const normalized = raw
-    .trim()
-    .replace(/^\d+[.)\-:\s]+/, '')
-    .replace(/^["']+|["']+$/g, '')
-    .trim();
-
-  return normalized || null;
-}
-
 async function resolveSuggestions(
   metadataQueryService: MetadataQueryService,
-  titles: string[],
+  candidates: AiSearchCandidate[],
   filter: AiSearchFilter,
   locale: string,
 ): Promise<ResolvedSuggestion[]> {
   const resolved = await Promise.all(
-    titles.map(async (title) => {
-      const item = await resolveSuggestion(metadataQueryService, title, filter, locale);
-      return item ? { sourceTitle: title, item } : null;
+    candidates.map(async (candidate) => {
+      const item = await resolveSuggestion(metadataQueryService, candidate, filter, locale);
+      return item ? { candidate, item } : null;
     }),
   );
   return resolved.filter((item): item is ResolvedSuggestion => item !== null);
@@ -162,25 +79,36 @@ async function resolveSuggestions(
 
 async function resolveSuggestion(
   metadataQueryService: MetadataQueryService,
-  title: string,
+  candidate: AiSearchCandidate,
   filter: AiSearchFilter,
   _locale: string,
 ): Promise<AiSearchItem | null> {
-  const response = await metadataQueryService.searchTitles({
-    query: title,
-    filter: mapFilterToMetadataFilter(filter),
-    limit: 8,
-  });
-  return selectBestMetadataMatch(response.items, title);
+  const searchFilters = resolveCandidateFilter(filter, candidate.mediaType);
+
+  for (const candidateFilter of searchFilters) {
+    const response = await metadataQueryService.searchTitles({
+      query: candidate.title,
+      filter: mapFilterToMetadataFilter(candidateFilter),
+      limit: 8,
+    });
+    const selected = selectBestMetadataMatch(response.items, candidate.title, candidate.mediaType);
+    if (selected) {
+      return selected;
+    }
+  }
+
+  return null;
 }
 
-function selectBestMetadataMatch(items: MetadataCardView[], title: string): AiSearchItem | null {
+function selectBestMetadataMatch(items: MetadataCardView[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): AiSearchItem | null {
   const normalizedTarget = normalizeTitle(title);
-  const sorted = [...items].sort((left, right) => scoreMetadataMatch(right, normalizedTarget) - scoreMetadataMatch(left, normalizedTarget));
+  const sorted = [...items].sort(
+    (left, right) => scoreMetadataMatch(right, normalizedTarget, mediaTypeHint) - scoreMetadataMatch(left, normalizedTarget, mediaTypeHint),
+  );
   return sorted[0] ?? null;
 }
 
-function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string): number {
+function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
   let score = 0;
   const normalizedTitle = normalizeTitle(item.title ?? '');
   if (normalizedTitle === normalizedTarget) {
@@ -192,13 +120,23 @@ function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string): n
   }
 
   score += Math.min(sharedTitleTokenCount(normalizedTitle, normalizedTarget) * 12, 36);
+  if (matchesMediaTypeHint(item, mediaTypeHint)) {
+    score += 30;
+  }
   if (item.artwork.posterUrl) {
     score += 10;
   }
   return score;
 }
 
-function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: QueryAnalysis): AiSearchItem[] {
+function matchesMediaTypeHint(item: MetadataCardView, mediaTypeHint: AiSearchCandidate['mediaType']): boolean {
+  if (!mediaTypeHint) {
+    return false;
+  }
+  return item.mediaType === mediaTypeHint;
+}
+
+function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis): AiSearchItem[] {
   const unique = dedupeResolvedSuggestions(resolved);
   if (!analysis.isRecommendation) {
     return unique.map(({ item }) => item).slice(0, FINAL_RESULT_LIMIT);
@@ -237,7 +175,7 @@ function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggest
   return result;
 }
 
-function analyzeQuery(query: string): QueryAnalysis {
+function analyzeQuery(query: string): SearchQueryAnalysis {
   return {
     isRecommendation: isRecommendationQuery(query),
     anchorHint: extractAnchorHint(query),
@@ -312,7 +250,7 @@ function matchesAnchorSuggestion(suggestion: ResolvedSuggestion, anchorHint: str
     return false;
   }
 
-  return titleMatchesAnchor(suggestion.sourceTitle, normalizedAnchor)
+  return titleMatchesAnchor(suggestion.candidate.title, normalizedAnchor)
     || titleMatchesAnchor(suggestion.item.title ?? '', normalizedAnchor);
 }
 

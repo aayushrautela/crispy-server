@@ -100,14 +100,16 @@ export class MetadataQueryService {
 
     const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
     return withDbClient(async (client) => {
-      const tmdbMatches = genreMapping
-        ? await this.tmdbCacheService.discoverTitlesByGenre({
-            movieGenreId: genreMapping.movieGenreId,
-            tvGenreId: genreMapping.tvGenreId,
-            filter: normalizedFilter,
-            limit,
-          })
-        : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes);
+      const tmdbMatches = shouldQueryTmdb(normalizedFilter)
+        ? genreMapping
+          ? await this.tmdbCacheService.discoverTitlesByGenre({
+              movieGenreId: genreMapping.movieGenreId,
+              tvGenreId: genreMapping.tvGenreId,
+              filter: normalizedFilter,
+              limit,
+            })
+          : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes)
+        : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
       const providerMatches = normalizedQuery || normalizedFilter === 'anime' || normalizedFilter === 'series'
         ? await this.providerMetadataService.searchTitles(client, normalizedQuery, normalizedFilter, limit)
@@ -293,10 +295,14 @@ export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTi
   if (filter === 'movies') {
     return ['movie'];
   }
-  if (filter === 'series') {
-    return ['tv'];
+  if (filter === 'series' || filter === 'anime') {
+    return [];
   }
   return ['movie', 'tv'];
+}
+
+function shouldQueryTmdb(filter: MetadataSearchFilter): boolean {
+  return filter !== 'series' && filter !== 'anime';
 }
 
 function normalizeGenreKey(value: string): string {

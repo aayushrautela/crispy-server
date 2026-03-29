@@ -194,7 +194,7 @@ export class ProviderMetadataService {
   private async loadKitsuAnimeBundle(animeId: string): Promise<ProviderTitleBundle> {
     const [animePayload, episodesPayload, charactersPayload, staffPayload, relationshipsPayload, productionsPayload, reviewsPayload] = await Promise.all([
       this.kitsuClient.fetchAnime(animeId),
-      this.kitsuClient.fetchAnimeEpisodes(animeId, 100).catch(() => ({ data: [] })),
+      this.fetchAllKitsuEpisodes(animeId).catch(() => ({ data: [] })),
       this.kitsuClient.fetchAnimeCharacters(animeId).catch(() => ({ data: [], included: [] })),
       this.kitsuClient.fetchAnimeStaff(animeId).catch(() => ({ data: [], included: [] })),
       this.kitsuClient.fetchAnimeRelationships(animeId).catch(() => ({ data: [], included: [] })),
@@ -231,6 +231,27 @@ export class ProviderMetadataService {
         reviews: reviewsPayload,
       },
     };
+  }
+
+  private async fetchAllKitsuEpisodes(animeId: string): Promise<Record<string, unknown>> {
+    const data: unknown[] = [];
+    let offset = 0;
+    const pageSize = 20;
+
+    for (;;) {
+      const payload = await this.kitsuClient.fetchAnimeEpisodes(animeId, pageSize, offset);
+      const page = asArray(payload.data);
+      if (!page.length) {
+        break;
+      }
+      data.push(...page);
+      if (page.length < pageSize) {
+        break;
+      }
+      offset += page.length;
+    }
+
+    return { data };
   }
 }
 
@@ -511,7 +532,7 @@ function extractKitsuEpisodesFromPayload(payload: Record<string, unknown>, anime
     .filter((entry): entry is ProviderEpisodeRecord => entry !== null);
 }
 
-function normalizeTvdbSearchTitle(record: Record<string, unknown>): ProviderTitleRecord | null {
+export function normalizeTvdbSearchTitle(record: Record<string, unknown>): ProviderTitleRecord | null {
   const id = asString(record.tvdb_id) ?? asString(record.id);
   const title = asString(record.name);
   if (!id || !title) {
@@ -528,8 +549,8 @@ function normalizeTvdbSearchTitle(record: Record<string, unknown>): ProviderTitl
     overview: asString(record.overview),
     releaseDate: asString(record.first_air_time) ?? asString(record.year),
     status: asString(record.status),
-    posterUrl: asString(record.image_url) ?? asString(record.image) ?? asString(record.thumbnail),
-    backdropUrl: asString(record.image) ?? asString(record.banner),
+    posterUrl: normalizeTvdbImageUrl(asString(record.image_url) ?? asString(record.image) ?? asString(record.thumbnail)),
+    backdropUrl: normalizeTvdbImageUrl(asString(record.banner) ?? asString(record.image)),
     logoUrl: null,
     runtimeMinutes: null,
     rating: null,
@@ -547,8 +568,12 @@ function normalizeTvdbSearchTitle(record: Record<string, unknown>): ProviderTitl
   };
 }
 
-function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: string): ProviderTitleRecord {
+export function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: string): ProviderTitleRecord {
   const data = asRecord(payload.data) ?? {};
+  const artworks = asArray(data.artworks)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
   return {
     mediaType: 'show',
     provider: 'tvdb',
@@ -559,11 +584,11 @@ function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: string):
     overview: asString(data.overview),
     releaseDate: asString(data.firstAired) ?? asString(data.year),
     status: asString(asRecord(data.status)?.name) ?? asString(data.status),
-    posterUrl: asString(data.image),
-    backdropUrl: asString(data.image),
-    logoUrl: null,
+    posterUrl: extractTvdbArtworkUrl(artworks, ['poster']) ?? normalizeTvdbImageUrl(asString(data.image)),
+    backdropUrl: extractTvdbArtworkUrl(artworks, ['background', 'fanart']) ?? normalizeTvdbImageUrl(asString(data.image)),
+    logoUrl: extractTvdbArtworkUrl(artworks, ['clearlogo', 'logo']),
     runtimeMinutes: asInteger(data.averageRuntime) ?? asInteger(data.runtime),
-    rating: asFloat(data.score),
+    rating: null,
     certification: asString(data.contentRating),
     genres: asArray(data.genres)
       .map((entry) => asString(asRecord(entry)?.name))
@@ -575,7 +600,7 @@ function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: string):
   };
 }
 
-function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: string): ProviderEpisodeRecord | null {
+export function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: string): ProviderEpisodeRecord | null {
   const seasonNumber = asInteger(record.seasonNumber) ?? asInteger(record.airedSeason) ?? 1;
   const episodeNumber = asInteger(record.number) ?? asInteger(record.episodeNumber) ?? asInteger(record.absoluteNumber);
   if (episodeNumber === null) {
@@ -597,13 +622,13 @@ function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: string)
     summary: asString(record.overview),
     airDate: asString(record.aired) ?? asString(record.firstAired),
     runtimeMinutes: asInteger(record.runtime),
-    rating: asFloat(record.score),
-    stillUrl: asString(record.image),
+    rating: null,
+    stillUrl: normalizeTvdbImageUrl(asString(record.image)),
     raw: record,
   };
 }
 
-function normalizeKitsuSearchTitle(record: Record<string, unknown>): ProviderTitleRecord | null {
+export function normalizeKitsuSearchTitle(record: Record<string, unknown>): ProviderTitleRecord | null {
   const id = asString(record.id);
   const attributes = asRecord(record.attributes);
   const title = extractKitsuTitle(attributes);
@@ -625,7 +650,7 @@ function normalizeKitsuSearchTitle(record: Record<string, unknown>): ProviderTit
     backdropUrl: extractKitsuImageUrl(asRecord(attributes?.coverImage)),
     logoUrl: null,
     runtimeMinutes: asInteger(attributes?.episodeLength),
-    rating: asFloat(attributes?.averageRating),
+    rating: normalizeKitsuRating(attributes?.averageRating),
     certification: asString(attributes?.ageRatingGuide) ?? asString(attributes?.ageRating),
     genres: [],
     externalIds: {
@@ -640,7 +665,7 @@ function normalizeKitsuSearchTitle(record: Record<string, unknown>): ProviderTit
   };
 }
 
-function normalizeKitsuTitle(payload: Record<string, unknown>, animeId: string): ProviderTitleRecord {
+export function normalizeKitsuTitle(payload: Record<string, unknown>, animeId: string): ProviderTitleRecord {
   const data = asRecord(payload.data) ?? {};
   const attributes = asRecord(data.attributes) ?? {};
   const included = asArray(payload.included);
@@ -658,7 +683,7 @@ function normalizeKitsuTitle(payload: Record<string, unknown>, animeId: string):
     backdropUrl: extractKitsuImageUrl(asRecord(attributes.coverImage)),
     logoUrl: null,
     runtimeMinutes: asInteger(attributes.episodeLength),
-    rating: asFloat(attributes.averageRating),
+    rating: normalizeKitsuRating(attributes.averageRating),
     certification: asString(attributes.ageRatingGuide) ?? asString(attributes.ageRating),
     genres: extractKitsuCategories(included),
     externalIds: extractKitsuExternalIds(included, animeId),
@@ -668,7 +693,7 @@ function normalizeKitsuTitle(payload: Record<string, unknown>, animeId: string):
   };
 }
 
-function normalizeKitsuEpisode(record: Record<string, unknown>, animeId: string): ProviderEpisodeRecord | null {
+export function normalizeKitsuEpisode(record: Record<string, unknown>, animeId: string): ProviderEpisodeRecord | null {
   const attributes = asRecord(record.attributes);
   const absoluteEpisodeNumber = asInteger(attributes?.number);
   const seasonNumber = asInteger(attributes?.seasonNumber) ?? 1;
@@ -759,7 +784,7 @@ function extractKitsuCategories(included: unknown[]): string[] {
     .filter((entry): entry is string => Boolean(entry));
 }
 
-function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoView[] {
+export function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoView[] {
   if (title.provider === 'tvdb') {
     return asArray(asRecord(asRecord(title.raw)?.data)?.trailers)
       .map((entry) => asRecord(entry))
@@ -808,7 +833,7 @@ function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoView[] {
   return [];
 }
 
-function buildProviderCast(
+export function buildProviderCast(
   title: ProviderTitleRecord,
   extras?: ProviderTitleBundle['extras'],
 ): MetadataPersonRefView[] {
@@ -839,14 +864,18 @@ function buildProviderCast(
     });
 }
 
-function buildProviderCrew(
+export function buildProviderCrew(
   title: ProviderTitleRecord,
   extras: ProviderTitleBundle['extras'] | undefined,
   roles: string[],
 ): MetadataPersonRefView[] {
+  if (title.provider === 'tvdb') {
+    return [];
+  }
+
   const normalizedRoles = roles.map((role) => role.toLowerCase());
   const seen = new Set<string>();
-  const source = title.provider === 'tvdb' ? buildProviderCast(title, extras) : buildKitsuCrew(extras);
+  const source = buildKitsuCrew(extras);
   return source.filter((entry) => {
     const department = entry.department?.toLowerCase() ?? '';
     const role = entry.role?.toLowerCase() ?? '';
@@ -859,7 +888,7 @@ function buildProviderCrew(
   });
 }
 
-function buildProviderProduction(
+export function buildProviderProduction(
   title: ProviderTitleRecord,
   extras?: ProviderTitleBundle['extras'],
 ): MetadataProductionInfoView | null {
@@ -899,7 +928,11 @@ function buildProviderSimilar(title: ProviderTitleRecord, extras?: ProviderTitle
   return buildKitsuSimilar(title, extras);
 }
 
-function buildProviderReviews(_title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): MetadataReviewView[] {
+export function buildProviderReviews(_title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): MetadataReviewView[] {
+  if (_title.provider === 'tvdb') {
+    return [];
+  }
+
   return buildKitsuReviews(extras);
 }
 
@@ -1184,6 +1217,38 @@ function extractKitsuImageUrl(record: Record<string, unknown> | null): string | 
     ?? asString(record.medium)
     ?? asString(record.small)
     ?? asString(record.tiny);
+}
+
+function normalizeKitsuRating(value: unknown): number | null {
+  const rating = asFloat(value);
+  if (rating === null) {
+    return null;
+  }
+
+  return Math.round((rating / 10) * 10) / 10;
+}
+
+function normalizeTvdbImageUrl(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    return value;
+  }
+
+  const normalizedPath = value.startsWith('/') ? value : `/${value}`;
+  return `https://artworks.thetvdb.com${normalizedPath}`;
+}
+
+function extractTvdbArtworkUrl(records: Record<string, unknown>[], preferredTypes: string[]): string | null {
+  const normalizedTypes = preferredTypes.map((type) => type.toLowerCase());
+  const match = records.find((record) => {
+    const type = asString(record.type)?.toLowerCase() ?? asString(record.typeName)?.toLowerCase() ?? '';
+    return normalizedTypes.some((candidate) => type.includes(candidate));
+  }) ?? null;
+
+  return normalizeTvdbImageUrl(asString(match?.image));
 }
 
 function firstString(values: unknown[]): string | null {

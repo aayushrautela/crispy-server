@@ -16,6 +16,15 @@ test('searchTitles returns empty when query is blank', async () => {
   assert.deepEqual(response, { query: '', items: [] });
 });
 
+test('series filter does not request TMDB search types', async () => {
+  const pkg = await import('./metadata-query.service.js');
+
+  assert.deepEqual(pkg.mapSearchFilterToTmdbTypes('series'), []);
+  assert.deepEqual(pkg.mapSearchFilterToTmdbTypes('anime'), []);
+  assert.deepEqual(pkg.mapSearchFilterToTmdbTypes('movies'), ['movie']);
+  assert.deepEqual(pkg.mapSearchFilterToTmdbTypes('all'), ['movie', 'tv']);
+});
+
 test('resolve uses tmdbId directly', async () => {
   const pkg = await import('./metadata-query.service.js');
 

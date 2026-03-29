@@ -1,31 +1,15 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { appConfig } from '../../config/app-config.js';
-import { env } from '../../config/env.js';
 import { MetadataQueryService } from '../metadata/metadata-query.service.js';
 import type { MetadataTitleDetail } from '../metadata/metadata.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
+import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { AiProviderResolver, buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsPayload } from './ai.types.js';
 
-type TitleInsightsContext = {
-  contentId: string;
-  mediaType: 'movie' | 'show' | 'anime';
-  title: string;
-  year: string | null;
-  description: string | null;
-  rating: string | null;
-  genres: string[];
-  reviews: Array<{
-    author: string;
-    rating: number | null;
-    content: string;
-  }>;
-};
-
-const GENERATION_VERSION = 'v2';
+const GENERATION_VERSION = 'v3';
 
 export class AiInsightsService {
   constructor(
@@ -80,7 +64,7 @@ export class AiInsightsService {
     const execution = await this.aiRequestExecutor.generateJsonForUser({
       userId,
       feature: 'insights',
-      userPrompt: buildPrompt(titleContext),
+      userPrompt: buildInsightsPrompt(titleContext),
     });
     const generated = execution.payload;
     const actualGenerationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(execution.request)}`;
@@ -132,48 +116,6 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail): TitleInsightsCo
       .filter((review) => review.content)
       .slice(0, 10),
   };
-}
-
-function buildPrompt(context: TitleInsightsContext): string {
-  const plot = context.description?.trim() || 'N/A';
-  const rating = context.rating?.trim() || 'N/A';
-  const genres = context.genres.join(', ') || 'N/A';
-  const formattedReviews = context.reviews.length === 0
-    ? 'No user reviews available.'
-    : context.reviews
-      .map((review) => {
-        const author = review.author || 'Unknown';
-        const authorRating = review.rating == null ? 'N/A' : String(review.rating);
-        const content = review.content
-          .replace(/\n+/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 500);
-        return `(Author: ${author}, Rating: ${authorRating}) "${content}"`;
-      })
-      .join('\n---\n');
-
-  return [
-    'Be an enthusiastic screen-story fan, not a critic. Use simple, conversational, and exciting English.',
-    'Avoid complex words, academic jargon, or flowery prose. Write like you\'re talking to a friend.',
-    'Do NOT use generic headings.',
-    'Context:',
-    `Title: ${context.title} (${context.year ?? 'N/A'})`,
-    `Plot: ${plot}`,
-    `Rating: ${rating}`,
-    `Genres: ${genres}`,
-    'User Reviews:',
-    formattedReviews,
-    'Task:',
-    'Generate a JSON object with:',
-    '- insights: an array of 3 objects. Each object must include:',
-    '  - category: a short uppercase label (e.g. CONSENSUS, VIBE, STYLE)',
-    '  - title: a punchy, short headline',
-    '  - content: 2-3 sentences',
-    '  - type: one of ["consensus","performance","theme","vibe","style","controversy","character"]',
-    '- trivia: one "Did you know?" fact (1-2 sentences)',
-    'Return ONLY valid JSON.',
-  ].join('\n\n');
 }
 
 function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsPayload | null {
