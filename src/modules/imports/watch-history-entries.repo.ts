@@ -92,7 +92,7 @@ export class WatchHistoryEntriesRepository {
           source_kind,
           payload
         )
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::uuid, $15, $16::jsonb)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::timestamptz, $15::uuid, $16, $17::jsonb)
         RETURNING id, profile_id, profile_group_id, media_key, media_type,
                   provider, provider_id, parent_provider, parent_provider_id,
                   tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number,

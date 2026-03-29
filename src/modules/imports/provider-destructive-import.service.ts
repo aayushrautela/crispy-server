@@ -253,16 +253,17 @@ export class ProviderDestructiveImportService {
             $13,
             $14,
             $15,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
             $16,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
             $17,
             $18,
             $19,
-            $20::timestamptz,
-            $21::jsonb
+            $20,
+            $21::timestamptz,
+            $22::jsonb
           )
         `,
         [
