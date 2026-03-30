@@ -13,9 +13,6 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserActor(request) as { appUserId: string };
     const baseSettings = await accountSettingsService.getSettings(actor.appUserId);
     const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
-    const hasOmdbApiKey = await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId)
-      .then(() => true)
-      .catch(() => false);
     const auth = request.auth!;
     const profiles = await profileService.listForAccount(actor.appUserId);
     return {
@@ -25,7 +22,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
       },
       accountSettings: mergeAccountScopedSettings(baseSettings, {
         ai,
-        hasOmdbApiKey,
+        hasOmdbApiKey: ai.hasAiApiKey,
       }),
       profiles: profiles.map((profile) => mapProfileView(profile)),
     };

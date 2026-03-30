@@ -122,22 +122,21 @@ test('listAiApiKeysForLookup separates own and pooled keys with providers', asyn
   assert.deepEqual(result.pooledKeys, [{ providerId: 'openai', apiKey: 'pooled-key-1' }]);
 });
 
-test('listOmdbApiKeysForLookup separates own and pooled keys', async () => {
+test('listAiApiKeysForLookup falls back to default provider id', async () => {
   const service = new AccountSettingsService(
     {
-      listSecretsForField: async () => [
-        { appUserId: 'user-1', value: 'own-key' },
-        { appUserId: 'user-2', value: 'pooled-key-1' },
-        { appUserId: 'user-1', value: 'own-key' },
+      listAiSecretsForLookup: async () => [
+        { appUserId: 'user-1', providerId: '  ', apiKey: 'own-key' },
+        { appUserId: 'user-2', providerId: 'openrouter', apiKey: 'pooled-key-1' },
       ],
     } as never,
     {} as never,
     async (work) => work({} as never),
   );
 
-  const result = await service.listOmdbApiKeysForLookup('user-1');
-  assert.deepEqual(result.ownKeys, ['own-key']);
-  assert.deepEqual(result.pooledKeys, ['pooled-key-1']);
+  const result = await service.listAiApiKeysForLookup('user-1');
+  assert.deepEqual(result.ownKeys, [{ providerId: 'openai', apiKey: 'own-key' }]);
+  assert.deepEqual(result.pooledKeys, [{ providerId: 'openrouter', apiKey: 'pooled-key-1' }]);
 });
 
 test('normalizeAccountSettingsPatch keeps editable AI settings and strips derived fields', async () => {

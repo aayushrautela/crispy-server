@@ -18,13 +18,10 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     const actor = app.requireUserActor(request);
     const baseSettings = await accountSettingsService.getSettings(actor.appUserId);
     const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
-    const hasOmdbApiKey = await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId)
-      .then(() => true)
-      .catch(() => false);
     return {
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
-        hasOmdbApiKey,
+        hasOmdbApiKey: ai.hasAiApiKey,
       }),
     };
   });
@@ -35,13 +32,10 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     const body = (request.body ?? {}) as Record<string, unknown>;
     const baseSettings = await accountSettingsService.patchSettings(actor.appUserId, body);
     const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
-    const hasOmdbApiKey = await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId)
-      .then(() => true)
-      .catch(() => false);
     return {
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
-        hasOmdbApiKey,
+        hasOmdbApiKey: ai.hasAiApiKey,
       }),
     };
   });
