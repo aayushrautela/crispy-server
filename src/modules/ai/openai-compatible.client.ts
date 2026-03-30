@@ -9,6 +9,66 @@ export class OpenAiCompatibleClient {
     systemPrompt?: string;
     userPrompt: string;
   }): Promise<Record<string, unknown>> {
+    const initialAttempt = await this.sendChatCompletion(args, true);
+    const resolvedAttempt = shouldRetryWithoutJsonMode(initialAttempt)
+      ? await this.sendChatCompletion(args, false)
+      : initialAttempt;
+
+    if (!resolvedAttempt.response.ok) {
+      const parsedError = extractProviderError(resolvedAttempt.rawBody);
+      throw new HttpError(502, parsedError.message ?? 'AI provider request failed.', {
+        provider: args.provider.id,
+        providerStatus: resolvedAttempt.response.status,
+        responseBody: resolvedAttempt.rawBody.slice(0, 500),
+        providerErrorCode: parsedError.code,
+        providerErrorParam: parsedError.param,
+        retryAfterSeconds: parseRetryAfterSeconds(resolvedAttempt.response.headers.get('retry-after')),
+        failureKind: 'provider_response',
+      } satisfies AiProviderFailureDetails);
+    }
+
+    let payload: Record<string, unknown> | null = null;
+    try {
+      const parsed = JSON.parse(resolvedAttempt.rawBody) as unknown;
+      payload = isRecord(parsed) ? parsed : null;
+    } catch {
+      payload = null;
+    }
+
+    const content = extractChoiceContent(payload);
+    if (!content.trim()) {
+      throw new HttpError(502, 'AI provider returned empty data.', {
+        provider: args.provider.id,
+        providerStatus: resolvedAttempt.response.status,
+        failureKind: 'invalid_response',
+      });
+    }
+
+    try {
+      const parsedContent = JSON.parse(extractJsonObject(content)) as unknown;
+      if (!isRecord(parsedContent)) {
+        throw new Error('AI provider response was not a JSON object.');
+      }
+      return parsedContent;
+    } catch {
+      throw new HttpError(502, 'AI provider returned invalid data.', {
+        provider: args.provider.id,
+        providerStatus: resolvedAttempt.response.status,
+        failureKind: 'invalid_response',
+      });
+    }
+  }
+
+  private async sendChatCompletion(
+    args: {
+      provider: AiResolvedProviderConfig;
+      apiKey: string;
+      model: string;
+      systemPrompt?: string;
+      userPrompt: string;
+    },
+    includeJsonMode: boolean,
+  ): Promise<{ response: Response; rawBody: string; usedJsonMode: boolean }> {
     let response: Response;
     try {
       response = await fetch(args.provider.endpointUrl, {
@@ -28,7 +88,7 @@ export class OpenAiCompatibleClient {
               : []),
             { role: 'user', content: args.userPrompt },
           ],
-          response_format: { type: 'json_object' },
+          ...(includeJsonMode ? { response_format: { type: 'json_object' } } : {}),
         }),
       });
     } catch (error) {
@@ -39,52 +99,11 @@ export class OpenAiCompatibleClient {
       } satisfies AiProviderFailureDetails);
     }
 
-    const rawBody = await response.text();
-    if (!response.ok) {
-      const parsedError = extractProviderError(rawBody);
-      throw new HttpError(502, parsedError.message ?? 'AI provider request failed.', {
-        provider: args.provider.id,
-        providerStatus: response.status,
-        responseBody: rawBody.slice(0, 500),
-        providerErrorCode: parsedError.code,
-        retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after')),
-        failureKind: 'provider_response',
-      } satisfies AiProviderFailureDetails);
-    }
-
-    let payload: Record<string, unknown> | null = null;
-    try {
-      const parsed = JSON.parse(rawBody) as unknown;
-      payload = isRecord(parsed) ? parsed : null;
-    } catch {
-      payload = null;
-    }
-
-    const choices = Array.isArray(payload?.choices) ? payload.choices : [];
-    const first = isRecord(choices[0]) ? choices[0] : null;
-    const message = isRecord(first?.message) ? first?.message : null;
-    const content = typeof message?.content === 'string' ? message.content : '';
-    if (!content.trim()) {
-      throw new HttpError(502, 'AI provider returned empty data.', {
-        provider: args.provider.id,
-        providerStatus: response.status,
-        failureKind: 'invalid_response',
-      });
-    }
-
-    try {
-      const parsedContent = JSON.parse(extractJsonObject(content)) as unknown;
-      if (!isRecord(parsedContent)) {
-        throw new Error('AI provider response was not a JSON object.');
-      }
-      return parsedContent;
-    } catch {
-      throw new HttpError(502, 'AI provider returned invalid data.', {
-        provider: args.provider.id,
-        providerStatus: response.status,
-        failureKind: 'invalid_response',
-      });
-    }
+    return {
+      response,
+      rawBody: await response.text(),
+      usedJsonMode: includeJsonMode,
+    };
   }
 }
 
@@ -100,7 +119,41 @@ function extractJsonObject(text: string): string {
   return start >= 0 && end > start ? unfenced.slice(start, end + 1) : unfenced;
 }
 
-function extractProviderError(rawBody: string): { message: string | null; code?: string } {
+function extractChoiceContent(payload: Record<string, unknown> | null): string {
+  const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+  const first = isRecord(choices[0]) ? choices[0] : null;
+  const message = isRecord(first?.message) ? first?.message : null;
+  const content = message?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  return content
+    .map((part) => extractContentPartText(part))
+    .filter((value): value is string => value.length > 0)
+    .join('\n');
+}
+
+function extractContentPartText(part: unknown): string {
+  if (!isRecord(part)) {
+    return '';
+  }
+
+  if (typeof part.text === 'string') {
+    return part.text;
+  }
+
+  if (isRecord(part.text) && typeof part.text.value === 'string') {
+    return part.text.value;
+  }
+
+  return '';
+}
+
+function extractProviderError(rawBody: string): { message: string | null; code?: string; param?: string } {
   const trimmed = rawBody.trim();
   if (!trimmed) {
     return { message: null };
@@ -114,12 +167,14 @@ function extractProviderError(rawBody: string): { message: string | null; code?:
         return {
           message: error.message.trim(),
           code: typeof error.code === 'string' ? error.code.trim() || undefined : undefined,
+          param: typeof error.param === 'string' ? error.param.trim() || undefined : undefined,
         };
       }
       if (typeof parsed.message === 'string' && parsed.message.trim()) {
         return {
           message: parsed.message.trim(),
           code: typeof parsed.code === 'string' ? parsed.code.trim() || undefined : undefined,
+          param: typeof parsed.param === 'string' ? parsed.param.trim() || undefined : undefined,
         };
       }
     }
@@ -128,6 +183,20 @@ function extractProviderError(rawBody: string): { message: string | null; code?:
   }
 
   return { message: trimmed };
+}
+
+function shouldRetryWithoutJsonMode(attempt: { response: Response; rawBody: string; usedJsonMode: boolean }): boolean {
+  if (!attempt.usedJsonMode || attempt.response.ok || attempt.response.status !== 400) {
+    return false;
+  }
+
+  const parsedError = extractProviderError(attempt.rawBody);
+  if (parsedError.param === 'response_format') {
+    return true;
+  }
+
+  const loweredBody = attempt.rawBody.toLowerCase();
+  return loweredBody.includes('response_format');
 }
 
 function parseRetryAfterSeconds(value: string | null): number | undefined {

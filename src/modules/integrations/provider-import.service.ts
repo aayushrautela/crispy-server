@@ -61,6 +61,22 @@ type ResolvedImportIdentity = {
   kitsuId: string | null;
 };
 
+type ImportIdentityLookup = {
+  mediaFamily: 'movie' | 'show' | 'anime';
+  tmdbId?: number | null;
+  imdbId?: string | null;
+  tvdbId?: string | null;
+  kitsuId?: number | string | null;
+};
+
+type ResolveImportIdentityFn = (params: ImportIdentityLookup) => Promise<ResolvedImportIdentity | null>;
+
+type ImportAccumulator = {
+  importedEvents: ImportedWatchEventDraft[];
+  importedHistoryEntries: ImportedHistoryEntryDraft[];
+  mediaKeysToRefresh: Set<string>;
+};
+
 type ProviderCallbackParams = {
   state: string;
   code?: string;
@@ -679,6 +695,7 @@ export class ProviderImportService {
     job: ProviderImportJobRecord,
     connection: ProviderImportConnectionRecord,
   ): Promise<ProviderReplaceImportPayload> {
+    void job;
     const accessToken = requireConnectedAccessToken(connection);
 
     const [watchedMovies, watchedShows, watchlistMovies, watchlistShows, ratingMovies, ratingShows, playback] = await Promise.all([
@@ -692,335 +709,21 @@ export class ProviderImportService {
     ]);
 
     const resolvedCache = new Map<string, ResolvedImportIdentity | null>();
-    const importedEvents: ImportedWatchEventDraft[] = [];
-    const importedHistoryEntries: ImportedHistoryEntryDraft[] = [];
-    const mediaKeysToRefresh = new Set<string>();
+    const resolveIdentity: ResolveImportIdentityFn = (params) => this.resolveImportIdentity(resolvedCache, params);
+    const collector = createImportAccumulator();
 
-    for (const item of watchedMovies) {
-      const movie = getRecord(item.movie);
-      const ids = getRecord(movie?.ids);
-      const resolved = await this.resolveImportIdentity(resolvedCache, {
-        mediaFamily: 'movie',
-        tmdbId: asPositiveInt(ids?.tmdb),
-        imdbId: asString(ids?.imdb),
-      });
-      if (!resolved) {
-        continue;
-      }
-
-      const occurredAt = asIsoString(item.last_watched_at) ?? new Date().toISOString();
-      const mediaKey = resolved.identity.mediaKey;
-      importedEvents.push({
-        eventType: 'mark_watched',
-        mediaKey,
-        mediaType: resolved.mediaType,
-        provider: resolved.identity.provider,
-        providerId: resolved.identity.providerId,
-        tmdbId: resolved.tmdbId,
-        tvdbId: resolved.tvdbId,
-        kitsuId: resolved.kitsuId,
-        occurredAt,
-        payload: {
-          provider: 'trakt',
-          source: 'watched_movies',
-        },
-      });
-      importedHistoryEntries.push({
-        mediaKey,
-        mediaType: resolved.mediaType,
-        provider: resolved.identity.provider,
-        providerId: resolved.identity.providerId,
-        tmdbId: resolved.tmdbId,
-        tvdbId: resolved.tvdbId,
-        kitsuId: resolved.kitsuId,
-        watchedAt: occurredAt,
-        sourceKind: 'provider_import',
-        payload: {
-          provider: 'trakt',
-          source: 'watched_movies',
-        },
-      });
-      mediaKeysToRefresh.add(mediaKey);
-    }
-
-    for (const item of watchedShows) {
-      const show = getRecord(item.show);
-      const ids = getRecord(show?.ids);
-      const resolvedShow = await this.resolveImportIdentity(resolvedCache, {
-        mediaFamily: 'show',
-        tmdbId: asPositiveInt(ids?.tmdb),
-        imdbId: asString(ids?.imdb),
-        tvdbId: asString(ids?.tvdb),
-      });
-      if (!resolvedShow) {
-        continue;
-      }
-
-      const seasons = asArray(item.seasons);
-      for (const seasonValue of seasons) {
-        const season = getRecord(seasonValue);
-        const seasonNumber = asPositiveInt(season?.number);
-        if (!seasonNumber) {
-          continue;
-        }
-
-        const episodes = asArray(season?.episodes);
-        for (const episodeValue of episodes) {
-          const episode = getRecord(episodeValue);
-          const episodeNumber = asPositiveInt(episode?.number);
-          if (!episodeNumber) {
-            continue;
-          }
-
-          const occurredAt = asIsoString(episode?.last_watched_at)
-            ?? asIsoString(item.last_watched_at)
-            ?? new Date().toISOString();
-          const episodeIdentity = inferMediaIdentity({
-            mediaType: 'episode',
-            provider: resolvedShow.identity.provider,
-            parentProvider: resolvedShow.identity.provider,
-            parentProviderId: resolvedShow.identity.providerId,
-            seasonNumber,
-            episodeNumber,
-            tvdbId: resolvedShow.tvdbId,
-            kitsuId: resolvedShow.kitsuId,
-          });
-          const mediaKey = episodeIdentity.mediaKey;
-          importedEvents.push({
-            eventType: 'mark_watched',
-            mediaKey,
-            mediaType: 'episode',
-            provider: episodeIdentity.provider,
-            providerId: episodeIdentity.providerId,
-            parentProvider: episodeIdentity.parentProvider,
-            parentProviderId: episodeIdentity.parentProviderId,
-            tmdbId: episodeIdentity.tmdbId,
-            tvdbId: resolvedShow.tvdbId,
-            kitsuId: resolvedShow.kitsuId,
-            showTmdbId: episodeIdentity.showTmdbId,
-            seasonNumber,
-            episodeNumber,
-            absoluteEpisodeNumber: episodeIdentity.absoluteEpisodeNumber,
-            occurredAt,
-            payload: {
-              provider: 'trakt',
-              source: 'watched_shows',
-            },
-          });
-          importedHistoryEntries.push({
-            mediaKey,
-            mediaType: 'episode',
-            provider: episodeIdentity.provider,
-            providerId: episodeIdentity.providerId,
-            parentProvider: episodeIdentity.parentProvider,
-            parentProviderId: episodeIdentity.parentProviderId,
-            tmdbId: episodeIdentity.tmdbId,
-            tvdbId: resolvedShow.tvdbId,
-            kitsuId: resolvedShow.kitsuId,
-            showTmdbId: episodeIdentity.showTmdbId,
-            seasonNumber,
-            episodeNumber,
-            absoluteEpisodeNumber: episodeIdentity.absoluteEpisodeNumber,
-            watchedAt: occurredAt,
-            sourceKind: 'provider_import',
-            payload: {
-              provider: 'trakt',
-              source: 'watched_shows',
-            },
-          });
-          mediaKeysToRefresh.add(mediaKey);
-        }
-      }
-    }
-
-    for (const item of [...watchlistMovies, ...watchlistShows]) {
-      const movie = getRecord(item.movie);
-      const show = getRecord(item.show);
-      const node = movie ?? show;
-      const mediaFamily = movie ? 'movie' : 'show';
-      const ids = getRecord(node?.ids);
-      const resolved = await this.resolveImportIdentity(resolvedCache, {
-        mediaFamily,
-        tmdbId: asPositiveInt(ids?.tmdb),
-        imdbId: asString(ids?.imdb),
-        tvdbId: mediaFamily === 'show' ? asString(ids?.tvdb) : null,
-      });
-      if (!resolved) {
-        continue;
-      }
-
-      const occurredAt = asIsoString(item.listed_at) ?? new Date().toISOString();
-      const mediaKey = resolved.identity.mediaKey;
-      importedEvents.push({
-        eventType: 'watchlist_put',
-        mediaKey,
-        mediaType: resolved.mediaType,
-        provider: resolved.identity.provider,
-        providerId: resolved.identity.providerId,
-        tmdbId: resolved.tmdbId,
-        tvdbId: resolved.tvdbId,
-        kitsuId: resolved.kitsuId,
-        showTmdbId: resolved.mediaType === 'show' ? resolved.identity.showTmdbId : null,
-        occurredAt,
-        payload: {
-          provider: 'trakt',
-          source: 'watchlist',
-        },
-      });
-      mediaKeysToRefresh.add(mediaKey);
-    }
-
-    for (const item of [...ratingMovies, ...ratingShows]) {
-      const movie = getRecord(item.movie);
-      const show = getRecord(item.show);
-      const node = movie ?? show;
-      const mediaFamily = movie ? 'movie' : 'show';
-      const ids = getRecord(node?.ids);
-      const resolved = await this.resolveImportIdentity(resolvedCache, {
-        mediaFamily,
-        tmdbId: asPositiveInt(ids?.tmdb),
-        imdbId: asString(ids?.imdb),
-        tvdbId: mediaFamily === 'show' ? asString(ids?.tvdb) : null,
-      });
-      const rating = asPositiveInt(item.rating);
-      if (!resolved || !rating) {
-        continue;
-      }
-
-      const occurredAt = asIsoString(item.rated_at) ?? new Date().toISOString();
-      const mediaKey = resolved.identity.mediaKey;
-      importedEvents.push({
-        eventType: 'rating_put',
-        mediaKey,
-        mediaType: resolved.mediaType,
-        provider: resolved.identity.provider,
-        providerId: resolved.identity.providerId,
-        tmdbId: resolved.tmdbId,
-        tvdbId: resolved.tvdbId,
-        kitsuId: resolved.kitsuId,
-        showTmdbId: resolved.mediaType === 'show' ? resolved.identity.showTmdbId : null,
-        rating,
-        occurredAt,
-        payload: {
-          provider: 'trakt',
-          source: 'ratings',
-        },
-      });
-      mediaKeysToRefresh.add(mediaKey);
-    }
-
-    for (const item of playback) {
-      const type = asString(item.type)?.toLowerCase();
-      if (type === 'movie') {
-        const movie = getRecord(item.movie);
-        const ids = getRecord(movie?.ids);
-        const resolved = await this.resolveImportIdentity(resolvedCache, {
-          mediaFamily: 'movie',
-          tmdbId: asPositiveInt(ids?.tmdb),
-          imdbId: asString(ids?.imdb),
-        });
-        if (!resolved) {
-          continue;
-        }
-
-        const progress = asFiniteNumber(item.progress);
-        const durationSeconds = durationSecondsFromRuntime(movie?.runtime);
-        const positionSeconds = progress !== null && durationSeconds !== null
-          ? Math.max(1, Math.round((durationSeconds * progress) / 100))
-          : null;
-        const occurredAt = asIsoString(item.paused_at) ?? new Date().toISOString();
-        const mediaKey = resolved.identity.mediaKey;
-        importedEvents.push({
-          eventType: progress !== null && progress >= 90 ? 'playback_completed' : 'playback_progress_snapshot',
-          mediaKey,
-          mediaType: resolved.mediaType,
-          provider: resolved.identity.provider,
-          providerId: resolved.identity.providerId,
-          tmdbId: resolved.tmdbId,
-          tvdbId: resolved.tvdbId,
-          kitsuId: resolved.kitsuId,
-          positionSeconds,
-          durationSeconds,
-          occurredAt,
-          payload: {
-            provider: 'trakt',
-            source: 'playback',
-            playbackId: asString(item.id),
-            progressPercent: progress,
-          },
-        });
-        mediaKeysToRefresh.add(mediaKey);
-        continue;
-      }
-
-      if (type === 'episode') {
-        const show = getRecord(item.show);
-        const episode = getRecord(item.episode);
-        const ids = getRecord(show?.ids);
-        const resolvedShow = await this.resolveImportIdentity(resolvedCache, {
-          mediaFamily: 'show',
-          tmdbId: asPositiveInt(ids?.tmdb),
-          imdbId: asString(ids?.imdb),
-          tvdbId: asString(ids?.tvdb),
-        });
-        const seasonNumber = asPositiveInt(episode?.season);
-        const episodeNumber = asPositiveInt(episode?.number);
-        if (!resolvedShow || !seasonNumber || !episodeNumber) {
-          continue;
-        }
-
-        const progress = asFiniteNumber(item.progress);
-        const durationSeconds = durationSecondsFromRuntime(episode?.runtime);
-        const positionSeconds = progress !== null && durationSeconds !== null
-          ? Math.max(1, Math.round((durationSeconds * progress) / 100))
-          : null;
-        const occurredAt = asIsoString(item.paused_at) ?? new Date().toISOString();
-        const episodeIdentity = inferMediaIdentity({
-          mediaType: 'episode',
-          provider: resolvedShow.identity.provider,
-          parentProvider: resolvedShow.identity.provider,
-          parentProviderId: resolvedShow.identity.providerId,
-          seasonNumber,
-          episodeNumber,
-          tvdbId: resolvedShow.tvdbId,
-          kitsuId: resolvedShow.kitsuId,
-        });
-        const mediaKey = episodeIdentity.mediaKey;
-        importedEvents.push({
-          eventType: progress !== null && progress >= 90 ? 'playback_completed' : 'playback_progress_snapshot',
-          mediaKey,
-          mediaType: 'episode',
-          provider: episodeIdentity.provider,
-          providerId: episodeIdentity.providerId,
-          parentProvider: episodeIdentity.parentProvider,
-          parentProviderId: episodeIdentity.parentProviderId,
-          tmdbId: episodeIdentity.tmdbId,
-          tvdbId: resolvedShow.tvdbId,
-          kitsuId: resolvedShow.kitsuId,
-          showTmdbId: episodeIdentity.showTmdbId,
-          seasonNumber,
-          episodeNumber,
-          absoluteEpisodeNumber: episodeIdentity.absoluteEpisodeNumber,
-          positionSeconds,
-          durationSeconds,
-          occurredAt,
-          payload: {
-            provider: 'trakt',
-            source: 'playback',
-            playbackId: asString(item.id),
-            progressPercent: progress,
-          },
-        });
-        mediaKeysToRefresh.add(mediaKey);
-      }
-    }
+    await normalizeTraktWatchedMovies(watchedMovies, resolveIdentity, collector);
+    await normalizeTraktWatchedShows(watchedShows, resolveIdentity, collector);
+    await normalizeTraktWatchlist([...watchlistMovies, ...watchlistShows], resolveIdentity, collector);
+    await normalizeTraktRatings([...ratingMovies, ...ratingShows], resolveIdentity, collector);
+    await normalizeTraktPlayback(playback, resolveIdentity, collector);
 
     const importedAt = new Date().toISOString();
     return {
-      importedEvents,
-      importedHistoryEntries,
+      importedEvents: collector.importedEvents,
+      importedHistoryEntries: collector.importedHistoryEntries,
       importedAt,
-      mediaKeysToRefresh: Array.from(mediaKeysToRefresh),
+      mediaKeysToRefresh: Array.from(collector.mediaKeysToRefresh),
       importSummary: {
         provider: 'trakt',
         watchedMovieCount: watchedMovies.length,
@@ -1576,17 +1279,12 @@ export class ProviderImportService {
 
   private async resolveImportIdentity(
     cache: Map<string, ResolvedImportIdentity | null>,
-    params: {
-      mediaFamily: 'movie' | 'show' | 'anime';
-      tmdbId?: number | null;
-      imdbId?: string | null;
-      tvdbId?: string | null;
-      kitsuId?: number | string | null;
-    },
+    params: ImportIdentityLookup,
   ): Promise<ResolvedImportIdentity | null> {
     const directTmdbId = params.tmdbId && params.tmdbId > 0 ? params.tmdbId : null;
     const directTvdbId = params.tvdbId?.trim() ? Number(params.tvdbId.trim()) : null;
     const directKitsuId = normalizeProviderId(params.kitsuId);
+    const imdbId = params.imdbId?.trim();
 
     if (params.mediaFamily === 'movie' && directTmdbId) {
       return buildResolvedImportIdentity('movie', {
@@ -1596,7 +1294,12 @@ export class ProviderImportService {
       });
     }
 
-    if (params.mediaFamily === 'show' && Number.isInteger(directTvdbId) && (directTvdbId ?? 0) > 0) {
+    if (
+      params.mediaFamily === 'show'
+      && Number.isInteger(directTvdbId)
+      && (directTvdbId ?? 0) > 0
+      && (directTmdbId !== null || !imdbId)
+    ) {
       return buildResolvedImportIdentity('show', {
         provider: 'tvdb',
         providerId: String(directTvdbId),
@@ -1614,14 +1317,14 @@ export class ProviderImportService {
       });
     }
 
-    const client = await db.connect();
-    try {
-      const imdbId = params.imdbId?.trim();
-      if (imdbId) {
-        const cacheKey = `${params.mediaFamily}:imdb:${imdbId}`;
-        if (cache.has(cacheKey)) {
-          return cache.get(cacheKey) ?? null;
-        }
+    if (imdbId) {
+      const cacheKey = `${params.mediaFamily}:imdb:${imdbId}`;
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey) ?? null;
+      }
+
+      const client = await db.connect();
+      try {
         const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
           source: 'imdb_id',
           externalId: imdbId,
@@ -1649,17 +1352,37 @@ export class ProviderImportService {
                     kitsuId: directKitsuId,
                   })
                 : null
-          : null;
+          : params.mediaFamily === 'show' && Number.isInteger(directTvdbId) && (directTvdbId ?? 0) > 0
+            ? buildResolvedImportIdentity('show', {
+                provider: 'tvdb',
+                providerId: String(directTvdbId),
+                tmdbId: directTmdbId,
+                tvdbId: directTvdbId,
+              })
+            : params.mediaFamily === 'anime' && directKitsuId
+              ? buildResolvedImportIdentity('anime', {
+                  provider: 'kitsu',
+                  providerId: directKitsuId,
+                  tmdbId: directTmdbId,
+                  kitsuId: directKitsuId,
+                })
+              : null;
         cache.set(cacheKey, resolved);
         return resolved;
+      } finally {
+        client.release();
+      }
+    }
+
+    const tvdbId = params.tvdbId?.trim();
+    if (tvdbId && params.mediaFamily === 'show') {
+      const cacheKey = `${params.mediaFamily}:tvdb:${tvdbId}`;
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey) ?? null;
       }
 
-      const tvdbId = params.tvdbId?.trim();
-      if (tvdbId && params.mediaFamily === 'show') {
-        const cacheKey = `${params.mediaFamily}:tvdb:${tvdbId}`;
-        if (cache.has(cacheKey)) {
-          return cache.get(cacheKey) ?? null;
-        }
+      const client = await db.connect();
+      try {
         const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
           source: 'tvdb_id',
           externalId: tvdbId,
@@ -1673,21 +1396,21 @@ export class ProviderImportService {
         });
         cache.set(cacheKey, resolved);
         return resolved;
+      } finally {
+        client.release();
       }
-
-      if (directKitsuId && params.mediaFamily === 'anime') {
-        return buildResolvedImportIdentity('anime', {
-          provider: 'kitsu',
-          providerId: directKitsuId,
-          tmdbId: directTmdbId,
-          kitsuId: directKitsuId,
-        });
-      }
-
-      return null;
-    } finally {
-      client.release();
     }
+
+    if (directKitsuId && params.mediaFamily === 'anime') {
+      return buildResolvedImportIdentity('anime', {
+        provider: 'kitsu',
+        providerId: directKitsuId,
+        tmdbId: directTmdbId,
+        kitsuId: directKitsuId,
+      });
+    }
+
+    return null;
   }
 }
 
@@ -1718,6 +1441,439 @@ function buildResolvedImportIdentity(
     tvdbId: params.tvdbId ?? (params.provider === 'tvdb' ? Number(params.providerId) : null),
     kitsuId: params.kitsuId ?? (params.provider === 'kitsu' ? params.providerId : null),
   };
+}
+
+function createImportAccumulator(): ImportAccumulator {
+  return {
+    importedEvents: [],
+    importedHistoryEntries: [],
+    mediaKeysToRefresh: new Set<string>(),
+  };
+}
+
+async function normalizeTraktWatchedMovies(
+  items: Array<Record<string, unknown>>,
+  resolveIdentity: ResolveImportIdentityFn,
+  collector: ImportAccumulator,
+): Promise<void> {
+  for (const item of items) {
+    const resolved = await resolveTraktTitleIdentity(resolveIdentity, item, 'movie');
+    if (!resolved) {
+      continue;
+    }
+
+    const occurredAt = firstIsoString(item.last_watched_at) ?? new Date().toISOString();
+    collector.importedEvents.push(buildImportedTitleEvent({
+      eventType: 'mark_watched',
+      resolved,
+      occurredAt,
+      payload: traktPayload('watched_movies'),
+    }));
+    collector.importedHistoryEntries.push(buildImportedTitleHistoryEntry({
+      resolved,
+      watchedAt: occurredAt,
+      payload: traktPayload('watched_movies'),
+    }));
+    collector.mediaKeysToRefresh.add(resolved.identity.mediaKey);
+  }
+}
+
+async function normalizeTraktWatchedShows(
+  items: Array<Record<string, unknown>>,
+  resolveIdentity: ResolveImportIdentityFn,
+  collector: ImportAccumulator,
+): Promise<void> {
+  for (const item of items) {
+    const resolvedShow = await resolveTraktTitleIdentity(resolveIdentity, item, 'show');
+    if (!resolvedShow) {
+      continue;
+    }
+
+    for (const episode of listTraktWatchedEpisodes(item)) {
+      const occurredAt = firstIsoString(episode.last_watched_at, item.last_watched_at) ?? new Date().toISOString();
+      const episodeIdentity = buildImportedEpisodeIdentity(resolvedShow, episode.seasonNumber, episode.episodeNumber);
+      collector.importedEvents.push(buildImportedEpisodeEvent({
+        eventType: 'mark_watched',
+        identity: episodeIdentity,
+        resolvedShow,
+        occurredAt,
+        payload: traktPayload('watched_shows'),
+      }));
+      collector.importedHistoryEntries.push(buildImportedEpisodeHistoryEntry({
+        identity: episodeIdentity,
+        resolvedShow,
+        watchedAt: occurredAt,
+        payload: traktPayload('watched_shows'),
+      }));
+      collector.mediaKeysToRefresh.add(episodeIdentity.mediaKey);
+    }
+  }
+}
+
+async function normalizeTraktWatchlist(
+  items: Array<Record<string, unknown>>,
+  resolveIdentity: ResolveImportIdentityFn,
+  collector: ImportAccumulator,
+): Promise<void> {
+  for (const item of items) {
+    const mediaFamily = traktItemMediaFamily(item);
+    if (!mediaFamily) {
+      continue;
+    }
+
+    const resolved = await resolveTraktTitleIdentity(resolveIdentity, item, mediaFamily);
+    if (!resolved) {
+      continue;
+    }
+
+    const occurredAt = firstIsoString(item.listed_at) ?? new Date().toISOString();
+    collector.importedEvents.push(buildImportedTitleEvent({
+      eventType: 'watchlist_put',
+      resolved,
+      occurredAt,
+      payload: traktPayload('watchlist'),
+      includeShowTmdbId: true,
+    }));
+    collector.mediaKeysToRefresh.add(resolved.identity.mediaKey);
+  }
+}
+
+async function normalizeTraktRatings(
+  items: Array<Record<string, unknown>>,
+  resolveIdentity: ResolveImportIdentityFn,
+  collector: ImportAccumulator,
+): Promise<void> {
+  for (const item of items) {
+    const mediaFamily = traktItemMediaFamily(item);
+    const rating = asPositiveInt(item.rating);
+    if (!mediaFamily || !rating) {
+      continue;
+    }
+
+    const resolved = await resolveTraktTitleIdentity(resolveIdentity, item, mediaFamily);
+    if (!resolved) {
+      continue;
+    }
+
+    const occurredAt = firstIsoString(item.rated_at) ?? new Date().toISOString();
+    collector.importedEvents.push(buildImportedTitleEvent({
+      eventType: 'rating_put',
+      resolved,
+      occurredAt,
+      rating,
+      payload: traktPayload('ratings'),
+      includeShowTmdbId: true,
+    }));
+    collector.mediaKeysToRefresh.add(resolved.identity.mediaKey);
+  }
+}
+
+async function normalizeTraktPlayback(
+  items: Array<Record<string, unknown>>,
+  resolveIdentity: ResolveImportIdentityFn,
+  collector: ImportAccumulator,
+): Promise<void> {
+  for (const item of items) {
+    const type = asString(item.type)?.toLowerCase();
+    if (type === 'movie') {
+      const resolved = await resolveTraktPlaybackMovie(resolveIdentity, item);
+      if (!resolved) {
+        continue;
+      }
+
+      collector.importedEvents.push(resolved);
+      collector.mediaKeysToRefresh.add(resolved.mediaKey);
+      continue;
+    }
+
+    if (type === 'episode') {
+      const resolved = await resolveTraktPlaybackEpisode(resolveIdentity, item);
+      if (!resolved) {
+        continue;
+      }
+
+      collector.importedEvents.push(resolved);
+      collector.mediaKeysToRefresh.add(resolved.mediaKey);
+    }
+  }
+}
+
+async function resolveTraktPlaybackMovie(
+  resolveIdentity: ResolveImportIdentityFn,
+  item: Record<string, unknown>,
+): Promise<ImportedWatchEventDraft | null> {
+  const movie = getRecord(item.movie);
+  const resolved = await resolveIdentity(traktLookupFromNode(movie, 'movie'));
+  if (!resolved) {
+    return null;
+  }
+
+  const playback = traktPlaybackSnapshot(item, movie?.runtime);
+  return buildImportedTitleEvent({
+    eventType: playback.eventType,
+    resolved,
+    occurredAt: playback.occurredAt,
+    positionSeconds: playback.positionSeconds,
+    durationSeconds: playback.durationSeconds,
+    payload: traktPlaybackPayload(item, playback.progress),
+  });
+}
+
+async function resolveTraktPlaybackEpisode(
+  resolveIdentity: ResolveImportIdentityFn,
+  item: Record<string, unknown>,
+): Promise<ImportedWatchEventDraft | null> {
+  const show = getRecord(item.show);
+  const episode = getRecord(item.episode);
+  const resolvedShow = await resolveIdentity(traktLookupFromNode(show, 'show'));
+  const seasonNumber = asPositiveInt(episode?.season);
+  const episodeNumber = asPositiveInt(episode?.number);
+  if (!resolvedShow || !seasonNumber || !episodeNumber) {
+    return null;
+  }
+
+  const playback = traktPlaybackSnapshot(item, episode?.runtime);
+  const episodeIdentity = buildImportedEpisodeIdentity(resolvedShow, seasonNumber, episodeNumber);
+  return buildImportedEpisodeEvent({
+    eventType: playback.eventType,
+    identity: episodeIdentity,
+    resolvedShow,
+    occurredAt: playback.occurredAt,
+    positionSeconds: playback.positionSeconds,
+    durationSeconds: playback.durationSeconds,
+    payload: traktPlaybackPayload(item, playback.progress),
+  });
+}
+
+async function resolveTraktTitleIdentity(
+  resolveIdentity: ResolveImportIdentityFn,
+  item: Record<string, unknown>,
+  mediaFamily: 'movie' | 'show',
+): Promise<ResolvedImportIdentity | null> {
+  const node = mediaFamily === 'movie'
+    ? getRecord(item.movie)
+    : getRecord(item.show);
+  return resolveIdentity(traktLookupFromNode(node, mediaFamily));
+}
+
+function traktLookupFromNode(
+  node: Record<string, unknown> | null,
+  mediaFamily: 'movie' | 'show' | 'anime',
+): ImportIdentityLookup {
+  const ids = getRecord(node?.ids);
+  return {
+    mediaFamily,
+    tmdbId: asPositiveInt(ids?.tmdb),
+    imdbId: asString(ids?.imdb),
+    tvdbId: mediaFamily === 'show' ? normalizeProviderId(ids?.tvdb) : null,
+    kitsuId: mediaFamily === 'anime' ? normalizeProviderId(ids?.kitsu) : null,
+  };
+}
+
+function traktItemMediaFamily(item: Record<string, unknown>): 'movie' | 'show' | null {
+  if (getRecord(item.movie)) {
+    return 'movie';
+  }
+  if (getRecord(item.show)) {
+    return 'show';
+  }
+  return null;
+}
+
+function listTraktWatchedEpisodes(item: Record<string, unknown>): Array<{ seasonNumber: number; episodeNumber: number; last_watched_at: unknown }> {
+  const episodes: Array<{ seasonNumber: number; episodeNumber: number; last_watched_at: unknown }> = [];
+  for (const seasonValue of asArray(item.seasons)) {
+    const season = getRecord(seasonValue);
+    const seasonNumber = asPositiveInt(season?.number);
+    if (!seasonNumber) {
+      continue;
+    }
+
+    for (const episodeValue of asArray(season?.episodes)) {
+      const episode = getRecord(episodeValue);
+      const episodeNumber = asPositiveInt(episode?.number);
+      if (!episodeNumber) {
+        continue;
+      }
+
+      episodes.push({
+        seasonNumber,
+        episodeNumber,
+        last_watched_at: episode?.last_watched_at,
+      });
+    }
+  }
+  return episodes;
+}
+
+function buildImportedEpisodeIdentity(
+  resolvedShow: ResolvedImportIdentity,
+  seasonNumber: number,
+  episodeNumber: number,
+): MediaIdentity {
+  return inferMediaIdentity({
+    mediaType: 'episode',
+    provider: resolvedShow.identity.provider,
+    parentProvider: resolvedShow.identity.provider,
+    parentProviderId: resolvedShow.identity.providerId,
+    seasonNumber,
+    episodeNumber,
+    tvdbId: resolvedShow.tvdbId,
+    kitsuId: resolvedShow.kitsuId,
+    providerMetadata: resolvedShow.tmdbId ? { tmdbId: resolvedShow.tmdbId } : undefined,
+  });
+}
+
+function buildImportedTitleEvent(params: {
+  eventType: ImportedWatchEventDraft['eventType'];
+  resolved: ResolvedImportIdentity;
+  occurredAt: string;
+  rating?: number | null;
+  positionSeconds?: number | null;
+  durationSeconds?: number | null;
+  payload: Record<string, unknown>;
+  includeShowTmdbId?: boolean;
+}): ImportedWatchEventDraft {
+  return {
+    eventType: params.eventType,
+    mediaKey: params.resolved.identity.mediaKey,
+    mediaType: params.resolved.mediaType,
+    provider: params.resolved.identity.provider,
+    providerId: params.resolved.identity.providerId,
+    tmdbId: params.resolved.tmdbId,
+    tvdbId: params.resolved.tvdbId,
+    kitsuId: params.resolved.kitsuId,
+    showTmdbId: params.includeShowTmdbId && params.resolved.mediaType !== 'movie' ? params.resolved.tmdbId : null,
+    rating: params.rating ?? null,
+    positionSeconds: params.positionSeconds ?? null,
+    durationSeconds: params.durationSeconds ?? null,
+    occurredAt: params.occurredAt,
+    payload: params.payload,
+  };
+}
+
+function buildImportedTitleHistoryEntry(params: {
+  resolved: ResolvedImportIdentity;
+  watchedAt: string;
+  payload: Record<string, unknown>;
+}): ImportedHistoryEntryDraft {
+  return {
+    mediaKey: params.resolved.identity.mediaKey,
+    mediaType: params.resolved.mediaType,
+    provider: params.resolved.identity.provider,
+    providerId: params.resolved.identity.providerId,
+    tmdbId: params.resolved.tmdbId,
+    tvdbId: params.resolved.tvdbId,
+    kitsuId: params.resolved.kitsuId,
+    watchedAt: params.watchedAt,
+    sourceKind: 'provider_import',
+    payload: params.payload,
+  };
+}
+
+function buildImportedEpisodeEvent(params: {
+  eventType: ImportedWatchEventDraft['eventType'];
+  identity: MediaIdentity;
+  resolvedShow: ResolvedImportIdentity;
+  occurredAt: string;
+  positionSeconds?: number | null;
+  durationSeconds?: number | null;
+  payload: Record<string, unknown>;
+}): ImportedWatchEventDraft {
+  return {
+    eventType: params.eventType,
+    mediaKey: params.identity.mediaKey,
+    mediaType: 'episode',
+    provider: params.identity.provider,
+    providerId: params.identity.providerId,
+    parentProvider: params.identity.parentProvider,
+    parentProviderId: params.identity.parentProviderId,
+    tmdbId: params.identity.tmdbId,
+    tvdbId: params.resolvedShow.tvdbId,
+    kitsuId: params.resolvedShow.kitsuId,
+    showTmdbId: params.resolvedShow.tmdbId,
+    seasonNumber: params.identity.seasonNumber,
+    episodeNumber: params.identity.episodeNumber,
+    absoluteEpisodeNumber: params.identity.absoluteEpisodeNumber,
+    positionSeconds: params.positionSeconds ?? null,
+    durationSeconds: params.durationSeconds ?? null,
+    occurredAt: params.occurredAt,
+    payload: params.payload,
+  };
+}
+
+function buildImportedEpisodeHistoryEntry(params: {
+  identity: MediaIdentity;
+  resolvedShow: ResolvedImportIdentity;
+  watchedAt: string;
+  payload: Record<string, unknown>;
+}): ImportedHistoryEntryDraft {
+  return {
+    mediaKey: params.identity.mediaKey,
+    mediaType: 'episode',
+    provider: params.identity.provider,
+    providerId: params.identity.providerId,
+    parentProvider: params.identity.parentProvider,
+    parentProviderId: params.identity.parentProviderId,
+    tmdbId: params.identity.tmdbId,
+    tvdbId: params.resolvedShow.tvdbId,
+    kitsuId: params.resolvedShow.kitsuId,
+    showTmdbId: params.resolvedShow.tmdbId,
+    seasonNumber: params.identity.seasonNumber,
+    episodeNumber: params.identity.episodeNumber,
+    absoluteEpisodeNumber: params.identity.absoluteEpisodeNumber,
+    watchedAt: params.watchedAt,
+    sourceKind: 'provider_import',
+    payload: params.payload,
+  };
+}
+
+function traktPayload(source: 'watched_movies' | 'watched_shows' | 'watchlist' | 'ratings'): Record<string, unknown> {
+  return {
+    provider: 'trakt',
+    source,
+  };
+}
+
+function traktPlaybackPayload(item: Record<string, unknown>, progress: number | null): Record<string, unknown> {
+  return {
+    provider: 'trakt',
+    source: 'playback',
+    playbackId: normalizeProviderId(item.id),
+    progressPercent: progress,
+  };
+}
+
+function traktPlaybackSnapshot(item: Record<string, unknown>, runtime: unknown): {
+  eventType: ImportedWatchEventDraft['eventType'];
+  progress: number | null;
+  positionSeconds: number | null;
+  durationSeconds: number | null;
+  occurredAt: string;
+} {
+  const progress = asFiniteNumber(item.progress);
+  const durationSeconds = durationSecondsFromRuntime(runtime);
+  const positionSeconds = progress !== null && durationSeconds !== null
+    ? Math.max(1, Math.round((durationSeconds * progress) / 100))
+    : null;
+
+  return {
+    eventType: progress !== null && progress >= 90 ? 'playback_completed' : 'playback_progress_snapshot',
+    progress,
+    positionSeconds,
+    durationSeconds,
+    occurredAt: firstIsoString(item.paused_at) ?? new Date().toISOString(),
+  };
+}
+
+function firstIsoString(...values: unknown[]): string | null {
+  for (const value of values) {
+    const normalized = asIsoString(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return null;
 }
 
 export function parseImportProvider(value: unknown): ProviderImportProvider {

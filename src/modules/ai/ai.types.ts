@@ -22,6 +22,7 @@ export type AiProviderFailureDetails = {
   providerStatus?: number;
   responseBody?: string;
   providerErrorCode?: string;
+  providerErrorParam?: string;
   retryAfterSeconds?: number;
   failureKind?: AiProviderFailureKind;
   errorMessage?: string;
