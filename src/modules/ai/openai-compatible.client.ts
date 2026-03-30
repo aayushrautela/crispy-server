@@ -9,27 +9,24 @@ export class OpenAiCompatibleClient {
     systemPrompt?: string;
     userPrompt: string;
   }): Promise<Record<string, unknown>> {
-    const initialAttempt = await this.sendChatCompletion(args, true);
-    const resolvedAttempt = shouldRetryWithoutJsonMode(initialAttempt)
-      ? await this.sendChatCompletion(args, false)
-      : initialAttempt;
+    const attempt = await this.sendChatCompletion(args);
 
-    if (!resolvedAttempt.response.ok) {
-      const parsedError = extractProviderError(resolvedAttempt.rawBody);
+    if (!attempt.response.ok) {
+      const parsedError = extractProviderError(attempt.rawBody);
       throw new HttpError(502, parsedError.message ?? 'AI provider request failed.', {
         provider: args.provider.id,
-        providerStatus: resolvedAttempt.response.status,
-        responseBody: resolvedAttempt.rawBody.slice(0, 500),
+        providerStatus: attempt.response.status,
+        responseBody: attempt.rawBody.slice(0, 500),
         providerErrorCode: parsedError.code,
         providerErrorParam: parsedError.param,
-        retryAfterSeconds: parseRetryAfterSeconds(resolvedAttempt.response.headers.get('retry-after')),
+        retryAfterSeconds: parseRetryAfterSeconds(attempt.response.headers.get('retry-after')),
         failureKind: 'provider_response',
       } satisfies AiProviderFailureDetails);
     }
 
     let payload: Record<string, unknown> | null = null;
     try {
-      const parsed = JSON.parse(resolvedAttempt.rawBody) as unknown;
+      const parsed = JSON.parse(attempt.rawBody) as unknown;
       payload = isRecord(parsed) ? parsed : null;
     } catch {
       payload = null;
@@ -39,7 +36,7 @@ export class OpenAiCompatibleClient {
     if (!content.trim()) {
       throw new HttpError(502, 'AI provider returned empty data.', {
         provider: args.provider.id,
-        providerStatus: resolvedAttempt.response.status,
+        providerStatus: attempt.response.status,
         failureKind: 'invalid_response',
       });
     }
@@ -53,7 +50,7 @@ export class OpenAiCompatibleClient {
     } catch {
       throw new HttpError(502, 'AI provider returned invalid data.', {
         provider: args.provider.id,
-        providerStatus: resolvedAttempt.response.status,
+        providerStatus: attempt.response.status,
         failureKind: 'invalid_response',
       });
     }
@@ -67,8 +64,7 @@ export class OpenAiCompatibleClient {
       systemPrompt?: string;
       userPrompt: string;
     },
-    includeJsonMode: boolean,
-  ): Promise<{ response: Response; rawBody: string; usedJsonMode: boolean }> {
+  ): Promise<{ response: Response; rawBody: string }> {
     let response: Response;
     try {
       response = await fetch(args.provider.endpointUrl, {
@@ -88,7 +84,6 @@ export class OpenAiCompatibleClient {
               : []),
             { role: 'user', content: args.userPrompt },
           ],
-          ...(includeJsonMode ? { response_format: { type: 'json_object' } } : {}),
         }),
       });
     } catch (error) {
@@ -102,7 +97,6 @@ export class OpenAiCompatibleClient {
     return {
       response,
       rawBody: await response.text(),
-      usedJsonMode: includeJsonMode,
     };
   }
 }
@@ -185,19 +179,6 @@ function extractProviderError(rawBody: string): { message: string | null; code?:
   return { message: trimmed };
 }
 
-function shouldRetryWithoutJsonMode(attempt: { response: Response; rawBody: string; usedJsonMode: boolean }): boolean {
-  if (!attempt.usedJsonMode || attempt.response.ok || attempt.response.status !== 400) {
-    return false;
-  }
-
-  const parsedError = extractProviderError(attempt.rawBody);
-  if (parsedError.param === 'response_format') {
-    return true;
-  }
-
-  const loweredBody = attempt.rawBody.toLowerCase();
-  return loweredBody.includes('response_format');
-}
 
 function parseRetryAfterSeconds(value: string | null): number | undefined {
   if (!value) {
