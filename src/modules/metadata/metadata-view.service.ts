@@ -71,6 +71,9 @@ export class MetadataViewService {
   async buildMetadataCardViewFromRow(client: DbClient, row: Record<string, unknown>): Promise<MetadataCardView> {
     const identity = this.identityFromRow(row);
     const id = await this.contentIdentityService.ensureContentId(client, identity);
+    const providerContext = this.normalizeProviderTitleIdentity(identity)
+      ? await this.providerMetadataService.loadIdentityContext(client, identity)
+      : null;
     const rowTitle = typeof row.title === 'string' && row.title.trim() ? row.title : null;
     const rowSubtitle = typeof row.subtitle === 'string' && row.subtitle.trim() ? row.subtitle : null;
     const rowPosterUrl = typeof row.poster_url === 'string' && row.poster_url.trim() ? row.poster_url : null;
@@ -80,6 +83,16 @@ export class MetadataViewService {
       && (identity.mediaType !== 'episode' || rowSubtitle)
       && (rowPosterUrl || rowBackdropUrl),
     );
+
+    if (providerContext?.title) {
+      return buildProviderMetadataCardView({
+        id,
+        identity,
+        title: providerContext.title,
+        currentEpisode: providerContext.currentEpisode,
+      });
+    }
+
     const context = canUseProjectionOnly
       ? { title: null, currentEpisode: null }
       : await this.loadCardContext(client, identity);
@@ -398,7 +411,14 @@ export class MetadataViewService {
   private identityFromRow(row: Record<string, unknown>): MediaIdentity {
     const mediaKey = typeof row.media_key === 'string' ? row.media_key : null;
     if (mediaKey) {
-      return parseMediaKey(mediaKey);
+      const parsed = parseMediaKey(mediaKey);
+      return {
+        ...parsed,
+        tmdbId: row.tmdb_id === null || row.tmdb_id === undefined ? parsed.tmdbId : Number(row.tmdb_id),
+        showTmdbId: row.show_tmdb_id === null || row.show_tmdb_id === undefined ? parsed.showTmdbId : Number(row.show_tmdb_id),
+        seasonNumber: row.season_number === null || row.season_number === undefined ? parsed.seasonNumber : Number(row.season_number),
+        episodeNumber: row.episode_number === null || row.episode_number === undefined ? parsed.episodeNumber : Number(row.episode_number),
+      };
     }
 
     return inferMediaIdentity({

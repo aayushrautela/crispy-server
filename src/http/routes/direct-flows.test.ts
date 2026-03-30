@@ -213,7 +213,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.deepEqual(dismissResponse.json(), { dismissed: true, userId: 'user-1', profileId: 'profile-1', id: 'cw-1' });
 });
 
-test('library route returns DB-only watched and watchlist', async (t) => {
+test('library route returns canonical library sections and auth state', async (t) => {
   const { LibraryService } = await import('../../modules/library/library.service.js');
   const originals = {
     getProfileLibrary: LibraryService.prototype.getProfileLibrary,
@@ -226,12 +226,143 @@ test('library route returns DB-only watched and watchlist', async (t) => {
   LibraryService.prototype.getProfileLibrary = async function (userId, profileId) {
     return {
       profileId,
+      source: 'canonical_library',
       generatedAt: '2024-01-01T00:00:00.000Z',
-      watched: [
-        { media: { id: 'movie-1', title: 'Test Movie' }, watchedAt: '2024-01-15T10:00:00.000Z' },
-      ],
-      watchlist: [
-        { media: { id: 'movie-2', title: 'Watchlisted Movie' }, addedAt: '2024-01-10T08:00:00.000Z' },
+      auth: {
+        providers: [
+          {
+            provider: 'trakt',
+            connected: true,
+            status: 'connected',
+            externalUsername: 'crispy-user',
+            statusMessage: 'Connected as crispy-user',
+          },
+        ],
+      },
+      sections: [
+        {
+          id: 'watched',
+          label: 'Watched',
+          order: 0,
+          itemCount: 1,
+          items: [
+            {
+              id: 'movie-1',
+              media: {
+                id: 'movie-1',
+                mediaKey: 'movie:tmdb:1',
+                mediaType: 'movie',
+                kind: 'title',
+                provider: 'tmdb',
+                providerId: '1',
+                parentMediaType: null,
+                parentProvider: null,
+                parentProviderId: null,
+                tmdbId: 1,
+                showTmdbId: null,
+                seasonNumber: null,
+                episodeNumber: null,
+                absoluteEpisodeNumber: null,
+                title: 'Test Movie',
+                subtitle: null,
+                summary: null,
+                overview: null,
+                artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+                images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+                releaseDate: null,
+                releaseYear: null,
+                runtimeMinutes: null,
+                rating: null,
+                status: null,
+              },
+              detailsTarget: { id: 'movie-1', mediaType: 'movie' },
+              playbackTarget: {
+                contentId: 'movie-1',
+                mediaType: 'movie',
+                provider: 'tmdb',
+                providerId: '1',
+                parentProvider: null,
+                parentProviderId: null,
+                seasonNumber: null,
+                episodeNumber: null,
+                absoluteEpisodeNumber: null,
+              },
+              state: {
+                addedAt: null,
+                watchedAt: '2024-01-15T10:00:00.000Z',
+                ratedAt: null,
+                rating: null,
+                lastActivityAt: null,
+              },
+              origins: ['native'],
+            },
+          ],
+        },
+        {
+          id: 'watchlist',
+          label: 'Watchlist',
+          order: 1,
+          itemCount: 1,
+          items: [
+            {
+              id: 'movie-2',
+              media: {
+                id: 'movie-2',
+                mediaKey: 'movie:tmdb:2',
+                mediaType: 'movie',
+                kind: 'title',
+                provider: 'tmdb',
+                providerId: '2',
+                parentMediaType: null,
+                parentProvider: null,
+                parentProviderId: null,
+                tmdbId: 2,
+                showTmdbId: null,
+                seasonNumber: null,
+                episodeNumber: null,
+                absoluteEpisodeNumber: null,
+                title: 'Watchlisted Movie',
+                subtitle: null,
+                summary: null,
+                overview: null,
+                artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+                images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+                releaseDate: null,
+                releaseYear: null,
+                runtimeMinutes: null,
+                rating: null,
+                status: null,
+              },
+              detailsTarget: { id: 'movie-2', mediaType: 'movie' },
+              playbackTarget: {
+                contentId: 'movie-2',
+                mediaType: 'movie',
+                provider: 'tmdb',
+                providerId: '2',
+                parentProvider: null,
+                parentProviderId: null,
+                seasonNumber: null,
+                episodeNumber: null,
+                absoluteEpisodeNumber: null,
+              },
+              state: {
+                addedAt: '2024-01-10T08:00:00.000Z',
+                watchedAt: null,
+                ratedAt: null,
+                rating: null,
+                lastActivityAt: null,
+              },
+              origins: ['native'],
+            },
+          ],
+        },
+        {
+          id: 'rated',
+          label: 'Rated',
+          order: 2,
+          itemCount: 0,
+          items: [],
+        },
       ],
     } as never;
   };
@@ -245,11 +376,12 @@ test('library route returns DB-only watched and watchlist', async (t) => {
   const libraryResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library', headers: auth });
   assert.equal(libraryResponse.statusCode, 200);
   assert.equal(libraryResponse.json().profileId, 'profile-1');
+  assert.equal(libraryResponse.json().source, 'canonical_library');
   assert.ok(libraryResponse.json().generatedAt);
-  assert.equal(libraryResponse.json().watched.length, 1);
-  assert.equal(libraryResponse.json().watched[0].media.title, 'Test Movie');
-  assert.equal(libraryResponse.json().watchlist.length, 1);
-  assert.equal(libraryResponse.json().watchlist[0].media.title, 'Watchlisted Movie');
+  assert.equal(libraryResponse.json().auth.providers[0].provider, 'trakt');
+  assert.deepEqual(libraryResponse.json().sections.map((section: { id: string }) => section.id), ['watched', 'watchlist', 'rated']);
+  assert.equal(libraryResponse.json().sections[0].items[0].media.title, 'Test Movie');
+  assert.equal(libraryResponse.json().sections[1].items[0].media.title, 'Watchlisted Movie');
 });
 
 test('library route returns 404 for non-existent profile', async (t) => {
