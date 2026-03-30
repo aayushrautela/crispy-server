@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
-import type { SupportedProvider } from './media-key.js';
+import type { SupportedProvider } from '../identity/media-key.js';
 
 export type TrackedSeriesRecord = {
   profileId: string;

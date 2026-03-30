@@ -9,7 +9,7 @@ import {
   parentMediaTypeForIdentity,
   type MediaIdentity,
   type SupportedProvider,
-} from '../watch/media-key.js';
+} from './media-key.js';
 import {
   ContentIdentityRepository,
   type ContentEntityType,

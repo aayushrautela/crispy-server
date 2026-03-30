@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
-import type { MediaIdentity } from './media-key.js';
+import type { MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
 
 export class MediaProgressRepository {

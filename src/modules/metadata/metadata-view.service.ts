@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
-import { ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
+import { ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { assertPresent } from '../../lib/errors.js';
-import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
+import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import {
   buildMetadataCardView,
   buildEpisodeView,

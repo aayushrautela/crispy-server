@@ -1,33 +1,21 @@
 import type { MetadataCardView, MetadataView } from '../metadata/metadata.types.js';
+import type {
+  WatchProgressView,
+  ContinueWatchingStateView,
+  WatchedStateView,
+  WatchlistStateView,
+  RatingStateView,
+  WatchStateLookupInput,
+} from './watch-state.types.js';
 
-export type WatchProgressView = {
-  positionSeconds: number | null;
-  durationSeconds: number | null;
-  progressPercent: number;
-  status?: string;
-  lastPlayedAt?: string;
-};
-
-export type ContinueWatchingStateView = {
-  id: string;
-  positionSeconds: number | null;
-  durationSeconds: number | null;
-  progressPercent: number;
-  lastActivityAt: string;
-};
-
-export type WatchedStateView = {
-  watchedAt: string;
-};
-
-export type WatchlistStateView = {
-  addedAt: string;
-};
-
-export type RatingStateView = {
-  value: number;
-  ratedAt: string;
-};
+export type {
+  WatchProgressView,
+  ContinueWatchingStateView,
+  WatchedStateView,
+  WatchlistStateView,
+  RatingStateView,
+  WatchStateLookupInput,
+} from './watch-state.types.js';
 
 export type HydratedWatchItem = {
   id?: string;
@@ -72,10 +60,6 @@ export type WatchStatesEnvelope = {
   source: 'canonical_watch';
   generatedAt: string;
   items: WatchStateResponse[];
-};
-
-export type WatchStateLookupInput = {
-  mediaKey: string;
 };
 
 export type WatchStateResponse = {

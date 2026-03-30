@@ -5,7 +5,7 @@ import {
   parentMediaTypeForIdentity,
   type MediaIdentity,
   type SupportedProvider,
-} from '../watch/media-key.js';
+} from '../identity/media-key.js';
 import type {
   MetadataCardView,
   MetadataCollectionView,

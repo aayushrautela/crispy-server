@@ -9,7 +9,7 @@ import { normalizeIsoString } from '../../lib/time.js';
 import { homeCacheKey, calendarCacheKey } from '../cache/cache-keys.js';
 import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
-import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../watch/media-key.js';
+import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import {
   ProviderImportConnectionsRepository,

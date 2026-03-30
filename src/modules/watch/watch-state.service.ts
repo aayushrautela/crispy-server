@@ -2,9 +2,9 @@ import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
-import { parentMediaTypeForIdentity, type MediaIdentity, parseMediaKey } from './media-key.js';
+import { parentMediaTypeForIdentity, type MediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
@@ -13,7 +13,7 @@ import type { WatchStateLookupInput, WatchStateResponse } from './watch-read.typ
 
 export class WatchStateService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly profileAccessService = new ProfileAccessService(),
     private readonly metadataViewService = new MetadataViewService(),
     private readonly mediaProgressRepository = new MediaProgressRepository(),
     private readonly watchHistoryRepository = new WatchHistoryRepository(),
@@ -24,10 +24,7 @@ export class WatchStateService {
 
   async getState(userId: string, profileId: string, input: WatchStateLookupInput): Promise<WatchStateResponse> {
     return withDbClient(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const identity = resolveIdentity(input);
       const [metadata, progress, watched, continueWatching, watchlist, rating] = await Promise.all([

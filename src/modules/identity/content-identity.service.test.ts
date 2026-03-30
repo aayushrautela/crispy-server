@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DbClient } from '../../lib/db.js';
-import { inferMediaIdentity } from '../watch/media-key.js';
+import { inferMediaIdentity } from '../identity/media-key.js';
 import type { ContentProviderRefInput, ContentProviderRefRecord } from './content-identity.repo.js';
 import { ContentIdentityService } from './content-identity.service.js';
 

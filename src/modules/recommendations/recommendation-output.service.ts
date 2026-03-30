@@ -1,9 +1,9 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
-import { inferMediaIdentity, parseMediaKey } from '../watch/media-key.js';
+import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -43,7 +43,7 @@ export type RecommendationSnapshotInput = {
 
 export class RecommendationOutputService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly profileAccessService = new ProfileAccessService(),
     private readonly profileSettingsRepository = new ProfileSettingsRepository(),
     private readonly metadataViewService = new MetadataViewService(),
     private readonly tasteProfileRepository = new TasteProfileRepository(),
@@ -244,17 +244,11 @@ export class RecommendationOutputService {
   }
 
   private async requireOwnedProfile(client: DbClient, accountId: string, profileId: string): Promise<void> {
-    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-    if (!profile) {
-      throw new HttpError(404, 'Profile not found.');
-    }
+    await this.profileAccessService.assertOwnedProfile(client, profileId, accountId);
   }
 
   private async requireOwnedProfileForAccount(client: DbClient, accountId: string, profileId: string): Promise<string> {
-    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-    if (!profile) {
-      throw new HttpError(404, 'Profile not found for account.');
-    }
+    const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, accountId);
     return profile.id;
   }
 

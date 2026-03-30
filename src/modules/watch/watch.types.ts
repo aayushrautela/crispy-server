@@ -1,5 +1,5 @@
 import { normalizeOptionalIsoString } from '../../lib/time.js';
-import type { SupportedProvider } from './media-key.js';
+import type { SupportedProvider } from '../identity/media-key.js';
 
 export type WatchEventInput = {
   clientEventId: string;

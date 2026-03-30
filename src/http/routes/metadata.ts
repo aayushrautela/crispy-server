@@ -21,8 +21,8 @@ import { HttpError } from '../../lib/errors.js';
 import { MetadataDirectService } from '../../modules/metadata/metadata-direct.service.js';
 import { MetadataQueryService } from '../../modules/metadata/metadata-query.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata.types.js';
-import type { SupportedMediaType } from '../../modules/watch/media-key.js';
-import { ensureSupportedProvider } from '../../modules/watch/media-key.js';
+import type { SupportedMediaType } from '../../modules/identity/media-key.js';
+import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataQueryService = new MetadataQueryService();

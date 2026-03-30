@@ -1,7 +1,7 @@
 import { HttpError } from '../../lib/errors.js';
 import { redis } from '../../lib/redis.js';
 import { enqueueHeartbeatFlush } from '../../lib/queue.js';
-import type { MediaIdentity } from './media-key.js';
+import type { MediaIdentity } from '../identity/media-key.js';
 import { HEARTBEAT_POLICY } from './heartbeat-policy.js';
 import type { BufferedHeartbeatSnapshot, WatchEventInput } from './watch.types.js';
 

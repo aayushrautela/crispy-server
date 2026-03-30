@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { HttpError } from '../../lib/errors.js';
 import { seedTestEnv, createMockMetadataView } from '../../test-helpers.js';
 
 seedTestEnv({});
@@ -7,7 +8,7 @@ seedTestEnv({});
 function createMockService() {
   return import('./library.service.js').then(({ LibraryService }) => {
     const service = new LibraryService(
-      { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+      { assertOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
       { list: async () => [] } as never,
       { list: async () => [] } as never,
       { listWatchlist: async () => [] } as never,
@@ -58,7 +59,7 @@ test('getProfileLibrary returns watchlist items from WatchCollectionService', as
 test('getProfileLibrary throws 404 for non-existent profile', async () => {
   const { LibraryService } = await import('./library.service.js');
   const service = new LibraryService(
-    { findByIdForOwnerUser: async () => null } as never,
+    { assertOwnedProfile: async () => { throw new HttpError(404, 'Profile not found.'); } } as never,
     { list: async () => [] } as never,
     { list: async () => [] } as never,
     { listWatchlist: async () => [] } as never,
@@ -66,21 +67,6 @@ test('getProfileLibrary throws 404 for non-existent profile', async () => {
 
   await assert.rejects(
     () => service.getProfileLibrary('user-1', 'non-existent'),
-    (err: Error) => err.message === 'Profile not found.'
-  );
-});
-
-test('requireOwnedProfile throws 404 for non-existent profile', async () => {
-  const { LibraryService } = await import('./library.service.js');
-  const service = new LibraryService(
-    { findByIdForOwnerUser: async () => null } as never,
-    { list: async () => [] } as never,
-    { list: async () => [] } as never,
-    { listWatchlist: async () => [] } as never,
-  );
-
-  await assert.rejects(
-    () => service.requireOwnedProfile('user-1', 'non-existent'),
     (err: Error) => err.message === 'Profile not found.'
   );
 });

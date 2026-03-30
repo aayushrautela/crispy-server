@@ -217,7 +217,6 @@ test('library route returns DB-only watched and watchlist', async (t) => {
   const { LibraryService } = await import('../../modules/library/library.service.js');
   const originals = {
     getProfileLibrary: LibraryService.prototype.getProfileLibrary,
-    requireOwnedProfile: LibraryService.prototype.requireOwnedProfile,
   };
 
   t.after(() => {
@@ -236,7 +235,6 @@ test('library route returns DB-only watched and watchlist', async (t) => {
       ],
     } as never;
   };
-  LibraryService.prototype.requireOwnedProfile = async function () {};
 
   const { registerLibraryRoutes } = await import('./library.js');
   const app = await buildTestApp(registerLibraryRoutes);
@@ -258,14 +256,13 @@ test('library route returns 404 for non-existent profile', async (t) => {
   const { LibraryService } = await import('../../modules/library/library.service.js');
   const originals = {
     getProfileLibrary: LibraryService.prototype.getProfileLibrary,
-    requireOwnedProfile: LibraryService.prototype.requireOwnedProfile,
   };
 
   t.after(() => {
     Object.assign(LibraryService.prototype, originals);
   });
 
-  LibraryService.prototype.requireOwnedProfile = async function () {
+  LibraryService.prototype.getProfileLibrary = async function () {
     throw new Error('Profile not found.');
   };
 

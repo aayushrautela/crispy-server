@@ -1,10 +1,10 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
-import type { SupportedMediaType } from '../watch/media-key.js';
-import { inferMediaIdentity } from '../watch/media-key.js';
+import type { SupportedMediaType } from '../identity/media-key.js';
+import { inferMediaIdentity } from '../identity/media-key.js';
 import { buildMetadataCardView, buildProviderMetadataCardView } from './metadata-normalizers.js';
-import { ContentIdentityService } from './content-identity.service.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';

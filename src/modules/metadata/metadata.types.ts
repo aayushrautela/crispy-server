@@ -1,4 +1,4 @@
-import type { SupportedProvider } from '../watch/media-key.js';
+import type { SupportedProvider } from '../identity/media-key.js';
 
 export type MetadataTitleMediaType = 'movie' | 'show' | 'anime';
 export type MetadataViewMediaType = MetadataTitleMediaType | 'episode';

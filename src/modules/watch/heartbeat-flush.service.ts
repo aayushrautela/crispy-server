@@ -3,7 +3,7 @@ import { withTransaction } from '../../lib/db.js';
 import { enqueueHeartbeatFlush } from '../../lib/queue.js';
 import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
-import { ensureSupportedMediaType, inferMediaIdentity } from './media-key.js';
+import { ensureSupportedMediaType, inferMediaIdentity } from '../identity/media-key.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';

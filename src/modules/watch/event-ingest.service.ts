@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { isBufferedHeartbeatEvent } from './heartbeat-policy.js';
-import { inferMediaIdentity, parseMediaKey } from './media-key.js';
+import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
@@ -20,7 +20,7 @@ import {
 
 export class WatchEventIngestService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly profileAccessService = new ProfileAccessService(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
     private readonly continueWatchingRepository = new ContinueWatchingRepository(),
@@ -119,10 +119,7 @@ export class WatchEventIngestService {
   async dismissContinueWatching(userId: string, profileId: string, projectionId: string): Promise<WatchIngestResult> {
     let mediaKey: string | null = null;
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const continueWatching = await this.continueWatchingRepository.findById(client, profileId, projectionId);
       if (!continueWatching) {
@@ -176,10 +173,7 @@ export class WatchEventIngestService {
   private async ingestPlaybackEventSynchronously(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     const identity = inferMediaIdentity(input);
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       const projection = await this.buildProjection(client, identity);
       const event = await this.watchEventsRepository.insert(client, {
         profileGroupId: profile.profileGroupId,
@@ -208,10 +202,7 @@ export class WatchEventIngestService {
 
   private async bufferPlaybackHeartbeat(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       const identity = inferMediaIdentity(input);
       await this.heartbeatBufferService.bufferHeartbeat({
         profileGroupId: profile.profileGroupId,
@@ -239,10 +230,7 @@ export class WatchEventIngestService {
     }) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       const occurredAt = normalizeWatchOccurredAt(input.occurredAt);
       const identity = inferMediaIdentity(input);
       const projection = await this.buildProjection(client, identity);
@@ -293,10 +281,7 @@ export class WatchEventIngestService {
     apply: (client: import('../../lib/db.js').DbClient) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const identity = parseMediaKey(mediaKey);
       const projection = await this.buildProjection(client, identity);

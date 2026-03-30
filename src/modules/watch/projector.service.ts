@@ -1,11 +1,8 @@
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { extractNextEpisodeToAir } from '../metadata/providers/tmdb-episode-helpers.js';
-import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
-import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
-import { MetadataViewService } from '../metadata/metadata-view.service.js';
+import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
-import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
@@ -28,19 +25,11 @@ export class WatchProjectorService {
     private readonly watchlistRepository = new WatchlistRepository(),
     private readonly ratingsRepository = new RatingsRepository(),
     private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
-    private readonly tmdbCacheService = new TmdbCacheService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
-    private readonly metadataViewService = new MetadataViewService(),
+    private readonly metadataProjectionService = new MetadataProjectionService(),
   ) {}
 
   async buildProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
-    const media = await this.metadataViewService.buildMetadataCardView(client, identity);
-    return {
-      title: media.title,
-      subtitle: media.subtitle,
-      posterUrl: media.artwork.posterUrl,
-      backdropUrl: media.artwork.backdropUrl,
-    };
+    return this.metadataProjectionService.buildWatchProjection(client, identity);
   }
 
   async applyPlaybackEvent(client: DbClient, params: {
@@ -219,18 +208,11 @@ export class WatchProjectorService {
   ): Promise<void> {
     const trackedIdentity = toTrackedIdentity(identity);
     if (!trackedIdentity) {
-      if (identity.mediaType === 'movie' && identity.provider === 'tmdb' && identity.tmdbId) {
-        await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId);
-      }
+      await this.metadataProjectionService.warmCache(client, identity);
       return;
     }
 
-    const nextEpisodeAirDate = await resolveTrackedNextEpisodeAirDate(
-      client,
-      trackedIdentity,
-      this.tmdbCacheService,
-      this.providerMetadataService,
-    );
+    const nextEpisodeAirDate = await this.metadataProjectionService.resolveNextEpisodeAirDate(client, trackedIdentity);
 
     await this.trackedSeriesRepository.upsert(client, {
       profileId,
@@ -300,24 +282,4 @@ function toTrackedIdentity(identity: MediaIdentity): TrackedMediaIdentity | null
   }
 
   return null;
-}
-
-async function resolveTrackedNextEpisodeAirDate(
-  client: DbClient,
-  trackedIdentity: MediaIdentity,
-  tmdbCacheService: TmdbCacheService,
-  providerMetadataService: ProviderMetadataService,
-): Promise<string | null> {
-  if (trackedIdentity.provider === 'tmdb') {
-    const showTmdbId = showTmdbIdForIdentity(trackedIdentity);
-    if (!showTmdbId) {
-      return null;
-    }
-
-    const title = await tmdbCacheService.getTitle(client, 'tv', showTmdbId);
-    return extractNextEpisodeToAir(title)?.airDate ?? null;
-  }
-
-  const context = await providerMetadataService.loadIdentityContext(client, trackedIdentity);
-  return context?.nextEpisode?.airDate ?? null;
 }

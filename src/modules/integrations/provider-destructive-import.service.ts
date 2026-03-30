@@ -6,7 +6,7 @@ import { RecommendationOutputService } from '../recommendations/recommendation-o
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
 import { deriveProgressPercent } from '../watch/heartbeat-policy.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
-import { ensureSupportedProvider, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../watch/media-key.js';
+import { ensureSupportedProvider, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';

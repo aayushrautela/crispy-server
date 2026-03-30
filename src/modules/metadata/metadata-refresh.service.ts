@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../watch/media-key.js';
+import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { TrackedSeriesRepository, type TrackedSeriesRecord } from '../watch/tracked-series.repo.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { TmdbRefreshService, type MetadataRefreshSummary } from './providers/tmdb-refresh.service.js';

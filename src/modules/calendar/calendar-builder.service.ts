@@ -1,28 +1,24 @@
 import type { DbClient } from '../../lib/db.js';
-import { MetadataViewService } from '../metadata/metadata-view.service.js';
-import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
-import { extractNextEpisodeToAir } from '../metadata/providers/tmdb-episode-helpers.js';
+import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { MetadataScheduleService } from '../metadata/metadata-schedule.service.js';
+import type { MetadataCardView } from '../metadata/metadata.types.js';
+import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
+import { WatchExportService } from '../watch/watch-export.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
-import type { MetadataCardView, ProviderEpisodeRecord } from '../metadata/metadata.types.js';
-import type { TmdbEpisodeRecord } from '../metadata/providers/tmdb.types.js';
-import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
-import { TrackedSeriesRepository } from '../watch/tracked-series.repo.js';
-import { WatchHistoryRepository } from '../watch/watch-history.repo.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export class CalendarBuilderService {
   constructor(
-    private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
-    private readonly watchHistoryRepository = new WatchHistoryRepository(),
+    private readonly watchExportService = new WatchExportService(),
+    private readonly metadataCardService = new MetadataCardService(),
+    private readonly metadataScheduleService = new MetadataScheduleService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
-    private readonly metadataViewService = new MetadataViewService(),
   ) {}
 
   async build(client: DbClient, profileId: string, limit: number): Promise<CalendarItem[]> {
-    const tracked = await this.trackedSeriesRepository.listForProfile(client, profileId, Math.max(limit, 20));
+    const tracked = await this.watchExportService.listTrackedSeries(client, profileId, Math.max(limit, 20));
     const nowMs = Date.now();
     const items: CalendarItem[] = [];
 
@@ -32,70 +28,53 @@ export class CalendarBuilderService {
         continue;
       }
 
-      const relatedShow = await this.metadataViewService.buildMetadataCardView(client, trackedIdentity);
-      const watchedEpisodeKeys = await this.watchHistoryRepository.listWatchedEpisodeKeysForTrackedMedia(
-        client,
-        profileId,
-        row.trackedMediaKey,
-      );
+      const relatedShow = await this.metadataCardService.buildCardView(client, trackedIdentity);
+      const watchedEpisodeKeys = await this.watchExportService.listWatchedEpisodeKeysForShow(client, profileId, row.trackedMediaKey);
 
-      if (trackedIdentity.provider === 'tmdb' && row.showTmdbId) {
-        const title = await this.tmdbCacheService.getTitle(client, 'tv', row.showTmdbId);
+      if (trackedIdentity.provider === 'tmdb' && trackedIdentity.providerId) {
+        const tmdbId = Number(trackedIdentity.providerId);
+        if (!tmdbId || !Number.isFinite(tmdbId)) {
+          continue;
+        }
+
+        const title = await this.tmdbCacheService.getTitle(client, 'tv', tmdbId);
         if (!title) {
           continue;
         }
 
-        const nextEpisode = extractNextEpisodeToAir(title);
-        if (nextEpisode?.airDate) {
-          const candidate = await this.buildTmdbCalendarItem(client, row.showTmdbId, nextEpisode, relatedShow, watchedEpisodeKeys, nowMs);
-          if (candidate) {
-            items.push(candidate);
+        const schedule = await this.metadataScheduleService.getScheduleInfo(client, trackedIdentity);
+        let episodeToUse: { seasonNumber: number | null; episodeNumber: number | null; title: string | null; airDate: string | null } | null = schedule.nextEpisode;
+
+        if (!episodeToUse) {
+          const episodes = await this.tmdbCacheService.listEpisodesForShow(client, tmdbId);
+          const fallback = episodes.find((episode) => {
+            const key = `episode:tmdb:${tmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
+            return !watchedEpisodeKeys.includes(key);
+          });
+
+          if (!fallback) {
+            items.push({
+              bucket: 'no_scheduled',
+              media: relatedShow,
+              relatedShow,
+              airDate: null,
+              watched: false,
+            });
             continue;
           }
+
+          episodeToUse = { seasonNumber: fallback.seasonNumber, episodeNumber: fallback.episodeNumber, title: fallback.name, airDate: fallback.airDate };
         }
 
-        const episodes = await this.tmdbCacheService.listEpisodesForShow(client, row.showTmdbId);
-        const fallback = episodes.find((episode) => {
-          const key = `episode:tmdb:${row.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
-          return !watchedEpisodeKeys.has(key);
-        });
-
-        if (!fallback) {
-          items.push({
-            bucket: 'no_scheduled',
-            media: relatedShow,
-            relatedShow,
-            airDate: null,
-            watched: false,
-          });
-          continue;
-        }
-
-        const candidate = await this.buildTmdbCalendarItem(client, row.showTmdbId, fallback, relatedShow, watchedEpisodeKeys, nowMs);
+        const candidate = await this.buildTmdbCalendarItem(client, trackedIdentity, episodeToUse, relatedShow, watchedEpisodeKeys, nowMs);
         if (candidate) {
           items.push(candidate);
         }
         continue;
       }
 
-      const context = await this.providerMetadataService.loadIdentityContext(client, trackedIdentity);
-      if (!context?.title) {
-        continue;
-      }
-
-      const upcomingEpisode = context.nextEpisode ?? context.episodes.find((episode) => {
-        const episodeIdentity = inferMediaIdentity({
-          mediaType: 'episode',
-          provider: trackedIdentity.provider,
-          parentProvider: trackedIdentity.provider,
-          parentProviderId: trackedIdentity.providerId,
-          seasonNumber: episode.seasonNumber,
-          episodeNumber: episode.episodeNumber,
-          absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
-        });
-        return !watchedEpisodeKeys.has(episodeIdentity.mediaKey);
-      });
-      if (!upcomingEpisode) {
+      const schedule = await this.metadataScheduleService.getScheduleInfo(client, trackedIdentity);
+      if (!schedule.nextEpisode) {
         items.push({
           bucket: 'no_scheduled',
           media: relatedShow,
@@ -106,7 +85,7 @@ export class CalendarBuilderService {
         continue;
       }
 
-      const candidate = await this.buildProviderCalendarItem(client, trackedIdentity, upcomingEpisode, relatedShow, watchedEpisodeKeys, nowMs);
+      const candidate = await this.buildProviderCalendarItem(client, trackedIdentity, schedule.nextEpisode, relatedShow, watchedEpisodeKeys, nowMs);
       if (candidate) {
         items.push(candidate);
       }
@@ -123,107 +102,89 @@ export class CalendarBuilderService {
 
   private async buildTmdbCalendarItem(
     client: DbClient,
-    showTmdbId: number,
-    episode: TmdbEpisodeRecord,
+    trackedIdentity: MediaIdentity,
+    episode: { seasonNumber: number | null; episodeNumber: number | null; title: string | null; airDate: string | null },
     relatedShow: MetadataCardView,
-    watchedEpisodeKeys: Set<string>,
+    watchedEpisodeKeys: string[],
     nowMs: number,
   ): Promise<CalendarItem | null> {
-    const mediaKey = `episode:tmdb:${showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
-    const watched = watchedEpisodeKeys.has(mediaKey);
-    const media = await this.metadataViewService.buildMetadataCardView(
+    if (!trackedIdentity.providerId) {
+      return null;
+    }
+
+    const tmdbId = Number(trackedIdentity.providerId);
+    if (!tmdbId || !Number.isFinite(tmdbId)) {
+      return null;
+    }
+
+    const mediaKey = `episode:tmdb:${tmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
+    const watched = watchedEpisodeKeys.includes(mediaKey);
+    const media = await this.metadataCardService.buildCardView(
       client,
       inferMediaIdentity({
         mediaType: 'episode',
         provider: 'tmdb',
         parentProvider: 'tmdb',
-        parentProviderId: showTmdbId,
-        showTmdbId,
+        parentProviderId: tmdbId,
         seasonNumber: episode.seasonNumber,
         episodeNumber: episode.episodeNumber,
       }),
     );
 
     const airDate = episode.airDate;
-    if (!airDate) {
-      return {
-        bucket: 'no_scheduled',
-        media,
-        relatedShow,
-        airDate: null,
-        watched,
-      };
-    }
-
-    const deltaDays = Math.floor((Date.parse(airDate) - nowMs) / DAY_MS);
+    const airDateMs = airDate ? Date.parse(airDate) : null;
     let bucket: CalendarItem['bucket'];
-    if (deltaDays <= 0 && deltaDays >= -7) {
-      bucket = watched ? 'recently_released' : 'up_next';
-    } else if (deltaDays <= 7) {
+
+    if (airDateMs === null) {
+      bucket = 'no_scheduled';
+    } else if (airDateMs <= nowMs - 7 * DAY_MS) {
+      bucket = 'recently_released';
+    } else if (airDateMs <= nowMs) {
+      bucket = 'up_next';
+    } else if (airDateMs <= nowMs + 7 * DAY_MS) {
       bucket = 'this_week';
     } else {
       bucket = 'upcoming';
     }
 
-    return {
-      bucket,
-      media,
-      relatedShow,
-      airDate,
-      watched,
-    };
+    return { bucket, media, relatedShow, airDate, watched };
   }
 
   private async buildProviderCalendarItem(
     client: DbClient,
-    _trackedIdentity: MediaIdentity,
-    episode: ProviderEpisodeRecord,
+    trackedIdentity: MediaIdentity,
+    episode: { seasonNumber: number | null; episodeNumber: number | null; title: string | null; airDate: string | null },
     relatedShow: MetadataCardView,
-    watchedEpisodeKeys: Set<string>,
+    watchedEpisodeKeys: string[],
     nowMs: number,
   ): Promise<CalendarItem | null> {
     const episodeIdentity = inferMediaIdentity({
       mediaType: 'episode',
-      provider: episode.provider,
-      parentProvider: episode.parentProvider,
-      parentProviderId: episode.parentProviderId,
+      provider: trackedIdentity.provider,
+      parentProvider: trackedIdentity.provider,
+      parentProviderId: trackedIdentity.providerId,
       seasonNumber: episode.seasonNumber,
       episodeNumber: episode.episodeNumber,
-      absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
     });
-    const watched = watchedEpisodeKeys.has(episodeIdentity.mediaKey);
-    const media = await this.metadataViewService.buildMetadataCardView(
-      client,
-      episodeIdentity,
-    );
 
-    const airDate = episode.airDate;
-    if (!airDate) {
-      return {
-        bucket: 'no_scheduled',
-        media,
-        relatedShow,
-        airDate: null,
-        watched,
-      };
-    }
+    const watched = watchedEpisodeKeys.includes(episodeIdentity.mediaKey);
+    const media = await this.metadataCardService.buildCardView(client, episodeIdentity);
 
-    const deltaDays = Math.floor((Date.parse(airDate) - nowMs) / DAY_MS);
+    const airDateMs = episode.airDate ? Date.parse(episode.airDate) : null;
     let bucket: CalendarItem['bucket'];
-    if (deltaDays <= 0 && deltaDays >= -7) {
-      bucket = watched ? 'recently_released' : 'up_next';
-    } else if (deltaDays <= 7) {
+
+    if (airDateMs === null) {
+      bucket = 'no_scheduled';
+    } else if (airDateMs <= nowMs - 7 * DAY_MS) {
+      bucket = 'recently_released';
+    } else if (airDateMs <= nowMs) {
+      bucket = 'up_next';
+    } else if (airDateMs <= nowMs + 7 * DAY_MS) {
       bucket = 'this_week';
     } else {
       bucket = 'upcoming';
     }
 
-    return {
-      bucket,
-      media,
-      relatedShow,
-      airDate,
-      watched,
-    };
+    return { bucket, media, relatedShow, airDate: episode.airDate, watched };
   }
 }

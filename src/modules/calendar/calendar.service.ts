@@ -1,16 +1,15 @@
 import { redis } from '../../lib/redis.js';
 import { appConfig } from '../../config/app-config.js';
 import { withDbClient } from '../../lib/db.js';
-import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { calendarCacheKey } from '../cache/cache-keys.js';
 import type { CalendarResponse } from '../watch/watch-read.types.js';
 import { CalendarBuilderService } from './calendar-builder.service.js';
 
 export class CalendarService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly profileAccessService = new ProfileAccessService(),
     private readonly calendarBuilderService = new CalendarBuilderService(),
   ) {}
 
@@ -22,10 +21,7 @@ export class CalendarService {
     }
 
     const items = await withDbClient(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       return this.calendarBuilderService.build(client, profileId, 25);
     });
 

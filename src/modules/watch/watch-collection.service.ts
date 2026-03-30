@@ -1,27 +1,23 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
-import { HttpError } from '../../lib/errors.js';
 import { requireDbIsoString } from '../../lib/time.js';
-import { MetadataViewService } from '../metadata/metadata-view.service.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { WatchlistRepository } from './watchlist.repo.js';
 import type { HydratedRatingItem, HydratedWatchlistItem } from './watch-read.types.js';
 
 export class WatchCollectionService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
-    private readonly metadataViewService = new MetadataViewService(),
+    private readonly profileAccessService = new ProfileAccessService(),
+    private readonly metadataCardService = new MetadataCardService(),
     private readonly watchlistRepository = new WatchlistRepository(),
     private readonly ratingsRepository = new RatingsRepository(),
   ) {}
 
   async listWatchlist(userId: string, profileId: string, limit: number): Promise<HydratedWatchlistItem[]> {
     return withDbClient(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const rows = await this.watchlistRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => this.mapWatchlistRow(client, row)));
@@ -30,10 +26,7 @@ export class WatchCollectionService {
 
   async listRatings(userId: string, profileId: string, limit: number): Promise<HydratedRatingItem[]> {
     return withDbClient(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const rows = await this.ratingsRepository.list(client, profileId, limit);
       return Promise.all(rows.map(async (row) => this.mapRatingRow(client, row)));
@@ -41,7 +34,7 @@ export class WatchCollectionService {
   }
 
   private async mapWatchlistRow(client: DbClient, row: Record<string, unknown>): Promise<HydratedWatchlistItem> {
-    const media = await this.metadataViewService.buildMetadataCardViewFromRow(client, row);
+    const media = await this.metadataCardService.buildCardViewFromRow(client, row);
 
     return {
       media,
@@ -51,7 +44,7 @@ export class WatchCollectionService {
   }
 
   private async mapRatingRow(client: DbClient, row: Record<string, unknown>): Promise<HydratedRatingItem> {
-    const media = await this.metadataViewService.buildMetadataCardViewFromRow(client, row);
+    const media = await this.metadataCardService.buildCardViewFromRow(client, row);
 
     return {
       media,

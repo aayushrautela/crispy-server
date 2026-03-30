@@ -6,9 +6,50 @@ If `architecture.md`, `README.md`, older planning docs, comments, or implementat
 
 ## Status
 
-This repo is in an architecture cleanup phase.
+The modular monolith decoupling is complete. The codebase now has explicit module boundaries with clear ownership.
 
-Some implementation still reflects older TMDB-shaped assumptions, but those behaviors are drift, not desired design. The target architecture in this document is the one new work should follow.
+## Module Architecture
+
+The codebase is organized into explicit modules with clear dependency direction:
+
+```
+src/modules/
+├── identity/          # System-wide content identity (MediaIdentity, ContentIdentityService)
+├── profiles/          # Profile ownership and access (ProfileAccessService)
+├── metadata/          # Content facts, provider sync, scheduling, card/detail assembly
+├── watch/             # Profile activity only (projections, raw queries, exports)
+├── home/              # Home screen composition (uses WatchExportService + MetadataCardService)
+├── calendar/          # Calendar composition (uses WatchExportService + MetadataCardService + MetadataScheduleService)
+├── library/           # Library composition (uses WatchExportService + MetadataCardService)
+├── recommendations/   # Recommendation data (uses WatchExportService + MetadataCardService)
+├── integrations/       # Provider imports and connections
+└── ai/                # AI features
+```
+
+### Module Boundaries
+
+**Hard rules:**
+
+- `metadata` module must never import from `watch` module
+- `watch` module must never import metadata provider/cache internals
+- `watch` module returns raw activity data, not metadata-hydrated views
+- No two-way dependency between `metadata` and `watch` modules
+
+**Public service boundaries:**
+
+- `WatchQueryService` - Raw watch data reads (no metadata hydration)
+- `WatchExportService` - Public read boundary for other modules
+- `MetadataCardService` - Card view boundary (watch uses this, not MetadataViewService)
+- `MetadataProjectionService` - Projection building (watch uses this)
+- `MetadataScheduleService` - Next/upcoming episode logic
+- `ProfileAccessService` - Centralized ownership verification
+
+**Module responsibilities:**
+
+- `identity`: System-wide content identity language (MediaIdentity, parseMediaKey, inferMediaIdentity)
+- `metadata`: Content facts, provider sync, scheduling, card/detail assembly, provider metadata
+- `watch`: Profile activity (watch events, progress, history, continue watching, watchlist, ratings, tracked series)
+- `surfaces` (home, calendar, library): Composed read surfaces that delegate to watch and metadata services
 
 ## System Boundary
 
@@ -294,26 +335,17 @@ Rules:
 
 ## AI Model
 
-AI features should consume canonical app identity instead of inventing a second provider contract.
+AI features consume canonical app identity through the public service boundaries.
 
 Target rules:
 
-- AI title-oriented features should accept canonical title identity, ideally `content_id`.
-- AI flows should resolve provider metadata internally.
-- AI route behavior should align with the same movie/show/anime authority model used everywhere else.
-
-Short-term rule during cleanup:
-
-- Any temporary provider-specific AI behavior is transitional and should not become the long-term architecture contract.
+- AI title-oriented features accept canonical title identity, ideally `content_id`.
+- AI flows resolve provider metadata internally via `MetadataCardService` and `MetadataViewService`.
+- AI route behavior aligns with the same movie/show/anime authority model used everywhere else.
 
 ## Data Repair And Migration Rules
 
-This repo is allowed to perform destructive cleanup of canonical metadata identity when that is the cleanest repair path.
-
-Current decision:
-
-- canonical metadata UUID churn is acceptable during the cleanup phase
-- clean rebuild is preferred over preserving corrupted canonical mappings
+Canonical metadata UUID churn during migration is acceptable.
 
 Rules:
 
@@ -337,5 +369,16 @@ This repository verifies through the Node and TypeScript toolchain.
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
+
+## New Service Reference
+
+Key services created during decoupling:
+
+- `WatchQueryService` (`src/modules/watch/watch-query.service.ts`) - Raw watch data reads without metadata hydration
+- `WatchExportService` (`src/modules/watch/watch-export.service.ts`) - Public read boundary for other modules
+- `MetadataCardService` (`src/modules/metadata/metadata-card.service.ts`) - Card view boundary
+- `MetadataProjectionService` (`src/modules/metadata/metadata-projection.service.ts`) - Projection building for watch events
+- `MetadataScheduleService` (`src/modules/metadata/metadata-schedule.service.ts`) - Next/upcoming episode logic
+- `ProfileAccessService` (`src/modules/profiles/profile-access.service.ts`) - Centralized ownership verification
 
 Gradle is not part of this repo's verification path and is not installed in this environment.

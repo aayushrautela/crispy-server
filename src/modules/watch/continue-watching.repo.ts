@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { canonicalContinueWatchingMediaKey, parseMediaKey, type MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
 
 export class ContinueWatchingRepository {

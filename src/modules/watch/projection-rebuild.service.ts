@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, ensureSupportedProvider, inferMediaIdentity, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from './media-key.js';
+import { canonicalContinueWatchingMediaKey, ensureSupportedMediaType, ensureSupportedProvider, inferMediaIdentity, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContinueWatchingRepository } from './continue-watching.repo.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';
 import { MediaProgressRepository } from './media-progress.repo.js';

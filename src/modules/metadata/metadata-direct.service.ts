@@ -2,8 +2,8 @@ import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import type { SupportedMediaType } from '../watch/media-key.js';
-import { inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity } from '../watch/media-key.js';
+import type { SupportedMediaType } from '../identity/media-key.js';
+import { inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import {
   buildEpisodeView,
   buildImageUrl,
@@ -11,7 +11,7 @@ import {
   buildProviderSeasonViewFromRecord,
   buildSeasonViewFromRecord,
 } from './metadata-normalizers.js';
-import { ContentIdentityService, episodeRefMapKey } from './content-identity.service.js';
+import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { findNextEpisode } from './next-episode.js';

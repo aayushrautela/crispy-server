@@ -1,11 +1,11 @@
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import type { MediaIdentity, SupportedProvider } from '../watch/media-key.js';
+import type { MediaIdentity, SupportedProvider } from '../identity/media-key.js';
 import {
   buildAbsoluteEpisodeProviderId,
   buildEpisodeProviderId,
   buildSeasonProviderId,
-} from '../watch/media-key.js';
+} from '../identity/media-key.js';
 import { ImdbRatingsService, imdbRatingsService } from './enrichment/imdb-ratings.service.js';
 import { KitsuClient } from './providers/kitsu.client.js';
 import type {

@@ -24,7 +24,7 @@ import { WatchCollectionService } from '../../modules/watch/watch-collection.ser
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
-import { ensureSupportedProvider } from '../../modules/watch/media-key.js';
+import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
