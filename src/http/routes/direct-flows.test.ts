@@ -213,42 +213,60 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.deepEqual(dismissResponse.json(), { dismissed: true, userId: 'user-1', profileId: 'profile-1', id: 'cw-1' });
 });
 
-test('library routes forward source and limit to service', async (t) => {
+test('library route returns DB-only watched and watchlist', async (t) => {
   const { LibraryService } = await import('../../modules/library/library.service.js');
   const originals = {
     getProfileLibrary: LibraryService.prototype.getProfileLibrary,
     requireOwnedProfile: LibraryService.prototype.requireOwnedProfile,
-    getProviderAuthState: LibraryService.prototype.getProviderAuthState,
-    setWatchlist: LibraryService.prototype.setWatchlist,
-    setRating: LibraryService.prototype.setRating,
   };
 
   t.after(() => {
     Object.assign(LibraryService.prototype, originals);
   });
 
-  LibraryService.prototype.getProfileLibrary = async function (userId, profileId, options) {
+  LibraryService.prototype.getProfileLibrary = async function (userId, profileId) {
     return {
-      userId,
       profileId,
-      source: options?.source ?? 'all',
       generatedAt: '2024-01-01T00:00:00.000Z',
-      limitPerFolder: options?.limitPerFolder ?? null,
-      auth: { providers: [] },
-      canonical: { source: 'canonical_library', generatedAt: '2024-01-01T00:00:00.000Z', continueWatching: [], history: [], watchlist: [], ratings: [], items: [] },
-      native: null,
-      diagnostics: { source: 'provider_diagnostics', generatedAt: '2024-01-01T00:00:00.000Z', providers: [] },
+      watched: [
+        { media: { id: 'movie-1', title: 'Test Movie' }, watchedAt: '2024-01-15T10:00:00.000Z' },
+      ],
+      watchlist: [
+        { media: { id: 'movie-2', title: 'Watchlisted Movie' }, addedAt: '2024-01-10T08:00:00.000Z' },
+      ],
     } as never;
   };
   LibraryService.prototype.requireOwnedProfile = async function () {};
-  LibraryService.prototype.getProviderAuthState = async function (_accountId, profileId) {
-    return [{ provider: 'trakt', connected: true, status: 'connected', tokenState: 'valid', externalUsername: profileId, lastImportCompletedAt: null, lastUsedAt: null, message: null }] as never;
+
+  const { registerLibraryRoutes } = await import('./library.js');
+  const app = await buildTestApp(registerLibraryRoutes);
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+
+  const libraryResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library', headers: auth });
+  assert.equal(libraryResponse.statusCode, 200);
+  assert.equal(libraryResponse.json().profileId, 'profile-1');
+  assert.ok(libraryResponse.json().generatedAt);
+  assert.equal(libraryResponse.json().watched.length, 1);
+  assert.equal(libraryResponse.json().watched[0].media.title, 'Test Movie');
+  assert.equal(libraryResponse.json().watchlist.length, 1);
+  assert.equal(libraryResponse.json().watchlist[0].media.title, 'Watchlisted Movie');
+});
+
+test('library route returns 404 for non-existent profile', async (t) => {
+  const { LibraryService } = await import('../../modules/library/library.service.js');
+  const originals = {
+    getProfileLibrary: LibraryService.prototype.getProfileLibrary,
+    requireOwnedProfile: LibraryService.prototype.requireOwnedProfile,
   };
-  LibraryService.prototype.setWatchlist = async function (_userId, _profileId, input) {
-    return { source: input.source ?? 'all', action: 'watchlist', watchlist: input.inWatchlist, rating: null, media: { id: input.id ?? input.imdbId ?? 'fallback' }, results: [], statusMessage: 'Saved to watchlist.', input } as never;
-  };
-  LibraryService.prototype.setRating = async function (_userId, _profileId, input) {
-    return { source: input.source ?? 'all', action: 'rating', watchlist: null, rating: input.rating, media: { id: input.id ?? input.imdbId ?? 'fallback' }, results: [], statusMessage: 'Rated 8/10.', input } as never;
+
+  t.after(() => {
+    Object.assign(LibraryService.prototype, originals);
+  });
+
+  LibraryService.prototype.requireOwnedProfile = async function () {
+    throw new Error('Profile not found.');
   };
 
   const { registerLibraryRoutes } = await import('./library.js');
@@ -257,41 +275,8 @@ test('library routes forward source and limit to service', async (t) => {
 
   const auth = { authorization: 'Bearer test' };
 
-  const libraryResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library?source=trakt&limitPerFolder=25', headers: auth });
-  assert.equal(libraryResponse.statusCode, 200);
-  assert.equal(libraryResponse.json().userId, 'user-1');
-  assert.equal(libraryResponse.json().source, 'trakt');
-  assert.equal(libraryResponse.json().limitPerFolder, 25);
-
-  const authStateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/provider-auth/state', headers: auth });
-  assert.equal(authStateResponse.statusCode, 200);
-  assert.equal(authStateResponse.json().providers[0].externalUsername, 'profile-1');
-
-  const watchlistResponse = await app.inject({
-    method: 'POST', url: '/v1/profiles/profile-1/library/watchlist', headers: auth,
-    payload: { source: 'simkl', inWatchlist: true, imdbId: 'tt1234567', mediaType: 'movie' },
-  });
-  assert.equal(watchlistResponse.statusCode, 200);
-  assert.equal(watchlistResponse.json().source, 'simkl');
-  assert.equal(watchlistResponse.json().input.imdbId, 'tt1234567');
-
-  const ratingResponse = await app.inject({
-    method: 'POST', url: '/v1/profiles/profile-1/library/rating', headers: auth,
-    payload: { source: 'trakt', rating: 8, id: '44444444-4444-4444-8444-444444444412' },
-  });
-  assert.equal(ratingResponse.statusCode, 200);
-  assert.equal(ratingResponse.json().source, 'trakt');
-  assert.equal(ratingResponse.json().input.rating, 8);
-});
-
-test('library route rejects invalid source', async (t) => {
-  const { registerLibraryRoutes } = await import('./library.js');
-  const app = await buildTestApp(registerLibraryRoutes);
-  t.after(async () => { await app.close(); });
-
-  const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library?source=bad', headers: { authorization: 'Bearer test' } });
-  assert.equal(response.statusCode, 400);
-  assert.deepEqual(response.json(), { code: 'invalid_library_source', message: 'Invalid library source.' });
+  const libraryResponse = await app.inject({ method: 'GET', url: '/v1/profiles/non-existent/library', headers: auth });
+  assert.equal(libraryResponse.statusCode, 500);
 });
 
 test('metadata resolve route accepts provider-shaped query input', async (t) => {
@@ -321,33 +306,4 @@ test('metadata resolve route accepts provider-shaped query input', async (t) => 
   assert.equal(response.json().item.kitsuId, 123);
   assert.equal(response.json().item.tmdbId, null);
   assert.equal(response.json().item.tvdbId, null);
-});
-
-test('library watchlist route accepts provider-shaped body input', async (t) => {
-  const { LibraryService } = await import('../../modules/library/library.service.js');
-  const originalSetWatchlist = LibraryService.prototype.setWatchlist;
-
-  t.after(() => {
-    LibraryService.prototype.setWatchlist = originalSetWatchlist;
-  });
-
-  LibraryService.prototype.setWatchlist = async function (_userId, _profileId, input) {
-    return { source: input.source ?? 'all', action: 'watchlist', watchlist: input.inWatchlist, rating: null, media: { id: 'resolved' }, results: [], statusMessage: 'ok', input } as never;
-  };
-
-  const { registerLibraryRoutes } = await import('./library.js');
-  const app = await buildTestApp(registerLibraryRoutes);
-  t.after(async () => { await app.close(); });
-
-  const response = await app.inject({
-    method: 'POST',
-    url: '/v1/profiles/profile-1/library/watchlist',
-    headers: { authorization: 'Bearer test' },
-    payload: { source: 'simkl', inWatchlist: true, provider: 'kitsu', providerId: 321, mediaType: 'anime' },
-  });
-
-  assert.equal(response.statusCode, 200);
-  assert.equal(response.json().input.mediaType, 'anime');
-  assert.equal(response.json().input.kitsuId, 321);
-  assert.equal(response.json().input.tmdbId, null);
 });
