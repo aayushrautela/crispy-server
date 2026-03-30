@@ -6,7 +6,7 @@ import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-acc
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
 
-export type AccountSecretField = 'ai.api_key' | 'metadata.omdb_api_key';
+export type AccountSecretField = 'ai.api_key';
 
 export type AccountSecretValue = {
   appUserId: string;
@@ -14,16 +14,11 @@ export type AccountSecretValue = {
   value: string;
 };
 
-export type OmdbApiKeyLookup = {
-  ownKeys: string[];
-  pooledKeys: string[];
-};
-
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key', 'metadata.omdb_api_key']);
-const ACCOUNT_SECRET_SETTING_KEYS = new Set(['ai.api_key', 'metadata.omdb_api_key']);
-const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', 'ai.api_key', 'metadata.omdb_api_key', 'addons']);
+const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key']);
+const ACCOUNT_SECRET_SETTING_KEYS = new Set(['ai.api_key']);
+const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', 'ai.api_key', 'addons']);
 
 export class AccountSettingsService {
   constructor(
@@ -45,16 +40,8 @@ export class AccountSettingsService {
     return this.getSecretForUser(userId, 'ai.api_key');
   }
 
-  async getOmdbApiKeyForUser(userId: string): Promise<AccountSecretValue> {
-    return this.getSecretForUser(userId, 'metadata.omdb_api_key');
-  }
-
   async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
     return this.setSecretForUser(userId, 'ai.api_key', value);
-  }
-
-  async setOmdbApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
-    return this.setSecretForUser(userId, 'metadata.omdb_api_key', value);
   }
 
   async getAiProviderIdForUser(userId: string): Promise<string> {
@@ -90,22 +77,8 @@ export class AccountSettingsService {
     });
   }
 
-  async listOmdbApiKeysForLookup(userId: string): Promise<OmdbApiKeyLookup> {
-    return this.runInTransaction(async (client) => {
-      const entries = await this.accountSettingsRepository.listSecretsForField(client, 'metadata.omdb_api_key');
-      return {
-        ownKeys: dedupeStrings(entries.filter((entry) => entry.appUserId === userId).map((entry) => entry.value)),
-        pooledKeys: dedupeStrings(entries.filter((entry) => entry.appUserId !== userId).map((entry) => entry.value)),
-      } satisfies OmdbApiKeyLookup;
-    });
-  }
-
   async clearAiApiKeyForUser(userId: string): Promise<boolean> {
     return this.clearSecretForUser(userId, 'ai.api_key');
-  }
-
-  async clearOmdbApiKeyForUser(userId: string): Promise<boolean> {
-    return this.clearSecretForUser(userId, 'metadata.omdb_api_key');
   }
 
   async getSecretForUser(userId: string, field: string): Promise<AccountSecretValue> {

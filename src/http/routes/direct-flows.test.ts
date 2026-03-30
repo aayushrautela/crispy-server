@@ -31,7 +31,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
     return { show: { id }, currentSeasonNumber: input.currentSeasonNumber, currentEpisodeNumber: input.currentEpisodeNumber, receivedWatchedKeys: input.watchedKeys, receivedShowId: input.showId, receivedNowMs: input.nowMs, item: null } as never;
   };
   MetadataDirectService.prototype.getTitleContent = async function (userId, id) {
-    return { item: { id }, omdb: { imdbId: 'tt1234567', title: 'Movie', userId } } as never;
+    return { item: { id }, content: { ids: { imdb: 'tt1234567', tmdb: null, trakt: null, tvdb: null }, title: 'Movie' } } as never;
   };
   MetadataQueryService.prototype.getTitleDetailById = async function (id: string) {
     return {
@@ -123,7 +123,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   const contentResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieId}/content`, headers: auth });
   assert.equal(contentResponse.statusCode, 200);
   assert.equal(contentResponse.json().item.id, movieId);
-  assert.equal(contentResponse.json().omdb.userId, 'user-1');
+  assert.equal(contentResponse.json().content.ids.imdb, 'tt1234567');
 
   const playbackResponse = await app.inject({ method: 'GET', url: `/v1/playback/resolve?id=${movieId}`, headers: auth });
   assert.equal(playbackResponse.statusCode, 200);

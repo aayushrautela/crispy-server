@@ -5,8 +5,6 @@ import {
   aiAccountSecretGetRouteSchema,
   aiAccountSecretPutRouteSchema,
   deleteResultRouteSchema,
-  omdbAccountSecretGetRouteSchema,
-  omdbAccountSecretPutRouteSchema,
 } from '../contracts/account.js';
 import { AccountDeletionService } from '../../modules/users/account-deletion.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
@@ -70,31 +68,6 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     const actor = app.requireUserActor(request);
     return {
       deleted: await accountSettingsService.clearAiApiKeyForUser(actor.appUserId),
-    };
-  });
-
-  app.get('/v1/account/secrets/omdb-api-key', { schema: omdbAccountSecretGetRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    return {
-      secret: await accountSettingsService.getOmdbApiKeyForUser(actor.appUserId),
-    };
-  });
-
-  app.put('/v1/account/secrets/omdb-api-key', { schema: omdbAccountSecretPutRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    const body = (request.body ?? {}) as Record<string, unknown>;
-    return {
-      secret: await accountSettingsService.setOmdbApiKeyForUser(actor.appUserId, String(body.value ?? '')),
-    };
-  });
-
-  app.delete('/v1/account/secrets/omdb-api-key', { schema: deleteResultRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    return {
-      deleted: await accountSettingsService.clearOmdbApiKeyForUser(actor.appUserId),
     };
   });
 

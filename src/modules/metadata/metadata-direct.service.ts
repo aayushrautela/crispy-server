@@ -1,8 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
-import { withDbClient, withTransaction } from '../../lib/db.js';
-import { parseStringListEnv } from '../../config/env.js';
+import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
-import { AccountSettingsService } from '../users/account-settings.service.js';
+import { env } from '../../config/env.js';
 import type { SupportedMediaType } from '../watch/media-key.js';
 import { inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity } from '../watch/media-key.js';
 import {
@@ -16,7 +15,8 @@ import { ContentIdentityService, episodeRefMapKey } from './content-identity.ser
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { findNextEpisode } from './next-episode.js';
-import { OmdbCacheRepository } from './enrichment/omdb-cache.repo.js';
+import { MdbListClient } from '../integrations/mdblist.client.js';
+import { MdbListService } from '../integrations/mdblist.service.js';
 import { TmdbClient } from './providers/tmdb.client.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
@@ -28,8 +28,6 @@ import type {
   MetadataSeasonView,
   MetadataTitleContentResponse,
   MetadataView,
-  OmdbContentView,
-  OmdbRatingEntry,
   PlaybackResolveResponse,
 } from './metadata.types.js';
 import type {
@@ -38,10 +36,6 @@ import type {
 } from './providers/tmdb.types.js';
 
 type FetchLike = typeof fetch;
-type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
-
-let omdbServerKeyCursor = 0;
-let omdbPoolKeyCursor = 0;
 
 type ResolveMetadataInput = {
   id?: string;
@@ -63,18 +57,19 @@ type NextEpisodeInput = {
 };
 
 export class MetadataDirectService {
+  private readonly mdblistService: MdbListService | null;
+
   constructor(
     private readonly metadataViewService = new MetadataViewService(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly tmdbClient = new TmdbClient(),
-    private readonly accountSettingsService = new AccountSettingsService(),
     private readonly fetcher: FetchLike = fetch,
-    private readonly omdbCacheRepository = new OmdbCacheRepository(),
-    private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
-  ) {}
+  ) {
+    this.mdblistService = env.mdblistApiKey ? new MdbListService(new MdbListClient(env.mdblistApiKey)) : null;
+  }
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
     return withDbClient(async (client) => {
@@ -217,31 +212,28 @@ export class MetadataDirectService {
     };
   }
 
-  async getTitleContent(userId: string, id: string): Promise<MetadataTitleContentResponse> {
+  async getTitleContent(_userId: string, id: string): Promise<MetadataTitleContentResponse> {
     const item = await withDbClient(async (client) => {
       const identity = await this.resolveTitleIdentity(client, id);
       return this.metadataViewService.buildMetadataView(client, identity);
     });
-    const imdbId = normalizeImdbId(item.externalIds.imdb);
-    if (!imdbId) {
-      throw new HttpError(404, 'IMDb id not available for this title.');
+
+    if (!this.mdblistService) {
+      throw new HttpError(412, 'MDBList is not configured. Set MDBLIST_API_KEY in your environment.');
     }
 
-    const cachedOmdb = await this.runInTransaction((client) => this.omdbCacheRepository.findByImdbId(client, imdbId));
-    if (cachedOmdb) {
-      return {
-        item,
-        omdb: cachedOmdb,
-      };
+    const tmdbId = item.externalIds.tmdb;
+    if (!tmdbId) {
+      throw new HttpError(404, 'Title metadata not available for content lookup.');
     }
 
-    const omdbApiKeys = await this.getOmdbApiKeys(userId);
-    const omdb = await this.fetchOmdbContentFromCandidates(omdbApiKeys, imdbId);
-    await this.runInTransaction((client) => this.omdbCacheRepository.upsert(client, imdbId, omdb));
-    return {
-      item,
-      omdb,
-    };
+    const mediaType = item.mediaType === 'movie' ? 'movie' : 'show';
+    const content = await this.mdblistService.getTitle(mediaType, tmdbId);
+    if (!content) {
+      throw new HttpError(404, 'MDBList content not found for this title.');
+    }
+
+    return { item, content };
   }
 
   async resolvePlayback(input: ResolveMetadataInput): Promise<PlaybackResolveResponse> {
@@ -425,86 +417,6 @@ export class MetadataDirectService {
     }
 
     return null;
-  }
-
-  private async getOmdbApiKeys(userId: string): Promise<string[]> {
-    const lookup = await this.accountSettingsService.listOmdbApiKeysForLookup(userId);
-    const candidates = dedupeStrings([
-      ...lookup.ownKeys,
-      ...rotateRoundRobin(parseStringListEnv('OMDB_API_KEYS'), 'server'),
-      ...rotateRoundRobin(lookup.pooledKeys, 'pool'),
-    ]);
-
-    if (!candidates.length) {
-      throw new HttpError(412, 'OMDb is not configured. Add an OMDb API key in Account Settings or configure server OMDb keys.');
-    }
-
-    return candidates;
-  }
-
-  private async fetchOmdbContentFromCandidates(apiKeys: string[], imdbId: string): Promise<OmdbContentView> {
-    let lastError: HttpError | null = null;
-
-    for (const apiKey of apiKeys) {
-      try {
-        return await this.fetchOmdbContent(apiKey, imdbId);
-      } catch (error) {
-        if (error instanceof HttpError) {
-          if (error.statusCode === 400 || error.statusCode === 404) {
-            throw error;
-          }
-          lastError = error;
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw lastError ?? new HttpError(502, 'OMDb lookup failed.');
-  }
-
-  private async fetchOmdbContent(apiKey: string, imdbId: string): Promise<OmdbContentView> {
-    const url = new URL('https://www.omdbapi.com/');
-    url.searchParams.set('apikey', apiKey);
-    url.searchParams.set('i', imdbId);
-    url.searchParams.set('plot', 'full');
-    url.searchParams.set('tomatoes', 'true');
-
-    let response: Response;
-    try {
-      response = await this.fetcher(url.toString(), {
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-    } catch (error) {
-      throw new HttpError(502, 'OMDb request failed.', {
-        cause: error instanceof Error ? error.message : String(error),
-      });
-    }
-
-    if (!response.ok) {
-      throw new HttpError(502, `OMDb request failed with HTTP ${response.status}.`);
-    }
-
-    const payload = await response.json().catch(() => null);
-    const record = asRecord(payload);
-    if (!record) {
-      throw new HttpError(502, 'OMDb returned an invalid response.');
-    }
-
-    const omdbResponse = asString(record.Response);
-    if (omdbResponse?.toLowerCase() === 'false') {
-      const message = asString(record.Error) ?? 'OMDb lookup failed.';
-      const statusCode = /not found/i.test(message)
-        ? 404
-        : /incorrect imdb/i.test(message)
-          ? 400
-          : 502;
-      throw new HttpError(statusCode, message);
-    }
-
-    return buildOmdbContentView(record, imdbId);
   }
 }
 
@@ -692,97 +604,4 @@ function asPositiveNumber(value: unknown): number | null {
 function asFiniteNumber(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function buildOmdbContentView(payload: Record<string, unknown>, fallbackImdbId: string): OmdbContentView {
-  return {
-    imdbId: normalizeImdbId(asString(payload.imdbID)) ?? fallbackImdbId,
-    title: asOmdbString(payload.Title),
-    type: asOmdbString(payload.Type),
-    year: asOmdbString(payload.Year),
-    rated: asOmdbString(payload.Rated),
-    released: asOmdbString(payload.Released),
-    runtime: asOmdbString(payload.Runtime),
-    genres: parseOmdbList(payload.Genre),
-    directors: parseOmdbList(payload.Director),
-    writers: parseOmdbList(payload.Writer),
-    actors: parseOmdbList(payload.Actors),
-    plot: asOmdbString(payload.Plot),
-    languages: parseOmdbList(payload.Language),
-    countries: parseOmdbList(payload.Country),
-    awards: asOmdbString(payload.Awards),
-    posterUrl: asOmdbString(payload.Poster),
-    ratings: parseOmdbRatings(payload.Ratings),
-    imdbRating: parseOmdbNumber(payload.imdbRating),
-    imdbVotes: parseOmdbInteger(payload.imdbVotes),
-    metascore: parseOmdbInteger(payload.Metascore),
-    boxOffice: asOmdbString(payload.BoxOffice),
-    production: asOmdbString(payload.Production),
-    website: asOmdbString(payload.Website),
-    totalSeasons: parseOmdbInteger(payload.totalSeasons),
-  };
-}
-
-function parseOmdbList(value: unknown): string[] {
-  return typeof value === 'string'
-    ? value
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0 && entry.toUpperCase() !== 'N/A')
-    : [];
-}
-
-function parseOmdbRatings(value: unknown): OmdbRatingEntry[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => asRecord(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry) => {
-      const source = asOmdbString(entry.Source);
-      const ratingValue = asOmdbString(entry.Value);
-      if (!source || !ratingValue) {
-        return null;
-      }
-      return {
-        source,
-        value: ratingValue,
-      } satisfies OmdbRatingEntry;
-    })
-    .filter((entry): entry is OmdbRatingEntry => entry !== null);
-}
-
-function parseOmdbNumber(value: unknown): number | null {
-  const normalized = asOmdbString(value);
-  if (!normalized) {
-    return null;
-  }
-  const parsed = Number(normalized.replace(/,/g, ''));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseOmdbInteger(value: unknown): number | null {
-  const parsed = parseOmdbNumber(value);
-  return parsed !== null && Number.isInteger(parsed) ? parsed : null;
-}
-
-function asOmdbString(value: unknown): string | null {
-  const normalized = asString(value);
-  return normalized && normalized.toUpperCase() !== 'N/A' ? normalized : null;
-}
-
-function dedupeStrings(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-}
-
-function rotateRoundRobin(values: string[], kind: 'server' | 'pool'): string[] {
-  if (values.length <= 1) {
-    return [...values];
-  }
-
-  const cursor = kind === 'server' ? omdbServerKeyCursor++ : omdbPoolKeyCursor++;
-  const startIndex = cursor % values.length;
-  return [...values.slice(startIndex), ...values.slice(0, startIndex)];
 }

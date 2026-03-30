@@ -142,19 +142,6 @@ export const aiAccountSecretPutRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const omdbAccountSecretGetRouteSchema = withDefaultErrorResponses({
-  response: {
-    200: secretEnvelopeSchema,
-  },
-});
-
-export const omdbAccountSecretPutRouteSchema = withDefaultErrorResponses({
-  body: secretValueBodySchema,
-  response: {
-    200: secretEnvelopeSchema,
-  },
-});
-
 export const deleteResultRouteSchema = withDefaultErrorResponses({
   response: {
     200: deleteEnvelopeSchema,
@@ -201,12 +188,5 @@ export const internalAiSecretRouteSchema = withDefaultErrorResponses({
   params: internalAccountProfileParamsSchema,
   response: {
     200: internalAiSecretEnvelopeSchema,
-  },
-});
-
-export const internalOmdbSecretRouteSchema = withDefaultErrorResponses({
-  params: internalAccountProfileParamsSchema,
-  response: {
-    200: secretEnvelopeSchema,
   },
 });

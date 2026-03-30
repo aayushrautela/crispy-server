@@ -86,7 +86,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     return ingestService.dismissContinueWatching(actor.appUserId, profileId, params.id);
   });
 
-  app.get('/v1/profiles/:profileId/watch/history', { schema: watchListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/watched', { schema: watchListRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
@@ -95,7 +95,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const generatedAt = nowIso();
     return {
       profileId,
-      kind: 'history' as const,
+      kind: 'watched' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: await watchedService.list(actor.appUserId, profileId, limit),

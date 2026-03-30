@@ -10,7 +10,6 @@ test('account settings route returns AI client configuration envelope', async (t
   const originals = {
     getSettings: AccountSettingsService.prototype.getSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
-    getOmdbApiKeyForUser: AccountSettingsService.prototype.getOmdbApiKeyForUser,
   };
 
   t.after(() => {
@@ -27,9 +26,6 @@ test('account settings route returns AI client configuration envelope', async (t
       defaultProviderId: 'openai',
       providers: [{ id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions' }],
     } as never;
-  };
-  AccountSettingsService.prototype.getOmdbApiKeyForUser = async function () {
-    return { appUserId: 'user-1', key: 'metadata.omdb_api_key', value: 'omdb-secret' } as never;
   };
 
   const { registerAccountRoutes } = await import('./account.js');
@@ -52,7 +48,6 @@ test('account settings patch route returns merged AI client configuration envelo
   const originals = {
     patchSettings: AccountSettingsService.prototype.patchSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
-    getOmdbApiKeyForUser: AccountSettingsService.prototype.getOmdbApiKeyForUser,
   };
 
   t.after(() => {
@@ -69,9 +64,6 @@ test('account settings patch route returns merged AI client configuration envelo
       defaultProviderId: 'openai',
       providers: [{ id: 'openrouter', label: 'OpenRouter', endpointUrl: 'https://openrouter.ai/api/v1/chat/completions' }],
     } as never;
-  };
-  AccountSettingsService.prototype.getOmdbApiKeyForUser = async function () {
-    throw new Error('missing');
   };
 
   const { registerAccountRoutes } = await import('./account.js');
@@ -130,7 +122,6 @@ test('me route returns AI client configuration in account settings', async (t) =
   const accountOriginals = {
     getSettings: AccountSettingsService.prototype.getSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
-    getOmdbApiKeyForUser: AccountSettingsService.prototype.getOmdbApiKeyForUser,
   };
   const profileOriginals = {
     listForAccount: ProfileService.prototype.listForAccount,
@@ -151,9 +142,6 @@ test('me route returns AI client configuration in account settings', async (t) =
       defaultProviderId: 'openai',
       providers: [{ id: 'openrouter', label: 'OpenRouter', endpointUrl: 'https://openrouter.ai/api/v1/chat/completions' }],
     } as never;
-  };
-  AccountSettingsService.prototype.getOmdbApiKeyForUser = async function () {
-    throw new Error('missing');
   };
   ProfileService.prototype.listForAccount = async function () {
     return [{

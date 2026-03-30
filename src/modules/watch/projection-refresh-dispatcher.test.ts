@@ -9,15 +9,15 @@ const { ProjectionRefreshDispatcher } = await import('./projection-refresh-dispa
 test('notifyProfileChanged enqueues home and calendar refresh', async () => {
   const enqueued: string[] = [];
   const mockQueue = {
-    enqueueRefreshHomeCache: async (profileId: string) => { enqueued.push(`home:${profileId}`); },
-    enqueueRefreshCalendarCache: async (profileId: string) => { enqueued.push(`calendar:${profileId}`); },
+    enqueueRefreshHomeCache: async (profileId: string) => { enqueued.push(`home:v2:${profileId}`); },
+    enqueueRefreshCalendarCache: async (profileId: string) => { enqueued.push(`calendar:v2:${profileId}`); },
     enqueueMetadataRefresh: async () => {},
   };
 
   const dispatcher = new ProjectionRefreshDispatcher({ warn: () => {} } as never, mockQueue);
   await dispatcher.notifyProfileChanged('profile-1');
 
-  assert.deepEqual(enqueued, ['home:profile-1', 'calendar:profile-1']);
+  assert.deepEqual(enqueued, ['home:v2:profile-1', 'calendar:v2:profile-1']);
 });
 
 test('notifyProfileChanged enqueues metadata refresh when mediaKey provided', async () => {

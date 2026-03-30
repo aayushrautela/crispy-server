@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { internalAiSecretRouteSchema, internalOmdbSecretRouteSchema } from '../contracts/account.js';
+import { internalAiSecretRouteSchema } from '../contracts/account.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
 import { isProviderImportProvider, type ProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
@@ -146,15 +146,6 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
     const params = request.params as { accountId: string; profileId: string };
     return {
       secret: await profileSecretAccessService.getAiApiKeyForAccountProfile(params.accountId, params.profileId),
-    };
-  });
-
-  app.get('/internal/v1/accounts/:accountId/profiles/:profileId/secrets/omdb-api-key', { schema: internalOmdbSecretRouteSchema }, async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['profile-secrets:read']);
-    const params = request.params as { accountId: string; profileId: string };
-    return {
-      secret: await accountSettingsService.getSecretForAccountProfile(params.accountId, params.profileId, 'metadata.omdb_api_key'),
     };
   });
 

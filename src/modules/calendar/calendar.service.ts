@@ -4,6 +4,7 @@ import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
+import { calendarCacheKey } from '../cache/cache-keys.js';
 import type { CalendarResponse } from '../watch/watch-read.types.js';
 import { CalendarBuilderService } from './calendar-builder.service.js';
 
@@ -14,7 +15,7 @@ export class CalendarService {
   ) {}
 
   async getCalendar(userId: string, profileId: string): Promise<CalendarResponse> {
-    const cacheKey = `calendar:v2:${profileId}`;
+    const cacheKey = calendarCacheKey(profileId);
     const cached = await redis.get(cacheKey);
     if (cached) {
       return JSON.parse(cached) as CalendarResponse;

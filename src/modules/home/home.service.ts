@@ -6,6 +6,7 @@ import { WatchedQueryService } from '../watch/watched.service.js';
 import { CalendarService } from '../calendar/calendar.service.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { HomeBuilderService } from './home-builder.service.js';
+import { homeCacheKey } from '../cache/cache-keys.js';
 import type { HomeResponse } from './home.types.js';
 
 export class HomeService {
@@ -18,7 +19,7 @@ export class HomeService {
   ) {}
 
   async getHome(userId: string, profileId: string): Promise<HomeResponse> {
-    const cacheKey = `home:v2:${profileId}`;
+    const cacheKey = homeCacheKey(profileId);
     const cached = await redis.get(cacheKey);
     if (cached) {
       return JSON.parse(cached) as HomeResponse;

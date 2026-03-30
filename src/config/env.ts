@@ -108,6 +108,7 @@ export const env = {
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
   tvdbApiKey: requireEnv('TVDB_API_KEY'),
   tvdbPin: optionalEnv('TVDB_PIN') ?? '',
+  mdblistApiKey: optionalEnv('MDBLIST_API_KEY') ?? '',
   aiServerKeys: parseAiServerKeysEnv('AI_SERVER_KEYS_JSON'),
   traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
   traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',
