@@ -1,10 +1,10 @@
 import { addHours } from './tmdb-time.js';
-import { appConfig } from '../../config/app-config.js';
-import type { DbClient } from '../../lib/db.js';
-import { HttpError } from '../../lib/errors.js';
+import { appConfig } from '../../../config/app-config.js';
+import type { DbClient } from '../../../lib/db.js';
+import { HttpError } from '../../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
-import type { MetadataSearchFilter } from './metadata.types.js';
+import type { MetadataSearchFilter } from '../metadata.types.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 type SearchPayloadItem = {

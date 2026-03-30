@@ -6,7 +6,7 @@ import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.j
 import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
 import { normalizeIsoString } from '../../lib/time.js';
-import { TmdbExternalIdResolverService } from '../metadata/tmdb-external-id-resolver.service.js';
+import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../watch/media-key.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';

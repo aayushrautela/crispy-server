@@ -1,5 +1,5 @@
-import type { DbClient } from '../../lib/db.js';
-import type { OmdbContentView } from './metadata.types.js';
+import type { DbClient } from '../../../lib/db.js';
+import type { OmdbContentView } from '../metadata.types.js';
 
 export class OmdbCacheRepository {
   async findByImdbId(client: DbClient, imdbId: string): Promise<OmdbContentView | null> {

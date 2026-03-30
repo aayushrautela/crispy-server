@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
-import { ProviderAdminService } from '../../modules/imports/provider-admin.service.js';
-import { mapProviderImportJobAdminView } from '../../modules/imports/provider-import.views.js';
+import { ProviderAdminService } from '../../modules/integrations/provider-admin.service.js';
+import { mapProviderImportJobAdminView } from '../../modules/integrations/provider-import.views.js';
 import {
   isProviderImportProvider,
   type ProviderImportConnectionStatus,
   type ProviderImportJobStatus,
   type ProviderImportProvider,
-} from '../../modules/imports/provider-import.types.js';
+} from '../../modules/integrations/provider-import.types.js';
 
 const CONNECTION_STATUSES = new Set<ProviderImportConnectionStatus>(['pending', 'connected', 'expired', 'revoked']);
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([

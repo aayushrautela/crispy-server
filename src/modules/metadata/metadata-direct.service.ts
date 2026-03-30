@@ -16,10 +16,10 @@ import { ContentIdentityService, episodeRefMapKey } from './content-identity.ser
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { findNextEpisode } from './next-episode.js';
-import { OmdbCacheRepository } from './omdb-cache.repo.js';
-import { TmdbClient } from './tmdb.client.js';
-import { TmdbExternalIdResolverService } from './tmdb-external-id-resolver.service.js';
-import { TmdbCacheService } from './tmdb-cache.service.js';
+import { OmdbCacheRepository } from './enrichment/omdb-cache.repo.js';
+import { TmdbClient } from './providers/tmdb.client.js';
+import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type {
   MetadataEpisodeListResponse,
   MetadataNextEpisodeResponse,
@@ -35,7 +35,7 @@ import type {
 import type {
   TmdbEpisodeRecord,
   TmdbTitleRecord,
-} from './tmdb.types.js';
+} from './providers/tmdb.types.js';
 
 type FetchLike = typeof fetch;
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;

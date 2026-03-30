@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
-import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
+import { extractNextEpisodeToAir } from '../metadata/providers/tmdb-episode-helpers.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { deriveProgressPercent } from './heartbeat-policy.js';

@@ -1,7 +1,7 @@
 import { logger } from '../../config/logger.js';
 import type { ProjectionRefreshJob } from '../../lib/queue.js';
 import { enqueueProviderRefresh } from '../../lib/queue.js';
-import { ProviderTokenRefreshService } from '../../modules/imports/provider-token-refresh.service.js';
+import { ProviderTokenRefreshService } from '../../modules/integrations/provider-token-refresh.service.js';
 
 export async function runProviderRefreshJob(job: ProjectionRefreshJob): Promise<void> {
   if (!job.connectionId) {

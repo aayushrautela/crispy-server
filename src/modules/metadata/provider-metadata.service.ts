@@ -6,7 +6,8 @@ import {
   buildEpisodeProviderId,
   buildSeasonProviderId,
 } from '../watch/media-key.js';
-import { KitsuClient } from './kitsu.client.js';
+import { ImdbRatingsService, imdbRatingsService } from './enrichment/imdb-ratings.service.js';
+import { KitsuClient } from './providers/kitsu.client.js';
 import type {
   MetadataCollectionView,
   MetadataCompanyView,
@@ -21,7 +22,7 @@ import type {
   ProviderSeasonRecord,
   ProviderTitleRecord,
 } from './metadata.types.js';
-import { TvdbClient } from './tvdb.client.js';
+import { TvdbClient } from './providers/tvdb.client.js';
 
 type ProviderTitleBundle = {
   title: ProviderTitleRecord;
@@ -56,6 +57,7 @@ export class ProviderMetadataService {
   constructor(
     private readonly tvdbClient = new TvdbClient(),
     private readonly kitsuClient = new KitsuClient(),
+    private readonly imdbRatings: ImdbRatingsService = imdbRatingsService,
   ) {}
 
   async searchTitles(
@@ -78,10 +80,20 @@ export class ProviderMetadataService {
     return sortProviderTitles(query, dedupeProviderTitles(results)).slice(0, limit);
   }
 
-  async loadIdentityContext(_client: DbClient, identity: MediaIdentity): Promise<ProviderIdentityContext | null> {
+  async loadIdentityContext(client: DbClient, identity: MediaIdentity): Promise<ProviderIdentityContext | null> {
     const bundle = await this.loadBundle(identity);
     if (!bundle) {
       return null;
+    }
+
+    if (bundle.title.provider === 'tvdb' && bundle.title.rating === null) {
+      const imdbId = bundle.title.externalIds.imdb;
+      if (imdbId) {
+        const imdbRating = await this.imdbRatings.getRating(client, imdbId);
+        if (imdbRating) {
+          bundle.title = { ...bundle.title, rating: imdbRating.rating };
+        }
+      }
     }
 
     const currentEpisode = selectCurrentEpisode(bundle.episodes, identity);

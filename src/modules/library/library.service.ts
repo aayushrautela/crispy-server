@@ -5,11 +5,11 @@ import { env } from '../../config/env.js';
 import { MetadataDirectService } from '../metadata/metadata-direct.service.js';
 import type { MetadataExternalIds, MetadataView } from '../metadata/metadata.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { ProfileWatchDataStateRepository } from '../imports/profile-watch-data-state.repo.js';
-import { ProviderImportConnectionsRepository } from '../imports/provider-import-connections.repo.js';
-import { ProviderTokenAccessService } from '../imports/provider-token-access.service.js';
+import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
+import { ProviderImportConnectionsRepository } from '../integrations/provider-import-connections.repo.js';
+import { ProviderTokenAccessService } from '../integrations/provider-token-access.service.js';
 import { ContinueWatchingService } from '../watch/continue-watching.service.js';
-import { WatchHistoryQueryService } from '../watch/history.service.js';
+import { WatchedQueryService } from '../watch/watched.service.js';
 import { WatchCollectionService } from '../watch/watch-collection.service.js';
 import type {
   CanonicalLibraryItemView,
@@ -55,7 +55,7 @@ export class LibraryService {
     private readonly connectionsRepository = new ProviderImportConnectionsRepository(),
     private readonly providerTokenAccessService = new ProviderTokenAccessService(),
     private readonly continueWatchingService = new ContinueWatchingService(),
-    private readonly historyService = new WatchHistoryQueryService(),
+    private readonly watchedService = new WatchedQueryService(),
     private readonly watchCollectionService = new WatchCollectionService(),
     private readonly metadataDirectService = new MetadataDirectService(),
   ) {}
@@ -209,7 +209,7 @@ export class LibraryService {
   private async getNativeLibrary(userId: string, profileId: string) {
     const [continueWatching, history, watchlist, ratings] = await Promise.all([
       this.continueWatchingService.list(userId, profileId, 50),
-      this.historyService.list(userId, profileId, 100),
+      this.watchedService.list(userId, profileId, 100),
       this.watchCollectionService.listWatchlist(userId, profileId, 100),
       this.watchCollectionService.listRatings(userId, profileId, 100),
     ]);

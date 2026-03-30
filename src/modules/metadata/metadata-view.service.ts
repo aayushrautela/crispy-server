@@ -23,8 +23,8 @@ import {
   extractVideos,
 } from './metadata-normalizers.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
-import { extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
-import { TmdbCacheService } from './tmdb-cache.service.js';
+import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type {
   MetadataCardView,
   MetadataCollectionView,
@@ -38,7 +38,7 @@ import type {
 import type {
   TmdbEpisodeRecord,
   TmdbTitleRecord,
-} from './tmdb.types.js';
+} from './providers/tmdb.types.js';
 
 export class MetadataViewService {
   constructor(

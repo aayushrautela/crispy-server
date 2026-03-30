@@ -1,10 +1,10 @@
 import type { DbClient } from '../../lib/db.js';
 import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
-import { extractNextEpisodeToAir } from '../metadata/tmdb-episode-helpers.js';
-import { TmdbCacheService } from '../metadata/tmdb-cache.service.js';
+import { extractNextEpisodeToAir } from '../metadata/providers/tmdb-episode-helpers.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import type { MetadataCardView, ProviderEpisodeRecord } from '../metadata/metadata.types.js';
-import type { TmdbEpisodeRecord } from '../metadata/tmdb.types.js';
+import type { TmdbEpisodeRecord } from '../metadata/providers/tmdb.types.js';
 import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
 import { TrackedSeriesRepository } from '../watch/tracked-series.repo.js';
 import { WatchHistoryRepository } from '../watch/watch-history.repo.js';

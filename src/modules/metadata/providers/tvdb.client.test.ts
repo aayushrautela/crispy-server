@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setTestEnv } from '../../test-helpers.js';
+import { setTestEnv } from '../../../test-helpers.js';
 
 setTestEnv();
 

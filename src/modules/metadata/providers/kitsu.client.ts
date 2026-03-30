@@ -1,5 +1,5 @@
-import { appConfig } from '../../config/app-config.js';
-import { HttpError } from '../../lib/errors.js';
+import { appConfig } from '../../../config/app-config.js';
+import { HttpError } from '../../../lib/errors.js';
 
 type FetchLike = typeof fetch;
 

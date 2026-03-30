@@ -1,6 +1,6 @@
 import { logger } from '../../config/logger.js';
 import type { ProjectionRefreshJob } from '../../lib/queue.js';
-import { ProviderImportService } from '../../modules/imports/provider-import.service.js';
+import { ProviderImportService } from '../../modules/integrations/provider-import.service.js';
 
 export async function runProviderImportJob(job: ProjectionRefreshJob): Promise<void> {
   if (!job.importJobId) {

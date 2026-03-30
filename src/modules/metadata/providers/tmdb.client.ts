@@ -1,6 +1,6 @@
-import { appConfig } from '../../config/app-config.js';
-import { env } from '../../config/env.js';
-import { HttpError } from '../../lib/errors.js';
+import { appConfig } from '../../../config/app-config.js';
+import { env } from '../../../config/env.js';
+import { HttpError } from '../../../lib/errors.js';
 import type {
   TmdbCollectionApiResponse,
   TmdbDiscoverApiResponse,

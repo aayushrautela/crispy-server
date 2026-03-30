@@ -1,5 +1,5 @@
-import type { DbClient } from '../../lib/db.js';
-import { requireDbIsoString } from '../../lib/time.js';
+import type { DbClient } from '../../../lib/db.js';
+import { requireDbIsoString } from '../../../lib/time.js';
 
 export type TmdbExternalIdRecord = {
   source: string;

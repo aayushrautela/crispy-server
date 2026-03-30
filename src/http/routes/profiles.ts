@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { ProviderImportService, parseImportProvider } from '../../modules/imports/provider-import.service.js';
-import { mapProviderImportJobView } from '../../modules/imports/provider-import.views.js';
+import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
+import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
 import { mapProfileView } from '../../modules/profiles/profile.views.js';
 

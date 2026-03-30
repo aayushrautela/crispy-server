@@ -2,19 +2,19 @@ import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
 import { WorkerControlClient, type WorkerControlJobTarget } from '../../modules/admin/worker-control-client.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
-import { ProviderAdminService } from '../../modules/imports/provider-admin.service.js';
-import { ProviderImportService, parseImportProvider } from '../../modules/imports/provider-import.service.js';
-import { ProviderTokenAccessService } from '../../modules/imports/provider-token-access.service.js';
+import { ProviderAdminService } from '../../modules/integrations/provider-admin.service.js';
+import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
+import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
 import type {
   ProviderImportConnectionStatus,
   ProviderImportJobStatus,
   ProviderImportProvider,
-} from '../../modules/imports/provider-import.types.js';
-import { isProviderImportProvider } from '../../modules/imports/provider-import.types.js';
+} from '../../modules/integrations/provider-import.types.js';
+import { isProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
-import { mapConnectionView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/imports/provider-import.views.js';
+import { mapConnectionView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 
 const CONNECTION_STATUSES = new Set<ProviderImportConnectionStatus>(['pending', 'connected', 'expired', 'revoked']);
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([

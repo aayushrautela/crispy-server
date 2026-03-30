@@ -7,8 +7,8 @@ import { buildMetadataCardView, buildProviderMetadataCardView } from './metadata
 import { ContentIdentityService } from './content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
-import { TmdbExternalIdResolverService } from './tmdb-external-id-resolver.service.js';
-import { TmdbCacheService } from './tmdb-cache.service.js';
+import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type {
   MetadataResolveResponse,
   MetadataSearchFilter,
@@ -20,7 +20,7 @@ import type {
 import type {
   TmdbTitleType,
   TmdbTitleRecord,
-} from './tmdb.types.js';
+} from './providers/tmdb.types.js';
 
 type ResolveInput = {
   id?: string;

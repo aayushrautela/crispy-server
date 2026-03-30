@@ -1,5 +1,5 @@
-import type { DbClient } from '../../lib/db.js';
-import { normalizeDateOnlyString, requireDbIsoString } from '../../lib/time.js';
+import type { DbClient } from '../../../lib/db.js';
+import { normalizeDateOnlyString, requireDbIsoString } from '../../../lib/time.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {

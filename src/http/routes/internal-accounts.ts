@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { internalAiSecretRouteSchema, internalOmdbSecretRouteSchema } from '../contracts/account.js';
 import { HttpError } from '../../lib/errors.js';
-import { ProviderTokenAccessService } from '../../modules/imports/provider-token-access.service.js';
-import { isProviderImportProvider, type ProviderImportProvider } from '../../modules/imports/provider-import.types.js';
+import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
+import { isProviderImportProvider, type ProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { ProfileSecretAccessService } from '../../modules/profiles/profile-secret-access.service.js';

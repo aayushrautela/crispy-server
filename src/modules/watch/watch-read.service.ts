@@ -43,7 +43,7 @@ export class WatchReadService {
     });
   }
 
-  async listHistory(userId: string, profileId: string, limit: number): Promise<HydratedWatchItem[]> {
+  async listWatched(userId: string, profileId: string, limit: number): Promise<HydratedWatchItem[]> {
     return withDbClient(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {

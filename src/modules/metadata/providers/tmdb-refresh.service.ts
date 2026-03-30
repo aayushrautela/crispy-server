@@ -1,10 +1,10 @@
-import { HttpError } from '../../lib/errors.js';
-import type { DbClient } from '../../lib/db.js';
+import { HttpError } from '../../../lib/errors.js';
+import type { DbClient } from '../../../lib/db.js';
 import { extractLastEpisodeToAir, extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './tmdb.types.js';
-import { showTmdbIdForIdentity, parseMediaKey, type MediaIdentity } from '../watch/media-key.js';
-import { TrackedSeriesRepository } from '../watch/tracked-series.repo.js';
+import { showTmdbIdForIdentity, parseMediaKey, type MediaIdentity } from '../../watch/media-key.js';
+import { TrackedSeriesRepository } from '../../watch/tracked-series.repo.js';
 
 export type MetadataRefreshSummary = {
   refreshedTitles: number;

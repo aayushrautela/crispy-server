@@ -19,7 +19,7 @@ import {
 } from '../contracts/watch.js';
 import { ContinueWatchingService } from '../../modules/watch/continue-watching.service.js';
 import { WatchEventIngestService } from '../../modules/watch/event-ingest.service.js';
-import { WatchHistoryQueryService } from '../../modules/watch/history.service.js';
+import { WatchedQueryService } from '../../modules/watch/watched.service.js';
 import { WatchCollectionService } from '../../modules/watch/watch-collection.service.js';
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
 import { nowIso } from '../../lib/time.js';
@@ -29,7 +29,7 @@ import { ensureSupportedProvider } from '../../modules/watch/media-key.js';
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
   const continueWatchingService = new ContinueWatchingService();
-  const historyService = new WatchHistoryQueryService();
+  const watchedService = new WatchedQueryService();
   const watchCollectionService = new WatchCollectionService();
   const watchStateService = new WatchStateService();
 
@@ -98,7 +98,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       kind: 'history' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await historyService.list(actor.appUserId, profileId, limit),
+      items: await watchedService.list(actor.appUserId, profileId, limit),
     };
   });
 

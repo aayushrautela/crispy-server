@@ -1,4 +1,4 @@
-import type { DbClient } from '../../lib/db.js';
+import type { DbClient } from '../../../lib/db.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbExternalIdsRepository } from './tmdb-external-ids.repo.js';
 import type { TmdbTitleType } from './tmdb.types.js';
