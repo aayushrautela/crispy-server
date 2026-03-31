@@ -3,6 +3,12 @@ import { requireDbIsoString } from '../../lib/time.js';
 import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
+import {
+  WATCH_PROJECTION_COLUMN_LIST,
+  watchProjectionParams,
+  watchProjectionPlaceholders,
+  watchProjectionUpdateAssignments,
+} from './watch-projection.persistence.js';
 
 export class MediaProgressRepository {
   async upsert(client: DbClient, params: {
@@ -32,6 +38,7 @@ export class MediaProgressRepository {
           show_tmdb_id,
           season_number,
           episode_number,
+          ${WATCH_PROJECTION_COLUMN_LIST},
           title,
           subtitle,
           poster_url,
@@ -48,15 +55,18 @@ export class MediaProgressRepository {
           updated_at
         )
         VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-          $12, $13, $14, $15, $16::uuid, $17::timestamptz,
-          CASE WHEN $15 = 'completed' THEN $17::timestamptz ELSE NULL END,
-          $18::timestamptz,
-          $19::jsonb,
+          $1::uuid, $2, $3, $4, $5, $6, $7,
+          ${watchProjectionPlaceholders(8)},
+          $43, $44, $45, $46,
+          $47, $48, $49, $50, $51::uuid, $52::timestamptz,
+          CASE WHEN $50 = 'completed' THEN $52::timestamptz ELSE NULL END,
+          $53::timestamptz,
+          $54::jsonb,
           now()
         )
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
+          ${watchProjectionUpdateAssignments()},
           title = COALESCE(media_progress.title, EXCLUDED.title),
           subtitle = COALESCE(media_progress.subtitle, EXCLUDED.subtitle),
           poster_url = COALESCE(media_progress.poster_url, EXCLUDED.poster_url),
@@ -80,6 +90,7 @@ export class MediaProgressRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
+        ...watchProjectionParams(params.projection),
         params.projection?.title ?? null,
         params.projection?.subtitle ?? null,
         params.projection?.posterUrl ?? null,

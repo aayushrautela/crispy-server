@@ -72,7 +72,7 @@ export class MetadataViewService {
     const identity = this.identityFromRow(row);
     const id = await this.contentIdentityService.ensureContentId(client, identity);
     const providerContext = this.normalizeProviderTitleIdentity(identity)
-      ? await this.providerMetadataService.loadIdentityContext(client, identity)
+      ? await this.providerMetadataService.loadIdentityContext(client, identity).catch(() => null)
       : null;
     const rowTitle = typeof row.title === 'string' && row.title.trim() ? row.title : null;
     const rowSubtitle = typeof row.subtitle === 'string' && row.subtitle.trim() ? row.subtitle : null;
@@ -95,7 +95,7 @@ export class MetadataViewService {
 
     const context = canUseProjectionOnly
       ? { title: null, currentEpisode: null }
-      : await this.loadCardContext(client, identity);
+      : await this.loadCardContext(client, identity).catch(() => ({ title: null, currentEpisode: null }));
 
     return buildMetadataCardView({
       id,

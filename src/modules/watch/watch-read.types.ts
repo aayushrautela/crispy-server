@@ -17,28 +17,7 @@ export type {
   WatchStateLookupInput,
 } from './watch-state.types.js';
 
-export type HydratedWatchItem = {
-  id?: string;
-  media: MetadataCardView;
-  progress?: WatchProgressView;
-  watchedAt?: string;
-  lastActivityAt?: string;
-  payload?: Record<string, unknown>;
-};
-
-export type HydratedWatchlistItem = {
-  media: MetadataCardView;
-  addedAt: string;
-  payload?: Record<string, unknown>;
-};
-
-export type HydratedRatingItem = {
-  media: MetadataCardView;
-  rating: RatingStateView;
-  payload?: Record<string, unknown>;
-};
-
-export type CanonicalWatchCollectionKind = 'continue-watching' | 'history' | 'watchlist' | 'ratings';
+export type CanonicalWatchCollectionKind = 'continue-watching' | 'watched' | 'watchlist' | 'ratings';
 
 export type CanonicalWatchCollectionResponse<TItem> = {
   profileId: string;

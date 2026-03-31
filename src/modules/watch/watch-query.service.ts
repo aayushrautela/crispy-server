@@ -8,7 +8,45 @@ import { WatchlistRepository } from './watchlist.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { MediaProgressRepository } from './media-progress.repo.js';
 
-export type RawContinueWatchingRow = {
+type RawWatchProjectionSnapshot = {
+  detailsTitleId: string | null;
+  detailsTitleMediaType: 'movie' | 'show' | 'anime' | null;
+  highlightEpisodeId: string | null;
+  playbackContentId: string | null;
+  playbackMediaType: 'movie' | 'show' | 'episode' | 'anime' | null;
+  playbackProvider: string | null;
+  playbackProviderId: string | null;
+  playbackParentProvider: string | null;
+  playbackParentProviderId: string | null;
+  playbackSeasonNumber: number | null;
+  playbackEpisodeNumber: number | null;
+  playbackAbsoluteEpisodeNumber: number | null;
+  detailsTitle: string | null;
+  detailsSubtitle: string | null;
+  detailsSummary: string | null;
+  detailsOverview: string | null;
+  detailsPosterUrl: string | null;
+  detailsBackdropUrl: string | null;
+  detailsStillUrl: string | null;
+  detailsReleaseDate: string | null;
+  detailsReleaseYear: number | null;
+  detailsRuntimeMinutes: number | null;
+  detailsRating: number | null;
+  detailsStatus: string | null;
+  detailsProvider: string | null;
+  detailsProviderId: string | null;
+  detailsParentProvider: string | null;
+  detailsParentProviderId: string | null;
+  detailsTmdbId: number | null;
+  detailsShowTmdbId: number | null;
+  episodeTitle: string | null;
+  episodeAirDate: string | null;
+  episodeRuntimeMinutes: number | null;
+  episodeStillUrl: string | null;
+  episodeOverview: string | null;
+};
+
+export type RawContinueWatchingRow = RawWatchProjectionSnapshot & {
   id: string;
   mediaKey: string;
   mediaType: string;
@@ -27,7 +65,7 @@ export type RawContinueWatchingRow = {
   payload: Record<string, unknown>;
 };
 
-export type RawWatchHistoryRow = {
+export type RawWatchHistoryRow = RawWatchProjectionSnapshot & {
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -42,7 +80,7 @@ export type RawWatchHistoryRow = {
   payload: Record<string, unknown>;
 };
 
-export type RawWatchlistRow = {
+export type RawWatchlistRow = RawWatchProjectionSnapshot & {
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -54,7 +92,7 @@ export type RawWatchlistRow = {
   payload: Record<string, unknown>;
 };
 
-export type RawRatingRow = {
+export type RawRatingRow = RawWatchProjectionSnapshot & {
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -75,8 +113,53 @@ export type RawProgressRow = {
   lastPlayedAt: string;
 };
 
+function mapProjectionSnapshot(row: Record<string, unknown>): RawWatchProjectionSnapshot {
+  return {
+    detailsTitleId: typeof row.details_title_id === 'string' ? row.details_title_id : null,
+    detailsTitleMediaType: row.details_title_media_type === 'movie' || row.details_title_media_type === 'show' || row.details_title_media_type === 'anime'
+      ? row.details_title_media_type
+      : null,
+    highlightEpisodeId: typeof row.highlight_episode_id === 'string' ? row.highlight_episode_id : null,
+    playbackContentId: typeof row.playback_content_id === 'string' ? row.playback_content_id : null,
+    playbackMediaType: row.playback_media_type === 'movie' || row.playback_media_type === 'show' || row.playback_media_type === 'episode' || row.playback_media_type === 'anime'
+      ? row.playback_media_type
+      : null,
+    playbackProvider: typeof row.playback_provider === 'string' ? row.playback_provider : null,
+    playbackProviderId: typeof row.playback_provider_id === 'string' ? row.playback_provider_id : null,
+    playbackParentProvider: typeof row.playback_parent_provider === 'string' ? row.playback_parent_provider : null,
+    playbackParentProviderId: typeof row.playback_parent_provider_id === 'string' ? row.playback_parent_provider_id : null,
+    playbackSeasonNumber: row.playback_season_number === null ? null : Number(row.playback_season_number),
+    playbackEpisodeNumber: row.playback_episode_number === null ? null : Number(row.playback_episode_number),
+    playbackAbsoluteEpisodeNumber: row.playback_absolute_episode_number === null ? null : Number(row.playback_absolute_episode_number),
+    detailsTitle: typeof row.details_title === 'string' ? row.details_title : null,
+    detailsSubtitle: typeof row.details_subtitle === 'string' ? row.details_subtitle : null,
+    detailsSummary: typeof row.details_summary === 'string' ? row.details_summary : null,
+    detailsOverview: typeof row.details_overview === 'string' ? row.details_overview : null,
+    detailsPosterUrl: typeof row.details_poster_url === 'string' ? row.details_poster_url : null,
+    detailsBackdropUrl: typeof row.details_backdrop_url === 'string' ? row.details_backdrop_url : null,
+    detailsStillUrl: typeof row.details_still_url === 'string' ? row.details_still_url : null,
+    detailsReleaseDate: typeof row.details_release_date === 'string' ? row.details_release_date : null,
+    detailsReleaseYear: row.details_release_year === null ? null : Number(row.details_release_year),
+    detailsRuntimeMinutes: row.details_runtime_minutes === null ? null : Number(row.details_runtime_minutes),
+    detailsRating: row.details_rating === null ? null : Number(row.details_rating),
+    detailsStatus: typeof row.details_status === 'string' ? row.details_status : null,
+    detailsProvider: typeof row.details_provider === 'string' ? row.details_provider : null,
+    detailsProviderId: typeof row.details_provider_id === 'string' ? row.details_provider_id : null,
+    detailsParentProvider: typeof row.details_parent_provider === 'string' ? row.details_parent_provider : null,
+    detailsParentProviderId: typeof row.details_parent_provider_id === 'string' ? row.details_parent_provider_id : null,
+    detailsTmdbId: row.details_tmdb_id === null ? null : Number(row.details_tmdb_id),
+    detailsShowTmdbId: row.details_show_tmdb_id === null ? null : Number(row.details_show_tmdb_id),
+    episodeTitle: typeof row.episode_title === 'string' ? row.episode_title : null,
+    episodeAirDate: typeof row.episode_air_date === 'string' ? row.episode_air_date : null,
+    episodeRuntimeMinutes: row.episode_runtime_minutes === null ? null : Number(row.episode_runtime_minutes),
+    episodeStillUrl: typeof row.episode_still_url === 'string' ? row.episode_still_url : null,
+    episodeOverview: typeof row.episode_overview === 'string' ? row.episode_overview : null,
+  };
+}
+
 function mapContinueWatchingRow(row: Record<string, unknown>): RawContinueWatchingRow {
   return {
+    ...mapProjectionSnapshot(row),
     id: String(row.id),
     mediaKey: String(row.media_key),
     mediaType: String(row.media_type),
@@ -98,6 +181,7 @@ function mapContinueWatchingRow(row: Record<string, unknown>): RawContinueWatchi
 
 function mapWatchHistoryRow(row: Record<string, unknown>): RawWatchHistoryRow {
   return {
+    ...mapProjectionSnapshot(row),
     mediaKey: String(row.media_key),
     mediaType: String(row.media_type),
     tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
@@ -115,6 +199,7 @@ function mapWatchHistoryRow(row: Record<string, unknown>): RawWatchHistoryRow {
 
 function mapWatchlistRow(row: Record<string, unknown>): RawWatchlistRow {
   return {
+    ...mapProjectionSnapshot(row),
     mediaKey: String(row.media_key),
     mediaType: String(row.media_type),
     tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
@@ -129,6 +214,7 @@ function mapWatchlistRow(row: Record<string, unknown>): RawWatchlistRow {
 
 function mapRatingRow(row: Record<string, unknown>): RawRatingRow {
   return {
+    ...mapProjectionSnapshot(row),
     mediaKey: String(row.media_key),
     mediaType: String(row.media_type),
     tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),

@@ -1,11 +1,6 @@
 import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
 import type { MetadataCardView } from '../metadata/metadata.types.js';
-import type {
-  HydratedRatingItem,
-  HydratedWatchItem,
-  HydratedWatchlistItem,
-  RatingStateView,
-} from '../watch/watch-read.types.js';
+import type { RatingStateView } from '../watch/watch-read.types.js';
 import type { DetailsTarget, EpisodeContext, PlaybackTarget } from '../watch/watch-derived-item.types.js';
 
 export type ProviderAuthStateView = {
@@ -55,7 +50,5 @@ export type ProfileLibraryView = {
   };
   sections: ProfileLibrarySectionView[];
 };
-
-export type LibrarySectionSource = HydratedWatchItem | HydratedWatchlistItem | HydratedRatingItem;
 
 export type LibraryRatingLike = RatingStateView;

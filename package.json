@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/**/*.test.ts",
     "migrate": "tsx scripts/migrate.ts",
+    "backfill:watch-projections": "tsx scripts/backfill-watch-projections.ts",
     "migrate:prod": "node dist/scripts/migrate.js",
     "seed:dev": "tsx scripts/seed-dev.ts",
     "start:api": "node dist/src/bin/api.js",

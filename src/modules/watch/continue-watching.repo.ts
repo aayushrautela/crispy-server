@@ -1,6 +1,13 @@
 import type { DbClient } from '../../lib/db.js';
 import { canonicalContinueWatchingMediaKey, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
+import {
+  WATCH_PROJECTION_COLUMN_LIST,
+  watchProjectionParams,
+  watchProjectionPlaceholders,
+  watchProjectionSelectList,
+  watchProjectionUpdateAssignments,
+} from './watch-projection.persistence.js';
 
 export class ContinueWatchingRepository {
   async upsert(client: DbClient, params: {
@@ -23,13 +30,15 @@ export class ContinueWatchingRepository {
       `
         INSERT INTO continue_watching_projection (
           profile_id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+          ${WATCH_PROJECTION_COLUMN_LIST},
           title, subtitle, poster_url, backdrop_url, position_seconds, duration_seconds,
           progress_percent, last_activity_at, dismissed_at, payload, updated_at
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12, $13, $14,
-          $15, $16::timestamptz, $17::timestamptz, $18::jsonb, now()
+          ${watchProjectionPlaceholders(9)},
+          $44, $45, $46, $47, $48, $49,
+          $50, $51::timestamptz, $52::timestamptz, $53::jsonb, now()
         )
         ON CONFLICT (profile_id, canonical_media_key)
         DO UPDATE SET
@@ -39,6 +48,7 @@ export class ContinueWatchingRepository {
           show_tmdb_id = EXCLUDED.show_tmdb_id,
           season_number = EXCLUDED.season_number,
           episode_number = EXCLUDED.episode_number,
+          ${watchProjectionUpdateAssignments()},
           title = COALESCE(EXCLUDED.title, continue_watching_projection.title),
           subtitle = COALESCE(EXCLUDED.subtitle, continue_watching_projection.subtitle),
           poster_url = COALESCE(EXCLUDED.poster_url, continue_watching_projection.poster_url),
@@ -60,6 +70,7 @@ export class ContinueWatchingRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
+        ...watchProjectionParams(params.projection),
         params.projection?.title ?? null,
         params.projection?.subtitle ?? null,
         params.projection?.posterUrl ?? null,
@@ -118,6 +129,7 @@ export class ContinueWatchingRepository {
     const result = await client.query(
       `
         SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+               ${watchProjectionSelectList()},
                title, subtitle, poster_url, backdrop_url, position_seconds, duration_seconds,
                progress_percent, last_activity_at, payload
         FROM continue_watching_projection
@@ -136,6 +148,7 @@ export class ContinueWatchingRepository {
     const result = await client.query(
       `
         SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+               ${watchProjectionSelectList()},
                position_seconds, duration_seconds, progress_percent, last_activity_at, payload
         FROM continue_watching_projection
         WHERE profile_id = $1::uuid AND canonical_media_key = $2 AND dismissed_at IS NULL
@@ -149,6 +162,7 @@ export class ContinueWatchingRepository {
     const result = await client.query(
       `
         SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
+               ${watchProjectionSelectList()},
                position_seconds, duration_seconds, progress_percent, last_activity_at, payload
         FROM continue_watching_projection
         WHERE id = $1::uuid AND profile_id = $2::uuid AND dismissed_at IS NULL

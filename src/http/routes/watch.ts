@@ -1,13 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  continueWatchingListRouteSchema,
+  ratingsListRouteSchema,
+  watchedListRouteSchema,
   watchContinueWatchingDismissRouteSchema,
   watchEventsRouteSchema,
-  watchListRouteSchema,
   watchMediaKeyMutationRouteSchema,
   watchMediaKeyParamsRouteSchema,
   watchMutationRouteSchema,
   watchStateRouteSchema,
   watchStatesRouteSchema,
+  watchlistListRouteSchema,
   type WatchContinueWatchingDismissParams,
   type WatchEventBody,
   type WatchMediaKeyParams,
@@ -62,7 +65,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     return result;
   });
 
-  app.get('/v1/profiles/:profileId/watch/continue-watching', { schema: watchListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/continue-watching', { schema: continueWatchingListRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
@@ -86,7 +89,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     return ingestService.dismissContinueWatching(actor.appUserId, profileId, params.id);
   });
 
-  app.get('/v1/profiles/:profileId/watch/watched', { schema: watchListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/watched', { schema: watchedListRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
@@ -102,7 +105,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  app.get('/v1/profiles/:profileId/watch/watchlist', { schema: watchListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/watchlist', { schema: watchlistListRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
@@ -118,7 +121,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  app.get('/v1/profiles/:profileId/watch/ratings', { schema: watchListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/ratings', { schema: ratingsListRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
