@@ -1,14 +1,13 @@
 import { nowIso } from '../../lib/time.js';
 import { ProviderImportService } from '../integrations/provider-import.service.js';
 import type { ProviderImportConnectionView } from '../integrations/provider-import.views.js';
-import type { MetadataCardView } from '../metadata/metadata.types.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { WatchedQueryService } from '../watch/watched.service.js';
 import { WatchCollectionService } from '../watch/watch-collection.service.js';
+import type { WatchDerivedProductItem } from '../watch/watch-derived-item.types.js';
 import type {
   LibraryItemView,
-  LibrarySectionSource,
   ProfileLibrarySectionView,
   ProfileLibraryView,
   ProviderAuthStateView,
@@ -24,10 +23,10 @@ export class LibraryService {
   ) {}
 
   async getProfileLibrary(userId: string, profileId: string): Promise<ProfileLibraryView> {
-    const [watched, watchlist, ratings, connections] = await Promise.all([
-      this.watchedService.list(userId, profileId, 100),
-      this.watchCollectionService.listWatchlist(userId, profileId, 100),
-      this.watchCollectionService.listRatings(userId, profileId, 100),
+    const [watchedProducts, watchlistProducts, ratingProducts, connections] = await Promise.all([
+      this.watchedService.listProducts(userId, profileId, 100),
+      this.watchCollectionService.listWatchlistProducts(userId, profileId, 100),
+      this.watchCollectionService.listRatingsProducts(userId, profileId, 100),
       this.providerImportService.listConnections(userId, profileId),
     ]);
 
@@ -39,74 +38,82 @@ export class LibraryService {
         providers: connections.connections.map(mapProviderAuthState),
       },
       sections: [
-        buildSection('watched', 'Watched', 0, watched),
-        buildSection('watchlist', 'Watchlist', 1, watchlist),
-        buildSection('rated', 'Rated', 2, ratings),
+        buildSection('watched', 'Watched', 0, watchedProducts, mapWatchedLibraryItem),
+        buildSection('watchlist', 'Watchlist', 1, watchlistProducts, mapWatchlistLibraryItem),
+        buildSection('rated', 'Rated', 2, ratingProducts, mapRatedLibraryItem),
       ],
     };
   }
 }
 
-function buildSection(
+function buildSection<T extends WatchDerivedProductItem>(
   id: ProfileLibrarySectionView['id'],
   label: ProfileLibrarySectionView['label'],
   order: number,
-  items: LibrarySectionSource[],
+  items: T[],
+  mapper: (item: T) => LibraryItemView,
 ): ProfileLibrarySectionView {
-  const mappedItems = items.map((item) => mapLibraryItem(item));
   return {
     id,
     label,
     order,
-    itemCount: mappedItems.length,
-    items: mappedItems,
+    itemCount: items.length,
+    items: items.map(mapper),
   };
 }
 
-function mapLibraryItem(item: LibrarySectionSource): LibraryItemView {
-  const media = item.media;
+function mapWatchedLibraryItem(item: WatchDerivedProductItem & { watchedAt: string; origins: string[] }): LibraryItemView {
   return {
-    id: media.id,
-    media,
-    detailsTarget: {
-      id: media.id,
-      mediaType: media.mediaType,
-    },
-    playbackTarget: buildPlaybackTarget(media),
+    id: item.media.id,
+    media: item.media,
+    detailsTarget: item.detailsTarget,
+    playbackTarget: item.playbackTarget,
+    episodeContext: item.episodeContext,
     state: {
-      addedAt: 'addedAt' in item ? item.addedAt : null,
-      watchedAt: 'watchedAt' in item ? item.watchedAt ?? null : null,
-      ratedAt: 'rating' in item ? item.rating.ratedAt : null,
-      rating: 'rating' in item ? item.rating.value : null,
-      lastActivityAt: 'lastActivityAt' in item ? item.lastActivityAt ?? null : null,
+      addedAt: null,
+      watchedAt: item.watchedAt,
+      ratedAt: null,
+      rating: null,
+      lastActivityAt: item.watchedAt,
     },
-    origins: deriveOrigins(item.payload),
+    origins: item.origins,
   };
 }
 
-function buildPlaybackTarget(media: MetadataCardView): LibraryItemView['playbackTarget'] {
+function mapWatchlistLibraryItem(item: WatchDerivedProductItem & { addedAt: string; origins: string[] }): LibraryItemView {
   return {
-    contentId: media.id,
-    mediaType: media.mediaType,
-    provider: media.provider ?? null,
-    providerId: media.providerId ?? null,
-    parentProvider: media.parentProvider ?? null,
-    parentProviderId: media.parentProviderId ?? null,
-    seasonNumber: media.seasonNumber,
-    episodeNumber: media.episodeNumber,
-    absoluteEpisodeNumber: media.absoluteEpisodeNumber,
+    id: item.media.id,
+    media: item.media,
+    detailsTarget: item.detailsTarget,
+    playbackTarget: item.playbackTarget,
+    episodeContext: item.episodeContext,
+    state: {
+      addedAt: item.addedAt,
+      watchedAt: null,
+      ratedAt: null,
+      rating: null,
+      lastActivityAt: item.addedAt,
+    },
+    origins: item.origins,
   };
 }
 
-function deriveOrigins(payload: Record<string, unknown> | undefined): string[] {
-  const provider = typeof payload?.provider === 'string' && payload.provider.trim() ? payload.provider.trim() : null;
-  if (provider === 'trakt') {
-    return ['trakt_import'];
-  }
-  if (provider === 'simkl') {
-    return ['simkl_import'];
-  }
-  return ['native'];
+function mapRatedLibraryItem(item: WatchDerivedProductItem & { rating: { value: number; ratedAt: string }; origins: string[] }): LibraryItemView {
+  return {
+    id: item.media.id,
+    media: item.media,
+    detailsTarget: item.detailsTarget,
+    playbackTarget: item.playbackTarget,
+    episodeContext: item.episodeContext,
+    state: {
+      addedAt: null,
+      watchedAt: null,
+      ratedAt: item.rating.ratedAt,
+      rating: item.rating.value,
+      lastActivityAt: item.rating.ratedAt,
+    },
+    origins: item.origins,
+  };
 }
 
 function mapProviderAuthState(connection: ProviderImportConnectionView): ProviderAuthStateView {

@@ -26,8 +26,8 @@ export class HomeService {
     }
 
     const [continueWatching, history, calendar] = await Promise.all([
-      this.continueWatchingService.list(userId, profileId, 20),
-      this.watchedService.list(userId, profileId, 10),
+      this.continueWatchingService.listProducts(userId, profileId, 20),
+      this.watchedService.listProducts(userId, profileId, 10),
       this.calendarService.getCalendar(userId, profileId),
     ]);
 

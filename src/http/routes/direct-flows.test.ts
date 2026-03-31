@@ -136,20 +136,30 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   const { WatchStateService } = await import('../../modules/watch/watch-state.service.js');
 
   const originals = {
-    list: ContinueWatchingService.prototype.list,
+    listProducts: ContinueWatchingService.prototype.listProducts,
     dismissContinueWatching: WatchEventIngestService.prototype.dismissContinueWatching,
     getState: WatchStateService.prototype.getState,
     getStates: WatchStateService.prototype.getStates,
   };
 
   t.after(() => {
-    Object.assign(ContinueWatchingService.prototype, { list: originals.list });
+    Object.assign(ContinueWatchingService.prototype, { listProducts: originals.listProducts });
     Object.assign(WatchEventIngestService.prototype, { dismissContinueWatching: originals.dismissContinueWatching });
     Object.assign(WatchStateService.prototype, { getState: originals.getState, getStates: originals.getStates });
   });
 
-  ContinueWatchingService.prototype.list = async function (userId, profileId, limit) {
-    return [{ id: 'cw-1', media: { id: '33333333-3333-4333-8333-333333333331' }, userId, profileId, limit }] as never;
+  ContinueWatchingService.prototype.listProducts = async function (_userId, _profileId, _limit) {
+    return [{
+      id: 'cw-1',
+      media: { id: '33333333-3333-4333-8333-333333333331' },
+      detailsTarget: { kind: 'title', titleId: '33333333-3333-4333-8333-333333333331', titleMediaType: 'movie', highlightEpisodeId: null },
+      playbackTarget: { contentId: '33333333-3333-4333-8333-333333333331', mediaType: 'movie', provider: null, providerId: null, parentProvider: null, parentProviderId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null },
+      episodeContext: null,
+      progress: { positionSeconds: 0, durationSeconds: null, progressPercent: 0 },
+      lastActivityAt: '2024-01-01T00:00:00.000Z',
+      origins: ['native'],
+      dismissible: true,
+    }] as never;
   };
   WatchEventIngestService.prototype.dismissContinueWatching = async function (userId, profileId, id) {
     return { dismissed: true, userId, profileId, id } as never;
@@ -174,9 +184,9 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.equal(listResponse.json().source, 'canonical_watch');
   assert.equal(typeof listResponse.json().generatedAt, 'string');
   assert.equal(listResponse.json().items[0].id, 'cw-1');
-  assert.equal(listResponse.json().items[0].userId, 'user-1');
-  assert.equal(listResponse.json().items[0].profileId, 'profile-1');
-  assert.equal(listResponse.json().items[0].limit, 7);
+  assert.equal(listResponse.json().items[0].detailsTarget.kind, 'title');
+  assert.equal(listResponse.json().items[0].detailsTarget.titleId, '33333333-3333-4333-8333-333333333331');
+  assert.equal(listResponse.json().items[0].episodeContext, null);
 
   const stateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:1', headers: auth });
   assert.equal(stateResponse.statusCode, 200);
@@ -275,7 +285,7 @@ test('library route returns canonical library sections and auth state', async (t
                 rating: null,
                 status: null,
               },
-              detailsTarget: { id: 'movie-1', mediaType: 'movie' },
+              detailsTarget: { kind: 'title', titleId: 'movie-1', titleMediaType: 'movie', highlightEpisodeId: null },
               playbackTarget: {
                 contentId: 'movie-1',
                 mediaType: 'movie',
@@ -287,6 +297,7 @@ test('library route returns canonical library sections and auth state', async (t
                 episodeNumber: null,
                 absoluteEpisodeNumber: null,
               },
+              episodeContext: null,
               state: {
                 addedAt: null,
                 watchedAt: '2024-01-15T10:00:00.000Z',
@@ -333,7 +344,7 @@ test('library route returns canonical library sections and auth state', async (t
                 rating: null,
                 status: null,
               },
-              detailsTarget: { id: 'movie-2', mediaType: 'movie' },
+              detailsTarget: { kind: 'title', titleId: 'movie-2', titleMediaType: 'movie', highlightEpisodeId: null },
               playbackTarget: {
                 contentId: 'movie-2',
                 mediaType: 'movie',
@@ -345,6 +356,7 @@ test('library route returns canonical library sections and auth state', async (t
                 episodeNumber: null,
                 absoluteEpisodeNumber: null,
               },
+              episodeContext: null,
               state: {
                 addedAt: '2024-01-10T08:00:00.000Z',
                 watchedAt: null,

@@ -1,11 +1,12 @@
 import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
-import type { MetadataCardView, MetadataViewMediaType } from '../metadata/metadata.types.js';
+import type { MetadataCardView } from '../metadata/metadata.types.js';
 import type {
   HydratedRatingItem,
   HydratedWatchItem,
   HydratedWatchlistItem,
   RatingStateView,
 } from '../watch/watch-read.types.js';
+import type { DetailsTarget, EpisodeContext, PlaybackTarget } from '../watch/watch-derived-item.types.js';
 
 export type ProviderAuthStateView = {
   provider: ProviderImportProvider;
@@ -15,28 +16,18 @@ export type ProviderAuthStateView = {
   statusMessage: string | null;
 };
 
-export type LibraryDetailsTarget = {
-  id: string;
-  mediaType: MetadataViewMediaType;
-};
-
-export type LibraryPlaybackTarget = {
-  contentId: string | null;
-  mediaType: MetadataViewMediaType;
-  provider: string | null;
-  providerId: string | null;
-  parentProvider: string | null;
-  parentProviderId: string | null;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  absoluteEpisodeNumber: number | null;
-};
+export type {
+  DetailsTarget,
+  PlaybackTarget,
+  EpisodeContext,
+} from '../watch/watch-derived-item.types.js';
 
 export type LibraryItemView = {
   id: string;
   media: MetadataCardView;
-  detailsTarget: LibraryDetailsTarget;
-  playbackTarget: LibraryPlaybackTarget | null;
+  detailsTarget: DetailsTarget;
+  playbackTarget: PlaybackTarget | null;
+  episodeContext: EpisodeContext;
   state: {
     addedAt: string | null;
     watchedAt: string | null;

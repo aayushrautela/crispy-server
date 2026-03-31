@@ -1,4 +1,5 @@
-import type { CalendarItem, HydratedWatchItem } from '../watch/watch-read.types.js';
+import type { CalendarItem } from '../watch/watch-read.types.js';
+import type { ContinueWatchingProductItem, WatchedProductItem } from '../watch/watch-derived-item.types.js';
 import type { RecommendationSectionItem } from '../recommendations/recommendation.types.js';
 
 export type HomeSectionId =
@@ -16,7 +17,7 @@ export type HomeWatchSection = {
   title: string;
   kind: 'watch';
   source: 'canonical_watch';
-  items: HydratedWatchItem[];
+  items: ContinueWatchingProductItem[] | WatchedProductItem[];
 };
 
 export type HomeCalendarSection = {

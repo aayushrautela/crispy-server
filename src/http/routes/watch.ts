@@ -74,7 +74,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       kind: 'continue-watching' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await continueWatchingService.list(actor.appUserId, profileId, limit),
+      items: await continueWatchingService.listProducts(actor.appUserId, profileId, limit),
     };
   });
 
@@ -98,7 +98,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       kind: 'watched' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await watchedService.list(actor.appUserId, profileId, limit),
+      items: await watchedService.listProducts(actor.appUserId, profileId, limit),
     };
   });
 
@@ -114,7 +114,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       kind: 'watchlist' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await watchCollectionService.listWatchlist(actor.appUserId, profileId, limit),
+      items: await watchCollectionService.listWatchlistProducts(actor.appUserId, profileId, limit),
     };
   });
 
@@ -130,7 +130,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       kind: 'ratings' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await watchCollectionService.listRatings(actor.appUserId, profileId, limit),
+      items: await watchCollectionService.listRatingsProducts(actor.appUserId, profileId, limit),
     };
   });
 

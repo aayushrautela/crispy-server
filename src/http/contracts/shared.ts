@@ -117,6 +117,178 @@ const defaultErrorResponseSchemas: Record<number, unknown> = {
   503: errorResponseSchema,
 };
 
+export const nullableStringSchema = {
+  anyOf: [
+    stringSchema,
+    { type: 'null' },
+  ],
+} as const;
+
+export const nullableIntegerSchema = {
+  anyOf: [
+    { type: 'integer' },
+    { type: 'null' },
+  ],
+} as const;
+
+export const metadataArtworkSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['posterUrl', 'backdropUrl', 'stillUrl'],
+  properties: {
+    posterUrl: nullableStringSchema,
+    backdropUrl: nullableStringSchema,
+    stillUrl: nullableStringSchema,
+  },
+} as const;
+
+export const metadataImagesSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['posterUrl', 'backdropUrl', 'stillUrl', 'logoUrl'],
+  properties: {
+    posterUrl: nullableStringSchema,
+    backdropUrl: nullableStringSchema,
+    stillUrl: nullableStringSchema,
+    logoUrl: nullableStringSchema,
+  },
+} as const;
+
+export const metadataCardViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'mediaKey',
+    'mediaType',
+    'kind',
+    'provider',
+    'providerId',
+    'parentMediaType',
+    'parentProvider',
+    'parentProviderId',
+    'tmdbId',
+    'showTmdbId',
+    'seasonNumber',
+    'episodeNumber',
+    'absoluteEpisodeNumber',
+    'title',
+    'subtitle',
+    'summary',
+    'overview',
+    'artwork',
+    'images',
+    'releaseDate',
+    'releaseYear',
+    'runtimeMinutes',
+    'rating',
+    'status',
+  ],
+  properties: {
+    id: stringSchema,
+    mediaKey: stringSchema,
+    mediaType: stringSchema,
+    kind: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    parentMediaType: nullableStringSchema,
+    parentProvider: nullableStringSchema,
+    parentProviderId: nullableStringSchema,
+    tmdbId: nullableIntegerSchema,
+    showTmdbId: nullableIntegerSchema,
+    seasonNumber: nullableIntegerSchema,
+    episodeNumber: nullableIntegerSchema,
+    absoluteEpisodeNumber: nullableIntegerSchema,
+    title: nullableStringSchema,
+    subtitle: nullableStringSchema,
+    summary: nullableStringSchema,
+    overview: nullableStringSchema,
+    artwork: metadataArtworkSchema,
+    images: metadataImagesSchema,
+    releaseDate: nullableStringSchema,
+    releaseYear: nullableIntegerSchema,
+    runtimeMinutes: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    status: nullableStringSchema,
+  },
+} as const;
+
+export const detailsTargetSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'titleId', 'titleMediaType', 'highlightEpisodeId'],
+  properties: {
+    kind: { const: 'title' },
+    titleId: stringSchema,
+    titleMediaType: stringSchema,
+    highlightEpisodeId: nullableStringSchema,
+  },
+} as const;
+
+export const playbackTargetSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'contentId',
+        'mediaType',
+        'provider',
+        'providerId',
+        'parentProvider',
+        'parentProviderId',
+        'seasonNumber',
+        'episodeNumber',
+        'absoluteEpisodeNumber',
+      ],
+      properties: {
+        contentId: nullableStringSchema,
+        mediaType: stringSchema,
+        provider: nullableStringSchema,
+        providerId: nullableStringSchema,
+        parentProvider: nullableStringSchema,
+        parentProviderId: nullableStringSchema,
+        seasonNumber: nullableIntegerSchema,
+        episodeNumber: nullableIntegerSchema,
+        absoluteEpisodeNumber: nullableIntegerSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
+export const episodeContextSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'episodeId',
+        'seasonNumber',
+        'episodeNumber',
+        'absoluteEpisodeNumber',
+        'title',
+        'airDate',
+        'runtimeMinutes',
+        'stillUrl',
+        'overview',
+      ],
+      properties: {
+        episodeId: stringSchema,
+        seasonNumber: nullableIntegerSchema,
+        episodeNumber: nullableIntegerSchema,
+        absoluteEpisodeNumber: nullableIntegerSchema,
+        title: nullableStringSchema,
+        airDate: nullableStringSchema,
+        runtimeMinutes: nullableIntegerSchema,
+        stillUrl: nullableStringSchema,
+        overview: nullableStringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
 export function withDefaultErrorResponses<T extends RouteSchema>(schema: T): T & { response: Record<number, unknown> } {
   return {
     ...schema,

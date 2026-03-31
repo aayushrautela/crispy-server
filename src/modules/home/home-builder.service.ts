@@ -1,11 +1,11 @@
-import type { HydratedWatchItem } from '../watch/watch-read.types.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
+import type { ContinueWatchingProductItem, WatchedProductItem } from '../watch/watch-derived-item.types.js';
 import type { HomeSection } from './home.types.js';
 
 export class HomeBuilderService {
   build(params: {
-    continueWatching: HydratedWatchItem[];
-    history: HydratedWatchItem[];
+    continueWatching: ContinueWatchingProductItem[];
+    history: WatchedProductItem[];
     calendarItems: CalendarItem[];
   }): { sections: HomeSection[] } {
     const upNext = params.calendarItems.filter((item) => item.bucket === 'up_next').slice(0, 10);
