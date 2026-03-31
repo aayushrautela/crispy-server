@@ -1,3 +1,4 @@
+import { logger } from '../../config/logger.js';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataQueryService } from '../metadata/metadata-query.service.js';
@@ -48,16 +49,36 @@ export class AiSearchService {
         throw new HttpError(404, 'Profile not found.');
       }
     });
-    const { payload: generated } = await this.aiRequestExecutor.generateJsonForUser({
+    const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
       userId,
       feature: 'search',
       systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope.',
       userPrompt: buildSearchPrompt(query, filter, locale, analysis),
     });
 
-    const candidates = parseSearchCandidates(Array.isArray(generated.items) ? generated.items : []);
+    const rawItems = Array.isArray(generated.items) ? generated.items : [];
+    const candidates = parseSearchCandidates(rawItems);
     const resolvedSuggestions = await resolveSuggestions(this.metadataQueryService, candidates, filter, locale);
     const items = finalizeResolvedItems(resolvedSuggestions, analysis);
+
+    logger.info({
+      userId,
+      profileId,
+      query: sampleQuery(query),
+      filter,
+      locale,
+      providerId: request.providerId,
+      model: request.model,
+      rawItemCount: rawItems.length,
+      candidateCount: candidates.length,
+      resolvedCount: resolvedSuggestions.length,
+      finalCount: items.length,
+      candidateSamples: candidates.slice(0, 8),
+      unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
+      resultTitles: items.slice(0, 8).map((item) => item.title ?? item.mediaKey),
+      generatedKeys: Object.keys(generated).slice(0, 10),
+    }, 'AI search completed');
+
     return { items };
   }
 }
@@ -344,4 +365,23 @@ function mapFilterToMetadataFilter(filter: AiSearchFilter): MetadataSearchFilter
 function normalizeLocale(value: unknown): string {
   const normalized = normalizeString(value);
   return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(normalized) ? normalized : 'en-US';
+}
+
+function summarizeUnresolvedCandidates(candidates: AiSearchCandidate[], resolved: ResolvedSuggestion[]): string[] {
+  const resolvedKeys = new Set(resolved.map((item) => candidateKey(item.candidate)));
+  return candidates
+    .filter((candidate) => !resolvedKeys.has(candidateKey(candidate)))
+    .slice(0, 8)
+    .map((candidate) => `${candidate.title}${candidate.mediaType ? ` [${candidate.mediaType}]` : ''}`);
+}
+
+function candidateKey(candidate: AiSearchCandidate): string {
+  return `${normalizeTitle(candidate.title)}::${candidate.mediaType ?? '*'}`;
+}
+
+function sampleQuery(value: string, maxLength = 120): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}...`;
 }

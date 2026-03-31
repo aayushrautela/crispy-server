@@ -1,3 +1,4 @@
+import { logger } from '../../config/logger.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AiProviderFailureDetails, AiResolvedProviderConfig } from './ai.types.js';
 
@@ -13,6 +14,14 @@ export class OpenAiCompatibleClient {
 
     if (!attempt.response.ok) {
       const parsedError = extractProviderError(attempt.rawBody);
+      logger.warn({
+        providerId: args.provider.id,
+        model: args.model,
+        status: attempt.response.status,
+        providerErrorCode: parsedError.code,
+        providerErrorParam: parsedError.param,
+        responseBodySample: sampleText(attempt.rawBody),
+      }, 'AI provider returned non-OK response');
       throw new HttpError(502, parsedError.message ?? 'AI provider request failed.', {
         provider: args.provider.id,
         providerStatus: attempt.response.status,
@@ -34,6 +43,12 @@ export class OpenAiCompatibleClient {
 
     const content = extractChoiceContent(payload);
     if (!content.trim()) {
+      logger.warn({
+        providerId: args.provider.id,
+        model: args.model,
+        status: attempt.response.status,
+        rawBodySample: sampleText(attempt.rawBody),
+      }, 'AI provider returned empty message content');
       throw new HttpError(502, 'AI provider returned empty data.', {
         provider: args.provider.id,
         providerStatus: attempt.response.status,
@@ -46,8 +61,22 @@ export class OpenAiCompatibleClient {
       if (!isRecord(parsedContent)) {
         throw new Error('AI provider response was not a JSON object.');
       }
+      logger.info({
+        providerId: args.provider.id,
+        model: args.model,
+        status: attempt.response.status,
+        payloadKeys: Object.keys(parsedContent).slice(0, 10),
+        contentSample: sampleText(content),
+      }, 'AI provider returned JSON payload');
       return parsedContent;
     } catch {
+      logger.warn({
+        providerId: args.provider.id,
+        model: args.model,
+        status: attempt.response.status,
+        contentSample: sampleText(content),
+        rawBodySample: sampleText(attempt.rawBody),
+      }, 'AI provider returned invalid JSON content');
       throw new HttpError(502, 'AI provider returned invalid data.', {
         provider: args.provider.id,
         providerStatus: attempt.response.status,
@@ -87,6 +116,11 @@ export class OpenAiCompatibleClient {
         }),
       });
     } catch (error) {
+      logger.warn({
+        providerId: args.provider.id,
+        model: args.model,
+        err: error,
+      }, 'AI provider request failed before response');
       throw new HttpError(502, 'AI provider request failed.', {
         provider: args.provider.id,
         failureKind: 'network',
@@ -206,4 +240,12 @@ function parseRetryAfterSeconds(value: string | null): number | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function sampleText(value: string, maxLength = 400): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}...`;
 }
