@@ -1,54 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../../lib/errors.js';
-import { seedTestEnv, createMockMetadataView } from '../../test-helpers.js';
+import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv({});
 
-function createMockMetadataCardView(overrides: Record<string, unknown> = {}) {
-  const base = createMockMetadataView(overrides);
+function createMockRegularCard(overrides: Record<string, unknown> = {}) {
   return {
-    ...base,
-    kind: base.kind as 'title' | 'episode',
-    provider: base.provider as 'tmdb',
-    providerId: String(base.providerId),
-    parentProvider: base.parentProvider as 'tmdb' | null,
-    parentProviderId: base.parentProviderId ? String(base.parentProviderId) : null,
+    mediaType: 'movie',
+    provider: 'tmdb',
+    providerId: '1',
+    title: 'Test Movie',
+    posterUrl: 'https://img.test/poster.jpg',
+    releaseYear: 2024,
+    rating: 8.4,
+    genre: null,
+    subtitle: null,
+    ...overrides,
   };
 }
 
 function createMockProductItem(mediaOverrides: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) {
-  const media = createMockMetadataCardView(mediaOverrides);
+  const media = createMockRegularCard(mediaOverrides);
   return {
     media,
-    detailsTarget: {
-      kind: 'title' as const,
-      titleId: media.id,
-      titleMediaType: (media.mediaType === 'episode' ? (media.parentMediaType ?? 'show') : media.mediaType) as 'movie' | 'show' | 'anime',
-      highlightEpisodeId: media.kind === 'episode' ? media.id : null,
-    },
-    playbackTarget: {
-      contentId: media.id,
-      mediaType: media.mediaType,
-      provider: media.provider,
-      providerId: media.providerId,
-      parentProvider: media.parentProvider,
-      parentProviderId: media.parentProviderId,
-      seasonNumber: media.seasonNumber,
-      episodeNumber: media.episodeNumber,
-      absoluteEpisodeNumber: media.absoluteEpisodeNumber,
-    },
-    episodeContext: media.kind === 'episode' ? {
-      episodeId: media.id,
-      seasonNumber: media.seasonNumber,
-      episodeNumber: media.episodeNumber,
-      absoluteEpisodeNumber: media.absoluteEpisodeNumber,
-      title: media.title,
-      airDate: media.releaseDate,
-      runtimeMinutes: media.runtimeMinutes,
-      stillUrl: media.artwork.stillUrl,
-      overview: media.overview,
-    } : null,
     origins: ['native'] as string[],
     ...extra,
   };
@@ -77,11 +52,11 @@ test('getProfileLibrary returns library with profile id', async () => {
   assert.deepEqual(result.sections.map((section) => section.id), ['watched', 'watchlist', 'rated']);
 });
 
-test('getProfileLibrary returns watched section items with detailsTarget and playbackTarget', async () => {
+test('getProfileLibrary returns watched items with minimal runtime contract', async () => {
   const service = await createMockService();
   const mockWatched = [
     createMockProductItem(
-      { id: 'movie-1', title: 'Test Movie' },
+      { providerId: '1', title: 'Test Movie' },
       { watchedAt: '2024-01-15T10:00:00.000Z', origins: ['trakt_import'] },
     ),
   ];
@@ -91,27 +66,17 @@ test('getProfileLibrary returns watched section items with detailsTarget and pla
   const watched = result.sections.find((section) => section.id === 'watched');
   assert.equal(watched?.items.length, 1);
   assert.equal(watched?.items[0]?.media.title, 'Test Movie');
-  assert.equal(watched?.items[0]?.detailsTarget.titleId, 'movie-1');
-  assert.equal(watched?.items[0]?.detailsTarget.kind, 'title');
-  assert.equal(watched?.items[0]?.detailsTarget.highlightEpisodeId, null);
   assert.equal(watched?.items[0]?.state.watchedAt, '2024-01-15T10:00:00.000Z');
   assert.deepEqual(watched?.items[0]?.origins, ['trakt_import']);
 });
 
-test('getProfileLibrary returns episode-derived items with parent title detailsTarget', async () => {
+test('getProfileLibrary keeps episode-derived items renderable as regular cards', async () => {
   const service = await createMockService();
   const mockWatched = [
     createMockProductItem(
       {
-        id: 'episode-1',
         mediaType: 'episode',
-        kind: 'episode',
-        parentMediaType: 'show',
-        parentProvider: 'tmdb',
-        parentProviderId: '10',
-        showTmdbId: 10,
-        seasonNumber: 1,
-        episodeNumber: 5,
+        providerId: '10:1:5',
         title: 'Episode 5',
       },
       { watchedAt: '2024-01-15T10:00:00.000Z' },
@@ -122,26 +87,21 @@ test('getProfileLibrary returns episode-derived items with parent title detailsT
   const result = await service.getProfileLibrary('user-1', 'profile-1');
   const watched = result.sections.find((section) => section.id === 'watched');
   assert.equal(watched?.items.length, 1);
-  assert.equal(watched?.items[0]?.detailsTarget.highlightEpisodeId, 'episode-1');
-  assert.equal(watched?.items[0]?.playbackTarget?.contentId, 'episode-1');
-  assert.equal(watched?.items[0]?.playbackTarget?.seasonNumber, 1);
-  assert.equal(watched?.items[0]?.playbackTarget?.episodeNumber, 5);
-  assert.notEqual(watched?.items[0]?.episodeContext, null);
-  assert.equal(watched?.items[0]?.episodeContext?.episodeId, 'episode-1');
-  assert.equal(watched?.items[0]?.episodeContext?.seasonNumber, 1);
+  assert.equal(watched?.items[0]?.media.providerId, '10:1:5');
+  assert.equal(watched?.items[0]?.media.title, 'Episode 5');
 });
 
 test('getProfileLibrary returns watchlist and rated sections from WatchCollectionService', async () => {
   const service = await createMockService();
   const mockWatchlist = [
     createMockProductItem(
-      { id: 'movie-2', title: 'Watchlisted Movie' },
+      { providerId: '2', title: 'Watchlisted Movie' },
       { addedAt: '2024-01-10T08:00:00.000Z', origins: ['native'] },
     ),
   ];
   const mockRatings = [
     createMockProductItem(
-      { id: 'movie-3', title: 'Rated Movie' },
+      { providerId: '3', title: 'Rated Movie' },
       { rating: { value: 9, ratedAt: '2024-01-09T08:00:00.000Z' }, origins: ['simkl_import'] },
     ),
   ];
@@ -210,6 +170,6 @@ test('getProfileLibrary throws for service errors', async () => {
 
   await assert.rejects(
     () => service.getProfileLibrary('user-1', 'non-existent'),
-    (err: Error) => err.message === 'Profile not found.'
+    (err: Error) => err.message === 'Profile not found.',
   );
 });

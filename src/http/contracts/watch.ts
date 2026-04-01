@@ -1,14 +1,12 @@
 import {
-  detailsTargetSchema,
-  episodeContextSchema,
-  metadataCardViewSchema,
+  landscapeCardViewSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
   nullableStringSchema,
-  playbackTargetSchema,
   positiveIntegerLikeSchema,
   profileIdAndMediaKeyParamsSchema,
   profileIdParamsSchema,
+  regularCardViewSchema,
   recordSchema,
   stringSchema,
   withDefaultErrorResponses,
@@ -74,42 +72,12 @@ export type WatchStateBatchBody = {
   items?: WatchStateLookupContract[];
 };
 
-const continueWatchingPlaybackTargetSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'contentId',
-    'mediaType',
-    'provider',
-    'providerId',
-    'parentProvider',
-    'parentProviderId',
-    'seasonNumber',
-    'episodeNumber',
-    'absoluteEpisodeNumber',
-  ],
-  properties: {
-    contentId: stringSchema,
-    mediaType: stringSchema,
-    provider: nullableStringSchema,
-    providerId: nullableStringSchema,
-    parentProvider: nullableStringSchema,
-    parentProviderId: nullableStringSchema,
-    seasonNumber: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
-    episodeNumber: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
-    absoluteEpisodeNumber: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
-  },
-} as const;
-
 const continueWatchingItemSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
     'id',
     'media',
-    'detailsTarget',
-    'playbackTarget',
-    'episodeContext',
     'progress',
     'watchedAt',
     'lastActivityAt',
@@ -118,10 +86,7 @@ const continueWatchingItemSchema = {
   ],
   properties: {
     id: stringSchema,
-    media: metadataCardViewSchema,
-    detailsTarget: detailsTargetSchema,
-    playbackTarget: continueWatchingPlaybackTargetSchema,
-    episodeContext: episodeContextSchema,
+    media: landscapeCardViewSchema,
     progress: {
       anyOf: [
         {
@@ -151,12 +116,9 @@ const continueWatchingItemSchema = {
 const watchProductItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['media', 'detailsTarget', 'playbackTarget', 'episodeContext'],
+  required: ['media'],
   properties: {
-    media: metadataCardViewSchema,
-    detailsTarget: detailsTargetSchema,
-    playbackTarget: playbackTargetSchema,
-    episodeContext: episodeContextSchema,
+    media: regularCardViewSchema,
   },
 } as const;
 

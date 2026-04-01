@@ -1,4 +1,4 @@
-import type { MetadataCardView } from '../metadata/metadata.types.js';
+import type { CollectionCardView, HeroCardView, LandscapeCardView, RegularCardView } from '../metadata/metadata.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;
@@ -20,19 +20,56 @@ export type TasteProfilePayload = {
 };
 
 export type RecommendationSectionItem = {
-  media: MetadataCardView;
+  media: RegularCardView;
   reason: string | null;
   score: number | null;
   rank: number | null;
   payload: Record<string, unknown>;
 };
 
-export type RecommendationSection = {
+export type RecommendationRegularSection = {
   id: string;
   title: string;
+  layout: 'regular';
   items: RecommendationSectionItem[];
   meta: Record<string, unknown>;
 };
+
+export type RecommendationLandscapeSection = {
+  id: string;
+  title: string;
+  layout: 'landscape';
+  items: Array<{
+    media: LandscapeCardView;
+    reason: string | null;
+    score: number | null;
+    rank: number | null;
+    payload: Record<string, unknown>;
+  }>;
+  meta: Record<string, unknown>;
+};
+
+export type RecommendationCollectionSection = {
+  id: string;
+  title: string;
+  layout: 'collection';
+  items: CollectionCardView[];
+  meta: Record<string, unknown>;
+};
+
+export type RecommendationHeroSection = {
+  id: string;
+  title: string;
+  layout: 'hero';
+  items: HeroCardView[];
+  meta: Record<string, unknown>;
+};
+
+export type RecommendationSection =
+  | RecommendationRegularSection
+  | RecommendationLandscapeSection
+  | RecommendationCollectionSection
+  | RecommendationHeroSection;
 
 export type RecommendationSnapshotPayload = {
   profileId: string;

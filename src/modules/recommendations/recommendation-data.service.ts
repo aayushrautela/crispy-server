@@ -1,7 +1,7 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
-import type { MetadataCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata.types.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
@@ -17,7 +17,8 @@ type ProfileSummary = {
   updatedAt: string;
 };
 
-type HydratedMedia = MetadataCardView;
+type HydratedMedia = RegularCardView;
+type HydratedLandscapeMedia = LandscapeCardView;
 
 export class RecommendationDataService {
   constructor(
@@ -71,7 +72,7 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listContinueWatching(client, profileId, limit);
       return Promise.all(rows.map(async (row) => ({
         id: row.id,
-        media: await this.buildMedia(client, row),
+        media: await this.buildLandscapeMedia(client, row),
         progress: {
           positionSeconds: row.positionSeconds,
           durationSeconds: row.durationSeconds,
@@ -90,7 +91,7 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listContinueWatching(client, targetProfileId, limit);
       return Promise.all(rows.map(async (row) => ({
         id: row.id,
-        media: await this.buildMedia(client, row),
+        media: await this.buildLandscapeMedia(client, row),
         progress: {
           positionSeconds: row.positionSeconds,
           durationSeconds: row.durationSeconds,
@@ -201,8 +202,47 @@ export class RecommendationDataService {
   }
 
   private async buildMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedMedia> {
-    return this.metadataCardService.buildCardViewFromRow(client, row);
+    return toRegularCard(await this.metadataCardService.buildCardViewFromRow(client, row));
   }
+
+  private async buildLandscapeMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedLandscapeMedia> {
+    return toLandscapeCard(await this.metadataCardService.buildCardViewFromRow(client, row));
+  }
+}
+
+function toRegularCard(card: MetadataCardView): RegularCardView {
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title ?? 'Untitled',
+    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl ?? '',
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+    subtitle: card.subtitle,
+  };
+}
+
+function toLandscapeCard(card: MetadataCardView): LandscapeCardView {
+  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl ?? '';
+  const backdropUrl = card.images.stillUrl ?? card.artwork.stillUrl ?? card.images.backdropUrl ?? card.artwork.backdropUrl ?? posterUrl;
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title ?? 'Untitled',
+    posterUrl,
+    backdropUrl,
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+    seasonNumber: card.seasonNumber,
+    episodeNumber: card.episodeNumber,
+    episodeTitle: card.mediaType === 'episode' ? card.title : null,
+    airDate: card.releaseDate,
+    runtimeMinutes: card.runtimeMinutes,
+  };
 }
 
 async function toProfileSummary(

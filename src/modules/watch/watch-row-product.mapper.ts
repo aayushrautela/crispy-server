@@ -1,10 +1,7 @@
 import { parseMediaKey, type SupportedProvider } from '../identity/media-key.js';
-import type { MetadataCardView, MetadataTitleMediaType } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataTitleMediaType, RegularCardView } from '../metadata/metadata.types.js';
 import type {
   ContinueWatchingProductItem,
-  DetailsTarget,
-  EpisodeContext,
-  PlaybackTarget,
   RatingProductItem,
   WatchedProductItem,
   WatchlistProductItem,
@@ -20,13 +17,13 @@ import type {
 type StoredWatchRow = RawContinueWatchingRow | RawWatchHistoryRow | RawWatchlistRow | RawRatingRow;
 
 export function mapContinueWatchingRowToProduct(row: RawContinueWatchingRow): ContinueWatchingProductItem | null {
-  const base = mapStoredRow(row);
-  if (!base?.playbackTarget?.contentId) {
+  const media = mapLandscapeMedia(row);
+  if (!media) {
     return null;
   }
 
   return {
-    ...base,
+    media,
     id: row.id,
     progress: {
       positionSeconds: row.positionSeconds,
@@ -41,39 +38,39 @@ export function mapContinueWatchingRowToProduct(row: RawContinueWatchingRow): Co
 }
 
 export function mapWatchedRowToProduct(row: RawWatchHistoryRow): WatchedProductItem | null {
-  const base = mapStoredRow(row);
-  if (!base) {
+  const media = mapRegularMedia(row);
+  if (!media) {
     return null;
   }
 
   return {
-    ...base,
+    media,
     watchedAt: row.watchedAt,
     origins: deriveWatchOrigins(row.payload),
   };
 }
 
 export function mapWatchlistRowToProduct(row: RawWatchlistRow): WatchlistProductItem | null {
-  const base = mapStoredRow(row);
-  if (!base) {
+  const media = mapRegularMedia(row);
+  if (!media) {
     return null;
   }
 
   return {
-    ...base,
+    media,
     addedAt: row.addedAt,
     origins: deriveWatchOrigins(row.payload),
   };
 }
 
 export function mapRatingRowToProduct(row: RawRatingRow): RatingProductItem | null {
-  const base = mapStoredRow(row);
-  if (!base) {
+  const media = mapRegularMedia(row);
+  if (!media) {
     return null;
   }
 
   return {
-    ...base,
+    media,
     rating: {
       value: row.rating,
       ratedAt: row.ratedAt,
@@ -82,135 +79,58 @@ export function mapRatingRowToProduct(row: RawRatingRow): RatingProductItem | nu
   };
 }
 
-function mapStoredRow(row: StoredWatchRow): {
-  media: MetadataCardView;
-  detailsTarget: DetailsTarget;
-  playbackTarget: PlaybackTarget | null;
-  episodeContext: EpisodeContext;
-} | null {
-  const detailsTarget = mapDetailsTarget(row);
-  if (!detailsTarget) {
+function mapRegularMedia(row: StoredWatchRow): RegularCardView | null {
+  if (!row.title || !row.posterUrl) {
     return null;
   }
 
-  const media = mapDetailsMedia(row, detailsTarget);
-  if (!media) {
-    return null;
-  }
-
-  const playbackTarget = mapPlaybackTarget(row);
-  const episodeContext = mapEpisodeContext(row);
-
-  return {
-    media,
-    detailsTarget,
-    playbackTarget,
-    episodeContext,
-  };
-}
-
-function mapDetailsTarget(row: StoredWatchRow): DetailsTarget | null {
-  if (!row.detailsTitleId || !row.detailsTitleMediaType) {
-    return null;
-  }
-
-  return {
-    kind: 'title',
-    titleId: row.detailsTitleId,
-    titleMediaType: row.detailsTitleMediaType,
-    highlightEpisodeId: row.highlightEpisodeId,
-  };
-}
-
-function mapPlaybackTarget(row: StoredWatchRow): PlaybackTarget | null {
-  if (!row.playbackMediaType) {
-    return null;
-  }
-
-  if (row.playbackMediaType === 'movie' && !row.playbackContentId) {
-    return null;
-  }
-
-  return {
-    contentId: row.playbackContentId,
-    mediaType: row.playbackMediaType,
-    provider: asSupportedProvider(row.playbackProvider),
-    providerId: row.playbackProviderId,
-    parentProvider: asSupportedProvider(row.playbackParentProvider),
-    parentProviderId: row.playbackParentProviderId,
-    seasonNumber: row.playbackSeasonNumber,
-    episodeNumber: row.playbackEpisodeNumber,
-    absoluteEpisodeNumber: row.playbackAbsoluteEpisodeNumber,
-  };
-}
-
-function mapEpisodeContext(row: StoredWatchRow): EpisodeContext {
-  if (!row.highlightEpisodeId) {
-    return null;
-  }
-
-  return {
-    episodeId: row.highlightEpisodeId,
-    seasonNumber: row.playbackSeasonNumber,
-    episodeNumber: row.playbackEpisodeNumber,
-    absoluteEpisodeNumber: row.playbackAbsoluteEpisodeNumber,
-    title: row.episodeTitle,
-    airDate: row.episodeAirDate,
-    runtimeMinutes: row.episodeRuntimeMinutes,
-    stillUrl: row.episodeStillUrl,
-    overview: row.episodeOverview,
-  };
-}
-
-function mapDetailsMedia(row: StoredWatchRow, detailsTarget: DetailsTarget): MetadataCardView | null {
   const parsed = parseMediaKey(row.mediaKey);
   const provider = resolveTitleProvider(row, parsed);
   const providerId = resolveTitleProviderId(row, parsed);
-  if (!provider || !providerId) {
+  const titleMediaType = resolveTitleMediaType(row, parsed);
+  if (!provider || !providerId || !titleMediaType) {
     return null;
   }
 
-  const tmdbId = row.detailsTmdbId;
-  const showTmdbId = row.detailsShowTmdbId ?? (
-    detailsTarget.titleMediaType !== 'movie' && provider === 'tmdb' ? tmdbId : null
-  );
-  const mediaKey = `${detailsTarget.titleMediaType}:${provider}:${providerId}`;
-
   return {
-    id: detailsTarget.titleId,
-    mediaKey,
-    mediaType: detailsTarget.titleMediaType,
-    kind: 'title',
+    mediaType: titleMediaType,
     provider,
     providerId,
-    parentMediaType: null,
-    parentProvider: null,
-    parentProviderId: null,
-    tmdbId,
-    showTmdbId,
-    seasonNumber: null,
-    episodeNumber: null,
-    absoluteEpisodeNumber: null,
-    title: row.detailsTitle,
-    subtitle: row.detailsSubtitle,
-    summary: row.detailsSummary,
-    overview: row.detailsOverview,
-    artwork: {
-      posterUrl: row.detailsPosterUrl,
-      backdropUrl: row.detailsBackdropUrl,
-      stillUrl: row.detailsStillUrl,
-    },
-    images: {
-      posterUrl: row.detailsPosterUrl,
-      backdropUrl: row.detailsBackdropUrl,
-      stillUrl: row.detailsStillUrl,
-      logoUrl: null,
-    },
-    releaseDate: row.detailsReleaseDate,
+    title: row.title,
+    posterUrl: row.posterUrl,
     releaseYear: row.detailsReleaseYear,
-    runtimeMinutes: row.detailsRuntimeMinutes,
     rating: row.detailsRating,
-    status: row.detailsStatus,
+    genre: null,
+    subtitle: row.subtitle,
+  };
+}
+
+function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | null {
+  const parsed = parseMediaKey(row.mediaKey);
+  const provider = resolveTitleProvider(row, parsed);
+  const providerId = resolveTitleProviderId(row, parsed);
+  const titleMediaType = resolveTitleMediaType(row, parsed);
+  const episodeBackdrop = row.episodeStillUrl ?? row.detailsStillUrl;
+  const backdropUrl = episodeBackdrop ?? row.backdropUrl ?? row.posterUrl;
+  if (!provider || !providerId || !titleMediaType || !row.title || !row.posterUrl || !backdropUrl) {
+    return null;
+  }
+
+  return {
+    mediaType: titleMediaType,
+    provider,
+    providerId,
+    title: row.title,
+    posterUrl: row.posterUrl,
+    backdropUrl,
+    releaseYear: row.detailsReleaseYear,
+    rating: row.detailsRating,
+    genre: null,
+    seasonNumber: row.playbackSeasonNumber,
+    episodeNumber: row.playbackEpisodeNumber,
+    episodeTitle: row.episodeTitle,
+    airDate: row.episodeAirDate,
+    runtimeMinutes: row.episodeRuntimeMinutes ?? row.detailsRuntimeMinutes,
   };
 }
 
@@ -237,6 +157,22 @@ function resolveTitleProviderId(row: StoredWatchRow, parsed: ReturnType<typeof p
   }
 
   return parsed.parentProviderId ?? row.playbackParentProviderId;
+}
+
+function resolveTitleMediaType(row: StoredWatchRow, parsed: ReturnType<typeof parseMediaKey>): MetadataTitleMediaType | null {
+  if (row.detailsTitleMediaType === 'movie' || row.detailsTitleMediaType === 'show' || row.detailsTitleMediaType === 'anime') {
+    return row.detailsTitleMediaType;
+  }
+
+  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
+    return parsed.mediaType;
+  }
+
+  if (parsed.mediaType === 'episode') {
+    return parsed.parentProvider === 'kitsu' || row.playbackParentProvider === 'kitsu' ? 'anime' : 'show';
+  }
+
+  return null;
 }
 
 function asSupportedProvider(value: string | null): SupportedProvider | null {

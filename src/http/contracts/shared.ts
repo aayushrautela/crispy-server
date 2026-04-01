@@ -213,80 +213,58 @@ export const metadataCardViewSchema = {
   },
 } as const;
 
-export const detailsTargetSchema = {
+export const regularCardViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['kind', 'titleId', 'titleMediaType', 'highlightEpisodeId'],
+  required: ['mediaType', 'provider', 'providerId', 'title', 'posterUrl', 'releaseYear', 'rating', 'genre', 'subtitle'],
   properties: {
-    kind: { const: 'title' },
-    titleId: stringSchema,
-    titleMediaType: stringSchema,
-    highlightEpisodeId: nullableStringSchema,
+    mediaType: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    title: stringSchema,
+    posterUrl: stringSchema,
+    releaseYear: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    genre: nullableStringSchema,
+    subtitle: nullableStringSchema,
   },
 } as const;
 
-export const playbackTargetSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: [
-        'contentId',
-        'mediaType',
-        'provider',
-        'providerId',
-        'parentProvider',
-        'parentProviderId',
-        'seasonNumber',
-        'episodeNumber',
-        'absoluteEpisodeNumber',
-      ],
-      properties: {
-        contentId: nullableStringSchema,
-        mediaType: stringSchema,
-        provider: nullableStringSchema,
-        providerId: nullableStringSchema,
-        parentProvider: nullableStringSchema,
-        parentProviderId: nullableStringSchema,
-        seasonNumber: nullableIntegerSchema,
-        episodeNumber: nullableIntegerSchema,
-        absoluteEpisodeNumber: nullableIntegerSchema,
-      },
-    },
-    { type: 'null' },
+export const landscapeCardViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'mediaType',
+    'provider',
+    'providerId',
+    'title',
+    'posterUrl',
+    'backdropUrl',
+    'releaseYear',
+    'rating',
+    'genre',
+    'seasonNumber',
+    'episodeNumber',
+    'episodeTitle',
+    'airDate',
+    'runtimeMinutes',
   ],
-} as const;
-
-export const episodeContextSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: [
-        'episodeId',
-        'seasonNumber',
-        'episodeNumber',
-        'absoluteEpisodeNumber',
-        'title',
-        'airDate',
-        'runtimeMinutes',
-        'stillUrl',
-        'overview',
-      ],
-      properties: {
-        episodeId: stringSchema,
-        seasonNumber: nullableIntegerSchema,
-        episodeNumber: nullableIntegerSchema,
-        absoluteEpisodeNumber: nullableIntegerSchema,
-        title: nullableStringSchema,
-        airDate: nullableStringSchema,
-        runtimeMinutes: nullableIntegerSchema,
-        stillUrl: nullableStringSchema,
-        overview: nullableStringSchema,
-      },
-    },
-    { type: 'null' },
-  ],
+  properties: {
+    mediaType: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    title: stringSchema,
+    posterUrl: stringSchema,
+    backdropUrl: stringSchema,
+    releaseYear: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    genre: nullableStringSchema,
+    seasonNumber: nullableIntegerSchema,
+    episodeNumber: nullableIntegerSchema,
+    episodeTitle: nullableStringSchema,
+    airDate: nullableStringSchema,
+    runtimeMinutes: nullableIntegerSchema,
+  },
 } as const;
 
 export function withDefaultErrorResponses<T extends RouteSchema>(schema: T): T & { response: Record<number, unknown> } {

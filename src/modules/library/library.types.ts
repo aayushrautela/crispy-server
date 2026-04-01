@@ -1,7 +1,6 @@
 import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
-import type { MetadataCardView } from '../metadata/metadata.types.js';
+import type { RegularCardView } from '../metadata/metadata.types.js';
 import type { RatingStateView } from '../watch/watch-read.types.js';
-import type { DetailsTarget, EpisodeContext, PlaybackTarget } from '../watch/watch-derived-item.types.js';
 
 export type ProviderAuthStateView = {
   provider: ProviderImportProvider;
@@ -11,18 +10,9 @@ export type ProviderAuthStateView = {
   statusMessage: string | null;
 };
 
-export type {
-  DetailsTarget,
-  PlaybackTarget,
-  EpisodeContext,
-} from '../watch/watch-derived-item.types.js';
-
 export type LibraryItemView = {
   id: string;
-  media: MetadataCardView;
-  detailsTarget: DetailsTarget;
-  playbackTarget: PlaybackTarget | null;
-  episodeContext: EpisodeContext;
+  media: RegularCardView;
   state: {
     addedAt: string | null;
     watchedAt: string | null;

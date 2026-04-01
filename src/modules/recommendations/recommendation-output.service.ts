@@ -4,6 +4,14 @@ import { MetadataViewService } from '../metadata/metadata-view.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
+import type {
+  CollectionCardItemView,
+  CollectionCardView,
+  HeroCardView,
+  LandscapeCardView,
+  MetadataCardView,
+  RegularCardView,
+} from '../metadata/metadata.types.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -273,38 +281,207 @@ export class RecommendationOutputService {
 
   private async mapRecommendationSection(client: DbClient, value: unknown): Promise<RecommendationSection> {
     const row = asRecord(value);
+    const layout = row.layout === 'landscape' || row.layout === 'collection' || row.layout === 'hero'
+      ? row.layout
+      : 'regular';
     const rawItems = Array.isArray(row.items) ? row.items : [];
-    const items = await Promise.all(rawItems.map((item, index) => this.mapRecommendationItem(client, item, index)));
+    const id = typeof row.id === 'string' ? row.id : 'recommended';
+    const title = typeof row.title === 'string' ? row.title : 'Recommended';
+    const meta = asRecord(row.meta);
+
+    if (layout === 'collection') {
+      return {
+        id,
+        title,
+        layout,
+        items: rawItems.map((item) => this.mapCollectionCard(item)).filter((item): item is CollectionCardView => item !== null),
+        meta,
+      };
+    }
+
+    if (layout === 'hero') {
+      return {
+        id,
+        title,
+        layout,
+        items: (await Promise.all(rawItems.map((item) => this.mapHeroCard(client, item)))).filter((item): item is HeroCardView => item !== null),
+        meta,
+      };
+    }
+
+    if (layout === 'landscape') {
+      const items = (await Promise.all(rawItems.map((item, index) => this.mapLandscapeRecommendationItem(client, item, index))))
+        .filter((item): item is NonNullable<Awaited<ReturnType<RecommendationOutputService['mapLandscapeRecommendationItem']>>> => item !== null);
+      return {
+        id,
+        title,
+        layout,
+        items,
+        meta,
+      };
+    }
+
     return {
-      id: typeof row.id === 'string' ? row.id : 'recommended',
-      title: typeof row.title === 'string' ? row.title : 'Recommended',
-      items,
-      meta: asRecord(row.meta),
+      id,
+      title,
+      layout: 'regular',
+      items: await Promise.all(rawItems.map((item, index) => this.mapRecommendationItem(client, item, index))),
+      meta,
     };
   }
 
   private async mapRecommendationItem(client: DbClient, value: unknown, index: number): Promise<RecommendationSectionItem> {
     const row = asRecord(value);
-    const mediaKey = typeof row.mediaKey === 'string' ? row.mediaKey : typeof row.media_key === 'string' ? row.media_key : null;
-    const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : 'movie';
-    const identity = mediaKey
-      ? parseMediaKey(mediaKey)
-      : inferMediaIdentity({
-          mediaType,
-          tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
-          showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
-          seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
-          episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
-        });
+    const identity = recommendationIdentityFromRow(row);
 
     return {
-      media: await this.metadataViewService.buildMetadataCardView(client, identity),
+      media: toRegularCard(await this.metadataViewService.buildMetadataCardView(client, identity)),
       reason: typeof row.reason === 'string' ? row.reason : null,
       score: typeof row.score === 'number' ? row.score : null,
       rank: typeof row.rank === 'number' ? row.rank : index + 1,
       payload: asRecord(row.payload),
     };
   }
+
+  private async mapLandscapeRecommendationItem(client: DbClient, value: unknown, index: number) {
+    const row = asRecord(value);
+    const identity = recommendationIdentityFromRow(row);
+    const media = toLandscapeCard(await this.metadataViewService.buildMetadataCardView(client, identity));
+    if (!media) {
+      return null;
+    }
+
+    return {
+      media,
+      reason: typeof row.reason === 'string' ? row.reason : null,
+      score: typeof row.score === 'number' ? row.score : null,
+      rank: typeof row.rank === 'number' ? row.rank : index + 1,
+      payload: asRecord(row.payload),
+    };
+  }
+
+  private mapCollectionCard(value: unknown): CollectionCardView | null {
+    const row = asRecord(value);
+    const title = typeof row.title === 'string' && row.title.trim() ? row.title : null;
+    const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim() ? row.logoUrl : typeof row.logo_url === 'string' && row.logo_url.trim() ? row.logo_url : null;
+    const rawItems = Array.isArray(row.items) ? row.items : [];
+    const items = rawItems.map((item) => this.mapCollectionCardItem(item)).filter((item): item is CollectionCardItemView => item !== null);
+    if (!title || !logoUrl || items.length < 3) {
+      return null;
+    }
+
+    return {
+      title,
+      logoUrl,
+      items: [items[0]!, items[1]!, items[2]!],
+    };
+  }
+
+  private mapCollectionCardItem(value: unknown): CollectionCardItemView | null {
+    const row = asRecord(value);
+    const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : null;
+    const provider = typeof row.provider === 'string' ? row.provider : null;
+    const providerId = typeof row.providerId === 'string' ? row.providerId : typeof row.provider_id === 'string' ? row.provider_id : null;
+    const title = typeof row.title === 'string' ? row.title : null;
+    const posterUrl = typeof row.posterUrl === 'string' ? row.posterUrl : typeof row.poster_url === 'string' ? row.poster_url : null;
+    if (!mediaType || !provider || !providerId || !title || !posterUrl) {
+      return null;
+    }
+
+    return {
+      mediaType: mediaType as CollectionCardItemView['mediaType'],
+      provider: provider as CollectionCardItemView['provider'],
+      providerId,
+      title,
+      posterUrl,
+      releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : typeof row.release_year === 'number' ? row.release_year : null,
+      rating: typeof row.rating === 'number' ? row.rating : null,
+    };
+  }
+
+  private async mapHeroCard(client: DbClient, value: unknown): Promise<HeroCardView | null> {
+    const row = asRecord(value);
+    const identity = recommendationIdentityFromRow(row);
+    const media = await this.metadataViewService.buildMetadataCardView(client, identity);
+    return toHeroCard(media, row);
+  }
+}
+
+function toRegularCard(card: MetadataCardView): RegularCardView {
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title ?? 'Untitled',
+    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl ?? '',
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+    subtitle: card.subtitle,
+  };
+}
+
+function toLandscapeCard(card: MetadataCardView): LandscapeCardView | null {
+  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl;
+  const backdropUrl = card.images.stillUrl ?? card.artwork.stillUrl ?? card.images.backdropUrl ?? card.artwork.backdropUrl ?? posterUrl;
+  if (!card.title || !posterUrl || !backdropUrl) {
+    return null;
+  }
+
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title,
+    posterUrl,
+    backdropUrl,
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+    seasonNumber: card.seasonNumber,
+    episodeNumber: card.episodeNumber,
+    episodeTitle: card.mediaType === 'episode' ? card.title : null,
+    airDate: card.releaseDate,
+    runtimeMinutes: card.runtimeMinutes,
+  };
+}
+
+function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroCardView | null {
+  const backdropUrl = card.images.backdropUrl ?? card.artwork.backdropUrl;
+  const description = typeof row.description === 'string' && row.description.trim()
+    ? row.description
+    : card.overview ?? card.summary ?? null;
+  if (!card.title || !backdropUrl || !description) {
+    return null;
+  }
+
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title,
+    description,
+    backdropUrl,
+    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl,
+    logoUrl: card.images.logoUrl ?? null,
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+  };
+}
+
+function recommendationIdentityFromRow(row: Record<string, unknown>) {
+  const mediaKey = typeof row.mediaKey === 'string' ? row.mediaKey : typeof row.media_key === 'string' ? row.media_key : null;
+  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : 'movie';
+  return mediaKey
+    ? parseMediaKey(mediaKey)
+    : inferMediaIdentity({
+        mediaType,
+        tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
+        showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
+        seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
+        episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
+      });
 }
 
 function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {

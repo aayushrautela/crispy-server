@@ -1,13 +1,67 @@
 import type { DbClient } from '../../lib/db.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { MetadataScheduleService } from '../metadata/metadata-schedule.service.js';
-import type { MetadataCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata.types.js';
 import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { WatchExportService } from '../watch/watch-export.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function toRegularCard(card: MetadataCardView): RegularCardView | null {
+  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl;
+  if (!card.title || !posterUrl) {
+    return null;
+  }
+
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title,
+    posterUrl,
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+    subtitle: card.subtitle,
+  };
+}
+
+function toLandscapeCard(card: MetadataCardView, params: {
+  relatedShow: MetadataCardView;
+  airDate: string | null;
+}): LandscapeCardView | null {
+  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl ?? params.relatedShow.images.posterUrl ?? params.relatedShow.artwork.posterUrl;
+  const backdropUrl = card.images.stillUrl
+    ?? card.artwork.stillUrl
+    ?? card.images.backdropUrl
+    ?? card.artwork.backdropUrl
+    ?? params.relatedShow.images.backdropUrl
+    ?? params.relatedShow.artwork.backdropUrl
+    ?? posterUrl;
+
+  if (!card.title || !posterUrl || !backdropUrl) {
+    return null;
+  }
+
+  return {
+    mediaType: card.mediaType,
+    provider: card.provider,
+    providerId: card.providerId,
+    title: card.title,
+    posterUrl,
+    backdropUrl,
+    releaseYear: card.releaseYear,
+    rating: card.rating,
+    genre: null,
+    seasonNumber: card.seasonNumber,
+    episodeNumber: card.episodeNumber,
+    episodeTitle: card.title,
+    airDate: params.airDate,
+    runtimeMinutes: card.runtimeMinutes,
+  };
+}
 
 export class CalendarBuilderService {
   constructor(
@@ -29,6 +83,10 @@ export class CalendarBuilderService {
       }
 
       const relatedShow = await this.metadataCardService.buildCardView(client, trackedIdentity);
+      const relatedShowCard = toRegularCard(relatedShow);
+      if (!relatedShowCard) {
+        continue;
+      }
       const watchedEpisodeKeys = await this.watchExportService.listWatchedEpisodeKeysForShow(client, profileId, row.trackedMediaKey);
 
       if (trackedIdentity.provider === 'tmdb' && trackedIdentity.providerId) {
@@ -55,8 +113,23 @@ export class CalendarBuilderService {
           if (!fallback) {
             items.push({
               bucket: 'no_scheduled',
-              media: relatedShow,
-              relatedShow,
+              media: {
+                mediaType: relatedShowCard.mediaType,
+                provider: relatedShowCard.provider,
+                providerId: relatedShowCard.providerId,
+                title: relatedShowCard.title,
+                posterUrl: relatedShowCard.posterUrl,
+                backdropUrl: relatedShow.images.backdropUrl ?? relatedShow.artwork.backdropUrl ?? relatedShowCard.posterUrl,
+                releaseYear: relatedShowCard.releaseYear,
+                rating: relatedShowCard.rating,
+                genre: relatedShowCard.genre,
+                seasonNumber: null,
+                episodeNumber: null,
+                episodeTitle: null,
+                airDate: null,
+                runtimeMinutes: relatedShow.runtimeMinutes,
+              },
+              relatedShow: relatedShowCard,
               airDate: null,
               watched: false,
             });
@@ -66,7 +139,7 @@ export class CalendarBuilderService {
           episodeToUse = { seasonNumber: fallback.seasonNumber, episodeNumber: fallback.episodeNumber, title: fallback.name, airDate: fallback.airDate };
         }
 
-        const candidate = await this.buildTmdbCalendarItem(client, trackedIdentity, episodeToUse, relatedShow, watchedEpisodeKeys, nowMs);
+        const candidate = await this.buildTmdbCalendarItem(client, trackedIdentity, episodeToUse, relatedShow, relatedShowCard, watchedEpisodeKeys, nowMs);
         if (candidate) {
           items.push(candidate);
         }
@@ -77,15 +150,30 @@ export class CalendarBuilderService {
       if (!schedule.nextEpisode) {
         items.push({
           bucket: 'no_scheduled',
-          media: relatedShow,
-          relatedShow,
+          media: {
+            mediaType: relatedShowCard.mediaType,
+            provider: relatedShowCard.provider,
+            providerId: relatedShowCard.providerId,
+            title: relatedShowCard.title,
+            posterUrl: relatedShowCard.posterUrl,
+            backdropUrl: relatedShow.images.backdropUrl ?? relatedShow.artwork.backdropUrl ?? relatedShowCard.posterUrl,
+            releaseYear: relatedShowCard.releaseYear,
+            rating: relatedShowCard.rating,
+            genre: relatedShowCard.genre,
+            seasonNumber: null,
+            episodeNumber: null,
+            episodeTitle: null,
+            airDate: null,
+            runtimeMinutes: relatedShow.runtimeMinutes,
+          },
+          relatedShow: relatedShowCard,
           airDate: null,
           watched: false,
         });
         continue;
       }
 
-      const candidate = await this.buildProviderCalendarItem(client, trackedIdentity, schedule.nextEpisode, relatedShow, watchedEpisodeKeys, nowMs);
+      const candidate = await this.buildProviderCalendarItem(client, trackedIdentity, schedule.nextEpisode, relatedShow, relatedShowCard, watchedEpisodeKeys, nowMs);
       if (candidate) {
         items.push(candidate);
       }
@@ -105,6 +193,7 @@ export class CalendarBuilderService {
     trackedIdentity: MediaIdentity,
     episode: { seasonNumber: number | null; episodeNumber: number | null; title: string | null; airDate: string | null },
     relatedShow: MetadataCardView,
+    relatedShowCard: RegularCardView,
     watchedEpisodeKeys: string[],
     nowMs: number,
   ): Promise<CalendarItem | null> {
@@ -130,6 +219,10 @@ export class CalendarBuilderService {
         episodeNumber: episode.episodeNumber,
       }),
     );
+    const landscape = toLandscapeCard(media, { relatedShow, airDate: episode.airDate });
+    if (!landscape) {
+      return null;
+    }
 
     const airDate = episode.airDate;
     const airDateMs = airDate ? Date.parse(airDate) : null;
@@ -147,7 +240,7 @@ export class CalendarBuilderService {
       bucket = 'upcoming';
     }
 
-    return { bucket, media, relatedShow, airDate, watched };
+    return { bucket, media: landscape, relatedShow: relatedShowCard, airDate, watched };
   }
 
   private async buildProviderCalendarItem(
@@ -155,6 +248,7 @@ export class CalendarBuilderService {
     trackedIdentity: MediaIdentity,
     episode: { seasonNumber: number | null; episodeNumber: number | null; title: string | null; airDate: string | null },
     relatedShow: MetadataCardView,
+    relatedShowCard: RegularCardView,
     watchedEpisodeKeys: string[],
     nowMs: number,
   ): Promise<CalendarItem | null> {
@@ -169,6 +263,10 @@ export class CalendarBuilderService {
 
     const watched = watchedEpisodeKeys.includes(episodeIdentity.mediaKey);
     const media = await this.metadataCardService.buildCardView(client, episodeIdentity);
+    const landscape = toLandscapeCard(media, { relatedShow, airDate: episode.airDate });
+    if (!landscape) {
+      return null;
+    }
 
     const airDateMs = episode.airDate ? Date.parse(episode.airDate) : null;
     let bucket: CalendarItem['bucket'];
@@ -185,6 +283,6 @@ export class CalendarBuilderService {
       bucket = 'upcoming';
     }
 
-    return { bucket, media, relatedShow, airDate: episode.airDate, watched };
+    return { bucket, media: landscape, relatedShow: relatedShowCard, airDate: episode.airDate, watched };
   }
 }

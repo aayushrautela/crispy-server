@@ -64,11 +64,8 @@ function buildSection<T extends WatchDerivedProductItem>(
 
 function mapWatchedLibraryItem(item: WatchDerivedProductItem & { watchedAt: string; origins: string[] }): LibraryItemView {
   return {
-    id: item.media.id,
+    id: `${item.media.mediaType}:${item.media.provider}:${item.media.providerId}`,
     media: item.media,
-    detailsTarget: item.detailsTarget,
-    playbackTarget: item.playbackTarget,
-    episodeContext: item.episodeContext,
     state: {
       addedAt: null,
       watchedAt: item.watchedAt,
@@ -82,11 +79,8 @@ function mapWatchedLibraryItem(item: WatchDerivedProductItem & { watchedAt: stri
 
 function mapWatchlistLibraryItem(item: WatchDerivedProductItem & { addedAt: string; origins: string[] }): LibraryItemView {
   return {
-    id: item.media.id,
+    id: `${item.media.mediaType}:${item.media.provider}:${item.media.providerId}`,
     media: item.media,
-    detailsTarget: item.detailsTarget,
-    playbackTarget: item.playbackTarget,
-    episodeContext: item.episodeContext,
     state: {
       addedAt: item.addedAt,
       watchedAt: null,
@@ -100,11 +94,8 @@ function mapWatchlistLibraryItem(item: WatchDerivedProductItem & { addedAt: stri
 
 function mapRatedLibraryItem(item: WatchDerivedProductItem & { rating: { value: number; ratedAt: string }; origins: string[] }): LibraryItemView {
   return {
-    id: item.media.id,
+    id: `${item.media.mediaType}:${item.media.provider}:${item.media.providerId}`,
     media: item.media,
-    detailsTarget: item.detailsTarget,
-    playbackTarget: item.playbackTarget,
-    episodeContext: item.episodeContext,
     state: {
       addedAt: null,
       watchedAt: null,

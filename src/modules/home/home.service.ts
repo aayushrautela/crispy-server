@@ -32,32 +32,23 @@ export class HomeService {
     ]);
 
     const generatedAt = nowIso();
-    const response = this.homeBuilderService.build({
+    const runtime = this.homeBuilderService.build({
       continueWatching,
-      history,
       calendarItems: calendar.items,
     });
 
     const activeRecommendation = await this.recommendationOutputService.getActiveRecommendationForAccount(userId, profileId, 'default');
-    if (activeRecommendation?.sections.length) {
-      response.sections = [
-        ...response.sections,
-        ...activeRecommendation.sections.map((section) => ({
-          id: section.id,
-          title: section.title,
-          kind: 'recommendation' as const,
-          source: 'recommendation' as const,
-          items: section.items,
-          meta: section.meta,
-        })),
-      ];
-    }
 
     const payload: HomeResponse = {
       profileId,
       source: 'canonical_home',
       generatedAt,
-      sections: response.sections,
+      runtime,
+      snapshot: {
+        sourceKey: activeRecommendation?.sourceKey ?? null,
+        generatedAt: activeRecommendation?.generatedAt ?? null,
+        sections: activeRecommendation?.sections ?? [],
+      },
     };
 
     await redis.set(cacheKey, JSON.stringify(payload), 'EX', appConfig.cache.homeTtlSeconds);

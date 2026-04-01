@@ -1,46 +1,12 @@
-import type { SupportedProvider } from '../identity/media-key.js';
-import type { MetadataCardView, MetadataTitleMediaType, MetadataViewMediaType } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, RegularCardView } from '../metadata/metadata.types.js';
 import type { WatchProgressView } from './watch-state.types.js';
 
-export type DetailsTarget = {
-  kind: 'title';
-  titleId: string;
-  titleMediaType: MetadataTitleMediaType;
-  highlightEpisodeId: string | null;
-};
-
-export type PlaybackTarget = {
-  contentId: string | null;
-  mediaType: MetadataViewMediaType;
-  provider: SupportedProvider | null;
-  providerId: string | null;
-  parentProvider: SupportedProvider | null;
-  parentProviderId: string | null;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  absoluteEpisodeNumber: number | null;
-};
-
-export type EpisodeContext = {
-  episodeId: string;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  absoluteEpisodeNumber: number | null;
-  title: string | null;
-  airDate: string | null;
-  runtimeMinutes: number | null;
-  stillUrl: string | null;
-  overview: string | null;
-} | null;
-
 export type WatchDerivedProductItem = {
-  media: MetadataCardView;
-  detailsTarget: DetailsTarget;
-  playbackTarget: PlaybackTarget | null;
-  episodeContext: EpisodeContext;
+  media: RegularCardView;
 };
 
-export type ContinueWatchingProductItem = WatchDerivedProductItem & {
+export type ContinueWatchingProductItem = Omit<WatchDerivedProductItem, 'media'> & {
+  media: LandscapeCardView;
   id: string;
   progress: WatchProgressView;
   lastActivityAt: string;

@@ -17,7 +17,27 @@ test('home route returns canonical envelope fields', async (t) => {
       profileId,
       source: 'canonical_home',
       generatedAt: '2024-01-01T00:00:00.000Z',
-      sections: [],
+      runtime: {
+        continueWatching: {
+          id: 'continue-watching',
+          title: 'Continue Watching',
+          layout: 'landscape',
+          source: 'canonical_watch',
+          items: [],
+        },
+        thisWeek: {
+          id: 'this-week',
+          title: 'This Week',
+          layout: 'landscape',
+          source: 'canonical_calendar',
+          items: [],
+        },
+      },
+      snapshot: {
+        sourceKey: null,
+        generatedAt: null,
+        sections: [],
+      },
     } as never;
   };
 
@@ -31,7 +51,27 @@ test('home route returns canonical envelope fields', async (t) => {
     profileId: 'profile-1',
     source: 'canonical_home',
     generatedAt: '2024-01-01T00:00:00.000Z',
-    sections: [],
+    runtime: {
+      continueWatching: {
+        id: 'continue-watching',
+        title: 'Continue Watching',
+        layout: 'landscape',
+        source: 'canonical_watch',
+        items: [],
+      },
+      thisWeek: {
+        id: 'this-week',
+        title: 'This Week',
+        layout: 'landscape',
+        source: 'canonical_calendar',
+        items: [],
+      },
+    },
+    snapshot: {
+      sourceKey: null,
+      generatedAt: null,
+      sections: [],
+    },
   });
 });
 

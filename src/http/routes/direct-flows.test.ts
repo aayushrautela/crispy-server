@@ -152,35 +152,21 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     return [{
       id: 'cw-1',
       media: {
-        id: '33333333-3333-4333-8333-333333333331',
-        mediaKey: 'movie:tmdb:331',
         mediaType: 'movie',
-        kind: 'title',
         provider: 'tmdb',
         providerId: '331',
-        parentMediaType: null,
-        parentProvider: null,
-        parentProviderId: null,
-        tmdbId: 331,
-        showTmdbId: null,
+        title: 'Example Movie',
+        posterUrl: 'https://img.test/poster.jpg',
+        backdropUrl: 'https://img.test/backdrop.jpg',
+        releaseYear: null,
+        rating: null,
+        genre: null,
         seasonNumber: null,
         episodeNumber: null,
-        absoluteEpisodeNumber: null,
-        title: 'Example Movie',
-        subtitle: null,
-        summary: null,
-        overview: null,
-        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-        releaseDate: null,
-        releaseYear: null,
+        episodeTitle: null,
+        airDate: null,
         runtimeMinutes: null,
-        rating: null,
-        status: null,
       },
-      detailsTarget: { kind: 'title', titleId: '33333333-3333-4333-8333-333333333331', titleMediaType: 'movie', highlightEpisodeId: null },
-      playbackTarget: { contentId: '33333333-3333-4333-8333-333333333331', mediaType: 'movie', provider: null, providerId: null, parentProvider: null, parentProviderId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null },
-      episodeContext: null,
       progress: { positionSeconds: 0, durationSeconds: null, progressPercent: 0, lastPlayedAt: '2024-01-01T00:00:00.000Z' },
       watchedAt: null,
       lastActivityAt: '2024-01-01T00:00:00.000Z',
@@ -192,10 +178,10 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     return { dismissed: true, userId, profileId, id } as never;
   };
   WatchStateService.prototype.getState = async function (_userId, _profileId, input) {
-    return { media: { id: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] } as never;
+    return { media: { mediaKey: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] } as never;
   };
   WatchStateService.prototype.getStates = async function (_userId, _profileId, inputs) {
-    return inputs.map((input) => ({ media: { id: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] })) as never;
+    return inputs.map((input) => ({ media: { mediaKey: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] })) as never;
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
@@ -211,16 +197,14 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.equal(listResponse.json().source, 'canonical_watch');
   assert.equal(typeof listResponse.json().generatedAt, 'string');
   assert.equal(listResponse.json().items[0].id, 'cw-1');
-  assert.equal(listResponse.json().items[0].detailsTarget.kind, 'title');
-  assert.equal(listResponse.json().items[0].detailsTarget.titleId, '33333333-3333-4333-8333-333333333331');
-  assert.equal(listResponse.json().items[0].episodeContext, null);
+  assert.equal(listResponse.json().items[0].media.providerId, '331');
 
   const stateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:1', headers: auth });
   assert.equal(stateResponse.statusCode, 200);
   assert.equal(stateResponse.json().profileId, 'profile-1');
   assert.equal(stateResponse.json().source, 'canonical_watch');
   assert.equal(typeof stateResponse.json().generatedAt, 'string');
-  assert.equal(stateResponse.json().item.media.id, 'movie:tmdb:1');
+  assert.equal(stateResponse.json().item.media.mediaKey, 'movie:tmdb:1');
 
   const statesResponse = await app.inject({
     method: 'POST',
@@ -286,45 +270,16 @@ test('library route returns canonical library sections and auth state', async (t
             {
               id: 'movie-1',
               media: {
-                id: 'movie-1',
-                mediaKey: 'movie:tmdb:1',
                 mediaType: 'movie',
-                kind: 'title',
                 provider: 'tmdb',
                 providerId: '1',
-                parentMediaType: null,
-                parentProvider: null,
-                parentProviderId: null,
-                tmdbId: 1,
-                showTmdbId: null,
-                seasonNumber: null,
-                episodeNumber: null,
-                absoluteEpisodeNumber: null,
                 title: 'Test Movie',
-                subtitle: null,
-                summary: null,
-                overview: null,
-                artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-                images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-                releaseDate: null,
+                posterUrl: 'https://img.test/poster.jpg',
                 releaseYear: null,
-                runtimeMinutes: null,
                 rating: null,
-                status: null,
+                genre: null,
+                subtitle: null,
               },
-              detailsTarget: { kind: 'title', titleId: 'movie-1', titleMediaType: 'movie', highlightEpisodeId: null },
-              playbackTarget: {
-                contentId: 'movie-1',
-                mediaType: 'movie',
-                provider: 'tmdb',
-                providerId: '1',
-                parentProvider: null,
-                parentProviderId: null,
-                seasonNumber: null,
-                episodeNumber: null,
-                absoluteEpisodeNumber: null,
-              },
-              episodeContext: null,
               state: {
                 addedAt: null,
                 watchedAt: '2024-01-15T10:00:00.000Z',
@@ -345,45 +300,16 @@ test('library route returns canonical library sections and auth state', async (t
             {
               id: 'movie-2',
               media: {
-                id: 'movie-2',
-                mediaKey: 'movie:tmdb:2',
                 mediaType: 'movie',
-                kind: 'title',
                 provider: 'tmdb',
                 providerId: '2',
-                parentMediaType: null,
-                parentProvider: null,
-                parentProviderId: null,
-                tmdbId: 2,
-                showTmdbId: null,
-                seasonNumber: null,
-                episodeNumber: null,
-                absoluteEpisodeNumber: null,
                 title: 'Watchlisted Movie',
-                subtitle: null,
-                summary: null,
-                overview: null,
-                artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-                images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-                releaseDate: null,
+                posterUrl: 'https://img.test/poster.jpg',
                 releaseYear: null,
-                runtimeMinutes: null,
                 rating: null,
-                status: null,
+                genre: null,
+                subtitle: null,
               },
-              detailsTarget: { kind: 'title', titleId: 'movie-2', titleMediaType: 'movie', highlightEpisodeId: null },
-              playbackTarget: {
-                contentId: 'movie-2',
-                mediaType: 'movie',
-                provider: 'tmdb',
-                providerId: '2',
-                parentProvider: null,
-                parentProviderId: null,
-                seasonNumber: null,
-                episodeNumber: null,
-                absoluteEpisodeNumber: null,
-              },
-              episodeContext: null,
               state: {
                 addedAt: '2024-01-10T08:00:00.000Z',
                 watchedAt: null,

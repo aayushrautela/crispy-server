@@ -127,6 +127,65 @@ export type MetadataCardView = {
   status: string | null;
 };
 
+export type RegularCardView = {
+  mediaType: MetadataViewMediaType;
+  provider: SupportedProvider;
+  providerId: string;
+  title: string;
+  posterUrl: string;
+  releaseYear: number | null;
+  rating: number | null;
+  genre: string | null;
+  subtitle: string | null;
+};
+
+export type LandscapeCardView = {
+  mediaType: MetadataViewMediaType;
+  provider: SupportedProvider;
+  providerId: string;
+  title: string;
+  posterUrl: string;
+  backdropUrl: string;
+  releaseYear: number | null;
+  rating: number | null;
+  genre: string | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  episodeTitle: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+};
+
+export type CollectionCardItemView = {
+  mediaType: MetadataViewMediaType;
+  provider: SupportedProvider;
+  providerId: string;
+  title: string;
+  posterUrl: string;
+  releaseYear: number | null;
+  rating: number | null;
+};
+
+export type CollectionCardView = {
+  title: string;
+  logoUrl: string;
+  items: [CollectionCardItemView, CollectionCardItemView, CollectionCardItemView];
+};
+
+export type HeroCardView = {
+  mediaType: MetadataViewMediaType;
+  provider: SupportedProvider;
+  providerId: string;
+  title: string;
+  description: string;
+  backdropUrl: string;
+  posterUrl: string | null;
+  logoUrl: string | null;
+  releaseYear: number | null;
+  rating: number | null;
+  genre: string | null;
+};
+
 export type MetadataView = {
   id: string;
   mediaKey: string;

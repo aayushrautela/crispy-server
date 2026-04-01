@@ -1,4 +1,4 @@
-import type { MetadataCardView, MetadataView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataView, RegularCardView } from '../metadata/metadata.types.js';
 import type {
   WatchProgressView,
   ContinueWatchingStateView,
@@ -55,8 +55,8 @@ export type CalendarBucket = 'up_next' | 'this_week' | 'upcoming' | 'recently_re
 
 export type CalendarItem = {
   bucket: CalendarBucket;
-  media: MetadataCardView;
-  relatedShow: MetadataCardView;
+  media: LandscapeCardView;
+  relatedShow: RegularCardView;
   airDate: string | null;
   watched: boolean;
 };

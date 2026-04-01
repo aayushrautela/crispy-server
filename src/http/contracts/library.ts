@@ -1,12 +1,9 @@
 import {
   booleanSchema,
-  detailsTargetSchema,
-  episodeContextSchema,
-  metadataCardViewSchema,
   nullableNumberSchema,
   nullableStringSchema,
-  playbackTargetSchema,
   profileIdParamsSchema,
+  regularCardViewSchema,
   stringSchema,
   withDefaultErrorResponses,
 } from './shared.js';
@@ -31,13 +28,10 @@ const providerAuthStateSchema = {
 const libraryItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'media', 'detailsTarget', 'playbackTarget', 'episodeContext', 'state', 'origins'],
+  required: ['id', 'media', 'state', 'origins'],
   properties: {
     id: stringSchema,
-    media: metadataCardViewSchema,
-    detailsTarget: detailsTargetSchema,
-    playbackTarget: playbackTargetSchema,
-    episodeContext: episodeContextSchema,
+    media: regularCardViewSchema,
     state: {
       type: 'object',
       additionalProperties: false,
