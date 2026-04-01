@@ -136,9 +136,10 @@ export class WatchEventsRepository {
             $51,
             $52,
             $53,
-            $54::timestamptz,
-            $55::jsonb
-         )
+            $54,
+            $55::timestamptz,
+            $56::jsonb
+          )
         ON CONFLICT (profile_id, client_event_id)
         DO UPDATE SET occurred_at = EXCLUDED.occurred_at
         RETURNING id, profile_id, profile_group_id, event_type, media_key, occurred_at
