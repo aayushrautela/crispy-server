@@ -99,7 +99,7 @@ FROM (
                watched_at,
                NULL::timestamptz,
                NULL::timestamptz
-        FROM watch_history_latest
+        FROM watch_history
         UNION ALL
         SELECT media_key,
                media_type,
