@@ -4,10 +4,11 @@ import { requireNormalizedIsoString } from '../../lib/time.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
-import { deriveProgressPercent } from '../watch/heartbeat-policy.js';
+import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
 import { ensureSupportedProvider, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
+import { WatchEventsRepository } from '../watch/watch-events.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
@@ -85,6 +86,8 @@ export class ProviderDestructiveImportService {
     private readonly recommendationWorkStateRepository = new RecommendationWorkStateRepository(),
     private readonly projectionRebuildService = new ProjectionRebuildService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
+    private readonly watchEventsRepository = new WatchEventsRepository(),
+    private readonly metadataProjectionService = new MetadataProjectionService(),
   ) {}
 
   async replaceProfileWatchData(client: DbClient, params: {
@@ -204,97 +207,39 @@ export class ProviderDestructiveImportService {
   }): Promise<number> {
     let inserted = 0;
     for (const event of params.importedEvents) {
-      const eventId = randomUUID();
       const identity = identityFromDraft(event);
-      const progressPercent = deriveProgressPercent(event.positionSeconds, event.durationSeconds);
-      await client.query(
-        `
-          INSERT INTO watch_events (
-            id,
-            profile_group_id,
-            profile_id,
-            client_event_id,
-            event_type,
-            media_key,
-            media_type,
-            provider,
-            provider_id,
-            parent_provider,
-            parent_provider_id,
-            tmdb_id,
-            show_tmdb_id,
-            season_number,
-            episode_number,
-            absolute_episode_number,
-            title,
-            subtitle,
-            poster_url,
-            backdrop_url,
-            position_seconds,
-            duration_seconds,
-            progress_percent,
-            rating,
-            occurred_at,
-            payload
-          )
-          VALUES (
-            $1::uuid,
-            $2::uuid,
-            $3::uuid,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            $9,
-            $10,
-            $11,
-            $12,
-            $13,
-            $14,
-            $15,
-            $16,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            $17,
-            $18,
-            $19,
-            $20,
-            $21::timestamptz,
-            $22::jsonb
-          )
-        `,
-        [
-          eventId,
-          params.profileGroupId,
-          params.profileId,
-          event.clientEventId ?? `provider-import:${params.provider}:${params.profileId}:${inserted}:${event.occurredAt}:${randomUUID()}`,
-          event.eventType,
-          identity.mediaKey,
-          identity.mediaType,
-          identity.provider,
-          identity.providerId,
-          identity.parentProvider,
-          identity.parentProviderId,
-          identity.tmdbId,
-          identity.showTmdbId,
-          identity.seasonNumber,
-          identity.episodeNumber,
-          identity.absoluteEpisodeNumber ?? null,
-          event.positionSeconds ?? null,
-          event.durationSeconds ?? null,
-          progressPercent,
-          event.rating ?? null,
-          event.occurredAt,
-          JSON.stringify({
+      const persistedEvent = await this.watchEventsRepository.insert(client, {
+        profileGroupId: params.profileGroupId,
+        profileId: params.profileId,
+        input: {
+          clientEventId: event.clientEventId ?? `provider-import:${params.provider}:${params.profileId}:${inserted}:${event.occurredAt}:${randomUUID()}`,
+          eventType: event.eventType,
+          mediaKey: identity.mediaKey,
+          mediaType: identity.mediaType,
+          provider: identity.provider,
+          providerId: identity.providerId,
+          parentProvider: identity.parentProvider,
+          parentProviderId: identity.parentProviderId,
+          tmdbId: identity.tmdbId,
+          tvdbId: event.tvdbId ?? null,
+          kitsuId: event.kitsuId ?? null,
+          showTmdbId: identity.showTmdbId,
+          seasonNumber: identity.seasonNumber,
+          episodeNumber: identity.episodeNumber,
+          absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? null,
+          positionSeconds: event.positionSeconds ?? null,
+          durationSeconds: event.durationSeconds ?? null,
+          rating: event.rating ?? null,
+          occurredAt: event.occurredAt,
+          payload: {
             ...event.payload,
             import_provider: params.provider,
             import_history_generation: params.historyGeneration,
-          }),
-        ],
-      );
+          },
+        },
+        identity,
+        projection: await this.metadataProjectionService.buildWatchProjection(client, identity),
+      });
 
       if (event.eventType === 'mark_watched' || event.eventType === 'playback_completed') {
         await this.recommendationEventOutboxRepository.append(client, {

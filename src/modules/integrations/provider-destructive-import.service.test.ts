@@ -8,6 +8,48 @@ const { HttpError } = await import('../../lib/errors.js');
 const { ProviderDestructiveImportService } = await import('./provider-destructive-import.service.js');
 const { WatchHistoryEntriesRepository } = await import('./watch-history-entries.repo.js');
 
+const projectionStub = {
+  detailsTitleId: 'content-title-1',
+  detailsTitleMediaType: 'show',
+  highlightEpisodeId: 'content-episode-1',
+  playbackContentId: 'content-episode-1',
+  playbackMediaType: 'episode',
+  playbackProvider: 'tmdb',
+  playbackProviderId: '100',
+  playbackParentProvider: 'tmdb',
+  playbackParentProviderId: '100',
+  playbackSeasonNumber: 1,
+  playbackEpisodeNumber: 2,
+  playbackAbsoluteEpisodeNumber: 2,
+  detailsTitle: 'Example Show',
+  detailsSubtitle: null,
+  detailsSummary: 'Summary',
+  detailsOverview: 'Overview',
+  detailsPosterUrl: 'poster-url',
+  detailsBackdropUrl: 'backdrop-url',
+  detailsStillUrl: 'still-url',
+  detailsReleaseDate: '2024-01-01',
+  detailsReleaseYear: 2024,
+  detailsRuntimeMinutes: 45,
+  detailsRating: 8.1,
+  detailsStatus: 'returning',
+  detailsProvider: 'tmdb',
+  detailsProviderId: '100',
+  detailsParentProvider: null,
+  detailsParentProviderId: null,
+  detailsTmdbId: 100,
+  detailsShowTmdbId: 100,
+  episodeTitle: 'Pilot',
+  episodeAirDate: '2024-01-01',
+  episodeRuntimeMinutes: 45,
+  episodeStillUrl: 'episode-still-url',
+  episodeOverview: 'Episode overview',
+  title: 'Example Show',
+  subtitle: 'S1 E2',
+  posterUrl: 'poster-url',
+  backdropUrl: 'backdrop-url',
+};
+
 function createService(overrides?: {
   watchHistoryEntriesRepository?: InstanceType<typeof WatchHistoryEntriesRepository>;
 }) {
@@ -28,6 +70,12 @@ function createService(overrides?: {
     { clearClaimsForProfile: async () => {} } as never,
     { rebuildProfile: async () => ({ eventsScanned: 0, mediaProgressRows: 0, watchHistoryRows: 0, watchlistRows: 0, ratingRows: 0, continueWatchingRows: 0, trackedSeriesRows: 0, metadataRefreshRecommended: false }) } as never,
     { clearAllForProfile: async () => 0 } as never,
+    {
+      insert: async () => ({ id: 'event-1', profileId: 'profile-1', profileGroupId: 'group-1', eventType: 'mark_watched', mediaKey: 'episode:tmdb:100:1:2', occurredAt: '2024-01-01T00:00:00.000Z' }),
+    } as never,
+    {
+      buildWatchProjection: async () => projectionStub,
+    } as never,
   );
 }
 
@@ -117,7 +165,7 @@ test('replaceProfileWatchData rejects invalid imported history timestamps', asyn
   );
 });
 
-test('replaceProfileWatchData aligns imported event and history insert placeholders', async () => {
+test('replaceProfileWatchData writes imported events through watch event repository and history entries repository', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const service = createService({
     watchHistoryEntriesRepository: new WatchHistoryEntriesRepository(),
@@ -190,11 +238,6 @@ test('replaceProfileWatchData aligns imported event and history insert placehold
       importSummary: {},
     },
   });
-
-  const watchEventInsert = queries.find((entry) => entry.text.includes('INSERT INTO watch_events'));
-  assert.ok(watchEventInsert, 'expected watch_events insert query');
-  assert.match(watchEventInsert.text, /\$22::jsonb/);
-  assert.equal(watchEventInsert.values.length, 22);
 
   const historyInsert = queries.find((entry) => entry.text.includes('INSERT INTO watch_history_entries'));
   assert.ok(historyInsert, 'expected watch_history_entries insert query');
