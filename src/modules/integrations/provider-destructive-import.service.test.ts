@@ -241,3 +241,38 @@ test('replaceProfileWatchData writes imported events through watch event reposit
   assert.match(historyInsert.text, /\$17::jsonb/);
   assert.equal(historyInsert.values.length, 17);
 });
+
+test('replaceProfileWatchData collapses episode refresh keys to tracked show keys', async () => {
+  const service = createService();
+
+  const result = await service.replaceProfileWatchData(fakeClient, {
+    job: { id: 'job-1', profileId: 'profile-1', profileGroupId: 'group-1' } as never,
+    provider: 'trakt',
+    payload: {
+      importedAt: '2024-01-01T00:00:00.000Z',
+      mediaKeysToRefresh: [
+        'episode:tvdb:100:1:1',
+        'episode:tvdb:100:1:2',
+        'season:tvdb:100:1',
+        'movie:tmdb:99',
+      ],
+      importedEvents: [{
+        eventType: 'mark_watched',
+        mediaKey: 'episode:tvdb:100:1:3',
+        mediaType: 'episode',
+        provider: 'tvdb',
+        providerId: '100:s1:e3',
+        parentProvider: 'tvdb',
+        parentProviderId: '100',
+        tvdbId: 100,
+        seasonNumber: 1,
+        episodeNumber: 3,
+        occurredAt: '2024-01-01T00:00:00.000Z',
+      }],
+      importedHistoryEntries: [],
+      importSummary: {},
+    },
+  });
+
+  assert.deepEqual(result.mediaKeysToRefresh, ['show:tvdb:100', 'movie:tmdb:99']);
+});

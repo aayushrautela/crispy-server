@@ -5,7 +5,7 @@ import { RecommendationEventOutboxRepository } from '../recommendations/recommen
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
-import { ensureSupportedProvider, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
+import { ensureSupportedProvider, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
 import { WatchEventsRepository } from '../watch/watch-events.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
@@ -370,7 +370,7 @@ function dedupeMediaKeys(values: string[]): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
   for (const value of values) {
-    const normalized = value.trim();
+    const normalized = normalizeRefreshMediaKey(value);
     if (!normalized || seen.has(normalized)) {
       continue;
     }
@@ -378,6 +378,25 @@ function dedupeMediaKeys(values: string[]): string[] {
     result.push(normalized);
   }
   return result;
+}
+
+function normalizeRefreshMediaKey(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    return '';
+  }
+
+  try {
+    const identity = parseMediaKey(normalized);
+    if ((identity.mediaType === 'season' || identity.mediaType === 'episode') && identity.parentProvider && identity.parentProviderId) {
+      // Metadata refresh tracks series-level state, so refreshing every episode just repeats the same show work.
+      return `${parentMediaTypeForIdentity(identity)}:${identity.parentProvider}:${identity.parentProviderId}`;
+    }
+  } catch {
+    return normalized;
+  }
+
+  return normalized;
 }
 
 function compareOccurredAt(left: ImportedWatchEventDraft, right: ImportedWatchEventDraft): number {
