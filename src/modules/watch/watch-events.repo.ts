@@ -6,10 +6,10 @@ import type { MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
 import type { WatchEventInput } from './watch.types.js';
 import {
-  WATCH_PROJECTION_COLUMN_LIST,
-  watchProjectionParams,
-  watchProjectionPlaceholders,
-  watchProjectionSelectList,
+  WATCH_EVENT_PROJECTION_COLUMN_LIST,
+  watchEventProjectionParams,
+  watchEventProjectionPlaceholders,
+  watchEventProjectionSelectList,
 } from './watch-projection.persistence.js';
 
 export type PersistedWatchEvent = {
@@ -100,7 +100,7 @@ export class WatchEventsRepository {
            season_number,
            episode_number,
            absolute_episode_number,
-           ${WATCH_PROJECTION_COLUMN_LIST},
+           ${WATCH_EVENT_PROJECTION_COLUMN_LIST},
            title,
            subtitle,
            poster_url,
@@ -128,16 +128,16 @@ export class WatchEventsRepository {
            $13,
            $14,
            $15,
-           ${watchProjectionPlaceholders(16)},
-           $51,
-           $52,
-           $53,
-           $54,
-           $55,
-           $56,
-           $57,
-           $58::timestamptz,
-           $59::jsonb
+            ${watchEventProjectionPlaceholders(16)},
+            $47,
+            $48,
+            $49,
+            $50,
+            $51,
+            $52,
+            $53,
+            $54::timestamptz,
+            $55::jsonb
          )
         ON CONFLICT (profile_id, client_event_id)
         DO UPDATE SET occurred_at = EXCLUDED.occurred_at
@@ -159,7 +159,7 @@ export class WatchEventsRepository {
         params.identity.seasonNumber,
         params.identity.episodeNumber,
         params.identity.absoluteEpisodeNumber ?? null,
-        ...watchProjectionParams(params.projection),
+        ...watchEventProjectionParams(params.projection),
         params.projection?.title ?? null,
         params.projection?.subtitle ?? null,
         params.projection?.posterUrl ?? null,
@@ -189,7 +189,7 @@ export class WatchEventsRepository {
         SELECT id, profile_id, profile_group_id, event_type, media_key, media_type,
                provider, provider_id, parent_provider, parent_provider_id,
                tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number,
-               ${watchProjectionSelectList()},
+                ${watchEventProjectionSelectList()},
                title, subtitle, poster_url, backdrop_url,
                position_seconds, duration_seconds, rating, occurred_at, payload
         FROM watch_events

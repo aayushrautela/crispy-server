@@ -42,3 +42,121 @@ test('listForProfile normalizes Date occurredAt values from DB rows', async () =
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.occurredAt, '2024-01-02T03:04:05.000Z');
 });
+
+test('insert uses the watch_events projection contract without details_title columns', async () => {
+  const repo = new WatchEventsRepository();
+  let capturedQuery = '';
+  let capturedValues: unknown[] = [];
+  const client = {
+    query: async (query: string, values: unknown[] = []) => {
+      capturedQuery = query;
+      capturedValues = values;
+      return {
+        rows: [{
+          id: 'event-1',
+          profile_id: 'profile-1',
+          profile_group_id: 'group-1',
+          event_type: 'mark_watched',
+          media_key: 'movie:tmdb:1',
+          occurred_at: '2024-01-02T03:04:05.000Z',
+        }],
+      };
+    },
+  } as never;
+
+  await repo.insert(client, {
+    profileGroupId: 'group-1',
+    profileId: 'profile-1',
+    input: {
+      clientEventId: 'client-1',
+      eventType: 'mark_watched',
+      mediaKey: 'movie:tmdb:1',
+      mediaType: 'movie',
+      occurredAt: '2024-01-02T03:04:05.000Z',
+      payload: {},
+    } as never,
+    identity: {
+      contentId: null,
+      mediaKey: 'movie:tmdb:1',
+      mediaType: 'movie',
+      provider: 'tmdb',
+      providerId: '1',
+      parentContentId: null,
+      parentProvider: null,
+      parentProviderId: null,
+      tmdbId: 1,
+      showTmdbId: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      absoluteEpisodeNumber: null,
+      providerMetadata: {},
+    },
+    projection: {
+      detailsTitleId: 'title-1',
+      detailsTitleMediaType: 'movie',
+      detailsTitle: 'Movie',
+      detailsSubtitle: 'Subtitle',
+      detailsSummary: 'Summary',
+      detailsOverview: 'Overview',
+      detailsPosterUrl: 'poster',
+      detailsBackdropUrl: 'backdrop',
+      detailsStillUrl: 'still',
+      detailsReleaseDate: '2024-01-01',
+      detailsReleaseYear: 2024,
+      detailsRuntimeMinutes: 120,
+      detailsRating: 8.4,
+      detailsStatus: 'released',
+      detailsProvider: 'tmdb',
+      detailsProviderId: '1',
+      detailsParentProvider: null,
+      detailsParentProviderId: null,
+      detailsTmdbId: 1,
+      detailsShowTmdbId: null,
+      highlightEpisodeId: null,
+      playbackContentId: null,
+      playbackMediaType: 'movie',
+      playbackProvider: 'tmdb',
+      playbackProviderId: '1',
+      playbackParentProvider: null,
+      playbackParentProviderId: null,
+      playbackSeasonNumber: null,
+      playbackEpisodeNumber: null,
+      playbackAbsoluteEpisodeNumber: null,
+      episodeTitle: null,
+      episodeAirDate: null,
+      episodeRuntimeMinutes: null,
+      episodeStillUrl: null,
+      episodeOverview: null,
+      title: 'Movie',
+      subtitle: null,
+      posterUrl: null,
+      backdropUrl: null,
+    },
+  });
+
+  assert.doesNotMatch(capturedQuery, /details_title\b/);
+  assert.doesNotMatch(capturedQuery, /details_subtitle\b/);
+  assert.doesNotMatch(capturedQuery, /details_poster_url\b/);
+  assert.doesNotMatch(capturedQuery, /details_backdrop_url\b/);
+  assert.match(capturedQuery, /details_summary\b/);
+  assert.equal(capturedValues.length, 56);
+});
+
+test('listForProfile does not select non-existent watch_events details_title columns', async () => {
+  const repo = new WatchEventsRepository();
+  let capturedQuery = '';
+  const client = {
+    query: async (query: string) => {
+      capturedQuery = query;
+      return { rows: [] };
+    },
+  } as never;
+
+  await repo.listForProfile(client, 'profile-1');
+
+  assert.doesNotMatch(capturedQuery, /details_title\b/);
+  assert.doesNotMatch(capturedQuery, /details_subtitle\b/);
+  assert.doesNotMatch(capturedQuery, /details_poster_url\b/);
+  assert.doesNotMatch(capturedQuery, /details_backdrop_url\b/);
+  assert.match(capturedQuery, /details_summary\b/);
+});
