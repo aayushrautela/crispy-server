@@ -115,16 +115,16 @@ export class WatchEventsRepository {
            $14,
            $15,
             ${watchEventProjectionPlaceholders(16)},
-            $47,
-            $48,
-            $49,
-            $50,
-            $51,
-            $52,
-            $53,
-            $54,
-            $55::timestamptz,
-            $56::jsonb
+            $33,
+            $34,
+            $35,
+            $36,
+            $37,
+            $38,
+            $39,
+            $40,
+            $41::timestamptz,
+            $42::jsonb
           )
         ON CONFLICT (profile_id, client_event_id)
         DO UPDATE SET occurred_at = EXCLUDED.occurred_at

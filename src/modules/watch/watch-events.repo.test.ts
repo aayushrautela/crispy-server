@@ -121,7 +121,7 @@ test('insert uses the watch_events projection contract without details_title col
   assert.doesNotMatch(capturedQuery, /details_poster_url\b/);
   assert.doesNotMatch(capturedQuery, /details_backdrop_url\b/);
   assert.doesNotMatch(capturedQuery, /details_summary\b/);
-  assert.match(capturedQuery, /\$56::jsonb/);
+  assert.match(capturedQuery, /\$42::jsonb/);
   assert.equal(capturedValues.length, 42);
 });
 
