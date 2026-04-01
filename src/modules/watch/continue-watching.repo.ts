@@ -2,11 +2,11 @@ import type { DbClient } from '../../lib/db.js';
 import { canonicalContinueWatchingMediaKey, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from './watch.types.js';
 import {
-  WATCH_PROJECTION_COLUMN_LIST,
-  watchProjectionParams,
-  watchProjectionPlaceholders,
-  watchProjectionSelectList,
-  watchProjectionUpdateAssignments,
+  CONTINUE_WATCHING_PROJECTION_COLUMN_LIST,
+  continueWatchingProjectionParams,
+  continueWatchingProjectionPlaceholders,
+  continueWatchingProjectionSelectList,
+  continueWatchingProjectionUpdateAssignments,
 } from './watch-projection.persistence.js';
 
 export class ContinueWatchingRepository {
@@ -30,13 +30,13 @@ export class ContinueWatchingRepository {
       `
         INSERT INTO continue_watching_projection (
           profile_id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
-          ${WATCH_PROJECTION_COLUMN_LIST},
+          ${CONTINUE_WATCHING_PROJECTION_COLUMN_LIST},
           title, subtitle, poster_url, backdrop_url, position_seconds, duration_seconds,
           progress_percent, last_activity_at, dismissed_at, payload, updated_at
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7, $8,
-          ${watchProjectionPlaceholders(9)},
+          ${continueWatchingProjectionPlaceholders(9)},
           $44, $45, $46, $47, $48, $49,
           $50, $51::timestamptz, $52::timestamptz, $53::jsonb, now()
         )
@@ -48,7 +48,7 @@ export class ContinueWatchingRepository {
           show_tmdb_id = EXCLUDED.show_tmdb_id,
           season_number = EXCLUDED.season_number,
           episode_number = EXCLUDED.episode_number,
-          ${watchProjectionUpdateAssignments()},
+          ${continueWatchingProjectionUpdateAssignments()},
           title = COALESCE(EXCLUDED.title, continue_watching_projection.title),
           subtitle = COALESCE(EXCLUDED.subtitle, continue_watching_projection.subtitle),
           poster_url = COALESCE(EXCLUDED.poster_url, continue_watching_projection.poster_url),
@@ -70,7 +70,7 @@ export class ContinueWatchingRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
-        ...watchProjectionParams(params.projection),
+        ...continueWatchingProjectionParams(params.projection),
         params.projection?.title ?? null,
         params.projection?.subtitle ?? null,
         params.projection?.posterUrl ?? null,
@@ -126,20 +126,34 @@ export class ContinueWatchingRepository {
   }
 
   async list(client: DbClient, profileId: string, limit: number): Promise<Record<string, unknown>[]> {
+    const page = await this.listPage(client, profileId, limit, null);
+    return page.rows;
+  }
+
+  async listPage(client: DbClient, profileId: string, limit: number, cursor: { sortValue: string; tieBreaker: string } | null): Promise<{
+    rows: Record<string, unknown>[];
+    hasMore: boolean;
+  }> {
     const result = await client.query(
       `
         SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
-               ${watchProjectionSelectList()},
+               ${continueWatchingProjectionSelectList()},
                title, subtitle, poster_url, backdrop_url, position_seconds, duration_seconds,
                progress_percent, last_activity_at, payload
         FROM continue_watching_projection
         WHERE profile_id = $1::uuid AND dismissed_at IS NULL
-        ORDER BY last_activity_at DESC
-        LIMIT $2
+          AND (
+            $2::timestamptz IS NULL
+            OR last_activity_at < $2::timestamptz
+            OR (last_activity_at = $2::timestamptz AND id::text < $3)
+          )
+        ORDER BY last_activity_at DESC, id DESC
+        LIMIT $4
       `,
-      [profileId, limit],
+      [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit + 1],
     );
-    return result.rows;
+    const rows = result.rows.slice(0, limit);
+    return { rows, hasMore: result.rows.length > limit };
   }
 
   async getByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<Record<string, unknown> | null> {
@@ -148,7 +162,7 @@ export class ContinueWatchingRepository {
     const result = await client.query(
       `
         SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
-               ${watchProjectionSelectList()},
+               ${continueWatchingProjectionSelectList()},
                position_seconds, duration_seconds, progress_percent, last_activity_at, payload
         FROM continue_watching_projection
         WHERE profile_id = $1::uuid AND canonical_media_key = $2 AND dismissed_at IS NULL
@@ -162,7 +176,7 @@ export class ContinueWatchingRepository {
     const result = await client.query(
       `
         SELECT id, canonical_media_key, media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number,
-               ${watchProjectionSelectList()},
+               ${continueWatchingProjectionSelectList()},
                position_seconds, duration_seconds, progress_percent, last_activity_at, payload
         FROM continue_watching_projection
         WHERE id = $1::uuid AND profile_id = $2::uuid AND dismissed_at IS NULL

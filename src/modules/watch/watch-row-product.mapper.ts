@@ -14,7 +14,7 @@ import type {
   RawWatchlistRow,
 } from './watch-query.service.js';
 
-type StoredWatchRow = RawContinueWatchingRow | RawWatchHistoryRow | RawWatchlistRow | RawRatingRow;
+type ContinueWatchingStoredRow = RawContinueWatchingRow;
 
 export function mapContinueWatchingRowToProduct(row: RawContinueWatchingRow): ContinueWatchingProductItem | null {
   const media = mapLandscapeMedia(row);
@@ -38,7 +38,7 @@ export function mapContinueWatchingRowToProduct(row: RawContinueWatchingRow): Co
 }
 
 export function mapWatchedRowToProduct(row: RawWatchHistoryRow): WatchedProductItem | null {
-  const media = mapRegularMedia(row);
+  const media = mapRegularStateToProductMedia(row.media);
   if (!media) {
     return null;
   }
@@ -51,7 +51,7 @@ export function mapWatchedRowToProduct(row: RawWatchHistoryRow): WatchedProductI
 }
 
 export function mapWatchlistRowToProduct(row: RawWatchlistRow): WatchlistProductItem | null {
-  const media = mapRegularMedia(row);
+  const media = mapRegularStateToProductMedia(row.media);
   if (!media) {
     return null;
   }
@@ -64,7 +64,7 @@ export function mapWatchlistRowToProduct(row: RawWatchlistRow): WatchlistProduct
 }
 
 export function mapRatingRowToProduct(row: RawRatingRow): RatingProductItem | null {
-  const media = mapRegularMedia(row);
+  const media = mapRegularStateToProductMedia(row.media);
   if (!media) {
     return null;
   }
@@ -79,30 +79,12 @@ export function mapRatingRowToProduct(row: RawRatingRow): RatingProductItem | nu
   };
 }
 
-function mapRegularMedia(row: StoredWatchRow): RegularCardView | null {
-  if (!row.title || !row.posterUrl) {
+export function mapRegularStateToProductMedia(media: RegularCardView | null | undefined): RegularCardView | null {
+  if (!media?.title || !media.posterUrl) {
     return null;
   }
 
-  const parsed = parseMediaKey(row.mediaKey);
-  const provider = resolveTitleProvider(row, parsed);
-  const providerId = resolveTitleProviderId(row, parsed);
-  const titleMediaType = resolveTitleMediaType(row, parsed);
-  if (!provider || !providerId || !titleMediaType) {
-    return null;
-  }
-
-  return {
-    mediaType: titleMediaType,
-    provider,
-    providerId,
-    title: row.title,
-    posterUrl: row.posterUrl,
-    releaseYear: row.detailsReleaseYear,
-    rating: row.detailsRating,
-    genre: null,
-    subtitle: row.subtitle,
-  };
+  return media;
 }
 
 function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | null {
@@ -134,7 +116,7 @@ function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | nul
   };
 }
 
-function resolveTitleProvider(row: StoredWatchRow, parsed: ReturnType<typeof parseMediaKey>): SupportedProvider | null {
+function resolveTitleProvider(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): SupportedProvider | null {
   if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
     return parsed.provider ?? null;
   }
@@ -142,7 +124,7 @@ function resolveTitleProvider(row: StoredWatchRow, parsed: ReturnType<typeof par
   return asSupportedProvider(parsed.parentProvider ?? null) ?? asSupportedProvider(row.playbackParentProvider);
 }
 
-function resolveTitleProviderId(row: StoredWatchRow, parsed: ReturnType<typeof parseMediaKey>): string | null {
+function resolveTitleProviderId(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): string | null {
   if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
     return parsed.providerId ?? null;
   }
@@ -150,7 +132,7 @@ function resolveTitleProviderId(row: StoredWatchRow, parsed: ReturnType<typeof p
   return parsed.parentProviderId ?? row.playbackParentProviderId;
 }
 
-function resolveTitleMediaType(row: StoredWatchRow, parsed: ReturnType<typeof parseMediaKey>): MetadataTitleMediaType | null {
+function resolveTitleMediaType(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): MetadataTitleMediaType | null {
   if (row.detailsTitleMediaType === 'movie' || row.detailsTitleMediaType === 'show' || row.detailsTitleMediaType === 'anime') {
     return row.detailsTitleMediaType;
   }

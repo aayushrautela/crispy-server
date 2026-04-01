@@ -72,12 +72,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const generatedAt = nowIso();
+    const page = await continueWatchingService.listPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'continue-watching' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await continueWatchingService.listProducts(actor.appUserId, profileId, limit),
+      items: page.items,
+      pageInfo: page.pageInfo,
     };
   });
 
@@ -96,12 +98,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
+    const page = await watchedService.listPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'watched' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await watchedService.listProducts(actor.appUserId, profileId, limit),
+      items: page.items,
+      pageInfo: page.pageInfo,
     };
   });
 
@@ -112,12 +116,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
+    const page = await watchCollectionService.listWatchlistPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'watchlist' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await watchCollectionService.listWatchlistProducts(actor.appUserId, profileId, limit),
+      items: page.items,
+      pageInfo: page.pageInfo,
     };
   });
 
@@ -128,12 +134,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
+    const page = await watchCollectionService.listRatingsPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'ratings' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: await watchCollectionService.listRatingsProducts(actor.appUserId, profileId, limit),
+      items: page.items,
+      pageInfo: page.pageInfo,
     };
   });
 

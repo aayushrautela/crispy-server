@@ -20,7 +20,6 @@ type FoldedProgress = {
   status: string;
   dismissedAt?: string | null;
   payload?: Record<string, unknown>;
-  projection?: WatchMediaProjection;
 };
 
 type FoldedContinueWatching = {
@@ -30,7 +29,7 @@ type FoldedContinueWatching = {
   occurredAt: string;
   dismissedAt?: string | null;
   payload?: Record<string, unknown>;
-  projection?: WatchMediaProjection;
+  projection: RebuildableContinueWatchingProjection;
 };
 
 type FoldedWatchHistory = {
@@ -38,7 +37,6 @@ type FoldedWatchHistory = {
   watchedAt: string;
   sourceEventId: string;
   payload?: Record<string, unknown>;
-  projection?: WatchMediaProjection;
 };
 
 type FoldedWatchlist = {
@@ -46,7 +44,6 @@ type FoldedWatchlist = {
   addedAt: string;
   sourceEventId: string;
   payload?: Record<string, unknown>;
-  projection?: WatchMediaProjection;
 };
 
 type FoldedRating = {
@@ -55,8 +52,9 @@ type FoldedRating = {
   sourceEventId: string;
   rating: number;
   payload?: Record<string, unknown>;
-  projection?: WatchMediaProjection;
 };
+
+type RebuildableContinueWatchingProjection = WatchMediaProjection;
 
 type FoldedTrackedSeries = {
   trackedMediaKey: string;
@@ -115,7 +113,6 @@ export class ProjectionRebuildService {
         status: row.status,
         dismissedAt: row.dismissedAt,
         payload: row.payload,
-        projection: row.projection,
       });
     }
 
@@ -126,7 +123,6 @@ export class ProjectionRebuildService {
         watchedAt: row.watchedAt,
         sourceEventId: row.sourceEventId,
         payload: row.payload,
-        projection: row.projection,
       });
     }
 
@@ -137,7 +133,6 @@ export class ProjectionRebuildService {
         addedAt: row.addedAt,
         sourceEventId: row.sourceEventId,
         payload: row.payload,
-        projection: row.projection,
       });
     }
 
@@ -149,7 +144,6 @@ export class ProjectionRebuildService {
         sourceEventId: row.sourceEventId,
         rating: row.rating,
         payload: row.payload,
-        projection: row.projection,
       });
     }
 
@@ -195,7 +189,7 @@ export class ProjectionRebuildService {
 
   private async clearExistingProjections(client: DbClient, profileId: string): Promise<void> {
     await client.query(`DELETE FROM continue_watching_projection WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM watch_history WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM watch_history_latest WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM watchlist_items WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM ratings WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM media_progress WHERE profile_id = $1::uuid`, [profileId]);
@@ -244,7 +238,6 @@ function foldEvents(events: RebuildableWatchEvent[]): {
           watchedAt: event.occurredAt,
           sourceEventId: event.id,
           payload: event.payload,
-          projection: projectionFromEvent(event),
         });
         continueWatching.delete(continueWatchingKey);
         mediaProgress.set(identity.mediaKey, {
@@ -281,7 +274,6 @@ function foldEvents(events: RebuildableWatchEvent[]): {
             sourceEventId: event.id,
             rating: event.rating,
             payload: event.payload,
-            projection: projectionFromEvent(event),
           });
         }
         break;
@@ -346,7 +338,6 @@ function foldPlaybackLikeEvent(params: {
     status,
     dismissedAt: null,
     payload: event.payload,
-    projection: projectionFromEvent(event),
   });
 
   if (status === 'completed') {
@@ -355,7 +346,6 @@ function foldPlaybackLikeEvent(params: {
       watchedAt: event.occurredAt,
       sourceEventId: event.id,
       payload: event.payload,
-      projection: projectionFromEvent(event),
     });
     continueWatching.delete(continueWatchingKey);
     return;
@@ -372,11 +362,11 @@ function foldPlaybackLikeEvent(params: {
     occurredAt: event.occurredAt,
     dismissedAt: null,
     payload: event.payload,
-    projection: projectionFromEvent(event),
+    projection: continueWatchingProjectionFromEvent(event),
   });
 }
 
-function projectionFromEvent(event: RebuildableWatchEvent): WatchMediaProjection {
+function continueWatchingProjectionFromEvent(event: RebuildableWatchEvent): RebuildableContinueWatchingProjection {
   return {
     detailsTitleMediaType: event.detailsTitleMediaType,
     playbackMediaType: event.playbackMediaType,

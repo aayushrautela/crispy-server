@@ -137,13 +137,14 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
 
   const originals = {
     listProducts: ContinueWatchingService.prototype.listProducts,
+    listPage: ContinueWatchingService.prototype.listPage,
     dismissContinueWatching: WatchEventIngestService.prototype.dismissContinueWatching,
     getState: WatchStateService.prototype.getState,
     getStates: WatchStateService.prototype.getStates,
   };
 
   t.after(() => {
-    Object.assign(ContinueWatchingService.prototype, { listProducts: originals.listProducts });
+    Object.assign(ContinueWatchingService.prototype, { listProducts: originals.listProducts, listPage: originals.listPage });
     Object.assign(WatchEventIngestService.prototype, { dismissContinueWatching: originals.dismissContinueWatching });
     Object.assign(WatchStateService.prototype, { getState: originals.getState, getStates: originals.getStates });
   });
@@ -174,6 +175,15 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
       dismissible: true,
     }] as never;
   };
+  ContinueWatchingService.prototype.listPage = async function (_userId, _profileId, _params) {
+    return {
+      items: await this.listProducts('user-1', 'profile-1', 20),
+      pageInfo: {
+        nextCursor: null,
+        hasMore: false,
+      },
+    } as never;
+  };
   WatchEventIngestService.prototype.dismissContinueWatching = async function (userId, profileId, id) {
     return { dismissed: true, userId, profileId, id } as never;
   };
@@ -198,6 +208,8 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.equal(typeof listResponse.json().generatedAt, 'string');
   assert.equal(listResponse.json().items[0].id, 'cw-1');
   assert.equal(listResponse.json().items[0].media.providerId, '331');
+  assert.equal(listResponse.json().pageInfo.nextCursor, null);
+  assert.equal(listResponse.json().pageInfo.hasMore, false);
 
   const stateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:1', headers: auth });
   assert.equal(stateResponse.statusCode, 200);

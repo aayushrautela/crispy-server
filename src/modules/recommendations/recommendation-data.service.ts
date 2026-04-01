@@ -6,6 +6,7 @@ import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
 import { WatchExportService, type TrackedSeriesExport } from '../watch/watch-export.service.js';
+import { WatchMediaCardCacheService } from '../watch/watch-media-card-cache.service.js';
 
 export type RecommendationDataListKind = 'watch-history' | 'continue-watching' | 'watchlist' | 'ratings' | 'tracked-series';
 
@@ -26,6 +27,7 @@ export class RecommendationDataService {
     private readonly profileRepository = new ProfileRepository(),
     private readonly metadataCardService = new MetadataCardService(),
     private readonly watchExportService = new WatchExportService(),
+    private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
   ) {}
 
   async listAccountProfiles(accountId: string): Promise<ProfileSummary[]> {
@@ -46,11 +48,18 @@ export class RecommendationDataService {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchExportService.listWatchHistory(client, profileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        media: await this.buildMedia(client, row),
-        watchedAt: requireDbIsoString(row.watchedAt, 'watch_history.watched_at'),
-        payload: row.payload,
-      })));
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
+      return rows.flatMap((row) => {
+        const media = mediaMap.get(row.mediaKey);
+        if (!media) {
+          return [];
+        }
+        return [{
+          media,
+          watchedAt: requireDbIsoString(row.watchedAt, 'watch_history_latest.watched_at'),
+          payload: row.payload,
+        }];
+      });
     });
   }
 
@@ -58,11 +67,18 @@ export class RecommendationDataService {
     return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.watchExportService.listWatchHistory(client, targetProfileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        media: await this.buildMedia(client, row),
-        watchedAt: requireDbIsoString(row.watchedAt, 'watch_history.watched_at'),
-        payload: row.payload,
-      })));
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
+      return rows.flatMap((row) => {
+        const media = mediaMap.get(row.mediaKey);
+        if (!media) {
+          return [];
+        }
+        return [{
+          media,
+          watchedAt: requireDbIsoString(row.watchedAt, 'watch_history_latest.watched_at'),
+          payload: row.payload,
+        }];
+      });
     });
   }
 
@@ -108,11 +124,18 @@ export class RecommendationDataService {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchExportService.listWatchlist(client, profileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        media: await this.buildMedia(client, row),
-        addedAt: row.addedAt,
-        payload: row.payload,
-      })));
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
+      return rows.flatMap((row) => {
+        const media = mediaMap.get(row.mediaKey);
+        if (!media) {
+          return [];
+        }
+        return [{
+          media,
+          addedAt: row.addedAt,
+          payload: row.payload,
+        }];
+      });
     });
   }
 
@@ -120,11 +143,18 @@ export class RecommendationDataService {
     return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.watchExportService.listWatchlist(client, targetProfileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        media: await this.buildMedia(client, row),
-        addedAt: row.addedAt,
-        payload: row.payload,
-      })));
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
+      return rows.flatMap((row) => {
+        const media = mediaMap.get(row.mediaKey);
+        if (!media) {
+          return [];
+        }
+        return [{
+          media,
+          addedAt: row.addedAt,
+          payload: row.payload,
+        }];
+      });
     });
   }
 
@@ -132,14 +162,21 @@ export class RecommendationDataService {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
       const rows = await this.watchExportService.listRatings(client, profileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        media: await this.buildMedia(client, row),
-        rating: {
-          value: row.rating,
-          ratedAt: row.ratedAt,
-        },
-        payload: row.payload,
-      })));
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
+      return rows.flatMap((row) => {
+        const media = mediaMap.get(row.mediaKey);
+        if (!media) {
+          return [];
+        }
+        return [{
+          media,
+          rating: {
+            value: row.rating,
+            ratedAt: row.ratedAt,
+          },
+          payload: row.payload,
+        }];
+      });
     });
   }
 
@@ -147,14 +184,21 @@ export class RecommendationDataService {
     return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
       const rows = await this.watchExportService.listRatings(client, targetProfileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        media: await this.buildMedia(client, row),
-        rating: {
-          value: row.rating,
-          ratedAt: row.ratedAt,
-        },
-        payload: row.payload,
-      })));
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
+      return rows.flatMap((row) => {
+        const media = mediaMap.get(row.mediaKey);
+        if (!media) {
+          return [];
+        }
+        return [{
+          media,
+          rating: {
+            value: row.rating,
+            ratedAt: row.ratedAt,
+          },
+          payload: row.payload,
+        }];
+      });
     });
   }
 
@@ -199,10 +243,6 @@ export class RecommendationDataService {
         payload: row.payload,
       };
     }));
-  }
-
-  private async buildMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedMedia> {
-    return toRegularCard(await this.metadataCardService.buildCardViewFromRow(client, row));
   }
 
   private async buildLandscapeMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedLandscapeMedia> {

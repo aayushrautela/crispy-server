@@ -19,12 +19,23 @@ export type {
 
 export type CanonicalWatchCollectionKind = 'continue-watching' | 'watched' | 'watchlist' | 'ratings';
 
+export type WatchCollectionPageInfo = {
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
 export type CanonicalWatchCollectionResponse<TItem> = {
   profileId: string;
   kind: CanonicalWatchCollectionKind;
   source: 'canonical_watch';
   generatedAt: string;
   items: TItem[];
+  pageInfo: WatchCollectionPageInfo;
+};
+
+export type PaginatedWatchCollection<TItem> = {
+  items: TItem[];
+  pageInfo: WatchCollectionPageInfo;
 };
 
 export type WatchStateEnvelope = {

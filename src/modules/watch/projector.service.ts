@@ -8,6 +8,7 @@ import { MediaProgressRepository } from './media-progress.repo.js';
 import { RatingsRepository } from './ratings.repo.js';
 import { TrackedSeriesRepository } from './tracked-series.repo.js';
 import { WatchHistoryRepository } from './watch-history.repo.js';
+import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchlistRepository } from './watchlist.repo.js';
 import type { WatchMediaProjection } from './watch.types.js';
 
@@ -26,10 +27,13 @@ export class WatchProjectorService {
     private readonly ratingsRepository = new RatingsRepository(),
     private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
     private readonly metadataProjectionService = new MetadataProjectionService(),
+    private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
   ) {}
 
   async buildProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
-    return this.metadataProjectionService.buildWatchProjection(client, identity);
+    const projection = await this.metadataProjectionService.buildWatchProjection(client, identity);
+    await this.watchMediaCardCacheService.upsertFromProjection(client, identity, projection);
+    return projection;
   }
 
   async applyPlaybackEvent(client: DbClient, params: {
@@ -41,7 +45,7 @@ export class WatchProjectorService {
     positionSeconds?: number | null;
     durationSeconds?: number | null;
     payload?: Record<string, unknown>;
-    projection?: WatchMediaProjection;
+    continueWatchingProjection?: WatchMediaProjection;
   }): Promise<void> {
     await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload);
 
@@ -57,13 +61,12 @@ export class WatchProjectorService {
       profileId: params.profileId,
       identity: params.identity,
       eventId: params.eventId,
-      positionSeconds: params.positionSeconds,
-      durationSeconds: params.durationSeconds,
-        occurredAt: params.occurredAt,
-        status,
-        payload: params.payload,
-        projection: params.projection,
-      });
+        positionSeconds: params.positionSeconds,
+        durationSeconds: params.durationSeconds,
+         occurredAt: params.occurredAt,
+         status,
+         payload: params.payload,
+       });
 
     if (status === 'completed') {
       await this.watchHistoryRepository.upsertWatched(client, {
@@ -72,7 +75,6 @@ export class WatchProjectorService {
         watchedAt: params.occurredAt,
         sourceEventId: params.eventId,
         payload: params.payload,
-        projection: params.projection,
       });
       await this.continueWatchingRepository.delete(client, params.profileId, params.identity.mediaKey);
       return;
@@ -89,7 +91,7 @@ export class WatchProjectorService {
       durationSeconds: params.durationSeconds,
       occurredAt: params.occurredAt,
       payload: params.payload,
-      projection: params.projection,
+      projection: params.continueWatchingProjection,
     });
   }
 
@@ -99,7 +101,7 @@ export class WatchProjectorService {
     eventId: string;
     occurredAt: string;
     payload?: Record<string, unknown>;
-    projection?: WatchMediaProjection;
+    continueWatchingProjection?: WatchMediaProjection;
   }): Promise<void> {
     await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload);
     await this.watchHistoryRepository.upsertWatched(client, {
@@ -108,7 +110,6 @@ export class WatchProjectorService {
       watchedAt: params.occurredAt,
       sourceEventId: params.eventId,
       payload: params.payload,
-      projection: params.projection,
     });
     await this.continueWatchingRepository.delete(client, params.profileId, params.identity.mediaKey);
     await this.mediaProgressRepository.upsert(client, {
@@ -118,7 +119,6 @@ export class WatchProjectorService {
       occurredAt: params.occurredAt,
       status: 'completed',
       payload: params.payload,
-      projection: params.projection,
     });
   }
 
@@ -132,7 +132,6 @@ export class WatchProjectorService {
     eventId: string;
     occurredAt: string;
     payload?: Record<string, unknown>;
-    projection?: WatchMediaProjection;
   }): Promise<void> {
     await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload, 'watchlist');
     await this.watchlistRepository.put(client, {
@@ -141,7 +140,6 @@ export class WatchProjectorService {
       sourceEventId: params.eventId,
       addedAt: params.occurredAt,
       payload: params.payload,
-      projection: params.projection,
     });
   }
 
@@ -156,7 +154,6 @@ export class WatchProjectorService {
     occurredAt: string;
     rating: number;
     payload?: Record<string, unknown>;
-    projection?: WatchMediaProjection;
   }): Promise<void> {
     await this.refreshMetadataReferences(client, params.profileId, params.identity, params.eventId, params.occurredAt, params.payload, 'rating');
     await this.ratingsRepository.put(client, {
@@ -166,7 +163,6 @@ export class WatchProjectorService {
       ratedAt: params.occurredAt,
       rating: params.rating,
       payload: params.payload,
-      projection: params.projection,
     });
   }
 

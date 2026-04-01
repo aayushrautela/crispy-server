@@ -2,13 +2,6 @@ import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
 import type { MediaIdentity } from '../identity/media-key.js';
-import type { WatchMediaProjection } from './watch.types.js';
-import {
-  WATCH_PROJECTION_COLUMN_LIST,
-  watchProjectionParams,
-  watchProjectionPlaceholders,
-  watchProjectionUpdateAssignments,
-} from './watch-projection.persistence.js';
 
 export class MediaProgressRepository {
   async upsert(client: DbClient, params: {
@@ -21,7 +14,6 @@ export class MediaProgressRepository {
     status: string;
     dismissedAt?: string | null;
     payload?: Record<string, unknown>;
-    projection?: WatchMediaProjection;
   }): Promise<void> {
     const progressPercent =
       params.positionSeconds && params.durationSeconds && params.durationSeconds > 0
@@ -38,11 +30,6 @@ export class MediaProgressRepository {
           show_tmdb_id,
           season_number,
           episode_number,
-          ${WATCH_PROJECTION_COLUMN_LIST},
-          title,
-          subtitle,
-          poster_url,
-          backdrop_url,
           position_seconds,
           duration_seconds,
           progress_percent,
@@ -56,21 +43,14 @@ export class MediaProgressRepository {
         )
         VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7,
-          ${watchProjectionPlaceholders(8)},
-          $43, $44, $45, $46,
-          $47, $48, $49, $50, $51::uuid, $52::timestamptz,
-          CASE WHEN $50 = 'completed' THEN $52::timestamptz ELSE NULL END,
-          $53::timestamptz,
-          $54::jsonb,
+          $8, $9, $10, $11, $12::uuid, $13::timestamptz,
+          CASE WHEN $11 = 'completed' THEN $13::timestamptz ELSE NULL END,
+          $14::timestamptz,
+          $15::jsonb,
           now()
         )
         ON CONFLICT (profile_id, media_key)
         DO UPDATE SET
-          ${watchProjectionUpdateAssignments()},
-          title = COALESCE(media_progress.title, EXCLUDED.title),
-          subtitle = COALESCE(media_progress.subtitle, EXCLUDED.subtitle),
-          poster_url = COALESCE(media_progress.poster_url, EXCLUDED.poster_url),
-          backdrop_url = COALESCE(media_progress.backdrop_url, EXCLUDED.backdrop_url),
           position_seconds = EXCLUDED.position_seconds,
           duration_seconds = EXCLUDED.duration_seconds,
           progress_percent = EXCLUDED.progress_percent,
@@ -90,11 +70,6 @@ export class MediaProgressRepository {
         params.identity.showTmdbId,
         params.identity.seasonNumber,
         params.identity.episodeNumber,
-        ...watchProjectionParams(params.projection),
-        params.projection?.title ?? null,
-        params.projection?.subtitle ?? null,
-        params.projection?.posterUrl ?? null,
-        params.projection?.backdropUrl ?? null,
         params.positionSeconds ?? 0,
         params.durationSeconds ?? null,
         progressPercent,

@@ -46,7 +46,7 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
         provider: 'tmdb',
         providerId: '42',
         showTmdbId: 42,
-        reason: 'watch_history',
+        reason: 'watch_history_latest',
         lastSourceEventId: 'event-1',
         lastInteractedAt: new Date().toISOString(),
         nextEpisodeAirDate: null,

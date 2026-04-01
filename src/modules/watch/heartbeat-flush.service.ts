@@ -99,7 +99,7 @@ export class HeartbeatFlushService {
           ...snapshot.payload,
           ingest_mode: 'buffered_flush',
         },
-        projection,
+        continueWatchingProjection: projection,
       });
 
       return { action: 'persisted' as const, reason: decision.reason };

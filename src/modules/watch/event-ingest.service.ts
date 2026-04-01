@@ -191,7 +191,7 @@ export class WatchEventIngestService {
         positionSeconds: input.positionSeconds,
         durationSeconds: input.durationSeconds,
         payload: input.payload,
-        projection,
+        continueWatchingProjection: projection,
       });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
@@ -219,15 +219,15 @@ export class WatchEventIngestService {
     profileId: string,
     eventType: string,
     input: WatchMutationInput,
-    apply: (client: import('../../lib/db.js').DbClient, params: {
-      profileId: string;
-      identity: ReturnType<typeof inferMediaIdentity>;
-      eventId: string;
-      occurredAt: string;
-      rating?: number;
-      payload?: Record<string, unknown>;
-      projection?: WatchMediaProjection;
-    }) => Promise<void>,
+      apply: (client: import('../../lib/db.js').DbClient, params: {
+        profileId: string;
+        identity: ReturnType<typeof inferMediaIdentity>;
+        eventId: string;
+        occurredAt: string;
+        rating?: number;
+        payload?: Record<string, unknown>;
+        continueWatchingProjection?: WatchMediaProjection;
+      }) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
       const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
@@ -268,7 +268,7 @@ export class WatchEventIngestService {
         occurredAt,
         rating: typeof input.rating === 'number' ? input.rating : undefined,
         payload: input.payload,
-        projection,
+        continueWatchingProjection: projection,
       });
     });
   }

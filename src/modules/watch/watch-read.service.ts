@@ -2,33 +2,62 @@ import { withDbClient } from '../../lib/db.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { WatchQueryService } from './watch-query.service.js';
 import type { ContinueWatchingProductItem, WatchedProductItem } from './watch-derived-item.types.js';
+import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { mapContinueWatchingRowToProduct, mapWatchedRowToProduct } from './watch-row-product.mapper.js';
+import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 
 export class WatchReadService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly watchQueryService = new WatchQueryService(),
+    private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
   ) {}
 
   async listContinueWatchingProducts(userId: string, profileId: string, limit: number): Promise<ContinueWatchingProductItem[]> {
+    const page = await this.listContinueWatchingPage(userId, profileId, { limit });
+    return page.items;
+  }
+
+  async listContinueWatchingPage(
+    userId: string,
+    profileId: string,
+    params: { limit: number; cursor?: string | null },
+  ): Promise<PaginatedWatchCollection<ContinueWatchingProductItem>> {
     return withDbClient(async (client) => {
       await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
-      const rows = await this.watchQueryService.listContinueWatching(client, profileId, limit);
-      return rows
-        .map((row) => mapContinueWatchingRowToProduct(row))
-        .filter((item): item is ContinueWatchingProductItem => item !== null);
+      const page = await this.watchQueryService.listContinueWatchingPage(client, profileId, params);
+      return {
+        items: page.items
+          .map((row) => mapContinueWatchingRowToProduct(row))
+          .filter((item): item is ContinueWatchingProductItem => item !== null),
+        pageInfo: page.pageInfo,
+      };
     });
   }
 
   async listWatchedProducts(userId: string, profileId: string, limit: number): Promise<WatchedProductItem[]> {
+    const page = await this.listWatchedPage(userId, profileId, { limit });
+    return page.items;
+  }
+
+  async listWatchedPage(
+    userId: string,
+    profileId: string,
+    params: { limit: number; cursor?: string | null },
+  ): Promise<PaginatedWatchCollection<WatchedProductItem>> {
     return withDbClient(async (client) => {
       await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
-      const rows = await this.watchQueryService.listWatchHistory(client, profileId, limit);
-      return rows
-        .map((row) => mapWatchedRowToProduct(row))
-        .filter((item): item is WatchedProductItem => item !== null);
+      const page = await this.watchQueryService.listWatchHistoryPage(client, profileId, params);
+      const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, page.items.map((row) => row.mediaKey));
+      return {
+        items: page.items
+          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? null }))
+          .map((row) => mapWatchedRowToProduct(row))
+          .filter((item): item is WatchedProductItem => item !== null),
+        pageInfo: page.pageInfo,
+      };
     });
   }
 }

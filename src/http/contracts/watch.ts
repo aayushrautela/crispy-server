@@ -1,4 +1,5 @@
 import {
+  booleanSchema,
   landscapeCardViewSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
@@ -28,6 +29,7 @@ export type WatchMediaKeyParams = {
 
 export type WatchPaginationQuery = {
   limit?: number | string;
+  cursor?: string;
 };
 
 export type WatchStateLookupContract = {
@@ -173,7 +175,7 @@ function buildWatchCollectionResponseSchema(kind: 'continue-watching' | 'watched
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['profileId', 'kind', 'source', 'generatedAt', 'items'],
+    required: ['profileId', 'kind', 'source', 'generatedAt', 'items', 'pageInfo'],
     properties: {
       profileId: stringSchema,
       kind: { const: kind },
@@ -182,6 +184,15 @@ function buildWatchCollectionResponseSchema(kind: 'continue-watching' | 'watched
       items: {
         type: 'array',
         items: itemSchema,
+      },
+      pageInfo: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['nextCursor', 'hasMore'],
+        properties: {
+          nextCursor: nullableStringSchema,
+          hasMore: booleanSchema,
+        },
       },
     },
   } as const;
@@ -240,6 +251,7 @@ export const watchListRouteSchema = withDefaultErrorResponses({
     additionalProperties: false,
     properties: {
       limit: positiveIntegerLikeSchema,
+      cursor: stringSchema,
     },
   },
 });

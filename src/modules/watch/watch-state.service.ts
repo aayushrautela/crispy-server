@@ -63,7 +63,7 @@ export class WatchStateService {
           : null,
         watched: watched
           ? {
-              watchedAt: requireDbIsoString(watched.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
+              watchedAt: requireDbIsoString(watched.watched_at as Date | string | null | undefined, 'watch_history_latest.watched_at'),
             }
           : null,
         watchlist: watchlist

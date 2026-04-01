@@ -73,9 +73,6 @@ function createService(overrides?: {
     {
       insert: async () => ({ id: 'event-1', profileId: 'profile-1', profileGroupId: 'group-1', eventType: 'mark_watched', mediaKey: 'episode:tmdb:100:1:2', occurredAt: '2024-01-01T00:00:00.000Z' }),
     } as never,
-    {
-      buildWatchProjection: async () => projectionStub,
-    } as never,
   );
 }
 

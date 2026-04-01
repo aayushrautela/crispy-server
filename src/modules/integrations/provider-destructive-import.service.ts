@@ -4,7 +4,6 @@ import { requireNormalizedIsoString } from '../../lib/time.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
-import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
 import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
 import { ensureSupportedProvider, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
@@ -87,7 +86,6 @@ export class ProviderDestructiveImportService {
     private readonly projectionRebuildService = new ProjectionRebuildService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
-    private readonly metadataProjectionService = new MetadataProjectionService(),
   ) {}
 
   async replaceProfileWatchData(client: DbClient, params: {
@@ -186,7 +184,7 @@ export class ProviderDestructiveImportService {
 
   private async clearExistingServerState(client: DbClient, profileId: string): Promise<void> {
     await client.query(`DELETE FROM continue_watching_projection WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM watch_history WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM watch_history_latest WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM watchlist_items WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM ratings WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM media_progress WHERE profile_id = $1::uuid`, [profileId]);
@@ -238,7 +236,6 @@ export class ProviderDestructiveImportService {
           },
         },
         identity,
-        projection: await this.metadataProjectionService.buildWatchProjection(client, identity),
       });
 
       if (event.eventType === 'mark_watched' || event.eventType === 'playback_completed') {

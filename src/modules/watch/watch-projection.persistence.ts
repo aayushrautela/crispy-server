@@ -1,6 +1,6 @@
 import type { WatchMediaProjection } from './watch.types.js';
 
-export const WATCH_PROJECTION_COLUMN_NAMES = [
+export const CONTINUE_WATCHING_PROJECTION_COLUMN_NAMES = [
   'details_title_media_type',
   'playback_media_type',
   'playback_provider',
@@ -42,32 +42,23 @@ export const WATCH_EVENT_PROJECTION_COLUMN_NAMES = [
   'episode_still_url',
 ] as const;
 
-export const WATCH_PROJECTION_COLUMN_LIST = WATCH_PROJECTION_COLUMN_NAMES.join(', ');
 export const WATCH_EVENT_PROJECTION_COLUMN_LIST = WATCH_EVENT_PROJECTION_COLUMN_NAMES.join(', ');
+export const CONTINUE_WATCHING_PROJECTION_COLUMN_LIST = CONTINUE_WATCHING_PROJECTION_COLUMN_NAMES.join(', ');
 
-export function watchProjectionPlaceholders(startIndex: number): string {
-  return WATCH_PROJECTION_COLUMN_NAMES.map((_, index) => `$${startIndex + index}`).join(', ');
+export function continueWatchingProjectionPlaceholders(startIndex: number): string {
+  return CONTINUE_WATCHING_PROJECTION_COLUMN_NAMES.map((_, index) => `$${startIndex + index}`).join(', ');
 }
 
-export function watchEventProjectionPlaceholders(startIndex: number): string {
-  return WATCH_EVENT_PROJECTION_COLUMN_NAMES.map((_, index) => `$${startIndex + index}`).join(', ');
+export function continueWatchingProjectionUpdateAssignments(): string {
+  return CONTINUE_WATCHING_PROJECTION_COLUMN_NAMES.map((column) => `${column} = EXCLUDED.${column}`).join(',\n          ');
 }
 
-export function watchProjectionUpdateAssignments(): string {
-  return WATCH_PROJECTION_COLUMN_NAMES.map((column) => `${column} = EXCLUDED.${column}`).join(',\n          ');
-}
-
-export function watchProjectionSelectList(tableAlias?: string): string {
+export function continueWatchingProjectionSelectList(tableAlias?: string): string {
   const prefix = tableAlias ? `${tableAlias}.` : '';
-  return WATCH_PROJECTION_COLUMN_NAMES.map((column) => `${prefix}${column}`).join(', ');
+  return CONTINUE_WATCHING_PROJECTION_COLUMN_NAMES.map((column) => `${prefix}${column}`).join(', ');
 }
 
-export function watchEventProjectionSelectList(tableAlias?: string): string {
-  const prefix = tableAlias ? `${tableAlias}.` : '';
-  return WATCH_EVENT_PROJECTION_COLUMN_NAMES.map((column) => `${prefix}${column}`).join(', ');
-}
-
-export function watchProjectionParams(projection?: WatchMediaProjection): unknown[] {
+export function continueWatchingProjectionParams(projection?: WatchMediaProjection): unknown[] {
   return [
     projection?.detailsTitleMediaType ?? null,
     projection?.playbackMediaType ?? null,
@@ -87,6 +78,15 @@ export function watchProjectionParams(projection?: WatchMediaProjection): unknow
     projection?.episodeRuntimeMinutes ?? null,
     projection?.episodeStillUrl ?? null,
   ];
+}
+
+export function watchEventProjectionPlaceholders(startIndex: number): string {
+  return WATCH_EVENT_PROJECTION_COLUMN_NAMES.map((_, index) => `$${startIndex + index}`).join(', ');
+}
+
+export function watchEventProjectionSelectList(tableAlias?: string): string {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return WATCH_EVENT_PROJECTION_COLUMN_NAMES.map((column) => `${prefix}${column}`).join(', ');
 }
 
 export function watchEventProjectionParams(projection?: WatchMediaProjection): unknown[] {

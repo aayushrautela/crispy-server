@@ -26,7 +26,7 @@ export type TrackedSeriesExport = {
 
 export type WatchCollectionBundle = {
   continueWatching: RawContinueWatchingRow[];
-  watchHistory: RawWatchHistoryRow[];
+  watchHistoryLatest: RawWatchHistoryRow[];
   watchlist: RawWatchlistRow[];
   ratings: RawRatingRow[];
 };
