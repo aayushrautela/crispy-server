@@ -38,6 +38,7 @@ type SearchTitlesInput = {
   limit?: number;
   filter?: MetadataSearchFilter | null;
   genre?: string | null;
+  locale?: string | null;
 };
 
 type GenreMapping = {
@@ -90,6 +91,7 @@ export class MetadataQueryService {
     const normalizedFilter = normalizeSearchFilter(input.filter);
     const genreMapping = resolveGenreMapping(input.genre);
     const limit = input.limit ?? 20;
+    const locale = normalizeSearchLocale(input.locale);
 
     if (!normalizedQuery && !genreMapping) {
       return {
@@ -108,7 +110,7 @@ export class MetadataQueryService {
               filter: normalizedFilter,
               limit,
             })
-          : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes)
+          : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes, locale)
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
       const providerMatches = normalizedQuery || normalizedFilter === 'anime' || normalizedFilter === 'series'
@@ -272,6 +274,11 @@ export class MetadataQueryService {
 
     return null;
   }
+}
+
+function normalizeSearchLocale(value: string | null | undefined): string | null {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(normalized) ? normalized : null;
 }
 
 function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined): MetadataSearchFilter {

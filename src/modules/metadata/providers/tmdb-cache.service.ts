@@ -259,8 +259,8 @@ export class TmdbCacheService {
     return this.tmdbRepository.listEpisodesForSeason(client, showTmdbId, seasonNumber);
   }
 
-  async searchTitles(query: string, limit: number, mediaTypes: TmdbTitleType[]): Promise<TmdbTitleRecord[]> {
-    const payloads = await Promise.all(mediaTypes.map((mediaType) => this.tmdbClient.searchTitles(mediaType, query)));
+  async searchTitles(query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null): Promise<TmdbTitleRecord[]> {
+    const payloads = await Promise.all(mediaTypes.map((mediaType) => this.tmdbClient.searchTitles(mediaType, query, 1, locale)));
     const records = payloads.flatMap((payload, index) => {
       const mediaType = mediaTypes[index] as TmdbTitleType;
       const items = Array.isArray(payload.results) ? payload.results as SearchPayloadItem[] : [];

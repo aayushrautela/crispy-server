@@ -15,6 +15,8 @@ type ResolvedSuggestion = {
 };
 
 const FINAL_RESULT_LIMIT = 12;
+const RESOLUTION_SEARCH_LIMIT = 20;
+const MIN_METADATA_MATCH_SCORE = 36;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 export class AiSearchService {
@@ -102,19 +104,23 @@ async function resolveSuggestion(
   metadataQueryService: MetadataQueryService,
   candidate: AiSearchCandidate,
   filter: AiSearchFilter,
-  _locale: string,
+  locale: string,
 ): Promise<AiSearchItem | null> {
   const searchFilters = resolveCandidateFilter(filter, candidate.mediaType);
+  const queryVariants = buildResolutionQueryVariants(candidate.title);
 
   for (const candidateFilter of searchFilters) {
-    const response = await metadataQueryService.searchTitles({
-      query: candidate.title,
-      filter: mapFilterToMetadataFilter(candidateFilter),
-      limit: 8,
-    });
-    const selected = selectBestMetadataMatch(response.items, candidate.title, candidate.mediaType);
-    if (selected) {
-      return selected;
+    for (const query of queryVariants) {
+      const response = await metadataQueryService.searchTitles({
+        query,
+        filter: mapFilterToMetadataFilter(candidateFilter),
+        limit: RESOLUTION_SEARCH_LIMIT,
+        locale,
+      });
+      const selected = selectBestMetadataMatch(response.items, candidate.title, candidate.mediaType);
+      if (selected) {
+        return selected;
+      }
     }
   }
 
@@ -123,15 +129,28 @@ async function resolveSuggestion(
 
 function selectBestMetadataMatch(items: MetadataCardView[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): AiSearchItem | null {
   const normalizedTarget = normalizeTitle(title);
-  const sorted = [...items].sort(
-    (left, right) => scoreMetadataMatch(right, normalizedTarget, mediaTypeHint) - scoreMetadataMatch(left, normalizedTarget, mediaTypeHint),
-  );
-  return sorted[0] ?? null;
+  const sorted = [...items].sort((left, right) => {
+    const rightScore = scoreMetadataMatch(right, normalizedTarget, mediaTypeHint);
+    const leftScore = scoreMetadataMatch(left, normalizedTarget, mediaTypeHint);
+    if (rightScore !== leftScore) {
+      return rightScore - leftScore;
+    }
+    return compareReleaseDates(right.releaseDate, left.releaseDate);
+  });
+  const best = sorted[0] ?? null;
+  if (!best) {
+    return null;
+  }
+
+  return scoreMetadataMatch(best, normalizedTarget, mediaTypeHint) >= MIN_METADATA_MATCH_SCORE
+    ? best
+    : null;
 }
 
 function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
   let score = 0;
   const normalizedTitle = normalizeTitle(item.title ?? '');
+  const normalizedSubtitle = normalizeTitle(item.subtitle ?? '');
   if (normalizedTitle === normalizedTarget) {
     score += 120;
   } else if (normalizedTitle.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedTitle)) {
@@ -140,12 +159,23 @@ function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string, me
     score += 40;
   }
 
+  if (normalizedSubtitle) {
+    if (normalizedSubtitle === normalizedTarget) {
+      score += 60;
+    } else if (normalizedSubtitle.includes(normalizedTarget) || normalizedTarget.includes(normalizedSubtitle)) {
+      score += 20;
+    }
+  }
+
   score += Math.min(sharedTitleTokenCount(normalizedTitle, normalizedTarget) * 12, 36);
   if (matchesMediaTypeHint(item, mediaTypeHint)) {
     score += 30;
   }
   if (item.artwork.posterUrl) {
     score += 10;
+  }
+  if (item.releaseYear) {
+    score += 4;
   }
   return score;
 }
@@ -298,10 +328,29 @@ function titleMatchesAnchor(title: string, normalizedAnchor: string): boolean {
     && (normalizedTitle.startsWith(normalizedAnchor) || normalizedAnchor.startsWith(normalizedTitle));
 }
 
-function isSameTitleFamily(leftTitle: string, rightTitle: string): boolean {
+export function isSameTitleFamily(leftTitle: string, rightTitle: string): boolean {
+  const normalizedLeft = normalizeTitle(leftTitle);
+  const normalizedRight = normalizeTitle(rightTitle);
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+  if (normalizedLeft === normalizedRight) {
+    return true;
+  }
+
   const leftKey = titleFamilyKey(leftTitle);
   const rightKey = titleFamilyKey(rightTitle);
-  return Boolean(leftKey && rightKey && leftKey === rightKey);
+  if (!leftKey || !rightKey || leftKey !== rightKey) {
+    return false;
+  }
+
+  if (hasSharedSeriesPrefix(leftTitle, rightTitle)) {
+    return true;
+  }
+
+  const sharedTokens = sharedTitleTokenCount(normalizedLeft, normalizedRight);
+  const shorterTokenCount = Math.min(titleTokens(normalizedLeft).length, titleTokens(normalizedRight).length);
+  return shorterTokenCount > 0 && sharedTokens >= shorterTokenCount;
 }
 
 function titleFamilyKey(title: string): string | null {
@@ -310,7 +359,63 @@ function titleFamilyKey(title: string): string | null {
   if (tokens.length === 0) {
     return null;
   }
-  return tokens.slice(0, Math.min(2, tokens.length)).join(' ');
+  return tokens.slice(0, 1).join(' ');
+}
+
+export function buildResolutionQueryVariants(title: string): string[] {
+  const candidates = [
+    title,
+    title.replace(/["'`]+/g, ' '),
+    title.replace(/[,:;!?]+/g, ' '),
+    title.split(':', 1)[0] ?? title,
+    title.replace(/\s+\((19|20)\d{2}\)\s*$/g, ''),
+  ];
+
+  const seen = new Set<string>();
+  const queries: string[] = [];
+  for (const value of candidates) {
+    const normalized = value.trim().replace(/\s+/g, ' ');
+    if (!normalized) {
+      continue;
+    }
+    const key = normalizeTitle(normalized);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    queries.push(normalized);
+  }
+  return queries;
+}
+
+function compareReleaseDates(left: string | null, right: string | null): number {
+  const leftTime = parseReleaseDate(left);
+  const rightTime = parseReleaseDate(right);
+  return leftTime - rightTime;
+}
+
+function hasSharedSeriesPrefix(leftTitle: string, rightTitle: string): boolean {
+  const leftPrefix = normalizeSeriesPrefix(leftTitle);
+  const rightPrefix = normalizeSeriesPrefix(rightTitle);
+  if (!leftPrefix || !rightPrefix || leftPrefix !== rightPrefix) {
+    return false;
+  }
+
+  return titleTokens(leftPrefix).length >= 2;
+}
+
+function normalizeSeriesPrefix(title: string): string | null {
+  const prefix = title.split(':', 1)[0] ?? title;
+  const normalized = normalizeTitle(prefix);
+  return normalized || null;
+}
+
+function parseReleaseDate(value: string | null): number {
+  if (!value) {
+    return -1;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? -1 : parsed;
 }
 
 function sharedTitleTokenCount(left: string, right: string): number {

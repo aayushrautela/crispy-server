@@ -70,11 +70,12 @@ export class TmdbClient {
     });
   }
 
-  async searchTitles(mediaType: TmdbTitleType, query: string, page = 1): Promise<TmdbSearchApiResponse> {
+  async searchTitles(mediaType: TmdbTitleType, query: string, page = 1, language?: string | null): Promise<TmdbSearchApiResponse> {
     return fetchTmdbJson(`/search/${mediaType}`, {
       query,
       page,
       include_adult: 'false',
+      language: language?.trim() || undefined,
     });
   }
 
