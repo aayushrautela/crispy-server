@@ -20,11 +20,10 @@ test('buildImageUrl constructs full TMDB URL', async () => {
   assert.equal(buildImageUrl('/poster.jpg', 'w500'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
 });
 
-test('buildMetadataView for show uses canonical ids and extracts fields', async () => {
+test('buildMetadataView for show extracts provider-based detail fields', async () => {
   const { buildMetadataView } = await loadModule();
 
   const view = buildMetadataView({
-    id: 'uuid-show-42',
     identity: { mediaKey: 'show:tmdb:42', mediaType: 'show', tmdbId: 42, showTmdbId: 42, seasonNumber: null, episodeNumber: null },
     title: {
       mediaType: 'tv', tmdbId: 42, name: 'Breaking Point', originalName: 'Breaking Point',
@@ -42,8 +41,9 @@ test('buildMetadataView for show uses canonical ids and extracts fields', async 
     },
   });
 
-  assert.equal(view.id, 'uuid-show-42');
   assert.equal(view.mediaType, 'show');
+  assert.equal(view.provider, 'tmdb');
+  assert.equal(view.providerId, '42');
   assert.equal(view.kind, 'title');
   assert.equal(view.title, 'Breaking Point');
   assert.equal(view.overview, 'A thrilling drama.');
@@ -63,7 +63,6 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
   const { buildMetadataCardView } = await loadModule();
 
   const view = buildMetadataCardView({
-    id: 'uuid-episode-42-1-2',
     identity: { mediaKey: 'episode:tmdb:42:1:2', mediaType: 'episode', tmdbId: null, showTmdbId: 42, seasonNumber: 1, episodeNumber: 2 },
     title: {
       mediaType: 'tv', tmdbId: 42, name: 'Breaking Point', originalName: 'Breaking Point',
@@ -81,15 +80,16 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
     },
   });
 
-  assert.equal(view.id, 'uuid-episode-42-1-2');
   assert.equal(view.mediaType, 'episode');
+  assert.equal(view.provider, 'tmdb');
+  assert.equal(view.providerId, '42');
   assert.equal(view.kind, 'episode');
   assert.equal(view.title, 'Breaking Point');
   assert.equal(view.subtitle, 'Previous Episode');
   assert.equal(view.summary, 'Previous.');
 });
 
-test('buildEpisodePreview produces canonical id payload', async () => {
+test('buildEpisodePreview produces provider-based payload', async () => {
   const { buildEpisodePreview } = await loadModule();
 
   const preview = buildEpisodePreview(
@@ -106,11 +106,11 @@ test('buildEpisodePreview produces canonical id payload', async () => {
       runtime: 47, stillPath: '/still.jpg', voteAverage: 8.1, raw: {},
       fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
     },
-    'uuid-episode-42-1-3',
   );
 
-  assert.equal(preview.id, 'uuid-episode-42-1-3');
   assert.equal(preview.mediaType, 'episode');
+  assert.equal(preview.provider, 'tmdb');
+  assert.equal(preview.providerId, '42:s1:e3');
   assert.equal(preview.showTmdbId, 42);
   assert.equal(preview.seasonNumber, 1);
   assert.equal(preview.episodeNumber, 3);
@@ -120,7 +120,7 @@ test('buildEpisodePreview produces canonical id payload', async () => {
   assert.equal(preview.images.stillUrl, 'https://image.tmdb.org/t/p/w500/still.jpg');
 });
 
-test('buildSeasonViewFromTitleRaw uses provided canonical ids', async () => {
+test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
   const { buildSeasonViewFromTitleRaw } = await loadModule();
 
   const seasons = buildSeasonViewFromTitleRaw(
@@ -137,14 +137,12 @@ test('buildSeasonViewFromTitleRaw uses provided canonical ids', async () => {
       },
       fetchedAt: '', expiresAt: '',
     },
-    'uuid-show-42',
     new Map([[0, 'uuid-season-42-0'], [1, 'uuid-season-42-1']]),
   );
 
   assert.equal(seasons.length, 2);
-  assert.equal(seasons[0]?.id, 'uuid-season-42-0');
-  assert.equal(seasons[0]?.showId, 'uuid-show-42');
-  assert.equal(seasons[1]?.id, 'uuid-season-42-1');
+  assert.equal(seasons[0]?.providerId, '42:s0');
+  assert.equal(seasons[1]?.providerId, '42:s1');
   assert.equal(seasons[1]?.images.posterUrl, 'https://image.tmdb.org/t/p/w500/season1.jpg');
 });
 
@@ -158,14 +156,14 @@ test('buildSeasonViewFromRecord produces clean payload', async () => {
     fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
   }, 'uuid-season-42-2', 'uuid-show-42');
 
-  assert.equal(view.id, 'uuid-season-42-2');
-  assert.equal(view.showId, 'uuid-show-42');
+  assert.equal(view.providerId, '42:s2');
+  assert.equal(view.parentProviderId, '42');
   assert.equal(view.title, 'Season 2');
   assert.equal(view.episodeCount, 8);
   assert.equal(view.images.posterUrl, 'https://image.tmdb.org/t/p/w500/season2.jpg');
 });
 
-test('buildEpisodeView includes canonical show context', async () => {
+test('buildEpisodeView includes provider-based show context', async () => {
   const { buildEpisodeView } = await loadModule();
 
   const view = buildEpisodeView(
@@ -184,8 +182,8 @@ test('buildEpisodeView includes canonical show context', async () => {
     'uuid-episode-42-1-3', 'uuid-show-42',
   );
 
-  assert.equal(view.id, 'uuid-episode-42-1-3');
-  assert.equal(view.showId, 'uuid-show-42');
+  assert.equal(view.providerId, '42:s1:e3');
+  assert.equal(view.parentProviderId, '42');
   assert.equal(view.showTitle, 'Breaking Point');
   assert.equal(view.showExternalIds.imdb, 'tt1234567');
 });

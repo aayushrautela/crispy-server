@@ -103,23 +103,18 @@ export class MetadataProjectionService {
   }
 
   private async buildDisplayCard(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
-    const contentIdPromise = this.contentIdentityService.ensureContentId(client, identity);
     const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity).catch(() => null);
 
     if (providerContext?.title) {
-      const contentId = await contentIdPromise;
       return buildProviderMetadataCardView({
-        id: contentId,
         identity,
         title: providerContext.title,
         currentEpisode: providerContext.currentEpisode,
       });
     }
 
-    const contentId = await contentIdPromise;
     const tmdbContext = await this.loadTmdbCardContext(client, identity).catch(() => ({ title: null, currentEpisode: null }));
     return buildMetadataCardView({
-      id: contentId,
       identity,
       title: tmdbContext.title,
       currentEpisode: tmdbContext.currentEpisode,

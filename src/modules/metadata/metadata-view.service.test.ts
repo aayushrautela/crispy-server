@@ -83,7 +83,6 @@ test('buildMetadataCardViewFromRow preserves tmdb linkage for provider-backed ro
     backdrop_url: null,
   });
 
-  assert.equal(view.id, 'show:tvdb:121361');
   assert.equal(view.provider, 'tvdb');
   assert.equal(view.providerId, '121361');
   assert.equal(view.tmdbId, 1399);

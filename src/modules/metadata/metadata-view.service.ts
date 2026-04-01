@@ -21,11 +21,13 @@ import {
   extractReviews,
   extractSimilarTitles,
   extractVideos,
+  toCatalogItem,
 } from './metadata-normalizers.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type {
+  CatalogItem,
   MetadataCardView,
   MetadataCollectionView,
   MetadataProductionInfoView,
@@ -48,11 +50,9 @@ export class MetadataViewService {
   ) {}
 
   async buildMetadataCardView(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
-    const id = await this.contentIdentityService.ensureContentId(client, identity);
     const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity);
     if (providerContext?.title) {
       return buildProviderMetadataCardView({
-        id,
         identity,
         title: providerContext.title,
         currentEpisode: providerContext.currentEpisode,
@@ -61,7 +61,6 @@ export class MetadataViewService {
 
     const context = await this.loadCardContext(client, identity);
     return buildMetadataCardView({
-      id,
       identity,
       title: context.title,
       currentEpisode: context.currentEpisode,
@@ -70,7 +69,6 @@ export class MetadataViewService {
 
   async buildMetadataCardViewFromRow(client: DbClient, row: Record<string, unknown>): Promise<MetadataCardView> {
     const identity = this.identityFromRow(row);
-    const id = await this.contentIdentityService.ensureContentId(client, identity);
     const providerContext = this.normalizeProviderTitleIdentity(identity)
       ? await this.providerMetadataService.loadIdentityContext(client, identity).catch(() => null)
       : null;
@@ -86,7 +84,6 @@ export class MetadataViewService {
 
     if (providerContext?.title) {
       return buildProviderMetadataCardView({
-        id,
         identity,
         title: providerContext.title,
         currentEpisode: providerContext.currentEpisode,
@@ -98,7 +95,6 @@ export class MetadataViewService {
       : await this.loadCardContext(client, identity).catch(() => ({ title: null, currentEpisode: null }));
 
     return buildMetadataCardView({
-      id,
       identity,
       title: context.title,
       currentEpisode: context.currentEpisode,
@@ -114,40 +110,21 @@ export class MetadataViewService {
   async buildMetadataView(client: DbClient, identity: MediaIdentity): Promise<MetadataView> {
     const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity);
     if (providerContext?.title) {
-      const id = await this.contentIdentityService.ensureContentId(client, identity);
-      const nextEpisodeId = providerContext.nextEpisode
-        ? await this.ensureProviderEpisodeContentId(client, providerContext.nextEpisode)
-        : null;
-
       return buildProviderMetadataView({
-        id,
         identity,
         title: providerContext.title,
         currentEpisode: providerContext.currentEpisode,
         nextEpisode: providerContext.nextEpisode,
-        nextEpisodeId,
       });
     }
 
     const { title, currentEpisode, nextEpisode } = await this.loadIdentityContext(client, identity);
-    const id = await this.contentIdentityService.ensureContentId(client, identity);
-    const nextEpisodeId = nextEpisode
-      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
-          parentMediaType: 'show',
-          provider: 'tmdb',
-          parentProviderId: nextEpisode.showTmdbId,
-          seasonNumber: nextEpisode.seasonNumber,
-          episodeNumber: nextEpisode.episodeNumber,
-        })
-      : null;
 
     return buildMetadataView({
-      id,
       identity,
       title,
       currentEpisode,
       nextEpisode,
-      nextEpisodeId,
     });
   }
 
@@ -160,30 +137,24 @@ export class MetadataViewService {
     if (providerIdentity) {
       const providerContext = await this.providerMetadataService.loadIdentityContext(client, providerIdentity);
       const resolvedTitle = assertPresent(providerContext?.title, 'Metadata title not found.');
-      const showId = await this.contentIdentityService.ensureContentId(client, providerIdentity);
       const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
         parentMediaType: resolvedTitle.mediaType === 'anime' ? 'anime' : 'show',
         provider: resolvedTitle.provider,
         parentProviderId: resolvedTitle.providerId,
       }, providerContext?.seasons.map((season) => season.seasonNumber) ?? []);
-      const nextEpisodeId = providerContext?.nextEpisode
-        ? await this.ensureProviderEpisodeContentId(client, providerContext.nextEpisode)
-        : null;
       const showTmdbId = resolvedTitle.externalIds.tmdb ?? null;
 
       return {
         item: buildProviderMetadataView({
-          id: showId,
           identity: providerIdentity,
           title: resolvedTitle,
           currentEpisode: null,
           nextEpisode: providerContext?.nextEpisode ?? null,
-          nextEpisodeId,
         }),
         seasons: (providerContext?.seasons ?? []).flatMap((season) => {
           const seasonId = seasonIds.get(season.seasonNumber);
           return seasonId
-            ? [buildProviderSeasonViewFromRecord(season, seasonId, showId, showTmdbId)]
+            ? [buildProviderSeasonViewFromRecord(season, seasonId, '', showTmdbId)]
             : [];
         }),
         videos: providerContext?.videos ?? [],
@@ -200,7 +171,6 @@ export class MetadataViewService {
     const normalizedIdentity = identity;
     const { title, nextEpisode } = await this.loadIdentityContext(client, normalizedIdentity);
     const resolvedTitle = assertPresent(title, 'Metadata title not found.');
-    const showId = await this.contentIdentityService.ensureContentId(client, normalizedIdentity);
     const seasonNumbers = extractSeasonNumbersFromTitle(resolvedTitle);
     const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
       parentMediaType: 'show',
@@ -223,26 +193,14 @@ export class MetadataViewService {
       tmdbId: title.tmdbId,
     }));
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
-    const nextEpisodeId = nextEpisode
-      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
-          parentMediaType: 'show',
-          provider: 'tmdb',
-          parentProviderId: nextEpisode.showTmdbId,
-          seasonNumber: nextEpisode.seasonNumber,
-          episodeNumber: nextEpisode.episodeNumber,
-        })
-      : null;
-
     return {
       item: buildMetadataView({
-        id: showId,
         identity: normalizedIdentity,
         title: resolvedTitle,
         currentEpisode: null,
         nextEpisode,
-        nextEpisodeId,
       }),
-      seasons: buildSeasonViewFromTitleRaw(resolvedTitle, showId, seasonIds),
+      seasons: buildSeasonViewFromTitleRaw(resolvedTitle, seasonIds),
       videos: extractVideos(resolvedTitle),
       cast: extractCast(resolvedTitle),
       directors: extractCrewByJob(resolvedTitle, 'Director'),
@@ -255,29 +213,32 @@ export class MetadataViewService {
             parts: collectionParts.flatMap((title) => {
               const identity = inferMediaIdentity({ mediaType: 'movie', tmdbId: title.tmdbId });
               const contentId = collectionContentIds.get(identity.mediaKey);
-              return contentId
-                ? [buildMetadataCardView({ id: contentId, identity, title })]
-                : [];
+              if (!contentId) {
+                return [];
+              }
+              const item = toCatalogItem(buildMetadataCardView({ identity, title }));
+              return item ? [item] : [];
             }),
           }
         : null,
-      similar: similarTitles.flatMap((title) => {
+        similar: similarTitles.flatMap((title) => {
         const identity = inferMediaIdentity({
           mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
           tmdbId: title.tmdbId,
-        });
-        const contentId = similarContentIds.get(identity.mediaKey);
-        return contentId
-          ? [buildMetadataCardView({ id: contentId, identity, title })]
-          : [];
-      }),
-    };
+          });
+          const contentId = similarContentIds.get(identity.mediaKey);
+          if (!contentId) {
+            return [];
+          }
+          const item = toCatalogItem(buildMetadataCardView({ identity, title }));
+          return item ? [item] : [];
+        }),
+      };
   }
 
   async getSeasonDetail(client: DbClient, showIdentity: MediaIdentity, seasonNumber: number): Promise<MetadataSeasonDetail> {
     const providerContext = await this.providerMetadataService.loadSeasonContext(client, showIdentity, seasonNumber);
     if (providerContext?.title && providerContext.season) {
-      const providerShowId = await this.contentIdentityService.ensureContentId(client, this.normalizeProviderTitleIdentity(showIdentity) ?? showIdentity);
       const parentMediaType = providerContext.title.mediaType === 'anime' ? 'anime' : 'show';
       const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
         parentMediaType,
@@ -296,29 +257,23 @@ export class MetadataViewService {
           absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
         })),
       );
-      const nextEpisodeId = providerContext.nextEpisode
-        ? await this.ensureProviderEpisodeContentId(client, providerContext.nextEpisode)
-        : null;
-
       return {
         show: buildProviderMetadataView({
-          id: providerShowId,
           identity: this.normalizeProviderTitleIdentity(showIdentity) ?? showIdentity,
           title: providerContext.title,
           currentEpisode: null,
           nextEpisode: providerContext.nextEpisode,
-          nextEpisodeId,
         }),
         season: buildProviderSeasonViewFromRecord(
           providerContext.season,
           seasonId,
-          providerShowId,
+          '',
           providerContext.title.externalIds.tmdb ?? null,
         ),
         episodes: providerContext.episodes.flatMap((episode) => {
           const contentId = episodeIds.get(episode.providerId);
           return contentId
-            ? [buildProviderEpisodeView(providerContext.title as ProviderTitleRecord, episode, contentId, providerShowId)]
+            ? [buildProviderEpisodeView(providerContext.title as ProviderTitleRecord, episode, contentId, '')]
             : [];
         }),
       };
@@ -331,11 +286,6 @@ export class MetadataViewService {
     const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
     const resolvedSeason = assertPresent(seasonRecord, 'Season metadata not found.');
     const episodes = await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber);
-    const showId = await this.contentIdentityService.ensureTitleContentId(client, {
-      mediaType: 'show',
-      provider: 'tmdb',
-      providerId: showTmdbId,
-    });
     const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
       parentMediaType: 'show',
       provider: 'tmdb',
@@ -352,26 +302,14 @@ export class MetadataViewService {
         episodeNumber: episode.episodeNumber,
       })),
     );
-    const nextEpisodeId = nextEpisode
-      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
-          parentMediaType: 'show',
-          provider: 'tmdb',
-          parentProviderId: nextEpisode.showTmdbId,
-          seasonNumber: nextEpisode.seasonNumber,
-          episodeNumber: nextEpisode.episodeNumber,
-        })
-      : null;
-
     return {
       show: buildMetadataView({
-        id: showId,
         identity: showIdentity,
         title: resolvedTitle,
         currentEpisode: null,
         nextEpisode,
-        nextEpisodeId,
       }),
-      season: buildSeasonViewFromRecord(showTmdbId, resolvedSeason, seasonId, showId),
+      season: buildSeasonViewFromRecord(showTmdbId, resolvedSeason, seasonId, ''),
       episodes: episodes.map((episode) => buildEpisodeView(
         resolvedTitle,
         episode,
@@ -379,7 +317,7 @@ export class MetadataViewService {
           episodeIds.get(episodeRefMapKey(episode.showTmdbId, episode.seasonNumber, episode.episodeNumber)),
           'Episode metadata not found.',
         ),
-        showId,
+        '',
       )),
     };
   }
@@ -506,7 +444,7 @@ export class MetadataViewService {
     });
   }
 
-  private async buildProviderSimilarCards(client: DbClient, titles: ProviderTitleRecord[]): Promise<MetadataCardView[]> {
+  private async buildProviderSimilarCards(client: DbClient, titles: ProviderTitleRecord[]): Promise<CatalogItem[]> {
     if (!titles.length) {
       return [];
     }
@@ -525,9 +463,11 @@ export class MetadataViewService {
         providerId: title.providerId,
       });
       const contentId = contentIds.get(identity.mediaKey);
-      return contentId
-        ? [buildProviderMetadataCardView({ id: contentId, identity, title })]
-        : [];
+      if (!contentId) {
+        return [];
+      }
+      const item = toCatalogItem(buildProviderMetadataCardView({ identity, title }));
+      return item ? [item] : [];
     });
   }
 }

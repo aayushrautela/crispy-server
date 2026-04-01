@@ -79,7 +79,6 @@ export type ProviderSeasonRecord = {
 };
 
 export type MetadataEpisodePreview = {
-  id: string;
   mediaType: 'episode';
   provider: SupportedProvider;
   providerId: string;
@@ -100,8 +99,6 @@ export type MetadataEpisodePreview = {
 };
 
 export type MetadataCardView = {
-  id: string;
-  mediaKey: string;
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
   provider: SupportedProvider;
@@ -138,6 +135,8 @@ export type RegularCardView = {
   genre: string | null;
   subtitle: string | null;
 };
+
+export type CatalogItem = RegularCardView;
 
 export type LandscapeCardView = {
   mediaType: MetadataViewMediaType;
@@ -187,8 +186,6 @@ export type HeroCardView = {
 };
 
 export type MetadataView = {
-  id: string;
-  mediaKey: string;
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
   provider: SupportedProvider;
@@ -221,8 +218,6 @@ export type MetadataView = {
 };
 
 export type MetadataSeasonView = {
-  id: string;
-  showId: string;
   provider: SupportedProvider;
   providerId: string;
   parentMediaType: MetadataParentMediaType;
@@ -240,7 +235,6 @@ export type MetadataSeasonView = {
 };
 
 export type MetadataEpisodeView = MetadataEpisodePreview & {
-  showId: string;
   showTitle: string | null;
   showExternalIds: MetadataExternalIds;
 };
@@ -296,7 +290,7 @@ export type MetadataCollectionView = {
   name: string;
   posterUrl: string | null;
   backdropUrl: string | null;
-  parts: MetadataCardView[];
+  parts: CatalogItem[];
 };
 
 export type MetadataProductionInfoView = {
@@ -318,7 +312,7 @@ export type MetadataTitleDetail = {
   reviews: MetadataReviewView[];
   production: MetadataProductionInfoView;
   collection: MetadataCollectionView | null;
-  similar: MetadataCardView[];
+  similar: CatalogItem[];
 };
 
 export type MetadataSeasonDetail = {
@@ -397,7 +391,6 @@ export type PlaybackResolveResponse = {
 };
 
 export type MetadataPersonKnownForItem = {
-  id: string;
   mediaType: MetadataTitleMediaType;
   provider: SupportedProvider;
   providerId: string;
@@ -409,7 +402,6 @@ export type MetadataPersonKnownForItem = {
 };
 
 export type MetadataPersonDetail = {
-  id: string;
   provider: 'tmdb';
   providerId: string;
   tmdbPersonId: number;
@@ -427,7 +419,7 @@ export type MetadataPersonDetail = {
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'anime';
 
-export type MetadataSearchResult = MetadataCardView;
+export type MetadataSearchResult = CatalogItem;
 
 export type MetadataSearchResponse = {
   query: string;

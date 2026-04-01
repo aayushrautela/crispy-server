@@ -3,7 +3,7 @@ import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import type { SupportedMediaType } from '../identity/media-key.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
-import { buildMetadataCardView, buildProviderMetadataCardView } from './metadata-normalizers.js';
+import { buildMetadataCardView, buildProviderMetadataCardView, toCatalogItem } from './metadata-normalizers.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
@@ -144,7 +144,6 @@ export class MetadataQueryService {
         }
 
         return buildMetadataCardView({
-          id: contentId,
           identity,
           title: match,
         });
@@ -157,14 +156,21 @@ export class MetadataQueryService {
           providerId: match.providerId,
         });
         const contentId = contentIds.get(identity.mediaKey);
-        return contentId
-          ? [buildProviderMetadataCardView({ id: contentId, identity, title: match })]
-          : [];
+        if (!contentId) {
+          return [];
+        }
+        const item = toCatalogItem(buildProviderMetadataCardView({ identity, title: match }));
+        return item ? [item] : [];
       });
 
       return {
         query: normalizedQuery,
-        items: [...tmdbItems.filter((item): item is MetadataSearchResponse['items'][number] => item !== null), ...providerItems]
+        items: [
+          ...tmdbItems
+            .map((item) => (item ? toCatalogItem(item) : null))
+            .filter((item): item is MetadataSearchResponse['items'][number] => item !== null),
+          ...providerItems,
+        ]
           .slice(0, limit),
       };
     });

@@ -1,4 +1,4 @@
-import type { MetadataCardView } from '../metadata/metadata.types.js';
+import type { CatalogItem } from '../metadata/metadata.types.js';
 
 export type AiFeatureId = 'search' | 'insights';
 
@@ -61,7 +61,7 @@ export type AiExecutionResult = {
 
 export type AiSearchFilter = 'all' | 'movies' | 'series' | 'anime';
 
-export type AiSearchItem = MetadataCardView;
+export type AiSearchItem = CatalogItem;
 
 export type AiSearchResponse = {
   items: AiSearchItem[];

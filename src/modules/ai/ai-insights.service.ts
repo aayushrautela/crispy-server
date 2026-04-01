@@ -98,7 +98,7 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail): TitleInsightsCo
   }
 
   return {
-    contentId: detail.item.id,
+    contentId: `${detail.item.mediaType}:${detail.item.provider}:${detail.item.providerId}`,
     mediaType,
     title,
     year: detail.item.releaseYear ? String(detail.item.releaseYear) : null,

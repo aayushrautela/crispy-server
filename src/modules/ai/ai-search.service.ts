@@ -2,7 +2,7 @@ import { logger } from '../../config/logger.js';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataQueryService } from '../metadata/metadata-query.service.js';
-import type { MetadataCardView, MetadataSearchFilter } from '../metadata/metadata.types.js';
+import type { CatalogItem, MetadataSearchFilter } from '../metadata/metadata.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
@@ -77,7 +77,7 @@ export class AiSearchService {
       finalCount: items.length,
       candidateSamples: candidates.slice(0, 8),
       unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-      resultTitles: items.slice(0, 8).map((item) => item.title ?? item.mediaKey),
+      resultTitles: items.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.provider}:${item.providerId}`),
       generatedKeys: Object.keys(generated).slice(0, 10),
     }, 'AI search completed');
 
@@ -127,7 +127,7 @@ async function resolveSuggestion(
   return null;
 }
 
-function selectBestMetadataMatch(items: MetadataCardView[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): AiSearchItem | null {
+function selectBestMetadataMatch(items: CatalogItem[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): AiSearchItem | null {
   const normalizedTarget = normalizeTitle(title);
   const sorted = [...items].sort((left, right) => {
     const rightScore = scoreMetadataMatch(right, normalizedTarget, mediaTypeHint);
@@ -135,7 +135,7 @@ function selectBestMetadataMatch(items: MetadataCardView[], title: string, media
     if (rightScore !== leftScore) {
       return rightScore - leftScore;
     }
-    return compareReleaseDates(right.releaseDate, left.releaseDate);
+    return compareReleaseYears(right.releaseYear, left.releaseYear);
   });
   const best = sorted[0] ?? null;
   if (!best) {
@@ -147,7 +147,7 @@ function selectBestMetadataMatch(items: MetadataCardView[], title: string, media
     : null;
 }
 
-function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
+function scoreMetadataMatch(item: CatalogItem, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
   let score = 0;
   const normalizedTitle = normalizeTitle(item.title ?? '');
   const normalizedSubtitle = normalizeTitle(item.subtitle ?? '');
@@ -171,7 +171,7 @@ function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string, me
   if (matchesMediaTypeHint(item, mediaTypeHint)) {
     score += 30;
   }
-  if (item.artwork.posterUrl) {
+  if (item.posterUrl) {
     score += 10;
   }
   if (item.releaseYear) {
@@ -180,7 +180,7 @@ function scoreMetadataMatch(item: MetadataCardView, normalizedTarget: string, me
   return score;
 }
 
-function matchesMediaTypeHint(item: MetadataCardView, mediaTypeHint: AiSearchCandidate['mediaType']): boolean {
+function matchesMediaTypeHint(item: CatalogItem, mediaTypeHint: AiSearchCandidate['mediaType']): boolean {
   if (!mediaTypeHint) {
     return false;
   }
@@ -216,7 +216,7 @@ function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggest
   const seen = new Set<string>();
   const result: ResolvedSuggestion[] = [];
   for (const suggestion of items) {
-    const key = suggestion.item.mediaKey;
+    const key = `${suggestion.item.mediaType}:${suggestion.item.provider}:${suggestion.item.providerId}`;
     if (seen.has(key)) {
       continue;
     }
@@ -388,10 +388,10 @@ export function buildResolutionQueryVariants(title: string): string[] {
   return queries;
 }
 
-function compareReleaseDates(left: string | null, right: string | null): number {
-  const leftTime = parseReleaseDate(left);
-  const rightTime = parseReleaseDate(right);
-  return leftTime - rightTime;
+function compareReleaseYears(left: number | null, right: number | null): number {
+  const leftValue = left ?? -1;
+  const rightValue = right ?? -1;
+  return leftValue - rightValue;
 }
 
 function hasSharedSeriesPrefix(leftTitle: string, rightTitle: string): boolean {
@@ -408,14 +408,6 @@ function normalizeSeriesPrefix(title: string): string | null {
   const prefix = title.split(':', 1)[0] ?? title;
   const normalized = normalizeTitle(prefix);
   return normalized || null;
-}
-
-function parseReleaseDate(value: string | null): number {
-  if (!value) {
-    return -1;
-  }
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? -1 : parsed;
 }
 
 function sharedTitleTokenCount(left: string, right: string): number {

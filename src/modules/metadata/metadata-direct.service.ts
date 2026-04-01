@@ -95,7 +95,7 @@ export class MetadataDirectService {
         imdbId: normalizeImdbId(asString(externalIds?.imdb_id)),
         instagramId: asString(externalIds?.instagram_id),
         twitterId: asString(externalIds?.twitter_id),
-        knownFor: await buildKnownForItems(client, this.contentIdentityService, payload),
+        knownFor: await buildKnownForItems(client, payload),
       };
     });
   }
@@ -140,7 +140,7 @@ export class MetadataDirectService {
           episodes: filteredEpisodes.flatMap((episode) => {
             const contentId = episodeIds.get(episode.providerId);
             return contentId
-              ? [buildProviderEpisodeView(providerContext.title!, episode, contentId, show.id)]
+              ? [buildProviderEpisodeView(providerContext.title!, episode, contentId, '')]
               : [];
           }),
         };
@@ -177,7 +177,7 @@ export class MetadataDirectService {
           episodeIds.get(episodeRefMapKey(episode.showTmdbId, episode.seasonNumber, episode.episodeNumber)),
           'Episode metadata not found.',
         ),
-        show.id,
+        '',
       ));
 
       return {
@@ -200,7 +200,7 @@ export class MetadataDirectService {
         releaseDate: episode.airDate,
       })),
       watchedKeys: input.watchedKeys ?? null,
-      showId: input.showId ?? episodeList.show.id,
+      showId: input.showId ?? episodeList.show.providerId,
       nowMs: input.nowMs ?? null,
     });
 
@@ -208,7 +208,9 @@ export class MetadataDirectService {
       show: episodeList.show,
       currentSeasonNumber: input.currentSeasonNumber,
       currentEpisodeNumber: input.currentEpisodeNumber,
-      item: nextEpisode ? episodeList.episodes.find((episode) => episode.id === nextEpisode.id) ?? null : null,
+      item: nextEpisode
+        ? episodeList.episodes.find((episode) => episode.providerId === nextEpisode.providerId) ?? null
+        : null,
     };
   }
 
@@ -265,7 +267,7 @@ export class MetadataDirectService {
             season = buildProviderSeasonViewFromRecord(
               providerSeasonContext.season,
               seasonId,
-              show.id,
+              '',
               show.externalIds.tmdb ?? null,
             );
           } else if (identity.showTmdbId) {
@@ -277,7 +279,7 @@ export class MetadataDirectService {
                 parentProviderId: identity.showTmdbId,
                 seasonNumber: identity.seasonNumber,
               });
-              season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, show.id);
+              season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, '');
             }
           }
         }
@@ -495,14 +497,12 @@ function normalizeTmdbResolvableMediaType(mediaType: SupportedMediaType): 'movie
 }
 
 async function buildKnownForItems(
-  client: DbClient,
-  contentIdentityService: ContentIdentityService,
+  _client: DbClient,
   payload: Record<string, unknown>,
 ): Promise<MetadataPersonKnownForItem[]> {
   const cast = asArray(asRecord(payload.combined_credits)?.cast);
   const seen = new Set<string>();
   const items: Array<MetadataPersonKnownForItem & { popularity: number }> = [];
-  const refs: Array<{ mediaType: 'movie' | 'show'; tmdbId: number }> = [];
 
   for (const value of cast) {
     const record = asRecord(value);
@@ -529,11 +529,8 @@ async function buildKnownForItems(
       continue;
     }
 
-    refs.push({ mediaType, tmdbId });
-
     const releaseDate = mediaType === 'movie' ? asString(record.release_date) : asString(record.first_air_date);
     items.push({
-      id: '',
       mediaType,
       provider: 'tmdb',
       providerId: String(tmdbId),
@@ -546,26 +543,10 @@ async function buildKnownForItems(
     });
   }
 
-  const contentIds = await contentIdentityService.ensureTitleContentIds(client, refs.map((ref) => ({
-    mediaType: ref.mediaType,
-    provider: 'tmdb',
-    providerId: ref.tmdbId,
-  })));
-
   return items
     .sort((left, right) => right.popularity - left.popularity)
     .slice(0, 20)
-    .flatMap(({ popularity: _popularity, ...item }) => {
-      const id = contentIds.get(`${item.mediaType}:${item.tmdbId}`);
-      if (!id) {
-        return [];
-      }
-
-      return [{
-        ...item,
-        id,
-      }];
-    });
+    .map(({ popularity: _popularity, ...item }) => item);
 }
 
 function parseYear(value: string): number | null {
