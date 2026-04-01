@@ -378,10 +378,7 @@ function foldPlaybackLikeEvent(params: {
 
 function projectionFromEvent(event: RebuildableWatchEvent): WatchMediaProjection {
   return {
-    detailsTitleId: event.detailsTitleId,
     detailsTitleMediaType: event.detailsTitleMediaType,
-    highlightEpisodeId: event.highlightEpisodeId,
-    playbackContentId: event.playbackContentId,
     playbackMediaType: event.playbackMediaType,
     playbackProvider: event.playbackProvider === 'tmdb' || event.playbackProvider === 'tvdb' || event.playbackProvider === 'kitsu'
       ? event.playbackProvider
@@ -394,33 +391,14 @@ function projectionFromEvent(event: RebuildableWatchEvent): WatchMediaProjection
     playbackSeasonNumber: event.playbackSeasonNumber,
     playbackEpisodeNumber: event.playbackEpisodeNumber,
     playbackAbsoluteEpisodeNumber: event.playbackAbsoluteEpisodeNumber,
-    detailsTitle: event.title,
-    detailsSubtitle: event.subtitle,
-    detailsSummary: event.detailsSummary,
-    detailsOverview: event.detailsOverview,
-    detailsPosterUrl: event.posterUrl,
-    detailsBackdropUrl: event.backdropUrl,
     detailsStillUrl: event.detailsStillUrl,
-    detailsReleaseDate: event.detailsReleaseDate,
     detailsReleaseYear: event.detailsReleaseYear,
     detailsRuntimeMinutes: event.detailsRuntimeMinutes,
     detailsRating: event.detailsRating,
-    detailsStatus: event.detailsStatus,
-    detailsProvider: event.detailsProvider === 'tmdb' || event.detailsProvider === 'tvdb' || event.detailsProvider === 'kitsu'
-      ? event.detailsProvider
-      : null,
-    detailsProviderId: event.detailsProviderId,
-    detailsParentProvider: event.detailsParentProvider === 'tmdb' || event.detailsParentProvider === 'tvdb' || event.detailsParentProvider === 'kitsu'
-      ? event.detailsParentProvider
-      : null,
-    detailsParentProviderId: event.detailsParentProviderId,
-    detailsTmdbId: event.detailsTmdbId,
-    detailsShowTmdbId: event.detailsShowTmdbId,
     episodeTitle: event.episodeTitle,
     episodeAirDate: event.episodeAirDate,
     episodeRuntimeMinutes: event.episodeRuntimeMinutes,
     episodeStillUrl: event.episodeStillUrl,
-    episodeOverview: event.episodeOverview,
     title: event.title,
     subtitle: event.subtitle,
     posterUrl: event.posterUrl,

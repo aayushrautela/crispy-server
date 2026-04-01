@@ -51,16 +51,11 @@ export class MetadataProjectionService {
   }
 
   private async buildTitleProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
-    const [detailsTitleId, detailsMedia] = await Promise.all([
-      this.contentIdentityService.ensureContentId(client, identity),
-      this.buildDisplayCard(client, identity),
-    ]);
+    const detailsMedia = await this.buildDisplayCard(client, identity);
 
     return {
       ...emptyProjection(),
-      detailsTitleId,
       detailsTitleMediaType: resolveTitleMediaType(identity.mediaType),
-      playbackContentId: resolveDirectPlaybackContentId(identity, detailsTitleId),
       playbackMediaType: resolvePlaybackMediaType(identity.mediaType),
       playbackProvider: identity.provider ?? null,
       playbackProviderId: identity.providerId ?? null,
@@ -79,19 +74,14 @@ export class MetadataProjectionService {
 
   private async buildEpisodeProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
     const parentIdentity = resolveParentIdentity(identity);
-    const [detailsTitleId, highlightEpisodeId, parentMedia, episodeMedia] = await Promise.all([
-      this.contentIdentityService.ensureContentId(client, parentIdentity),
-      this.contentIdentityService.ensureContentId(client, identity),
+    const [parentMedia, episodeMedia] = await Promise.all([
       this.buildDisplayCard(client, parentIdentity),
       this.buildDisplayCard(client, identity),
     ]);
 
     return {
       ...emptyProjection(),
-      detailsTitleId,
       detailsTitleMediaType: resolveTitleMediaType(parentIdentity.mediaType),
-      highlightEpisodeId,
-      playbackContentId: highlightEpisodeId,
       playbackMediaType: 'episode',
       playbackProvider: identity.provider ?? null,
       playbackProviderId: identity.providerId ?? null,
@@ -105,7 +95,6 @@ export class MetadataProjectionService {
       episodeAirDate: episodeMedia.releaseDate,
       episodeRuntimeMinutes: episodeMedia.runtimeMinutes,
       episodeStillUrl: episodeMedia.artwork.stillUrl,
-      episodeOverview: episodeMedia.overview,
       title: parentMedia.title,
       subtitle: episodeMedia.subtitle,
       posterUrl: parentMedia.artwork.posterUrl,
@@ -173,10 +162,7 @@ export class MetadataProjectionService {
 
 function emptyProjection(): WatchMediaProjection {
   return {
-    detailsTitleId: null,
     detailsTitleMediaType: null,
-    highlightEpisodeId: null,
-    playbackContentId: null,
     playbackMediaType: null,
     playbackProvider: null,
     playbackProviderId: null,
@@ -185,29 +171,14 @@ function emptyProjection(): WatchMediaProjection {
     playbackSeasonNumber: null,
     playbackEpisodeNumber: null,
     playbackAbsoluteEpisodeNumber: null,
-    detailsTitle: null,
-    detailsSubtitle: null,
-    detailsSummary: null,
-    detailsOverview: null,
-    detailsPosterUrl: null,
-    detailsBackdropUrl: null,
     detailsStillUrl: null,
-    detailsReleaseDate: null,
     detailsReleaseYear: null,
     detailsRuntimeMinutes: null,
     detailsRating: null,
-    detailsStatus: null,
-    detailsProvider: null,
-    detailsProviderId: null,
-    detailsParentProvider: null,
-    detailsParentProviderId: null,
-    detailsTmdbId: null,
-    detailsShowTmdbId: null,
     episodeTitle: null,
     episodeAirDate: null,
     episodeRuntimeMinutes: null,
     episodeStillUrl: null,
-    episodeOverview: null,
     title: null,
     subtitle: null,
     posterUrl: null,
@@ -217,44 +188,16 @@ function emptyProjection(): WatchMediaProjection {
 
 function toDetailsSnapshot(media: MetadataCardView): Pick<
   WatchMediaProjection,
-  | 'detailsTitle'
-  | 'detailsSubtitle'
-  | 'detailsSummary'
-  | 'detailsOverview'
-  | 'detailsPosterUrl'
-  | 'detailsBackdropUrl'
   | 'detailsStillUrl'
-  | 'detailsReleaseDate'
   | 'detailsReleaseYear'
   | 'detailsRuntimeMinutes'
   | 'detailsRating'
-  | 'detailsStatus'
-  | 'detailsProvider'
-  | 'detailsProviderId'
-  | 'detailsParentProvider'
-  | 'detailsParentProviderId'
-  | 'detailsTmdbId'
-  | 'detailsShowTmdbId'
 > {
   return {
-    detailsTitle: media.title,
-    detailsSubtitle: media.subtitle,
-    detailsSummary: media.summary,
-    detailsOverview: media.overview,
-    detailsPosterUrl: media.artwork.posterUrl,
-    detailsBackdropUrl: media.artwork.backdropUrl,
     detailsStillUrl: media.artwork.stillUrl,
-    detailsReleaseDate: media.releaseDate,
     detailsReleaseYear: media.releaseYear,
     detailsRuntimeMinutes: media.runtimeMinutes,
     detailsRating: media.rating,
-    detailsStatus: media.status,
-    detailsProvider: media.provider,
-    detailsProviderId: media.providerId,
-    detailsParentProvider: media.parentProvider,
-    detailsParentProviderId: media.parentProviderId,
-    detailsTmdbId: media.tmdbId,
-    detailsShowTmdbId: media.showTmdbId,
   };
 }
 
@@ -296,14 +239,6 @@ function resolveTitleMediaType(mediaType: MediaIdentity['mediaType']): MetadataT
 function resolvePlaybackMediaType(mediaType: MediaIdentity['mediaType']): 'movie' | 'show' | 'episode' | 'anime' | null {
   if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime' || mediaType === 'episode') {
     return mediaType;
-  }
-
-  return null;
-}
-
-function resolveDirectPlaybackContentId(identity: MediaIdentity, contentId: string): string | null {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
-    return contentId;
   }
 
   return null;

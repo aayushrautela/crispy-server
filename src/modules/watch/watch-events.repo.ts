@@ -32,10 +32,7 @@ export type RebuildableWatchEvent = PersistedWatchEvent & {
   seasonNumber: number | null;
   episodeNumber: number | null;
   absoluteEpisodeNumber: number | null;
-  detailsTitleId: string | null;
   detailsTitleMediaType: 'movie' | 'show' | 'anime' | null;
-  highlightEpisodeId: string | null;
-  playbackContentId: string | null;
   playbackMediaType: 'movie' | 'show' | 'episode' | 'anime' | null;
   playbackProvider: string | null;
   playbackProviderId: string | null;
@@ -44,29 +41,18 @@ export type RebuildableWatchEvent = PersistedWatchEvent & {
   playbackSeasonNumber: number | null;
   playbackEpisodeNumber: number | null;
   playbackAbsoluteEpisodeNumber: number | null;
-  detailsSummary: string | null;
-  detailsOverview: string | null;
   detailsStillUrl: string | null;
-  detailsReleaseDate: string | null;
   detailsReleaseYear: number | null;
   detailsRuntimeMinutes: number | null;
   detailsRating: number | null;
-  detailsStatus: string | null;
-  detailsProvider: string | null;
-  detailsProviderId: string | null;
-  detailsParentProvider: string | null;
-  detailsParentProviderId: string | null;
   title: string | null;
   subtitle: string | null;
   posterUrl: string | null;
   backdropUrl: string | null;
-  detailsTmdbId: number | null;
-  detailsShowTmdbId: number | null;
   episodeTitle: string | null;
   episodeAirDate: string | null;
   episodeRuntimeMinutes: number | null;
   episodeStillUrl: string | null;
-  episodeOverview: string | null;
   positionSeconds: number | null;
   durationSeconds: number | null;
   rating: number | null;
@@ -216,12 +202,9 @@ export class WatchEventsRepository {
       seasonNumber: row.season_number === null ? null : Number(row.season_number),
       episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
       absoluteEpisodeNumber: row.absolute_episode_number === null ? null : Number(row.absolute_episode_number),
-      detailsTitleId: typeof row.details_title_id === 'string' ? row.details_title_id : null,
       detailsTitleMediaType: row.details_title_media_type === 'movie' || row.details_title_media_type === 'show' || row.details_title_media_type === 'anime'
         ? row.details_title_media_type
         : null,
-      highlightEpisodeId: typeof row.highlight_episode_id === 'string' ? row.highlight_episode_id : null,
-      playbackContentId: typeof row.playback_content_id === 'string' ? row.playback_content_id : null,
       playbackMediaType: row.playback_media_type === 'movie' || row.playback_media_type === 'show' || row.playback_media_type === 'episode' || row.playback_media_type === 'anime'
         ? row.playback_media_type
         : null,
@@ -232,29 +215,18 @@ export class WatchEventsRepository {
       playbackSeasonNumber: row.playback_season_number === null ? null : Number(row.playback_season_number),
       playbackEpisodeNumber: row.playback_episode_number === null ? null : Number(row.playback_episode_number),
       playbackAbsoluteEpisodeNumber: row.playback_absolute_episode_number === null ? null : Number(row.playback_absolute_episode_number),
-      detailsSummary: typeof row.details_summary === 'string' ? row.details_summary : null,
-      detailsOverview: typeof row.details_overview === 'string' ? row.details_overview : null,
       detailsStillUrl: typeof row.details_still_url === 'string' ? row.details_still_url : null,
-      detailsReleaseDate: typeof row.details_release_date === 'string' ? row.details_release_date : null,
       detailsReleaseYear: row.details_release_year === null ? null : Number(row.details_release_year),
       detailsRuntimeMinutes: row.details_runtime_minutes === null ? null : Number(row.details_runtime_minutes),
       detailsRating: row.details_rating === null ? null : Number(row.details_rating),
-      detailsStatus: typeof row.details_status === 'string' ? row.details_status : null,
-      detailsProvider: typeof row.details_provider === 'string' ? row.details_provider : null,
-      detailsProviderId: typeof row.details_provider_id === 'string' ? row.details_provider_id : null,
-      detailsParentProvider: typeof row.details_parent_provider === 'string' ? row.details_parent_provider : null,
-      detailsParentProviderId: typeof row.details_parent_provider_id === 'string' ? row.details_parent_provider_id : null,
       title: typeof row.title === 'string' ? row.title : null,
       subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
       posterUrl: typeof row.poster_url === 'string' ? row.poster_url : null,
       backdropUrl: typeof row.backdrop_url === 'string' ? row.backdrop_url : null,
-      detailsTmdbId: row.details_tmdb_id === null ? null : Number(row.details_tmdb_id),
-      detailsShowTmdbId: row.details_show_tmdb_id === null ? null : Number(row.details_show_tmdb_id),
       episodeTitle: typeof row.episode_title === 'string' ? row.episode_title : null,
       episodeAirDate: typeof row.episode_air_date === 'string' ? row.episode_air_date : null,
       episodeRuntimeMinutes: row.episode_runtime_minutes === null ? null : Number(row.episode_runtime_minutes),
       episodeStillUrl: typeof row.episode_still_url === 'string' ? row.episode_still_url : null,
-      episodeOverview: typeof row.episode_overview === 'string' ? row.episode_overview : null,
       positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
       durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
       rating: row.rating === null ? null : Number(row.rating),

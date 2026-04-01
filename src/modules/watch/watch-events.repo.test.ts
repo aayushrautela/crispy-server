@@ -92,28 +92,11 @@ test('insert uses the watch_events projection contract without details_title col
       providerMetadata: {},
     },
     projection: {
-      detailsTitleId: 'title-1',
       detailsTitleMediaType: 'movie',
-      detailsTitle: 'Movie',
-      detailsSubtitle: 'Subtitle',
-      detailsSummary: 'Summary',
-      detailsOverview: 'Overview',
-      detailsPosterUrl: 'poster',
-      detailsBackdropUrl: 'backdrop',
       detailsStillUrl: 'still',
-      detailsReleaseDate: '2024-01-01',
       detailsReleaseYear: 2024,
       detailsRuntimeMinutes: 120,
       detailsRating: 8.4,
-      detailsStatus: 'released',
-      detailsProvider: 'tmdb',
-      detailsProviderId: '1',
-      detailsParentProvider: null,
-      detailsParentProviderId: null,
-      detailsTmdbId: 1,
-      detailsShowTmdbId: null,
-      highlightEpisodeId: null,
-      playbackContentId: null,
       playbackMediaType: 'movie',
       playbackProvider: 'tmdb',
       playbackProviderId: '1',
@@ -126,7 +109,6 @@ test('insert uses the watch_events projection contract without details_title col
       episodeAirDate: null,
       episodeRuntimeMinutes: null,
       episodeStillUrl: null,
-      episodeOverview: null,
       title: 'Movie',
       subtitle: null,
       posterUrl: null,
@@ -138,9 +120,9 @@ test('insert uses the watch_events projection contract without details_title col
   assert.doesNotMatch(capturedQuery, /details_subtitle\b/);
   assert.doesNotMatch(capturedQuery, /details_poster_url\b/);
   assert.doesNotMatch(capturedQuery, /details_backdrop_url\b/);
-  assert.match(capturedQuery, /details_summary\b/);
+  assert.doesNotMatch(capturedQuery, /details_summary\b/);
   assert.match(capturedQuery, /\$56::jsonb/);
-  assert.equal(capturedValues.length, 56);
+  assert.equal(capturedValues.length, 42);
 });
 
 test('listForProfile does not select non-existent watch_events details_title columns', async () => {
@@ -159,5 +141,5 @@ test('listForProfile does not select non-existent watch_events details_title col
   assert.doesNotMatch(capturedQuery, /details_subtitle\b/);
   assert.doesNotMatch(capturedQuery, /details_poster_url\b/);
   assert.doesNotMatch(capturedQuery, /details_backdrop_url\b/);
-  assert.match(capturedQuery, /details_summary\b/);
+  assert.doesNotMatch(capturedQuery, /details_summary\b/);
 });

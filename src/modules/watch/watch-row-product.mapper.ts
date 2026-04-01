@@ -135,11 +135,6 @@ function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | nul
 }
 
 function resolveTitleProvider(row: StoredWatchRow, parsed: ReturnType<typeof parseMediaKey>): SupportedProvider | null {
-  const direct = asSupportedProvider(row.detailsProvider);
-  if (direct) {
-    return direct;
-  }
-
   if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
     return parsed.provider ?? null;
   }
@@ -148,10 +143,6 @@ function resolveTitleProvider(row: StoredWatchRow, parsed: ReturnType<typeof par
 }
 
 function resolveTitleProviderId(row: StoredWatchRow, parsed: ReturnType<typeof parseMediaKey>): string | null {
-  if (row.detailsProviderId) {
-    return row.detailsProviderId;
-  }
-
   if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
     return parsed.providerId ?? null;
   }
