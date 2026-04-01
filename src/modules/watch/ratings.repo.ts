@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
+import { buildTitleDedupedPageQuery } from './title-deduped-page-query.js';
 export class RatingsRepository {
   async put(client: DbClient, params: {
     profileId: string;
@@ -59,18 +60,10 @@ export class RatingsRepository {
     hasMore: boolean;
   }> {
     const result = await client.query(
-      `
-        SELECT media_key, media_type, tmdb_id, rating, rated_at, payload
-        FROM ratings
-        WHERE profile_id = $1::uuid
-          AND (
-            $2::timestamptz IS NULL
-            OR rated_at < $2::timestamptz
-            OR (rated_at = $2::timestamptz AND media_key < $3)
-          )
-        ORDER BY rated_at DESC, media_key DESC
-        LIMIT $4
-      `,
+      buildTitleDedupedPageQuery({
+        tableName: 'ratings',
+        sortColumn: 'rated_at',
+      }),
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit + 1],
     );
     const rows = result.rows.slice(0, limit);

@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
+import { buildTitleDedupedPageQuery } from './title-deduped-page-query.js';
 export class WatchlistRepository {
   async put(client: DbClient, params: {
     profileId: string;
@@ -56,18 +57,10 @@ export class WatchlistRepository {
     hasMore: boolean;
   }> {
     const result = await client.query(
-      `
-        SELECT media_key, media_type, tmdb_id, added_at, payload
-        FROM watchlist_items
-        WHERE profile_id = $1::uuid
-          AND (
-            $2::timestamptz IS NULL
-            OR added_at < $2::timestamptz
-            OR (added_at = $2::timestamptz AND media_key < $3)
-          )
-        ORDER BY added_at DESC, media_key DESC
-        LIMIT $4
-      `,
+      buildTitleDedupedPageQuery({
+        tableName: 'watchlist_items',
+        sortColumn: 'added_at',
+      }),
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit + 1],
     );
     const rows = result.rows.slice(0, limit);

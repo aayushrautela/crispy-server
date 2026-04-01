@@ -1,6 +1,7 @@
 import { parseMediaKey } from '../identity/media-key.js';
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
+import { buildTitleDedupedPageQuery } from './title-deduped-page-query.js';
 
 export class WatchHistoryRepository {
   async upsertWatched(client: DbClient, params: {
@@ -66,18 +67,11 @@ export class WatchHistoryRepository {
     hasMore: boolean;
   }> {
     const result = await client.query(
-      `
-        SELECT media_key, media_type, tmdb_id, show_tmdb_id, season_number, episode_number, watched_at, payload
-        FROM watch_history_latest
-        WHERE profile_id = $1::uuid
-          AND (
-            $2::timestamptz IS NULL
-            OR watched_at < $2::timestamptz
-            OR (watched_at = $2::timestamptz AND media_key < $3)
-          )
-        ORDER BY watched_at DESC, media_key DESC
-        LIMIT $4
-      `,
+      buildTitleDedupedPageQuery({
+        tableName: 'watch_history_latest',
+        sortColumn: 'watched_at',
+        extraColumns: ['show_tmdb_id', 'season_number', 'episode_number'],
+      }),
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit + 1],
     );
     const rows = result.rows.slice(0, limit);
