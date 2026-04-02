@@ -47,7 +47,6 @@ const aiSearchItemSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'id',
     'mediaKey',
     'mediaType',
     'kind',
@@ -74,7 +73,6 @@ const aiSearchItemSchema = {
     'status',
   ],
   properties: {
-    id: nonEmptyStringSchema,
     mediaKey: nonEmptyStringSchema,
     mediaType: { type: 'string', enum: ['movie', 'show', 'anime'] },
     kind: { type: 'string', enum: ['title'] },
@@ -133,9 +131,9 @@ export const aiInsightsRouteSchema = withDefaultErrorResponses({
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['contentId'],
+    required: ['mediaKey'],
     properties: {
-      contentId: nonEmptyStringSchema,
+      mediaKey: nonEmptyStringSchema,
       locale: stringSchema,
     },
   },

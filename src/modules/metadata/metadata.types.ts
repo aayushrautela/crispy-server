@@ -80,6 +80,7 @@ export type ProviderSeasonRecord = {
 
 export type MetadataEpisodePreview = {
   mediaType: 'episode';
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   parentMediaType: MetadataParentMediaType;
@@ -101,6 +102,7 @@ export type MetadataEpisodePreview = {
 export type MetadataCardView = {
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   parentMediaType: MetadataParentMediaType | null;
@@ -126,6 +128,7 @@ export type MetadataCardView = {
 
 export type RegularCardView = {
   mediaType: MetadataViewMediaType;
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   title: string;
@@ -140,6 +143,7 @@ export type CatalogItem = RegularCardView;
 
 export type LandscapeCardView = {
   mediaType: MetadataViewMediaType;
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   title: string;
@@ -188,6 +192,7 @@ export type HeroCardView = {
 export type MetadataView = {
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   parentMediaType: MetadataParentMediaType | null;
@@ -218,6 +223,7 @@ export type MetadataView = {
 };
 
 export type MetadataSeasonView = {
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   parentMediaType: MetadataParentMediaType;
@@ -392,6 +398,7 @@ export type PlaybackResolveResponse = {
 
 export type MetadataPersonKnownForItem = {
   mediaType: MetadataTitleMediaType;
+  mediaKey: string;
   provider: SupportedProvider;
   providerId: string;
   tmdbId: number;

@@ -410,6 +410,7 @@ export class RecommendationOutputService {
 function toRegularCard(card: MetadataCardView): RegularCardView {
   return {
     mediaType: card.mediaType,
+    mediaKey: card.mediaKey,
     provider: card.provider,
     providerId: card.providerId,
     title: card.title ?? 'Untitled',
@@ -430,6 +431,7 @@ function toLandscapeCard(card: MetadataCardView): LandscapeCardView | null {
 
   return {
     mediaType: card.mediaType,
+    mediaKey: card.mediaKey,
     provider: card.provider,
     providerId: card.providerId,
     title: card.title,

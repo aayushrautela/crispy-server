@@ -110,14 +110,14 @@ There are two distinct identity systems, and they must not be conflated.
 ### 1. Canonical metadata identity
 
 - `content_items.id` is the canonical metadata identifier.
-- This UUID is referred to as `content_id` in DB discussions and surfaced as metadata `id` in API payloads.
+- This UUID is referred to as `content_id` in DB discussions and remains internal to metadata/storage workflows.
 - `content_provider_refs` stores provider mappings for a canonical content row.
 
 Rules:
 
 - `content_id` identifies metadata entities.
-- `content_id` is the canonical metadata row id and remains valid for metadata detail and metadata content endpoints.
-- Public metadata title routes may also accept title `mediaKey` values so clients do not depend on internal UUIDs for normal navigation.
+- `content_id` is the canonical metadata row id for internal persistence and canonical joins.
+- Public metadata title routes must use title `mediaKey` values so clients do not depend on internal UUIDs.
 - `content_id` is not the watch-state lookup contract.
 
 ### 2. Canonical watch identity
@@ -132,9 +132,9 @@ Rules:
 
 ### Identity separation rule
 
-- Metadata flows use `content_id` internally, but public title detail/content routes may also accept title `mediaKey` values at the boundary.
+- Metadata flows use `content_id` internally, but public title detail/content routes accept only title `mediaKey` values at the boundary.
 - Watch flows resolve through `mediaKey`.
-- A route should accept more than one identity form only when those inputs normalize deterministically to the same logical media entity.
+- Public routes should expose one stable client identity whenever possible.
 
 ## Canonical Entity Types
 
@@ -222,17 +222,17 @@ Important anti-rule:
 
 ### Metadata API
 
-Metadata title routes accept stable title route identity.
+Metadata title routes accept stable public title identity.
 
-- `GET /v1/metadata/titles/:id`
-- `GET /v1/metadata/titles/:id/content`
-- `GET /v1/metadata/titles/:id/seasons/:seasonNumber`
+- `GET /v1/metadata/titles/:mediaKey`
+- `GET /v1/metadata/titles/:mediaKey/content`
+- `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber`
 
 Rules:
 
-- `:id` may be either a canonical title `content_id` or a title `mediaKey` (`movie:*`, `show:*`, `anime:*`).
+- `:mediaKey` must be a title `mediaKey` (`movie:*`, `show:*`, `anime:*`).
 - Title routes accept title identities only.
-- Title routes must not silently reinterpret episode canonical ids as title ids.
+- Title routes must not silently reinterpret other identities as title ids.
 - Title routes must reject season, episode, and person `mediaKey` values.
 - Metadata enrichment and provider fetches must resolve from the title's authority provider.
 
@@ -256,13 +256,13 @@ Rules:
 
 ### Resolve API
 
-Resolve-style endpoints may accept convenience ids, but canonical output must still follow authority rules.
+Resolve-style endpoints may accept convenience provider ids, but canonical output must still follow authority rules.
 
 Rules:
 
 - Explicit `mediaType` beats heuristics.
 - Convenience ids like `tmdbId`, `tvdbId`, or `kitsuId` can be accepted at the boundary.
-- Canonical output must normalize to authority-provider identity or canonical `content_id`.
+- Canonical output must normalize to stable provider-aware identity.
 - If resolution remains ambiguous, return an error instead of persisting unstable identity.
 
 ## Search Model
@@ -341,7 +341,7 @@ AI features consume canonical app identity through the public service boundaries
 
 Target rules:
 
-- AI title-oriented features accept canonical title identity, ideally `content_id`.
+- AI title-oriented features accept title `mediaKey` through public service boundaries.
 - AI flows resolve provider metadata internally via `MetadataCardService` and `MetadataViewService`.
 - AI route behavior aligns with the same movie/show/anime authority model used everywhere else.
 

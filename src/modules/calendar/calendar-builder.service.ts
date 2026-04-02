@@ -17,6 +17,7 @@ function toRegularCard(card: MetadataCardView): RegularCardView | null {
 
   return {
     mediaType: card.mediaType,
+    mediaKey: card.mediaKey,
     provider: card.provider,
     providerId: card.providerId,
     title: card.title,
@@ -47,6 +48,7 @@ function toLandscapeCard(card: MetadataCardView, params: {
 
   return {
     mediaType: card.mediaType,
+    mediaKey: card.mediaKey,
     provider: card.provider,
     providerId: card.providerId,
     title: card.title,
@@ -115,6 +117,7 @@ export class CalendarBuilderService {
               bucket: 'no_scheduled',
               media: {
                 mediaType: relatedShowCard.mediaType,
+                mediaKey: relatedShowCard.mediaKey,
                 provider: relatedShowCard.provider,
                 providerId: relatedShowCard.providerId,
                 title: relatedShowCard.title,
@@ -150,9 +153,10 @@ export class CalendarBuilderService {
       if (!schedule.nextEpisode) {
         items.push({
           bucket: 'no_scheduled',
-          media: {
-            mediaType: relatedShowCard.mediaType,
-            provider: relatedShowCard.provider,
+            media: {
+              mediaType: relatedShowCard.mediaType,
+              mediaKey: relatedShowCard.mediaKey,
+              provider: relatedShowCard.provider,
             providerId: relatedShowCard.providerId,
             title: relatedShowCard.title,
             posterUrl: relatedShowCard.posterUrl,

@@ -21,16 +21,16 @@ export class AiInsightsService {
   ) {}
 
   async getInsights(userId: string, input: {
-    contentId: string;
+    mediaKey: string;
     profileId: string;
     locale?: string | null;
   }): Promise<AiInsightsPayload> {
-    const contentId = normalizeString(input.contentId);
+    const mediaKey = normalizeString(input.mediaKey);
     const profileId = normalizeString(input.profileId);
     const locale = normalizeLocale(input.locale);
 
-    if (!contentId) {
-      throw new HttpError(400, 'contentId is required.');
+    if (!mediaKey) {
+      throw new HttpError(400, 'mediaKey is required.');
     }
     if (!profileId) {
       throw new HttpError(400, 'Profile is required.');
@@ -45,8 +45,8 @@ export class AiInsightsService {
     const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
     const cached = await withTransaction(async (client) => {
-      return this.cacheRepository.findByKey(client, {
-        contentId,
+        return this.cacheRepository.findByKey(client, {
+        contentId: mediaKey,
         locale,
         generationVersion,
       });
@@ -55,7 +55,7 @@ export class AiInsightsService {
       return cached.payload;
     }
 
-    const titleDetail = await this.metadataQueryService.getTitleDetailById(contentId);
+    const titleDetail = await this.metadataQueryService.getTitleDetailById(mediaKey);
     const titleContext = buildTitleInsightsContext(titleDetail);
     if (!titleContext) {
       throw new HttpError(404, 'Unable to load title data for AI insights.');
@@ -75,7 +75,7 @@ export class AiInsightsService {
 
     return withTransaction(async (client) => {
       return this.cacheRepository.upsert(client, {
-        contentId,
+        contentId: mediaKey,
         locale,
         generationVersion: actualGenerationVersion,
         modelName: `${execution.request.providerId}:${execution.request.model}`,
@@ -98,7 +98,7 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail): TitleInsightsCo
   }
 
   return {
-    contentId: `${detail.item.mediaType}:${detail.item.provider}:${detail.item.providerId}`,
+    mediaKey: `${detail.item.mediaType}:${detail.item.provider}:${detail.item.providerId}`,
     mediaType,
     title,
     year: detail.item.releaseYear ? String(detail.item.releaseYear) : null,

@@ -192,15 +192,15 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 #### Metadata and AI
 
 - `GET /v1/metadata/resolve` - resolve metadata identity
-- `GET /v1/metadata/titles/:id` - title detail by canonical `content_id` or title `mediaKey`
-- `GET /v1/metadata/titles/:id/content` - title content enriched with OMDb data by canonical `content_id` or title `mediaKey`
-- `GET /v1/metadata/titles/:id/seasons/:seasonNumber` - season detail by canonical `content_id` or show/anime `mediaKey`
+- `GET /v1/metadata/titles/:mediaKey` - title detail by title `mediaKey`
+- `GET /v1/metadata/titles/:mediaKey/content` - title content enriched with OMDb data by title `mediaKey`
+- `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber` - season detail by show/anime `mediaKey`
 - `GET /v1/playback/resolve` - resolve playback context for a title, season, or episode lookup
 - `GET /v1/search/titles` - TMDB-backed search
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile
 - `POST /v1/profiles/:profileId/ai/insights` - AI insights for a title and profile
 
-`GET /v1/metadata/titles/:id/content` returns the existing metadata item plus an `omdb` object resolved from a cached OMDb enrichment when available, otherwise using keys in this order: the requesting account's OMDb key, server-managed keys from `OMDB_API_KEYS`, then the shared pool of other stored account OMDb keys.
+`GET /v1/metadata/titles/:mediaKey/content` returns the existing metadata item plus an `omdb` object resolved from a cached OMDb enrichment when available, otherwise using keys in this order: the requesting account's OMDb key, server-managed keys from `OMDB_API_KEYS`, then the shared pool of other stored account OMDb keys.
 
 `GET /v1/account/settings`, `PATCH /v1/account/settings`, and `GET /v1/me` now expose the account-level AI client contract under `settings.ai` or `accountSettings.ai`:
 

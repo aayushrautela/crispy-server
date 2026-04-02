@@ -11,7 +11,7 @@ export type SearchPromptCandidateShape = {
 };
 
 export type TitleInsightsContext = {
-  contentId: string;
+  mediaKey: string;
   mediaType: 'movie' | 'show' | 'anime';
   title: string;
   year: string | null;

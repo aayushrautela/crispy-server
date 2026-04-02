@@ -8,7 +8,7 @@ import {
 } from './shared.js';
 
 export type MetadataResolveQuery = {
-  id?: string;
+  mediaKey?: string;
   imdbId?: string;
   mediaType?: string;
   provider?: string;
@@ -20,11 +20,11 @@ export type MetadataResolveQuery = {
 };
 
 export type MetadataTitleParams = {
-  id: string;
+  mediaKey: string;
 };
 
 export type MetadataSeasonParams = {
-  id: string;
+  mediaKey: string;
   seasonNumber: number | string;
 };
 
@@ -44,7 +44,7 @@ export type MetadataNextEpisodeQuery = {
   currentSeasonNumber?: number | string;
   currentEpisodeNumber?: number | string;
   watchedKeys?: string | string[];
-  showId?: string;
+  showMediaKey?: string;
   nowMs?: number | string;
 };
 
@@ -60,7 +60,7 @@ export const metadataResolveRouteSchema = withDefaultErrorResponses({
     type: 'object',
     additionalProperties: false,
     properties: {
-      id: stringSchema,
+      mediaKey: stringSchema,
       imdbId: stringSchema,
       mediaType: stringSchema,
       provider: stringSchema,
@@ -77,9 +77,9 @@ export const metadataTitleParamsRouteSchema = withDefaultErrorResponses({
   params: {
     type: 'object',
     additionalProperties: false,
-    required: ['id'],
+    required: ['mediaKey'],
     properties: {
-      id: nonEmptyStringSchema,
+      mediaKey: nonEmptyStringSchema,
     },
   },
 });
@@ -88,9 +88,9 @@ export const metadataSeasonRouteSchema = withDefaultErrorResponses({
   params: {
     type: 'object',
     additionalProperties: false,
-    required: ['id', 'seasonNumber'],
+    required: ['mediaKey', 'seasonNumber'],
     properties: {
-      id: nonEmptyStringSchema,
+      mediaKey: nonEmptyStringSchema,
       seasonNumber: positiveIntegerLikeSchema,
     },
   },
@@ -118,9 +118,9 @@ export const metadataEpisodesRouteSchema = withDefaultErrorResponses({
   params: {
     type: 'object',
     additionalProperties: false,
-    required: ['id'],
+    required: ['mediaKey'],
     properties: {
-      id: nonEmptyStringSchema,
+      mediaKey: nonEmptyStringSchema,
     },
   },
   querystring: {
@@ -136,9 +136,9 @@ export const metadataNextEpisodeRouteSchema = withDefaultErrorResponses({
   params: {
     type: 'object',
     additionalProperties: false,
-    required: ['id'],
+    required: ['mediaKey'],
     properties: {
-      id: nonEmptyStringSchema,
+      mediaKey: nonEmptyStringSchema,
     },
   },
   querystring: {
@@ -148,7 +148,7 @@ export const metadataNextEpisodeRouteSchema = withDefaultErrorResponses({
       currentSeasonNumber: positiveIntegerLikeSchema,
       currentEpisodeNumber: positiveIntegerLikeSchema,
       watchedKeys: stringListSchema,
-      showId: stringSchema,
+      showMediaKey: stringSchema,
       nowMs: integerLikeSchema,
     },
   },

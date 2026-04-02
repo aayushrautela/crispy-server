@@ -1294,7 +1294,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function mediaTitle(media) {
     if (!media) return 'Unknown title';
-    return media.title || media.subtitle || media.mediaKey || media.id || 'Unknown title';
+    return media.title || media.subtitle || media.mediaKey || 'Unknown title';
   }
 
   function mediaSubtitle(media) {

@@ -247,12 +247,12 @@ If a client needs richer detail:
 
 For metadata title routes:
 
-- `/v1/metadata/titles/:id`
-- `/v1/metadata/titles/:id/content`
-- `/v1/metadata/titles/:id/seasons/:seasonNumber`
+- `/v1/metadata/titles/:mediaKey`
+- `/v1/metadata/titles/:mediaKey/content`
+- `/v1/metadata/titles/:mediaKey/seasons/:seasonNumber`
 
-clients should prefer title `mediaKey` values such as `movie:tmdb:487672`, `show:tmdb:1399`, `show:tvdb:121361`, or `anime:kitsu:1`.
-Canonical internal UUID `content_id` values remain valid, but clients should not require them for normal detail navigation.
+clients should use title `mediaKey` values such as `movie:tmdb:487672`, `show:tmdb:1399`, `show:tvdb:121361`, or `anime:kitsu:1`.
+Canonical internal UUID `content_id` values are internal-only and are not part of the client contract.
 
 ## Watch List Endpoints
 

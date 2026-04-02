@@ -23,7 +23,7 @@ import type {
 } from './providers/tmdb.types.js';
 
 type ResolveInput = {
-  id?: string;
+  mediaKey?: string;
   tmdbId?: number | null;
   imdbId?: string | null;
   tvdbId?: number | null;
@@ -177,8 +177,8 @@ export class MetadataQueryService {
   }
 
   private async resolveIdentity(client: DbClient, input: ResolveInput) {
-    if (input.id?.trim()) {
-      return this.contentIdentityService.resolveMediaIdentity(client, input.id.trim());
+    if (input.mediaKey?.trim()) {
+      return parseMediaKey(input.mediaKey.trim());
     }
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
@@ -282,21 +282,14 @@ export class MetadataQueryService {
   }
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 export async function resolveTitleRouteIdentity(
-  client: DbClient,
-  contentIdentityService: ContentIdentityService,
-  id: string,
+  _client: DbClient,
+  _contentIdentityService: ContentIdentityService,
+  mediaKey: string,
 ): Promise<MediaIdentity> {
-  const normalizedId = id.trim();
-  if (UUID_RE.test(normalizedId)) {
-    return contentIdentityService.resolveMediaIdentity(client, normalizedId);
-  }
-
-  const identity = parseMediaKey(normalizedId);
+  const identity = parseMediaKey(mediaKey.trim());
   if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-    throw new HttpError(400, 'Title details require a title id.');
+    throw new HttpError(400, 'Title routes require a title mediaKey.');
   }
 
   return identity;
@@ -305,11 +298,11 @@ export async function resolveTitleRouteIdentity(
 export async function resolveShowRouteIdentity(
   client: DbClient,
   contentIdentityService: ContentIdentityService,
-  id: string,
+  mediaKey: string,
 ): Promise<MediaIdentity> {
-  const identity = await resolveTitleRouteIdentity(client, contentIdentityService, id);
+  const identity = await resolveTitleRouteIdentity(client, contentIdentityService, mediaKey);
   if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-    throw new HttpError(400, 'Season details require a show id.');
+    throw new HttpError(400, 'Season routes require a show or anime mediaKey.');
   }
 
   return identity;

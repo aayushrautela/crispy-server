@@ -158,7 +158,6 @@ export const metadataCardViewSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'id',
     'mediaKey',
     'mediaType',
     'kind',
@@ -185,7 +184,6 @@ export const metadataCardViewSchema = {
     'status',
   ],
   properties: {
-    id: stringSchema,
     mediaKey: stringSchema,
     mediaType: stringSchema,
     kind: stringSchema,
@@ -216,9 +214,10 @@ export const metadataCardViewSchema = {
 export const regularCardViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaType', 'provider', 'providerId', 'title', 'posterUrl', 'releaseYear', 'rating', 'genre', 'subtitle'],
+  required: ['mediaType', 'mediaKey', 'provider', 'providerId', 'title', 'posterUrl', 'releaseYear', 'rating', 'genre', 'subtitle'],
   properties: {
     mediaType: stringSchema,
+    mediaKey: stringSchema,
     provider: stringSchema,
     providerId: stringSchema,
     title: stringSchema,
@@ -235,6 +234,7 @@ export const landscapeCardViewSchema = {
   additionalProperties: false,
   required: [
     'mediaType',
+    'mediaKey',
     'provider',
     'providerId',
     'title',
@@ -251,6 +251,7 @@ export const landscapeCardViewSchema = {
   ],
   properties: {
     mediaType: stringSchema,
+    mediaKey: stringSchema,
     provider: stringSchema,
     providerId: stringSchema,
     title: stringSchema,

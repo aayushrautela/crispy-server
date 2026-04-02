@@ -7,6 +7,7 @@ import type { ContinueWatchingProductItem } from '../watch/watch-derived-item.ty
 function createContinueWatchingItem(mediaType: 'movie' | 'show' | 'anime' = 'movie'): ContinueWatchingProductItem {
   return {
     media: {
+      mediaKey: mediaType === 'movie' ? 'movie:tmdb:1' : 'show:tmdb:1',
       mediaType,
       provider: 'tmdb',
       providerId: '1',
@@ -39,6 +40,7 @@ function createCalendarItem(bucket: CalendarItem['bucket']): CalendarItem {
   return {
     bucket,
     media: {
+      mediaKey: 'episode:tmdb:10:1:3',
       mediaType: 'episode',
       provider: 'tmdb',
       providerId: '10:1:3',
@@ -55,6 +57,7 @@ function createCalendarItem(bucket: CalendarItem['bucket']): CalendarItem {
       runtimeMinutes: 44,
     },
     relatedShow: {
+      mediaKey: 'show:tmdb:10',
       mediaType: 'show',
       provider: 'tmdb',
       providerId: '10',

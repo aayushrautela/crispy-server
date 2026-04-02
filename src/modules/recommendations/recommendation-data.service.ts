@@ -298,6 +298,7 @@ function toLandscapeCard(card: MetadataCardView): LandscapeCardView {
   const backdropUrl = card.images.stillUrl ?? card.artwork.stillUrl ?? card.images.backdropUrl ?? card.artwork.backdropUrl ?? posterUrl;
   return {
     mediaType: card.mediaType,
+    mediaKey: card.mediaKey,
     provider: card.provider,
     providerId: card.providerId,
     title: card.title ?? 'Untitled',

@@ -3,7 +3,7 @@ import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import type { SupportedMediaType } from '../identity/media-key.js';
-import { inferMediaIdentity, parentMediaTypeForIdentity, type MediaIdentity } from '../identity/media-key.js';
+import { inferMediaIdentity, parseMediaKey, parentMediaTypeForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import {
   buildEpisodeView,
   buildImageUrl,
@@ -39,7 +39,7 @@ import type {
 type FetchLike = typeof fetch;
 
 type ResolveMetadataInput = {
-  id?: string;
+  mediaKey?: string;
   tmdbId?: number | null;
   imdbId?: string | null;
   tvdbId?: number | null;
@@ -53,7 +53,7 @@ type NextEpisodeInput = {
   currentSeasonNumber: number;
   currentEpisodeNumber: number;
   watchedKeys?: string[] | null;
-  showId?: string | null;
+  showMediaKey?: string | null;
   nowMs?: number | null;
 };
 
@@ -208,7 +208,7 @@ export class MetadataDirectService {
         releaseDate: episode.airDate,
       })),
       watchedKeys: input.watchedKeys ?? null,
-      showId: input.showId ?? episodeList.show.providerId,
+      showId: input.showMediaKey ?? episodeList.show.mediaKey,
       nowMs: input.nowMs ?? null,
     });
 
@@ -306,13 +306,13 @@ export class MetadataDirectService {
         mediaType: parsed.mediaType,
       };
     }
-    throw new HttpError(400, 'Episode listing requires a show id.');
+    throw new HttpError(400, 'Episode listing requires a show or anime mediaKey.');
   }
 
   private async resolveTitleIdentity(client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'movie' | 'show' | 'anime' }> {
     const parsed = await resolveTitleRouteIdentity(client, this.contentIdentityService, id);
     if (parsed.mediaType !== 'movie' && parsed.mediaType !== 'show' && parsed.mediaType !== 'anime') {
-      throw new HttpError(400, 'Title content requires a title id.');
+      throw new HttpError(400, 'Title content requires a title mediaKey.');
     }
 
     return {
@@ -322,8 +322,8 @@ export class MetadataDirectService {
   }
 
   private async resolveIdentity(client: DbClient, input: ResolveMetadataInput): Promise<MediaIdentity> {
-    if (input.id?.trim()) {
-      return this.contentIdentityService.resolveMediaIdentity(client, input.id.trim());
+    if (input.mediaKey?.trim()) {
+      return parseMediaKey(input.mediaKey.trim());
     }
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
@@ -537,6 +537,7 @@ async function buildKnownForItems(
     const releaseDate = mediaType === 'movie' ? asString(record.release_date) : asString(record.first_air_date);
     items.push({
       mediaType,
+      mediaKey: `${mediaType}:tmdb:${tmdbId}`,
       provider: 'tmdb',
       providerId: String(tmdbId),
       tmdbId,

@@ -107,7 +107,7 @@ test('findNextEpisode skips episodes with no release date', () => {
 
 test('episodeViewToLookup extracts episode-like fields', () => {
   const episode = {
-    id: 'uuid-ep',
+    mediaKey: 'episode:tmdb:42:1:3',
     mediaType: 'episode' as const,
     provider: 'tmdb' as const,
     providerId: '42:s1:e3',

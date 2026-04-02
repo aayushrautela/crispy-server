@@ -458,6 +458,7 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
 
   return {
     mediaType: card.mediaType,
+    mediaKey: card.mediaKey,
     provider: card.provider,
     providerId: card.providerId,
     title: card.title,
@@ -676,6 +677,7 @@ export function buildEpisodePreview(
 
   return {
     mediaType: 'episode',
+    mediaKey: `episode:tmdb:${episode.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`,
     provider: 'tmdb',
     providerId: buildEpisodeProviderId(String(episode.showTmdbId), episode.seasonNumber, episode.episodeNumber),
     parentMediaType: 'show',
@@ -703,6 +705,7 @@ export function buildProviderEpisodePreview(
 
   return {
     mediaType: 'episode',
+    mediaKey: `episode:${episode.provider}:${episode.parentProviderId}:${episode.seasonNumber ?? 1}:${episode.episodeNumber ?? episode.absoluteEpisodeNumber ?? 1}`,
     provider: episode.provider,
     providerId: episode.providerId,
     parentMediaType: episode.parentMediaType,
@@ -762,6 +765,7 @@ export function buildMetadataCardView(params: {
   return {
     mediaType: resolvedMediaType,
     kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
+    mediaKey: identity.mediaKey,
     provider: identity.provider ?? 'tmdb',
     providerId: identity.providerId ?? String(identity.tmdbId ?? identity.showTmdbId ?? ''),
     parentMediaType: identity.mediaType === 'episode' || identity.mediaType === 'season'
@@ -868,6 +872,7 @@ export function buildProviderMetadataCardView(params: {
   return {
     mediaType: resolvedMediaType,
     kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
+    mediaKey: identity.mediaKey,
     provider: currentEpisode?.provider ?? title.provider,
     providerId: currentEpisode?.providerId ?? title.providerId,
     parentMediaType: resolveProviderParentMediaType(identity),
@@ -940,6 +945,7 @@ export function buildSeasonViewFromTitleRaw(
       }
 
       return {
+        mediaKey: `season:tmdb:${title.tmdbId}:${seasonNumber}`,
         provider: 'tmdb',
         providerId: buildSeasonProviderId(String(title.tmdbId), seasonNumber),
         parentMediaType: 'show',
@@ -969,6 +975,7 @@ export function buildSeasonViewFromRecord(
   _showId: string,
 ): MetadataSeasonView {
   return {
+    mediaKey: `season:tmdb:${showTmdbId}:${season.seasonNumber}`,
     provider: 'tmdb',
     providerId: buildSeasonProviderId(String(showTmdbId), season.seasonNumber),
     parentMediaType: 'show',
@@ -993,6 +1000,7 @@ export function buildProviderSeasonViewFromRecord(
   showTmdbId: number | null = null,
 ): MetadataSeasonView {
   return {
+    mediaKey: `season:${season.provider}:${season.parentProviderId}:${season.seasonNumber}`,
     provider: season.provider,
     providerId: season.providerId,
     parentMediaType: season.parentMediaType,

@@ -8,20 +8,18 @@ seedTestEnv();
 
 const { resolveShowRouteIdentity, resolveTitleRouteIdentity } = await import('./metadata-query.service.js');
 
-test('resolveTitleRouteIdentity resolves canonical UUIDs through the content identity service', async () => {
-  let receivedId: string | null = null;
+test('resolveTitleRouteIdentity accepts provider-backed show media keys directly', async () => {
   const contentIdentityService = {
-    resolveMediaIdentity: async (_client: unknown, id: string) => {
-      receivedId = id;
-      return inferMediaIdentity({ mediaType: 'movie', tmdbId: 77, contentId: id });
+    resolveMediaIdentity: async () => {
+      throw new Error('should not resolve content ids for title routes');
     },
   };
 
-  const identity = await resolveTitleRouteIdentity({} as never, contentIdentityService as never, '22222222-2222-4222-8222-222222222255');
+  const identity = await resolveTitleRouteIdentity({} as never, contentIdentityService as never, 'show:tvdb:121361');
 
-  assert.equal(receivedId, '22222222-2222-4222-8222-222222222255');
-  assert.equal(identity.mediaType, 'movie');
-  assert.equal(identity.contentId, '22222222-2222-4222-8222-222222222255');
+  assert.equal(identity.mediaType, 'show');
+  assert.equal(identity.provider, 'tvdb');
+  assert.equal(identity.providerId, '121361');
 });
 
 test('resolveTitleRouteIdentity accepts title media keys directly', async () => {
@@ -45,7 +43,7 @@ test('resolveTitleRouteIdentity rejects non-title media keys', async () => {
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Title details require a title id.');
+      assert.equal(error.message, 'Title routes require a title mediaKey.');
       return true;
     },
   );
@@ -57,7 +55,7 @@ test('resolveShowRouteIdentity rejects movie media keys', async () => {
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Season details require a show id.');
+      assert.equal(error.message, 'Season routes require a show or anime mediaKey.');
       return true;
     },
   );

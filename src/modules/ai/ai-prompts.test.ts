@@ -29,7 +29,7 @@ test('search prompt for anime prefers anime catalog naming', () => {
 
 test('insights prompt adds anime-specific guidance', () => {
   const prompt = buildInsightsPrompt({
-    contentId: 'anime:kitsu:1',
+    mediaKey: 'anime:kitsu:1',
     mediaType: 'anime',
     title: 'Fullmetal Alchemist: Brotherhood',
     year: '2009',
@@ -46,7 +46,7 @@ test('insights prompt adds anime-specific guidance', () => {
 
 test('insights prompt adds show-specific guidance', () => {
   const prompt = buildInsightsPrompt({
-    contentId: 'show:tvdb:1',
+    mediaKey: 'show:tvdb:1',
     mediaType: 'show',
     title: 'His Dark Materials',
     year: '2019',

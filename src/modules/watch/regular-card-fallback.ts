@@ -22,6 +22,7 @@ export function fallbackRegularCard(
 
   return {
     mediaType: parsed.mediaType,
+    mediaKey,
     provider: parsed.provider,
     providerId: parsed.providerId,
     title,
