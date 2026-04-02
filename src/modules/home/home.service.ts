@@ -2,7 +2,6 @@ import { redis } from '../../lib/redis.js';
 import { appConfig } from '../../config/app-config.js';
 import { nowIso } from '../../lib/time.js';
 import { ContinueWatchingService } from '../watch/continue-watching.service.js';
-import { WatchedQueryService } from '../watch/watched.service.js';
 import { CalendarService } from '../calendar/calendar.service.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { HomeBuilderService } from './home-builder.service.js';
@@ -12,7 +11,6 @@ import type { HomeResponse } from './home.types.js';
 export class HomeService {
   constructor(
     private readonly continueWatchingService = new ContinueWatchingService(),
-    private readonly watchedService = new WatchedQueryService(),
     private readonly calendarService = new CalendarService(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
     private readonly homeBuilderService = new HomeBuilderService(),
@@ -25,9 +23,8 @@ export class HomeService {
       return JSON.parse(cached) as HomeResponse;
     }
 
-    const [continueWatching, history, calendar] = await Promise.all([
+    const [continueWatching, calendar] = await Promise.all([
       this.continueWatchingService.listProducts(userId, profileId, 20),
-      this.watchedService.listProducts(userId, profileId, 10),
       this.calendarService.getCalendar(userId, profileId),
     ]);
 

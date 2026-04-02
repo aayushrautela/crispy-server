@@ -8,6 +8,7 @@ import { MediaProgressRepository } from './media-progress.repo.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
+import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { normalizeWatchOccurredAt } from './watch.types.js';
 
 export class HeartbeatFlushService {
@@ -16,6 +17,7 @@ export class HeartbeatFlushService {
     private readonly mediaProgressRepository = new MediaProgressRepository(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
+    private readonly watchV2WriteService = new WatchV2WriteService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
   ) {}
 
@@ -100,6 +102,14 @@ export class HeartbeatFlushService {
           ingest_mode: 'buffered_flush',
         },
         continueWatchingProjection: projection,
+      });
+      await this.watchV2WriteService.applyPlaybackEvent(client, {
+        profileId,
+        identity,
+        eventType: 'playback_progress_snapshot',
+        occurredAt: normalizedOccurredAt,
+        positionSeconds: snapshot.positionSeconds,
+        durationSeconds: snapshot.durationSeconds,
       });
 
       return { action: 'persisted' as const, reason: decision.reason };

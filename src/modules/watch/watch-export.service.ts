@@ -7,22 +7,12 @@ import type {
   RawWatchlistRow,
   RawRatingRow,
   RawProgressRow,
+  RawTrackedSeriesRow,
 } from './watch-query.service.js';
-import { TrackedSeriesRepository } from './tracked-series.repo.js';
 
-export type { RawContinueWatchingRow, RawWatchHistoryRow, RawWatchlistRow, RawRatingRow, RawProgressRow };
+export type { RawContinueWatchingRow, RawWatchHistoryRow, RawWatchlistRow, RawRatingRow, RawProgressRow, RawTrackedSeriesRow };
 
-export type TrackedSeriesExport = {
-  trackedMediaKey: string;
-  trackedMediaType: string;
-  provider: string;
-  providerId: string;
-  reason: string | null;
-  lastInteractedAt: string;
-  nextEpisodeAirDate: string | null;
-  metadataRefreshedAt: string | null;
-  payload: Record<string, unknown>;
-};
+export type TrackedSeriesExport = RawTrackedSeriesRow;
 
 export type WatchCollectionBundle = {
   continueWatching: RawContinueWatchingRow[];
@@ -35,7 +25,6 @@ export class WatchExportService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly watchQueryService = new WatchQueryService(),
-    private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
   ) {}
 
   async listContinueWatching(client: DbClient, profileId: string, limit: number): Promise<RawContinueWatchingRow[]> {
@@ -55,18 +44,7 @@ export class WatchExportService {
   }
 
   async listTrackedSeries(client: DbClient, profileId: string, limit: number): Promise<TrackedSeriesExport[]> {
-    const rows = await this.trackedSeriesRepository.listForProfile(client, profileId, limit);
-    return rows.map((row) => ({
-      trackedMediaKey: row.trackedMediaKey,
-      trackedMediaType: row.trackedMediaType,
-      provider: row.provider,
-      providerId: row.providerId,
-      reason: row.reason,
-      lastInteractedAt: row.lastInteractedAt,
-      nextEpisodeAirDate: row.nextEpisodeAirDate,
-      metadataRefreshedAt: row.metadataRefreshedAt,
-      payload: row.payload,
-    }));
+    return this.watchQueryService.listTrackedSeries(client, profileId, limit);
   }
 
   async getProgress(client: DbClient, profileId: string, mediaKey: string): Promise<RawProgressRow | null> {

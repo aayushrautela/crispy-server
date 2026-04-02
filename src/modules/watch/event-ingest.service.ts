@@ -9,6 +9,8 @@ import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
 import { WatchEventsRepository } from './watch-events.repo.js';
 import { WatchProjectorService } from './projector.service.js';
+import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
+import { decodeWatchV2ContinueWatchingId } from './watch-v2-utils.js';
 import {
   normalizeWatchOccurredAt,
   sanitizeWatchEventInput,
@@ -23,6 +25,7 @@ export class WatchEventIngestService {
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly watchEventsRepository = new WatchEventsRepository(),
     private readonly projector = new WatchProjectorService(),
+    private readonly watchV2WriteService = new WatchV2WriteService(),
     private readonly continueWatchingRepository = new ContinueWatchingRepository(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
@@ -50,6 +53,11 @@ export class WatchEventIngestService {
   async markWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
     await this.applyMutation(userId, profileId, 'mark_watched', input, async (client, params) => {
       await this.projector.markWatched(client, params);
+      await this.watchV2WriteService.markWatched(client, {
+        profileId,
+        identity: params.identity,
+        occurredAt: params.occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
@@ -60,6 +68,11 @@ export class WatchEventIngestService {
   async unmarkWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
     await this.applyMutation(userId, profileId, 'unmark_watched', input, async (client, params) => {
       await this.projector.unmarkWatched(client, { profileId, mediaKey: params.identity.mediaKey });
+      await this.watchV2WriteService.unmarkWatched(client, {
+        profileId,
+        identity: params.identity,
+        occurredAt: params.occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
@@ -71,6 +84,11 @@ export class WatchEventIngestService {
   async setWatchlist(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
     await this.applyMutation(userId, profileId, 'watchlist_put', input, async (client, params) => {
       await this.projector.setWatchlist(client, params);
+      await this.watchV2WriteService.setWatchlist(client, {
+        profileId,
+        identity: params.identity,
+        occurredAt: params.occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
@@ -79,8 +97,13 @@ export class WatchEventIngestService {
   }
 
   async removeWatchlist(userId: string, profileId: string, mediaKey: string): Promise<WatchIngestResult> {
-    await this.applyMutationByMediaKey(userId, profileId, 'watchlist_remove', mediaKey, async (client) => {
+    await this.applyMutationByMediaKey(userId, profileId, 'watchlist_remove', mediaKey, async (client, identity, occurredAt) => {
       await this.projector.removeWatchlist(client, { profileId, mediaKey });
+      await this.watchV2WriteService.removeWatchlist(client, {
+        profileId,
+        identity,
+        occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey,
@@ -98,6 +121,12 @@ export class WatchEventIngestService {
         ...params,
         rating: input.rating as number,
       });
+      await this.watchV2WriteService.setRating(client, {
+        profileId,
+        identity: params.identity,
+        rating: input.rating as number,
+        occurredAt: params.occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
@@ -106,8 +135,13 @@ export class WatchEventIngestService {
   }
 
   async removeRating(userId: string, profileId: string, mediaKey: string): Promise<WatchIngestResult> {
-    await this.applyMutationByMediaKey(userId, profileId, 'rating_remove', mediaKey, async (client) => {
+    await this.applyMutationByMediaKey(userId, profileId, 'rating_remove', mediaKey, async (client, identity, occurredAt) => {
       await this.projector.removeRating(client, { profileId, mediaKey });
+      await this.watchV2WriteService.removeRating(client, {
+        profileId,
+        identity,
+        occurredAt,
+      });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey,
@@ -121,12 +155,35 @@ export class WatchEventIngestService {
     await withTransaction(async (client) => {
       const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
-      const continueWatching = await this.continueWatchingRepository.findById(client, profileId, projectionId);
-      if (!continueWatching) {
+      const watchV2TitleContentId = decodeWatchV2ContinueWatchingId(projectionId);
+      if (watchV2TitleContentId) {
+        const result = await client.query(
+          `
+            SELECT active_media_key, title_media_key
+            FROM profile_title_projection
+            WHERE profile_id = $1::uuid
+              AND title_content_id = $2::uuid
+              AND has_in_progress = true
+              AND dismissed_at IS NULL
+          `,
+          [profileId, watchV2TitleContentId],
+        );
+        const row = result.rows[0] ?? null;
+        if (!row) {
+          throw new HttpError(404, 'Continue watching item not found.');
+        }
+        mediaKey = typeof row.active_media_key === 'string' ? row.active_media_key : String(row.title_media_key);
+      } else {
+        const continueWatching = await this.continueWatchingRepository.findById(client, profileId, projectionId);
+        if (!continueWatching) {
+          throw new HttpError(404, 'Continue watching item not found.');
+        }
+
+        mediaKey = String(continueWatching.media_key);
+      }
+      if (!mediaKey) {
         throw new HttpError(404, 'Continue watching item not found.');
       }
-
-      mediaKey = String(continueWatching.media_key);
       const identity = parseMediaKey(mediaKey);
       const occurredAt = new Date().toISOString();
       const event = await this.watchEventsRepository.insert(client, {
@@ -157,9 +214,14 @@ export class WatchEventIngestService {
 
       await this.projector.dismissContinueWatching(client, {
         profileId,
-        projectionId,
+        projectionId: watchV2TitleContentId ? undefined : projectionId,
         mediaKey: identity.mediaKey,
         eventId: event.id,
+        occurredAt,
+      });
+      await this.watchV2WriteService.dismissContinueWatching(client, {
+        profileId,
+        identity,
         occurredAt,
       });
     });
@@ -192,6 +254,14 @@ export class WatchEventIngestService {
         durationSeconds: input.durationSeconds,
         payload: input.payload,
         continueWatchingProjection: projection,
+      });
+      await this.watchV2WriteService.applyPlaybackEvent(client, {
+        profileId,
+        identity,
+        eventType: input.eventType,
+        occurredAt: normalizeWatchOccurredAt(input.occurredAt),
+        positionSeconds: input.positionSeconds,
+        durationSeconds: input.durationSeconds,
       });
     });
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
@@ -278,13 +348,18 @@ export class WatchEventIngestService {
     profileId: string,
     eventType: string,
     mediaKey: string,
-    apply: (client: import('../../lib/db.js').DbClient) => Promise<void>,
+    apply: (
+      client: import('../../lib/db.js').DbClient,
+      identity: ReturnType<typeof parseMediaKey>,
+      occurredAt: string,
+    ) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
       const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const identity = parseMediaKey(mediaKey);
       const projection = await this.buildProjection(client, identity);
+      const occurredAt = new Date().toISOString();
       await this.watchEventsRepository.insert(client, {
         profileGroupId: profile.profileGroupId,
         profileId,
@@ -304,14 +379,14 @@ export class WatchEventIngestService {
           seasonNumber: identity.seasonNumber,
           episodeNumber: identity.episodeNumber,
           absoluteEpisodeNumber: identity.absoluteEpisodeNumber,
-          occurredAt: new Date().toISOString(),
+          occurredAt,
           payload: {},
         },
         identity,
         projection,
       });
 
-      await apply(client);
+      await apply(client, identity, occurredAt);
     });
   }
 

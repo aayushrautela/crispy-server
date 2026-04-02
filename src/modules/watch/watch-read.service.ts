@@ -5,6 +5,7 @@ import type { ContinueWatchingProductItem, WatchedProductItem } from './watch-de
 import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { mapContinueWatchingRowToProduct, mapWatchedRowToProduct } from './watch-row-product.mapper.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
+import { fallbackRegularCard } from './regular-card-fallback.js';
 
 export class WatchReadService {
   constructor(
@@ -53,7 +54,7 @@ export class WatchReadService {
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, page.items.map((row) => row.mediaKey));
       return {
         items: page.items
-          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? null }))
+          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? fallbackRegularCard(row.mediaKey, row.title, row.posterUrl, row.subtitle, row.detailsReleaseYear, row.detailsRating) }))
           .map((row) => mapWatchedRowToProduct(row))
           .filter((item): item is WatchedProductItem => item !== null),
         pageInfo: page.pageInfo,

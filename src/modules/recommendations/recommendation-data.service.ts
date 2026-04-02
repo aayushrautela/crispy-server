@@ -7,6 +7,7 @@ import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.
 import { inferMediaIdentity } from '../identity/media-key.js';
 import { WatchExportService, type TrackedSeriesExport } from '../watch/watch-export.service.js';
 import { WatchMediaCardCacheService } from '../watch/watch-media-card-cache.service.js';
+import { fallbackRegularCard } from '../watch/regular-card-fallback.js';
 
 export type RecommendationDataListKind = 'watch-history' | 'continue-watching' | 'watchlist' | 'ratings' | 'tracked-series';
 
@@ -50,7 +51,14 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listWatchHistory(client, profileId, limit);
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
       return rows.flatMap((row) => {
-        const media = mediaMap.get(row.mediaKey);
+        const media = mediaMap.get(row.mediaKey) ?? fallbackRegularCard(
+          row.mediaKey,
+          row.title,
+          row.posterUrl,
+          row.subtitle,
+          row.detailsReleaseYear,
+          row.detailsRating,
+        );
         if (!media) {
           return [];
         }
@@ -69,7 +77,14 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listWatchHistory(client, targetProfileId, limit);
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
       return rows.flatMap((row) => {
-        const media = mediaMap.get(row.mediaKey);
+        const media = mediaMap.get(row.mediaKey) ?? fallbackRegularCard(
+          row.mediaKey,
+          row.title,
+          row.posterUrl,
+          row.subtitle,
+          row.detailsReleaseYear,
+          row.detailsRating,
+        );
         if (!media) {
           return [];
         }
@@ -126,7 +141,14 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listWatchlist(client, profileId, limit);
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
       return rows.flatMap((row) => {
-        const media = mediaMap.get(row.mediaKey);
+        const media = mediaMap.get(row.mediaKey) ?? fallbackRegularCard(
+          row.mediaKey,
+          row.title,
+          row.posterUrl,
+          row.subtitle,
+          row.releaseYear,
+          row.titleRating,
+        );
         if (!media) {
           return [];
         }
@@ -145,7 +167,14 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listWatchlist(client, targetProfileId, limit);
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
       return rows.flatMap((row) => {
-        const media = mediaMap.get(row.mediaKey);
+        const media = mediaMap.get(row.mediaKey) ?? fallbackRegularCard(
+          row.mediaKey,
+          row.title,
+          row.posterUrl,
+          row.subtitle,
+          row.releaseYear,
+          row.titleRating,
+        );
         if (!media) {
           return [];
         }
@@ -164,7 +193,14 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listRatings(client, profileId, limit);
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
       return rows.flatMap((row) => {
-        const media = mediaMap.get(row.mediaKey);
+        const media = mediaMap.get(row.mediaKey) ?? fallbackRegularCard(
+          row.mediaKey,
+          row.title,
+          row.posterUrl,
+          row.subtitle,
+          row.releaseYear,
+          row.titleRating,
+        );
         if (!media) {
           return [];
         }
@@ -186,7 +222,14 @@ export class RecommendationDataService {
       const rows = await this.watchExportService.listRatings(client, targetProfileId, limit);
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, rows.map((row) => row.mediaKey));
       return rows.flatMap((row) => {
-        const media = mediaMap.get(row.mediaKey);
+        const media = mediaMap.get(row.mediaKey) ?? fallbackRegularCard(
+          row.mediaKey,
+          row.title,
+          row.posterUrl,
+          row.subtitle,
+          row.releaseYear,
+          row.titleRating,
+        );
         if (!media) {
           return [];
         }
@@ -248,20 +291,6 @@ export class RecommendationDataService {
   private async buildLandscapeMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedLandscapeMedia> {
     return toLandscapeCard(await this.metadataCardService.buildCardViewFromRow(client, row));
   }
-}
-
-function toRegularCard(card: MetadataCardView): RegularCardView {
-  return {
-    mediaType: card.mediaType,
-    provider: card.provider,
-    providerId: card.providerId,
-    title: card.title ?? 'Untitled',
-    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl ?? '',
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    subtitle: card.subtitle,
-  };
 }
 
 function toLandscapeCard(card: MetadataCardView): LandscapeCardView {

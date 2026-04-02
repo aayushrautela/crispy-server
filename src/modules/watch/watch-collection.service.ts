@@ -5,6 +5,7 @@ import { WatchQueryService } from './watch-query.service.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { mapRatingRowToProduct, mapWatchlistRowToProduct } from './watch-row-product.mapper.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
+import { fallbackRegularCard } from './regular-card-fallback.js';
 
 export class WatchCollectionService {
   constructor(
@@ -30,7 +31,7 @@ export class WatchCollectionService {
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, page.items.map((row) => row.mediaKey));
       return {
         items: page.items
-          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? null }))
+          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? fallbackRegularCard(row.mediaKey, row.title, row.posterUrl, row.subtitle, row.releaseYear, row.titleRating) }))
           .map((row) => mapWatchlistRowToProduct(row))
           .filter((item): item is WatchlistProductItem => item !== null),
         pageInfo: page.pageInfo,
@@ -55,7 +56,7 @@ export class WatchCollectionService {
       const mediaMap = await this.watchMediaCardCacheService.listRegularCards(client, page.items.map((row) => row.mediaKey));
       return {
         items: page.items
-          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? null }))
+          .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? fallbackRegularCard(row.mediaKey, row.title, row.posterUrl, row.subtitle, row.releaseYear, row.titleRating) }))
           .map((row) => mapRatingRowToProduct(row))
           .filter((item): item is RatingProductItem => item !== null),
         pageInfo: page.pageInfo,
