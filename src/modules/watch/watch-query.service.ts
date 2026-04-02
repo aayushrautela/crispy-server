@@ -399,13 +399,13 @@ export class WatchQueryService {
             projection.rated_at,
             projection.watchlist_updated_at
           ) AS last_interacted_at,
-          tracked.next_episode_air_date,
-          tracked.metadata_refreshed_at,
-          COALESCE(tracked.payload, '{}'::jsonb) AS payload
+          metadata.next_episode_air_date,
+          metadata.metadata_refreshed_at,
+          COALESCE(metadata.payload, '{}'::jsonb) AS payload
         FROM profile_title_projection projection
-        LEFT JOIN profile_tracked_series tracked
-          ON tracked.profile_id = projection.profile_id
-         AND tracked.tracked_media_key = projection.title_media_key
+        LEFT JOIN profile_title_metadata_state metadata
+          ON metadata.profile_id = projection.profile_id
+         AND metadata.title_content_id = projection.title_content_id
         WHERE projection.profile_id = $1::uuid
           AND projection.title_media_type IN ('show', 'anime')
           AND (
@@ -415,7 +415,7 @@ export class WatchQueryService {
             OR projection.rating_value IS NOT NULL
           )
         ORDER BY
-          COALESCE(tracked.next_episode_air_date, DATE '9999-12-31') ASC,
+          COALESCE(metadata.next_episode_air_date, DATE '9999-12-31') ASC,
           COALESCE(
             projection.last_activity_at,
             projection.last_watched_at,
@@ -587,8 +587,8 @@ function mapTrackedSeriesRow(row: Record<string, unknown>): RawTrackedSeriesRow 
     providerId: String(row.provider_id),
     reason: typeof row.reason === 'string' ? row.reason : null,
     lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_title_projection.last_interacted_at'),
-    nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_tracked_series.next_episode_air_date'),
-    metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_tracked_series.metadata_refreshed_at'),
+    nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_title_metadata_state.next_episode_air_date'),
+    metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_title_metadata_state.metadata_refreshed_at'),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
   };
 }

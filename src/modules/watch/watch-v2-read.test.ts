@@ -57,9 +57,7 @@ test('listContinueWatchingPage emits synthetic cw2 ids from title projection row
 test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projection rows', { concurrency: false }, async (t) => {
   const originalConnect = db.connect;
   const notifications: Array<Record<string, unknown>> = [];
-  const dismissCalls: Array<Record<string, unknown>> = [];
   const v2DismissCalls: Array<Record<string, unknown>> = [];
-  const insertedEvents: Array<{ input: { eventType: string; mediaKey: string } }> = [];
 
   (db as { connect: typeof db.connect }).connect = async () => ({
     query: async (sql: string, params?: unknown[]) => {
@@ -91,25 +89,9 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
       assertOwnedProfile: async () => ({ profileGroupId: 'group-1' }),
     } as never,
     {
-      insert: async (_client: unknown, args: { input: { eventType: string; mediaKey: string } }) => {
-        insertedEvents.push(args);
-        return { id: 'event-1' };
-      },
-    } as never,
-    {
       buildProjection: async () => createProjection(),
       dismissContinueWatching: async (_client: unknown, args: Record<string, unknown>) => {
-        dismissCalls.push(args);
-      },
-    } as never,
-    {
-      dismissContinueWatching: async (_client: unknown, args: Record<string, unknown>) => {
         v2DismissCalls.push(args);
-      },
-    } as never,
-    {
-      findById: async () => {
-        throw new Error('legacy continue watching lookup should not be used for cw2 ids');
       },
     } as never,
     {} as never,
@@ -127,15 +109,9 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
   );
 
   assert.deepEqual(result, { accepted: true, mode: 'synchronous' });
-  assert.equal(insertedEvents.length, 1);
-  assert.equal(insertedEvents[0]?.input.eventType, 'continue_watching_dismissed');
-  assert.equal(insertedEvents[0]?.input.mediaKey, 'episode:tvdb:100:1:2');
-  assert.equal(dismissCalls.length, 1);
-  assert.equal(dismissCalls[0]?.profileId, 'profile-1');
-  assert.equal(dismissCalls[0]?.projectionId, undefined);
-  assert.equal(dismissCalls[0]?.mediaKey, 'episode:tvdb:100:1:2');
-  assert.equal(dismissCalls[0]?.eventId, 'event-1');
-  assert.equal(typeof dismissCalls[0]?.occurredAt, 'string');
+  assert.equal(v2DismissCalls.length, 1);
+  assert.equal(v2DismissCalls[0]?.profileId, 'profile-1');
+  assert.equal(typeof v2DismissCalls[0]?.occurredAt, 'string');
   assert.equal((v2DismissCalls[0]?.identity as { mediaKey?: string } | undefined)?.mediaKey, 'episode:tvdb:100:1:2');
   assert.deepEqual(notifications, [{ mediaKey: 'episode:tvdb:100:1:2', refreshMetadata: false }]);
 });

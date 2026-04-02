@@ -1,23 +1,20 @@
-import { randomUUID } from 'node:crypto';
 import { withTransaction } from '../../lib/db.js';
 import { enqueueHeartbeatFlush } from '../../lib/queue.js';
+import type { PersistedProgressSnapshot } from './heartbeat-policy.js';
 import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.js';
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { ensureSupportedMediaType, inferMediaIdentity } from '../identity/media-key.js';
-import { MediaProgressRepository } from './media-progress.repo.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
-import { WatchEventsRepository } from './watch-events.repo.js';
-import { WatchProjectorService } from './projector.service.js';
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { normalizeWatchOccurredAt } from './watch.types.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { resolveWatchV2Lookup } from './watch-v2-utils.js';
 
 export class HeartbeatFlushService {
   constructor(
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
-    private readonly mediaProgressRepository = new MediaProgressRepository(),
-    private readonly watchEventsRepository = new WatchEventsRepository(),
-    private readonly projector = new WatchProjectorService(),
     private readonly watchV2WriteService = new WatchV2WriteService(),
+    private readonly contentIdentityService = new ContentIdentityService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
   ) {}
 
@@ -30,17 +27,6 @@ export class HeartbeatFlushService {
     const normalizedOccurredAt = normalizeWatchOccurredAt(snapshot.occurredAt);
 
     const outcome = await withTransaction(async (client) => {
-      const current = await this.mediaProgressRepository.getByMediaKey(client, profileId, mediaKey);
-      const decision = evaluateHeartbeatSnapshot(snapshot, current);
-
-      if (decision.action === 'clear_buffer') {
-        return { action: 'cleared' as const, reason: decision.reason };
-      }
-
-      if (decision.action === 'keep_buffer') {
-        return { action: 'deferred' as const, reason: decision.reason };
-      }
-
       const identity = inferMediaIdentity({
         mediaKey: snapshot.mediaKey,
         mediaType: ensureSupportedMediaType(snapshot.mediaType),
@@ -56,53 +42,17 @@ export class HeartbeatFlushService {
         episodeNumber: snapshot.episodeNumber,
         absoluteEpisodeNumber: snapshot.absoluteEpisodeNumber,
       });
-      const projection = await this.projector.buildProjection(client, identity);
+      const current = await this.getPersistedProgressSnapshot(client, profileId, identity);
+      const decision = evaluateHeartbeatSnapshot(snapshot, current);
 
-      const event = await this.watchEventsRepository.insert(client, {
-        profileGroupId: snapshot.profileGroupId,
-        profileId,
-        input: {
-          clientEventId: `heartbeat-flush:${profileId}:${mediaKey}:${normalizedOccurredAt}:${randomUUID()}`,
-          eventType: 'playback_progress_snapshot',
-          mediaKey: snapshot.mediaKey,
-          mediaType: snapshot.mediaType,
-          provider: snapshot.provider,
-          providerId: snapshot.providerId,
-          parentProvider: snapshot.parentProvider,
-          parentProviderId: snapshot.parentProviderId,
-          tmdbId: snapshot.tmdbId,
-          tvdbId: snapshot.tvdbId,
-          kitsuId: snapshot.kitsuId,
-          showTmdbId: snapshot.showTmdbId,
-          seasonNumber: snapshot.seasonNumber,
-          episodeNumber: snapshot.episodeNumber,
-          absoluteEpisodeNumber: snapshot.absoluteEpisodeNumber,
-          positionSeconds: snapshot.positionSeconds,
-          durationSeconds: snapshot.durationSeconds,
-          occurredAt: normalizedOccurredAt,
-          payload: {
-            ...snapshot.payload,
-            ingest_mode: 'buffered_flush',
-          },
-        },
-        identity,
-        projection,
-      });
+      if (decision.action === 'clear_buffer') {
+        return { action: 'cleared' as const, reason: decision.reason };
+      }
 
-      await this.projector.applyPlaybackEvent(client, {
-        profileId,
-        identity,
-        eventId: event.id,
-        eventType: 'playback_progress_snapshot',
-        occurredAt: normalizedOccurredAt,
-        positionSeconds: snapshot.positionSeconds,
-        durationSeconds: snapshot.durationSeconds,
-        payload: {
-          ...snapshot.payload,
-          ingest_mode: 'buffered_flush',
-        },
-        continueWatchingProjection: projection,
-      });
+      if (decision.action === 'keep_buffer') {
+        return { action: 'deferred' as const, reason: decision.reason };
+      }
+
       await this.watchV2WriteService.applyPlaybackEvent(client, {
         profileId,
         identity,
@@ -133,5 +83,47 @@ export class HeartbeatFlushService {
     }
 
     return outcome;
+  }
+
+  private async getPersistedProgressSnapshot(
+    client: import('../../lib/db.js').DbClient,
+    profileId: string,
+    identity: ReturnType<typeof inferMediaIdentity>,
+  ): Promise<PersistedProgressSnapshot | null> {
+    const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
+    if (identity.mediaType !== 'movie' && identity.mediaType !== 'episode') {
+      return null;
+    }
+
+    const result = await client.query(
+      `
+        SELECT
+          position_seconds,
+          duration_seconds,
+          progress_percent,
+          playback_status,
+          last_activity_at
+        FROM profile_playable_state
+        WHERE profile_id = $1::uuid
+          AND content_id = $2::uuid
+      `,
+      [profileId, lookup.contentId],
+    );
+    const row = result.rows[0] ?? null;
+    if (!row) {
+      return null;
+    }
+
+    return {
+      positionSeconds: Number(row.position_seconds ?? 0),
+      durationSeconds: row.duration_seconds == null ? null : Number(row.duration_seconds),
+      progressPercent: Number(row.progress_percent ?? 0),
+      status: typeof row.playback_status === 'string' ? row.playback_status : undefined,
+      lastPlayedAt: typeof row.last_activity_at === 'string'
+        ? row.last_activity_at
+        : row.last_activity_at instanceof Date
+          ? row.last_activity_at.toISOString()
+          : undefined,
+    };
   }
 }

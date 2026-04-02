@@ -49,6 +49,7 @@ test('markWatched writes completed playable state and history for playable targe
     {
       buildWatchProjection: async () => createProjection({ title: 'Example Show', posterUrl: 'poster' }),
     } as never,
+    createMetadataService() as never,
   );
 
   await service.markWatched({} as never, {
@@ -116,6 +117,7 @@ test('unmarkWatched clears playable progress for title targets and voids history
     {
       buildWatchProjection: async () => createProjection({ title: 'Example Show', posterUrl: 'poster' }),
     } as never,
+    createMetadataService() as never,
   );
 
   await service.unmarkWatched({} as never, {
@@ -166,6 +168,14 @@ function createProjection(overrides: Record<string, unknown> = {}) {
     posterUrl: 'poster',
     backdropUrl: 'backdrop',
     ...overrides,
+  };
+}
+
+function createMetadataService() {
+  return {
+    buildProjection: async () => createProjection({ title: 'Example Show', posterUrl: 'poster' }),
+    syncTitleMetadata: async () => {},
+    deleteTitleMetadataState: async () => {},
   };
 }
 

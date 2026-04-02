@@ -18,6 +18,7 @@ import type {
   WatchV2TitleKind,
 } from './watch-v2.types.js';
 import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
+import { WatchV2MetadataService } from './watch-v2-metadata.service.js';
 
 type PlayableStateSnapshot = {
   contentId: string;
@@ -125,6 +126,7 @@ export class WatchV2WriteService {
     private readonly repository = new WatchV2WriteRepository(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly metadataProjectionService = new MetadataProjectionService(),
+    private readonly metadataService = new WatchV2MetadataService(this.metadataProjectionService),
   ) {}
 
   async applyPlaybackEvent(client: DbClient, params: {
@@ -501,7 +503,7 @@ export class WatchV2WriteService {
   }
 
   private async buildProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
-    return this.metadataProjectionService.buildWatchProjection(client, identity).catch(() => fallbackProjection(identity));
+    return this.metadataService.buildProjection(client, identity);
   }
 
   private async refreshProjection(
@@ -533,8 +535,25 @@ export class WatchV2WriteService {
 
     if (!keepProjection) {
       await this.repository.deleteTitleProjection(client, profileId, resolved.titleContentId);
+      await this.metadataService.deleteTitleMetadataState(client, profileId, resolved.titleContentId);
       return;
     }
+
+    await this.metadataService.syncTitleMetadata(client, {
+      profileId,
+      titleContentId: resolved.titleContentId,
+      titleMediaKey: resolved.title.mediaKey,
+      trackedIdentity:
+        resolved.title.mediaType === 'show' || resolved.title.mediaType === 'anime'
+          ? inferMediaIdentity({
+              mediaKey: resolved.title.mediaKey,
+              mediaType: resolved.title.mediaType,
+              provider: resolved.title.provider,
+              providerId: resolved.title.providerId,
+              contentId: resolved.title.contentId,
+            })
+          : null,
+    });
 
     await this.repository.upsertTitleProjection(client, {
       profileId,
