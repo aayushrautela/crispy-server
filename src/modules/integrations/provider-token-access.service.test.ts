@@ -50,11 +50,14 @@ test('getAccessTokenForAccountProfile returns access token when connected', asyn
     { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     {
       findLatestConnectedForProfile: async () => ({
-        id: 'conn-1', profileId: 'profile-1', provider: 'trakt', status: 'connected',
+        id: 'acct-1', profileId: 'profile-1', provider: 'trakt', status: 'connected',
         credentialsJson: { accessToken: 'test-access-token', accessTokenExpiresAt: null },
       }),
     } as never,
-    { refreshConnection: async (conn: unknown) => ({ connection: conn, refreshed: false }) } as never,
+    {
+      refreshProviderAccount: async (providerAccount: unknown) => ({ providerAccount, refreshed: false }),
+      getRecommendedDelayMs: () => null,
+    } as never,
     noopTransaction,
   );
 
@@ -62,6 +65,7 @@ test('getAccessTokenForAccountProfile returns access token when connected', asyn
   assert.equal(result.accessToken, 'test-access-token');
   assert.equal(result.provider, 'trakt');
   assert.equal(result.refreshed, false);
+  assert.equal(result.providerAccountId, 'acct-1');
 });
 
 test('getTokenStatusForAccountProfile returns token state', async () => {
@@ -69,15 +73,16 @@ test('getTokenStatusForAccountProfile returns token state', async () => {
     { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     {
       findLatestConnectedForProfile: async () => ({
-        id: 'conn-1', profileId: 'profile-1', provider: 'simkl', status: 'connected',
+        id: 'acct-1', profileId: 'profile-1', provider: 'simkl', status: 'connected',
         credentialsJson: { accessToken: 'access', accessTokenExpiresAt: new Date(Date.now() + 3600000).toISOString() },
       }),
     } as never,
-    {} as never,
+    { getRecommendedDelayMs: () => null } as never,
     noopTransaction,
   );
 
   const result = await service.getTokenStatusForAccountProfile('user-1', 'profile-1', 'simkl');
   assert.equal(result.tokenState, 'valid');
   assert.equal(result.provider, 'simkl');
+  assert.equal(result.providerAccountId, 'acct-1');
 });

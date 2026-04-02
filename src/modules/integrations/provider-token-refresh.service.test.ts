@@ -2,42 +2,51 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
 
-seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-id', TRAKT_IMPORT_CLIENT_SECRET: 'trakt-secret', SIMKL_IMPORT_CLIENT_ID: 'simkl-id', SIMKL_IMPORT_CLIENT_SECRET: 'simkl-secret' });
+seedTestEnv({
+  TRAKT_IMPORT_CLIENT_ID: 'trakt-id',
+  TRAKT_IMPORT_CLIENT_SECRET: 'trakt-secret',
+  TRAKT_IMPORT_REDIRECT_URI: 'http://localhost/trakt/callback',
+  SIMKL_IMPORT_CLIENT_ID: 'simkl-id',
+  SIMKL_IMPORT_CLIENT_SECRET: 'simkl-secret',
+  SIMKL_IMPORT_REDIRECT_URI: 'http://localhost/simkl/callback',
+});
 
-test('refreshConnectionById returns null for non-existent connection', async () => {
+const noopTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
+
+test('refreshProviderAccountById returns null for non-existent account', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
-  const service = new ProviderTokenRefreshService({ findById: async () => null } as never);
-  const result = await service.refreshConnectionById('missing-conn');
+  const service = new ProviderTokenRefreshService({ findById: async () => null } as never, noopTransaction);
+  const result = await service.refreshProviderAccountById('missing-account');
   assert.equal(result, null);
 });
 
-test('refreshConnectionById returns null for non-connected status', async () => {
+test('refreshProviderAccountById returns null for non-connected status', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const service = new ProviderTokenRefreshService({
-    findById: async () => ({ id: 'conn-1', status: 'expired', provider: 'trakt', credentialsJson: {} }),
-  } as never);
-  const result = await service.refreshConnectionById('conn-1');
+    findById: async () => ({ id: 'acct-1', status: 'expired', provider: 'trakt', credentialsJson: {} }),
+  } as never, noopTransaction);
+  const result = await service.refreshProviderAccountById('acct-1');
   assert.equal(result, null);
 });
 
-test('refreshConnection skips refresh when token is not expiring', async () => {
+test('refreshProviderAccount skips refresh when token is not expiring', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const connection = {
-    id: 'conn-1', status: 'connected', provider: 'trakt',
+  const providerAccount = {
+    id: 'acct-1', status: 'connected', provider: 'trakt',
     credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
   };
-  const service = new ProviderTokenRefreshService({} as never);
+  const service = new ProviderTokenRefreshService({} as never, noopTransaction);
 
-  const result = await service.refreshConnection(connection as never);
+  const result = await service.refreshProviderAccount(providerAccount as never);
   assert.equal(result.refreshed, false);
 });
 
-test('refreshConnection forces refresh when force option is set', async () => {
+test('refreshProviderAccount forces refresh when force option is set', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const connection = {
-    id: 'conn-1', status: 'connected', provider: 'trakt',
+  const providerAccount = {
+    id: 'acct-1', status: 'connected', provider: 'trakt',
     credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
   };
 
@@ -46,24 +55,24 @@ test('refreshConnection forces refresh when force option is set', async () => {
 
   try {
     const service = new ProviderTokenRefreshService({
-      updateConnectedCredentials: async () => ({ ...connection, credentialsJson: { ...connection.credentialsJson, accessToken: 'new-access' } }),
-    } as never);
+      updateConnectedCredentials: async () => ({ ...providerAccount, credentialsJson: { ...providerAccount.credentialsJson, accessToken: 'new-access' } }),
+    } as never, noopTransaction);
 
-    const result = await service.refreshConnection(connection as never, { force: true });
+    const result = await service.refreshProviderAccount(providerAccount as never, { force: true });
     assert.equal(result.refreshed, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('refreshConnection returns refreshed false when no refresh token exists', async () => {
+test('refreshProviderAccount returns refreshed false when no refresh token exists', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
-  const connection = {
-    id: 'conn-1', status: 'connected', provider: 'trakt',
+  const providerAccount = {
+    id: 'acct-1', status: 'connected', provider: 'trakt',
     credentialsJson: { accessToken: 'access' },
   };
-  const service = new ProviderTokenRefreshService({} as never);
+  const service = new ProviderTokenRefreshService({} as never, noopTransaction);
 
-  const result = await service.refreshConnection(connection as never);
+  const result = await service.refreshProviderAccount(providerAccount as never);
   assert.equal(result.refreshed, false);
 });

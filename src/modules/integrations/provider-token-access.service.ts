@@ -3,16 +3,16 @@ import { HttpError } from '../../lib/errors.js';
 import { normalizeIsoString } from '../../lib/time.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import {
-  ProviderImportConnectionsRepository,
-  type ProviderImportConnectionRecord,
-} from './provider-import-connections.repo.js';
+  ProviderAccountsRepository,
+  type ProviderAccountRecord,
+} from './provider-accounts.repo.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
 
 const EXPIRING_WINDOW_MS = 10 * 60 * 1000;
 
 export type ProviderConnectionAccessView = {
-  connectionId: string;
+  providerAccountId: string;
   profileId: string;
   provider: ProviderImportProvider;
   status: 'connected';
@@ -30,7 +30,7 @@ export type ProviderConnectionAccessView = {
 };
 
 export type ProviderTokenStatusView = {
-  connectionId: string;
+  providerAccountId: string;
   profileId: string;
   provider: ProviderImportProvider;
   tokenState: 'valid' | 'expiring' | 'expired' | 'missing_access_token';
@@ -43,7 +43,7 @@ export type ProviderTokenStatusView = {
 };
 
 export type ProviderAccessTokenView = {
-  connectionId: string;
+  providerAccountId: string;
   profileId: string;
   provider: ProviderImportProvider;
   accessToken: string;
@@ -56,7 +56,7 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 export class ProviderTokenAccessService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly connectionsRepository = new ProviderImportConnectionsRepository(),
+    private readonly providerAccountsRepository = new ProviderAccountsRepository(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
@@ -66,8 +66,8 @@ export class ProviderTokenAccessService {
     profileId: string,
     provider: ProviderImportProvider,
   ): Promise<ProviderConnectionAccessView> {
-    const connection = await this.requireConnectedConnectionForAccountProfile(accountId, profileId, provider);
-    return this.toConnectionView(connection);
+    const providerAccount = await this.requireConnectedProviderAccountForAccountProfile(accountId, profileId, provider);
+    return this.toConnectionView(providerAccount);
   }
 
   async getTokenStatusForAccountProfile(
@@ -75,8 +75,8 @@ export class ProviderTokenAccessService {
     profileId: string,
     provider: ProviderImportProvider,
   ): Promise<ProviderTokenStatusView> {
-    const connection = await this.requireConnectedConnectionForAccountProfile(accountId, profileId, provider);
-    return this.toTokenStatusView(connection);
+    const providerAccount = await this.requireConnectedProviderAccountForAccountProfile(accountId, profileId, provider);
+    return this.toTokenStatusView(providerAccount);
   }
 
   async getAccessTokenForAccountProfile(
@@ -85,77 +85,77 @@ export class ProviderTokenAccessService {
     provider: ProviderImportProvider,
     options?: { forceRefresh?: boolean },
   ): Promise<ProviderAccessTokenView> {
-    const connection = await this.requireConnectedConnectionForAccountProfile(accountId, profileId, provider);
+    const providerAccount = await this.requireConnectedProviderAccountForAccountProfile(accountId, profileId, provider);
 
     let refreshed = false;
-    let activeConnection = connection;
+    let activeProviderAccount = providerAccount;
     try {
-      const result = await this.tokenRefreshService.refreshConnection(connection, { force: options?.forceRefresh === true });
-      activeConnection = result.connection;
+      const result = await this.tokenRefreshService.refreshProviderAccount(providerAccount, { force: options?.forceRefresh === true });
+      activeProviderAccount = result.providerAccount;
       refreshed = result.refreshed;
     } catch (error) {
       throw mapRefreshError(provider, error);
     }
 
-    const accessToken = asString(activeConnection.credentialsJson.accessToken);
-    const tokenState = this.toTokenStatusView(activeConnection).tokenState;
+    const accessToken = asString(activeProviderAccount.credentialsJson.accessToken);
+    const tokenState = this.toTokenStatusView(activeProviderAccount).tokenState;
     if (!accessToken || tokenState === 'expired' || tokenState === 'missing_access_token') {
       throw new HttpError(409, 'Provider connection does not have a usable access token.', { provider });
     }
 
     return {
-      connectionId: activeConnection.id,
-      profileId: activeConnection.profileId,
-      provider: activeConnection.provider,
+      providerAccountId: activeProviderAccount.id,
+      profileId: activeProviderAccount.profileId,
+      provider: activeProviderAccount.provider,
       accessToken,
-      accessTokenExpiresAt: asIsoString(activeConnection.credentialsJson.accessTokenExpiresAt),
+      accessTokenExpiresAt: asIsoString(activeProviderAccount.credentialsJson.accessTokenExpiresAt),
       refreshed,
     };
   }
 
-  private async requireConnectedConnectionForAccountProfile(
+  private async requireConnectedProviderAccountForAccountProfile(
     accountId: string,
     profileId: string,
     provider: ProviderImportProvider,
-  ): Promise<ProviderImportConnectionRecord> {
+  ): Promise<ProviderAccountRecord> {
     return this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found for account.');
       }
 
-      const connection = await this.connectionsRepository.findLatestConnectedForProfile(client, profile.id, provider);
-      if (!connection) {
+      const providerAccount = await this.providerAccountsRepository.findLatestConnectedForProfile(client, profile.id, provider);
+      if (!providerAccount) {
         throw new HttpError(404, 'Provider connection not found.');
       }
 
-      return connection;
+      return providerAccount;
     });
   }
 
-  private toConnectionView(connection: ProviderImportConnectionRecord): ProviderConnectionAccessView {
+  private toConnectionView(providerAccount: ProviderAccountRecord): ProviderConnectionAccessView {
     return {
-      connectionId: connection.id,
-      profileId: connection.profileId,
-      provider: connection.provider,
+      providerAccountId: providerAccount.id,
+      profileId: providerAccount.profileId,
+      provider: providerAccount.provider,
       status: 'connected',
-      providerUserId: connection.providerUserId,
-      externalUsername: connection.externalUsername,
-      createdAt: connection.createdAt,
-      updatedAt: connection.updatedAt,
-      lastUsedAt: connection.lastUsedAt,
-      accessTokenExpiresAt: asIsoString(connection.credentialsJson.accessTokenExpiresAt),
-      hasAccessToken: asString(connection.credentialsJson.accessToken) !== null,
-      hasRefreshToken: asString(connection.credentialsJson.refreshToken) !== null,
-      lastRefreshAt: asIsoString(connection.credentialsJson.lastRefreshAt),
-      lastRefreshError: asString(connection.credentialsJson.lastRefreshError),
-      recommendedRefreshDelayMs: this.tokenRefreshService.getRecommendedDelayMs(connection),
+      providerUserId: providerAccount.providerUserId,
+      externalUsername: providerAccount.externalUsername,
+      createdAt: providerAccount.createdAt,
+      updatedAt: providerAccount.updatedAt,
+      lastUsedAt: providerAccount.lastUsedAt,
+      accessTokenExpiresAt: asIsoString(providerAccount.credentialsJson.accessTokenExpiresAt),
+      hasAccessToken: asString(providerAccount.credentialsJson.accessToken) !== null,
+      hasRefreshToken: asString(providerAccount.credentialsJson.refreshToken) !== null,
+      lastRefreshAt: asIsoString(providerAccount.credentialsJson.lastRefreshAt),
+      lastRefreshError: asString(providerAccount.credentialsJson.lastRefreshError),
+      recommendedRefreshDelayMs: this.tokenRefreshService.getRecommendedDelayMs(providerAccount),
     };
   }
 
-  private toTokenStatusView(connection: ProviderImportConnectionRecord): ProviderTokenStatusView {
-    const accessToken = asString(connection.credentialsJson.accessToken);
-    const accessTokenExpiresAt = asIsoString(connection.credentialsJson.accessTokenExpiresAt);
+  private toTokenStatusView(providerAccount: ProviderAccountRecord): ProviderTokenStatusView {
+    const accessToken = asString(providerAccount.credentialsJson.accessToken);
+    const accessTokenExpiresAt = asIsoString(providerAccount.credentialsJson.accessTokenExpiresAt);
     const expiresAtTimestamp = accessTokenExpiresAt ? Date.parse(accessTokenExpiresAt) : null;
     const now = Date.now();
 
@@ -169,16 +169,16 @@ export class ProviderTokenAccessService {
     }
 
     return {
-      connectionId: connection.id,
-      profileId: connection.profileId,
-      provider: connection.provider,
+      providerAccountId: providerAccount.id,
+      profileId: providerAccount.profileId,
+      provider: providerAccount.provider,
       tokenState,
       accessTokenExpiresAt,
       hasAccessToken: accessToken !== null,
-      canRefresh: asString(connection.credentialsJson.refreshToken) !== null,
-      lastRefreshAt: asIsoString(connection.credentialsJson.lastRefreshAt),
-      lastRefreshError: asString(connection.credentialsJson.lastRefreshError),
-      recommendedRefreshDelayMs: this.tokenRefreshService.getRecommendedDelayMs(connection),
+      canRefresh: asString(providerAccount.credentialsJson.refreshToken) !== null,
+      lastRefreshAt: asIsoString(providerAccount.credentialsJson.lastRefreshAt),
+      lastRefreshError: asString(providerAccount.credentialsJson.lastRefreshError),
+      recommendedRefreshDelayMs: this.tokenRefreshService.getRecommendedDelayMs(providerAccount),
     };
   }
 }

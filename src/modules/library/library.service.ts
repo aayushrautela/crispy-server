@@ -1,6 +1,6 @@
 import { nowIso } from '../../lib/time.js';
 import { ProviderImportService } from '../integrations/provider-import.service.js';
-import type { ProviderImportConnectionView } from '../integrations/provider-import.views.js';
+import type { ProviderAccountView } from '../integrations/provider-import.views.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { WatchedQueryService } from '../watch/watched.service.js';
@@ -35,7 +35,7 @@ export class LibraryService {
       source: 'canonical_library',
       generatedAt: nowIso(),
       auth: {
-        providers: connections.connections.map(mapProviderAuthState),
+        providers: connections.providerAccounts.map(mapProviderAuthState),
       },
       sections: [
         buildSection('watched', 'Watched', 0, watchedProducts, mapWatchedLibraryItem),
@@ -107,29 +107,29 @@ function mapRatedLibraryItem(item: WatchDerivedProductItem & { rating: { value: 
   };
 }
 
-function mapProviderAuthState(connection: ProviderImportConnectionView): ProviderAuthStateView {
+function mapProviderAuthState(providerAccount: ProviderAccountView): ProviderAuthStateView {
   return {
-    provider: connection.provider,
-    connected: connection.status === 'connected',
-    status: connection.status,
-    externalUsername: connection.externalUsername,
-    statusMessage: buildProviderStatusMessage(connection),
+    provider: providerAccount.provider,
+    connected: providerAccount.status === 'connected',
+    status: providerAccount.status,
+    externalUsername: providerAccount.externalUsername,
+    statusMessage: buildProviderStatusMessage(providerAccount),
   };
 }
 
-function buildProviderStatusMessage(connection: ProviderImportConnectionView): string | null {
-  if (connection.status === 'connected') {
-    return connection.externalUsername
-      ? `Connected as ${connection.externalUsername}`
+function buildProviderStatusMessage(providerAccount: ProviderAccountView): string | null {
+  if (providerAccount.status === 'connected') {
+    return providerAccount.externalUsername
+      ? `Connected as ${providerAccount.externalUsername}`
       : 'Connected';
   }
-  if (connection.status === 'expired') {
+  if (providerAccount.status === 'expired') {
     return 'Connection expired';
   }
-  if (connection.status === 'revoked') {
+  if (providerAccount.status === 'revoked') {
     return 'Connection revoked';
   }
-  if (connection.status === 'pending') {
+  if (providerAccount.status === 'pending') {
     return 'Connection pending';
   }
   return null;

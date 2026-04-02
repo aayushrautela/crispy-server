@@ -9,6 +9,7 @@ import {
   showTmdbIdForIdentity,
   type MediaIdentity,
 } from '../identity/media-key.js';
+import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
 import type {
   WatchV2PlayableStatus,
   WatchV2ResolvedTarget,
@@ -71,6 +72,7 @@ type UpsertPlayableStateParams = {
   dismissedAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
 };
 
@@ -83,6 +85,7 @@ type UpsertOverrideParams = {
   appliesThroughReleaseAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
 };
 
@@ -95,6 +98,7 @@ type UpsertWatchlistParams = {
   removedAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
 };
 
@@ -107,6 +111,7 @@ type UpsertRatingParams = {
   removedAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
 };
 
@@ -137,6 +142,7 @@ export class WatchV2WriteService {
     positionSeconds?: number | null;
     durationSeconds?: number | null;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -171,6 +177,7 @@ export class WatchV2WriteService {
         dismissedAt: null,
         lastMutationSeq,
         sourceKind: params.sourceKind ?? 'local',
+        sourceProvider: params.sourceProvider ?? null,
         sourceUpdatedAt: params.occurredAt,
       });
     }
@@ -183,6 +190,7 @@ export class WatchV2WriteService {
         completedAt: params.occurredAt,
         lastMutationSeq,
         sourceKind: params.sourceKind ?? 'local',
+        sourceProvider: params.sourceProvider ?? null,
       });
     }
 
@@ -194,6 +202,7 @@ export class WatchV2WriteService {
     identity: MediaIdentity;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -208,6 +217,7 @@ export class WatchV2WriteService {
       appliesThroughReleaseAt: isTitleTarget(resolved.mediaType) ? params.occurredAt : null,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -228,6 +238,7 @@ export class WatchV2WriteService {
         dismissedAt: null,
         lastMutationSeq,
         sourceKind: params.sourceKind ?? 'local',
+        sourceProvider: params.sourceProvider ?? null,
         sourceUpdatedAt: params.occurredAt,
       });
     }
@@ -239,6 +250,7 @@ export class WatchV2WriteService {
       completedAt: params.occurredAt,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
     });
 
     await this.refreshProjection(client, params.profileId, resolved, projection);
@@ -249,6 +261,7 @@ export class WatchV2WriteService {
     identity: MediaIdentity;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -263,6 +276,7 @@ export class WatchV2WriteService {
       appliesThroughReleaseAt: isTitleTarget(resolved.mediaType) ? params.occurredAt : null,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -282,6 +296,7 @@ export class WatchV2WriteService {
     identity: MediaIdentity;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -296,6 +311,7 @@ export class WatchV2WriteService {
       removedAt: null,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -307,6 +323,7 @@ export class WatchV2WriteService {
     identity: MediaIdentity;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -321,6 +338,7 @@ export class WatchV2WriteService {
       removedAt: params.occurredAt,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -333,6 +351,7 @@ export class WatchV2WriteService {
     rating: number;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -347,6 +366,7 @@ export class WatchV2WriteService {
       removedAt: null,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -358,6 +378,7 @@ export class WatchV2WriteService {
     identity: MediaIdentity;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -372,6 +393,7 @@ export class WatchV2WriteService {
       removedAt: params.occurredAt,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -383,6 +405,7 @@ export class WatchV2WriteService {
     identity: MediaIdentity;
     occurredAt: string;
     sourceKind?: WatchV2SourceKind;
+    sourceProvider?: ProviderImportProvider | null;
   }): Promise<void> {
     const resolved = await this.resolveTarget(client, params.identity);
     const projection = await this.buildProjection(client, params.identity);
@@ -397,6 +420,7 @@ export class WatchV2WriteService {
       contentId: resolved.contentId,
       lastMutationSeq,
       sourceKind: params.sourceKind ?? 'local',
+      sourceProvider: params.sourceProvider ?? null,
       sourceUpdatedAt: params.occurredAt,
     });
 
@@ -638,13 +662,14 @@ export class WatchV2WriteRepository {
           dismissed_at,
           last_mutation_seq,
           source_kind,
+          source_provider,
           source_updated_at,
           updated_at
         )
         VALUES (
           $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8,
           $9::timestamptz, $10::timestamptz, $11::timestamptz, $12::timestamptz,
-          $13, $14, $15::timestamptz, now()
+          $13, $14, $15, $16::timestamptz, now()
         )
         ON CONFLICT (profile_id, content_id)
         DO UPDATE SET
@@ -660,6 +685,7 @@ export class WatchV2WriteRepository {
           dismissed_at = EXCLUDED.dismissed_at,
           last_mutation_seq = EXCLUDED.last_mutation_seq,
           source_kind = EXCLUDED.source_kind,
+          source_provider = EXCLUDED.source_provider,
           source_updated_at = EXCLUDED.source_updated_at,
           updated_at = now()
       `,
@@ -678,6 +704,7 @@ export class WatchV2WriteRepository {
         params.dismissedAt,
         params.lastMutationSeq,
         params.sourceKind,
+        params.sourceProvider,
         params.sourceUpdatedAt,
       ],
     );
@@ -688,6 +715,7 @@ export class WatchV2WriteRepository {
     contentId: string;
     lastMutationSeq: number;
     sourceKind: WatchV2SourceKind;
+    sourceProvider: ProviderImportProvider | null;
     sourceUpdatedAt: string;
   }): Promise<void> {
     await client.query(
@@ -698,11 +726,12 @@ export class WatchV2WriteRepository {
           dismissed_at = $3::timestamptz,
           last_mutation_seq = $4,
           source_kind = $5,
+          source_provider = $6,
           source_updated_at = $3::timestamptz,
           updated_at = now()
         WHERE profile_id = $1::uuid AND content_id = $2::uuid
       `,
-      [params.profileId, params.contentId, params.sourceUpdatedAt, params.lastMutationSeq, params.sourceKind],
+      [params.profileId, params.contentId, params.sourceUpdatedAt, params.lastMutationSeq, params.sourceKind, params.sourceProvider],
     );
   }
 
@@ -718,10 +747,11 @@ export class WatchV2WriteRepository {
           applies_through_release_at,
           last_mutation_seq,
           source_kind,
+          source_provider,
           source_updated_at,
           updated_at
         )
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::timestamptz, $7, $8, $9::timestamptz, now())
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::timestamptz, $7, $8, $9, $10::timestamptz, now())
         ON CONFLICT (profile_id, target_content_id)
         DO UPDATE SET
           target_kind = EXCLUDED.target_kind,
@@ -730,6 +760,7 @@ export class WatchV2WriteRepository {
           applies_through_release_at = EXCLUDED.applies_through_release_at,
           last_mutation_seq = EXCLUDED.last_mutation_seq,
           source_kind = EXCLUDED.source_kind,
+          source_provider = EXCLUDED.source_provider,
           source_updated_at = EXCLUDED.source_updated_at,
           updated_at = now()
       `,
@@ -742,6 +773,7 @@ export class WatchV2WriteRepository {
         params.appliesThroughReleaseAt,
         params.lastMutationSeq,
         params.sourceKind,
+        params.sourceProvider,
         params.sourceUpdatedAt,
       ],
     );
@@ -759,10 +791,11 @@ export class WatchV2WriteRepository {
           removed_at,
           last_mutation_seq,
           source_kind,
+          source_provider,
           source_updated_at,
           updated_at
         )
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9::timestamptz, now())
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9, $10::timestamptz, now())
         ON CONFLICT (profile_id, target_content_id)
         DO UPDATE SET
           target_kind = EXCLUDED.target_kind,
@@ -771,6 +804,7 @@ export class WatchV2WriteRepository {
           removed_at = EXCLUDED.removed_at,
           last_mutation_seq = EXCLUDED.last_mutation_seq,
           source_kind = EXCLUDED.source_kind,
+          source_provider = EXCLUDED.source_provider,
           source_updated_at = EXCLUDED.source_updated_at,
           updated_at = now()
       `,
@@ -783,6 +817,7 @@ export class WatchV2WriteRepository {
         params.removedAt,
         params.lastMutationSeq,
         params.sourceKind,
+        params.sourceProvider,
         params.sourceUpdatedAt,
       ],
     );
@@ -800,10 +835,11 @@ export class WatchV2WriteRepository {
           removed_at,
           last_mutation_seq,
           source_kind,
+          source_provider,
           source_updated_at,
           updated_at
         )
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9::timestamptz, now())
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6::timestamptz, $7, $8, $9, $10::timestamptz, now())
         ON CONFLICT (profile_id, target_content_id)
         DO UPDATE SET
           target_kind = EXCLUDED.target_kind,
@@ -812,6 +848,7 @@ export class WatchV2WriteRepository {
           removed_at = EXCLUDED.removed_at,
           last_mutation_seq = EXCLUDED.last_mutation_seq,
           source_kind = EXCLUDED.source_kind,
+          source_provider = EXCLUDED.source_provider,
           source_updated_at = EXCLUDED.source_updated_at,
           updated_at = now()
       `,
@@ -824,6 +861,7 @@ export class WatchV2WriteRepository {
         params.removedAt,
         params.lastMutationSeq,
         params.sourceKind,
+        params.sourceProvider,
         params.sourceUpdatedAt,
       ],
     );
@@ -836,6 +874,7 @@ export class WatchV2WriteRepository {
     completedAt: string;
     lastMutationSeq: number;
     sourceKind: WatchV2SourceKind;
+    sourceProvider: ProviderImportProvider | null;
   }): Promise<void> {
     await client.query(
       `
@@ -845,11 +884,12 @@ export class WatchV2WriteRepository {
           title_content_id,
           completed_at,
           last_mutation_seq,
-          source_kind
+          source_kind,
+          source_provider
         )
-        VALUES ($1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5, $6)
+        VALUES ($1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5, $6, $7)
       `,
-      [params.profileId, params.contentId, params.titleContentId, params.completedAt, params.lastMutationSeq, params.sourceKind],
+      [params.profileId, params.contentId, params.titleContentId, params.completedAt, params.lastMutationSeq, params.sourceKind, params.sourceProvider],
     );
   }
 

@@ -6,7 +6,7 @@ import { ProviderAdminService } from '../../modules/integrations/provider-admin.
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
 import type {
-  ProviderImportConnectionStatus,
+  ProviderAccountStatus,
   ProviderImportJobStatus,
   ProviderImportProvider,
 } from '../../modules/integrations/provider-import.types.js';
@@ -14,9 +14,9 @@ import { isProviderImportProvider } from '../../modules/integrations/provider-im
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
-import { mapConnectionView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
+import { mapProviderAccountView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 
-const CONNECTION_STATUSES = new Set<ProviderImportConnectionStatus>(['pending', 'connected', 'expired', 'revoked']);
+const CONNECTION_STATUSES = new Set<ProviderAccountStatus>(['pending', 'connected', 'expired', 'revoked']);
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
   'queued',
@@ -265,7 +265,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
 
     return {
       watchDataState: connectionsResult.watchDataState ?? jobsResult.watchDataState,
-      connections: connectionsResult.connections,
+      providerAccounts: connectionsResult.providerAccounts,
       jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
       providers: providerStates,
     };
@@ -285,7 +285,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
       nextAction: started.nextAction,
       authUrl: started.authUrl,
       watchDataState: started.watchDataState,
-      connection: started.connection ? mapConnectionView(started.connection) : null,
+      providerAccount: started.providerAccount ? mapProviderAccountView(started.providerAccount) : null,
       job: mapProviderImportJobView(started.job),
     };
   });
@@ -417,14 +417,14 @@ function parseProvider(value: unknown): ProviderImportProvider | null {
   return value;
 }
 
-function parseConnectionStatus(value: unknown): ProviderImportConnectionStatus | null {
+function parseConnectionStatus(value: unknown): ProviderAccountStatus | null {
   if (value === undefined || value === null || value === '') {
     return null;
   }
-  if (typeof value !== 'string' || !CONNECTION_STATUSES.has(value as ProviderImportConnectionStatus)) {
+  if (typeof value !== 'string' || !CONNECTION_STATUSES.has(value as ProviderAccountStatus)) {
     throw new HttpError(400, 'Invalid connection status filter.');
   }
-  return value as ProviderImportConnectionStatus;
+  return value as ProviderAccountStatus;
 }
 
 function parseJobStatus(value: unknown): ProviderImportJobStatus | null {

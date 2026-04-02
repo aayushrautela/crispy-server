@@ -219,6 +219,7 @@ export class ProviderDestructiveImportService {
           appliesThroughReleaseAt: identity.mediaType === 'show' || identity.mediaType === 'anime' ? event.occurredAt : null,
           lastMutationSeq: mutationSeq,
           sourceKind: providerToSourceKind(params.provider),
+          sourceProvider: params.provider,
           sourceUpdatedAt: event.occurredAt,
         });
         if (playable) {
@@ -237,6 +238,7 @@ export class ProviderDestructiveImportService {
             dismissedAt: null,
             lastMutationSeq: mutationSeq,
             sourceKind: providerToSourceKind(params.provider),
+            sourceProvider: params.provider,
             sourceUpdatedAt: event.occurredAt,
           });
         }
@@ -247,6 +249,7 @@ export class ProviderDestructiveImportService {
           completedAt: event.occurredAt,
           lastMutationSeq: mutationSeq,
           sourceKind: providerToSourceKind(params.provider),
+          sourceProvider: params.provider,
         });
       } else if (event.eventType === 'watchlist_put') {
         await this.watchV2Repository.upsertWatchlistState(client, {
@@ -258,6 +261,7 @@ export class ProviderDestructiveImportService {
           removedAt: null,
           lastMutationSeq: mutationSeq,
           sourceKind: providerToSourceKind(params.provider),
+          sourceProvider: params.provider,
           sourceUpdatedAt: event.occurredAt,
         });
       } else if (event.eventType === 'rating_put') {
@@ -270,6 +274,7 @@ export class ProviderDestructiveImportService {
           removedAt: null,
           lastMutationSeq: mutationSeq,
           sourceKind: providerToSourceKind(params.provider),
+          sourceProvider: params.provider,
           sourceUpdatedAt: event.occurredAt,
         });
       } else if (event.eventType === 'playback_progress_snapshot') {
@@ -288,6 +293,7 @@ export class ProviderDestructiveImportService {
           dismissedAt: null,
           lastMutationSeq: mutationSeq,
           sourceKind: providerToSourceKind(params.provider),
+          sourceProvider: params.provider,
           sourceUpdatedAt: event.occurredAt,
         });
       }
@@ -355,6 +361,7 @@ export class ProviderDestructiveImportService {
         completedAt: entry.watchedAt,
         lastMutationSeq: mutationSeq,
         sourceKind: providerToSourceKind(params.provider),
+        sourceProvider: params.provider,
       });
       inserted += 1;
     }
@@ -445,6 +452,7 @@ function compareOccurredAt(left: ImportedWatchEventDraft, right: ImportedWatchEv
   return left.eventType.localeCompare(right.eventType);
 }
 
-function providerToSourceKind(provider: ProviderImportProvider): 'trakt_pull' {
-  return 'trakt_pull';
+function providerToSourceKind(provider: ProviderImportProvider): 'provider_import' {
+  void provider;
+  return 'provider_import';
 }

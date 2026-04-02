@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mapConnectionView, mapProviderImportJobView } from './provider-import.views.js';
-import type { ProviderImportConnectionRecord } from './provider-import-connections.repo.js';
+import { mapProviderAccountView, mapProviderImportJobView } from './provider-import.views.js';
+import type { ProviderAccountRecord } from './provider-accounts.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 
-test('mapConnectionView extracts connection fields', () => {
-  const record: ProviderImportConnectionRecord = {
+test('mapProviderAccountView extracts provider-account fields', () => {
+  const record: ProviderAccountRecord = {
     id: 'conn-1',
     profileId: 'profile-1',
     provider: 'trakt',
@@ -24,10 +24,11 @@ test('mapConnectionView extracts connection fields', () => {
     expiresAt: null,
     lastUsedAt: '2026-03-26T00:00:00.000Z',
     createdAt: '2026-03-24T00:00:00.000Z',
+    connectedAt: '2026-03-24T00:05:00.000Z',
     updatedAt: '2026-03-26T00:00:00.000Z',
   };
 
-  const view = mapConnectionView(record);
+  const view = mapProviderAccountView(record);
 
   assert.equal(view.id, 'conn-1');
   assert.equal(view.provider, 'trakt');
@@ -38,8 +39,8 @@ test('mapConnectionView extracts connection fields', () => {
   assert.equal(view.lastImportCompletedAt, '2026-03-25T00:00:00.000Z');
 });
 
-test('mapConnectionView normalizes date strings', () => {
-  const record: ProviderImportConnectionRecord = {
+test('mapProviderAccountView normalizes date strings', () => {
+  const record: ProviderAccountRecord = {
     id: 'conn-1',
     profileId: 'profile-1',
     provider: 'simkl',
@@ -54,15 +55,16 @@ test('mapConnectionView normalizes date strings', () => {
     expiresAt: null,
     lastUsedAt: null,
     createdAt: '2026-03-24T00:00:00.000Z',
+    connectedAt: '2026-03-24T00:05:00.000Z',
     updatedAt: '2026-03-26T00:00:00.000Z',
   };
 
-  const view = mapConnectionView(record);
+  const view = mapProviderAccountView(record);
   assert.equal(view.lastImportCompletedAt, '2023-08-09T16:57:00.000Z');
 });
 
-test('mapConnectionView returns null for missing fields', () => {
-  const record: ProviderImportConnectionRecord = {
+test('mapProviderAccountView returns null for missing fields', () => {
+  const record: ProviderAccountRecord = {
     id: 'conn-1',
     profileId: 'profile-1',
     provider: 'trakt',
@@ -75,10 +77,11 @@ test('mapConnectionView returns null for missing fields', () => {
     expiresAt: null,
     lastUsedAt: null,
     createdAt: '2026-03-24T00:00:00.000Z',
+    connectedAt: null,
     updatedAt: '2026-03-26T00:00:00.000Z',
   };
 
-  const view = mapConnectionView(record);
+  const view = mapProviderAccountView(record);
   assert.equal(view.providerUserId, null);
   assert.equal(view.externalUsername, null);
   assert.equal(view.lastImportJobId, null);
@@ -94,7 +97,7 @@ test('mapProviderImportJobView excludes profileGroupId', () => {
     mode: 'replace_import',
     status: 'succeeded',
     requestedByUserId: 'account-1',
-    connectionId: 'conn-1',
+    providerAccountId: 'conn-1',
     checkpointJson: {},
     summaryJson: {},
     errorJson: {},

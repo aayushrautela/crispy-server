@@ -521,8 +521,8 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function updateDiagnosticsChrome(payload) {
     const backlog = payload && payload.workState && Array.isArray(payload.workState.backlog) ? payload.workState.backlog : [];
-    const connections = payload && payload.imports && Array.isArray(payload.imports.connections) ? payload.imports.connections : [];
-    const warningCount = connections.filter((row) => Number(row.refreshFailureCount || 0) > 0).length + sum(backlog.map((row) => Number(row.pendingCount || 0) > 0 ? 1 : 0));
+    const providerAccounts = payload && payload.imports && Array.isArray(payload.imports.providerAccounts) ? payload.imports.providerAccounts : [];
+    const warningCount = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length + sum(backlog.map((row) => Number(row.pendingCount || 0) > 0 ? 1 : 0));
     if (elements.navDiagnosticsBadge) {
       elements.navDiagnosticsBadge.textContent = String(warningCount);
     }
@@ -808,9 +808,9 @@ export const ADMIN_UI_CLIENT = String.raw`
     const activeLeases = Array.isArray(workState.activeLeases) ? workState.activeLeases : [];
     const staleLeases = Array.isArray(workState.staleLeases) ? workState.staleLeases : [];
     const backlog = Array.isArray(workState.backlog) ? workState.backlog : [];
-    const connections = Array.isArray(imports.connections) ? imports.connections : [];
-    const refreshFailures = connections.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
-    const expiringSoon = connections.filter((row) => row.accessTokenExpiresAt).length;
+    const providerAccounts = Array.isArray(imports.providerAccounts) ? imports.providerAccounts : [];
+    const refreshFailures = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
+    const expiringSoon = providerAccounts.filter((row) => row.accessTokenExpiresAt).length;
 
     if (elements.diagStats) {
       elements.diagStats.innerHTML = [
@@ -1551,16 +1551,16 @@ export const ADMIN_UI_CLIENT = String.raw`
     const activeJobs = jobsPayload && Array.isArray(jobsPayload.activeJobs) ? jobsPayload.activeJobs : [];
     const queuedJobs = jobsPayload && Array.isArray(jobsPayload.queuedJobs) ? jobsPayload.queuedJobs : [];
     const workState = diagnostics && diagnostics.workState ? diagnostics.workState : { backlog: [], activeLeases: [] };
-    const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { connections: [] };
+    const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { providerAccounts: [] };
     const bridge = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
-    const refreshFailures = imports && Array.isArray(imports.connections)
-      ? imports.connections.filter((row) => Number(row.refreshFailureCount || 0) > 0).length
+    const refreshFailures = imports && Array.isArray(imports.providerAccounts)
+      ? imports.providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length
       : 0;
 
     elements.overviewSummary.innerHTML = [
       statCard('Running now', activeJobs.length, queuedJobs.length + ' queued behind them'),
       statCard('Backlog buckets', countArray(workState.backlog), sum((workState.backlog || []).map((row) => Number(row.pendingCount || 0))) + ' pending'),
-      statCard('Import warnings', refreshFailures, countArray(imports.connections) + ' connections scanned'),
+      statCard('Import warnings', refreshFailures, countArray(imports.providerAccounts) + ' accounts scanned'),
       statCard('Worker bridge', bridge ? (bridge.reachable ? 'live' : bridge.configured ? 'down' : 'setup') : 'check', state.lastUpdatedAt ? 'updated ' + formatTimeAgo(state.lastUpdatedAt) : 'waiting'),
     ].join('');
   }
@@ -1606,7 +1606,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       return;
     }
     const backlog = diagnostics.workState && Array.isArray(diagnostics.workState.backlog) ? diagnostics.workState.backlog : [];
-    const imports = diagnostics.imports && Array.isArray(diagnostics.imports.connections) ? diagnostics.imports.connections : [];
+    const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerAccounts) ? diagnostics.imports.providerAccounts : [];
     const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
     const refreshFailures = imports.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
     elements.overviewDiagnostics.innerHTML =

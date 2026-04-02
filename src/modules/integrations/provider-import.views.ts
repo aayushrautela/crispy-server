@@ -1,9 +1,9 @@
 import { normalizeIsoString } from '../../lib/time.js';
-import type { ProviderImportConnectionRecord } from './provider-import-connections.repo.js';
+import type { ProviderAccountRecord } from './provider-accounts.repo.js';
 import type { ProviderImportJobAdminRecord, ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
 
-export type ProviderImportConnectionView = {
+export type ProviderAccountView = {
   id: string;
   provider: ProviderImportProvider;
   status: 'pending' | 'connected' | 'expired' | 'revoked';
@@ -20,19 +20,19 @@ export type ProviderImportJobView = Omit<ProviderImportJobRecord, 'profileGroupI
 
 export type ProviderImportJobAdminView = Omit<ProviderImportJobAdminRecord, 'profileGroupId'>;
 
-export function mapConnectionView(connection: ProviderImportConnectionRecord): ProviderImportConnectionView {
-  const lastImportJobId = asString(connection.credentialsJson.lastImportJobId);
-  const lastImportCompletedAt = asIsoString(connection.credentialsJson.lastImportCompletedAt);
+export function mapProviderAccountView(providerAccount: ProviderAccountRecord): ProviderAccountView {
+  const lastImportJobId = asString(providerAccount.credentialsJson.lastImportJobId);
+  const lastImportCompletedAt = asIsoString(providerAccount.credentialsJson.lastImportCompletedAt);
 
   return {
-    id: connection.id,
-    provider: connection.provider,
-    status: connection.status,
-    providerUserId: connection.providerUserId,
-    externalUsername: connection.externalUsername,
-    createdAt: connection.createdAt,
-    updatedAt: connection.updatedAt,
-    lastUsedAt: connection.lastUsedAt,
+    id: providerAccount.id,
+    provider: providerAccount.provider,
+    status: providerAccount.status,
+    providerUserId: providerAccount.providerUserId,
+    externalUsername: providerAccount.externalUsername,
+    createdAt: providerAccount.createdAt,
+    updatedAt: providerAccount.updatedAt,
+    lastUsedAt: providerAccount.lastUsedAt,
     lastImportJobId,
     lastImportCompletedAt,
   };

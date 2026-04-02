@@ -1,6 +1,7 @@
 import type { SupportedMediaType, SupportedProvider } from '../identity/media-key.js';
+import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
 
-export type WatchV2SourceKind = 'local' | 'trakt_pull' | 'system';
+export type WatchV2SourceKind = 'local' | 'provider_import' | 'system';
 
 export type WatchV2PlayableStatus = 'idle' | 'in_progress' | 'completed' | 'dismissed';
 
@@ -66,6 +67,7 @@ export type WatchV2StateRecord = {
   dismissedAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
   updatedAt: string;
 };
@@ -81,6 +83,7 @@ export type WatchV2OverrideRecord = {
   appliesThroughReleaseAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
   updatedAt: string;
 };
@@ -94,6 +97,7 @@ export type WatchV2WatchlistRecord = {
   removedAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
   updatedAt: string;
 };
@@ -107,6 +111,7 @@ export type WatchV2RatingRecord = {
   removedAt: string | null;
   lastMutationSeq: number;
   sourceKind: WatchV2SourceKind;
+  sourceProvider: ProviderImportProvider | null;
   sourceUpdatedAt: string;
   updatedAt: string;
 };

@@ -9,7 +9,7 @@ const { ProviderAdminService } = await import('./provider-admin.service.js');
 test('listConnections delegates to repository', async () => {
   const connections = [{ accountId: 'a1', profileId: 'p1', provider: 'trakt', status: 'connected' }];
   const service = new ProviderAdminService(
-    { listAdminConnections: async () => connections } as never,
+    { listAdminProviderAccounts: async () => connections } as never,
     { listAdminJobs: async () => [] } as never,
     async (work) => work({} as never),
   );
@@ -22,7 +22,7 @@ test('listConnections passes filters to repository', async () => {
   let receivedFilters: unknown = null;
   const service = new ProviderAdminService(
     {
-      listAdminConnections: async (_client: unknown, filters: unknown) => {
+      listAdminProviderAccounts: async (_client: unknown, filters: unknown) => {
         receivedFilters = filters;
         return [];
       },
@@ -44,7 +44,7 @@ test('listConnections passes filters to repository', async () => {
 test('listJobs delegates to repository', async () => {
   const jobs = [{ id: 'job-1', provider: 'trakt', status: 'succeeded' }];
   const service = new ProviderAdminService(
-    { listAdminConnections: async () => [] } as never,
+    { listAdminProviderAccounts: async () => [] } as never,
     { listAdminJobs: async () => jobs } as never,
     async (work) => work({} as never),
   );
@@ -57,7 +57,7 @@ test('listConnections computes expiringBefore from hours', async () => {
   let receivedFilters: unknown = null;
   const service = new ProviderAdminService(
     {
-      listAdminConnections: async (_client: unknown, filters: unknown) => {
+      listAdminProviderAccounts: async (_client: unknown, filters: unknown) => {
         receivedFilters = filters;
         return [];
       },

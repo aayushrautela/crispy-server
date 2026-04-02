@@ -1,36 +1,36 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import {
-  ProviderImportConnectionsRepository,
-  type ProviderImportConnectionAdminRecord,
-} from './provider-import-connections.repo.js';
+  ProviderAccountsRepository,
+  type ProviderAccountAdminRecord,
+} from './provider-accounts.repo.js';
 import {
   ProviderImportJobsRepository,
   type ProviderImportJobAdminRecord,
 } from './provider-import-jobs.repo.js';
-import type { ProviderImportConnectionStatus, ProviderImportJobStatus, ProviderImportProvider } from './provider-import.types.js';
+import type { ProviderAccountStatus, ProviderImportJobStatus, ProviderImportProvider } from './provider-import.types.js';
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export class ProviderAdminService {
   constructor(
-    private readonly connectionsRepository = new ProviderImportConnectionsRepository(),
+    private readonly providerAccountsRepository = new ProviderAccountsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
   async listConnections(filters?: {
     provider?: ProviderImportProvider | null;
-    status?: ProviderImportConnectionStatus | null;
+    status?: ProviderAccountStatus | null;
     expiringWithinHours?: number | null;
     refreshFailuresOnly?: boolean;
     limit?: number;
-  }): Promise<{ connections: ProviderImportConnectionAdminRecord[] }> {
+  }): Promise<{ connections: ProviderAccountAdminRecord[] }> {
     const expiringBefore = filters?.expiringWithinHours && filters.expiringWithinHours > 0
       ? new Date(Date.now() + filters.expiringWithinHours * 60 * 60 * 1000).toISOString()
       : null;
 
     return this.runInTransaction(async (client) => ({
-      connections: await this.connectionsRepository.listAdminConnections(client, {
+      connections: await this.providerAccountsRepository.listAdminProviderAccounts(client, {
         provider: filters?.provider ?? null,
         status: filters?.status ?? null,
         expiringBefore,

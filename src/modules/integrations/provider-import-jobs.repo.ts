@@ -10,7 +10,7 @@ export type ProviderImportJobRecord = {
   mode: ProviderImportJobMode;
   status: ProviderImportJobStatus;
   requestedByUserId: string;
-  connectionId: string | null;
+  providerAccountId: string | null;
   checkpointJson: Record<string, unknown>;
   summaryJson: Record<string, unknown>;
   errorJson: Record<string, unknown>;
@@ -34,7 +34,7 @@ function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
     mode: String(row.mode) as ProviderImportJobMode,
     status: String(row.status) as ProviderImportJobStatus,
     requestedByUserId: String(row.requested_by_user_id),
-    connectionId: typeof row.connection_id === 'string' ? row.connection_id : null,
+    providerAccountId: typeof row.provider_account_id === 'string' ? row.provider_account_id : null,
     checkpointJson: (row.checkpoint_json as Record<string, unknown> | undefined) ?? {},
     summaryJson: (row.summary_json as Record<string, unknown> | undefined) ?? {},
     errorJson: (row.error_json as Record<string, unknown> | undefined) ?? {},
@@ -51,7 +51,7 @@ export class ProviderImportJobsRepository {
     profileGroupId: string;
     provider: ProviderImportProvider;
     requestedByUserId: string;
-    connectionId?: string | null;
+    providerAccountId?: string | null;
     status: ProviderImportJobStatus;
   }): Promise<ProviderImportJobRecord> {
     const result = await client.query(
@@ -63,13 +63,13 @@ export class ProviderImportJobsRepository {
           mode,
           status,
           requested_by_user_id,
-          connection_id
+          provider_account_id
         )
         VALUES ($1::uuid, $2::uuid, $3, 'replace_import', $4, $5::uuid, $6::uuid)
-        RETURNING id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
+        RETURNING id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, provider_account_id,
                   checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
       `,
-      [params.profileId, params.profileGroupId, params.provider, params.status, params.requestedByUserId, params.connectionId ?? null],
+      [params.profileId, params.profileGroupId, params.provider, params.status, params.requestedByUserId, params.providerAccountId ?? null],
     );
     return mapJob(result.rows[0]);
   }
@@ -77,7 +77,7 @@ export class ProviderImportJobsRepository {
   async listForProfile(client: DbClient, profileId: string, limit = 20): Promise<ProviderImportJobRecord[]> {
     const result = await client.query(
       `
-        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, provider_account_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE profile_id = $1::uuid
@@ -92,7 +92,7 @@ export class ProviderImportJobsRepository {
   async findByIdForProfile(client: DbClient, profileId: string, jobId: string): Promise<ProviderImportJobRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, provider_account_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE profile_id = $1::uuid AND id = $2::uuid
@@ -105,7 +105,7 @@ export class ProviderImportJobsRepository {
   async findById(client: DbClient, jobId: string): Promise<ProviderImportJobRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, provider_account_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
         WHERE id = $1::uuid
@@ -115,23 +115,23 @@ export class ProviderImportJobsRepository {
     return result.rows[0] ? mapJob(result.rows[0]) : null;
   }
 
-  async findLatestOauthPendingForConnection(client: DbClient, connectionId: string): Promise<ProviderImportJobRecord | null> {
+  async findLatestOauthPendingForProviderAccount(client: DbClient, providerAccountId: string): Promise<ProviderImportJobRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, provider_account_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
         FROM provider_import_jobs
-        WHERE connection_id = $1::uuid AND status = 'oauth_pending'
+        WHERE provider_account_id = $1::uuid AND status = 'oauth_pending'
         ORDER BY created_at DESC
         LIMIT 1
       `,
-      [connectionId],
+      [providerAccountId],
     );
     return result.rows[0] ? mapJob(result.rows[0]) : null;
   }
 
   async markQueued(client: DbClient, jobId: string, params?: {
-    connectionId?: string | null;
+    providerAccountId?: string | null;
     summaryJson?: Record<string, unknown>;
     checkpointJson?: Record<string, unknown>;
   }): Promise<void> {
@@ -139,7 +139,7 @@ export class ProviderImportJobsRepository {
       `
         UPDATE provider_import_jobs
         SET status = 'queued',
-            connection_id = COALESCE($2::uuid, connection_id),
+            provider_account_id = COALESCE($2::uuid, provider_account_id),
             summary_json = CASE WHEN $3::jsonb IS NULL THEN summary_json ELSE $3::jsonb END,
             checkpoint_json = CASE WHEN $4::jsonb IS NULL THEN checkpoint_json ELSE $4::jsonb END,
             error_json = '{}'::jsonb,
@@ -149,7 +149,7 @@ export class ProviderImportJobsRepository {
       `,
       [
         jobId,
-        params?.connectionId ?? null,
+        params?.providerAccountId ?? null,
         params?.summaryJson ? JSON.stringify(params.summaryJson) : null,
         params?.checkpointJson ? JSON.stringify(params.checkpointJson) : null,
       ],
@@ -252,7 +252,7 @@ export class ProviderImportJobsRepository {
   }): Promise<ProviderImportJobAdminRecord[]> {
     const result = await client.query(
       `
-        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, connection_id,
+        SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id, provider_account_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at,
                 NULLIF(error_json ->> 'code', '') AS error_code,
                 NULLIF(error_json ->> 'message', '') AS error_message

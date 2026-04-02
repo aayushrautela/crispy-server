@@ -20,7 +20,7 @@ export function startWorker(): Worker {
         reason: string;
         mediaKey?: string;
         importJobId?: string;
-        connectionId?: string;
+        providerAccountId?: string;
       };
       switch (payload.reason) {
         case 'flush-heartbeat':

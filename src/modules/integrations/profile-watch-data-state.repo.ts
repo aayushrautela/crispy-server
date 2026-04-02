@@ -61,7 +61,6 @@ export class ProfileWatchDataStateRepository {
     importJobId: string;
     resetAt: string;
   }): Promise<ProfileWatchDataStateRecord> {
-    const origin = params.provider === 'trakt' ? 'trakt_import' : 'simkl_import';
     const result = await client.query(
       `
         INSERT INTO profile_watch_data_state (
@@ -85,7 +84,7 @@ export class ProfileWatchDataStateRepository {
         RETURNING profile_id, history_generation, current_origin, last_import_provider,
                   last_import_job_id, last_reset_at, last_import_completed_at, updated_at
       `,
-      [params.profileId, origin, params.provider, params.importJobId, params.resetAt],
+      [params.profileId, 'provider_import', params.provider, params.importJobId, params.resetAt],
     );
     return mapState(result.rows[0]);
   }
@@ -96,7 +95,6 @@ export class ProfileWatchDataStateRepository {
     importJobId: string;
     completedAt: string;
   }): Promise<ProfileWatchDataStateRecord> {
-    const origin = params.provider === 'trakt' ? 'trakt_import' : 'simkl_import';
     const result = await client.query(
       `
         UPDATE profile_watch_data_state
@@ -109,7 +107,7 @@ export class ProfileWatchDataStateRepository {
         RETURNING profile_id, history_generation, current_origin, last_import_provider,
                   last_import_job_id, last_reset_at, last_import_completed_at, updated_at
       `,
-      [params.profileId, origin, params.provider, params.importJobId, params.completedAt],
+      [params.profileId, 'provider_import', params.provider, params.importJobId, params.completedAt],
     );
     return mapState(result.rows[0]);
   }
