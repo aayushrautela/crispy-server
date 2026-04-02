@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMockMetadataView, seedTestEnv } from '../../test-helpers.js';
+import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
@@ -168,13 +168,40 @@ test('getState returns v2 title state and expands watched episode keys from titl
       assertOwnedProfile: async () => ({ profileGroupId: 'group-1' }),
     } as never,
     {
-      buildMetadataView: async () => createMockMetadataView({
+      buildCardView: async () => ({
         mediaKey: 'show:tvdb:100',
         mediaType: 'show',
+        kind: 'title',
         provider: 'tvdb',
         providerId: '100',
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: 1399,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
         title: 'Example Show',
+        summary: null,
+        overview: null,
+        artwork: {
+          posterUrl: 'https://img.test/poster.jpg',
+          backdropUrl: 'https://img.test/backdrop.jpg',
+          stillUrl: null,
+        },
+        images: {
+          posterUrl: 'https://img.test/poster.jpg',
+          backdropUrl: 'https://img.test/backdrop.jpg',
+          stillUrl: null,
+          logoUrl: null,
+        },
         releaseDate: '2024-01-01',
+        releaseYear: 2024,
+        runtimeMinutes: 45,
+        rating: 8.2,
+        status: null,
+        subtitle: null,
       }),
     } as never,
     {

@@ -1,7 +1,7 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { requireDbIsoString } from '../../lib/time.js';
-import { MetadataViewService } from '../metadata/metadata-view.service.js';
+import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { type MediaIdentity, parseMediaKey } from '../identity/media-key.js';
@@ -13,7 +13,7 @@ import { listWatchV2WatchedEpisodeKeys } from './watch-v2-episode-keys.js';
 export class WatchStateService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
-    private readonly metadataViewService = new MetadataViewService(),
+    private readonly metadataCardService = new MetadataCardService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
@@ -23,19 +23,30 @@ export class WatchStateService {
       await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const identity = resolveIdentity(input);
-      const metadata = await this.metadataViewService.buildMetadataView(client, identity);
+      const media = await this.metadataCardService.buildCardView(client, identity);
       const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
       const [projection, progress, episodeWatchedAt, watchedEpisodeKeys] = await Promise.all([
         this.getTitleProjection(client, profileId, lookup.titleContentId),
         this.getPlayableProgress(client, profileId, lookup.contentId, identity.mediaType),
         identity.mediaType === 'episode'
-          ? this.getEpisodeWatchedAt(client, profileId, lookup.contentId, lookup.titleContentId, metadata.releaseDate)
+          ? this.getEpisodeWatchedAt(client, profileId, lookup.contentId, lookup.titleContentId, media.releaseDate)
           : Promise.resolve(null),
         this.listWatchedEpisodeKeys(client, profileId, identity, lookup.titleContentId),
       ]);
 
       return {
-        media: metadata,
+        media: {
+          mediaType: media.mediaType,
+          mediaKey: media.mediaKey,
+          provider: media.provider,
+          providerId: media.providerId,
+          title: media.title ?? 'Unknown title',
+          posterUrl: media.images.posterUrl ?? media.artwork.posterUrl ?? '',
+          releaseYear: media.releaseYear,
+          rating: media.rating,
+          genre: null,
+          subtitle: media.subtitle,
+        },
         progress,
         continueWatching: projection && projection.has_in_progress === true && projection.dismissed_at === null
           ? {

@@ -1,31 +1,27 @@
 import type { DbClient } from '../../lib/db.js';
-import { ensureSupportedMediaType, inferMediaIdentity, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { assertPresent } from '../../lib/errors.js';
+import {
+  ensureSupportedMediaType,
+  inferMediaIdentity,
+  parentMediaTypeForIdentity,
+  parseMediaKey,
+  type MediaIdentity,
+} from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import {
   buildMetadataCardView,
+  buildProviderMetadataCardView,
+  toCatalogItem,
+} from './metadata-card.builders.js';
+import {
   buildEpisodeView,
   buildMetadataView,
   buildProviderEpisodeView,
-  buildProviderMetadataCardView,
   buildProviderMetadataView,
   buildProviderSeasonViewFromRecord,
   buildSeasonViewFromRecord,
   buildSeasonViewFromTitleRaw,
-  extractCast,
-  extractCollection,
-  extractCollectionParts,
-  extractCreators,
-  extractCrewByJob,
-  extractProduction,
-  extractReviews,
-  extractSimilarTitles,
-  extractVideos,
-  toCatalogItem,
-} from './metadata-normalizers.js';
-import { ProviderMetadataService } from './provider-metadata.service.js';
-import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
-import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+} from './metadata-detail.builders.js';
 import type {
   CatalogItem,
   MetadataCardView,
@@ -39,75 +35,28 @@ import type {
   MetadataTitleDetail,
   MetadataView,
 } from './metadata-detail.types.js';
-import type {
-  TmdbEpisodeRecord,
-  TmdbTitleRecord,
-} from './providers/tmdb.types.js';
+import {
+  extractCast,
+  extractCollection,
+  extractCollectionParts,
+  extractCreators,
+  extractCrewByJob,
+  extractProduction,
+  extractReviews,
+  extractSimilarTitles,
+  extractVideos,
+} from './metadata-builder.shared.js';
+import { ProviderMetadataService } from './provider-metadata.service.js';
+import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import type { TmdbEpisodeRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
 
-export class MetadataViewService {
+export class MetadataDetailCoreService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
-
-  async buildMetadataCardView(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
-    const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity);
-    if (providerContext?.title) {
-      return buildProviderMetadataCardView({
-        identity,
-        title: providerContext.title,
-        currentEpisode: providerContext.currentEpisode,
-      });
-    }
-
-    const context = await this.loadCardContext(client, identity);
-    return buildMetadataCardView({
-      identity,
-      title: context.title,
-      currentEpisode: context.currentEpisode,
-    });
-  }
-
-  async buildMetadataCardViewFromRow(client: DbClient, row: Record<string, unknown>): Promise<MetadataCardView> {
-    const identity = this.identityFromRow(row);
-    const providerContext = this.normalizeProviderTitleIdentity(identity)
-      ? await this.providerMetadataService.loadIdentityContext(client, identity).catch(() => null)
-      : null;
-    const rowTitle = typeof row.title === 'string' && row.title.trim() ? row.title : null;
-    const rowSubtitle = typeof row.subtitle === 'string' && row.subtitle.trim() ? row.subtitle : null;
-    const rowPosterUrl = typeof row.poster_url === 'string' && row.poster_url.trim() ? row.poster_url : null;
-    const rowBackdropUrl = typeof row.backdrop_url === 'string' && row.backdrop_url.trim() ? row.backdrop_url : null;
-    const canUseProjectionOnly = Boolean(
-      rowTitle
-      && (identity.mediaType !== 'episode' || rowSubtitle)
-      && (rowPosterUrl || rowBackdropUrl),
-    );
-
-    if (providerContext?.title) {
-      return buildProviderMetadataCardView({
-        identity,
-        title: providerContext.title,
-        currentEpisode: providerContext.currentEpisode,
-      });
-    }
-
-    const context = canUseProjectionOnly
-      ? { title: null, currentEpisode: null }
-      : await this.loadCardContext(client, identity).catch(() => ({ title: null, currentEpisode: null }));
-
-    return buildMetadataCardView({
-      identity,
-      title: context.title,
-      currentEpisode: context.currentEpisode,
-      titleOverride: rowTitle,
-      subtitleOverride: identity.mediaType === 'episode'
-        ? rowSubtitle ?? buildEpisodeSubtitle(identity.seasonNumber, identity.episodeNumber)
-        : rowSubtitle,
-      posterUrlOverride: rowPosterUrl,
-      backdropUrlOverride: rowBackdropUrl,
-    });
-  }
 
   async buildMetadataView(client: DbClient, identity: MediaIdentity): Promise<MetadataView> {
     const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity);
@@ -139,11 +88,15 @@ export class MetadataViewService {
     if (providerIdentity) {
       const providerContext = await this.providerMetadataService.loadIdentityContext(client, providerIdentity);
       const resolvedTitle = assertPresent(providerContext?.title, 'Metadata title not found.');
-      const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
-        parentMediaType: resolvedTitle.mediaType === 'anime' ? 'anime' : 'show',
-        provider: resolvedTitle.provider,
-        parentProviderId: resolvedTitle.providerId,
-      }, providerContext?.seasons.map((season) => season.seasonNumber) ?? []);
+      const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(
+        client,
+        {
+          parentMediaType: resolvedTitle.mediaType === 'anime' ? 'anime' : 'show',
+          provider: resolvedTitle.provider,
+          parentProviderId: resolvedTitle.providerId,
+        },
+        providerContext?.seasons.map((season) => season.seasonNumber) ?? [],
+      );
       const showTmdbId = resolvedTitle.externalIds.tmdb ?? null;
 
       return {
@@ -170,8 +123,7 @@ export class MetadataViewService {
       };
     }
 
-    const normalizedIdentity = identity;
-    const { title, nextEpisode } = await this.loadIdentityContext(client, normalizedIdentity);
+    const { title, nextEpisode } = await this.loadIdentityContext(client, identity);
     const resolvedTitle = assertPresent(title, 'Metadata title not found.');
     const seasonNumbers = extractSeasonNumbersFromTitle(resolvedTitle);
     const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
@@ -184,20 +136,21 @@ export class MetadataViewService {
       ? await this.tmdbCacheService.getCollection(client, collection.id).catch(() => null)
       : null;
     const collectionParts = extractCollectionParts(collectionRaw);
-    const collectionIdentities = collectionParts.map((title) => inferMediaIdentity({
+    const collectionIdentities = collectionParts.map((titleRecord) => inferMediaIdentity({
       mediaType: 'movie',
-      tmdbId: title.tmdbId,
+      tmdbId: titleRecord.tmdbId,
     }));
     const collectionContentIds = await this.contentIdentityService.ensureContentIds(client, collectionIdentities);
     const similarTitles = extractSimilarTitles(resolvedTitle);
-    const similarIdentities = similarTitles.map((title) => inferMediaIdentity({
-      mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
-      tmdbId: title.tmdbId,
+    const similarIdentities = similarTitles.map((titleRecord) => inferMediaIdentity({
+      mediaType: titleRecord.mediaType === 'movie' ? 'movie' : 'show',
+      tmdbId: titleRecord.tmdbId,
     }));
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
+
     return {
       item: buildMetadataView({
-        identity: normalizedIdentity,
+        identity,
         title: resolvedTitle,
         currentEpisode: null,
         nextEpisode,
@@ -212,30 +165,17 @@ export class MetadataViewService {
       collection: collection
         ? {
             ...collection,
-            parts: collectionParts.flatMap((title) => {
-              const identity = inferMediaIdentity({ mediaType: 'movie', tmdbId: title.tmdbId });
-              const contentId = collectionContentIds.get(identity.mediaKey);
-              if (!contentId) {
-                return [];
-              }
-              const item = toCatalogItem(buildMetadataCardView({ identity, title }));
+            parts: collectionParts.flatMap((titleRecord) => {
+              const item = this.buildTmdbCatalogItem(titleRecord, collectionContentIds);
               return item ? [item] : [];
             }),
           }
         : null,
-        similar: similarTitles.flatMap((title) => {
-        const identity = inferMediaIdentity({
-          mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
-          tmdbId: title.tmdbId,
-          });
-          const contentId = similarContentIds.get(identity.mediaKey);
-          if (!contentId) {
-            return [];
-          }
-          const item = toCatalogItem(buildMetadataCardView({ identity, title }));
-          return item ? [item] : [];
-        }),
-      };
+      similar: similarTitles.flatMap((titleRecord) => {
+        const item = this.buildTmdbCatalogItem(titleRecord, similarContentIds);
+        return item ? [item] : [];
+      }),
+    };
   }
 
   async getSeasonDetail(client: DbClient, showIdentity: MediaIdentity, seasonNumber: number): Promise<MetadataSeasonDetail> {
@@ -259,6 +199,7 @@ export class MetadataViewService {
           absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
         })),
       );
+
       return {
         show: buildProviderMetadataView({
           identity: this.normalizeProviderTitleIdentity(showIdentity) ?? showIdentity,
@@ -282,7 +223,6 @@ export class MetadataViewService {
     }
 
     const showTmdbId = assertPresent(showIdentity.tmdbId, 'Season details require a TMDB-backed show id.');
-
     const { title, nextEpisode } = await this.loadIdentityContext(client, showIdentity);
     const resolvedTitle = assertPresent(title, 'Show metadata not found.');
     const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
@@ -304,6 +244,7 @@ export class MetadataViewService {
         episodeNumber: episode.episodeNumber,
       })),
     );
+
     return {
       show: buildMetadataView({
         identity: showIdentity,
@@ -324,50 +265,42 @@ export class MetadataViewService {
     };
   }
 
-  async buildViews(client: DbClient, identities: MediaIdentity[]): Promise<MetadataView[]> {
-    return Promise.all(identities.map((identity) => this.buildMetadataView(client, identity)));
+  private buildTmdbCatalogItem(title: TmdbTitleRecord, contentIds: Map<string, string>): CatalogItem | null {
+    const identity = inferMediaIdentity({
+      mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+      tmdbId: title.tmdbId,
+    });
+    const contentId = contentIds.get(identity.mediaKey);
+    if (!contentId) {
+      return null;
+    }
+    return toCatalogItem(buildMetadataCardView({ identity, title }));
   }
 
-  async buildCardViews(client: DbClient, identities: MediaIdentity[]): Promise<MetadataCardView[]> {
-    return Promise.all(identities.map((identity) => this.buildMetadataCardView(client, identity)));
-  }
-
-  private async loadCardContext(client: DbClient, identity: MediaIdentity): Promise<{
-    title: TmdbTitleRecord | null;
-    currentEpisode: TmdbEpisodeRecord | null;
-  }> {
-    const titleType = identity.mediaType === 'movie' ? 'movie' : 'tv';
-    const titleTmdbId = identity.mediaType === 'episode' ? identity.showTmdbId : identity.tmdbId;
-    const title = titleTmdbId ? await this.tmdbCacheService.getTitle(client, titleType, titleTmdbId) : null;
-
-    let currentEpisode: TmdbEpisodeRecord | null = null;
-    if (identity.mediaType === 'episode' && identity.showTmdbId && identity.seasonNumber !== null && identity.episodeNumber !== null) {
-      currentEpisode = await this.tmdbCacheService.getEpisode(client, identity.showTmdbId, identity.seasonNumber, identity.episodeNumber);
+  private async buildProviderSimilarCards(client: DbClient, titles: ProviderTitleRecord[]): Promise<CatalogItem[]> {
+    if (!titles.length) {
+      return [];
     }
 
-    return { title, currentEpisode };
-  }
+    const identities = titles.map((title) => inferMediaIdentity({
+      mediaType: title.mediaType,
+      provider: title.provider,
+      providerId: title.providerId,
+    }));
+    const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
-  private identityFromRow(row: Record<string, unknown>): MediaIdentity {
-    const mediaKey = typeof row.media_key === 'string' ? row.media_key : null;
-    if (mediaKey) {
-      const parsed = parseMediaKey(mediaKey);
-      return {
-        ...parsed,
-        tmdbId: row.tmdb_id === null || row.tmdb_id === undefined ? parsed.tmdbId : Number(row.tmdb_id),
-        showTmdbId: row.show_tmdb_id === null || row.show_tmdb_id === undefined ? parsed.showTmdbId : Number(row.show_tmdb_id),
-        seasonNumber: row.season_number === null || row.season_number === undefined ? parsed.seasonNumber : Number(row.season_number),
-        episodeNumber: row.episode_number === null || row.episode_number === undefined ? parsed.episodeNumber : Number(row.episode_number),
-      };
-    }
-
-    return inferMediaIdentity({
-      mediaKey: String(row.media_key),
-      mediaType: ensureSupportedMediaType(String(row.media_type)),
-      tmdbId: row.tmdb_id === null || row.tmdb_id === undefined ? null : Number(row.tmdb_id),
-      showTmdbId: row.show_tmdb_id === null || row.show_tmdb_id === undefined ? null : Number(row.show_tmdb_id),
-      seasonNumber: row.season_number === null || row.season_number === undefined ? null : Number(row.season_number),
-      episodeNumber: row.episode_number === null || row.episode_number === undefined ? null : Number(row.episode_number),
+    return titles.flatMap((title) => {
+      const identity = inferMediaIdentity({
+        mediaType: title.mediaType,
+        provider: title.provider,
+        providerId: title.providerId,
+      });
+      const contentId = contentIds.get(identity.mediaKey);
+      if (!contentId) {
+        return [];
+      }
+      const item = toCatalogItem(buildProviderMetadataCardView({ identity, title }));
+      return item ? [item] : [];
     });
   }
 
@@ -434,44 +367,6 @@ export class MetadataViewService {
 
     return null;
   }
-
-  private ensureProviderEpisodeContentId(client: DbClient, episode: ProviderEpisodeRecord): Promise<string> {
-    return this.contentIdentityService.ensureEpisodeContentId(client, {
-      parentMediaType: episode.parentMediaType,
-      provider: episode.provider,
-      parentProviderId: episode.parentProviderId,
-      seasonNumber: episode.seasonNumber,
-      episodeNumber: episode.episodeNumber,
-      absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
-    });
-  }
-
-  private async buildProviderSimilarCards(client: DbClient, titles: ProviderTitleRecord[]): Promise<CatalogItem[]> {
-    if (!titles.length) {
-      return [];
-    }
-
-    const identities = titles.map((title) => inferMediaIdentity({
-      mediaType: title.mediaType,
-      provider: title.provider,
-      providerId: title.providerId,
-    }));
-    const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
-
-    return titles.flatMap((title) => {
-      const identity = inferMediaIdentity({
-        mediaType: title.mediaType,
-        provider: title.provider,
-        providerId: title.providerId,
-      });
-      const contentId = contentIds.get(identity.mediaKey);
-      if (!contentId) {
-        return [];
-      }
-      const item = toCatalogItem(buildProviderMetadataCardView({ identity, title }));
-      return item ? [item] : [];
-    });
-  }
 }
 
 function emptyProductionInfo(): MetadataProductionInfoView {
@@ -488,17 +383,9 @@ function emptyProductionInfo(): MetadataProductionInfoView {
 function extractSeasonNumbersFromTitle(title: TmdbTitleRecord): number[] {
   const rawSeasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
   return rawSeasons
-    .map((entry) => (typeof entry === 'object' && entry !== null ? Number((entry as Record<string, unknown>).season_number) : NaN))
+    .map((entry) => (typeof entry === 'object' && entry !== null ? Number((entry as Record<string, unknown>).season_number) : Number.NaN))
     .filter((seasonNumber) => Number.isInteger(seasonNumber) && seasonNumber >= 0)
     .sort((left, right) => left - right);
-}
-
-function buildEpisodeSubtitle(seasonNumber: number | null, episodeNumber: number | null): string | null {
-  if (seasonNumber === null || episodeNumber === null) {
-    return null;
-  }
-
-  return `S${String(seasonNumber).padStart(2, '0')} E${String(episodeNumber).padStart(2, '0')}`;
 }
 
 function collectRelevantSeasonNumbers(identity: MediaIdentity, title: TmdbTitleRecord | null): number[] {

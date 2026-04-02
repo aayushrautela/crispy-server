@@ -4,29 +4,23 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv({});
 
-test('buildMetadataCardViewFromRow preserves tmdb linkage for provider-backed rows', async (t) => {
-  const { MetadataViewService } = await import('./metadata-view.service.js');
+test('buildCardViewFromRow preserves tmdb linkage for provider-backed rows', async (t) => {
+  const { MetadataCardService } = await import('./metadata-card.service.js');
   const { ProviderMetadataService } = await import('./provider-metadata.service.js');
-  const { ContentIdentityService } = await import('../identity/content-identity.service.js');
   const { TmdbCacheService } = await import('./providers/tmdb-cache.service.js');
 
   const originals = {
-    ensureContentId: ContentIdentityService.prototype.ensureContentId,
     loadIdentityContext: ProviderMetadataService.prototype.loadIdentityContext,
     getTitle: TmdbCacheService.prototype.getTitle,
     getEpisode: TmdbCacheService.prototype.getEpisode,
   };
 
   t.after(() => {
-    ContentIdentityService.prototype.ensureContentId = originals.ensureContentId;
     ProviderMetadataService.prototype.loadIdentityContext = originals.loadIdentityContext;
     TmdbCacheService.prototype.getTitle = originals.getTitle;
     TmdbCacheService.prototype.getEpisode = originals.getEpisode;
   });
 
-  ContentIdentityService.prototype.ensureContentId = async function (_client, identity) {
-    return `${identity.mediaType}:${identity.provider ?? 'tmdb'}:${identity.providerId ?? 'unknown'}`;
-  };
   ProviderMetadataService.prototype.loadIdentityContext = async function (_client, identity) {
     return {
       title: {
@@ -72,8 +66,8 @@ test('buildMetadataCardViewFromRow preserves tmdb linkage for provider-backed ro
     throw new Error('tmdb episode lookup should not run for provider-backed row hydration');
   };
 
-  const service = new MetadataViewService();
-  const view = await service.buildMetadataCardViewFromRow({} as never, {
+  const service = new MetadataCardService();
+  const view = await service.buildCardViewFromRow({} as never, {
     media_key: 'show:tvdb:121361',
     media_type: 'show',
     tmdb_id: 1399,

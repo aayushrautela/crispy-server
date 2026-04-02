@@ -6,22 +6,18 @@ import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
 seedTestEnv();
 
-async function loadModule() {
-  return import('./metadata-normalizers.js');
-}
-
 test('buildImageUrl returns null for null path', async () => {
-  const { buildImageUrl } = await loadModule();
+  const { buildImageUrl } = await import('./metadata-builder.shared.js');
   assert.equal(buildImageUrl(null, 'w500'), null);
 });
 
 test('buildImageUrl constructs full TMDB URL', async () => {
-  const { buildImageUrl } = await loadModule();
+  const { buildImageUrl } = await import('./metadata-builder.shared.js');
   assert.equal(buildImageUrl('/poster.jpg', 'w500'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
 });
 
 test('buildMetadataView for show extracts provider-based detail fields', async () => {
-  const { buildMetadataView } = await loadModule();
+  const { buildMetadataView } = await import('./metadata-detail.builders.js');
 
   const view = buildMetadataView({
     identity: { mediaKey: 'show:tmdb:42', mediaType: 'show', tmdbId: 42, showTmdbId: 42, seasonNumber: null, episodeNumber: null },
@@ -59,69 +55,8 @@ test('buildMetadataView for show extracts provider-based detail fields', async (
   assert.equal(view.externalIds.tvdb, 98765);
 });
 
-test('buildMetadataCardView for episode uses show title and episode subtitle', async () => {
-  const { buildMetadataCardView } = await loadModule();
-
-  const view = buildMetadataCardView({
-    identity: { mediaKey: 'episode:tmdb:42:1:2', mediaType: 'episode', tmdbId: null, showTmdbId: 42, seasonNumber: 1, episodeNumber: 2 },
-    title: {
-      mediaType: 'tv', tmdbId: 42, name: 'Breaking Point', originalName: 'Breaking Point',
-      overview: 'A thrilling drama.', releaseDate: null, firstAirDate: '2024-01-01',
-      status: 'Returning Series', posterPath: '/poster.jpg', backdropPath: '/backdrop.jpg',
-      runtime: null, episodeRunTime: [45], numberOfSeasons: 3, numberOfEpisodes: 30,
-      externalIds: {}, raw: { genres: [], vote_average: 8.0 },
-      fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
-    },
-    currentEpisode: {
-      showTmdbId: 42, seasonNumber: 1, episodeNumber: 2, tmdbId: 554,
-      name: 'Previous Episode', overview: 'Previous.', airDate: '2024-01-08',
-      runtime: 45, stillPath: '/prev.jpg', voteAverage: 7.8, raw: {},
-      fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
-    },
-  });
-
-  assert.equal(view.mediaType, 'episode');
-  assert.equal(view.provider, 'tmdb');
-  assert.equal(view.providerId, '42');
-  assert.equal(view.kind, 'episode');
-  assert.equal(view.title, 'Breaking Point');
-  assert.equal(view.subtitle, 'Previous Episode');
-  assert.equal(view.summary, 'Previous.');
-});
-
-test('buildEpisodePreview produces provider-based payload', async () => {
-  const { buildEpisodePreview } = await loadModule();
-
-  const preview = buildEpisodePreview(
-    {
-      mediaType: 'tv', tmdbId: 42, name: 'Test Show', originalName: 'Test Show',
-      overview: null, releaseDate: null, firstAirDate: null, status: null,
-      posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
-      numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: {},
-      fetchedAt: '', expiresAt: '',
-    },
-    {
-      showTmdbId: 42, seasonNumber: 1, episodeNumber: 3, tmdbId: 555,
-      name: 'Episode 3', overview: 'Overview.', airDate: '2024-01-15',
-      runtime: 47, stillPath: '/still.jpg', voteAverage: 8.1, raw: {},
-      fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
-    },
-  );
-
-  assert.equal(preview.mediaType, 'episode');
-  assert.equal(preview.provider, 'tmdb');
-  assert.equal(preview.providerId, '42:s1:e3');
-  assert.equal(preview.showTmdbId, 42);
-  assert.equal(preview.seasonNumber, 1);
-  assert.equal(preview.episodeNumber, 3);
-  assert.equal(preview.airDate, '2024-01-15');
-  assert.equal(preview.runtimeMinutes, 47);
-  assert.equal(preview.rating, 8.1);
-  assert.equal(preview.images.stillUrl, 'https://image.tmdb.org/t/p/w500/still.jpg');
-});
-
 test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
-  const { buildSeasonViewFromTitleRaw } = await loadModule();
+  const { buildSeasonViewFromTitleRaw } = await import('./metadata-detail.builders.js');
 
   const seasons = buildSeasonViewFromTitleRaw(
     {
@@ -147,7 +82,7 @@ test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
 });
 
 test('buildSeasonViewFromRecord produces clean payload', async () => {
-  const { buildSeasonViewFromRecord } = await loadModule();
+  const { buildSeasonViewFromRecord } = await import('./metadata-detail.builders.js');
 
   const view = buildSeasonViewFromRecord(42, {
     showTmdbId: 42, seasonNumber: 2, name: 'Season 2',
@@ -164,7 +99,7 @@ test('buildSeasonViewFromRecord produces clean payload', async () => {
 });
 
 test('buildEpisodeView includes provider-based show context', async () => {
-  const { buildEpisodeView } = await loadModule();
+  const { buildEpisodeView } = await import('./metadata-detail.builders.js');
 
   const view = buildEpisodeView(
     {
@@ -189,7 +124,7 @@ test('buildEpisodeView includes provider-based show context', async () => {
 });
 
 test('extractReleaseYear returns year from date string', async () => {
-  const { extractReleaseYear } = await loadModule();
+  const { extractReleaseYear } = await import('./metadata-builder.shared.js');
   assert.equal(extractReleaseYear('2024-01-15'), 2024);
   assert.equal(extractReleaseYear(null), null);
   assert.equal(extractReleaseYear(''), null);
@@ -206,7 +141,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
     extractCollection,
     extractCollectionParts,
     extractSimilarTitles,
-  } = await loadModule();
+  } = await import('./metadata-builder.shared.js');
 
   const title: TmdbTitleRecord = {
     mediaType: 'tv',

@@ -5,32 +5,38 @@ import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-id', SIMKL_IMPORT_CLIENT_ID: 'simkl-id' });
 
 test('metadata direct routes parse inputs and return service payloads', async (t) => {
-  const { MetadataDirectService } = await import('../../modules/metadata/metadata-direct.service.js');
+  const { MetadataContentService } = await import('../../modules/metadata/metadata-content.service.js');
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
+  const { EpisodeNavigationService } = await import('../../modules/metadata/episode-navigation.service.js');
+  const { PersonDetailService } = await import('../../modules/metadata/person-detail.service.js');
+  const { PlaybackResolveService } = await import('../../modules/metadata/playback-resolve.service.js');
   const originals = {
-    getPersonDetail: MetadataDirectService.prototype.getPersonDetail,
-    listEpisodes: MetadataDirectService.prototype.listEpisodes,
-    getNextEpisode: MetadataDirectService.prototype.getNextEpisode,
-    getTitleContent: MetadataDirectService.prototype.getTitleContent,
-    resolvePlayback: MetadataDirectService.prototype.resolvePlayback,
+    getPersonDetail: PersonDetailService.prototype.getPersonDetail,
+    listEpisodes: EpisodeNavigationService.prototype.listEpisodes,
+    getNextEpisode: EpisodeNavigationService.prototype.getNextEpisode,
+    getTitleContent: MetadataContentService.prototype.getTitleContent,
+    resolvePlayback: PlaybackResolveService.prototype.resolvePlayback,
     getTitleDetailById: MetadataDetailService.prototype.getTitleDetailById,
   };
 
   t.after(() => {
-    Object.assign(MetadataDirectService.prototype, originals);
+    Object.assign(PersonDetailService.prototype, { getPersonDetail: originals.getPersonDetail });
+    Object.assign(EpisodeNavigationService.prototype, { listEpisodes: originals.listEpisodes, getNextEpisode: originals.getNextEpisode });
+    Object.assign(MetadataContentService.prototype, { getTitleContent: originals.getTitleContent });
+    Object.assign(PlaybackResolveService.prototype, { resolvePlayback: originals.resolvePlayback });
     Object.assign(MetadataDetailService.prototype, { getTitleDetailById: originals.getTitleDetailById });
   });
 
-  MetadataDirectService.prototype.getPersonDetail = async function (id, language) {
+  PersonDetailService.prototype.getPersonDetail = async function (id, language) {
     return { id: `person:${id}`, provider: 'tmdb', providerId: '44', tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [], language } as never;
   };
-  MetadataDirectService.prototype.listEpisodes = async function (id, seasonNumber) {
+  EpisodeNavigationService.prototype.listEpisodes = async function (id, seasonNumber) {
     return { show: { mediaKey: id, providerId: id, externalIds: { tmdb: null, imdb: 'tt123', tvdb: null, kitsu: null } }, requestedSeasonNumber: seasonNumber ?? null, effectiveSeasonNumber: seasonNumber ?? 1, includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1], episodes: [] } as never;
   };
-  MetadataDirectService.prototype.getNextEpisode = async function (id, input) {
+  EpisodeNavigationService.prototype.getNextEpisode = async function (id, input) {
     return { show: { mediaKey: id, providerId: id }, currentSeasonNumber: input.currentSeasonNumber, currentEpisodeNumber: input.currentEpisodeNumber, receivedWatchedKeys: input.watchedKeys, receivedShowMediaKey: input.showMediaKey, receivedNowMs: input.nowMs, item: null } as never;
   };
-  MetadataDirectService.prototype.getTitleContent = async function (userId, id) {
+  MetadataContentService.prototype.getTitleContent = async function (userId, id) {
     return { item: { mediaKey: id, providerId: id }, content: { ids: { imdb: 'tt1234567', tmdb: null, trakt: null, tvdb: null }, title: 'Movie' } } as never;
   };
   MetadataDetailService.prototype.getTitleDetailById = async function (id: string) {
@@ -80,7 +86,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       similar: [{ mediaType: 'movie', kind: 'title', mediaKey: 'movie:tmdb:77', provider: 'tmdb', providerId: '77', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
     } as never;
   };
-  MetadataDirectService.prototype.resolvePlayback = async function (input) {
+  PlaybackResolveService.prototype.resolvePlayback = async function (input) {
     return { item: { mediaKey: input.mediaKey ?? 'fallback', providerId: input.mediaKey ?? 'fallback' }, show: null, season: null, input } as never;
   };
 
@@ -191,10 +197,48 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     return { dismissed: true, userId, profileId, id } as never;
   };
   WatchStateService.prototype.getState = async function (_userId, _profileId, input) {
-    return { media: { mediaKey: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] } as never;
+    return {
+      media: {
+        mediaType: 'movie',
+        mediaKey: input.mediaKey,
+        provider: 'tmdb',
+        providerId: '1',
+        title: 'Example Movie',
+        posterUrl: 'https://img.test/poster.jpg',
+        releaseYear: null,
+        rating: null,
+        genre: null,
+        subtitle: null,
+      },
+      progress: null,
+      continueWatching: null,
+      watched: null,
+      watchlist: null,
+      rating: null,
+      watchedEpisodeKeys: [],
+    } as never;
   };
   WatchStateService.prototype.getStates = async function (_userId, _profileId, inputs) {
-    return inputs.map((input) => ({ media: { mediaKey: input.mediaKey }, progress: null, continueWatching: null, watched: null, watchlist: null, rating: null, watchedEpisodeKeys: [] })) as never;
+    return inputs.map((input) => ({
+      media: {
+        mediaType: input.mediaKey.startsWith('show:') ? 'show' : 'movie',
+        mediaKey: input.mediaKey,
+        provider: 'tmdb',
+        providerId: input.mediaKey.startsWith('show:') ? '2' : '1',
+        title: input.mediaKey.startsWith('show:') ? 'Example Show' : 'Example Movie',
+        posterUrl: 'https://img.test/poster.jpg',
+        releaseYear: null,
+        rating: null,
+        genre: null,
+        subtitle: null,
+      },
+      progress: null,
+      continueWatching: null,
+      watched: null,
+      watchlist: null,
+      rating: null,
+      watchedEpisodeKeys: [],
+    })) as never;
   };
 
   const { registerWatchRoutes } = await import('./watch.js');

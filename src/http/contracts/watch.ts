@@ -171,6 +171,130 @@ const ratingItemSchema = {
   },
 } as const;
 
+const watchProgressStateSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'status', 'lastPlayedAt'],
+      properties: {
+        positionSeconds: nullableNumberSchema,
+        durationSeconds: nullableNumberSchema,
+        progressPercent: { type: 'number' },
+        status: stringSchema,
+        lastPlayedAt: stringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
+const continueWatchingStateSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id', 'positionSeconds', 'durationSeconds', 'progressPercent', 'lastActivityAt'],
+      properties: {
+        id: stringSchema,
+        positionSeconds: nullableNumberSchema,
+        durationSeconds: nullableNumberSchema,
+        progressPercent: { type: 'number' },
+        lastActivityAt: stringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
+const watchedStateSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['watchedAt'],
+      properties: {
+        watchedAt: stringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
+const watchlistStateSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['addedAt'],
+      properties: {
+        addedAt: stringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
+const ratingStateSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['value', 'ratedAt'],
+      properties: {
+        value: { type: 'number' },
+        ratedAt: stringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
+} as const;
+
+const watchStateItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['media', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys'],
+  properties: {
+    media: regularCardViewSchema,
+    progress: watchProgressStateSchema,
+    continueWatching: continueWatchingStateSchema,
+    watched: watchedStateSchema,
+    watchlist: watchlistStateSchema,
+    rating: ratingStateSchema,
+    watchedEpisodeKeys: {
+      type: 'array',
+      items: stringSchema,
+    },
+  },
+} as const;
+
+const watchStateEnvelopeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['profileId', 'source', 'generatedAt', 'item'],
+  properties: {
+    profileId: stringSchema,
+    source: { const: 'canonical_watch' },
+    generatedAt: stringSchema,
+    item: watchStateItemSchema,
+  },
+} as const;
+
+const watchStatesEnvelopeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['profileId', 'source', 'generatedAt', 'items'],
+  properties: {
+    profileId: stringSchema,
+    source: { const: 'canonical_watch' },
+    generatedAt: stringSchema,
+    items: {
+      type: 'array',
+      items: watchStateItemSchema,
+    },
+  },
+} as const;
+
 function buildWatchCollectionResponseSchema(kind: 'continue-watching' | 'watched' | 'watchlist' | 'ratings', itemSchema: Record<string, unknown>) {
   return {
     type: 'object',
@@ -306,6 +430,9 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
       mediaKey: stringSchema,
     },
   },
+  response: {
+    200: watchStateEnvelopeSchema,
+  },
 });
 
 export const watchStatesRouteSchema = withDefaultErrorResponses({
@@ -327,6 +454,9 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
         },
       },
     },
+  },
+  response: {
+    200: watchStatesEnvelopeSchema,
   },
 });
 

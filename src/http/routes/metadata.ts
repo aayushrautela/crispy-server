@@ -18,8 +18,11 @@ import {
   type MetadataTitleParams,
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
-import { MetadataDirectService } from '../../modules/metadata/metadata-direct.service.js';
 import { MetadataDetailService } from '../../modules/metadata/metadata-detail.service.js';
+import { EpisodeNavigationService } from '../../modules/metadata/episode-navigation.service.js';
+import { MetadataContentService } from '../../modules/metadata/metadata-content.service.js';
+import { PersonDetailService } from '../../modules/metadata/person-detail.service.js';
+import { PlaybackResolveService } from '../../modules/metadata/playback-resolve.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
 import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
@@ -28,7 +31,10 @@ import { TitleSearchService } from '../../modules/search/title-search.service.js
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataDetailService = new MetadataDetailService();
   const titleSearchService = new TitleSearchService();
-  const metadataDirectService = new MetadataDirectService();
+  const metadataContentService = new MetadataContentService();
+  const personDetailService = new PersonDetailService();
+  const episodeNavigationService = new EpisodeNavigationService();
+  const playbackResolveService = new PlaybackResolveService();
 
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
@@ -57,7 +63,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as MetadataTitleParams;
-    return metadataDirectService.getTitleContent(actor.appUserId, params.mediaKey);
+    return metadataContentService.getTitleContent(actor.appUserId, params.mediaKey);
   });
 
   app.get('/v1/metadata/titles/:mediaKey/seasons/:seasonNumber', { schema: metadataSeasonRouteSchema }, async (request) => {
@@ -71,21 +77,21 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const params = request.params as MetadataPersonParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return metadataDirectService.getPersonDetail(params.id, asOptionalString(query.language));
+    return personDetailService.getPersonDetail(params.id, asOptionalString(query.language));
   });
 
   app.get('/v1/metadata/titles/:mediaKey/episodes', { schema: metadataEpisodesRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataEpisodesQuery;
-    return metadataDirectService.listEpisodes(params.mediaKey, parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'));
+    return episodeNavigationService.listEpisodes(params.mediaKey, parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'));
   });
 
   app.get('/v1/metadata/titles/:mediaKey/next-episode', { schema: metadataNextEpisodeRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataNextEpisodeQuery;
-    return metadataDirectService.getNextEpisode(params.mediaKey, {
+    return episodeNavigationService.getNextEpisode(params.mediaKey, {
       currentSeasonNumber: parseRequiredPositiveQueryNumber(query.currentSeasonNumber, 'currentSeasonNumber'),
       currentEpisodeNumber: parseRequiredPositiveQueryNumber(query.currentEpisodeNumber, 'currentEpisodeNumber'),
       watchedKeys: parseStringList(query.watchedKeys),
@@ -98,7 +104,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
     const resolvedProviderInput = mapProviderResolveQuery(query);
-    return metadataDirectService.resolvePlayback({
+    return playbackResolveService.resolvePlayback({
       mediaKey: asUndefinedString(query.mediaKey),
       tmdbId: resolvedProviderInput.tmdbId,
       imdbId: asOptionalString(query.imdbId),

@@ -1,5 +1,4 @@
 import type { LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
-import type { MetadataView } from '../metadata/metadata-detail.types.js';
 import type {
   WatchProgressView,
   ContinueWatchingStateView,
@@ -54,7 +53,7 @@ export type WatchStatesEnvelope = {
 };
 
 export type WatchStateResponse = {
-  media: MetadataView;
+  media: RegularCardView;
   progress: WatchProgressView | null;
   continueWatching: ContinueWatchingStateView | null;
   watched: WatchedStateView | null;
