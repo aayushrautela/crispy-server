@@ -1,4 +1,4 @@
-import type { MetadataEpisodeView } from './metadata.types.js';
+import type { MetadataEpisodeView } from './metadata-detail.types.js';
 
 type EpisodeLike = {
   seasonNumber: number;

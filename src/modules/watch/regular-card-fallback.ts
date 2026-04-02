@@ -1,5 +1,5 @@
 import { parseMediaKey } from '../identity/media-key.js';
-import type { RegularCardView } from '../metadata/metadata.types.js';
+import type { RegularCardView } from '../metadata/metadata-card.types.js';
 
 export function fallbackRegularCard(
   mediaKey: string,

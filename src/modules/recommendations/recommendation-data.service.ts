@@ -1,7 +1,7 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
-import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata-card.types.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
 import { inferMediaIdentity } from '../identity/media-key.js';

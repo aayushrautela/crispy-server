@@ -1,4 +1,5 @@
-import type { LandscapeCardView, MetadataView, RegularCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
+import type { MetadataView } from '../metadata/metadata-detail.types.js';
 import type {
   WatchProgressView,
   ContinueWatchingStateView,

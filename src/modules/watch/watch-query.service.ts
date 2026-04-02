@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { parseMediaKey } from '../identity/media-key.js';
-import type { RegularCardView } from '../metadata/metadata.types.js';
+import type { RegularCardView } from '../metadata/metadata-card.types.js';
 import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
 import { decodeWatchPageCursor, encodeWatchPageCursor } from './watch-pagination.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';

@@ -1,5 +1,5 @@
 import { parseMediaKey, type SupportedProvider } from '../identity/media-key.js';
-import type { LandscapeCardView, MetadataTitleMediaType, RegularCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataTitleMediaType, RegularCardView } from '../metadata/metadata-card.types.js';
 import type {
   ContinueWatchingProductItem,
   RatingProductItem,

@@ -1,5 +1,5 @@
 import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
-import type { RegularCardView } from '../metadata/metadata.types.js';
+import type { RegularCardView } from '../metadata/metadata-card.types.js';
 import type { RatingStateView } from '../watch/watch-read.types.js';
 
 export type ProviderAuthStateView = {

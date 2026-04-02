@@ -6,19 +6,19 @@ seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-id', SIMKL_IMPORT_CLIENT_ID: 'simkl
 
 test('metadata direct routes parse inputs and return service payloads', async (t) => {
   const { MetadataDirectService } = await import('../../modules/metadata/metadata-direct.service.js');
-  const { MetadataQueryService } = await import('../../modules/metadata/metadata-query.service.js');
+  const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
   const originals = {
     getPersonDetail: MetadataDirectService.prototype.getPersonDetail,
     listEpisodes: MetadataDirectService.prototype.listEpisodes,
     getNextEpisode: MetadataDirectService.prototype.getNextEpisode,
     getTitleContent: MetadataDirectService.prototype.getTitleContent,
     resolvePlayback: MetadataDirectService.prototype.resolvePlayback,
-    getTitleDetailById: MetadataQueryService.prototype.getTitleDetailById,
+    getTitleDetailById: MetadataDetailService.prototype.getTitleDetailById,
   };
 
   t.after(() => {
     Object.assign(MetadataDirectService.prototype, originals);
-    Object.assign(MetadataQueryService.prototype, { getTitleDetailById: originals.getTitleDetailById });
+    Object.assign(MetadataDetailService.prototype, { getTitleDetailById: originals.getTitleDetailById });
   });
 
   MetadataDirectService.prototype.getPersonDetail = async function (id, language) {
@@ -33,7 +33,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   MetadataDirectService.prototype.getTitleContent = async function (userId, id) {
     return { item: { mediaKey: id, providerId: id }, content: { ids: { imdb: 'tt1234567', tmdb: null, trakt: null, tvdb: null }, title: 'Movie' } } as never;
   };
-  MetadataQueryService.prototype.getTitleDetailById = async function (id: string) {
+  MetadataDetailService.prototype.getTitleDetailById = async function (id: string) {
     return {
       item: { mediaKey: id, providerId: id },
       seasons: [],
@@ -391,14 +391,14 @@ test('library route returns 404 for non-existent profile', async (t) => {
 });
 
 test('metadata resolve route accepts provider-shaped query input', async (t) => {
-  const { MetadataQueryService } = await import('../../modules/metadata/metadata-query.service.js');
-  const originalResolve = MetadataQueryService.prototype.resolve;
+  const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
+  const originalResolve = MetadataDetailService.prototype.resolve;
 
   t.after(() => {
-    MetadataQueryService.prototype.resolve = originalResolve;
+    MetadataDetailService.prototype.resolve = originalResolve;
   });
 
-  MetadataQueryService.prototype.resolve = async function (input) {
+  MetadataDetailService.prototype.resolve = async function (input) {
     return { item: input } as never;
   };
 

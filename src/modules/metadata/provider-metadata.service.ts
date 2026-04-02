@@ -11,17 +11,19 @@ import { KitsuClient } from './providers/kitsu.client.js';
 import type {
   MetadataCollectionView,
   MetadataCompanyView,
-  MetadataExternalIds,
-  MetadataParentMediaType,
   MetadataPersonRefView,
   MetadataProductionInfoView,
   MetadataReviewView,
   MetadataSearchFilter,
   MetadataVideoView,
+  ProviderTitleRecord,
+} from './metadata-detail.types.js';
+import type {
+  MetadataExternalIds,
+  MetadataParentMediaType,
   ProviderEpisodeRecord,
   ProviderSeasonRecord,
-  ProviderTitleRecord,
-} from './metadata.types.js';
+} from './metadata-card.types.js';
 import { TvdbClient } from './providers/tvdb.client.js';
 
 type ProviderTitleBundle = {

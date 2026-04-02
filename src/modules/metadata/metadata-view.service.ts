@@ -29,14 +29,16 @@ import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type {
   CatalogItem,
   MetadataCardView,
+  ProviderEpisodeRecord,
+  ProviderTitleRecord,
+} from './metadata-card.types.js';
+import type {
   MetadataCollectionView,
   MetadataProductionInfoView,
   MetadataSeasonDetail,
   MetadataTitleDetail,
   MetadataView,
-  ProviderEpisodeRecord,
-  ProviderTitleRecord,
-} from './metadata.types.js';
+} from './metadata-detail.types.js';
 import type {
   TmdbEpisodeRecord,
   TmdbTitleRecord,

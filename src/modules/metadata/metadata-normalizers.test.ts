@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
-import type { ProviderTitleRecord } from './metadata.types.js';
+import type { ProviderTitleRecord } from './metadata-card.types.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
 seedTestEnv();

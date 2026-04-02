@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { MetadataScheduleService } from '../metadata/metadata-schedule.service.js';
-import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata-card.types.js';
 import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { WatchExportService } from '../watch/watch-export.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';

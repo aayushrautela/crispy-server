@@ -1,4 +1,4 @@
-import type { CollectionCardView, HeroCardView, LandscapeCardView, RegularCardView } from '../metadata/metadata.types.js';
+import type { CollectionCardView, HeroCardView, LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;

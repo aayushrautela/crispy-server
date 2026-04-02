@@ -19,13 +19,15 @@ import {
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDirectService } from '../../modules/metadata/metadata-direct.service.js';
-import { MetadataQueryService } from '../../modules/metadata/metadata-query.service.js';
-import type { MetadataSearchFilter } from '../../modules/metadata/metadata.types.js';
+import { MetadataDetailService } from '../../modules/metadata/metadata-detail.service.js';
+import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
 import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
+import { TitleSearchService } from '../../modules/search/title-search.service.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
-  const metadataQueryService = new MetadataQueryService();
+  const metadataDetailService = new MetadataDetailService();
+  const titleSearchService = new TitleSearchService();
   const metadataDirectService = new MetadataDirectService();
 
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
@@ -33,7 +35,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const query = (request.query ?? {}) as MetadataResolveQuery;
     const resolvedProviderInput = mapProviderResolveQuery(query);
 
-    return metadataQueryService.resolve({
+    return metadataDetailService.resolve({
       mediaKey: asUndefinedString(query.mediaKey),
       tmdbId: resolvedProviderInput.tmdbId,
       imdbId: asOptionalString(query.imdbId),
@@ -48,7 +50,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   app.get('/v1/metadata/titles/:mediaKey', { schema: metadataTitleParamsRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
-    return metadataQueryService.getTitleDetailById(params.mediaKey);
+    return metadataDetailService.getTitleDetailById(params.mediaKey);
   });
 
   app.get('/v1/metadata/titles/:mediaKey/content', { schema: metadataTitleParamsRouteSchema }, async (request) => {
@@ -62,7 +64,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const params = request.params as MetadataSeasonParams;
     const seasonNumber = parseRequiredPositiveNumber(params.seasonNumber, 'seasonNumber');
-    return metadataQueryService.getSeasonDetailByShowId(params.mediaKey, seasonNumber);
+    return metadataDetailService.getSeasonDetailByShowId(params.mediaKey, seasonNumber);
   });
 
   app.get('/v1/metadata/people/:id', { schema: metadataPersonRouteSchema }, async (request) => {
@@ -115,7 +117,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const genre = asOptionalString(query.genre);
     const filter = parseSearchFilter(query.filter);
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 20, 1, 50);
-    return metadataQueryService.searchTitles({ query: searchQuery, genre, filter, limit });
+    return titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit });
   });
 }
 

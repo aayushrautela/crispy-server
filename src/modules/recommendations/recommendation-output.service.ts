@@ -1,6 +1,6 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { MetadataViewService } from '../metadata/metadata-view.service.js';
+import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
@@ -11,7 +11,7 @@ import type {
   LandscapeCardView,
   MetadataCardView,
   RegularCardView,
-} from '../metadata/metadata.types.js';
+} from '../metadata/metadata-card.types.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -53,7 +53,7 @@ export class RecommendationOutputService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly profileSettingsRepository = new ProfileSettingsRepository(),
-    private readonly metadataViewService = new MetadataViewService(),
+    private readonly metadataCardService = new MetadataCardService(),
     private readonly tasteProfileRepository = new TasteProfileRepository(),
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
   ) {}
@@ -335,7 +335,7 @@ export class RecommendationOutputService {
     const identity = recommendationIdentityFromRow(row);
 
     return {
-      media: toRegularCard(await this.metadataViewService.buildMetadataCardView(client, identity)),
+      media: toRegularCard(await this.metadataCardService.buildCardView(client, identity)),
       reason: typeof row.reason === 'string' ? row.reason : null,
       score: typeof row.score === 'number' ? row.score : null,
       rank: typeof row.rank === 'number' ? row.rank : index + 1,
@@ -346,7 +346,7 @@ export class RecommendationOutputService {
   private async mapLandscapeRecommendationItem(client: DbClient, value: unknown, index: number) {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
-    const media = toLandscapeCard(await this.metadataViewService.buildMetadataCardView(client, identity));
+    const media = toLandscapeCard(await this.metadataCardService.buildCardView(client, identity));
     if (!media) {
       return null;
     }
@@ -402,7 +402,7 @@ export class RecommendationOutputService {
   private async mapHeroCard(client: DbClient, value: unknown): Promise<HeroCardView | null> {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
-    const media = await this.metadataViewService.buildMetadataCardView(client, identity);
+    const media = await this.metadataCardService.buildCardView(client, identity);
     return toHeroCard(media, row);
   }
 }

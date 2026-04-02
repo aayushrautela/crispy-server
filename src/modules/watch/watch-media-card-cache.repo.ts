@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import type { MetadataTitleMediaType, RegularCardView } from '../metadata/metadata.types.js';
+import type { MetadataTitleMediaType } from '../metadata/metadata-card.types.js';
 import type { SupportedProvider } from '../identity/media-key.js';
 
 export type WatchMediaCardCacheRecord = {

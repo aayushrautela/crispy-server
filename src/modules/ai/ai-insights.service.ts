@@ -1,7 +1,7 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { MetadataQueryService } from '../metadata/metadata-query.service.js';
-import type { MetadataTitleDetail } from '../metadata/metadata.types.js';
+import { MetadataDetailService } from '../metadata/metadata-detail.service.js';
+import type { MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
@@ -17,7 +17,7 @@ export class AiInsightsService {
     private readonly cacheRepository = new AiInsightsCacheRepository(),
     private readonly aiProviderResolver = new AiProviderResolver(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
-    private readonly metadataQueryService = new MetadataQueryService(),
+    private readonly metadataDetailService = new MetadataDetailService(),
   ) {}
 
   async getInsights(userId: string, input: {
@@ -55,7 +55,7 @@ export class AiInsightsService {
       return cached.payload;
     }
 
-    const titleDetail = await this.metadataQueryService.getTitleDetailById(mediaKey);
+    const titleDetail = await this.metadataDetailService.getTitleDetailById(mediaKey);
     const titleContext = buildTitleInsightsContext(titleDetail);
     if (!titleContext) {
       throw new HttpError(404, 'Unable to load title data for AI insights.');

@@ -1,15 +1,14 @@
 import { appConfig } from '../../config/app-config.js';
-import {
-  buildEpisodeProviderId,
-  buildSeasonProviderId,
-  parentMediaTypeForIdentity,
-  type MediaIdentity,
-  type SupportedProvider,
-} from '../identity/media-key.js';
+import type { SupportedProvider } from '../identity/media-key.js';
 import type {
-  CatalogItem,
-  MetadataCardView,
-  MetadataEpisodePreview,
+  MetadataCollectionView,
+  MetadataCompanyView,
+  MetadataPersonRefView,
+  MetadataProductionInfoView,
+  MetadataReviewView,
+  MetadataVideoView,
+} from './metadata-detail.types.js';
+import type {
   MetadataExternalIds,
   MetadataImages,
   MetadataParentMediaType,
@@ -18,43 +17,32 @@ import type {
   ProviderTitleRecord,
 } from './metadata-card.types.js';
 import type {
-  MetadataCollectionView,
-  MetadataCompanyView,
-  MetadataEpisodeView,
-  MetadataPersonRefView,
-  MetadataProductionInfoView,
-  MetadataReviewView,
-  MetadataSeasonView,
-  MetadataVideoView,
-  MetadataView,
-} from './metadata-detail.types.js';
-import type {
   TmdbEpisodeRecord,
   TmdbSeasonRecord,
   TmdbTitleRecord,
 } from './providers/tmdb.types.js';
 
-function asRecord(value: unknown): Record<string, unknown> | null {
+export function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
-function asArray(value: unknown): unknown[] {
+export function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function asString(value: unknown): string | null {
+export function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
-function asNumber(value: unknown): number | null {
+export function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function asBoolean(value: unknown): boolean {
+export function asBoolean(value: unknown): boolean {
   return value === true;
 }
 
-function padded(value: number): string {
+export function padded(value: number): string {
   return String(value).padStart(2, '0');
 }
 
@@ -411,6 +399,27 @@ export function buildProviderCrewViews(title: ProviderTitleRecord, roles: string
   });
 }
 
+function buildProviderCompanyView(
+  record: Record<string, unknown>,
+  provider: SupportedProvider,
+): MetadataCompanyView | null {
+  const numericId = asNumber(record.id);
+  const providerId = asString(record.id) ?? (numericId === null ? null : String(numericId));
+  const name = asString(record.name);
+  if (!providerId || !name) {
+    return null;
+  }
+
+  return {
+    id: numericId ?? providerId,
+    provider,
+    providerId,
+    name,
+    logoUrl: asString(record.image) ?? buildImageUrl(asString(record.logo_path), 'w185'),
+    originCountry: asString(record.country) ?? asString(record.origin_country),
+  };
+}
+
 export function buildProviderProduction(title: ProviderTitleRecord): MetadataProductionInfoView {
   if (title.provider === 'tvdb') {
     const data = asRecord(asRecord(title.raw)?.data) ?? {};
@@ -444,57 +453,16 @@ export function buildProviderProduction(title: ProviderTitleRecord): MetadataPro
   };
 }
 
-export function buildProviderCollection(title: ProviderTitleRecord): MetadataCollectionView | null {
+export function buildProviderCollection(_title: ProviderTitleRecord): MetadataCollectionView | null {
   return null;
 }
 
-export function buildProviderSimilar(title: ProviderTitleRecord): MetadataCardView[] {
+export function buildProviderSimilar(_title: ProviderTitleRecord) {
   return [];
-}
-
-export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
-  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl;
-  if (!card.title || !posterUrl) {
-    return null;
-  }
-
-  return {
-    mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
-    provider: card.provider,
-    providerId: card.providerId,
-    title: card.title,
-    posterUrl,
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    subtitle: card.subtitle,
-  };
 }
 
 export function buildProviderReviews(_title: ProviderTitleRecord): MetadataReviewView[] {
   return [];
-}
-
-function buildProviderCompanyView(
-  record: Record<string, unknown>,
-  provider: SupportedProvider,
-): MetadataCompanyView | null {
-  const numericId = asNumber(record.id);
-  const providerId = asString(record.id) ?? (numericId === null ? null : String(numericId));
-  const name = asString(record.name);
-  if (!providerId || !name) {
-    return null;
-  }
-
-  return {
-    id: numericId ?? providerId,
-    provider,
-    providerId,
-    name,
-    logoUrl: asString(record.image) ?? buildImageUrl(asString(record.logo_path), 'w185'),
-    originCountry: asString(record.country) ?? asString(record.origin_country),
-  };
 }
 
 export function extractCollectionParts(collectionRaw: Record<string, unknown> | null): TmdbTitleRecord[] {
@@ -668,380 +636,5 @@ export function buildProviderMetadataImages(
     backdropUrl: title?.backdropUrl ?? null,
     stillUrl: episode?.stillUrl ?? null,
     logoUrl: title?.logoUrl ?? null,
-  };
-}
-
-export function buildEpisodePreview(
-  title: TmdbTitleRecord,
-  episode: TmdbEpisodeRecord,
-): MetadataEpisodePreview {
-  const images = buildMetadataImages(title, episode);
-
-  return {
-    mediaType: 'episode',
-    mediaKey: `episode:tmdb:${episode.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`,
-    provider: 'tmdb',
-    providerId: buildEpisodeProviderId(String(episode.showTmdbId), episode.seasonNumber, episode.episodeNumber),
-    parentMediaType: 'show',
-    parentProvider: 'tmdb',
-    parentProviderId: String(episode.showTmdbId),
-    tmdbId: episode.tmdbId,
-    showTmdbId: episode.showTmdbId,
-    seasonNumber: episode.seasonNumber,
-    episodeNumber: episode.episodeNumber,
-    absoluteEpisodeNumber: null,
-    title: episode.name,
-    summary: episode.overview,
-    airDate: episode.airDate,
-    runtimeMinutes: episode.runtime,
-    rating: episode.voteAverage,
-    images,
-  };
-}
-
-export function buildProviderEpisodePreview(
-  title: ProviderTitleRecord,
-  episode: ProviderEpisodeRecord,
-): MetadataEpisodePreview {
-  const images = buildProviderMetadataImages(title, episode);
-
-  return {
-    mediaType: 'episode',
-    mediaKey: `episode:${episode.provider}:${episode.parentProviderId}:${episode.seasonNumber ?? 1}:${episode.episodeNumber ?? episode.absoluteEpisodeNumber ?? 1}`,
-    provider: episode.provider,
-    providerId: episode.providerId,
-    parentMediaType: episode.parentMediaType,
-    parentProvider: episode.parentProvider,
-    parentProviderId: episode.parentProviderId,
-    tmdbId: null,
-    showTmdbId: null,
-    seasonNumber: episode.seasonNumber ?? 1,
-    episodeNumber: episode.episodeNumber ?? episode.absoluteEpisodeNumber ?? 1,
-    absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
-    title: episode.title,
-    summary: episode.summary,
-    airDate: episode.airDate,
-    runtimeMinutes: episode.runtimeMinutes,
-    rating: episode.rating,
-    images,
-  };
-}
-
-export function buildMetadataCardView(params: {
-  identity: MediaIdentity;
-  title: TmdbTitleRecord | null;
-  currentEpisode?: TmdbEpisodeRecord | null;
-  titleOverride?: string | null;
-  subtitleOverride?: string | null;
-  summaryOverride?: string | null;
-  overviewOverride?: string | null;
-  posterUrlOverride?: string | null;
-  backdropUrlOverride?: string | null;
-}): MetadataCardView {
-  const { identity, title } = params;
-  const currentEpisode = params.currentEpisode ?? null;
-  const releaseDate = extractReleaseDate(title, currentEpisode);
-  const images = buildMetadataImages(title, currentEpisode);
-  const resolvedMediaType = identity.mediaType === 'show'
-    || identity.mediaType === 'episode'
-    || identity.mediaType === 'anime'
-    ? identity.mediaType
-    : 'movie';
-  const titleName = params.titleOverride ?? (
-    resolvedMediaType === 'episode'
-      ? title?.name ?? title?.originalName ?? currentEpisode?.name ?? null
-      : currentEpisode?.name ?? title?.name ?? title?.originalName ?? null
-  );
-  const subtitle = params.subtitleOverride ?? (
-    resolvedMediaType === 'episode'
-      ? currentEpisode?.name ?? (
-        identity.seasonNumber !== null && identity.episodeNumber !== null
-          ? `S${padded(identity.seasonNumber)} E${padded(identity.episodeNumber)}`
-          : null
-      )
-      : title?.status ?? null
-  );
-  const posterUrl = params.posterUrlOverride ?? images.posterUrl;
-  const backdropUrl = params.backdropUrlOverride ?? images.backdropUrl;
-
-  return {
-    mediaType: resolvedMediaType,
-    kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
-    mediaKey: identity.mediaKey,
-    provider: identity.provider ?? 'tmdb',
-    providerId: identity.providerId ?? String(identity.tmdbId ?? identity.showTmdbId ?? ''),
-    parentMediaType: identity.mediaType === 'episode' || identity.mediaType === 'season'
-      ? (parentMediaTypeForIdentity(identity) === 'anime' ? 'anime' : 'show')
-      : null,
-    parentProvider: identity.parentProvider ?? null,
-    parentProviderId: identity.parentProviderId ?? null,
-    tmdbId: identity.tmdbId,
-    showTmdbId: identity.showTmdbId,
-    seasonNumber: identity.seasonNumber,
-    episodeNumber: identity.episodeNumber,
-    absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? null,
-    title: titleName,
-    subtitle,
-    summary: params.summaryOverride ?? currentEpisode?.overview ?? title?.overview ?? null,
-    overview: params.overviewOverride ?? currentEpisode?.overview ?? title?.overview ?? null,
-    artwork: {
-      posterUrl,
-      backdropUrl,
-      stillUrl: images.stillUrl,
-    },
-    images: {
-      ...images,
-      posterUrl,
-      backdropUrl,
-    },
-    releaseDate,
-    releaseYear: extractReleaseYear(releaseDate),
-    runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
-    rating: extractRating(title, currentEpisode),
-    status: title?.status ?? null,
-  };
-}
-
-export function buildMetadataView(params: {
-  identity: MediaIdentity;
-  title: TmdbTitleRecord | null;
-  currentEpisode?: TmdbEpisodeRecord | null;
-  nextEpisode?: TmdbEpisodeRecord | null;
-}): MetadataView {
-  const card = buildMetadataCardView(params);
-  const { identity, title } = params;
-  const currentEpisode = params.currentEpisode ?? null;
-
-  return {
-    ...card,
-    runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
-    certification: extractCertification(title),
-    genres: extractGenres(title),
-    externalIds: extractExternalIds(title),
-    seasonCount: title?.numberOfSeasons ?? null,
-    episodeCount: title?.numberOfEpisodes ?? null,
-    nextEpisode: title && params.nextEpisode
-      ? buildEpisodePreview(title, params.nextEpisode)
-      : null,
-  };
-}
-
-function resolveProviderParentMediaType(identity: MediaIdentity): MetadataParentMediaType | null {
-  if (identity.mediaType !== 'episode' && identity.mediaType !== 'season') {
-    return null;
-  }
-
-  return parentMediaTypeForIdentity(identity) === 'anime' ? 'anime' : 'show';
-}
-
-function buildProviderEpisodeSubtitle(episode: ProviderEpisodeRecord | null): string | null {
-  if (!episode) {
-    return null;
-  }
-
-  if (episode.title?.trim()) {
-    return episode.title;
-  }
-
-  if (episode.seasonNumber !== null && episode.episodeNumber !== null) {
-    return `S${padded(episode.seasonNumber)} E${padded(episode.episodeNumber)}`;
-  }
-
-  if (episode.absoluteEpisodeNumber !== null) {
-    return `Episode ${episode.absoluteEpisodeNumber}`;
-  }
-
-  return null;
-}
-
-export function buildProviderMetadataCardView(params: {
-  identity: MediaIdentity;
-  title: ProviderTitleRecord;
-  currentEpisode?: ProviderEpisodeRecord | null;
-}): MetadataCardView {
-  const { identity, title } = params;
-  const currentEpisode = params.currentEpisode ?? null;
-  const images = buildProviderMetadataImages(title, currentEpisode);
-  const releaseDate = currentEpisode?.airDate ?? title.releaseDate;
-  const resolvedMediaType = identity.mediaType === 'episode'
-    ? 'episode'
-    : identity.mediaType === 'anime'
-      ? 'anime'
-      : identity.mediaType === 'show'
-        ? 'show'
-        : 'movie';
-
-  return {
-    mediaType: resolvedMediaType,
-    kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
-    mediaKey: identity.mediaKey,
-    provider: currentEpisode?.provider ?? title.provider,
-    providerId: currentEpisode?.providerId ?? title.providerId,
-    parentMediaType: resolveProviderParentMediaType(identity),
-    parentProvider: identity.parentProvider ?? currentEpisode?.parentProvider ?? null,
-    parentProviderId: identity.parentProviderId ?? currentEpisode?.parentProviderId ?? null,
-    tmdbId: identity.tmdbId,
-    showTmdbId: identity.showTmdbId,
-    seasonNumber: identity.seasonNumber,
-    episodeNumber: identity.episodeNumber,
-    absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? currentEpisode?.absoluteEpisodeNumber ?? null,
-    title: resolvedMediaType === 'episode'
-      ? title.title
-      : currentEpisode?.title ?? title.title,
-    subtitle: resolvedMediaType === 'episode'
-      ? buildProviderEpisodeSubtitle(currentEpisode)
-      : title.status,
-    summary: currentEpisode?.summary ?? title.summary,
-    overview: currentEpisode?.summary ?? title.overview,
-    artwork: {
-      posterUrl: images.posterUrl,
-      backdropUrl: images.backdropUrl,
-      stillUrl: images.stillUrl,
-    },
-    images,
-    releaseDate,
-    releaseYear: extractReleaseYear(releaseDate),
-    runtimeMinutes: currentEpisode?.runtimeMinutes ?? title.runtimeMinutes,
-    rating: currentEpisode?.rating ?? title.rating,
-    status: title.status,
-  };
-}
-
-export function buildProviderMetadataView(params: {
-  identity: MediaIdentity;
-  title: ProviderTitleRecord;
-  currentEpisode?: ProviderEpisodeRecord | null;
-  nextEpisode?: ProviderEpisodeRecord | null;
-}): MetadataView {
-  const card = buildProviderMetadataCardView(params);
-
-  return {
-    ...card,
-    runtimeMinutes: params.currentEpisode?.runtimeMinutes ?? params.title.runtimeMinutes,
-    certification: params.title.certification,
-    genres: params.title.genres,
-    externalIds: params.title.externalIds,
-    seasonCount: params.title.seasonCount,
-    episodeCount: params.title.episodeCount,
-    nextEpisode: params.nextEpisode
-      ? buildProviderEpisodePreview(params.title, params.nextEpisode)
-      : null,
-  };
-}
-
-export function buildSeasonViewFromTitleRaw(
-  title: TmdbTitleRecord,
-  seasonIds: Map<number, string>,
-): MetadataSeasonView[] {
-  const seasons = asArray(title.raw.seasons)
-    .map((entry) => asRecord(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((season) => {
-      const seasonNumber = asNumber(season.season_number);
-      if (seasonNumber === null || seasonNumber < 0) {
-        return null;
-      }
-
-      if (!seasonIds.get(seasonNumber)) {
-        return null;
-      }
-
-      return {
-        mediaKey: `season:tmdb:${title.tmdbId}:${seasonNumber}`,
-        provider: 'tmdb',
-        providerId: buildSeasonProviderId(String(title.tmdbId), seasonNumber),
-        parentMediaType: 'show',
-        parentProvider: 'tmdb',
-        parentProviderId: String(title.tmdbId),
-        showTmdbId: title.tmdbId,
-        seasonNumber,
-        title: asString(season.name),
-        summary: asString(season.overview),
-        airDate: asString(season.air_date),
-        episodeCount: asNumber(season.episode_count),
-        images: {
-          posterUrl: buildImageUrl(asString(season.poster_path), 'w500'),
-        },
-      } satisfies MetadataSeasonView;
-    })
-    .filter((season): season is NonNullable<typeof season> => season !== null)
-    .sort((left, right) => left.seasonNumber - right.seasonNumber);
-
-  return seasons;
-}
-
-export function buildSeasonViewFromRecord(
-  showTmdbId: number,
-  season: TmdbSeasonRecord,
-  _seasonId: string,
-  _showId: string,
-): MetadataSeasonView {
-  return {
-    mediaKey: `season:tmdb:${showTmdbId}:${season.seasonNumber}`,
-    provider: 'tmdb',
-    providerId: buildSeasonProviderId(String(showTmdbId), season.seasonNumber),
-    parentMediaType: 'show',
-    parentProvider: 'tmdb',
-    parentProviderId: String(showTmdbId),
-    showTmdbId,
-    seasonNumber: season.seasonNumber,
-    title: season.name,
-    summary: season.overview,
-    airDate: season.airDate,
-    episodeCount: season.episodeCount,
-    images: {
-      posterUrl: buildImageUrl(season.posterPath, 'w500'),
-    },
-  };
-}
-
-export function buildProviderSeasonViewFromRecord(
-  season: ProviderSeasonRecord,
-  _seasonId: string,
-  _showId: string,
-  showTmdbId: number | null = null,
-): MetadataSeasonView {
-  return {
-    mediaKey: `season:${season.provider}:${season.parentProviderId}:${season.seasonNumber}`,
-    provider: season.provider,
-    providerId: season.providerId,
-    parentMediaType: season.parentMediaType,
-    parentProvider: season.parentProvider,
-    parentProviderId: season.parentProviderId,
-    showTmdbId,
-    seasonNumber: season.seasonNumber,
-    title: season.title,
-    summary: season.summary,
-    airDate: season.airDate,
-    episodeCount: season.episodeCount,
-    images: {
-      posterUrl: season.posterUrl,
-    },
-  };
-}
-
-export function buildEpisodeView(
-  title: TmdbTitleRecord,
-  episode: TmdbEpisodeRecord,
-  _contentId: string,
-  _showId: string,
-): MetadataEpisodeView {
-  return {
-    ...buildEpisodePreview(title, episode),
-    showTitle: title.name ?? title.originalName,
-    showExternalIds: extractExternalIds(title),
-  };
-}
-
-export function buildProviderEpisodeView(
-  title: ProviderTitleRecord,
-  episode: ProviderEpisodeRecord,
-  _contentId: string,
-  _showId: string,
-): MetadataEpisodeView {
-  return {
-    ...buildProviderEpisodePreview(title, episode),
-    showTitle: title.title,
-    showExternalIds: title.externalIds,
   };
 }

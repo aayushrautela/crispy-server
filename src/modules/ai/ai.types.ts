@@ -1,4 +1,4 @@
-import type { CatalogItem } from '../metadata/metadata.types.js';
+import type { CatalogItem } from '../metadata/metadata-card.types.js';
 
 export type AiFeatureId = 'search' | 'insights';
 

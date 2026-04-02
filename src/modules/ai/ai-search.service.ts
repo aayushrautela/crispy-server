@@ -1,9 +1,10 @@
 import { logger } from '../../config/logger.js';
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { MetadataQueryService } from '../metadata/metadata-query.service.js';
-import type { CatalogItem, MetadataSearchFilter } from '../metadata/metadata.types.js';
+import type { CatalogItem } from '../metadata/metadata-card.types.js';
+import type { MetadataSearchFilter } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
+import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
 import { parseSearchCandidates, resolveCandidateFilter, type AiSearchCandidate } from './ai-search-candidates.js';
@@ -23,7 +24,7 @@ export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
-    private readonly metadataQueryService = new MetadataQueryService(),
+    private readonly titleSearchService = new TitleSearchService(),
   ) {}
 
   async search(userId: string, input: {
@@ -60,7 +61,7 @@ export class AiSearchService {
 
     const rawItems = Array.isArray(generated.items) ? generated.items : [];
     const candidates = parseSearchCandidates(rawItems);
-    const resolvedSuggestions = await resolveSuggestions(this.metadataQueryService, candidates, filter, locale);
+    const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, filter, locale);
     const items = finalizeResolvedItems(resolvedSuggestions, analysis);
 
     logger.info({
@@ -86,14 +87,14 @@ export class AiSearchService {
 }
 
 async function resolveSuggestions(
-  metadataQueryService: MetadataQueryService,
+  titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
   filter: AiSearchFilter,
   locale: string,
 ): Promise<ResolvedSuggestion[]> {
   const resolved = await Promise.all(
     candidates.map(async (candidate) => {
-      const item = await resolveSuggestion(metadataQueryService, candidate, filter, locale);
+      const item = await resolveSuggestion(titleSearchService, candidate, filter, locale);
       return item ? { candidate, item } : null;
     }),
   );
@@ -101,7 +102,7 @@ async function resolveSuggestions(
 }
 
 async function resolveSuggestion(
-  metadataQueryService: MetadataQueryService,
+  titleSearchService: TitleSearchService,
   candidate: AiSearchCandidate,
   filter: AiSearchFilter,
   locale: string,
@@ -111,7 +112,7 @@ async function resolveSuggestion(
 
   for (const candidateFilter of searchFilters) {
     for (const query of queryVariants) {
-      const response = await metadataQueryService.searchTitles({
+      const response = await titleSearchService.searchTitles({
         query,
         filter: mapFilterToMetadataFilter(candidateFilter),
         limit: RESOLUTION_SEARCH_LIMIT,

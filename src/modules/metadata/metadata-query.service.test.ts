@@ -6,7 +6,7 @@ import { inferMediaIdentity } from '../identity/media-key.js';
 
 seedTestEnv();
 
-const { resolveShowRouteIdentity, resolveTitleRouteIdentity } = await import('./metadata-query.service.js');
+const { resolveShowRouteIdentity, resolveTitleRouteIdentity } = await import('./metadata-detail.service.js');
 
 test('resolveTitleRouteIdentity accepts provider-backed show media keys directly', async () => {
   const contentIdentityService = {

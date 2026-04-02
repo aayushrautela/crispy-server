@@ -1,4 +1,4 @@
-import type { LandscapeCardView, RegularCardView } from '../metadata/metadata.types.js';
+import type { LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
 import type { WatchProgressView } from './watch-state.types.js';
 
 export type WatchCollectionCard = RegularCardView;

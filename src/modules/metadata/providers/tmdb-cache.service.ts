@@ -4,7 +4,7 @@ import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
-import type { MetadataSearchFilter } from '../metadata.types.js';
+import type { MetadataSearchFilter } from '../metadata-detail.types.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 type SearchPayloadItem = {

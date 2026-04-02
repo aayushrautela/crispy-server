@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
-import { buildMetadataCardView, buildProviderMetadataCardView } from './metadata-normalizers.js';
-import type { MetadataCardView, MetadataTitleMediaType } from './metadata.types.js';
+import { MetadataCardService } from './metadata-card.service.js';
+import type { MetadataCardView, MetadataTitleMediaType } from './metadata-card.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import {
   inferMediaIdentity,
@@ -19,6 +19,7 @@ export class MetadataProjectionService {
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly metadataCardService = new MetadataCardService(),
   ) {}
 
   async buildWatchProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
@@ -103,55 +104,7 @@ export class MetadataProjectionService {
   }
 
   private async buildDisplayCard(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
-    const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity).catch(() => null);
-
-    if (providerContext?.title) {
-      return buildProviderMetadataCardView({
-        identity,
-        title: providerContext.title,
-        currentEpisode: providerContext.currentEpisode,
-      });
-    }
-
-    const tmdbContext = await this.loadTmdbCardContext(client, identity).catch(() => ({ title: null, currentEpisode: null }));
-    return buildMetadataCardView({
-      identity,
-      title: tmdbContext.title,
-      currentEpisode: tmdbContext.currentEpisode,
-    });
-  }
-
-  private async loadTmdbCardContext(
-    client: DbClient,
-    identity: MediaIdentity,
-  ): Promise<{ title: Awaited<ReturnType<TmdbCacheService['getTitle']>> | null; currentEpisode: Awaited<ReturnType<TmdbCacheService['getEpisode']>> | null }> {
-    if (identity.mediaType === 'movie' && identity.tmdbId) {
-      return {
-        title: await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId),
-        currentEpisode: null,
-      };
-    }
-
-    if ((identity.mediaType === 'show' || identity.mediaType === 'anime') && identity.tmdbId) {
-      return {
-        title: await this.tmdbCacheService.getTitle(client, 'tv', identity.tmdbId),
-        currentEpisode: null,
-      };
-    }
-
-    const showTmdbId = showTmdbIdForIdentity(identity);
-    if ((identity.mediaType === 'episode' || identity.mediaType === 'season') && showTmdbId) {
-      const [title, currentEpisode] = await Promise.all([
-        this.tmdbCacheService.getTitle(client, 'tv', showTmdbId),
-        identity.mediaType === 'episode' && identity.seasonNumber !== null && identity.episodeNumber !== null
-          ? this.tmdbCacheService.getEpisode(client, showTmdbId, identity.seasonNumber, identity.episodeNumber)
-          : Promise.resolve(null),
-      ]);
-
-      return { title, currentEpisode };
-    }
-
-    return { title: null, currentEpisode: null };
+    return this.metadataCardService.buildCardView(client, identity);
   }
 }
 

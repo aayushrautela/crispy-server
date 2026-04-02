@@ -20,7 +20,7 @@ import { MdbListService } from '../integrations/mdblist.service.js';
 import { TmdbClient } from './providers/tmdb.client.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
-import { resolveShowRouteIdentity, resolveTitleRouteIdentity } from './metadata-query.service.js';
+import { resolveShowRouteIdentity, resolveTitleRouteIdentity } from './metadata-detail.service.js';
 import type {
   MetadataEpisodeListResponse,
   MetadataNextEpisodeResponse,
@@ -30,7 +30,7 @@ import type {
   MetadataTitleContentResponse,
   MetadataView,
   PlaybackResolveResponse,
-} from './metadata.types.js';
+} from './metadata-detail.types.js';
 import type {
   TmdbEpisodeRecord,
   TmdbTitleRecord,
