@@ -64,7 +64,7 @@ export class RecommendationDataService {
         }
         return [{
           media,
-          watchedAt: requireDbIsoString(row.watchedAt, 'watch_history_latest.watched_at'),
+          watchedAt: requireDbIsoString(row.watchedAt, 'watch_history.watched_at'),
           payload: row.payload,
         }];
       });
@@ -90,7 +90,7 @@ export class RecommendationDataService {
         }
         return [{
           media,
-          watchedAt: requireDbIsoString(row.watchedAt, 'watch_history_latest.watched_at'),
+          watchedAt: requireDbIsoString(row.watchedAt, 'watch_history.watched_at'),
           payload: row.payload,
         }];
       });

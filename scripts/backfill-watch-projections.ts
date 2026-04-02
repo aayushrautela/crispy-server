@@ -1,13 +1,13 @@
 import { db } from '../src/lib/db.js';
 import { logger } from '../src/config/logger.js';
 import { ProfileRepository } from '../src/modules/profiles/profile.repo.js';
-import { ProjectionRebuildService } from '../src/modules/watch/projection-rebuild.service.js';
+import { WatchV2ProjectionRebuildService } from '../src/modules/watch-v2/watch-v2-projection-rebuild.service.js';
 
 const PAGE_SIZE = 100;
 
 async function main(): Promise<void> {
   const profileRepository = new ProfileRepository();
-  const projectionRebuildService = new ProjectionRebuildService();
+  const projectionRebuildService = new WatchV2ProjectionRebuildService();
   const client = await db.connect();
 
   let offset = 0;

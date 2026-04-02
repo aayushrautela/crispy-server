@@ -535,11 +535,11 @@ export class WatchV2WriteService {
 
     if (!keepProjection) {
       await this.repository.deleteTitleProjection(client, profileId, resolved.titleContentId);
-      await this.metadataService.deleteTitleMetadataState(client, profileId, resolved.titleContentId);
+      await this.metadataService.deleteTrackedTitleState(client, profileId, resolved.titleContentId);
       return;
     }
 
-    await this.metadataService.syncTitleMetadata(client, {
+    await this.metadataService.syncTrackedTitleState(client, {
       profileId,
       titleContentId: resolved.titleContentId,
       titleMediaKey: resolved.title.mediaKey,

@@ -6,73 +6,31 @@ seedTestEnv();
 
 const { HttpError } = await import('../../lib/errors.js');
 const { ProviderDestructiveImportService } = await import('./provider-destructive-import.service.js');
-const { WatchHistoryEntriesRepository } = await import('./watch-history-entries.repo.js');
-
-const projectionStub = {
-  detailsTitleId: 'content-title-1',
-  detailsTitleMediaType: 'show',
-  highlightEpisodeId: 'content-episode-1',
-  playbackContentId: 'content-episode-1',
-  playbackMediaType: 'episode',
-  playbackProvider: 'tmdb',
-  playbackProviderId: '100',
-  playbackParentProvider: 'tmdb',
-  playbackParentProviderId: '100',
-  playbackSeasonNumber: 1,
-  playbackEpisodeNumber: 2,
-  playbackAbsoluteEpisodeNumber: 2,
-  detailsTitle: 'Example Show',
-  detailsSubtitle: null,
-  detailsSummary: 'Summary',
-  detailsOverview: 'Overview',
-  detailsPosterUrl: 'poster-url',
-  detailsBackdropUrl: 'backdrop-url',
-  detailsStillUrl: 'still-url',
-  detailsReleaseDate: '2024-01-01',
-  detailsReleaseYear: 2024,
-  detailsRuntimeMinutes: 45,
-  detailsRating: 8.1,
-  detailsStatus: 'returning',
-  detailsProvider: 'tmdb',
-  detailsProviderId: '100',
-  detailsParentProvider: null,
-  detailsParentProviderId: null,
-  detailsTmdbId: 100,
-  detailsShowTmdbId: 100,
-  episodeTitle: 'Pilot',
-  episodeAirDate: '2024-01-01',
-  episodeRuntimeMinutes: 45,
-  episodeStillUrl: 'episode-still-url',
-  episodeOverview: 'Episode overview',
-  title: 'Example Show',
-  subtitle: 'S1 E2',
-  posterUrl: 'poster-url',
-  backdropUrl: 'backdrop-url',
-};
 
 function createService(overrides?: {
-  watchHistoryEntriesRepository?: InstanceType<typeof WatchHistoryEntriesRepository>;
+  projectionRebuildService?: { rebuildProfile: (...args: unknown[]) => Promise<{ titleProjections: number; trackedTitleStates: number }> };
+  watchV2Repository?: Record<string, (...args: unknown[]) => Promise<unknown>>;
+  contentIdentityService?: { ensureContentId?: (...args: unknown[]) => Promise<string> };
 }) {
   return new ProviderDestructiveImportService(
     {
       markResetForImport: async () => ({ historyGeneration: 7 }),
       markImportCompleted: async () => ({ historyGeneration: 7 }),
     } as never,
-    (overrides?.watchHistoryEntriesRepository ?? {
-      clearForProfile: async () => {},
-      append: async () => ({ id: 'history-1' }),
-    }) as never,
     {
       clearForProfile: async () => {},
       append: async () => {},
     } as never,
     { clearOutputsForProfile: async () => {} } as never,
     { clearClaimsForProfile: async () => {} } as never,
-    { rebuildProfile: async () => ({ eventsScanned: 0, mediaProgressRows: 0, watchHistoryRows: 0, watchlistRows: 0, ratingRows: 0, continueWatchingRows: 0, trackedSeriesRows: 0, metadataRefreshRecommended: false }) } as never,
+    (overrides?.projectionRebuildService ?? {
+      rebuildProfile: async () => ({ titleProjections: 0, trackedTitleStates: 0 }),
+    }) as never,
     { clearAllForProfile: async () => 0 } as never,
-    {
-      insert: async () => ({ id: 'event-1', profileId: 'profile-1', profileGroupId: 'group-1', eventType: 'mark_watched', mediaKey: 'episode:tmdb:100:1:2', occurredAt: '2024-01-01T00:00:00.000Z' }),
-    } as never,
+    (overrides?.watchV2Repository ?? createWatchV2Repository()) as never,
+    (overrides?.contentIdentityService ?? {
+      ensureContentId: async (_client: unknown, identity: { mediaType?: string }) => identity.mediaType === 'show' ? 'content-show-1' : 'content-episode-1',
+    }) as never,
   );
 }
 
@@ -162,52 +120,24 @@ test('replaceProfileWatchData rejects invalid imported history timestamps', asyn
   );
 });
 
-test('replaceProfileWatchData writes imported events through watch event repository and history entries repository', async () => {
-  const queries: Array<{ text: string; values: unknown[] }> = [];
+test('replaceProfileWatchData writes imported events and history directly into v2 repositories', async () => {
+  const calls: string[] = [];
   const service = createService({
-    watchHistoryEntriesRepository: new WatchHistoryEntriesRepository(),
-  });
-  const client = {
-    query: async (text: string, values: unknown[] = []) => {
-      queries.push({ text, values });
-      if (text.includes('INSERT INTO watch_history_entries')) {
-        return {
-          rows: [{
-            id: 'history-1',
-            profile_id: values[0],
-            profile_group_id: values[1],
-            media_key: values[2],
-            media_type: values[3],
-            provider: values[4],
-            provider_id: values[5],
-            parent_provider: values[6],
-            parent_provider_id: values[7],
-            tmdb_id: values[8],
-            show_tmdb_id: values[9],
-            season_number: values[10],
-            episode_number: values[11],
-            absolute_episode_number: values[12],
-            watched_at: values[13],
-            source_watch_event_id: values[14],
-            source_kind: values[15],
-            payload: JSON.parse(String(values[16] ?? '{}')),
-            created_at: '2024-01-01T00:00:00.000Z',
-          }],
-        };
-      }
-      return { rows: [] };
+    projectionRebuildService: {
+      rebuildProfile: async () => ({ titleProjections: 2, trackedTitleStates: 1 }),
     },
-  } as never;
+    watchV2Repository: createWatchV2Repository(calls),
+  });
 
-  await service.replaceProfileWatchData(client, {
+  const result = await service.replaceProfileWatchData(fakeClient, {
     job: { id: 'job-1', profileId: '11111111-1111-1111-1111-111111111111', profileGroupId: '22222222-2222-2222-2222-222222222222' } as never,
     provider: 'trakt',
     payload: {
       importedAt: '2024-01-01T00:00:00.000Z',
-      importedEvents: [{
-        eventType: 'mark_watched',
-        mediaKey: 'episode:tmdb:100:1:2',
-        mediaType: 'episode',
+        importedEvents: [{
+          eventType: 'mark_watched',
+          mediaKey: 'episode:tmdb:100:1:2',
+          mediaType: 'episode',
         provider: 'tmdb',
         providerId: '100',
         tmdbId: 100,
@@ -236,10 +166,13 @@ test('replaceProfileWatchData writes imported events through watch event reposit
     },
   });
 
-  const historyInsert = queries.find((entry) => entry.text.includes('INSERT INTO watch_history_entries'));
-  assert.ok(historyInsert, 'expected watch_history_entries insert query');
-  assert.match(historyInsert.text, /\$17::jsonb/);
-  assert.equal(historyInsert.values.length, 17);
+  assert.ok(calls.includes('reserveMutationSequence'));
+  assert.ok(calls.includes('upsertWatchOverride'));
+  assert.ok(calls.includes('upsertPlayableState'));
+  assert.ok(calls.filter((call) => call === 'insertPlayHistory').length >= 2);
+  assert.deepEqual(result.projectionSummary, { titleProjections: 2, trackedTitleStates: 1 });
+  assert.equal(result.insertedEvents, 1);
+  assert.equal(result.insertedHistoryEntries, 1);
 });
 
 test('replaceProfileWatchData collapses episode refresh keys to tracked show keys', async () => {
@@ -276,3 +209,27 @@ test('replaceProfileWatchData collapses episode refresh keys to tracked show key
 
   assert.deepEqual(result.mediaKeysToRefresh, ['show:tvdb:100', 'movie:tmdb:99']);
 });
+
+function createWatchV2Repository(calls: string[] = []) {
+  return {
+    reserveMutationSequence: async () => {
+      calls.push('reserveMutationSequence');
+      return 1;
+    },
+    upsertWatchOverride: async () => {
+      calls.push('upsertWatchOverride');
+    },
+    upsertPlayableState: async () => {
+      calls.push('upsertPlayableState');
+    },
+    insertPlayHistory: async () => {
+      calls.push('insertPlayHistory');
+    },
+    upsertWatchlistState: async () => {
+      calls.push('upsertWatchlistState');
+    },
+    upsertRatingState: async () => {
+      calls.push('upsertRatingState');
+    },
+  };
+}

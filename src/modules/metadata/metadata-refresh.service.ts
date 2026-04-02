@@ -1,8 +1,9 @@
 import type { DbClient } from '../../lib/db.js';
 import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
-import { TrackedSeriesRepository, type TrackedSeriesRecord } from '../watch/tracked-series.repo.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { TmdbRefreshService, type MetadataRefreshSummary } from './providers/tmdb-refresh.service.js';
+import { MetadataRefreshQueryService } from './metadata-refresh-query.service.js';
+import { WatchV2MetadataService } from '../watch-v2/watch-v2-metadata.service.js';
 
 type TrackedMediaIdentity = MediaIdentity & {
   mediaType: 'show' | 'anime';
@@ -32,13 +33,14 @@ function mergeSummary(target: MetadataRefreshSummary, incoming: MetadataRefreshS
 export class MetadataRefreshService {
   constructor(
     private readonly tmdbRefreshService = new TmdbRefreshService(),
-    private readonly trackedSeriesRepository = new TrackedSeriesRepository(),
+    private readonly metadataRefreshQueryService = new MetadataRefreshQueryService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly watchV2MetadataService = new WatchV2MetadataService(),
   ) {}
 
-  async refreshProfileTrackedSeries(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
+  async refreshProfileTrackedTitles(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
-    const tracked = await this.trackedSeriesRepository.listForProfile(client, profileId, limit);
+    const tracked = await this.metadataRefreshQueryService.listTrackedTitles(client, profileId, limit);
 
     if (tracked.length === 0) {
       summary.skipped += 1;
@@ -54,6 +56,10 @@ export class MetadataRefreshService {
     }
 
     return summary;
+  }
+
+  async refreshProfileTrackedSeries(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
+    return this.refreshProfileTrackedTitles(client, profileId, limit);
   }
 
   async refreshMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<MetadataRefreshSummary> {
@@ -73,7 +79,26 @@ export class MetadataRefreshService {
     }
 
     if (trackedIdentity.provider === 'tmdb') {
-      return this.tmdbRefreshService.refreshMediaKey(client, profileId, trackedIdentity.mediaKey);
+      const showTmdbId = trackedIdentity.tmdbId ?? showTmdbIdForIdentity(trackedIdentity);
+      if (!showTmdbId) {
+        const summary = emptySummary();
+        summary.skipped += 1;
+        return summary;
+      }
+      const trackedTitle = await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, trackedIdentity.mediaKey);
+      return this.tmdbRefreshService.refreshShow(
+        client,
+        profileId,
+        showTmdbId,
+        identity.seasonNumber,
+        trackedTitle
+          ? {
+              titleContentId: trackedTitle.titleContentId,
+              trackedMediaKey: trackedTitle.trackedMediaKey,
+              payload: trackedTitle.payload,
+            }
+          : undefined,
+      );
     }
 
     return this.refreshProviderTrackedIdentity(client, profileId, trackedIdentity);
@@ -82,7 +107,7 @@ export class MetadataRefreshService {
   private async refreshTrackedSeriesRecord(
     client: DbClient,
     profileId: string,
-    row: TrackedSeriesRecord,
+    row: Awaited<ReturnType<MetadataRefreshQueryService['listTrackedTitles']>>[number],
   ): Promise<MetadataRefreshSummary> {
     if (row.provider === 'tmdb') {
       if (!row.showTmdbId) {
@@ -90,7 +115,17 @@ export class MetadataRefreshService {
         summary.skipped += 1;
         return summary;
       }
-      return this.tmdbRefreshService.refreshMediaKey(client, profileId, row.trackedMediaKey);
+      return this.tmdbRefreshService.refreshShow(
+        client,
+        profileId,
+        row.showTmdbId,
+        null,
+        {
+          titleContentId: row.titleContentId,
+          trackedMediaKey: row.trackedMediaKey,
+          payload: row.payload,
+        },
+      );
     }
 
     return this.refreshMediaKey(client, profileId, row.trackedMediaKey);
@@ -108,11 +143,19 @@ export class MetadataRefreshService {
       return summary;
     }
 
-    await this.trackedSeriesRepository.updateMetadataState(client, {
+    const trackedTitle = await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, trackedIdentity.mediaKey);
+    if (!trackedTitle) {
+      summary.skipped += 1;
+      return summary;
+    }
+
+    await this.watchV2MetadataService.upsertTrackedTitleState(client, {
       profileId,
-      trackedMediaKey: trackedIdentity.mediaKey,
+      titleContentId: trackedTitle.titleContentId,
+      titleMediaKey: trackedTitle.trackedMediaKey,
       nextEpisodeAirDate: context.nextEpisode?.airDate ?? null,
       metadataRefreshedAt: new Date().toISOString(),
+      payload: trackedTitle.payload ?? {},
     });
 
     summary.refreshedTitles += 1;

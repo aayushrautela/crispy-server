@@ -5,15 +5,12 @@ import { parseMediaKey } from '../identity/media-key.js';
 import type { RegularCardView } from '../metadata/metadata.types.js';
 import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
 import { decodeWatchPageCursor, encodeWatchPageCursor } from './watch-pagination.js';
-import { ContinueWatchingRepository } from './continue-watching.repo.js';
-import { WatchHistoryRepository } from './watch-history.repo.js';
-import { WatchlistRepository } from './watchlist.repo.js';
-import { RatingsRepository } from './ratings.repo.js';
-import { MediaProgressRepository } from './media-progress.repo.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodeWatchV2ContinueWatchingId, resolveWatchV2Lookup } from './watch-v2-utils.js';
 import { listWatchV2WatchedEpisodeKeys } from './watch-v2-episode-keys.js';
+import { WatchV2EpisodeHistoryService } from '../watch-v2/watch-v2-episode-history.service.js';
+import { WatchV2TrackedQueryService } from './watch-v2-tracked-query.service.js';
 
 type RawWatchProjectionSnapshot = {
   detailsTitleMediaType: 'movie' | 'show' | 'anime' | null;
@@ -167,7 +164,7 @@ function mapContinueWatchingRow(row: Record<string, unknown>): RawContinueWatchi
     positionSeconds: row.position_seconds === null ? null : Number(row.position_seconds),
     durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
     progressPercent: Number(row.progress_percent ?? 0),
-    lastActivityAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'continue_watching_projection.last_activity_at'),
+    lastActivityAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'watch_continue.last_activity_at'),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
   };
 }
@@ -185,7 +182,7 @@ function mapWatchHistoryRow(row: Record<string, unknown>): RawWatchHistoryRow {
     subtitle: null,
     posterUrl: null,
     backdropUrl: null,
-    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history_latest.watched_at'),
+    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
     media: null,
   };
@@ -259,11 +256,8 @@ export class WatchQueryService {
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
-    private readonly continueWatchingRepository = new ContinueWatchingRepository(),
-    private readonly watchHistoryRepository = new WatchHistoryRepository(),
-    private readonly watchlistRepository = new WatchlistRepository(),
-    private readonly ratingsRepository = new RatingsRepository(),
-    private readonly mediaProgressRepository = new MediaProgressRepository(),
+    private readonly episodeHistoryService = new WatchV2EpisodeHistoryService(),
+    private readonly trackedQueryService = new WatchV2TrackedQueryService(),
   ) {}
 
   async listContinueWatching(client: DbClient, profileId: string, limit: number): Promise<RawContinueWatchingRow[]> {
@@ -381,53 +375,18 @@ export class WatchQueryService {
   }
 
   async listTrackedSeries(client: DbClient, profileId: string, limit: number): Promise<RawTrackedSeriesRow[]> {
-    const result = await client.query(
-      `
-        SELECT
-          projection.title_media_key AS tracked_media_key,
-          projection.title_media_type AS tracked_media_type,
-          projection.title_provider AS provider,
-          projection.title_provider_id AS provider_id,
-          CASE
-            WHEN projection.watchlist_present = true THEN 'watchlist'
-            WHEN projection.rating_value IS NOT NULL THEN 'rating'
-            ELSE 'watch_activity'
-          END AS reason,
-          COALESCE(
-            projection.last_activity_at,
-            projection.last_watched_at,
-            projection.rated_at,
-            projection.watchlist_updated_at
-          ) AS last_interacted_at,
-          metadata.next_episode_air_date,
-          metadata.metadata_refreshed_at,
-          COALESCE(metadata.payload, '{}'::jsonb) AS payload
-        FROM profile_title_projection projection
-        LEFT JOIN profile_title_metadata_state metadata
-          ON metadata.profile_id = projection.profile_id
-         AND metadata.title_content_id = projection.title_content_id
-        WHERE projection.profile_id = $1::uuid
-          AND projection.title_media_type IN ('show', 'anime')
-          AND (
-            projection.has_in_progress = true
-            OR projection.effective_watched = true
-            OR projection.watchlist_present = true
-            OR projection.rating_value IS NOT NULL
-          )
-        ORDER BY
-          COALESCE(metadata.next_episode_air_date, DATE '9999-12-31') ASC,
-          COALESCE(
-            projection.last_activity_at,
-            projection.last_watched_at,
-            projection.rated_at,
-            projection.watchlist_updated_at
-          ) DESC,
-          projection.title_content_id DESC
-        LIMIT $2
-      `,
-      [profileId, limit],
-    );
-    return result.rows.map((row) => mapTrackedSeriesRow(row));
+    const rows = await this.trackedQueryService.listTrackedTitles(client, profileId, limit);
+    return rows.map((row) => ({
+      trackedMediaKey: row.trackedMediaKey,
+      trackedMediaType: row.trackedMediaType,
+      provider: row.provider,
+      providerId: row.providerId,
+      reason: row.reason,
+      lastInteractedAt: row.lastInteractedAt,
+      nextEpisodeAirDate: row.nextEpisodeAirDate,
+      metadataRefreshedAt: row.metadataRefreshedAt,
+      payload: row.payload,
+    }));
   }
 
   async listRatingsPage(client: DbClient, profileId: string, params: WatchPageParams): Promise<PaginatedWatchCollection<RawRatingRow>> {
@@ -508,8 +467,26 @@ export class WatchQueryService {
   async getWatchHistoryByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<RawWatchHistoryRow | null> {
     const identity = parseMediaKey(mediaKey);
     if (identity.mediaType === 'episode') {
-      const row = await this.watchHistoryRepository.getByMediaKey(client, profileId, mediaKey);
-      return row ? mapWatchHistoryRow(row) : null;
+      const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
+      const watchedAt = await this.episodeHistoryService.getEpisodeWatchedAt(client, profileId, lookup.contentId, lookup.titleContentId, null);
+      return watchedAt
+        ? {
+            ...emptyProjectionSnapshot(),
+            mediaKey,
+            mediaType: identity.mediaType,
+            tmdbId: identity.tmdbId ?? null,
+            showTmdbId: identity.showTmdbId ?? null,
+            seasonNumber: identity.seasonNumber ?? null,
+            episodeNumber: identity.episodeNumber ?? null,
+            title: null,
+            subtitle: null,
+            posterUrl: null,
+            backdropUrl: null,
+            watchedAt,
+            payload: {},
+            media: null,
+          }
+        : null;
     }
     const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
     const result = await client.query(
@@ -576,21 +553,6 @@ export class WatchQueryService {
       lookup.titleContentId,
     );
   }
-}
-
-function mapTrackedSeriesRow(row: Record<string, unknown>): RawTrackedSeriesRow {
-  const trackedMediaType = row.tracked_media_type === 'anime' ? 'anime' : 'show';
-  return {
-    trackedMediaKey: String(row.tracked_media_key),
-    trackedMediaType,
-    provider: String(row.provider),
-    providerId: String(row.provider_id),
-    reason: typeof row.reason === 'string' ? row.reason : null,
-    lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_title_projection.last_interacted_at'),
-    nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_title_metadata_state.next_episode_air_date'),
-    metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_title_metadata_state.metadata_refreshed_at'),
-    payload: (row.payload as Record<string, unknown> | undefined) ?? {},
-  };
 }
 
 function mapContinueWatchingProjectionRow(row: Record<string, unknown>): RawContinueWatchingRow {

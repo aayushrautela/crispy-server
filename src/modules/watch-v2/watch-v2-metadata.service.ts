@@ -19,17 +19,17 @@ export class WatchV2MetadataService {
     return projection;
   }
 
-  async syncTitleMetadata(
+  async syncTrackedTitleState(
     client: DbClient,
     input: { profileId: string; titleContentId: string; titleMediaKey: string; trackedIdentity: MediaIdentity | null },
   ): Promise<void> {
     if (!input.trackedIdentity || (input.trackedIdentity.mediaType !== 'show' && input.trackedIdentity.mediaType !== 'anime')) {
-      await this.deleteTitleMetadataState(client, input.profileId, input.titleContentId);
+      await this.deleteTrackedTitleState(client, input.profileId, input.titleContentId);
       return;
     }
 
     const nextEpisodeAirDate = await this.metadataProjectionService.resolveNextEpisodeAirDate(client, input.trackedIdentity);
-    await this.upsertTitleMetadataState(client, {
+    await this.upsertTrackedTitleState(client, {
       profileId: input.profileId,
       titleContentId: input.titleContentId,
       titleMediaKey: input.titleMediaKey,
@@ -39,7 +39,7 @@ export class WatchV2MetadataService {
     });
   }
 
-  async upsertTitleMetadataState(
+  async upsertTrackedTitleState(
     client: DbClient,
     input: {
       profileId: string;
@@ -52,7 +52,7 @@ export class WatchV2MetadataService {
   ): Promise<void> {
     await client.query(
       `
-        INSERT INTO profile_title_metadata_state (
+        INSERT INTO profile_tracked_title_state (
           profile_id,
           title_content_id,
           title_media_key,
@@ -81,9 +81,9 @@ export class WatchV2MetadataService {
     );
   }
 
-  async deleteTitleMetadataState(client: DbClient, profileId: string, titleContentId: string): Promise<void> {
+  async deleteTrackedTitleState(client: DbClient, profileId: string, titleContentId: string): Promise<void> {
     await client.query(
-      `DELETE FROM profile_title_metadata_state WHERE profile_id = $1 AND title_content_id = $2`,
+      `DELETE FROM profile_tracked_title_state WHERE profile_id = $1 AND title_content_id = $2`,
       [profileId, titleContentId],
     );
   }

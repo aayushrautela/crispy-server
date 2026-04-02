@@ -15,7 +15,8 @@ test('refreshProfileTrackedSeries returns empty summary when no tracked series',
 
   const service = new TmdbRefreshService(
     {} as never,
-    { listForProfile: async () => [] } as never,
+    { listTrackedTitles: async () => [] } as never,
+    {} as never,
   );
 
   const result = await service.refreshProfileTrackedSeries({} as never, 'profile-1');
@@ -26,6 +27,7 @@ test('refreshProfileTrackedSeries returns empty summary when no tracked series',
 
 test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
   const { TmdbRefreshService } = await import('./tmdb-refresh.service.js');
+  const trackedStateWrites: Array<Record<string, unknown>> = [];
 
   const service = new TmdbRefreshService(
     {
@@ -39,21 +41,37 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
       refreshSeason: async () => {},
     } as never,
     {
-      listForProfile: async () => [{
-        profileId: 'profile-1',
+      listTrackedTitles: async () => [{
+        titleContentId: 'content-show-42',
         trackedMediaKey: 'show:tmdb:42',
         trackedMediaType: 'show',
         provider: 'tmdb',
         providerId: '42',
-        showTmdbId: 42,
-        reason: 'watch_history_latest',
-        lastSourceEventId: 'event-1',
+        reason: 'watch_activity',
         lastInteractedAt: new Date().toISOString(),
         nextEpisodeAirDate: null,
         metadataRefreshedAt: null,
-        payload: null,
+        payload: { source: 'test' },
+        showTmdbId: 42,
       }],
-      updateMetadataState: async () => {},
+      getTrackedTitleByMediaKey: async () => ({
+        titleContentId: 'content-show-42',
+        trackedMediaKey: 'show:tmdb:42',
+        trackedMediaType: 'show',
+        provider: 'tmdb',
+        providerId: '42',
+        reason: 'watch_activity',
+        lastInteractedAt: new Date().toISOString(),
+        nextEpisodeAirDate: null,
+        metadataRefreshedAt: null,
+        payload: { source: 'test' },
+        showTmdbId: 42,
+      }),
+    } as never,
+    {
+      upsertTrackedTitleState: async (_client: unknown, input: Record<string, unknown>) => {
+        trackedStateWrites.push(input);
+      },
     } as never,
   );
 
@@ -61,4 +79,8 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
   assert.equal(result.refreshedTrackedShows, 1);
   assert.equal(result.refreshedTitles, 1);
   assert.equal(result.refreshedSeasons, 1);
+  assert.equal(trackedStateWrites.length, 1);
+  assert.equal(trackedStateWrites[0]?.titleContentId, 'content-show-42');
+  assert.equal(trackedStateWrites[0]?.titleMediaKey, 'show:tmdb:42');
+  assert.deepEqual(trackedStateWrites[0]?.payload, { source: 'test' });
 });

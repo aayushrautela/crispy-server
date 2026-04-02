@@ -12,7 +12,7 @@ export async function runMetadataRefreshJob(job: ProjectionRefreshJob): Promise<
     if (job.mediaKey) {
       return metadataRefreshService.refreshMediaKey(client, job.profileId, job.mediaKey);
     }
-    return metadataRefreshService.refreshProfileTrackedSeries(client, job.profileId);
+    return metadataRefreshService.refreshProfileTrackedTitles(client, job.profileId);
   });
 
   await redis.del(homeCacheKey(job.profileId), calendarCacheKey(job.profileId));

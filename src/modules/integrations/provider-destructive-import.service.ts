@@ -4,14 +4,16 @@ import { requireNormalizedIsoString } from '../../lib/time.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
-import { ProjectionRebuildService, type ProjectionRebuildSummary } from '../watch/projection-rebuild.service.js';
+import type { WatchV2ProjectionRebuildSummary } from '../watch-v2/watch-v2-projection-summary.js';
 import { ensureSupportedProvider, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
-import { WatchEventsRepository } from '../watch/watch-events.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
-import { WatchHistoryEntriesRepository } from './watch-history-entries.repo.js';
+import { WatchV2ProjectionRebuildService } from '../watch-v2/watch-v2-projection-rebuild.service.js';
+import { WatchV2WriteRepository } from '../watch-v2/watch-v2-write.service.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { resolveWatchV2Lookup } from '../watch/watch-v2-utils.js';
 
 export type ImportedWatchEventDraft = {
   clientEventId?: string;
@@ -70,7 +72,7 @@ export type ProviderReplaceImportPayload = {
 
 export type ProviderReplaceImportResult = {
   watchDataState: ProfileWatchDataStateRecord;
-  projectionSummary: ProjectionRebuildSummary;
+  projectionSummary: WatchV2ProjectionRebuildSummary;
   insertedEvents: number;
   insertedHistoryEntries: number;
   mediaKeysToRefresh: string[];
@@ -79,13 +81,13 @@ export type ProviderReplaceImportResult = {
 export class ProviderDestructiveImportService {
   constructor(
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
-    private readonly watchHistoryEntriesRepository = new WatchHistoryEntriesRepository(),
     private readonly recommendationEventOutboxRepository = new RecommendationEventOutboxRepository(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
     private readonly recommendationWorkStateRepository = new RecommendationWorkStateRepository(),
-    private readonly projectionRebuildService = new ProjectionRebuildService(),
+    private readonly projectionRebuildService = new WatchV2ProjectionRebuildService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
-    private readonly watchEventsRepository = new WatchEventsRepository(),
+    private readonly watchV2Repository = new WatchV2WriteRepository(),
+    private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
   async replaceProfileWatchData(client: DbClient, params: {
@@ -121,7 +123,6 @@ export class ProviderDestructiveImportService {
 
     const insertedEvents = await this.insertImportedEvents(client, {
       profileId: job.profileId,
-      profileGroupId: job.profileGroupId,
       provider,
       historyGeneration: watchDataState.historyGeneration,
       importedEvents: sortedEvents,
@@ -129,7 +130,6 @@ export class ProviderDestructiveImportService {
 
     const insertedHistoryEntries = await this.insertImportedHistoryEntries(client, {
       profileId: job.profileId,
-      profileGroupId: job.profileGroupId,
       provider,
       importedHistoryEntries: sortedHistoryEntries,
     });
@@ -183,14 +183,14 @@ export class ProviderDestructiveImportService {
   }
 
   private async clearExistingServerState(client: DbClient, profileId: string): Promise<void> {
-    await client.query(`DELETE FROM continue_watching_projection WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM watch_history_latest WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM watchlist_items WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM ratings WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM media_progress WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM profile_tracked_series WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM watch_events WHERE profile_id = $1::uuid`, [profileId]);
-    await this.watchHistoryEntriesRepository.clearForProfile(client, profileId);
+    await client.query(`DELETE FROM profile_title_projection WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_tracked_title_state WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_play_history WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_rating_state WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_watchlist_state WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_watch_override WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_playable_state WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_watch_clock WHERE profile_id = $1::uuid`, [profileId]);
     await this.recommendationEventOutboxRepository.clearForProfile(client, profileId);
     await this.recommendationOutputService.clearOutputsForProfile(client, profileId);
     await this.recommendationWorkStateRepository.clearClaimsForProfile(client, profileId);
@@ -198,7 +198,6 @@ export class ProviderDestructiveImportService {
 
   private async insertImportedEvents(client: DbClient, params: {
     profileId: string;
-    profileGroupId: string;
     provider: ProviderImportProvider;
     historyGeneration: number;
     importedEvents: ImportedWatchEventDraft[];
@@ -206,37 +205,92 @@ export class ProviderDestructiveImportService {
     let inserted = 0;
     for (const event of params.importedEvents) {
       const identity = identityFromDraft(event);
-      const persistedEvent = await this.watchEventsRepository.insert(client, {
-        profileGroupId: params.profileGroupId,
-        profileId: params.profileId,
-        input: {
-          clientEventId: event.clientEventId ?? `provider-import:${params.provider}:${params.profileId}:${inserted}:${event.occurredAt}:${randomUUID()}`,
-          eventType: event.eventType,
-          mediaKey: identity.mediaKey,
-          mediaType: identity.mediaType,
-          provider: identity.provider,
-          providerId: identity.providerId,
-          parentProvider: identity.parentProvider,
-          parentProviderId: identity.parentProviderId,
-          tmdbId: identity.tmdbId,
-          tvdbId: event.tvdbId ?? null,
-          kitsuId: event.kitsuId ?? null,
-          showTmdbId: identity.showTmdbId,
-          seasonNumber: identity.seasonNumber,
-          episodeNumber: identity.episodeNumber,
-          absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? null,
-          positionSeconds: event.positionSeconds ?? null,
-          durationSeconds: event.durationSeconds ?? null,
+      const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
+      const mutationSeq = await this.watchV2Repository.reserveMutationSequence(client, params.profileId);
+
+      if (event.eventType === 'mark_watched' || event.eventType === 'playback_completed') {
+        const playable = identity.mediaType === 'movie' || identity.mediaType === 'episode';
+        await this.watchV2Repository.upsertWatchOverride(client, {
+          profileId: params.profileId,
+          targetContentId: lookup.contentId,
+          targetKind: identity.mediaType === 'show' || identity.mediaType === 'anime' ? identity.mediaType : (identity.mediaType === 'movie' ? 'movie' : 'episode'),
+          overrideState: 'watched',
+          scope: identity.mediaType === 'show' || identity.mediaType === 'anime' ? 'released_descendants' : 'self',
+          appliesThroughReleaseAt: identity.mediaType === 'show' || identity.mediaType === 'anime' ? event.occurredAt : null,
+          lastMutationSeq: mutationSeq,
+          sourceKind: providerToSourceKind(params.provider),
+          sourceUpdatedAt: event.occurredAt,
+        });
+        if (playable) {
+          await this.watchV2Repository.upsertPlayableState(client, {
+            profileId: params.profileId,
+            contentId: lookup.contentId,
+            titleContentId: lookup.titleContentId,
+            playbackStatus: 'completed',
+            positionSeconds: 0,
+            durationSeconds: event.durationSeconds ?? null,
+            progressPercent: 100,
+            playCount: 1,
+            firstCompletedAt: event.occurredAt,
+            lastCompletedAt: event.occurredAt,
+            lastActivityAt: event.occurredAt,
+            dismissedAt: null,
+            lastMutationSeq: mutationSeq,
+            sourceKind: providerToSourceKind(params.provider),
+            sourceUpdatedAt: event.occurredAt,
+          });
+        }
+        await this.watchV2Repository.insertPlayHistory(client, {
+          profileId: params.profileId,
+          contentId: lookup.contentId,
+          titleContentId: lookup.titleContentId,
+          completedAt: event.occurredAt,
+          lastMutationSeq: mutationSeq,
+          sourceKind: providerToSourceKind(params.provider),
+        });
+      } else if (event.eventType === 'watchlist_put') {
+        await this.watchV2Repository.upsertWatchlistState(client, {
+          profileId: params.profileId,
+          targetContentId: lookup.titleContentId,
+          targetKind: lookup.titleIdentity.mediaType as 'movie' | 'show' | 'anime',
+          present: true,
+          addedAt: event.occurredAt,
+          removedAt: null,
+          lastMutationSeq: mutationSeq,
+          sourceKind: providerToSourceKind(params.provider),
+          sourceUpdatedAt: event.occurredAt,
+        });
+      } else if (event.eventType === 'rating_put') {
+        await this.watchV2Repository.upsertRatingState(client, {
+          profileId: params.profileId,
+          targetContentId: lookup.titleContentId,
+          targetKind: lookup.titleIdentity.mediaType as 'movie' | 'show' | 'anime',
           rating: event.rating ?? null,
-          occurredAt: event.occurredAt,
-          payload: {
-            ...event.payload,
-            import_provider: params.provider,
-            import_history_generation: params.historyGeneration,
-          },
-        },
-        identity,
-      });
+          ratedAt: event.occurredAt,
+          removedAt: null,
+          lastMutationSeq: mutationSeq,
+          sourceKind: providerToSourceKind(params.provider),
+          sourceUpdatedAt: event.occurredAt,
+        });
+      } else if (event.eventType === 'playback_progress_snapshot') {
+        await this.watchV2Repository.upsertPlayableState(client, {
+          profileId: params.profileId,
+          contentId: lookup.contentId,
+          titleContentId: lookup.titleContentId,
+          playbackStatus: (event.positionSeconds ?? 0) > 0 ? 'in_progress' : 'idle',
+          positionSeconds: Math.max(0, event.positionSeconds ?? 0),
+          durationSeconds: event.durationSeconds ?? null,
+          progressPercent: event.durationSeconds && event.durationSeconds > 0 ? Math.min(100, Math.max(0, (event.positionSeconds ?? 0) / event.durationSeconds * 100)) : 0,
+          playCount: 0,
+          firstCompletedAt: null,
+          lastCompletedAt: null,
+          lastActivityAt: event.occurredAt,
+          dismissedAt: null,
+          lastMutationSeq: mutationSeq,
+          sourceKind: providerToSourceKind(params.provider),
+          sourceUpdatedAt: event.occurredAt,
+        });
+      }
 
       if (event.eventType === 'mark_watched' || event.eventType === 'playback_completed') {
         await this.recommendationEventOutboxRepository.append(client, {
@@ -255,9 +309,7 @@ export class ProviderDestructiveImportService {
           episodeNumber: identity.episodeNumber,
           absoluteEpisodeNumber: identity.absoluteEpisodeNumber,
           occurredAt: event.occurredAt,
-          payload: {
-            importProvider: params.provider,
-          },
+          payload: { importProvider: params.provider },
         });
       } else if (event.eventType === 'rating_put') {
         await this.recommendationEventOutboxRepository.append(client, {
@@ -277,9 +329,7 @@ export class ProviderDestructiveImportService {
           absoluteEpisodeNumber: identity.absoluteEpisodeNumber,
           rating: event.rating ?? null,
           occurredAt: event.occurredAt,
-          payload: {
-            importProvider: params.provider,
-          },
+          payload: { importProvider: params.provider },
         });
       }
 
@@ -290,33 +340,21 @@ export class ProviderDestructiveImportService {
 
   private async insertImportedHistoryEntries(client: DbClient, params: {
     profileId: string;
-    profileGroupId: string;
     provider: ProviderImportProvider;
     importedHistoryEntries: ImportedHistoryEntryDraft[];
   }): Promise<number> {
     let inserted = 0;
     for (const entry of params.importedHistoryEntries) {
       const identity = identityFromDraft(entry);
-      await this.watchHistoryEntriesRepository.append(client, {
+      const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
+      const mutationSeq = await this.watchV2Repository.reserveMutationSequence(client, params.profileId);
+      await this.watchV2Repository.insertPlayHistory(client, {
         profileId: params.profileId,
-        profileGroupId: params.profileGroupId,
-        mediaKey: identity.mediaKey,
-        mediaType: identity.mediaType,
-        provider: identity.provider,
-        providerId: identity.providerId,
-        parentProvider: identity.parentProvider,
-        parentProviderId: identity.parentProviderId,
-        tmdbId: identity.tmdbId,
-        showTmdbId: identity.showTmdbId,
-        seasonNumber: identity.seasonNumber,
-        episodeNumber: identity.episodeNumber,
-        absoluteEpisodeNumber: identity.absoluteEpisodeNumber,
-        watchedAt: entry.watchedAt,
-        sourceKind: entry.sourceKind,
-        payload: {
-          ...entry.payload,
-          importProvider: params.provider,
-        },
+        contentId: lookup.contentId,
+        titleContentId: lookup.titleContentId,
+        completedAt: entry.watchedAt,
+        lastMutationSeq: mutationSeq,
+        sourceKind: providerToSourceKind(params.provider),
       });
       inserted += 1;
     }
@@ -405,4 +443,8 @@ function compareOccurredAt(left: ImportedWatchEventDraft, right: ImportedWatchEv
     return occurredAtComparison;
   }
   return left.eventType.localeCompare(right.eventType);
+}
+
+function providerToSourceKind(provider: ProviderImportProvider): 'trakt_pull' {
+  return 'trakt_pull';
 }
