@@ -192,9 +192,9 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 #### Metadata and AI
 
 - `GET /v1/metadata/resolve` - resolve metadata identity
-- `GET /v1/metadata/titles/:id` - title detail
-- `GET /v1/metadata/titles/:id/content` - title content enriched with OMDb data
-- `GET /v1/metadata/titles/:id/seasons/:seasonNumber` - season detail
+- `GET /v1/metadata/titles/:id` - title detail by canonical `content_id` or title `mediaKey`
+- `GET /v1/metadata/titles/:id/content` - title content enriched with OMDb data by canonical `content_id` or title `mediaKey`
+- `GET /v1/metadata/titles/:id/seasons/:seasonNumber` - season detail by canonical `content_id` or show/anime `mediaKey`
 - `GET /v1/playback/resolve` - resolve playback context for a title, season, or episode lookup
 - `GET /v1/search/titles` - TMDB-backed search
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile

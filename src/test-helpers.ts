@@ -77,8 +77,6 @@ export { TEST_USER_AUTH };
 
 export function createMockMetadataView(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'uuid-test',
-    mediaKey: 'movie:tmdb:1',
     mediaType: 'movie',
     kind: 'title',
     provider: 'tmdb',

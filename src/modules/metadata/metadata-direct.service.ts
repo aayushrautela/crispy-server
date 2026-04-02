@@ -20,6 +20,7 @@ import { MdbListService } from '../integrations/mdblist.service.js';
 import { TmdbClient } from './providers/tmdb.client.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import { resolveShowRouteIdentity, resolveTitleRouteIdentity } from './metadata-query.service.js';
 import type {
   MetadataEpisodeListResponse,
   MetadataNextEpisodeResponse,
@@ -103,6 +104,13 @@ export class MetadataDirectService {
   async resolveMetadataView(input: ResolveMetadataInput): Promise<MetadataView> {
     return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
+      return this.metadataViewService.buildMetadataView(client, identity);
+    });
+  }
+
+  async resolveTitleMetadataView(id: string): Promise<MetadataView> {
+    return withDbClient(async (client) => {
+      const identity = await this.resolveTitleIdentity(client, id);
       return this.metadataViewService.buildMetadataView(client, identity);
     });
   }
@@ -215,14 +223,11 @@ export class MetadataDirectService {
   }
 
   async getTitleContent(_userId: string, id: string): Promise<MetadataTitleContentResponse> {
-    const item = await withDbClient(async (client) => {
-      const identity = await this.resolveTitleIdentity(client, id);
-      return this.metadataViewService.buildMetadataView(client, identity);
-    });
-
     if (!this.mdblistService) {
       throw new HttpError(412, 'MDBList is not configured. Set MDBLIST_API_KEY in your environment.');
     }
+
+    const item = await this.resolveTitleMetadataView(id);
 
     const tmdbId = item.externalIds.tmdb;
     if (!tmdbId) {
@@ -294,7 +299,7 @@ export class MetadataDirectService {
   }
 
   private async resolveShowIdentity(_client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'show' | 'anime' }> {
-    const parsed = await this.contentIdentityService.resolveMediaIdentity(_client, id);
+    const parsed = await resolveShowRouteIdentity(_client, this.contentIdentityService, id);
     if (parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
       return {
         ...parsed,
@@ -305,7 +310,7 @@ export class MetadataDirectService {
   }
 
   private async resolveTitleIdentity(client: DbClient, id: string): Promise<MediaIdentity & { mediaType: 'movie' | 'show' | 'anime' }> {
-    const parsed = await this.contentIdentityService.resolveMediaIdentity(client, id);
+    const parsed = await resolveTitleRouteIdentity(client, this.contentIdentityService, id);
     if (parsed.mediaType !== 'movie' && parsed.mediaType !== 'show' && parsed.mediaType !== 'anime') {
       throw new HttpError(400, 'Title content requires a title id.');
     }

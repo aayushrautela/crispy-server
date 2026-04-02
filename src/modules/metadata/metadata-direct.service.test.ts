@@ -16,8 +16,8 @@ test('getTitleContent requires MDBList key when not configured', async () => {
     (async () => new Response('{}', { status: 200 })) as never,
   );
 
-  service.resolveMetadataView = async function () {
-    return { id: 'uuid-1', mediaKey: 'movie:tmdb:55', mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '55', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 55, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Movie', subtitle: null, summary: null, overview: null, artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: null, releaseYear: null, runtimeMinutes: null, rating: null, certification: null, status: null, genres: [], externalIds: { tmdb: 55, imdb: 'tt1234567', tvdb: null, kitsu: null }, seasonCount: null, episodeCount: null, nextEpisode: null } as never;
+  service.resolveTitleMetadataView = async function () {
+    return { mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '55', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 55, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Movie', subtitle: null, summary: null, overview: null, artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: null, releaseYear: null, runtimeMinutes: null, rating: null, certification: null, status: null, genres: [], externalIds: { tmdb: 55, imdb: 'tt1234567', tvdb: null, kitsu: null }, seasonCount: null, episodeCount: null, nextEpisode: null } as never;
   };
 
   await assert.rejects(
@@ -67,8 +67,8 @@ test('getTitleContent resolves MDBList content with valid key', async () => {
     }),
   };
 
-  service.resolveMetadataView = async function () {
-    return { id: 'uuid-1', mediaKey: 'movie:tmdb:55', mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '55', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 55, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Movie', subtitle: null, summary: null, overview: null, artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: null, releaseYear: null, runtimeMinutes: null, rating: null, certification: null, status: null, genres: [], externalIds: { tmdb: 55, imdb: 'tt1234567', tvdb: null, kitsu: null }, seasonCount: null, episodeCount: null, nextEpisode: null } as never;
+  service.resolveTitleMetadataView = async function () {
+    return { mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '55', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 55, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Movie', subtitle: null, summary: null, overview: null, artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: null, releaseYear: null, runtimeMinutes: null, rating: null, certification: null, status: null, genres: [], externalIds: { tmdb: 55, imdb: 'tt1234567', tvdb: null, kitsu: null }, seasonCount: null, episodeCount: null, nextEpisode: null } as never;
   };
 
   const result = await service.getTitleContent('user-1', 'uuid-1');

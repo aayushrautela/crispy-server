@@ -25,17 +25,17 @@ test('metadata direct routes parse inputs and return service payloads', async (t
     return { id: `person:${id}`, provider: 'tmdb', providerId: '44', tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [], language } as never;
   };
   MetadataDirectService.prototype.listEpisodes = async function (id, seasonNumber) {
-    return { show: { id, externalIds: { tmdb: null, imdb: 'tt123', tvdb: null, kitsu: null } }, requestedSeasonNumber: seasonNumber ?? null, effectiveSeasonNumber: seasonNumber ?? 1, includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1], episodes: [] } as never;
+    return { show: { providerId: id, externalIds: { tmdb: null, imdb: 'tt123', tvdb: null, kitsu: null } }, requestedSeasonNumber: seasonNumber ?? null, effectiveSeasonNumber: seasonNumber ?? 1, includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1], episodes: [] } as never;
   };
   MetadataDirectService.prototype.getNextEpisode = async function (id, input) {
-    return { show: { id }, currentSeasonNumber: input.currentSeasonNumber, currentEpisodeNumber: input.currentEpisodeNumber, receivedWatchedKeys: input.watchedKeys, receivedShowId: input.showId, receivedNowMs: input.nowMs, item: null } as never;
+    return { show: { providerId: id }, currentSeasonNumber: input.currentSeasonNumber, currentEpisodeNumber: input.currentEpisodeNumber, receivedWatchedKeys: input.watchedKeys, receivedShowId: input.showId, receivedNowMs: input.nowMs, item: null } as never;
   };
   MetadataDirectService.prototype.getTitleContent = async function (userId, id) {
-    return { item: { id }, content: { ids: { imdb: 'tt1234567', tmdb: null, trakt: null, tvdb: null }, title: 'Movie' } } as never;
+    return { item: { providerId: id }, content: { ids: { imdb: 'tt1234567', tmdb: null, trakt: null, tvdb: null }, title: 'Movie' } } as never;
   };
   MetadataQueryService.prototype.getTitleDetailById = async function (id: string) {
     return {
-      item: { id },
+      item: { providerId: id },
       seasons: [],
       videos: [{ id: 'video-1', key: 'abc123', name: 'Trailer', site: 'YouTube', type: 'Trailer', official: true, publishedAt: '2024-01-01T00:00:00.000Z', url: 'https://www.youtube.com/watch?v=abc123', thumbnailUrl: 'https://img.youtube.com/vi/abc123/hqdefault.jpg' }],
       cast: [{ id: 'person:tmdb:10', provider: 'tmdb', providerId: '10', tmdbPersonId: 10, name: 'Lead Actor', role: 'Hero', department: 'Acting', profileUrl: 'https://image.tmdb.org/t/p/w185/actor.jpg' }],
@@ -50,8 +50,6 @@ test('metadata direct routes parse inputs and return service payloads', async (t
         backdropUrl: null,
         parts: [
           {
-            id: '44444444-4444-4444-8444-444444444444',
-            mediaKey: 'movie:tmdb:101',
             mediaType: 'movie',
             kind: 'title',
             provider: 'tmdb',
@@ -78,11 +76,11 @@ test('metadata direct routes parse inputs and return service payloads', async (t
           },
         ],
       },
-      similar: [{ id: '33333333-3333-4333-8333-333333333333', mediaKey: 'movie:tmdb:77', mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '77', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
+      similar: [{ mediaType: 'movie', kind: 'title', provider: 'tmdb', providerId: '77', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
     } as never;
   };
   MetadataDirectService.prototype.resolvePlayback = async function (input) {
-    return { item: { id: input.id ?? 'fallback' }, show: null, season: null, input } as never;
+    return { item: { providerId: input.id ?? 'fallback' }, show: null, season: null, input } as never;
   };
 
   const { registerMetadataRoutes } = await import('./metadata.js');
@@ -97,6 +95,8 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   const showId = '11111111-1111-4111-8111-111111111112';
   const movieId = '22222222-2222-4222-8222-222222222255';
+  const showMediaKey = 'show:tmdb:111';
+  const movieMediaKey = 'movie:tmdb:222';
 
   const episodesResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showId}/episodes?seasonNumber=2`, headers: auth });
   assert.equal(episodesResponse.statusCode, 200);
@@ -104,7 +104,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   const titleDetailResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieId}`, headers: auth });
   assert.equal(titleDetailResponse.statusCode, 200);
-  assert.equal(titleDetailResponse.json().item.id, movieId);
+  assert.equal(titleDetailResponse.json().item.providerId, movieId);
   assert.equal(titleDetailResponse.json().videos[0].key, 'abc123');
   assert.equal(titleDetailResponse.json().cast[0].name, 'Lead Actor');
   assert.equal(titleDetailResponse.json().directors[0].name, 'Director Name');
@@ -122,8 +122,20 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   const contentResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieId}/content`, headers: auth });
   assert.equal(contentResponse.statusCode, 200);
-  assert.equal(contentResponse.json().item.id, movieId);
+  assert.equal(contentResponse.json().item.providerId, movieId);
   assert.equal(contentResponse.json().content.ids.imdb, 'tt1234567');
+
+  const mediaKeyTitleDetailResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieMediaKey}`, headers: auth });
+  assert.equal(mediaKeyTitleDetailResponse.statusCode, 200);
+  assert.equal(mediaKeyTitleDetailResponse.json().item.providerId, movieMediaKey);
+
+  const mediaKeyEpisodesResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showMediaKey}/episodes?seasonNumber=2`, headers: auth });
+  assert.equal(mediaKeyEpisodesResponse.statusCode, 200);
+  assert.equal(mediaKeyEpisodesResponse.json().show.providerId, showMediaKey);
+
+  const mediaKeyContentResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieMediaKey}/content`, headers: auth });
+  assert.equal(mediaKeyContentResponse.statusCode, 200);
+  assert.equal(mediaKeyContentResponse.json().item.providerId, movieMediaKey);
 
   const playbackResponse = await app.inject({ method: 'GET', url: `/v1/playback/resolve?id=${movieId}`, headers: auth });
   assert.equal(playbackResponse.statusCode, 200);

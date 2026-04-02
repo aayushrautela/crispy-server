@@ -1,8 +1,8 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
-import type { SupportedMediaType } from '../identity/media-key.js';
-import { inferMediaIdentity } from '../identity/media-key.js';
+import type { MediaIdentity, SupportedMediaType } from '../identity/media-key.js';
+import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { buildMetadataCardView, buildProviderMetadataCardView, toCatalogItem } from './metadata-normalizers.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { MetadataViewService } from './metadata-view.service.js';
@@ -66,7 +66,7 @@ export class MetadataQueryService {
 
   async getTitleDetailById(id: string): Promise<MetadataTitleDetail> {
     return withDbClient(async (client) => {
-      const identity = await this.contentIdentityService.resolveMediaIdentity(client, id);
+      const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, id);
       if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
         throw new HttpError(400, 'Title details require a title id.');
       }
@@ -77,7 +77,7 @@ export class MetadataQueryService {
 
   async getSeasonDetailByShowId(showId: string, seasonNumber: number): Promise<MetadataSeasonDetail> {
     return withDbClient(async (client) => {
-      const identity = await this.contentIdentityService.resolveMediaIdentity(client, showId);
+      const identity = await resolveShowRouteIdentity(client, this.contentIdentityService, showId);
       if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
         throw new HttpError(400, 'Season details require a show id.');
       }
@@ -280,6 +280,39 @@ export class MetadataQueryService {
 
     return null;
   }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function resolveTitleRouteIdentity(
+  client: DbClient,
+  contentIdentityService: ContentIdentityService,
+  id: string,
+): Promise<MediaIdentity> {
+  const normalizedId = id.trim();
+  if (UUID_RE.test(normalizedId)) {
+    return contentIdentityService.resolveMediaIdentity(client, normalizedId);
+  }
+
+  const identity = parseMediaKey(normalizedId);
+  if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+    throw new HttpError(400, 'Title details require a title id.');
+  }
+
+  return identity;
+}
+
+export async function resolveShowRouteIdentity(
+  client: DbClient,
+  contentIdentityService: ContentIdentityService,
+  id: string,
+): Promise<MediaIdentity> {
+  const identity = await resolveTitleRouteIdentity(client, contentIdentityService, id);
+  if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+    throw new HttpError(400, 'Season details require a show id.');
+  }
+
+  return identity;
 }
 
 function normalizeSearchLocale(value: string | null | undefined): string | null {

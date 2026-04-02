@@ -245,6 +245,15 @@ If a client needs richer detail:
 2. call metadata/detail/playback endpoints
 3. render the richer response
 
+For metadata title routes:
+
+- `/v1/metadata/titles/:id`
+- `/v1/metadata/titles/:id/content`
+- `/v1/metadata/titles/:id/seasons/:seasonNumber`
+
+clients should prefer title `mediaKey` values such as `movie:tmdb:487672`, `show:tmdb:1399`, `show:tvdb:121361`, or `anime:kitsu:1`.
+Canonical internal UUID `content_id` values remain valid, but clients should not require them for normal detail navigation.
+
 ## Watch List Endpoints
 
 These now return simple item shapes too:

@@ -116,7 +116,8 @@ There are two distinct identity systems, and they must not be conflated.
 Rules:
 
 - `content_id` identifies metadata entities.
-- `content_id` is the stable handle for metadata detail and metadata content endpoints.
+- `content_id` is the canonical metadata row id and remains valid for metadata detail and metadata content endpoints.
+- Public metadata title routes may also accept title `mediaKey` values so clients do not depend on internal UUIDs for normal navigation.
 - `content_id` is not the watch-state lookup contract.
 
 ### 2. Canonical watch identity
@@ -131,9 +132,9 @@ Rules:
 
 ### Identity separation rule
 
-- Metadata flows resolve through `content_id`.
+- Metadata flows use `content_id` internally, but public title detail/content routes may also accept title `mediaKey` values at the boundary.
 - Watch flows resolve through `mediaKey`.
-- A route should not accept a vague mix of both when one canonical form is sufficient.
+- A route should accept more than one identity form only when those inputs normalize deterministically to the same logical media entity.
 
 ## Canonical Entity Types
 
@@ -221,7 +222,7 @@ Important anti-rule:
 
 ### Metadata API
 
-Metadata routes operate on canonical metadata identity.
+Metadata title routes accept stable title route identity.
 
 - `GET /v1/metadata/titles/:id`
 - `GET /v1/metadata/titles/:id/content`
@@ -229,9 +230,10 @@ Metadata routes operate on canonical metadata identity.
 
 Rules:
 
-- `:id` is a canonical title `content_id`.
-- Title routes accept title content ids only.
+- `:id` may be either a canonical title `content_id` or a title `mediaKey` (`movie:*`, `show:*`, `anime:*`).
+- Title routes accept title identities only.
 - Title routes must not silently reinterpret episode canonical ids as title ids.
+- Title routes must reject season, episode, and person `mediaKey` values.
 - Metadata enrichment and provider fetches must resolve from the title's authority provider.
 
 ### Watch API

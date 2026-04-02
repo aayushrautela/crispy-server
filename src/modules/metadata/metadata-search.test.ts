@@ -38,7 +38,7 @@ test('resolve uses tmdbId directly', async () => {
 
   const svc = new pkg.MetadataQueryService(
     { buildMetadataView: async (_client: unknown, identity: { tmdbId: number }) =>
-      identity.tmdbId === 77 ? { id: 'uuid-movie-77', title: 'Test Movie', mediaType: 'movie' } : null,
+      identity.tmdbId === 77 ? { title: 'Test Movie', mediaType: 'movie' } : null,
     } as never,
     { resolve: async (_client: unknown, params: unknown) => params } as never,
     { searchTitles: async () => [], getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => (tmdbId === 77 ? title : null), ensureSeasonCached: async () => null, listEpisodesForShow: async () => [] } as never,
