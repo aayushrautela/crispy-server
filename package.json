@@ -8,6 +8,7 @@
     "dev:worker": "tsx watch src/bin/worker.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "guard:retired-modules": "tsx scripts/guard-retired-modules.ts",
     "test": "node --import tsx --test src/**/*.test.ts",
     "migrate": "tsx scripts/migrate.ts",
     "backfill:watch-projections": "tsx scripts/backfill-watch-projections.ts",

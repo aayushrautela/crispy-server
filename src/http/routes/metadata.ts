@@ -6,7 +6,8 @@ import {
   metadataResolveRouteSchema,
   metadataSearchRouteSchema,
   metadataSeasonRouteSchema,
-  metadataTitleParamsRouteSchema,
+  metadataTitleContentRouteSchema,
+  metadataTitleDetailRouteSchema,
   playbackResolveRouteSchema,
   type MetadataEpisodesQuery,
   type MetadataNextEpisodeQuery,
@@ -53,13 +54,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     });
   });
 
-  app.get('/v1/metadata/titles/:mediaKey', { schema: metadataTitleParamsRouteSchema }, async (request) => {
+  app.get('/v1/metadata/titles/:mediaKey', { schema: metadataTitleDetailRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     return metadataDetailService.getTitleDetailById(params.mediaKey);
   });
 
-  app.get('/v1/metadata/titles/:mediaKey/content', { schema: metadataTitleParamsRouteSchema }, async (request) => {
+  app.get('/v1/metadata/titles/:mediaKey/content', { schema: metadataTitleContentRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as MetadataTitleParams;

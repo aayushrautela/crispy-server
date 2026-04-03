@@ -7,21 +7,24 @@ import {
   deleteResultRouteSchema,
 } from '../contracts/account.js';
 import { AccountDeletionService } from '../../modules/users/account-deletion.service.js';
+import { FeatureEntitlementService } from '../../modules/entitlements/feature-entitlement.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
 
 export async function registerAccountRoutes(app: FastifyInstance): Promise<void> {
   const accountDeletionService = new AccountDeletionService();
   const accountSettingsService = new AccountSettingsService();
+  const entitlementService = new FeatureEntitlementService();
 
   app.get('/v1/account/settings', { schema: accountSettingsRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request);
     const baseSettings = await accountSettingsService.getSettings(actor.appUserId);
     const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
+    const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.appUserId);
     return {
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
-        hasOmdbApiKey: ai.hasAiApiKey,
+        hasMdbListAccess: metadata.hasMdbListAccess,
       }),
     };
   });
@@ -32,10 +35,11 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     const body = (request.body ?? {}) as Record<string, unknown>;
     const baseSettings = await accountSettingsService.patchSettings(actor.appUserId, body);
     const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
+    const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.appUserId);
     return {
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
-        hasOmdbApiKey: ai.hasAiApiKey,
+        hasMdbListAccess: metadata.hasMdbListAccess,
       }),
     };
   });

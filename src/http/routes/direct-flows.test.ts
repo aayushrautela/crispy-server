@@ -27,21 +27,206 @@ test('metadata direct routes parse inputs and return service payloads', async (t
     Object.assign(MetadataDetailService.prototype, { getTitleDetailById: originals.getTitleDetailById });
   });
 
+  let receivedPersonLanguage: string | null = null;
+  let receivedWatchedKeys: string[] | null = null;
+  let receivedShowMediaKey: string | null = null;
+  let receivedNowMs: number | null = null;
+  let receivedPlaybackMediaKey: string | null = null;
+  let receivedResolveInput: { mediaType?: string; kitsuId?: number | string | null } | null = null;
+
   PersonDetailService.prototype.getPersonDetail = async function (id, language) {
-    return { id: `person:${id}`, provider: 'tmdb', providerId: '44', tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [], language } as never;
+    receivedPersonLanguage = language ?? null;
+    return { id: `person:${id}`, provider: 'tmdb', providerId: '44', tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [] } as never;
   };
   EpisodeNavigationService.prototype.listEpisodes = async function (id, seasonNumber) {
-    return { show: { mediaKey: id, providerId: id, externalIds: { tmdb: null, imdb: 'tt123', tvdb: null, kitsu: null } }, requestedSeasonNumber: seasonNumber ?? null, effectiveSeasonNumber: seasonNumber ?? 1, includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1], episodes: [] } as never;
+    return {
+      show: {
+        mediaType: 'show',
+        kind: 'title',
+        mediaKey: id,
+        provider: 'tmdb',
+        providerId: id,
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: 111,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
+        title: 'Show',
+        subtitle: null,
+        summary: null,
+        overview: null,
+        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+        releaseDate: null,
+        releaseYear: null,
+        runtimeMinutes: null,
+        rating: null,
+        certification: null,
+        status: null,
+        genres: [],
+        externalIds: { tmdb: 111, imdb: 'tt123', tvdb: null, kitsu: null },
+        seasonCount: null,
+        episodeCount: null,
+        nextEpisode: null,
+      },
+      requestedSeasonNumber: seasonNumber ?? null,
+      effectiveSeasonNumber: seasonNumber ?? 1,
+      includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1],
+      episodes: [],
+    } as never;
   };
   EpisodeNavigationService.prototype.getNextEpisode = async function (id, input) {
-    return { show: { mediaKey: id, providerId: id }, currentSeasonNumber: input.currentSeasonNumber, currentEpisodeNumber: input.currentEpisodeNumber, receivedWatchedKeys: input.watchedKeys, receivedShowMediaKey: input.showMediaKey, receivedNowMs: input.nowMs, item: null } as never;
+    receivedWatchedKeys = input.watchedKeys ?? null;
+    receivedShowMediaKey = input.showMediaKey ?? null;
+    receivedNowMs = input.nowMs ?? null;
+    return {
+      show: {
+        mediaType: 'show',
+        kind: 'title',
+        mediaKey: id,
+        provider: 'tmdb',
+        providerId: id,
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: 111,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
+        title: 'Show',
+        subtitle: null,
+        summary: null,
+        overview: null,
+        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+        releaseDate: null,
+        releaseYear: null,
+        runtimeMinutes: null,
+        rating: null,
+        certification: null,
+        status: null,
+        genres: [],
+        externalIds: { tmdb: 111, imdb: 'tt123', tvdb: null, kitsu: null },
+        seasonCount: null,
+        episodeCount: null,
+        nextEpisode: null,
+      },
+      currentSeasonNumber: input.currentSeasonNumber,
+      currentEpisodeNumber: input.currentEpisodeNumber,
+      item: null,
+    } as never;
   };
   MetadataContentService.prototype.getTitleContent = async function (userId, id) {
-    return { item: { mediaKey: id, providerId: id }, content: { ids: { imdb: 'tt1234567', tmdb: null, trakt: null, tvdb: null }, title: 'Movie' } } as never;
+    return {
+      item: {
+        mediaType: 'movie',
+        kind: 'title',
+        mediaKey: id,
+        provider: 'tmdb',
+        providerId: id,
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: 222,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
+        title: 'Movie',
+        subtitle: null,
+        summary: null,
+        overview: null,
+        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+        releaseDate: null,
+        releaseYear: null,
+        runtimeMinutes: null,
+        rating: null,
+        certification: null,
+        status: null,
+        genres: [],
+        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null },
+        seasonCount: null,
+        episodeCount: null,
+        nextEpisode: null,
+      },
+      content: {
+        ids: { imdb: 'tt1234567', tmdb: 222, trakt: null, tvdb: null },
+        title: 'Movie',
+        originalTitle: null,
+        type: 'movie',
+        year: null,
+        description: null,
+        score: null,
+        ratings: {
+          imdbRating: null,
+          imdbVotes: null,
+          tmdbRating: null,
+          metacritic: null,
+          rottenTomatoes: null,
+          letterboxdRating: null,
+          mdblistRating: null,
+        },
+        posterUrl: null,
+        backdropUrl: null,
+        genres: [],
+        keywords: [],
+        runtime: null,
+        certification: null,
+        released: null,
+        language: null,
+        country: null,
+        seasonCount: null,
+        episodeCount: null,
+        directors: [],
+        writers: [],
+        network: null,
+        studio: null,
+        status: null,
+        budget: null,
+        revenue: null,
+        updatedAt: null,
+      },
+    } as never;
   };
   MetadataDetailService.prototype.getTitleDetailById = async function (id: string) {
     return {
-      item: { mediaKey: id, providerId: id },
+      item: {
+        mediaType: 'movie',
+        kind: 'title',
+        mediaKey: id,
+        provider: 'tmdb',
+        providerId: id,
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: 222,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
+        title: 'Movie',
+        subtitle: null,
+        summary: null,
+        overview: null,
+        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+        releaseDate: null,
+        releaseYear: null,
+        runtimeMinutes: null,
+        rating: null,
+        certification: null,
+        status: null,
+        genres: [],
+        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null },
+        seasonCount: null,
+        episodeCount: null,
+        nextEpisode: null,
+      },
       seasons: [],
       videos: [{ id: 'video-1', key: 'abc123', name: 'Trailer', site: 'YouTube', type: 'Trailer', official: true, publishedAt: '2024-01-01T00:00:00.000Z', url: 'https://www.youtube.com/watch?v=abc123', thumbnailUrl: 'https://img.youtube.com/vi/abc123/hqdefault.jpg' }],
       cast: [{ id: 'person:tmdb:10', provider: 'tmdb', providerId: '10', tmdbPersonId: 10, name: 'Lead Actor', role: 'Hero', department: 'Acting', profileUrl: 'https://image.tmdb.org/t/p/w185/actor.jpg' }],
@@ -51,43 +236,67 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       production: { originalLanguage: 'en', originCountries: ['US'], spokenLanguages: ['English'], productionCountries: ['United States of America'], companies: [], networks: [] },
       collection: {
         id: 99,
+        provider: 'tmdb',
+        providerId: '99',
         name: 'Saga Collection',
         posterUrl: null,
         backdropUrl: null,
         parts: [
-            {
-              mediaType: 'movie',
-              kind: 'title',
-              mediaKey: 'movie:tmdb:101',
-              provider: 'tmdb',
+          {
+            mediaType: 'movie',
+            mediaKey: 'movie:tmdb:101',
+            provider: 'tmdb',
             providerId: '101',
-            parentMediaType: null,
-            parentProvider: null,
-            parentProviderId: null,
-            tmdbId: 101,
-            showTmdbId: null,
-            seasonNumber: null,
-            episodeNumber: null,
-            absoluteEpisodeNumber: null,
             title: 'Saga Collection: Part I',
-            subtitle: null,
-            summary: 'The beginning',
-            overview: 'The beginning',
-            artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-            images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-            releaseDate: '2020-01-01',
+            posterUrl: 'https://img.test/poster.jpg',
             releaseYear: 2020,
-            runtimeMinutes: null,
             rating: 7.1,
-            status: null,
+            genre: null,
+            subtitle: null,
           },
         ],
       },
-      similar: [{ mediaType: 'movie', kind: 'title', mediaKey: 'movie:tmdb:77', provider: 'tmdb', providerId: '77', parentMediaType: null, parentProvider: null, parentProviderId: null, tmdbId: 77, showTmdbId: null, seasonNumber: null, episodeNumber: null, absoluteEpisodeNumber: null, title: 'Another Movie', subtitle: null, summary: 'Another chapter', overview: 'Another chapter', artwork: { posterUrl: null, backdropUrl: null, stillUrl: null }, images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null }, releaseDate: '2025-01-01', releaseYear: 2025, runtimeMinutes: null, rating: 7.9, status: null }],
+      similar: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:77', provider: 'tmdb', providerId: '77', title: 'Another Movie', posterUrl: 'https://img.test/poster.jpg', releaseYear: 2025, rating: 7.9, genre: null, subtitle: null }],
     } as never;
   };
   PlaybackResolveService.prototype.resolvePlayback = async function (input) {
-    return { item: { mediaKey: input.mediaKey ?? 'fallback', providerId: input.mediaKey ?? 'fallback' }, show: null, season: null, input } as never;
+    receivedPlaybackMediaKey = input.mediaKey ?? null;
+    return {
+      item: {
+        mediaType: 'movie',
+        kind: 'title',
+        mediaKey: input.mediaKey ?? 'fallback',
+        provider: 'tmdb',
+        providerId: input.mediaKey ?? 'fallback',
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: 222,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
+        title: 'Movie',
+        subtitle: null,
+        summary: null,
+        overview: null,
+        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+        releaseDate: null,
+        releaseYear: null,
+        runtimeMinutes: null,
+        rating: null,
+        certification: null,
+        status: null,
+        genres: [],
+        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null },
+        seasonCount: null,
+        episodeCount: null,
+        nextEpisode: null,
+      },
+      show: null,
+      season: null,
+    } as never;
   };
 
   const { registerMetadataRoutes } = await import('./metadata.js');
@@ -98,7 +307,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   const personResponse = await app.inject({ method: 'GET', url: '/v1/metadata/people/44?language=en-US', headers: auth });
   assert.equal(personResponse.statusCode, 200);
-  assert.equal(personResponse.json().language, 'en-US');
+  assert.equal(receivedPersonLanguage, 'en-US');
 
   const showMediaKey = 'show:tmdb:111';
   const movieMediaKey = 'movie:tmdb:222';
@@ -119,14 +328,15 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(titleDetailResponse.json().production.originalLanguage, 'en');
   assert.equal(titleDetailResponse.json().collection.name, 'Saga Collection');
   assert.equal(titleDetailResponse.json().collection.parts[0].mediaKey, 'movie:tmdb:101');
-  assert.equal(titleDetailResponse.json().collection.parts[0].tmdbId, 101);
+  assert.equal(titleDetailResponse.json().collection.parts[0].providerId, '101');
   assert.equal(titleDetailResponse.json().similar[0].mediaKey, 'movie:tmdb:77');
-  assert.equal(titleDetailResponse.json().similar[0].tmdbId, 77);
+  assert.equal(titleDetailResponse.json().similar[0].providerId, '77');
 
   const nextEpisodeResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showMediaKey}/next-episode?currentSeasonNumber=1&currentEpisodeNumber=2&watchedKeys=tt1:1:3,tt1:1:4&showMediaKey=show:tvdb:tt1&nowMs=1700000000000`, headers: auth });
   assert.equal(nextEpisodeResponse.statusCode, 200);
-  assert.deepEqual(nextEpisodeResponse.json().receivedWatchedKeys, ['tt1:1:3', 'tt1:1:4']);
-  assert.equal(nextEpisodeResponse.json().receivedShowMediaKey, 'show:tvdb:tt1');
+  assert.deepEqual(receivedWatchedKeys, ['tt1:1:3', 'tt1:1:4']);
+  assert.equal(receivedShowMediaKey, 'show:tvdb:tt1');
+  assert.equal(receivedNowMs, 1700000000000);
 
   const contentResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieMediaKey}/content`, headers: auth });
   assert.equal(contentResponse.statusCode, 200);
@@ -135,7 +345,8 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   const playbackResponse = await app.inject({ method: 'GET', url: `/v1/playback/resolve?mediaKey=${movieMediaKey}`, headers: auth });
   assert.equal(playbackResponse.statusCode, 200);
-  assert.equal(playbackResponse.json().input.mediaKey, movieMediaKey);
+  assert.equal(playbackResponse.json().item.mediaKey, movieMediaKey);
+  assert.equal(receivedPlaybackMediaKey, movieMediaKey);
 });
 
 test('watch routes expose continue-watching ids and forward dismiss params', async (t) => {
@@ -451,8 +662,45 @@ test('metadata resolve route accepts provider-shaped query input', async (t) => 
     MetadataDetailService.prototype.resolve = originalResolve;
   });
 
+  type ResolveInputCapture = { mediaType?: string; kitsuId?: number | string | null };
+  let receivedResolveInput: ResolveInputCapture | null = null;
+
   MetadataDetailService.prototype.resolve = async function (input) {
-    return { item: input } as never;
+    receivedResolveInput = input as ResolveInputCapture;
+    return {
+      item: {
+        mediaType: 'anime',
+        kind: 'title',
+        mediaKey: 'anime:kitsu:123',
+        provider: 'kitsu',
+        providerId: '123',
+        parentMediaType: null,
+        parentProvider: null,
+        parentProviderId: null,
+        tmdbId: null,
+        showTmdbId: null,
+        seasonNumber: null,
+        episodeNumber: null,
+        absoluteEpisodeNumber: null,
+        title: 'Anime',
+        subtitle: null,
+        summary: null,
+        overview: null,
+        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
+        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+        releaseDate: null,
+        releaseYear: null,
+        runtimeMinutes: null,
+        rating: null,
+        certification: null,
+        status: null,
+        genres: [],
+        externalIds: { tmdb: null, imdb: null, tvdb: null, kitsu: '123' },
+        seasonCount: null,
+        episodeCount: null,
+        nextEpisode: null,
+      },
+    } as never;
   };
 
   const { registerMetadataRoutes } = await import('./metadata.js');
@@ -464,10 +712,15 @@ test('metadata resolve route accepts provider-shaped query input', async (t) => 
     url: '/v1/metadata/resolve?mediaType=anime&provider=kitsu&providerId=123',
     headers: { authorization: 'Bearer test' },
   });
+  const resolvedJson = response.json() as { item: { mediaType: string; provider: string; providerId: string; externalIds: { kitsu: string | null } } };
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().item.mediaType, 'anime');
-  assert.equal(response.json().item.kitsuId, 123);
-  assert.equal(response.json().item.tmdbId, null);
-  assert.equal(response.json().item.tvdbId, null);
+  assert.equal(resolvedJson.item.mediaType, 'anime');
+  assert.equal(resolvedJson.item.provider, 'kitsu');
+  assert.equal(resolvedJson.item.providerId, '123');
+  assert.equal(resolvedJson.item.externalIds.kitsu, '123');
+  assert.ok(receivedResolveInput);
+  const resolveInput = receivedResolveInput as ResolveInputCapture;
+  assert.equal(resolveInput.mediaType, 'anime');
+  assert.equal(resolveInput.kitsuId, 123);
 });

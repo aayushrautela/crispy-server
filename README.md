@@ -75,7 +75,7 @@ Redis backs BullMQ and cached API surfaces such as home and calendar.
 - Profiles are child personas under one account, similar to Netflix-style labels such as `me`, `mom`, `dad`, or `tom`.
 - Profiles do not have their own API keys or bearer tokens.
 - Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
-- Shared account-level settings and secrets include addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
+- Shared account-level settings and secrets include addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
 - Profile-personal data includes profile settings, watch history, continue watching, ratings, watchlist, tracked series, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl connections remain per-profile.
 - Internal and external privileged consumers should treat the account as the owning identity and use profile ids only to select which profile's personal experience data to read or write.
@@ -137,14 +137,11 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 #### Account and identity
 
 - `GET /v1/me` - current account summary, account-shared settings contract, and profiles
-- `GET /v1/account/settings` - account-shared settings including AI client metadata and OMDb availability flags
+- `GET /v1/account/settings` - account-shared settings including AI client metadata and metadata-enrichment availability flags
 - `PATCH /v1/account/settings` - update account-shared settings such as addons and `ai.providerId`
 - `GET /v1/account/secrets/ai-api-key` - read account AI API key
 - `PUT /v1/account/secrets/ai-api-key` - set account AI API key
 - `DELETE /v1/account/secrets/ai-api-key` - delete account AI API key
-- `GET /v1/account/secrets/omdb-api-key` - read account OMDb key
-- `PUT /v1/account/secrets/omdb-api-key` - set account OMDb key
-- `DELETE /v1/account/secrets/omdb-api-key` - delete account OMDb key
 - `DELETE /v1/account` - delete local app account and attempt upstream auth-user deletion
 - `GET /v1/auth/personal-access-tokens` - list PATs
 - `POST /v1/auth/personal-access-tokens` - create PAT
@@ -193,14 +190,14 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 - `GET /v1/metadata/resolve` - resolve metadata identity
 - `GET /v1/metadata/titles/:mediaKey` - title detail by title `mediaKey`
-- `GET /v1/metadata/titles/:mediaKey/content` - title content enriched with OMDb data by title `mediaKey`
+- `GET /v1/metadata/titles/:mediaKey/content` - title content enriched with MDBList data by title `mediaKey`
 - `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber` - season detail by show/anime `mediaKey`
 - `GET /v1/playback/resolve` - resolve playback context for a title, season, or episode lookup
-- `GET /v1/search/titles` - TMDB-backed search
+- `GET /v1/search/titles` - provider-routed title search
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile
 - `POST /v1/profiles/:profileId/ai/insights` - AI insights for a title and profile
 
-`GET /v1/metadata/titles/:mediaKey/content` returns the existing metadata item plus an `omdb` object resolved from a cached OMDb enrichment when available, otherwise using keys in this order: the requesting account's OMDb key, server-managed keys from `OMDB_API_KEYS`, then the shared pool of other stored account OMDb keys.
+`GET /v1/metadata/titles/:mediaKey/content` returns the existing metadata item plus a `content` object resolved from MDBList enrichment when available. This route is backed by the server-level `MDBLIST_API_KEY` and is intentionally a rich-detail-only enrichment path.
 
 `GET /v1/account/settings`, `PATCH /v1/account/settings`, and `GET /v1/me` now expose the account-level AI client contract under `settings.ai` or `accountSettings.ai`:
 
@@ -224,16 +221,18 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
     ]
   },
   "metadata": {
-    "hasOmdbApiKey": false
+    "hasMdbListAccess": false
   }
 }
 ```
+
+`metadata.hasMdbListAccess` indicates whether MDBList-backed metadata enrichment is available for rich content routes.
 
 Important account-settings rules:
 
 - `ai.providerId` is editable via `PATCH /v1/account/settings` and selects which provider should be used for account-owned AI keys and pooled-key fallback.
 - `GET/PUT/DELETE /v1/account/secrets/ai-api-key` still manage only the raw secret value. Provider choice is stored separately in account settings.
-- `/v1/profiles/:profileId/settings` remains profile-only and rejects account-scoped keys such as top-level `ai`, `ai.api_key`, `metadata.omdb_api_key`, and `addons`.
+- `/v1/profiles/:profileId/settings` remains profile-only and rejects account-scoped keys such as top-level `ai`, `ai.api_key`, and `addons`. The derived `metadata.hasMdbListAccess` field appears on account responses only and is not a writable profile setting.
 - The old derived field `ai.endpointUrl` is no longer returned. Clients should use `ai.providerId` plus the `ai.providers[]` catalog instead.
 
 Example account settings patch body:
@@ -251,41 +250,92 @@ Example response shape:
 ```json
 {
   "item": {
-    "id": "crisp:movie:55",
+    "mediaType": "movie",
+    "kind": "title",
+    "mediaKey": "movie:tmdb:329865",
+    "provider": "tmdb",
+    "providerId": "329865",
+    "parentMediaType": null,
+    "parentProvider": null,
+    "parentProviderId": null,
+    "tmdbId": 329865,
+    "showTmdbId": null,
+    "seasonNumber": null,
+    "episodeNumber": null,
+    "absoluteEpisodeNumber": null,
     "title": "Arrival",
-    "externalIds": {
-      "imdb": "tt2543164"
-    }
-  },
-  "omdb": {
-    "imdbId": "tt2543164",
-    "title": "Arrival",
-    "type": "movie",
-    "year": "2016",
-    "rated": "PG-13",
-    "released": "11 Nov 2016",
-    "runtime": "116 min",
+    "subtitle": null,
+    "summary": "A linguist works with the military to communicate with alien lifeforms after mysterious spacecraft appear around the world.",
+    "overview": "A linguist works with the military to communicate with alien lifeforms after mysterious spacecraft appear around the world.",
+    "artwork": {
+      "posterUrl": "https://...",
+      "backdropUrl": "https://...",
+      "stillUrl": null
+    },
+    "images": {
+      "posterUrl": "https://...",
+      "backdropUrl": "https://...",
+      "stillUrl": null,
+      "logoUrl": null
+    },
+    "releaseDate": "2016-11-11",
+    "releaseYear": 2016,
+    "runtimeMinutes": 116,
+    "rating": 7.6,
+    "certification": "PG-13",
+    "status": "released",
     "genres": ["Drama", "Mystery", "Sci-Fi"],
+    "externalIds": {
+      "tmdb": 329865,
+      "imdb": "tt2543164",
+      "tvdb": null,
+      "kitsu": null
+    },
+    "seasonCount": null,
+    "episodeCount": null,
+    "nextEpisode": null
+  },
+  "content": {
+    "ids": {
+      "imdb": "tt2543164",
+      "tmdb": 329865,
+      "trakt": null,
+      "tvdb": null
+    },
+    "title": "Arrival",
+    "originalTitle": "Arrival",
+    "type": "movie",
+    "year": 2016,
+    "description": "A linguist works with the military to communicate with alien lifeforms after mysterious spacecraft appear around the world.",
+    "score": 85,
+    "ratings": {
+      "imdbRating": 7.9,
+      "imdbVotes": 756123,
+      "tmdbRating": 7.6,
+      "metacritic": 81,
+      "rottenTomatoes": 94,
+      "letterboxdRating": 4.0,
+      "mdblistRating": 85
+    },
+    "posterUrl": "https://...",
+    "backdropUrl": "https://...",
+    "genres": ["Drama", "Mystery", "Sci-Fi"],
+    "keywords": ["alien", "linguist"],
+    "runtime": 116,
+    "certification": "PG-13",
+    "released": "2016-11-11",
+    "language": "English",
+    "country": "United States",
+    "seasonCount": null,
+    "episodeCount": null,
     "directors": ["Denis Villeneuve"],
     "writers": ["Eric Heisserer", "Ted Chiang"],
-    "actors": ["Amy Adams", "Jeremy Renner", "Forest Whitaker"],
-    "plot": "A linguist works with the military to communicate with alien lifeforms after mysterious spacecraft appear around the world.",
-    "languages": ["English", "Russian", "Mandarin"],
-    "countries": ["United States", "Canada"],
-    "awards": "Won 1 Oscar. 73 wins & 265 nominations total",
-    "posterUrl": "https://...",
-    "ratings": [
-      { "source": "Internet Movie Database", "value": "7.9/10" },
-      { "source": "Rotten Tomatoes", "value": "94%" },
-      { "source": "Metacritic", "value": "81/100" }
-    ],
-    "imdbRating": 7.9,
-    "imdbVotes": 756123,
-    "metascore": 81,
-    "boxOffice": "$100,546,139",
-    "production": "Paramount Pictures",
-    "website": null,
-    "totalSeasons": null
+    "network": null,
+    "studio": "Paramount Pictures",
+    "status": "released",
+    "budget": 47000000,
+    "revenue": 203388186,
+    "updatedAt": "2026-04-03T00:00:00.000Z"
   }
 }
 ```
@@ -326,7 +376,6 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - write recommendations under the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/ai-api-key` - read account-shared AI API key after confirming the profile belongs to the account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/omdb-api-key` - read account-shared OMDb key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/connection` - provider connection summary after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/token-status` - provider token status after confirming the profile belongs to the account
 - `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/access-token` - fetch provider access token after confirming the profile belongs to the account
@@ -361,7 +410,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
 ## Current product-scoping rules
 
 - Ownership root: the signed-in account owns the profile group; profiles are child personas under that account.
-- Account-shared: addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
+- Account-shared: addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
 - Account-shared AI settings also include non-secret provider selection metadata such as `ai.providerId`.
 - Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
 - Profile-targeted paths select which persona under the account is being addressed; they are not separate logins or separate API clients.
@@ -380,7 +429,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
 
 - accounts, profiles, and account deletion
 - watch event ingestion, projections, history, and state
-- TMDB-backed metadata search and detail views
+- provider-routed metadata search and detail views
 - home and calendar surfaces
 - provider imports from Trakt and Simkl
 - recommendation data, outputs, and work leasing
@@ -400,7 +449,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
     - `AUTH_*` values are only used for external auth.
     - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
     - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
-    - `OMDB_API_KEYS` remains a comma-separated server-managed OMDb fallback list.
+    - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
     - Runtime defaults live in `config/app-config.json.example`. The loader checks `config/app-config.json` first (gitignored, for local overrides), then falls back to the example template. Override the path with `APP_CONFIG_PATH` if needed.
 
 3. Start the stack:

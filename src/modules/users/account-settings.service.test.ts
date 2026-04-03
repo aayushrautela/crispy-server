@@ -149,7 +149,7 @@ test('normalizeAccountSettingsPatch keeps editable AI settings and strips derive
       endpointUrl: 'https://example.com',
     },
     metadata: {
-      hasOmdbApiKey: true,
+      hasMdbListAccess: true,
       language: 'en-US',
     },
   });

@@ -1,7 +1,14 @@
 import {
+  booleanSchema,
   integerLikeSchema,
+  metadataCardViewSchema,
+  metadataImagesSchema,
+  nullableIntegerSchema,
+  nullableNumberSchema,
+  nullableStringSchema,
   nonEmptyStringSchema,
   positiveIntegerLikeSchema,
+  regularCardViewSchema,
   stringListSchema,
   stringSchema,
   withDefaultErrorResponses,
@@ -55,44 +62,556 @@ export type MetadataSearchQuery = {
   limit?: number | string;
 };
 
-export const metadataResolveRouteSchema = withDefaultErrorResponses({
-  querystring: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      mediaKey: stringSchema,
-      imdbId: stringSchema,
-      mediaType: stringSchema,
-      provider: stringSchema,
-      providerId: positiveIntegerLikeSchema,
-      parentProvider: stringSchema,
-      parentProviderId: positiveIntegerLikeSchema,
-      seasonNumber: positiveIntegerLikeSchema,
-      episodeNumber: positiveIntegerLikeSchema,
+const metadataResolveQuerystringSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    mediaKey: stringSchema,
+    imdbId: stringSchema,
+    mediaType: stringSchema,
+    provider: stringSchema,
+    providerId: positiveIntegerLikeSchema,
+    parentProvider: stringSchema,
+    parentProviderId: positiveIntegerLikeSchema,
+    seasonNumber: positiveIntegerLikeSchema,
+    episodeNumber: positiveIntegerLikeSchema,
+  },
+} as const;
+
+const metadataTitleParamsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaKey'],
+  properties: {
+    mediaKey: nonEmptyStringSchema,
+  },
+} as const;
+
+const metadataSeasonParamsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaKey', 'seasonNumber'],
+  properties: {
+    mediaKey: nonEmptyStringSchema,
+    seasonNumber: positiveIntegerLikeSchema,
+  },
+} as const;
+
+const metadataExternalIdsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['tmdb', 'imdb', 'tvdb', 'kitsu'],
+  properties: {
+    tmdb: nullableIntegerSchema,
+    imdb: nullableStringSchema,
+    tvdb: nullableIntegerSchema,
+    kitsu: nullableStringSchema,
+  },
+} as const;
+
+const metadataEpisodePreviewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'mediaType',
+    'mediaKey',
+    'provider',
+    'providerId',
+    'parentMediaType',
+    'parentProvider',
+    'parentProviderId',
+    'tmdbId',
+    'showTmdbId',
+    'seasonNumber',
+    'episodeNumber',
+    'absoluteEpisodeNumber',
+    'title',
+    'summary',
+    'airDate',
+    'runtimeMinutes',
+    'rating',
+    'images',
+  ],
+  properties: {
+    mediaType: stringSchema,
+    mediaKey: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    parentMediaType: stringSchema,
+    parentProvider: stringSchema,
+    parentProviderId: stringSchema,
+    tmdbId: nullableIntegerSchema,
+    showTmdbId: nullableIntegerSchema,
+    seasonNumber: { type: 'integer' },
+    episodeNumber: { type: 'integer' },
+    absoluteEpisodeNumber: nullableIntegerSchema,
+    title: nullableStringSchema,
+    summary: nullableStringSchema,
+    airDate: nullableStringSchema,
+    runtimeMinutes: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    images: metadataImagesSchema,
+  },
+} as const;
+
+const metadataViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    ...metadataCardViewSchema.required,
+    'certification',
+    'genres',
+    'externalIds',
+    'seasonCount',
+    'episodeCount',
+    'nextEpisode',
+  ],
+  properties: {
+    ...metadataCardViewSchema.properties,
+    certification: nullableStringSchema,
+    genres: {
+      type: 'array',
+      items: stringSchema,
     },
+    externalIds: metadataExternalIdsSchema,
+    seasonCount: nullableIntegerSchema,
+    episodeCount: nullableIntegerSchema,
+    nextEpisode: {
+      anyOf: [
+        metadataEpisodePreviewSchema,
+        { type: 'null' },
+      ],
+    },
+  },
+} as const;
+
+const metadataSeasonViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'mediaKey',
+    'provider',
+    'providerId',
+    'parentMediaType',
+    'parentProvider',
+    'parentProviderId',
+    'showTmdbId',
+    'seasonNumber',
+    'title',
+    'summary',
+    'airDate',
+    'episodeCount',
+    'images',
+  ],
+  properties: {
+    mediaKey: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    parentMediaType: stringSchema,
+    parentProvider: stringSchema,
+    parentProviderId: stringSchema,
+    showTmdbId: nullableIntegerSchema,
+    seasonNumber: { type: 'integer' },
+    title: nullableStringSchema,
+    summary: nullableStringSchema,
+    airDate: nullableStringSchema,
+    episodeCount: nullableIntegerSchema,
+    images: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['posterUrl'],
+      properties: {
+        posterUrl: nullableStringSchema,
+      },
+    },
+  },
+} as const;
+
+const metadataEpisodeViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    ...metadataEpisodePreviewSchema.required,
+    'showTitle',
+    'showExternalIds',
+  ],
+  properties: {
+    ...metadataEpisodePreviewSchema.properties,
+    showTitle: nullableStringSchema,
+    showExternalIds: metadataExternalIdsSchema,
+  },
+} as const;
+
+const metadataVideoViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'key', 'name', 'site', 'type', 'official', 'publishedAt', 'url', 'thumbnailUrl'],
+  properties: {
+    id: stringSchema,
+    key: stringSchema,
+    name: nullableStringSchema,
+    site: nullableStringSchema,
+    type: nullableStringSchema,
+    official: booleanSchema,
+    publishedAt: nullableStringSchema,
+    url: nullableStringSchema,
+    thumbnailUrl: nullableStringSchema,
+  },
+} as const;
+
+const metadataPersonRefViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'provider', 'providerId', 'tmdbPersonId', 'name', 'role', 'department', 'profileUrl'],
+  properties: {
+    id: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    tmdbPersonId: nullableIntegerSchema,
+    name: stringSchema,
+    role: nullableStringSchema,
+    department: nullableStringSchema,
+    profileUrl: nullableStringSchema,
+  },
+} as const;
+
+const metadataReviewViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'author', 'username', 'content', 'createdAt', 'updatedAt', 'url', 'rating', 'avatarUrl'],
+  properties: {
+    id: stringSchema,
+    author: nullableStringSchema,
+    username: nullableStringSchema,
+    content: stringSchema,
+    createdAt: nullableStringSchema,
+    updatedAt: nullableStringSchema,
+    url: nullableStringSchema,
+    rating: nullableNumberSchema,
+    avatarUrl: nullableStringSchema,
+  },
+} as const;
+
+const stringOrIntegerSchema = {
+  anyOf: [
+    { type: 'integer' },
+    stringSchema,
+  ],
+} as const;
+
+const metadataCompanyViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'provider', 'providerId', 'name', 'logoUrl', 'originCountry'],
+  properties: {
+    id: stringOrIntegerSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    name: stringSchema,
+    logoUrl: nullableStringSchema,
+    originCountry: nullableStringSchema,
+  },
+} as const;
+
+const metadataCollectionViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'provider', 'providerId', 'name', 'posterUrl', 'backdropUrl', 'parts'],
+  properties: {
+    id: stringOrIntegerSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    name: stringSchema,
+    posterUrl: nullableStringSchema,
+    backdropUrl: nullableStringSchema,
+    parts: {
+      type: 'array',
+      items: regularCardViewSchema,
+    },
+  },
+} as const;
+
+const metadataProductionInfoViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['originalLanguage', 'originCountries', 'spokenLanguages', 'productionCountries', 'companies', 'networks'],
+  properties: {
+    originalLanguage: nullableStringSchema,
+    originCountries: { type: 'array', items: stringSchema },
+    spokenLanguages: { type: 'array', items: stringSchema },
+    productionCountries: { type: 'array', items: stringSchema },
+    companies: { type: 'array', items: metadataCompanyViewSchema },
+    networks: { type: 'array', items: metadataCompanyViewSchema },
+  },
+} as const;
+
+const metadataTitleDetailResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['item', 'seasons', 'videos', 'cast', 'directors', 'creators', 'reviews', 'production', 'collection', 'similar'],
+  properties: {
+    item: metadataViewSchema,
+    seasons: { type: 'array', items: metadataSeasonViewSchema },
+    videos: { type: 'array', items: metadataVideoViewSchema },
+    cast: { type: 'array', items: metadataPersonRefViewSchema },
+    directors: { type: 'array', items: metadataPersonRefViewSchema },
+    creators: { type: 'array', items: metadataPersonRefViewSchema },
+    reviews: { type: 'array', items: metadataReviewViewSchema },
+    production: metadataProductionInfoViewSchema,
+    collection: {
+      anyOf: [
+        metadataCollectionViewSchema,
+        { type: 'null' },
+      ],
+    },
+    similar: { type: 'array', items: regularCardViewSchema },
+  },
+} as const;
+
+const metadataResolveResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['item'],
+  properties: {
+    item: metadataViewSchema,
+  },
+} as const;
+
+const mdbContentViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'ids',
+    'title',
+    'originalTitle',
+    'type',
+    'year',
+    'description',
+    'score',
+    'ratings',
+    'posterUrl',
+    'backdropUrl',
+    'genres',
+    'keywords',
+    'runtime',
+    'certification',
+    'released',
+    'language',
+    'country',
+    'seasonCount',
+    'episodeCount',
+    'directors',
+    'writers',
+    'network',
+    'studio',
+    'status',
+    'budget',
+    'revenue',
+    'updatedAt',
+  ],
+  properties: {
+    ids: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['imdb', 'tmdb', 'trakt', 'tvdb'],
+      properties: {
+        imdb: nullableStringSchema,
+        tmdb: nullableIntegerSchema,
+        trakt: nullableIntegerSchema,
+        tvdb: nullableIntegerSchema,
+      },
+    },
+    title: nullableStringSchema,
+    originalTitle: nullableStringSchema,
+    type: nullableStringSchema,
+    year: nullableIntegerSchema,
+    description: nullableStringSchema,
+    score: nullableNumberSchema,
+    ratings: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['imdbRating', 'imdbVotes', 'tmdbRating', 'metacritic', 'rottenTomatoes', 'letterboxdRating', 'mdblistRating'],
+      properties: {
+        imdbRating: nullableNumberSchema,
+        imdbVotes: nullableNumberSchema,
+        tmdbRating: nullableNumberSchema,
+        metacritic: nullableNumberSchema,
+        rottenTomatoes: nullableNumberSchema,
+        letterboxdRating: nullableNumberSchema,
+        mdblistRating: nullableNumberSchema,
+      },
+    },
+    posterUrl: nullableStringSchema,
+    backdropUrl: nullableStringSchema,
+    genres: { type: 'array', items: stringSchema },
+    keywords: { type: 'array', items: stringSchema },
+    runtime: nullableIntegerSchema,
+    certification: nullableStringSchema,
+    released: nullableStringSchema,
+    language: nullableStringSchema,
+    country: nullableStringSchema,
+    seasonCount: nullableIntegerSchema,
+    episodeCount: nullableIntegerSchema,
+    directors: { type: 'array', items: stringSchema },
+    writers: { type: 'array', items: stringSchema },
+    network: nullableStringSchema,
+    studio: nullableStringSchema,
+    status: nullableStringSchema,
+    budget: nullableNumberSchema,
+    revenue: nullableNumberSchema,
+    updatedAt: nullableStringSchema,
+  },
+} as const;
+
+const metadataTitleContentResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['item', 'content'],
+  properties: {
+    item: metadataViewSchema,
+    content: mdbContentViewSchema,
+  },
+} as const;
+
+const metadataSeasonDetailResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['show', 'season', 'episodes'],
+  properties: {
+    show: metadataViewSchema,
+    season: metadataSeasonViewSchema,
+    episodes: { type: 'array', items: metadataEpisodeViewSchema },
+  },
+} as const;
+
+const metadataPersonKnownForItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaType', 'mediaKey', 'provider', 'providerId', 'tmdbId', 'title', 'posterUrl', 'rating', 'releaseYear'],
+  properties: {
+    mediaType: stringSchema,
+    mediaKey: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    tmdbId: { type: 'integer' },
+    title: stringSchema,
+    posterUrl: nullableStringSchema,
+    rating: nullableNumberSchema,
+    releaseYear: nullableIntegerSchema,
+  },
+} as const;
+
+const metadataPersonDetailResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'provider', 'providerId', 'tmdbPersonId', 'name', 'knownForDepartment', 'biography', 'birthday', 'placeOfBirth', 'profileUrl', 'imdbId', 'instagramId', 'twitterId', 'knownFor'],
+  properties: {
+    id: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    tmdbPersonId: { type: 'integer' },
+    name: stringSchema,
+    knownForDepartment: nullableStringSchema,
+    biography: nullableStringSchema,
+    birthday: nullableStringSchema,
+    placeOfBirth: nullableStringSchema,
+    profileUrl: nullableStringSchema,
+    imdbId: nullableStringSchema,
+    instagramId: nullableStringSchema,
+    twitterId: nullableStringSchema,
+    knownFor: { type: 'array', items: metadataPersonKnownForItemSchema },
+  },
+} as const;
+
+const metadataEpisodeListResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['show', 'requestedSeasonNumber', 'effectiveSeasonNumber', 'includedSeasonNumbers', 'episodes'],
+  properties: {
+    show: metadataViewSchema,
+    requestedSeasonNumber: nullableIntegerSchema,
+    effectiveSeasonNumber: { type: 'integer' },
+    includedSeasonNumbers: { type: 'array', items: { type: 'integer' } },
+    episodes: { type: 'array', items: metadataEpisodeViewSchema },
+  },
+} as const;
+
+const metadataNextEpisodeResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['show', 'currentSeasonNumber', 'currentEpisodeNumber', 'item'],
+  properties: {
+    show: metadataViewSchema,
+    currentSeasonNumber: { type: 'integer' },
+    currentEpisodeNumber: { type: 'integer' },
+    item: {
+      anyOf: [
+        metadataEpisodeViewSchema,
+        { type: 'null' },
+      ],
+    },
+  },
+} as const;
+
+const playbackResolveResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['item', 'show', 'season'],
+  properties: {
+    item: metadataViewSchema,
+    show: {
+      anyOf: [
+        metadataViewSchema,
+        { type: 'null' },
+      ],
+    },
+    season: {
+      anyOf: [
+        metadataSeasonViewSchema,
+        { type: 'null' },
+      ],
+    },
+  },
+} as const;
+
+const metadataSearchResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['query', 'items'],
+  properties: {
+    query: stringSchema,
+    items: {
+      type: 'array',
+      items: regularCardViewSchema,
+    },
+  },
+} as const;
+
+export const metadataResolveRouteSchema = withDefaultErrorResponses({
+  querystring: metadataResolveQuerystringSchema,
+  response: {
+    200: metadataResolveResponseSchema,
   },
 });
 
-export const metadataTitleParamsRouteSchema = withDefaultErrorResponses({
-  params: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['mediaKey'],
-    properties: {
-      mediaKey: nonEmptyStringSchema,
-    },
+export const metadataTitleDetailRouteSchema = withDefaultErrorResponses({
+  params: metadataTitleParamsSchema,
+  response: {
+    200: metadataTitleDetailResponseSchema,
+  },
+});
+
+export const metadataTitleContentRouteSchema = withDefaultErrorResponses({
+  params: metadataTitleParamsSchema,
+  response: {
+    200: metadataTitleContentResponseSchema,
   },
 });
 
 export const metadataSeasonRouteSchema = withDefaultErrorResponses({
-  params: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['mediaKey', 'seasonNumber'],
-    properties: {
-      mediaKey: nonEmptyStringSchema,
-      seasonNumber: positiveIntegerLikeSchema,
-    },
+  params: metadataSeasonParamsSchema,
+  response: {
+    200: metadataSeasonDetailResponseSchema,
   },
 });
 
@@ -112,6 +631,9 @@ export const metadataPersonRouteSchema = withDefaultErrorResponses({
       language: stringSchema,
     },
   },
+  response: {
+    200: metadataPersonDetailResponseSchema,
+  },
 });
 
 export const metadataEpisodesRouteSchema = withDefaultErrorResponses({
@@ -129,6 +651,9 @@ export const metadataEpisodesRouteSchema = withDefaultErrorResponses({
     properties: {
       seasonNumber: positiveIntegerLikeSchema,
     },
+  },
+  response: {
+    200: metadataEpisodeListResponseSchema,
   },
 });
 
@@ -152,9 +677,17 @@ export const metadataNextEpisodeRouteSchema = withDefaultErrorResponses({
       nowMs: integerLikeSchema,
     },
   },
+  response: {
+    200: metadataNextEpisodeResponseSchema,
+  },
 });
 
-export const playbackResolveRouteSchema = metadataResolveRouteSchema;
+export const playbackResolveRouteSchema = withDefaultErrorResponses({
+  querystring: metadataResolveQuerystringSchema,
+  response: {
+    200: playbackResolveResponseSchema,
+  },
+});
 
 export const metadataSearchRouteSchema = withDefaultErrorResponses({
   querystring: {
@@ -166,5 +699,8 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
       filter: stringSchema,
       limit: positiveIntegerLikeSchema,
     },
+  },
+  response: {
+    200: metadataSearchResponseSchema,
   },
 });

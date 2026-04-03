@@ -32,7 +32,7 @@ test('request executor retries server models after rate limit', async () => {
 
   let resolveIndex = 0;
   const resolver = {
-    resolveForUser: async () => requests[resolveIndex++],
+    resolveAiRequestForUser: async () => requests[resolveIndex++],
   };
   const client = {
     generateJson: async (args: { model: string }) => {
@@ -66,7 +66,7 @@ test('request executor blocks server provider on auth-like failures', async () =
   state.resetServerFallbackState();
 
   const resolver = {
-    resolveForUser: async () => ({
+    resolveAiRequestForUser: async () => ({
       feature: 'search',
       providerId: 'openai',
       provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },

@@ -31,7 +31,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Profiles are child personas under one account, not standalone users.
 - One account token covers all profiles owned by that account; profiles do not have separate credentials.
 - Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
-- Shared account-scoped data includes addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
+- Shared account-scoped data includes addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
 - Profile-scoped personal data includes profile settings, watch state/history, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl are per-profile, not account-scoped.
 - Older ownership plumbing in code is an implementation detail slated for cleanup, not the intended product contract.

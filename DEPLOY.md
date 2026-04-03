@@ -35,7 +35,7 @@
 
    - The signed-in account is the only auth actor and the ownership root.
    - Profiles are child personas under that account, not separate users.
-   - Shared management data stays account-scoped: addons, AI API key, OMDb key, PATs, account deletion, and profile roster management.
+   - Shared management data stays account-scoped: addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
    - Personal experience data stays profile-scoped: profile settings, Trakt and Simkl connections, imports, watch history, continue watching, watchlist, ratings, tracked series, taste profiles, and recommendations.
    - Privileged routes are account-rooted: resolve the owning account first, then target a profile under that account for personal data.
 

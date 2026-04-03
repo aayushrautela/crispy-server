@@ -138,7 +138,7 @@ export class AccountSettingsService {
 
 export function mergeAccountScopedSettings(
   accountSettings: Record<string, unknown>,
-  options?: { ai?: AiClientSettings; hasOmdbApiKey?: boolean },
+  options?: { ai?: AiClientSettings; hasMdbListAccess?: boolean },
 ): Record<string, unknown> {
   const merged = { ...accountSettings };
   if (options?.ai) {
@@ -147,10 +147,10 @@ export function mergeAccountScopedSettings(
       ...options.ai,
     };
   }
-  if (options?.hasOmdbApiKey !== undefined) {
+  if (options?.hasMdbListAccess !== undefined) {
     merged.metadata = {
       ...(isRecord(merged.metadata) ? merged.metadata : {}),
-      hasOmdbApiKey: options.hasOmdbApiKey,
+      hasMdbListAccess: options.hasMdbListAccess,
     };
   }
   return merged;
@@ -293,6 +293,6 @@ function normalizeEditableMetadataSettings(value: unknown): Record<string, unkno
   }
 
   const metadataSettings = { ...value };
-  delete metadataSettings.hasOmdbApiKey;
+  delete metadataSettings.hasMdbListAccess;
   return metadataSettings;
 }

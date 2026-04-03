@@ -59,7 +59,7 @@ test('resolver falls back to server key when user key is missing', async () => {
   assert.equal(result.providerId, 'openai');
   assert.equal(result.apiKey, 'server-openai-key');
   assert.equal(result.credentialSource, 'server');
-  assert.equal(result.model, 'gpt-4o-mini');
+  assert.equal(result.model, 'gpt-4.1-mini');
 });
 
 test('resolver falls back to pooled key when server key is unavailable', async () => {

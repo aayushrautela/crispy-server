@@ -39,7 +39,7 @@ src/modules/
 
 - `WatchQueryService` - Raw watch data reads (no metadata hydration)
 - `WatchExportService` - Public read boundary for other modules
-- `MetadataCardService` - Card view boundary (watch uses this, not MetadataViewService)
+- `MetadataCardService` - Card view boundary (watch uses this, not the rich detail core)
 - `MetadataProjectionService` - Projection building (watch uses this)
 - `MetadataScheduleService` - Next/upcoming episode logic
 - `ProfileAccessService` - Centralized ownership verification
@@ -99,7 +99,7 @@ Ownership model:
 - One authenticated account owns one or more profiles.
 - Profiles are child personas under the account.
 - Profiles do not have separate bearer tokens, PATs, or service credentials.
-- Account-scoped data includes account settings, PATs, AI API key, OMDb key, and account lifecycle.
+- Account-scoped data includes account settings, PATs, AI API key, metadata-enrichment availability flags, and account lifecycle.
 - Profile-scoped data includes watch state, history, continue watching, ratings, watchlist, provider connections, imports, taste, and recommendations.
 - Trakt and Simkl connections are per-profile.
 
@@ -342,7 +342,7 @@ AI features consume canonical app identity through the public service boundaries
 Target rules:
 
 - AI title-oriented features accept title `mediaKey` through public service boundaries.
-- AI flows resolve provider metadata internally via `MetadataCardService` and `MetadataViewService`.
+- AI search resolves through `TitleSearchService`, and AI insights resolve rich metadata through `MetadataDetailService` and `MetadataDetailCoreService`.
 - AI route behavior aligns with the same movie/show/anime authority model used everywhere else.
 
 ## Data Repair And Migration Rules

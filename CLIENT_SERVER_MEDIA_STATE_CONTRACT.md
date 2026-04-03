@@ -21,31 +21,35 @@ This applies to:
 - `GET /v1/search/titles`
 - metadata detail payloads returned by:
   - `GET /v1/metadata/resolve`
-  - `GET /v1/metadata/titles/:id`
-  - `GET /v1/metadata/titles/:id/episodes`
-  - `GET /v1/metadata/titles/:id/next-episode`
+  - `GET /v1/metadata/titles/:mediaKey`
+  - `GET /v1/metadata/titles/:mediaKey/episodes`
+  - `GET /v1/metadata/titles/:mediaKey/next-episode`
   - `GET /v1/playback/resolve`
 
 ## Core Direction
 
-The backend now uses a simpler runtime model:
+The backend now uses a split model:
 
-- list surfaces return lightweight cards
-- richer metadata is fetched on demand
-- clients should use provider-based identity for normal item interactions
-- runtime and card-like metadata payloads should not depend on internal content UUIDs
+- list and state surfaces return lightweight cards
+- richer metadata is fetched on demand from dedicated metadata detail endpoints
+- clients should use `mediaKey` as the public navigation key
+- runtime and card-like payloads must not depend on internal content UUIDs
 
 ## Shared Identity
 
-For normal cards and landscape cards, the client should treat this as the primary identity:
+For client navigation, the primary public identity is:
+
+- `media.mediaKey`
+
+Supporting identity fields still appear on cards and detail payloads:
 
 - `media.mediaType`
 - `media.provider`
 - `media.providerId`
 
-This is the canonical client-side reference for opening items and requesting richer metadata.
+Those fields are display/supporting data. They should not be treated as a second public navigation contract.
 
-This same identity rule now applies to:
+This same `mediaKey` rule applies to:
 
 - runtime cards
 - search results
@@ -57,13 +61,13 @@ This same identity rule now applies to:
 
 ### 1. `mediaKey`
 
-`mediaKey` is **not guaranteed on watch-derived media cards** and should be treated as intentionally removed from normal card payloads.
+`mediaKey` is the public client navigation key.
 
 Rules:
 
-- do not rely on `media.mediaKey` for normal card rendering or click handling
-- use `media.mediaType` + `media.provider` + `media.providerId` instead
-- `mediaKey` still exists in some backend/state endpoints and internals, but it is not part of the main card contract clients should depend on
+- clients should use `media.mediaKey` for click handling, opening details, and requesting richer metadata
+- clients should not reconstruct identity from separate provider fields when `mediaKey` is already present
+- cards still include `mediaType`, `provider`, and `providerId`, but those fields are supporting metadata rather than the primary public route key
 
 ### 2. Continue Watching Dismissibility
 
@@ -93,6 +97,7 @@ Used for:
 
 Required fields:
 
+- `media.mediaKey`
 - `media.mediaType`
 - `media.provider`
 - `media.providerId`
@@ -116,6 +121,7 @@ Used for:
 
 Required fields:
 
+- `media.mediaKey`
 - `media.mediaType`
 - `media.provider`
 - `media.providerId`
@@ -178,10 +184,11 @@ Client should branch rendering based on `layout`.
 
 `GET /v1/search/titles`
 
-Search results now follow the same lightweight provider-based regular-card model.
+Search results now follow the same lightweight regular-card model.
 
 Client should assume each item contains:
 
+- `mediaKey`
 - `mediaType`
 - `provider`
 - `providerId`
@@ -191,7 +198,7 @@ Client should assume each item contains:
 
 Do not assume search results include canonical ids.
 
-Use provider-based identity for navigation/open.
+Use `mediaKey` for navigation/open.
 
 ## Library Contract
 
@@ -210,7 +217,7 @@ Do not expect:
 - `playbackTarget`
 - `episodeContext`
 
-Use `media.mediaType` + `media.provider` + `media.providerId` to open details.
+Use `media.mediaKey` to open details.
 
 ## Metadata Detail Contract
 
@@ -220,7 +227,9 @@ Full detail payloads are richer than runtime cards, but their client-facing iden
 
 Do not assume client-facing metadata detail payloads expose canonical/internal ids as the primary navigation contract.
 
-For detail payloads, client should treat these as the stable identity fields:
+For detail payloads, client should treat `mediaKey` as the stable public identity field.
+
+Supporting fields still include:
 
 - `mediaType`
 - `provider`
@@ -228,7 +237,7 @@ For detail payloads, client should treat these as the stable identity fields:
 
 ### Search/detail alignment
 
-These card-like metadata structures now follow the same provider-based model as search/runtime cards:
+These card-like metadata structures now follow the same `mediaKey`-first model as search/runtime cards:
 
 - search result items
 - `similar`
@@ -241,7 +250,7 @@ The server may still use internal canonical ids internally, but client should no
 
 If a client needs richer detail:
 
-1. keep provider-based identity from the current item
+1. keep `mediaKey` from the current item
 2. call metadata/detail/playback endpoints
 3. render the richer response
 
@@ -253,6 +262,14 @@ For metadata title routes:
 
 clients should use title `mediaKey` values such as `movie:tmdb:487672`, `show:tmdb:1399`, `show:tvdb:121361`, or `anime:kitsu:1`.
 Canonical internal UUID `content_id` values are internal-only and are not part of the client contract.
+
+Current route split:
+
+- `/v1/metadata/resolve`, `/v1/metadata/titles/:mediaKey`, `/v1/metadata/titles/:mediaKey/seasons/:seasonNumber` go through the metadata detail/search boundary
+- `/v1/metadata/titles/:mediaKey/content` goes through metadata content plus gated MDB enrichment
+- `/v1/metadata/titles/:mediaKey/episodes` and `/next-episode` go through episode navigation
+- `/v1/playback/resolve` goes through playback resolution
+- `/v1/metadata/people/:id` remains a separate person-detail route
 
 ## Watch List Endpoints
 
@@ -284,7 +301,7 @@ For watched/watchlist/ratings items, expect:
 Recommended client flow:
 
 1. render cards from runtime/list payloads
-2. on click, use provider-based identity
+2. on click, use `mediaKey`
 3. ask the server for richer metadata/details on demand
 
 Good mental model:
@@ -292,7 +309,7 @@ Good mental model:
 - runtime payloads are for fast rendering
 - metadata endpoints are for detail screens
 - user state stays separate from richer metadata
-- provider-based identity should remain the default client navigation model across runtime, search, and related items
+- `mediaKey` should remain the default client navigation model across runtime, search, and related items
 
 ## Compatibility Note
 
@@ -302,5 +319,5 @@ Rules:
 
 - do not fall back to old UUID-based detail/playback fields
 - do not assume internal content ids are present on normal cards
-- do not assume `mediaKey` will be present on watch-derived card payloads
+- do not assume watch/list payloads expose internal ids instead of `mediaKey`
 - do not assume every continue-watching item is dismissible

@@ -2,7 +2,7 @@
 
 ## Why This Plan Exists
 
-This repo is currently TMDB-shaped across identity, metadata fetches, watch state, imports, library hydration, calendar construction, recommendation hydration, and metadata refresh jobs.
+This document is now historical context for the earlier provider-authority migration. Many of the mixed metadata seams it references have already been deleted as part of the modular-monolith split.
 
 The important implementation fact is:
 
@@ -21,8 +21,8 @@ This document is the implementation plan for moving to exclusive provider author
 These are the hotspots that make this a cross-cutting migration:
 
 - `src/modules/watch/media-key.ts` only understands `movie | show | episode` and only parses `*:tmdb:*` media keys.
-- `src/modules/metadata/content-identity.service.ts` reverse-resolves `content_id` by finding a TMDB provider ref first.
-- `src/modules/metadata/metadata-view.service.ts`, `src/modules/metadata/metadata-query.service.ts`, and `src/modules/metadata/metadata-direct.service.ts` are TMDB-routed orchestration layers.
+- `src/modules/identity/content-identity.service.ts` still carries canonical-id responsibilities and remains a key identity seam.
+- The old mixed orchestration layers (`metadata-view.service.ts`, `metadata-query.service.ts`, `metadata-direct.service.ts`) have been deleted. Their responsibilities now live in split services such as `metadata-detail.service.ts`, `metadata-detail-core.service.ts`, `title-search.service.ts`, `playback-resolve.service.ts`, and `episode-navigation.service.ts`.
 - `migrations/0002_watch_domain.sql` stores `tmdb_id` and `show_tmdb_id` in watch tables.
 - `migrations/0005_provider_imports_and_recommendations.sql` stores TMDB-shaped identifiers in import history and recommendation outbox rows.
 - `src/modules/watch/tracked-series.repo.ts`, `src/modules/calendar/calendar-builder.service.ts`, and `src/modules/metadata/tmdb-refresh.service.ts` all treat `show_tmdb_id` as tracked-series identity.
@@ -343,9 +343,10 @@ Introduce:
 
 ### Service routing
 
-- `MetadataQueryService` becomes a provider router, not a TMDB search wrapper
-- `MetadataDirectService` becomes provider-aware for resolve, playback, episode listing, and next-episode logic
-- `MetadataViewService` becomes a provider-aware assembler/facade
+- `TitleSearchService` is the provider-routed search boundary
+- `MetadataDetailService` is the public resolve/title/season detail boundary
+- `PlaybackResolveService`, `EpisodeNavigationService`, `MetadataContentService`, and `PersonDetailService` own the former direct-service responsibilities
+- `MetadataDetailCoreService` is the current provider-aware detail assembler/facade
 - `ContentIdentityService` becomes authority-aware for both forward and reverse resolution
 
 ## API Contract Changes
@@ -364,7 +365,7 @@ Public responses should move toward provider-neutral identity.
 
 Preferred fields:
 
-- `id` -> canonical `content_id`
+- `id` -> canonical `content_id` for internal/storage-oriented flows only
 - `mediaType`
 - `mediaKey`
 - `provider`
@@ -415,9 +416,12 @@ Highest-priority files and modules:
 - `src/modules/watch/media-key.ts`
 - `src/modules/metadata/content-identity.service.ts`
 - `src/modules/metadata/content-identity.repo.ts`
-- `src/modules/metadata/metadata-view.service.ts`
-- `src/modules/metadata/metadata-query.service.ts`
-- `src/modules/metadata/metadata-direct.service.ts`
+- `src/modules/metadata/metadata-detail-core.service.ts`
+- `src/modules/metadata/metadata-detail.service.ts`
+- `src/modules/search/title-search.service.ts`
+- `src/modules/metadata/playback-resolve.service.ts`
+- `src/modules/metadata/episode-navigation.service.ts`
+- `src/modules/metadata/metadata-content.service.ts`
 - `src/modules/watch/projector.service.ts`
 - `src/modules/watch/watch-state.service.ts`
 - `src/modules/watch/tracked-series.repo.ts`
@@ -456,7 +460,7 @@ Highest-priority files and modules:
 
 - route search, resolve, playback, episode list, and next-episode flows by authority provider
 - update HTTP contracts to accept `anime` and `kitsuId`
-- add transitional compatibility behavior for old TMDB-centric clients if needed
+- keep the public client contract `mediaKey`-only with no temporary compatibility path
 
 ### Phase 5: Watch state and projections
 

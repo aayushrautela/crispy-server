@@ -36,7 +36,7 @@ export const metadataClientSettingsSchema = {
   type: 'object',
   additionalProperties: true,
   properties: {
-    hasOmdbApiKey: booleanSchema,
+    hasMdbListAccess: booleanSchema,
   },
 } as const;
 

@@ -90,7 +90,7 @@ test('getProfileLibrary keeps episode-derived items renderable as regular cards'
   assert.equal(watched?.items[0]?.media.title, 'Episode 5');
 });
 
-test('getProfileLibrary returns watchlist and rated sections from PersonalMediaService', async () => {
+test('getProfileLibrary returns watchlist and rated sections from the personal-media boundary', async () => {
   const service = await createMockService();
   const mockWatchlist = [
     createMockProductItem(

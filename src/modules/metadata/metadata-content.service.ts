@@ -24,9 +24,9 @@ export class MetadataContentService {
     });
   }
 
-  async getTitleContent(_userId: string, id: string): Promise<MetadataTitleContentResponse> {
+  async getTitleContent(userId: string, id: string): Promise<MetadataTitleContentResponse> {
     const item = await this.resolveTitleMetadataView(id);
-    const content = await this.metadataEnrichmentService.getTitleContent(item);
+    const content = await this.metadataEnrichmentService.getTitleContent(userId, item);
     return { item, content };
   }
 }

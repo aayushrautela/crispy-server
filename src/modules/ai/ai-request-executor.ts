@@ -1,4 +1,5 @@
 import { HttpError } from '../../lib/errors.js';
+import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import {
   blockServerProvider,
   clearServerModelFailure,
@@ -7,12 +8,12 @@ import {
   recordServerModelTransientFailure,
 } from './ai-server-fallback-state.js';
 import type { AiExecutionResult, AiFeatureId, AiProviderFailureDetails, ResolvedAiRequest } from './ai.types.js';
-import { AiProviderResolver, toResolvedRequestKey } from './ai-provider-resolver.js';
+import { toResolvedRequestKey } from './ai-provider-resolver.js';
 import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 
 export class AiRequestExecutor {
   constructor(
-    private readonly resolver = new AiProviderResolver(),
+    private readonly entitlementService = new FeatureEntitlementService(),
     private readonly client = new OpenAiCompatibleClient(),
   ) {}
 
@@ -27,7 +28,7 @@ export class AiRequestExecutor {
 
     while (attempts < 5) {
       attempts += 1;
-      const request = await this.resolver.resolveForUser(args.userId, args.feature, {
+      const request = await this.entitlementService.resolveAiRequestForUser(args.userId, args.feature, {
         excludeRequestKeys: attemptedRequests,
       });
       attemptedRequests.add(toResolvedRequestKey(request.credentialSource, request.providerId, request.model, request.apiKey));

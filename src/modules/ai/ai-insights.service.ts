@@ -1,12 +1,13 @@
 import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { MetadataDetailService } from '../metadata/metadata-detail.service.js';
 import type { MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
-import { AiProviderResolver, buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
+import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsPayload } from './ai.types.js';
 
 const GENERATION_VERSION = 'v3';
@@ -15,7 +16,7 @@ export class AiInsightsService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
-    private readonly aiProviderResolver = new AiProviderResolver(),
+    private readonly entitlementService = new FeatureEntitlementService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly metadataDetailService = new MetadataDetailService(),
   ) {}
@@ -41,7 +42,7 @@ export class AiInsightsService {
         throw new HttpError(404, 'Profile not found.');
       }
     });
-    const request = await this.aiProviderResolver.resolveForUser(userId, 'insights');
+    const request = await this.entitlementService.resolveAiRequestForUser(userId, 'insights');
     const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
     const cached = await withTransaction(async (client) => {
