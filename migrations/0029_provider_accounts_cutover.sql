@@ -87,11 +87,11 @@ ALTER TABLE provider_import_jobs DROP CONSTRAINT IF EXISTS provider_import_jobs_
 ALTER TABLE provider_import_jobs RENAME COLUMN connection_id TO provider_account_id;
 
 ALTER TABLE profile_watch_data_state DROP CONSTRAINT IF EXISTS profile_watch_data_state_last_import_provider_check;
+ALTER TABLE profile_watch_data_state DROP CONSTRAINT IF EXISTS chk_profile_watch_data_state_current_origin;
 UPDATE profile_watch_data_state
 SET current_origin = 'provider_import'
 WHERE current_origin IN ('trakt_import', 'simkl_import');
 ALTER TABLE profile_watch_data_state ALTER COLUMN current_origin SET DEFAULT 'native';
-ALTER TABLE profile_watch_data_state DROP CONSTRAINT IF EXISTS chk_profile_watch_data_state_current_origin;
 ALTER TABLE profile_watch_data_state
     ADD CONSTRAINT chk_profile_watch_data_state_current_origin
     CHECK (current_origin IN ('native', 'provider_import'));
@@ -107,12 +107,6 @@ UPDATE profile_watch_override SET source_provider = 'trakt' WHERE source_kind = 
 UPDATE profile_watchlist_state SET source_provider = 'trakt' WHERE source_kind = 'trakt_pull' AND source_provider IS NULL;
 UPDATE profile_rating_state SET source_provider = 'trakt' WHERE source_kind = 'trakt_pull' AND source_provider IS NULL;
 UPDATE profile_play_history SET source_provider = 'trakt' WHERE source_kind = 'trakt_pull' AND source_provider IS NULL;
-
-UPDATE profile_playable_state SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
-UPDATE profile_watch_override SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
-UPDATE profile_watchlist_state SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
-UPDATE profile_rating_state SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
-UPDATE profile_play_history SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
 
 ALTER TABLE profile_playable_state DROP CONSTRAINT IF EXISTS profile_playable_state_source_kind_check;
 ALTER TABLE profile_watch_override DROP CONSTRAINT IF EXISTS profile_watch_override_source_kind_check;
@@ -130,6 +124,12 @@ ALTER TABLE profile_rating_state DROP CONSTRAINT IF EXISTS chk_profile_rating_st
 ALTER TABLE profile_rating_state DROP CONSTRAINT IF EXISTS chk_profile_rating_state_source_provider;
 ALTER TABLE profile_play_history DROP CONSTRAINT IF EXISTS chk_profile_play_history_source_kind;
 ALTER TABLE profile_play_history DROP CONSTRAINT IF EXISTS chk_profile_play_history_source_provider;
+
+UPDATE profile_playable_state SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
+UPDATE profile_watch_override SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
+UPDATE profile_watchlist_state SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
+UPDATE profile_rating_state SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
+UPDATE profile_play_history SET source_kind = 'provider_import' WHERE source_kind = 'trakt_pull';
 
 ALTER TABLE profile_playable_state
     ADD CONSTRAINT chk_profile_playable_state_source_kind
