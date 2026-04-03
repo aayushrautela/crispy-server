@@ -7,6 +7,7 @@ seedTestEnv({});
 
 function createMockRegularCard(overrides: Record<string, unknown> = {}) {
   return {
+    mediaKey: 'movie:tmdb:1',
     mediaType: 'movie',
     provider: 'tmdb',
     providerId: '1',
@@ -33,10 +34,8 @@ function createMockService() {
   return import('./library.service.js').then(({ LibraryService }) => {
     const service = new LibraryService(
       { assertOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
-      { listProducts: async () => [] } as never,
-      { listProducts: async () => [] } as never,
-      { listWatchlistProducts: async () => [], listRatingsProducts: async () => [] } as never,
-      { listConnections: async () => ({ connections: [], watchDataState: null }) } as never,
+      { listWatchedProducts: async () => [], listWatchlistProducts: async () => [], listRatingsProducts: async () => [] } as never,
+      { listConnections: async () => ({ providerAccounts: [] }) } as never,
     );
     return service;
   });
@@ -60,7 +59,7 @@ test('getProfileLibrary returns watched items with minimal runtime contract', as
       { watchedAt: '2024-01-15T10:00:00.000Z', origins: ['trakt_import'] },
     ),
   ];
-  (service as any).watchedService = { listProducts: async () => mockWatched };
+  (service as any).personalMediaService = { listWatchedProducts: async () => mockWatched, listWatchlistProducts: async () => [], listRatingsProducts: async () => [] };
 
   const result = await service.getProfileLibrary('user-1', 'profile-1');
   const watched = result.sections.find((section) => section.id === 'watched');
@@ -82,7 +81,7 @@ test('getProfileLibrary keeps episode-derived items renderable as regular cards'
       { watchedAt: '2024-01-15T10:00:00.000Z' },
     ),
   ];
-  (service as any).watchedService = { listProducts: async () => mockWatched };
+  (service as any).personalMediaService = { listWatchedProducts: async () => mockWatched, listWatchlistProducts: async () => [], listRatingsProducts: async () => [] };
 
   const result = await service.getProfileLibrary('user-1', 'profile-1');
   const watched = result.sections.find((section) => section.id === 'watched');
@@ -91,7 +90,7 @@ test('getProfileLibrary keeps episode-derived items renderable as regular cards'
   assert.equal(watched?.items[0]?.media.title, 'Episode 5');
 });
 
-test('getProfileLibrary returns watchlist and rated sections from WatchCollectionService', async () => {
+test('getProfileLibrary returns watchlist and rated sections from PersonalMediaService', async () => {
   const service = await createMockService();
   const mockWatchlist = [
     createMockProductItem(
@@ -105,7 +104,8 @@ test('getProfileLibrary returns watchlist and rated sections from WatchCollectio
       { rating: { value: 9, ratedAt: '2024-01-09T08:00:00.000Z' }, origins: ['simkl_import'] },
     ),
   ];
-  (service as any).watchCollectionService = {
+  (service as any).personalMediaService = {
+    listWatchedProducts: async () => [],
     listWatchlistProducts: async () => mockWatchlist,
     listRatingsProducts: async () => mockRatings,
   };
@@ -128,7 +128,7 @@ test('getProfileLibrary includes provider auth state', async () => {
   const service = await createMockService();
   (service as any).providerImportService = {
     listConnections: async () => ({
-      connections: [
+      providerAccounts: [
         {
           id: 'conn-1',
           provider: 'trakt',
@@ -142,7 +142,6 @@ test('getProfileLibrary includes provider auth state', async () => {
           lastImportCompletedAt: null,
         },
       ],
-      watchDataState: null,
     }),
   };
 
@@ -162,10 +161,8 @@ test('getProfileLibrary throws for service errors', async () => {
   const { LibraryService } = await import('./library.service.js');
   const service = new LibraryService(
     { assertOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
-    { listProducts: async () => [] } as never,
-    { listProducts: async () => { throw new HttpError(404, 'Profile not found.'); } } as never,
-    { listWatchlistProducts: async () => [], listRatingsProducts: async () => [] } as never,
-    { listConnections: async () => ({ connections: [], watchDataState: null }) } as never,
+    { listWatchedProducts: async () => { throw new HttpError(404, 'Profile not found.'); }, listWatchlistProducts: async () => [], listRatingsProducts: async () => [] } as never,
+    { listConnections: async () => ({ providerAccounts: [] }) } as never,
   );
 
   await assert.rejects(

@@ -20,10 +20,8 @@ import {
   type WatchStateBatchBody,
   type WatchStateLookupContract,
 } from '../contracts/watch.js';
-import { ContinueWatchingService } from '../../modules/watch/continue-watching.service.js';
 import { WatchEventIngestService } from '../../modules/watch/event-ingest.service.js';
-import { WatchedQueryService } from '../../modules/watch/watched.service.js';
-import { WatchCollectionService } from '../../modules/watch/watch-collection.service.js';
+import { PersonalMediaService } from '../../modules/watch/personal-media.service.js';
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
@@ -31,9 +29,7 @@ import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
-  const continueWatchingService = new ContinueWatchingService();
-  const watchedService = new WatchedQueryService();
-  const watchCollectionService = new WatchCollectionService();
+  const personalMediaService = new PersonalMediaService();
   const watchStateService = new WatchStateService();
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
@@ -72,7 +68,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const generatedAt = nowIso();
-    const page = await continueWatchingService.listPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await personalMediaService.listContinueWatchingPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'continue-watching' as const,
@@ -98,7 +94,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await watchedService.listPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await personalMediaService.listWatchedPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'watched' as const,
@@ -116,7 +112,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await watchCollectionService.listWatchlistPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await personalMediaService.listWatchlistPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'watchlist' as const,
@@ -134,7 +130,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await watchCollectionService.listRatingsPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await personalMediaService.listRatingsPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
       kind: 'ratings' as const,

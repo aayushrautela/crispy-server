@@ -21,7 +21,7 @@ test('getHome builds payload without watch history dependency', async (t) => {
 
   const service = new HomeService(
     {
-      listProducts: async () => ['continue-watching-item'],
+      listContinueWatchingProducts: async () => ['continue-watching-item'],
     } as never,
     {
       getCalendar: async () => ({ items: ['calendar-item'] }),

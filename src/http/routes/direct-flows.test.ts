@@ -139,25 +139,34 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 });
 
 test('watch routes expose continue-watching ids and forward dismiss params', async (t) => {
-  const { ContinueWatchingService } = await import('../../modules/watch/continue-watching.service.js');
+  const { PersonalMediaService } = await import('../../modules/watch/personal-media.service.js');
   const { WatchEventIngestService } = await import('../../modules/watch/event-ingest.service.js');
   const { WatchStateService } = await import('../../modules/watch/watch-state.service.js');
 
   const originals = {
-    listProducts: ContinueWatchingService.prototype.listProducts,
-    listPage: ContinueWatchingService.prototype.listPage,
+    listContinueWatchingProducts: PersonalMediaService.prototype.listContinueWatchingProducts,
+    listContinueWatchingPage: PersonalMediaService.prototype.listContinueWatchingPage,
+    listWatchedPage: PersonalMediaService.prototype.listWatchedPage,
+    listWatchlistPage: PersonalMediaService.prototype.listWatchlistPage,
+    listRatingsPage: PersonalMediaService.prototype.listRatingsPage,
     dismissContinueWatching: WatchEventIngestService.prototype.dismissContinueWatching,
     getState: WatchStateService.prototype.getState,
     getStates: WatchStateService.prototype.getStates,
   };
 
   t.after(() => {
-    Object.assign(ContinueWatchingService.prototype, { listProducts: originals.listProducts, listPage: originals.listPage });
+    Object.assign(PersonalMediaService.prototype, {
+      listContinueWatchingProducts: originals.listContinueWatchingProducts,
+      listContinueWatchingPage: originals.listContinueWatchingPage,
+      listWatchedPage: originals.listWatchedPage,
+      listWatchlistPage: originals.listWatchlistPage,
+      listRatingsPage: originals.listRatingsPage,
+    });
     Object.assign(WatchEventIngestService.prototype, { dismissContinueWatching: originals.dismissContinueWatching });
     Object.assign(WatchStateService.prototype, { getState: originals.getState, getStates: originals.getStates });
   });
 
-  ContinueWatchingService.prototype.listProducts = async function (_userId, _profileId, _limit) {
+  PersonalMediaService.prototype.listContinueWatchingProducts = async function (_userId, _profileId, _limit) {
     return [{
       id: 'cw-1',
       media: {
@@ -184,9 +193,9 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
       dismissible: true,
     }] as never;
   };
-  ContinueWatchingService.prototype.listPage = async function (_userId, _profileId, _params) {
+  PersonalMediaService.prototype.listContinueWatchingPage = async function (_userId, _profileId, _params) {
     return {
-      items: await this.listProducts('user-1', 'profile-1', 20),
+      items: await this.listContinueWatchingProducts('user-1', 'profile-1', 20),
       pageInfo: {
         nextCursor: null,
         hasMore: false,

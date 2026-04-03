@@ -2,9 +2,7 @@ import { nowIso } from '../../lib/time.js';
 import { ProviderImportService } from '../integrations/provider-import.service.js';
 import type { ProviderAccountView } from '../integrations/provider-import.views.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { ContinueWatchingService } from '../watch/continue-watching.service.js';
-import { WatchedQueryService } from '../watch/watched.service.js';
-import { WatchCollectionService } from '../watch/watch-collection.service.js';
+import { PersonalMediaService } from '../watch/personal-media.service.js';
 import type { WatchDerivedProductItem } from '../watch/watch-derived-item.types.js';
 import type {
   LibraryItemView,
@@ -16,17 +14,15 @@ import type {
 export class LibraryService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
-    private readonly continueWatchingService = new ContinueWatchingService(),
-    private readonly watchedService = new WatchedQueryService(),
-    private readonly watchCollectionService = new WatchCollectionService(),
+    private readonly personalMediaService = new PersonalMediaService(),
     private readonly providerImportService = new ProviderImportService(),
   ) {}
 
   async getProfileLibrary(userId: string, profileId: string): Promise<ProfileLibraryView> {
     const [watchedProducts, watchlistProducts, ratingProducts, connections] = await Promise.all([
-      this.watchedService.listProducts(userId, profileId, 100),
-      this.watchCollectionService.listWatchlistProducts(userId, profileId, 100),
-      this.watchCollectionService.listRatingsProducts(userId, profileId, 100),
+      this.personalMediaService.listWatchedProducts(userId, profileId, 100),
+      this.personalMediaService.listWatchlistProducts(userId, profileId, 100),
+      this.personalMediaService.listRatingsProducts(userId, profileId, 100),
       this.providerImportService.listConnections(userId, profileId),
     ]);
 

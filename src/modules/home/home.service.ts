@@ -1,16 +1,16 @@
 import { redis } from '../../lib/redis.js';
 import { appConfig } from '../../config/app-config.js';
 import { nowIso } from '../../lib/time.js';
-import { ContinueWatchingService } from '../watch/continue-watching.service.js';
 import { CalendarService } from '../calendar/calendar.service.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
+import { PersonalMediaService } from '../watch/personal-media.service.js';
 import { HomeBuilderService } from './home-builder.service.js';
 import { homeCacheKey } from '../cache/cache-keys.js';
 import type { HomeResponse } from './home.types.js';
 
 export class HomeService {
   constructor(
-    private readonly continueWatchingService = new ContinueWatchingService(),
+    private readonly personalMediaService = new PersonalMediaService(),
     private readonly calendarService = new CalendarService(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
     private readonly homeBuilderService = new HomeBuilderService(),
@@ -24,7 +24,7 @@ export class HomeService {
     }
 
     const [continueWatching, calendar] = await Promise.all([
-      this.continueWatchingService.listProducts(userId, profileId, 20),
+      this.personalMediaService.listContinueWatchingProducts(userId, profileId, 20),
       this.calendarService.getCalendar(userId, profileId),
     ]);
 
