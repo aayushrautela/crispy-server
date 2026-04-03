@@ -74,14 +74,13 @@ export type WatchStateBatchBody = {
   items?: WatchStateLookupContract[];
 };
 
-const continueWatchingItemSchema = {
+export const continueWatchingItemSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
     'id',
     'media',
     'progress',
-    'watchedAt',
     'lastActivityAt',
     'origins',
     'dismissible',
@@ -105,7 +104,6 @@ const continueWatchingItemSchema = {
         { type: 'null' },
       ],
     },
-    watchedAt: nullableStringSchema,
     lastActivityAt: stringSchema,
     origins: {
       type: 'array',

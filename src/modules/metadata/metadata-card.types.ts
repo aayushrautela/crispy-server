@@ -176,6 +176,7 @@ export type CollectionCardView = {
 };
 
 export type HeroCardView = {
+  mediaKey: string;
   mediaType: MetadataViewMediaType;
   provider: SupportedProvider;
   providerId: string;

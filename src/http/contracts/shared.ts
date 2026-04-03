@@ -268,6 +268,70 @@ export const landscapeCardViewSchema = {
   },
 } as const;
 
+export const collectionCardItemViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaType', 'provider', 'providerId', 'title', 'posterUrl', 'releaseYear', 'rating'],
+  properties: {
+    mediaType: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    title: stringSchema,
+    posterUrl: stringSchema,
+    releaseYear: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+  },
+} as const;
+
+export const collectionCardViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'logoUrl', 'items'],
+  properties: {
+    title: stringSchema,
+    logoUrl: stringSchema,
+    items: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 3,
+      items: collectionCardItemViewSchema,
+    },
+  },
+} as const;
+
+export const heroCardViewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'mediaKey',
+    'mediaType',
+    'provider',
+    'providerId',
+    'title',
+    'description',
+    'backdropUrl',
+    'posterUrl',
+    'logoUrl',
+    'releaseYear',
+    'rating',
+    'genre',
+  ],
+  properties: {
+    mediaKey: stringSchema,
+    mediaType: stringSchema,
+    provider: stringSchema,
+    providerId: stringSchema,
+    title: stringSchema,
+    description: stringSchema,
+    backdropUrl: stringSchema,
+    posterUrl: nullableStringSchema,
+    logoUrl: nullableStringSchema,
+    releaseYear: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    genre: nullableStringSchema,
+  },
+} as const;
+
 export function withDefaultErrorResponses<T extends RouteSchema>(schema: T): T & { response: Record<number, unknown> } {
   return {
     ...schema,

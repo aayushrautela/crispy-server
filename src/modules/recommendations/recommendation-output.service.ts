@@ -458,6 +458,7 @@ function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroC
   }
 
   return {
+    mediaKey: card.mediaKey,
     mediaType: card.mediaType,
     provider: card.provider,
     providerId: card.providerId,

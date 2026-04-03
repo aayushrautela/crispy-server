@@ -398,7 +398,6 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
         runtimeMinutes: null,
       },
       progress: { positionSeconds: 0, durationSeconds: null, progressPercent: 0, lastPlayedAt: '2024-01-01T00:00:00.000Z' },
-      watchedAt: null,
       lastActivityAt: '2024-01-01T00:00:00.000Z',
       origins: ['native'],
       dismissible: true,
@@ -475,6 +474,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.equal(typeof listResponse.json().generatedAt, 'string');
   assert.equal(listResponse.json().items[0].id, 'cw-1');
   assert.equal(listResponse.json().items[0].media.providerId, '331');
+  assert.equal('watchedAt' in listResponse.json().items[0], false);
   assert.equal(listResponse.json().pageInfo.nextCursor, null);
   assert.equal(listResponse.json().pageInfo.hasMore, false);
 

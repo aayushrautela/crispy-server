@@ -1,15 +1,24 @@
 # Client Server Media State Contract
 
-**Status:** Approved direction, implemented runtime contract
-**Author:** Engineering
-**Last Updated:** 2026-04-01
-**Source of truth for:** client-facing runtime and metadata list/detail identity payloads
+**Status:** Production contract
+**Owner:** Engineering
+**Last Updated:** 2026-04-03
+**Source of truth:** public HTTP payloads returned by `src/http/routes/*` and enforced by `src/http/contracts/*`
 
 ## Purpose
 
-This document defines the current backend contract for runtime media state returned to Crispy clients.
+This document defines the current client-facing contract for media navigation, runtime state, recommendation snapshot payloads, and metadata/detail responses.
 
-This applies to:
+This document is intentionally strict.
+
+- It describes fields that are actually returned today.
+- It separates guaranteed fields from layout-specific fields.
+- It does not describe retired UUID-based client contracts.
+- If this document conflicts with runtime route schemas under `src/http/contracts/*`, the route schemas win.
+
+## Covered Endpoints
+
+This contract applies to:
 
 - `GET /v1/profiles/:profileId/home`
 - `GET /v1/profiles/:profileId/calendar`
@@ -18,306 +27,784 @@ This applies to:
 - `GET /v1/profiles/:profileId/watch/watched`
 - `GET /v1/profiles/:profileId/watch/watchlist`
 - `GET /v1/profiles/:profileId/watch/ratings`
+- `GET /v1/profiles/:profileId/watch/state`
+- `POST /v1/profiles/:profileId/watch/states`
 - `GET /v1/search/titles`
-- metadata detail payloads returned by:
-  - `GET /v1/metadata/resolve`
-  - `GET /v1/metadata/titles/:mediaKey`
-  - `GET /v1/metadata/titles/:mediaKey/episodes`
-  - `GET /v1/metadata/titles/:mediaKey/next-episode`
-  - `GET /v1/playback/resolve`
+- `GET /v1/metadata/resolve`
+- `GET /v1/metadata/titles/:mediaKey`
+- `GET /v1/metadata/titles/:mediaKey/content`
+- `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber`
+- `GET /v1/metadata/titles/:mediaKey/episodes`
+- `GET /v1/metadata/titles/:mediaKey/next-episode`
+- `GET /v1/metadata/people/:id`
+- `GET /v1/playback/resolve`
 
-## Core Direction
+## Contract Rules
 
-The backend now uses a split model:
+### 1. Public navigation identity
 
-- list and state surfaces return lightweight cards
-- richer metadata is fetched on demand from dedicated metadata detail endpoints
-- clients should use `mediaKey` as the public navigation key
-- runtime and card-like payloads must not depend on internal content UUIDs
+The primary public navigation key is `mediaKey`.
 
-## Shared Identity
+When a payload includes `mediaKey`, clients should use it for:
 
-For client navigation, the primary public identity is:
+- opening title detail
+- requesting playback resolution
+- watch state lookup
+- title-to-title navigation
 
-- `media.mediaKey`
+Supporting identity fields may also be present:
 
-Supporting identity fields still appear on cards and detail payloads:
+- `mediaType`
+- `provider`
+- `providerId`
 
-- `media.mediaType`
-- `media.provider`
-- `media.providerId`
+Those fields are supporting metadata. They are not the preferred navigation contract when `mediaKey` is already present.
 
-Those fields are display/supporting data. They should not be treated as a second public navigation contract.
+### 2. Internal IDs are not the client contract
 
-This same `mediaKey` rule applies to:
+Clients must not depend on internal canonical IDs, content UUIDs, or legacy detail targets on normal runtime cards.
 
-- runtime cards
+If a screen needs richer data, the flow is:
+
+1. read `mediaKey` from the current payload
+2. call the relevant metadata or playback endpoint
+3. render the richer response
+
+### 3. Layout-specific payloads matter
+
+Not every card-shaped object has the same identity guarantees.
+
+- `regular` card surfaces include `mediaKey`
+- `landscape` card surfaces include `mediaKey`
+- metadata detail entities include `mediaKey` where documented below
+- recommendation `hero` items now include `mediaKey`
+- recommendation `collection` items do not currently include `mediaKey`
+
+Clients must branch based on endpoint and layout instead of assuming every display object is universally navigable.
+
+### 4. Continue-watching dismissal is per-item
+
+Continue-watching items expose `dismissible`.
+
+- if `dismissible` is `true`, the client may show dismiss UI
+- if `dismissible` is `false`, the client must not show dismiss UI
+
+Do not assume dismissal is universally available.
+
+## Shared Shapes
+
+### Regular card
+
+Regular cards are used by:
+
 - search results
-- related/similar cards
-- collection parts
-- detail payload items where the payload is card-like
-
-## Important Clarifications
-
-### 1. `mediaKey`
-
-`mediaKey` is the public client navigation key.
-
-Rules:
-
-- clients should use `media.mediaKey` for click handling, opening details, and requesting richer metadata
-- clients should not reconstruct identity from separate provider fields when `mediaKey` is already present
-- cards still include `mediaType`, `provider`, and `providerId`, but those fields are supporting metadata rather than the primary public route key
-
-### 2. Continue Watching Dismissibility
-
-Continue watching removal should **honor backend `dismissible` per item**.
-
-Rules:
-
-- if `dismissible` is `true`, client may show remove/dismiss affordance
-- if `dismissible` is `false`, client should not offer dismiss/removal UI for that item
-- Android should not treat continue-watching dismissal as universally available
-
-## Card Families
-
-### Regular Card
-
-Used for:
-
-- library rows
-- watched rows
-- watchlist rows
-- rating rows
-- normal recommendation rows
-- other small-card list surfaces
-- search results
-- related/similar cards
-- collection parts
+- library items
+- watched items
+- watchlist items
+- ratings items
+- metadata `similar`
+- metadata `collection.parts`
+- person `knownFor`
+- recommendation snapshot `regular` sections
 
 Required fields:
 
-- `media.mediaKey`
-- `media.mediaType`
-- `media.provider`
-- `media.providerId`
-- `media.title`
-- `media.posterUrl`
+```json
+{
+  "mediaType": "movie | show | anime | episode",
+  "mediaKey": "string",
+  "provider": "string",
+  "providerId": "string",
+  "title": "string",
+  "posterUrl": "string",
+  "releaseYear": "integer | null",
+  "rating": "number | null",
+  "genre": "string | null",
+  "subtitle": "string | null"
+}
+```
 
-Optional cheap extras:
+### Landscape card
 
-- `media.releaseYear`
-- `media.rating`
-- `media.genre`
-- `media.subtitle`
-
-### Landscape Card
-
-Used for:
+Landscape cards are used by:
 
 - continue watching
-- this week
-- calendar-like rows
+- calendar items
+- home runtime landscape sections
+- recommendation snapshot `landscape` sections
 
 Required fields:
 
-- `media.mediaKey`
-- `media.mediaType`
-- `media.provider`
-- `media.providerId`
-- `media.title`
-- `media.posterUrl`
-- `media.backdropUrl`
+```json
+{
+  "mediaType": "movie | show | anime | episode",
+  "mediaKey": "string",
+  "provider": "string",
+  "providerId": "string",
+  "title": "string",
+  "posterUrl": "string",
+  "backdropUrl": "string",
+  "releaseYear": "integer | null",
+  "rating": "number | null",
+  "genre": "string | null",
+  "seasonNumber": "integer | null",
+  "episodeNumber": "integer | null",
+  "episodeTitle": "string | null",
+  "airDate": "string | null",
+  "runtimeMinutes": "integer | null"
+}
+```
 
-For episodic landscape cards, also expect:
+### Hero card
 
-- `media.seasonNumber`
-- `media.episodeNumber`
-- `media.episodeTitle`
-- `media.airDate`
-- `media.runtimeMinutes`
+Hero cards are used only by recommendation snapshot `hero` sections.
 
-Landscape backdrop rule:
+Required fields:
 
-- prefer episode still/backdrop for episodic items
-- otherwise use show/anime backdrop
-- poster is the fallback visual source, but `backdropUrl` is still required in the returned contract
+```json
+{
+  "mediaKey": "string",
+  "mediaType": "movie | show | anime | episode",
+  "provider": "string",
+  "providerId": "string",
+  "title": "string",
+  "description": "string",
+  "backdropUrl": "string",
+  "posterUrl": "string | null",
+  "logoUrl": "string | null",
+  "releaseYear": "integer | null",
+  "rating": "number | null",
+  "genre": "string | null"
+}
+```
 
-## Home Contract
+### Recommendation collection card
 
-`GET /v1/profiles/:profileId/home`
+Collection cards are display-only grouped recommendation payloads.
 
-Home is split into two parts:
+Collection section item shape:
 
-- `runtime`
-- `snapshot`
+```json
+{
+  "title": "string",
+  "logoUrl": "string",
+  "items": [
+    {
+      "mediaType": "movie | show | anime | episode",
+      "provider": "string",
+      "providerId": "string",
+      "title": "string",
+      "posterUrl": "string",
+      "releaseYear": "integer | null",
+      "rating": "number | null"
+    }
+  ]
+}
+```
 
-### `runtime`
+Important:
 
-App-generated sections:
+- recommendation collection items do not currently guarantee `mediaKey`
+- clients must not assume recommendation collection items are directly navigable via `mediaKey`
+
+## Endpoint Contract
+
+## `GET /v1/profiles/:profileId/home`
+
+Envelope:
+
+```json
+{
+  "profileId": "string",
+  "source": "canonical_home",
+  "generatedAt": "string",
+  "runtime": {
+    "continueWatching": {
+      "id": "continue-watching",
+      "title": "Continue Watching",
+      "layout": "landscape",
+      "source": "canonical_watch",
+      "items": []
+    },
+    "thisWeek": {
+      "id": "this-week",
+      "title": "This Week",
+      "layout": "landscape",
+      "source": "canonical_calendar",
+      "items": []
+    }
+  },
+  "snapshot": {
+    "sourceKey": "string | null",
+    "generatedAt": "string | null",
+    "sections": []
+  }
+}
+```
+
+### `home.runtime`
+
+`runtime` is app-generated and user-state-driven.
+
+Current sections are fixed:
 
 - `continueWatching`
 - `thisWeek`
 
-These are live/user-state-driven sections.
+`runtime.continueWatching.items` use the continue-watching item shape documented below.
 
-### `snapshot`
+`runtime.thisWeek.items` use the calendar item shape documented below.
 
-Recommendation-engine-driven sections:
+### `home.snapshot`
 
-- `sourceKey`
-- `generatedAt`
-- `sections[]`
+`snapshot` is recommendation-engine output.
 
-Each snapshot section has a `layout`.
-
-Currently supported layouts in the contract:
+Current supported `layout` values:
 
 - `regular`
 - `landscape`
 - `collection`
 - `hero`
 
-Client should branch rendering based on `layout`.
+Section discriminators:
 
-## Search Contract
+```json
+{
+  "id": "string",
+  "title": "string",
+  "layout": "regular | landscape | collection | hero",
+  "items": "layout-specific array",
+  "meta": {}
+}
+```
 
-`GET /v1/search/titles`
+Layout-specific rules:
 
-Search results now follow the same lightweight regular-card model.
+- `regular` section items are `{ media, reason, score, rank, payload }` where `media` is a regular card
+- `landscape` section items are `{ media, reason, score, rank, payload }` where `media` is a landscape card
+- `hero` section items are hero cards and include `mediaKey`
+- `collection` section items are collection cards and do not guarantee `mediaKey`
 
-Client should assume each item contains:
+Client guidance:
 
-- `mediaKey`
-- `mediaType`
-- `provider`
-- `providerId`
-- `title`
-- `posterUrl`
-- optional cheap extras like `releaseYear`, `rating`, `subtitle`
+- branch rendering on `layout`
+- do not try to normalize collection items into a universal navigation model without additional server support
 
-Do not assume search results include canonical ids.
+## `GET /v1/profiles/:profileId/calendar`
 
-Use `mediaKey` for navigation/open.
+Envelope:
 
-## Library Contract
+```json
+{
+  "profileId": "string",
+  "source": "canonical_calendar",
+  "generatedAt": "string",
+  "items": [
+    {
+      "bucket": "up_next | this_week | upcoming | recently_released | no_scheduled",
+      "media": "LandscapeCard",
+      "relatedShow": "RegularCard",
+      "airDate": "string | null",
+      "watched": "boolean"
+    }
+  ]
+}
+```
 
-`GET /v1/profiles/:profileId/library`
+Notes:
 
-Each item includes:
+- `media.mediaKey` is present and is the primary navigation key
+- `relatedShow.mediaKey` is also present for the associated series/show card
+- `bucket` is an explicit enum and clients should not assume additional undocumented bucket values
 
-- `id`
-- `media`
-- `state`
-- `origins`
+## `GET /v1/profiles/:profileId/library`
 
-Do not expect:
+Envelope:
 
-- `detailsTarget`
-- `playbackTarget`
-- `episodeContext`
+```json
+{
+  "profileId": "string",
+  "source": "canonical_library",
+  "generatedAt": "string",
+  "auth": {
+    "providers": [
+      {
+        "provider": "string",
+        "connected": "boolean",
+        "status": "string",
+        "externalUsername": "string | null",
+        "statusMessage": "string | null"
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "string",
+      "label": "string",
+      "order": "integer",
+      "itemCount": "integer",
+      "items": [
+        {
+          "id": "string",
+          "media": "RegularCard",
+          "state": {
+            "addedAt": "string | null",
+            "watchedAt": "string | null",
+            "ratedAt": "string | null",
+            "rating": "number | null",
+            "lastActivityAt": "string | null"
+          },
+          "origins": ["string"]
+        }
+      ]
+    }
+  ]
+}
+```
 
-Use `media.mediaKey` to open details.
+Notes:
 
-## Metadata Detail Contract
+- use `media.mediaKey` for navigation
+- do not expect legacy `detailsTarget`, `playbackTarget`, or `episodeContext` fields
 
-Full detail payloads are richer than runtime cards, but their client-facing identity has also been simplified.
+## Watch Collection Endpoints
 
-### Important rule
+The following endpoints all return paginated canonical watch envelopes:
 
-Do not assume client-facing metadata detail payloads expose canonical/internal ids as the primary navigation contract.
+- `GET /v1/profiles/:profileId/watch/continue-watching`
+- `GET /v1/profiles/:profileId/watch/watched`
+- `GET /v1/profiles/:profileId/watch/watchlist`
+- `GET /v1/profiles/:profileId/watch/ratings`
 
-For detail payloads, client should treat `mediaKey` as the stable public identity field.
+Shared envelope:
 
-Supporting fields still include:
+```json
+{
+  "profileId": "string",
+  "kind": "continue-watching | watched | watchlist | ratings",
+  "source": "canonical_watch",
+  "generatedAt": "string",
+  "items": [],
+  "pageInfo": {
+    "nextCursor": "string | null",
+    "hasMore": "boolean"
+  }
+}
+```
 
-- `mediaType`
-- `provider`
-- `providerId`
+### Continue watching items
 
-### Search/detail alignment
+Shape:
 
-These card-like metadata structures now follow the same `mediaKey`-first model as search/runtime cards:
+```json
+{
+  "id": "string",
+  "media": "LandscapeCard",
+  "progress": {
+    "positionSeconds": "number | null",
+    "durationSeconds": "number | null",
+    "progressPercent": "number",
+    "lastPlayedAt": "string | null"
+  } | null,
+  "lastActivityAt": "string",
+  "origins": ["string"],
+  "dismissible": "boolean"
+}
+```
 
-- search result items
-- `similar`
-- `collection.parts`
-- person `knownFor`
+Important:
 
-### Rich detail payloads
+- continue-watching items do not currently include `watchedAt`
+- clients must not require `watchedAt` on continue-watching rows
 
-The server may still use internal canonical ids internally, but client should not depend on them for normal navigation or card rendering.
+### Watched items
 
-If a client needs richer detail:
+Shape:
 
-1. keep `mediaKey` from the current item
-2. call metadata/detail/playback endpoints
-3. render the richer response
+```json
+{
+  "media": "RegularCard",
+  "watchedAt": "string",
+  "origins": ["string"]
+}
+```
 
-For metadata title routes:
+### Watchlist items
 
-- `/v1/metadata/titles/:mediaKey`
-- `/v1/metadata/titles/:mediaKey/content`
-- `/v1/metadata/titles/:mediaKey/seasons/:seasonNumber`
+Shape:
 
-clients should use title `mediaKey` values such as `movie:tmdb:487672`, `show:tmdb:1399`, `show:tvdb:121361`, or `anime:kitsu:1`.
-Canonical internal UUID `content_id` values are internal-only and are not part of the client contract.
+```json
+{
+  "media": "RegularCard",
+  "addedAt": "string",
+  "origins": ["string"]
+}
+```
 
-Current route split:
+### Ratings items
 
-- `/v1/metadata/resolve`, `/v1/metadata/titles/:mediaKey`, `/v1/metadata/titles/:mediaKey/seasons/:seasonNumber` go through the metadata detail/search boundary
-- `/v1/metadata/titles/:mediaKey/content` goes through metadata content plus gated MDB enrichment
-- `/v1/metadata/titles/:mediaKey/episodes` and `/next-episode` go through episode navigation
-- `/v1/playback/resolve` goes through playback resolution
-- `/v1/metadata/people/:id` remains a separate person-detail route
+Shape:
 
-## Watch List Endpoints
+```json
+{
+  "media": "RegularCard",
+  "rating": {
+    "value": "number",
+    "ratedAt": "string"
+  },
+  "origins": ["string"]
+}
+```
 
-These now return simple item shapes too:
+## Watch State Endpoints
 
-- `/watch/continue-watching`
-- `/watch/watched`
-- `/watch/watchlist`
-- `/watch/ratings`
+## `GET /v1/profiles/:profileId/watch/state`
 
-For continue watching items, expect:
+Query:
 
-- `id`
-- `media` as a landscape card
-- `progress`
-- `watchedAt`
-- `lastActivityAt`
-- `origins`
-- `dismissible`
+```json
+{
+  "mediaKey": "string"
+}
+```
 
-For watched/watchlist/ratings items, expect:
+Response:
 
-- `media` as a regular card
-- relevant state fields
-- `origins`
+```json
+{
+  "profileId": "string",
+  "source": "canonical_watch",
+  "generatedAt": "string",
+  "item": {
+    "media": "RegularCard",
+    "progress": {
+      "positionSeconds": "number | null",
+      "durationSeconds": "number | null",
+      "progressPercent": "number",
+      "status": "string",
+      "lastPlayedAt": "string"
+    } | null,
+    "continueWatching": {
+      "id": "string",
+      "positionSeconds": "number | null",
+      "durationSeconds": "number | null",
+      "progressPercent": "number",
+      "lastActivityAt": "string"
+    } | null,
+    "watched": {
+      "watchedAt": "string"
+    } | null,
+    "watchlist": {
+      "addedAt": "string"
+    } | null,
+    "rating": {
+      "value": "number",
+      "ratedAt": "string"
+    } | null,
+    "watchedEpisodeKeys": ["string"]
+  }
+}
+```
 
-## Client Behavior Guidance
+Important:
 
-Recommended client flow:
+- this endpoint is `mediaKey`-based
+- clients must not call it with only provider fragments when `mediaKey` lookup is expected
 
-1. render cards from runtime/list payloads
-2. on click, use `mediaKey`
-3. ask the server for richer metadata/details on demand
+## `POST /v1/profiles/:profileId/watch/states`
 
-Good mental model:
+Request body:
 
-- runtime payloads are for fast rendering
-- metadata endpoints are for detail screens
-- user state stays separate from richer metadata
-- `mediaKey` should remain the default client navigation model across runtime, search, and related items
+```json
+{
+  "items": [
+    { "mediaKey": "string" }
+  ]
+}
+```
 
-## Compatibility Note
+Response:
 
-This contract intentionally does not provide legacy fallbacks.
+```json
+{
+  "profileId": "string",
+  "source": "canonical_watch",
+  "generatedAt": "string",
+  "items": ["WatchStateItem"]
+}
+```
+
+## `GET /v1/search/titles`
+
+Response:
+
+```json
+{
+  "query": "string",
+  "items": ["RegularCard"]
+}
+```
 
 Rules:
 
-- do not fall back to old UUID-based detail/playback fields
-- do not assume internal content ids are present on normal cards
-- do not assume watch/list payloads expose internal ids instead of `mediaKey`
-- do not assume every continue-watching item is dismissible
+- every search item includes `mediaKey`
+- use `mediaKey` for navigation
+- do not assume internal IDs are present
+
+## Metadata Endpoints
+
+## `GET /v1/metadata/resolve`
+
+Accepted query fields:
+
+- `mediaKey`
+- `imdbId`
+- `mediaType`
+- `provider`
+- `providerId`
+- `parentProvider`
+- `parentProviderId`
+- `seasonNumber`
+- `episodeNumber`
+
+Response:
+
+```json
+{
+  "item": "MetadataView"
+}
+```
+
+`MetadataView` includes a required `mediaKey` plus supporting identity and detail fields:
+
+```json
+{
+  "mediaKey": "string",
+  "mediaType": "string",
+  "kind": "title | episode",
+  "provider": "string",
+  "providerId": "string",
+  "parentMediaType": "string | null",
+  "parentProvider": "string | null",
+  "parentProviderId": "string | null",
+  "tmdbId": "integer | null",
+  "showTmdbId": "integer | null",
+  "seasonNumber": "integer | null",
+  "episodeNumber": "integer | null",
+  "absoluteEpisodeNumber": "integer | null",
+  "title": "string | null",
+  "subtitle": "string | null",
+  "summary": "string | null",
+  "overview": "string | null",
+  "artwork": {
+    "posterUrl": "string | null",
+    "backdropUrl": "string | null",
+    "stillUrl": "string | null"
+  },
+  "images": {
+    "posterUrl": "string | null",
+    "backdropUrl": "string | null",
+    "stillUrl": "string | null",
+    "logoUrl": "string | null"
+  },
+  "releaseDate": "string | null",
+  "releaseYear": "integer | null",
+  "runtimeMinutes": "integer | null",
+  "rating": "number | null",
+  "status": "string | null",
+  "certification": "string | null",
+  "genres": ["string"],
+  "externalIds": {
+    "tmdb": "integer | null",
+    "imdb": "string | null",
+    "tvdb": "integer | null",
+    "kitsu": "string | null"
+  },
+  "seasonCount": "integer | null",
+  "episodeCount": "integer | null",
+  "nextEpisode": "MetadataEpisodePreview | null"
+}
+```
+
+## `GET /v1/metadata/titles/:mediaKey`
+
+Response:
+
+```json
+{
+  "item": "MetadataView",
+  "seasons": ["MetadataSeasonView"],
+  "videos": ["MetadataVideoView"],
+  "cast": ["MetadataPersonRefView"],
+  "directors": ["MetadataPersonRefView"],
+  "creators": ["MetadataPersonRefView"],
+  "reviews": ["MetadataReviewView"],
+  "production": "MetadataProductionInfoView",
+  "collection": {
+    "id": "string | integer",
+    "provider": "string",
+    "providerId": "string",
+    "name": "string",
+    "posterUrl": "string | null",
+    "backdropUrl": "string | null",
+    "parts": ["RegularCard"]
+  } | null,
+  "similar": ["RegularCard"]
+}
+```
+
+Identity guarantees:
+
+- `item.mediaKey` is required
+- `similar[*].mediaKey` is required
+- `collection.parts[*].mediaKey` is required
+
+## `GET /v1/metadata/titles/:mediaKey/content`
+
+Response:
+
+```json
+{
+  "item": "MetadataView",
+  "content": "MDB-enriched content payload"
+}
+```
+
+`item.mediaKey` remains the public identity field for the title.
+
+## `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber`
+
+Response:
+
+```json
+{
+  "show": "MetadataView",
+  "season": "MetadataSeasonView",
+  "episodes": ["MetadataEpisodeView"]
+}
+```
+
+## `GET /v1/metadata/titles/:mediaKey/episodes`
+
+Response:
+
+```json
+{
+  "show": "MetadataView",
+  "requestedSeasonNumber": "integer | null",
+  "effectiveSeasonNumber": "integer",
+  "includedSeasonNumbers": ["integer"],
+  "episodes": ["MetadataEpisodeView"]
+}
+```
+
+## `GET /v1/metadata/titles/:mediaKey/next-episode`
+
+Response:
+
+```json
+{
+  "show": "MetadataView",
+  "currentSeasonNumber": "integer",
+  "currentEpisodeNumber": "integer",
+  "item": "MetadataEpisodeView | null"
+}
+```
+
+## `GET /v1/metadata/people/:id`
+
+Response:
+
+```json
+{
+  "id": "string",
+  "provider": "string",
+  "providerId": "string",
+  "tmdbPersonId": "integer",
+  "name": "string",
+  "knownForDepartment": "string | null",
+  "biography": "string | null",
+  "birthday": "string | null",
+  "placeOfBirth": "string | null",
+  "profileUrl": "string | null",
+  "imdbId": "string | null",
+  "instagramId": "string | null",
+  "twitterId": "string | null",
+  "knownFor": [
+    {
+      "mediaType": "string",
+      "mediaKey": "string",
+      "provider": "string",
+      "providerId": "string",
+      "tmdbId": "integer",
+      "title": "string",
+      "posterUrl": "string | null",
+      "rating": "number | null",
+      "releaseYear": "integer | null"
+    }
+  ]
+}
+```
+
+Identity guarantee:
+
+- `knownFor[*].mediaKey` is required
+
+## `GET /v1/playback/resolve`
+
+Response:
+
+```json
+{
+  "item": "MetadataView",
+  "show": "MetadataView | null",
+  "season": "MetadataSeasonView | null"
+}
+```
+
+Clients should continue using `mediaKey` as the public identity when moving from playback resolution back into title detail navigation.
+
+## Navigation Matrix
+
+The following matrix is the practical client rule set.
+
+| Surface | `mediaKey` guaranteed | Notes |
+| --- | --- | --- |
+| Search item | Yes | Regular card |
+| Library `item.media` | Yes | Regular card |
+| Watched `item.media` | Yes | Regular card |
+| Watchlist `item.media` | Yes | Regular card |
+| Ratings `item.media` | Yes | Regular card |
+| Continue watching `item.media` | Yes | Landscape card |
+| Calendar `item.media` | Yes | Landscape card |
+| Calendar `relatedShow` | Yes | Regular card |
+| Home snapshot `regular` item `media` | Yes | Regular card |
+| Home snapshot `landscape` item `media` | Yes | Landscape card |
+| Home snapshot `hero` item | Yes | Hero card |
+| Home snapshot `collection` inner item | No | Display-only today |
+| Metadata detail `item` | Yes | MetadataView |
+| Metadata detail `similar[*]` | Yes | Regular card |
+| Metadata detail `collection.parts[*]` | Yes | Regular card |
+| Person `knownFor[*]` | Yes | Person-known-for item |
+
+## Client Guidance
+
+Recommended client behavior:
+
+1. render list and runtime payloads directly
+2. use `mediaKey` whenever it is present
+3. fetch metadata or playback detail on demand
+4. branch on `layout` for recommendation snapshot sections
+5. do not assume recommendation collection items are directly navigable
+
+## Compatibility Notes
+
+This contract does not preserve legacy UUID-first client behavior.
+
+Clients must not assume:
+
+- internal content UUIDs are present on normal cards
+- continue-watching items contain `watchedAt`
+- all recommendation layouts expose the same identity fields
+- recommendation collection items include `mediaKey`
+- old detail/playback targets are still part of the public surface
