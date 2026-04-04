@@ -3,7 +3,6 @@ import { HttpError } from '../../lib/errors.js';
 import { recommendationConfig } from './recommendation-config.js';
 import type {
   RecommendationWorkerGenerateRequest,
-  RecommendationWorkerGenerateResponse,
   RecommendationWorkerStatusResponse,
   RecommendationWorkerSubmitResponse,
 } from './recommendation-worker.types.js';
@@ -14,7 +13,6 @@ type RecommendationEngineClientConfig = {
   baseUrl: string;
   apiKey: string;
   serviceId: string;
-  timeoutMs: number;
   submitTimeoutMs: number;
   statusTimeoutMs: number;
 };
@@ -23,7 +21,6 @@ export class RecommendationEngineClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly serviceId: string;
-  private readonly timeoutMs: number;
   private readonly submitTimeoutMs: number;
   private readonly statusTimeoutMs: number;
 
@@ -31,7 +28,6 @@ export class RecommendationEngineClient {
     this.baseUrl = normalizeBaseUrl(config?.baseUrl ?? env.recommendationEngineWorkerBaseUrl);
     this.apiKey = (config?.apiKey ?? env.recommendationEngineWorkerApiKey).trim();
     this.serviceId = (config?.serviceId ?? env.recommendationEngineWorkerServiceId).trim();
-    this.timeoutMs = config?.timeoutMs ?? recommendationConfig.workerTimeoutMs;
     this.submitTimeoutMs = config?.submitTimeoutMs ?? recommendationConfig.workerSubmitTimeoutMs;
     this.statusTimeoutMs = config?.statusTimeoutMs ?? recommendationConfig.workerStatusTimeoutMs;
   }
@@ -49,49 +45,6 @@ export class RecommendationEngineClient {
           this.serviceId ? null : 'RECOMMENDATION_ENGINE_WORKER_SERVICE_ID',
         ].filter(Boolean),
       });
-    }
-  }
-
-  async generate(input: RecommendationWorkerGenerateRequest): Promise<RecommendationWorkerGenerateResponse> {
-    this.assertConfigured();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    try {
-      const response = await fetch(`${this.baseUrl}/v1/generate`, {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          'x-service-id': this.serviceId,
-          'x-api-key': this.apiKey,
-        },
-        body: JSON.stringify(input),
-        signal: controller.signal,
-      });
-
-      const text = await response.text();
-      const payload = parseJson(text);
-      if (!response.ok) {
-        const message = readErrorMessage(payload) ?? `Recommendation worker request failed with status ${response.status}.`;
-        throw new HttpError(response.status, message, payload ?? (text ? { raw: text } : null));
-      }
-
-      if (!payload) {
-        throw new HttpError(502, 'Recommendation worker returned an empty response.');
-      }
-
-      return payload as RecommendationWorkerGenerateResponse;
-    } catch (error) {
-      if (error instanceof HttpError) {
-        throw error;
-      }
-
-      throw new HttpError(502, 'Recommendation worker request failed.', {
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

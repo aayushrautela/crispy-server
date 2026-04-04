@@ -40,19 +40,10 @@ export class RecommendationGenerationOrchestratorService {
     private readonly workerClient = new RecommendationEngineClient(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly enqueuePoll: PollEnqueueFn = defaultEnqueueRecommendationPoll,
-    private readonly config: Pick<typeof recommendationConfig, 'workerMode' | 'pollDelayMs' | 'maxPollDelayMs'> = recommendationConfig,
+    private readonly config: Pick<typeof recommendationConfig, 'pollDelayMs' | 'maxPollDelayMs'> = recommendationConfig,
   ) {}
 
-  async ensureGeneration(profileId: string): Promise<{ jobId: string; status: string; mode: 'sync' | 'async' }> {
-    if (this.config.workerMode === 'sync') {
-      const result = await this.generationService.generateForProfile(profileId);
-      return {
-        jobId: `sync:${result.profileId}:${result.historyGeneration}`,
-        status: 'succeeded',
-        mode: 'sync',
-      };
-    }
-
+  async ensureGeneration(profileId: string): Promise<{ jobId: string; status: string }> {
     const { context, payload } = await this.generationService.buildGenerationRequest(profileId);
     const idempotencyKey = buildIdempotencyKey(payload);
 
@@ -67,16 +58,16 @@ export class RecommendationGenerationOrchestratorService {
     });
 
     if (job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled') {
-      return { jobId: job.id, status: job.status, mode: 'async' };
+      return { jobId: job.id, status: job.status };
     }
 
     if (job.workerJobId && (job.status === 'queued' || job.status === 'running')) {
       await this.schedulePoll(job, resolveNextPollDelayMs(this.config, job.lastStatusPayload));
-      return { jobId: job.id, status: job.status, mode: 'async' };
+      return { jobId: job.id, status: job.status };
     }
 
     const submission = await this.submitJob(job);
-    return { jobId: job.id, status: submission.status, mode: 'async' };
+    return { jobId: job.id, status: submission.status };
   }
 
   async submitJob(job: RecommendationGenerationJobRecord): Promise<RecommendationWorkerSubmitResponse> {
@@ -188,10 +179,6 @@ export class RecommendationGenerationOrchestratorService {
   }
 
   async reconcileDueJobs(limit = 25): Promise<{ recoveredCount: number; inspectedCount: number }> {
-    if (this.config.workerMode !== 'async') {
-      return { recoveredCount: 0, inspectedCount: 0 };
-    }
-
     const now = new Date();
     const stalePendingBefore = new Date(now.getTime() - this.config.maxPollDelayMs).toISOString();
     const jobs = await this.runInTransaction(async (client) => this.jobsRepository.listRecoverable(client, {
@@ -290,9 +277,6 @@ export class RecommendationGenerationOrchestratorService {
   }
 
   private async schedulePoll(job: RecommendationGenerationJobRecord, delayMs: number): Promise<void> {
-    if (this.config.workerMode !== 'async') {
-      return;
-    }
     await this.enqueuePoll(job.id, delayMs);
   }
 

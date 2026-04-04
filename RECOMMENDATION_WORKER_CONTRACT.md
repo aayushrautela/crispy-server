@@ -809,15 +809,9 @@ For v1, unsupported algorithm versions should be rejected immediately at submiss
 
 ---
 
-## 13. Migration From Current Sync Contract
+## 13. Async Contract Summary
 
-Current behavior is effectively:
-
-```text
-POST /v1/generate -> wait for final result
-```
-
-Target behavior becomes:
+Recommendation generation now uses the async contract:
 
 ```text
 POST /v1/generations -> receive job reference

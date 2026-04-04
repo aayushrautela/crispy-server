@@ -8,6 +8,5 @@ export async function runGenerateRecommendationsJob(payload: { profileId: string
     profileId: payload.profileId,
     localJobId: result.jobId,
     status: result.status,
-    mode: result.mode,
   }, 'recommendation generation job processed');
 }

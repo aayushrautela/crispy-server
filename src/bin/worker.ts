@@ -26,15 +26,13 @@ async function runRecommendationReconciliation(logMessage: string): Promise<void
   }
 }
 
-if (recommendationConfig.workerMode === 'async') {
-  void runRecommendationReconciliation('failed to reconcile recommendation generation jobs on startup');
+void runRecommendationReconciliation('failed to reconcile recommendation generation jobs on startup');
 
-  recoveryTimer = setInterval(() => {
-    void runRecommendationReconciliation('failed to reconcile recommendation generation jobs');
-  }, recommendationConfig.pollDelayMs);
+recoveryTimer = setInterval(() => {
+  void runRecommendationReconciliation('failed to reconcile recommendation generation jobs');
+}, recommendationConfig.pollDelayMs);
 
-  logger.info({ intervalMs: recommendationConfig.pollDelayMs }, 'scheduled recommendation generation reconciliation');
-}
+logger.info({ intervalMs: recommendationConfig.pollDelayMs }, 'scheduled recommendation generation reconciliation');
 
 logger.info('worker started');
 

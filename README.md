@@ -95,7 +95,7 @@ Redis backs BullMQ and cached API surfaces such as home and calendar.
 
 - Internal callers use `x-service-id` and `x-api-key`.
 - Credentials come from `SERVICE_CLIENTS_JSON`.
-- This is mainly used for hosted internal consumers such as the recommendation engine.
+- This is for privileged internal services that call this API.
 
 ## Auth envs
 
@@ -441,6 +441,7 @@ The recommendation worker no longer polls the API server for claim/renew/complet
      - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
      - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
      - `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY` configure outbound recommendation-generation calls from the API server to the recommendation worker.
+     - `RECOMMENDATION_ENGINE_WORKER_SUBMIT_TIMEOUT_MS`, `RECOMMENDATION_ENGINE_WORKER_STATUS_TIMEOUT_MS`, `RECOMMENDATION_GENERATION_POLL_DELAY_MS`, and `RECOMMENDATION_GENERATION_MAX_POLL_DELAY_MS` tune async submit-plus-poll orchestration with the recommendation worker.
      - `RECOMMENDATION_ALGORITHM_VERSION` sets the canonical recommendation snapshot version. It defaults to `v3.2.1`.
      - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
      - Runtime defaults live in `config/app-config.json.example`. The loader checks `config/app-config.json` first (gitignored, for local overrides), then falls back to the example template. Override the path with `APP_CONFIG_PATH` if needed.

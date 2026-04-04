@@ -120,7 +120,6 @@ test('ensureGeneration creates and submits async job', async () => {
   const service = new RecommendationGenerationOrchestratorService(
     {
       buildGenerationRequest: async () => buildResult,
-      generateForProfile: async () => { throw new Error('not used'); },
       applyWorkerResponse: async () => ({ profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 }),
     } as never,
     {
@@ -145,12 +144,11 @@ test('ensureGeneration creates and submits async job', async () => {
     } as never,
     NOOP_TRANSACTION,
     async (jobId, delayMs) => { scheduledPolls.push({ jobId, delayMs }); },
-    { workerMode: 'async', pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    { pollDelayMs: 1500, maxPollDelayMs: 10_000 },
   );
 
   const result = await service.ensureGeneration('profile-1');
 
-  assert.equal(result.mode, 'async');
   assert.equal(result.jobId, 'local-job-1');
   assert.equal(result.status, 'queued');
   assert.equal(createdJobs.length, 1);
@@ -170,7 +168,6 @@ test('pollJob resubmits pending jobs without worker job id', async () => {
   const service = new RecommendationGenerationOrchestratorService(
     {
       buildGenerationRequest: async () => { throw new Error('not used'); },
-      generateForProfile: async () => { throw new Error('not used'); },
       applyWorkerResponse: async () => ({ profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 }),
     } as never,
     {
@@ -194,7 +191,7 @@ test('pollJob resubmits pending jobs without worker job id', async () => {
     } as never,
     NOOP_TRANSACTION,
     async (jobId, delayMs) => { scheduledPolls.push({ jobId, delayMs }); },
-    { workerMode: 'async', pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    { pollDelayMs: 1500, maxPollDelayMs: 10_000 },
   );
 
   const result = await service.pollJob(job.id);
@@ -215,7 +212,6 @@ test('pollJob persists worker success using stored request lineage', async () =>
   const service = new RecommendationGenerationOrchestratorService(
     {
       buildGenerationRequest: async () => { throw new Error('not used'); },
-      generateForProfile: async () => { throw new Error('not used'); },
       applyWorkerResponse: async (context: Record<string, unknown>, response: Record<string, unknown>) => {
         appliedContexts.push({ ...context, response });
         return { profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 };
@@ -241,7 +237,7 @@ test('pollJob persists worker success using stored request lineage', async () =>
     } as never,
     NOOP_TRANSACTION,
     async () => {},
-    { workerMode: 'async', pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    { pollDelayMs: 1500, maxPollDelayMs: 10_000 },
   );
 
   const result = await service.pollJob(job.id);
@@ -268,7 +264,6 @@ test('reconcileDueJobs retries pending submissions and reschedules active polls'
   const service = new RecommendationGenerationOrchestratorService(
     {
       buildGenerationRequest: async () => { throw new Error('not used'); },
-      generateForProfile: async () => { throw new Error('not used'); },
       applyWorkerResponse: async () => ({ profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 }),
     } as never,
     {
@@ -290,7 +285,7 @@ test('reconcileDueJobs retries pending submissions and reschedules active polls'
     } as never,
     NOOP_TRANSACTION,
     async (jobId, delayMs) => { scheduledPolls.push({ jobId, delayMs }); },
-    { workerMode: 'async', pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    { pollDelayMs: 1500, maxPollDelayMs: 10_000 },
   );
 
   const result = await service.reconcileDueJobs(10);

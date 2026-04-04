@@ -3,10 +3,8 @@ import { env } from '../../config/env.js';
 export const recommendationConfig = {
   sourceKey: 'default',
   algorithmVersion: env.recommendationAlgorithmVersion,
-  workerMode: env.recommendationWorkerMode,
   generationTtlSeconds: env.recommendationGenerationTtlSeconds,
   queueDelayMs: env.recommendationGenerationQueueDelayMs,
-  workerTimeoutMs: env.recommendationEngineWorkerTimeoutMs,
   workerSubmitTimeoutMs: env.recommendationEngineWorkerSubmitTimeoutMs,
   workerStatusTimeoutMs: env.recommendationEngineWorkerStatusTimeoutMs,
   pollDelayMs: env.recommendationGenerationPollDelayMs,

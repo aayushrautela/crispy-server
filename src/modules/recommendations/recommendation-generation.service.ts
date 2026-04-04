@@ -7,7 +7,6 @@ import { FeatureEntitlementService } from '../entitlements/feature-entitlement.s
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { RecommendationDataService } from './recommendation-data.service.js';
 import { recommendationConfig } from './recommendation-config.js';
-import { RecommendationEngineClient } from './recommendation-engine-client.js';
 import { RecommendationOutputService } from './recommendation-output.service.js';
 import { RecommendationSnapshotsRepository } from './recommendation-snapshots.repo.js';
 import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
@@ -48,21 +47,8 @@ export class RecommendationGenerationService {
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
     private readonly recommendationDataService = new RecommendationDataService(),
     private readonly featureEntitlementService = new FeatureEntitlementService(),
-    private readonly recommendationEngineClient = new RecommendationEngineClient(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
   ) {}
-
-  async generateForProfile(profileId: string): Promise<{
-    profileId: string;
-    sourceKey: string;
-    algorithmVersion: string;
-    historyGeneration: number;
-    sections: number;
-  }> {
-    const { context, payload } = await this.buildGenerationRequest(profileId);
-    const response = await this.recommendationEngineClient.generate(payload);
-    return this.applyWorkerResponse(context, response);
-  }
 
   async buildGenerationRequest(profileId: string): Promise<RecommendationGenerationBuildResult> {
     const context = await this.loadGenerationContext(profileId);
