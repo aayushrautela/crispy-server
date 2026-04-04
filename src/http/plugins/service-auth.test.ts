@@ -5,7 +5,7 @@ import { setTestEnv } from '../../test-helpers.js';
 const SERVICE_CLIENTS = JSON.stringify([
   { serviceId: 'svc', apiKey: 'secret', scopes: ['profiles:read'], status: 'active' },
   { serviceId: 'svc-disabled', apiKey: 'disabled-secret', scopes: ['profiles:read'], status: 'disabled' },
-  { serviceId: 'crispy-recommendation-engine', apiKey: 'engine-secret', scopes: ['profiles:read', 'recommendation-work:claim'], status: 'active' },
+  { serviceId: 'crispy-recommendation-engine', apiKey: 'engine-secret', scopes: ['profiles:read', 'recommendations:read'], status: 'active' },
 ]);
 
 setTestEnv({ SERVICE_CLIENTS_JSON: SERVICE_CLIENTS });
@@ -97,7 +97,7 @@ test('service auth authenticates valid active clients', async (t) => {
       type: 'service',
       appUserId: null,
       serviceId: 'crispy-recommendation-engine',
-      scopes: ['profiles:read', 'recommendation-work:claim'],
+      scopes: ['profiles:read', 'recommendations:read'],
       authSubject: null,
       email: null,
       tokenId: null,

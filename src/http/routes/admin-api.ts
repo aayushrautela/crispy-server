@@ -2,6 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
 import { WorkerControlClient, type WorkerControlJobTarget } from '../../modules/admin/worker-control-client.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
+import {
+  recommendationConfig,
+  resolveRecommendationAlgorithmVersion,
+  resolveRecommendationSourceKey,
+} from '../../modules/recommendations/recommendation-config.js';
 import { ProviderAdminService } from '../../modules/integrations/provider-admin.service.js';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
@@ -37,12 +42,16 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const recommendationDataService = new RecommendationDataService();
   const recommendationOutputService = new RecommendationOutputService();
 
-  async function requireAdmin(request: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply): Promise<void> {
-    await app.requireAdminUi(request, reply);
+  async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
+    await app.requireAdminUi(request);
+  }
+
+  async function requireAdminMutation(request: import('fastify').FastifyRequest): Promise<void> {
+    await app.requireAdminUiMutation(request);
   }
 
   app.get('/admin/api/worker/control-status', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const configured = workerControlClient.isConfigured();
     if (!configured) {
       return {
@@ -77,47 +86,47 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/worker/jobs/status', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     return workerControlClient.getJobStatus();
   });
 
   app.post('/admin/api/worker/jobs/trigger', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdminMutation(request);
     return workerControlClient.triggerJob(parseTriggerInput(request.body));
   });
 
   app.post('/admin/api/worker/jobs/:jobId/cancel', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdminMutation(request);
     const params = asRecord(request.params);
     return workerControlClient.cancelJob(readRequiredString(params.jobId, 'jobId'));
   });
 
   app.delete('/admin/api/worker/jobs/:jobId', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdminMutation(request);
     const params = asRecord(request.params);
     return workerControlClient.deleteJob(readRequiredString(params.jobId, 'jobId'));
   });
 
-  app.get('/admin/api/diagnostics/recommendations/work-state', async (request, reply) => {
-    await requireAdmin(request, reply);
-    const query = asRecord(request.query);
-    return recommendationAdminService.getWorkState(parseLimit(query.limit));
-  });
-
   app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const query = asRecord(request.query);
     return recommendationAdminService.getOutbox(parseLimit(query.limit));
   });
 
-  app.get('/admin/api/diagnostics/recommendations/consumers', async (request, reply) => {
-    await requireAdmin(request, reply);
+  app.get('/admin/api/diagnostics/recommendations/generation-jobs', async (request, reply) => {
+    await requireAdmin(request);
     const query = asRecord(request.query);
-    return recommendationAdminService.listConsumers(parseLimit(query.limit));
+    return recommendationAdminService.getGenerationJobs(parseLimit(query.limit));
+  });
+
+  app.get('/admin/api/diagnostics/recommendations/generation-jobs/:jobId', async (request, reply) => {
+    await requireAdmin(request);
+    const params = asRecord(request.params);
+    return recommendationAdminService.getGenerationJob(readRequiredString(params.jobId, 'jobId'));
   });
 
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const query = asRecord(request.query);
     return providerAdminService.listConnections({
       provider: parseProvider(query.provider),
@@ -129,7 +138,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/diagnostics/imports/jobs', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const query = asRecord(request.query);
     const result = await providerAdminService.listJobs({
       provider: parseProvider(query.provider),
@@ -143,7 +152,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/lookup-by-email/:email', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = asRecord(request.params);
     return {
       account: await accountLookupService.getByEmail(readRequiredString(params.email, 'email')),
@@ -151,7 +160,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = asRecord(request.params);
     return {
       profiles: await recommendationDataService.listAccountProfilesForService(readRequiredString(params.accountId, 'accountId')),
@@ -159,7 +168,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/watch-history', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
@@ -172,7 +181,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/continue-watching', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
@@ -185,7 +194,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/watchlist', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
@@ -198,7 +207,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/ratings', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
@@ -211,7 +220,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/tracked-series', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
@@ -224,26 +233,24 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/taste-profile', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
       tasteProfile: await recommendationOutputService.getTasteProfileForAccountService(
         params.accountId,
         params.profileId,
-        typeof query.sourceKey === 'string' && query.sourceKey.trim() ? query.sourceKey.trim() : 'default',
+        resolveRecommendationSourceKey(query.sourceKey),
       ),
     };
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/recommendations', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
-    const sourceKey = typeof query.sourceKey === 'string' && query.sourceKey.trim() ? query.sourceKey.trim() : 'default';
-    const algorithmVersion = typeof query.algorithmVersion === 'string' && query.algorithmVersion.trim()
-      ? query.algorithmVersion.trim()
-      : 'default';
+    const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
+    const algorithmVersion = resolveRecommendationAlgorithmVersion(query.algorithmVersion);
     return {
       recommendations: await recommendationOutputService.getRecommendationsForAccountService(
         params.accountId,
@@ -255,7 +262,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/imports/overview', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const [connectionsResult, jobsResult, providerStates] = await Promise.all([
       providerImportService.listConnections(params.accountId, params.profileId),
@@ -272,7 +279,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/imports/start', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdminMutation(request);
     const params = parseAccountProfileParams(request.params);
     const body = asRecord(request.body);
     const started = await providerImportService.startReplaceImport(
@@ -291,7 +298,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   });
 
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/refresh-token', async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdminMutation(request);
     const params = parseProviderParams(request.params);
     await providerTokenAccessService.getAccessTokenForAccountProfile(
       params.accountId,
@@ -321,7 +328,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
       body: { type: 'object', additionalProperties: false },
     },
   }, async (request, reply) => {
-    await requireAdmin(request, reply);
+    await requireAdminMutation(request);
     const params = parseProviderParams(request.params);
     return providerImportService.disconnectConnection(
       params.accountId,
@@ -374,7 +381,7 @@ async function loadProviderStates(
 function parseTriggerInput(body: unknown): { target: WorkerControlJobTarget; options?: Record<string, unknown> } {
   const value = asRecord(body);
   const target = readRequiredString(value.target, 'target');
-  if (target !== 'recommendations_daily' && target !== 'provider_token_maintenance') {
+  if (target !== 'provider_token_maintenance') {
     throw new HttpError(400, 'Invalid worker target.');
   }
 

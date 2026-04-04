@@ -78,6 +78,10 @@ export const ADMIN_UI_STYLES = `
     border-color: var(--line-soft);
   }
 
+  .logout-form {
+    margin: 0;
+  }
+
   button.ghost {
     background: transparent;
     border-color: var(--line);
@@ -154,6 +158,72 @@ export const ADMIN_UI_STYLES = `
     display: grid;
     grid-template-columns: 252px minmax(0, 1fr);
     background: var(--bg);
+  }
+
+  .login-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+
+  .login-card {
+    width: min(440px, 100%);
+    display: grid;
+    gap: 20px;
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(33, 30, 28, 0.98), rgba(27, 24, 23, 0.98));
+    box-shadow: var(--shadow);
+  }
+
+  .login-copy {
+    display: grid;
+    gap: 8px;
+  }
+
+  .eyebrow {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .login-copy h1 {
+    margin: 0;
+    font-size: 32px;
+    line-height: 1.1;
+  }
+
+  .login-note {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .login-form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .login-message {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+  }
+
+  .login-message.warn {
+    border-color: rgba(212, 161, 93, 0.4);
+    color: #f4d8a7;
+  }
+
+  .login-message.error {
+    border-color: rgba(203, 107, 97, 0.45);
+    color: #f0b2ac;
   }
 
   .sidebar {

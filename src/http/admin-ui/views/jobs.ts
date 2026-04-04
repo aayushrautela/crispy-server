@@ -11,18 +11,6 @@ export function renderJobsView(): string {
       <div class="stats-grid" id="job-stats"></div>
 
       <div class="trigger-grid">
-        <form class="trigger-card" data-target="recommendations_daily">
-          <h3>Recommendations Daily</h3>
-          <p>Kick a recommendation recompute pass from the control plane.</p>
-          <div class="checkbox-row">
-            <label><input type="checkbox" name="all"> Process all</label>
-            <label><input type="checkbox" name="force"> Force recompute</label>
-          </div>
-          <div class="jobs-toolbar">
-            <button type="submit">Start run</button>
-          </div>
-        </form>
-
         <form class="trigger-card" data-target="provider_token_maintenance">
           <h3>Provider Token Maintenance</h3>
           <p>Refresh expiring provider tokens for Trakt or Simkl.</p>

@@ -4,6 +4,10 @@ import { HttpError } from '../../lib/errors.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
 import { isProviderImportProvider, type ProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
+import {
+  resolveRecommendationAlgorithmVersion,
+  resolveRecommendationSourceKey,
+} from '../../modules/recommendations/recommendation-config.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { ProfileSecretAccessService } from '../../modules/profiles/profile-secret-access.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
@@ -94,7 +98,7 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
       tasteProfile: await recommendationOutputService.getTasteProfileForAccountService(
         params.accountId,
         params.profileId,
-        parseSourceKey(query.sourceKey),
+        resolveRecommendationSourceKey(query.sourceKey),
       ),
     };
   });
@@ -121,8 +125,8 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
       recommendations: await recommendationOutputService.getRecommendationsForAccountService(
         params.accountId,
         params.profileId,
-        parseSourceKey(query.sourceKey),
-        parseAlgorithmVersion(query.algorithmVersion),
+        resolveRecommendationSourceKey(query.sourceKey),
+        resolveRecommendationAlgorithmVersion(query.algorithmVersion),
       ),
     };
   });
@@ -211,7 +215,7 @@ function parseProviderParams(value: unknown): { accountId: string; profileId: st
 function parseTasteProfileInput(body: unknown) {
   const value = asRecord(body);
   return {
-    sourceKey: parseSourceKey(value.sourceKey),
+    sourceKey: resolveRecommendationSourceKey(value.sourceKey),
     genres: Array.isArray(value.genres) ? value.genres : [],
     preferredActors: Array.isArray(value.preferredActors) ? value.preferredActors : [],
     preferredDirectors: Array.isArray(value.preferredDirectors) ? value.preferredDirectors : [],
@@ -227,12 +231,7 @@ function parseTasteProfileInput(body: unknown) {
 
 function parseRecommendationSnapshotInput(body: unknown) {
   const value = asRecord(body);
-  const algorithmVersion = typeof value.algorithmVersion === 'string' && value.algorithmVersion.trim()
-    ? value.algorithmVersion.trim()
-    : null;
-  if (!algorithmVersion) {
-    throw new HttpError(400, 'algorithmVersion is required.');
-  }
+  const algorithmVersion = resolveRecommendationAlgorithmVersion(value.algorithmVersion);
 
   const historyGeneration = Number(value.historyGeneration);
   if (!Number.isInteger(historyGeneration) || historyGeneration < 0) {
@@ -245,7 +244,7 @@ function parseRecommendationSnapshotInput(body: unknown) {
   }
 
   return {
-    sourceKey: parseSourceKey(value.sourceKey),
+    sourceKey: resolveRecommendationSourceKey(value.sourceKey),
     historyGeneration,
     algorithmVersion,
     sourceCursor: typeof value.sourceCursor === 'string' ? value.sourceCursor : null,
@@ -255,20 +254,6 @@ function parseRecommendationSnapshotInput(body: unknown) {
     updatedById: typeof value.updatedById === 'string' ? value.updatedById : null,
     sections: Array.isArray(value.sections) ? value.sections : [],
   };
-}
-
-function parseSourceKey(value: unknown): string {
-  if (typeof value === 'string' && value.trim()) {
-    return value.trim();
-  }
-  throw new HttpError(400, 'sourceKey is required.');
-}
-
-function parseAlgorithmVersion(value: unknown): string {
-  if (typeof value === 'string' && value.trim()) {
-    return value.trim();
-  }
-  return 'default';
 }
 
 function parseOptionalNumber(value: unknown): number | null {

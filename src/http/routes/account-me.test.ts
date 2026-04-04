@@ -46,6 +46,7 @@ test('account settings route returns AI client configuration envelope', async (t
   assert.equal(payload.settings.ai.defaultProviderId, 'openai');
   assert.equal(Array.isArray(payload.settings.ai.providers), true);
   assert.equal(payload.settings.metadata.hasMdbListAccess, true);
+  assert.equal(payload.settings.pricingTier, 'free');
 });
 
 test('account settings patch route returns merged AI client configuration envelope', async (t) => {
@@ -92,6 +93,7 @@ test('account settings patch route returns merged AI client configuration envelo
   assert.equal(payload.settings.ai.providerId, 'openrouter');
   assert.equal(payload.settings.ai.hasAiApiKey, false);
   assert.equal(payload.settings.metadata.hasMdbListAccess, false);
+  assert.equal(payload.settings.pricingTier, 'free');
 });
 
 test('account settings patch route returns API error contract for unsupported AI provider', async (t) => {
@@ -183,4 +185,5 @@ test('me route returns AI client configuration in account settings', async (t) =
   assert.equal(payload.accountSettings.ai.providerId, 'openrouter');
   assert.equal(payload.accountSettings.ai.hasAiApiKey, true);
   assert.equal(payload.accountSettings.metadata.hasMdbListAccess, false);
+  assert.equal(payload.accountSettings.pricingTier, 'free');
 });

@@ -24,6 +24,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   };
 
   const apiBase = String((document.body && document.body.getAttribute('data-admin-api-base')) || '/admin/api').replace(/\/$/, '');
+  const adminCsrf = String((document.body && document.body.getAttribute('data-admin-csrf')) || '');
 
   const state = {
     activeView: 'overview',
@@ -31,10 +32,12 @@ export const ADMIN_UI_CLIENT = String.raw`
     diagnosticsBusy: false,
     lookupBusy: false,
     bridgeBusy: false,
+    generationDetailBusy: false,
     notificationsOpen: false,
     lastUpdatedAt: null,
     jobsPayload: null,
     diagnosticsPayload: null,
+    generationDetailPayload: null,
     bridgePayload: null,
     notifications: [],
     unreadCount: 0,
@@ -92,9 +95,16 @@ export const ADMIN_UI_CLIENT = String.raw`
     recentJobs: document.getElementById('job-list-recent'),
     jobMessage: document.getElementById('job-message'),
     backlogSummary: document.getElementById('backlog-summary'),
+    generationSummary: document.getElementById('generation-summary'),
     outboxSummary: document.getElementById('outbox-summary'),
     importSummary: document.getElementById('import-summary'),
+    generationFailureSummary: document.getElementById('generation-failure-summary'),
     backlogRows: document.getElementById('backlog-rows'),
+    generationRows: document.getElementById('generation-rows'),
+    generationDetailEmpty: document.getElementById('generation-detail-empty'),
+    generationDetailShell: document.getElementById('generation-detail-shell'),
+    generationDetailSummary: document.getElementById('generation-detail-summary'),
+    generationDetailJson: document.getElementById('generation-detail-json'),
     importRows: document.getElementById('import-rows'),
     lookupForm: document.getElementById('account-lookup-form'),
     lookupEmail: document.getElementById('lookup-email'),
@@ -323,11 +333,13 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   async function fetchJson(url, options) {
+    const method = String((options && options.method) || 'GET').toUpperCase();
     const response = await fetch(url, {
       credentials: 'same-origin',
       headers: {
         accept: 'application/json',
         ...(options && options.body ? { 'content-type': 'application/json' } : {}),
+        ...(method !== 'GET' && method !== 'HEAD' && adminCsrf ? { 'x-admin-csrf': adminCsrf } : {}),
       },
       ...options,
     });
@@ -484,17 +496,17 @@ export const ADMIN_UI_CLIENT = String.raw`
     setBusy('diagnosticsBusy', true);
     try {
       const result = await Promise.all([
-        fetchJson(apiPath('/diagnostics/recommendations/work-state?limit=8')),
         fetchJson(apiPath('/diagnostics/recommendations/outbox?limit=8')),
+        fetchJson(apiPath('/diagnostics/recommendations/generation-jobs?limit=8')),
         fetchJson(apiPath('/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false')),
       ]);
       const payload = {
-        workState: result[0],
-        outbox: result[1],
+        outbox: result[0],
+        generationJobs: result[1],
         imports: result[2],
       };
       state.diagnosticsPayload = payload;
-      renderDiagnostics(payload.workState, payload.outbox, payload.imports);
+      renderDiagnostics(payload.outbox, payload.generationJobs, payload.imports);
       updateDiagnosticsChrome(payload);
       stampUpdated();
       return payload;
@@ -504,9 +516,12 @@ export const ADMIN_UI_CLIENT = String.raw`
         elements.diagStats.innerHTML = '';
       }
       if (elements.backlogSummary) elements.backlogSummary.textContent = error.message || 'Failed to load diagnostics.';
+      if (elements.generationSummary) elements.generationSummary.textContent = 'Unavailable';
+      if (elements.generationFailureSummary) elements.generationFailureSummary.textContent = 'Unavailable';
       if (elements.outboxSummary) elements.outboxSummary.textContent = 'Unavailable';
       if (elements.importSummary) elements.importSummary.textContent = 'Unavailable';
       if (elements.backlogRows) elements.backlogRows.innerHTML = emptyTableRow('Diagnostics unavailable.', 4);
+      if (elements.generationRows) elements.generationRows.innerHTML = emptyTableRow('Generation diagnostics unavailable.', 6);
       if (elements.importRows) elements.importRows.innerHTML = emptyTableRow('Import diagnostics unavailable.', 5);
       if (elements.navDiagnosticsBadge) elements.navDiagnosticsBadge.textContent = '!';
       if (!(options && options.silent)) {
@@ -520,11 +535,36 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function updateDiagnosticsChrome(payload) {
-    const backlog = payload && payload.workState && Array.isArray(payload.workState.backlog) ? payload.workState.backlog : [];
+    const undelivered = payload && payload.outbox && Array.isArray(payload.outbox.undelivered) ? payload.outbox.undelivered : [];
+    const generationJobsPayload = payload && payload.generationJobs ? payload.generationJobs : { lag: null, jobs: [] };
+    const generationJobs = Array.isArray(generationJobsPayload.jobs) ? generationJobsPayload.jobs : [];
+    const generationLag = generationJobsPayload.lag || null;
     const providerAccounts = payload && payload.imports && Array.isArray(payload.imports.providerAccounts) ? payload.imports.providerAccounts : [];
-    const warningCount = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length + sum(backlog.map((row) => Number(row.pendingCount || 0) > 0 ? 1 : 0));
+    const warningCount = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length
+      + generationJobs.filter((row) => String(row.status || '') === 'failed').length
+      + Number(generationLag && generationLag.submitFailureCount || 0)
+      + Number(generationLag && generationLag.pollFailureCount || 0)
+      + (undelivered.length > 0 ? 1 : 0);
     if (elements.navDiagnosticsBadge) {
       elements.navDiagnosticsBadge.textContent = String(warningCount);
+    }
+  }
+
+  async function loadGenerationJobDetail(jobId) {
+    if (!jobId) return null;
+    state.generationDetailBusy = true;
+    try {
+      const payload = await fetchJson(apiPath('/diagnostics/recommendations/generation-jobs/' + encodeURIComponent(jobId)));
+      state.generationDetailPayload = payload;
+      renderGenerationJobDetail(payload && payload.job ? payload.job : null);
+      return payload;
+    } catch (error) {
+      state.generationDetailPayload = null;
+      renderGenerationJobDetail(null, error);
+      pushNotification('warn', 'Generation job detail unavailable', error.message || 'Unable to load recommendation generation job detail.', true);
+      return null;
+    } finally {
+      state.generationDetailBusy = false;
     }
   }
 
@@ -668,8 +708,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     try {
       const results = await Promise.all([
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/imports/overview')),
-        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/taste-profile?sourceKey=default')),
-        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations?sourceKey=default')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/taste-profile?sourceKey=' + encodeURIComponent('default'))),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations?sourceKey=' + encodeURIComponent('default') + '&algorithmVersion=' + encodeURIComponent('v3.2.1'))),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watch-history?limit=8')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/continue-watching?limit=6')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watchlist?limit=8')),
@@ -804,44 +844,72 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  function renderDiagnostics(workState, outbox, imports) {
-    const activeLeases = Array.isArray(workState.activeLeases) ? workState.activeLeases : [];
-    const staleLeases = Array.isArray(workState.staleLeases) ? workState.staleLeases : [];
-    const backlog = Array.isArray(workState.backlog) ? workState.backlog : [];
+  function renderDiagnostics(outbox, generationJobsPayload, imports) {
+    const undelivered = Array.isArray(outbox.undelivered) ? outbox.undelivered : [];
+    const generationJobs = Array.isArray(generationJobsPayload && generationJobsPayload.jobs) ? generationJobsPayload.jobs : [];
+    const generationLag = generationJobsPayload && generationJobsPayload.lag ? generationJobsPayload.lag : null;
     const providerAccounts = Array.isArray(imports.providerAccounts) ? imports.providerAccounts : [];
     const refreshFailures = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
     const expiringSoon = providerAccounts.filter((row) => row.accessTokenExpiresAt).length;
+    const activeGenerations = generationJobs.filter((row) => String(row.status || '') === 'queued' || String(row.status || '') === 'running').length;
+    const failedGenerations = generationJobs.filter((row) => String(row.status || '') === 'failed').length;
+    const submitFailures = Number(generationLag && generationLag.submitFailureCount || 0);
+    const pollFailures = Number(generationLag && generationLag.pollFailureCount || 0);
 
     if (elements.diagStats) {
       elements.diagStats.innerHTML = [
-        statCard('Active leases', activeLeases.length, staleLeases.length + ' stale'),
-        statCard('Backlog buckets', backlog.length, sum(backlog.map((row) => Number(row.pendingCount || 0))) + ' pending'),
+        statCard('Undelivered events', undelivered.length, undelivered.length ? 'needs orchestration attention' : 'delivery is caught up'),
+        statCard('Generation jobs', generationJobs.length, generationLagText(generationLag)),
+        statCard('Generation failures', submitFailures + pollFailures, submitFailures + ' submit / ' + pollFailures + ' poll'),
         statCard('Outbox undelivered', countArray(outbox.undelivered), lagText(outbox.lag)),
         statCard('Import refresh failures', refreshFailures, expiringSoon + ' with expiry timestamps'),
       ].join('');
     }
 
     if (elements.backlogSummary) {
-      elements.backlogSummary.textContent = backlog.length
-        ? 'Largest pending bucket: ' + String(backlog[0].sourceKey || 'default') + ' with ' + String(backlog[0].pendingCount || 0) + ' items.'
-        : 'No backlog buckets right now.';
+      elements.backlogSummary.textContent = undelivered.length
+        ? String(undelivered.length) + ' recommendation events are still undelivered.'
+        : 'Recommendation delivery is caught up.';
+    }
+    if (elements.generationSummary) {
+      elements.generationSummary.textContent = generationJobs.length
+        ? activeGenerations + ' active, ' + failedGenerations + ' failed, ' + String(generationLag && generationLag.pendingCount || 0) + ' pending submits.'
+        : 'No recent recommendation generation jobs.';
+    }
+    if (elements.generationFailureSummary) {
+      elements.generationFailureSummary.textContent = (submitFailures || pollFailures)
+        ? submitFailures + ' jobs still need submit recovery; ' + pollFailures + ' have seen at least one poll failure.'
+        : 'No current recommendation generation failure backlog.';
     }
     if (elements.outboxSummary) {
       elements.outboxSummary.textContent = lagText(outbox.lag);
     }
     if (elements.importSummary) {
-      elements.importSummary.textContent = connections.length
-        ? refreshFailures + ' connections show refresh failures across ' + connections.length + ' recent rows.'
+      elements.importSummary.textContent = providerAccounts.length
+        ? refreshFailures + ' connections show refresh failures across ' + providerAccounts.length + ' recent rows.'
         : 'No recent import connections returned.';
     }
     if (elements.backlogRows) {
-      elements.backlogRows.innerHTML = backlog.length
-        ? backlog.map((row) => '<tr><td>' + escapeHtml(String(row.sourceKey || 'default')) + '</td><td>' + escapeHtml(String(row.pendingCount || 0)) + '</td><td>' + escapeHtml(String(row.activeLeaseCount || 0)) + '</td><td>' + escapeHtml(String(row.oldestPendingAt || 'n/a')) + '</td></tr>').join('')
-        : emptyTableRow('No backlog rows.', 4);
+      elements.backlogRows.innerHTML = undelivered.length
+        ? undelivered.map((row) => '<tr><td><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong></td><td>' + escapeHtml(String(row.eventType || 'unknown')) + '</td><td>' + escapeHtml(String(row.occurredAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.historyGeneration || 'n/a')) + '</td></tr>').join('')
+        : emptyTableRow('No undelivered recommendation events.', 4);
+    }
+    if (elements.generationRows) {
+      elements.generationRows.innerHTML = generationJobs.length
+        ? generationJobs.map((row) => '<tr>'
+          + '<td><button type="button" class="ghost" data-generation-job-id="' + escapeHtml(String(row.id || '')) + '"><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong></button></td>'
+          + '<td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td>'
+          + '<td>' + escapeHtml(String(row.workerJobId || 'pending submit')) + '</td>'
+          + '<td>' + escapeHtml(String(row.algorithmVersion || 'n/a')) + ' / ' + escapeHtml(String(row.historyGeneration || 'n/a')) + '</td>'
+          + '<td>' + escapeHtml(String(Number(row.submitAttempts || 0))) + ' / ' + escapeHtml(String(Number(row.pollErrorCount || 0))) + '</td>'
+          + '<td>' + escapeHtml(String(row.updatedAt || row.createdAt || 'n/a')) + '</td>'
+          + '</tr>').join('')
+        : emptyTableRow('No recent recommendation generation jobs.', 6);
+      bindGenerationJobDetailButtons();
     }
     if (elements.importRows) {
-      elements.importRows.innerHTML = connections.length
-        ? connections.map((row) => '<tr><td>'
+      elements.importRows.innerHTML = providerAccounts.length
+        ? providerAccounts.map((row) => '<tr><td>'
           + '<strong>' + escapeHtml(String(row.accountId || 'unknown-account')) + '</strong><br>'
           + '<span class="muted">' + escapeHtml(String(row.profileId || 'unknown-profile')) + ' · ' + escapeHtml(String(row.provider || 'unknown-provider')) + '</span>'
           + '</td><td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.refreshFailureCount || 0)) + '</td></tr>').join('')
@@ -1257,7 +1325,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard('Recommendations',
       '<div class="kv-grid">'
         + kvPair('Source key', recommendations.sourceKey || 'default')
-        + kvPair('Algorithm', recommendations.algorithmVersion || 'default')
+        + kvPair('Algorithm', recommendations.algorithmVersion || 'v3.2.1')
         + kvPair('Generated', recommendations.generatedAt ? formatDate(recommendations.generatedAt) : 'n/a')
         + kvPair('Sections', String(sections.length))
       + '</div>'
@@ -1357,6 +1425,14 @@ export const ADMIN_UI_CLIENT = String.raw`
   function lagText(lag) {
     if (!lag || typeof lag !== 'object') return 'No lag summary.';
     return 'undelivered=' + String(lag.undeliveredCount || 0) + ', oldest=' + String(lag.oldestUndeliveredAt || 'n/a');
+  }
+
+  function generationLagText(lag) {
+    if (!lag || typeof lag !== 'object') return 'No generation lag summary.';
+    return 'pending=' + String(lag.pendingCount || 0)
+      + ', queued=' + String(lag.queuedCount || 0)
+      + ', running=' + String(lag.runningCount || 0)
+      + ', failed=' + String(lag.failedCount || 0);
   }
 
   function formatDate(value) {
@@ -1550,7 +1626,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     const diagnostics = state.diagnosticsPayload;
     const activeJobs = jobsPayload && Array.isArray(jobsPayload.activeJobs) ? jobsPayload.activeJobs : [];
     const queuedJobs = jobsPayload && Array.isArray(jobsPayload.queuedJobs) ? jobsPayload.queuedJobs : [];
-    const workState = diagnostics && diagnostics.workState ? diagnostics.workState : { backlog: [], activeLeases: [] };
+    const generationJobs = diagnostics && diagnostics.generationJobs ? diagnostics.generationJobs : { lag: null, jobs: [] };
     const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { providerAccounts: [] };
     const bridge = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
     const refreshFailures = imports && Array.isArray(imports.providerAccounts)
@@ -1559,7 +1635,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
     elements.overviewSummary.innerHTML = [
       statCard('Running now', activeJobs.length, queuedJobs.length + ' queued behind them'),
-      statCard('Backlog buckets', countArray(workState.backlog), sum((workState.backlog || []).map((row) => Number(row.pendingCount || 0))) + ' pending'),
+      statCard('Recommendation jobs', countArray(generationJobs.jobs), generationLagText(generationJobs.lag)),
       statCard('Import warnings', refreshFailures, countArray(imports.providerAccounts) + ' accounts scanned'),
       statCard('Worker bridge', bridge ? (bridge.reachable ? 'live' : bridge.configured ? 'down' : 'setup') : 'check', state.lastUpdatedAt ? 'updated ' + formatTimeAgo(state.lastUpdatedAt) : 'waiting'),
     ].join('');
@@ -1605,17 +1681,71 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.overviewDiagnostics.innerHTML = emptyState('Diagnostics have not loaded yet.');
       return;
     }
-    const backlog = diagnostics.workState && Array.isArray(diagnostics.workState.backlog) ? diagnostics.workState.backlog : [];
     const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerAccounts) ? diagnostics.imports.providerAccounts : [];
     const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
+    const generationJobs = diagnostics.generationJobs && diagnostics.generationJobs.lag ? diagnostics.generationJobs.lag : null;
     const refreshFailures = imports.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
     elements.overviewDiagnostics.innerHTML =
       '<div class="kv-grid">'
-      + kvPair('Backlog buckets', String(backlog.length))
-      + kvPair('Pending items', String(sum(backlog.map((row) => Number(row.pendingCount || 0)))))
+      + kvPair('Generation pending', String(generationJobs && generationJobs.pendingCount || 0))
+      + kvPair('Generation running', String(generationJobs && generationJobs.runningCount || 0))
+      + kvPair('Submit failures', String(generationJobs && generationJobs.submitFailureCount || 0))
+      + kvPair('Poll failures', String(generationJobs && generationJobs.pollFailureCount || 0))
       + kvPair('Refresh failures', String(refreshFailures))
       + kvPair('Outbox lag', lagText(outbox))
       + '</div>';
+  }
+
+  function bindGenerationJobDetailButtons() {
+    const buttons = Array.from(document.querySelectorAll('[data-generation-job-id]'));
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        const jobId = button.getAttribute('data-generation-job-id');
+        if (!jobId) return;
+        void loadGenerationJobDetail(jobId);
+      });
+    }
+  }
+
+  function renderGenerationJobDetail(job, error) {
+    if (elements.generationDetailEmpty) {
+      elements.generationDetailEmpty.hidden = !!job;
+      if (!job && error) {
+        elements.generationDetailEmpty.textContent = error.message || 'Unable to load recommendation generation job detail.';
+      }
+    }
+    if (elements.generationDetailShell) {
+      elements.generationDetailShell.hidden = !job;
+    }
+    if (!job) {
+      if (elements.generationDetailSummary) {
+        elements.generationDetailSummary.innerHTML = '';
+      }
+      if (elements.generationDetailJson) {
+        elements.generationDetailJson.textContent = '';
+      }
+      return;
+    }
+
+    if (elements.generationDetailSummary) {
+      elements.generationDetailSummary.innerHTML = '<div class="kv-grid">'
+        + kvPair('Local job id', job.id || 'n/a')
+        + kvPair('Profile', job.profileId || 'n/a')
+        + kvPair('Worker job id', job.workerJobId || 'pending submit')
+        + kvPair('Status', job.status || 'unknown')
+        + kvPair('Submit attempts', String(job.submitAttempts || 0))
+        + kvPair('Poll attempts', String(job.pollAttempts || 0))
+        + kvPair('Poll failures', String(job.pollErrorCount || 0))
+        + kvPair('Next poll at', job.nextPollAt ? formatDate(job.nextPollAt) : 'n/a')
+        + '</div>';
+    }
+    if (elements.generationDetailJson) {
+      elements.generationDetailJson.textContent = JSON.stringify({
+        requestPayload: job.requestPayload || {},
+        lastStatusPayload: job.lastStatusPayload || {},
+        failureJson: job.failureJson || {},
+      }, null, 2);
+    }
   }
 
   function renderOverviewNotifications() {

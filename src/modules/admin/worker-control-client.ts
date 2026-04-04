@@ -3,7 +3,7 @@ import { env } from '../../config/env.js';
 
 type FetchJsonMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-export type WorkerControlJobTarget = 'recommendations_daily' | 'provider_token_maintenance';
+export type WorkerControlJobTarget = 'provider_token_maintenance';
 export type WorkerControlJobState = 'queued' | 'running' | 'success' | 'error' | 'canceled';
 
 export type WorkerControlJobProgress = {

@@ -3,7 +3,6 @@ import type { DbClient } from '../../lib/db.js';
 import { requireNormalizedIsoString } from '../../lib/time.js';
 import { RecommendationEventOutboxRepository } from '../recommendations/recommendation-event-outbox.repo.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
-import { RecommendationWorkStateRepository } from '../recommendations/recommendation-work-state.repo.js';
 import type { WatchV2ProjectionRebuildSummary } from '../watch-v2/watch-v2-projection-summary.js';
 import { ensureSupportedProvider, parentMediaTypeForIdentity, parseMediaKey, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { HeartbeatBufferService } from '../watch/heartbeat-buffer.service.js';
@@ -83,7 +82,6 @@ export class ProviderDestructiveImportService {
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly recommendationEventOutboxRepository = new RecommendationEventOutboxRepository(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
-    private readonly recommendationWorkStateRepository = new RecommendationWorkStateRepository(),
     private readonly projectionRebuildService = new WatchV2ProjectionRebuildService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly watchV2Repository = new WatchV2WriteRepository(),
@@ -193,7 +191,6 @@ export class ProviderDestructiveImportService {
     await client.query(`DELETE FROM profile_watch_clock WHERE profile_id = $1::uuid`, [profileId]);
     await this.recommendationEventOutboxRepository.clearForProfile(client, profileId);
     await this.recommendationOutputService.clearOutputsForProfile(client, profileId);
-    await this.recommendationWorkStateRepository.clearClaimsForProfile(client, profileId);
   }
 
   private async insertImportedEvents(client: DbClient, params: {

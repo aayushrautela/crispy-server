@@ -26,6 +26,7 @@ import {
 } from './provider-destructive-import.service.js';
 import { mapProviderAccountView, type ProviderAccountView } from './provider-import.views.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
+import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
@@ -94,6 +95,7 @@ export class ProviderImportService {
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly metadataRefreshService = new MetadataRefreshService(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
+    private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
   ) {}
 
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
@@ -466,6 +468,12 @@ export class ProviderImportService {
         await redis.del(homeCacheKey(runningJob.profileId), calendarCacheKey(runningJob.profileId));
       } catch (error) {
         warnings.push(`failed to invalidate caches: ${error instanceof Error ? error.message : 'unknown error'}`);
+      }
+
+      try {
+        await this.recommendationGenerationDispatcher.scheduleProfileGeneration(runningJob.profileId, 0);
+      } catch (error) {
+        warnings.push(`failed to schedule recommendation generation: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
 
       await withTransaction(async (client) => {

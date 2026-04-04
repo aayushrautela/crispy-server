@@ -45,6 +45,9 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - The README contains a maintained endpoint map and should stay in sync with the route files.
 - Do not reintroduce legacy profile-only internal compatibility routes; privileged integrations should use `/internal/v1/accounts/...`.
 - Human admin and orchestration UI belongs on the API server control plane, not on the recommendation worker.
+- Recommendation generation is server-orchestrated: the API server owns user-data loading, AI credential resolution, orchestration, and persistence; the recommendation worker owns recommendation generation and taste-profile computation.
+- The recommendation worker may perform read-only TMDB/TVDB/Kitsu catalog or discovery fetches for enrichment, but it must not fetch user/business data or write application storage.
+- Recommendation outputs should use final canonical identities: `movie:tmdb:*`, `show:tvdb:*`, and `anime:kitsu:*`, with `mediaKey`, `mediaType`, `provider`, and `providerId` present on every recommendation item.
 - Profile-targeted user routes use explicit `:profileId` path params.
 - Do not reintroduce header-based or body-based profile targeting fallbacks.
 

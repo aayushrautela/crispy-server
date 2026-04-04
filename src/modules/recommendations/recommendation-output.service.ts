@@ -2,7 +2,6 @@ import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import type {
   CollectionCardItemView,
@@ -17,6 +16,7 @@ import {
   RecommendationSnapshotsRepository,
   type RecommendationSnapshotRecord,
 } from './recommendation-snapshots.repo.js';
+import { recommendationConfig } from './recommendation-config.js';
 import type {
   RecommendationSection,
   RecommendationSectionItem,
@@ -52,7 +52,6 @@ export type RecommendationSnapshotInput = {
 export class RecommendationOutputService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
-    private readonly profileSettingsRepository = new ProfileSettingsRepository(),
     private readonly metadataCardService = new MetadataCardService(),
     private readonly tasteProfileRepository = new TasteProfileRepository(),
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
@@ -160,6 +159,7 @@ export class RecommendationOutputService {
   ): Promise<RecommendationSnapshotPayload> {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
+      const sections = sanitizeRecommendationSections(input.sections);
       const row = await this.snapshotsRepository.upsert(client, {
         profileId,
         sourceKey: input.sourceKey,
@@ -168,7 +168,7 @@ export class RecommendationOutputService {
         sourceCursor: input.sourceCursor,
         generatedAt: input.generatedAt,
         expiresAt: input.expiresAt,
-        items: input.sections,
+        items: sections,
         source: input.source,
         updatedByKind: 'user',
         updatedById: accountId,
@@ -198,6 +198,7 @@ export class RecommendationOutputService {
   ): Promise<RecommendationSnapshotPayload> {
     return withDbClient(async (client) => {
       const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
+      const sections = sanitizeRecommendationSections(input.sections);
       const row = await this.snapshotsRepository.upsert(client, {
         profileId: targetProfileId,
         sourceKey: input.sourceKey,
@@ -206,27 +207,12 @@ export class RecommendationOutputService {
         sourceCursor: input.sourceCursor,
         generatedAt: input.generatedAt,
         expiresAt: input.expiresAt,
-        items: input.sections,
+        items: sections,
         source: input.source,
         updatedByKind: 'service',
         updatedById: input.updatedById ?? null,
       });
       return this.mapRecommendationSnapshot(client, row);
-    });
-  }
-
-  async getActiveSourceKeyForAccount(accountId: string, profileId: string): Promise<string | null> {
-    return withDbClient(async (client) => {
-      await this.requireOwnedProfile(client, accountId, profileId);
-      return this.profileSettingsRepository.getActiveRecommenderSource(profileId, client);
-    });
-  }
-
-  async setActiveSourceKeyForAccount(accountId: string, profileId: string, sourceKey: string): Promise<string> {
-    return withDbClient(async (client) => {
-      await this.requireOwnedProfile(client, accountId, profileId);
-      await this.profileSettingsRepository.setActiveRecommenderSource(client, profileId, sourceKey);
-      return sourceKey;
     });
   }
 
@@ -237,11 +223,12 @@ export class RecommendationOutputService {
   ): Promise<RecommendationSnapshotPayload | null> {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
-      const sourceKey = await this.profileSettingsRepository.getActiveRecommenderSource(profileId, client);
-      if (!sourceKey) {
-        return null;
-      }
-      const row = await this.snapshotsRepository.findByProfileSourceAndAlgorithm(client, profileId, sourceKey, algorithmVersion);
+      const row = await this.snapshotsRepository.findByProfileSourceAndAlgorithm(
+        client,
+        profileId,
+        recommendationConfig.sourceKey,
+        algorithmVersion,
+      );
       return row ? this.mapRecommendationSnapshot(client, row) : null;
     });
   }
@@ -480,11 +467,143 @@ function recommendationIdentityFromRow(row: Record<string, unknown>) {
     ? parseMediaKey(mediaKey)
     : inferMediaIdentity({
         mediaType,
+        provider: readSupportedProvider(row.provider),
+        providerId: readOptionalIdentityString(row.providerId) ?? readOptionalIdentityString(row.provider_id),
+        parentProvider: readSupportedProvider(row.parentProvider) ?? readSupportedProvider(row.parent_provider),
+        parentProviderId: readOptionalIdentityString(row.parentProviderId) ?? readOptionalIdentityString(row.parent_provider_id),
         tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
+        tvdbId: readOptionalIdentityString(row.tvdbId) ?? readOptionalIdentityString(row.tvdb_id),
+        kitsuId: readOptionalIdentityString(row.kitsuId) ?? readOptionalIdentityString(row.kitsu_id),
         showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
         seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
         episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
+        absoluteEpisodeNumber:
+          typeof row.absoluteEpisodeNumber === 'number'
+            ? row.absoluteEpisodeNumber
+            : typeof row.absolute_episode_number === 'number'
+              ? row.absolute_episode_number
+              : null,
       });
+}
+
+function sanitizeRecommendationSections(value: unknown[]): unknown[] {
+  return value.map((section) => sanitizeRecommendationSection(section)).filter((section): section is Record<string, unknown> => section !== null);
+}
+
+function sanitizeRecommendationSection(value: unknown): Record<string, unknown> | null {
+  const row = asRecord(value);
+  const layout = row.layout === 'landscape' || row.layout === 'collection' || row.layout === 'hero'
+    ? row.layout
+    : 'regular';
+  const items = Array.isArray(row.items) ? row.items : [];
+  const sanitizedItems = layout === 'collection'
+    ? items.map((item) => sanitizeCollectionCard(item)).filter((item): item is Record<string, unknown> => item !== null)
+    : items.map((item) => sanitizeRecommendationMediaItem(item)).filter((item): item is Record<string, unknown> => item !== null);
+
+  return {
+    ...row,
+    id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : 'recommended',
+    title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : 'Recommended',
+    layout,
+    meta: asRecord(row.meta),
+    items: sanitizedItems,
+  };
+}
+
+function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown> | null {
+  const row = asRecord(value);
+  const mediaKey = readOptionalIdentityString(row.mediaKey) ?? readOptionalIdentityString(row.media_key);
+  if (!mediaKey) {
+    return null;
+  }
+
+  const parsed = parseMediaKey(mediaKey);
+  const payload = asRecord(row.payload);
+  const result: Record<string, unknown> = {
+    ...row,
+    mediaKey,
+    mediaType: parsed.mediaType,
+    provider: parsed.provider ?? null,
+    providerId: parsed.providerId ?? null,
+    parentProvider: parsed.parentProvider ?? null,
+    parentProviderId: parsed.parentProviderId ?? null,
+    tmdbId: parsed.tmdbId,
+    tvdbId: parsed.provider === 'tvdb' ? parsed.providerId : null,
+    kitsuId: parsed.provider === 'kitsu' ? parsed.providerId : null,
+    showTmdbId: parsed.showTmdbId,
+    seasonNumber: parsed.seasonNumber,
+    episodeNumber: parsed.episodeNumber,
+    absoluteEpisodeNumber: parsed.absoluteEpisodeNumber ?? null,
+    reason: typeof row.reason === 'string' ? row.reason : null,
+    score: typeof row.score === 'number' ? row.score : null,
+    rank: typeof row.rank === 'number' ? row.rank : null,
+    payload,
+  };
+
+  return result;
+}
+
+function sanitizeCollectionCard(value: unknown): Record<string, unknown> | null {
+  const row = asRecord(value);
+  const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
+  const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim()
+    ? row.logoUrl.trim()
+    : typeof row.logo_url === 'string' && row.logo_url.trim()
+      ? row.logo_url.trim()
+      : null;
+  const items = Array.isArray(row.items) ? row.items : [];
+  const sanitizedItems = items.map((item) => sanitizeCollectionCardItem(item)).filter((item): item is Record<string, unknown> => item !== null);
+  if (!title || !logoUrl || sanitizedItems.length < 3) {
+    return null;
+  }
+
+  return {
+    ...row,
+    title,
+    logoUrl,
+    items: sanitizedItems,
+  };
+}
+
+function sanitizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
+  const row = asRecord(value);
+  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : null;
+  const provider = readSupportedProvider(row.provider);
+  const providerId = readOptionalIdentityString(row.providerId) ?? readOptionalIdentityString(row.provider_id);
+  const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
+  const posterUrl = typeof row.posterUrl === 'string' && row.posterUrl.trim()
+    ? row.posterUrl.trim()
+    : typeof row.poster_url === 'string' && row.poster_url.trim()
+      ? row.poster_url.trim()
+      : null;
+  if (!mediaType || !provider || !providerId || !title || !posterUrl) {
+    return null;
+  }
+
+  return {
+    ...row,
+    mediaType,
+    provider,
+    providerId,
+    title,
+    posterUrl,
+    releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : typeof row.release_year === 'number' ? row.release_year : null,
+    rating: typeof row.rating === 'number' ? row.rating : null,
+  };
+}
+
+function readOptionalIdentityString(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+}
+
+function readSupportedProvider(value: unknown): 'tmdb' | 'tvdb' | 'kitsu' | null {
+  return value === 'tmdb' || value === 'tvdb' || value === 'kitsu' ? value : null;
 }
 
 function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {

@@ -5,7 +5,6 @@ export function renderOverviewView(): string {
         <h2>Overview</h2>
         <div class="view-header-actions">
           <button type="button" data-open-view="jobs">Open worker jobs</button>
-          <button type="button" class="secondary" data-run-default-job="recommendations_daily">Run daily recompute</button>
         </div>
       </header>
 

@@ -22,6 +22,7 @@ export type ProjectionRefreshJob = {
   mediaKey?: string;
   importJobId?: string;
   providerAccountId?: string;
+  recommendationJobId?: string;
 };
 
 function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: string): string {
@@ -70,6 +71,21 @@ export async function enqueueRebuildProfileProjections(profileId: string): Promi
   await enqueueProjectionRefreshJob({ profileId, reason: 'rebuild-profile-projections' });
 }
 
+export async function enqueueRecommendationGeneration(profileId: string, delayMs?: number): Promise<void> {
+  await enqueueProjectionRefreshJob({ profileId, reason: 'generate-recommendations' }, { delayMs });
+}
+
+export async function enqueueRecommendationGenerationPoll(jobId: string, delayMs?: number): Promise<void> {
+  await enqueueProjectionRefreshJob(
+    {
+      profileId: '00000000-0000-0000-0000-000000000000',
+      recommendationJobId: jobId,
+      reason: 'poll-recommendation-generation',
+    },
+    { delayMs },
+  );
+}
+
 export async function enqueueProviderImport(profileId: string, importJobId: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, importJobId, reason: 'provider-import' });
 }
@@ -88,6 +104,10 @@ function resolveProjectionJobId(job: ProjectionRefreshJob): string {
 
   if (job.providerAccountId) {
     return `${job.reason}:${job.profileId}:${job.providerAccountId}`;
+  }
+
+  if (job.recommendationJobId) {
+    return `${job.reason}:${job.recommendationJobId}`;
   }
 
   return projectionRefreshJobId(job.reason, job.profileId, job.mediaKey);

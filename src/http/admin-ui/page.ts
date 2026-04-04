@@ -2,7 +2,7 @@ import { ADMIN_UI_CLIENT } from './client.js';
 import { ADMIN_UI_STYLES } from './styles.js';
 import { renderAdminViews } from './views/index.js';
 
-export function renderAdminPage(): string {
+export function renderAdminPage(options: { csrfToken: string; logoutToken: string }): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -15,7 +15,7 @@ export function renderAdminPage(): string {
   <link rel="icon" href="data:,">
   <style>${ADMIN_UI_STYLES}</style>
 </head>
-<body data-admin-api-base="/admin/api">
+<body data-admin-api-base="/admin/api" data-admin-csrf="${escapeHtml(options.csrfToken)}">
   <div class="dashboard-shell">
     <aside class="sidebar" id="admin-sidebar" aria-label="Admin sidebar">
       <div class="sidebar-brand">
@@ -69,6 +69,10 @@ export function renderAdminPage(): string {
           <div class="topbar-stat"><strong id="topbar-running-count">0</strong><span>running or queued</span></div>
           <div class="topbar-stat" id="worker-control-pill"><strong>Checking</strong><span>worker status</span></div>
           <div class="topbar-stat"><strong id="topbar-last-update">Starting</strong><span>last update</span></div>
+          <form method="post" action="/admin/logout" class="logout-form">
+            <input type="hidden" name="csrfToken" value="${escapeHtml(options.logoutToken)}">
+            <button type="submit" class="secondary">Log out</button>
+          </form>
           <button type="button" class="secondary notification-toggle" id="notifications-toggle">
             Notifications
             <span class="nav-meta" id="notifications-unread" hidden>0</span>
@@ -86,7 +90,7 @@ export function renderAdminPage(): string {
     <div class="notification-head">
       <div>
         <h3>Notifications</h3>
-        <p class="panel-note">Worker and control-plane events.</p>
+        <p class="panel-note">Worker, import, and control-plane events.</p>
       </div>
       <button type="button" class="secondary" id="notifications-clear">Mark all read</button>
     </div>
@@ -98,4 +102,57 @@ export function renderAdminPage(): string {
   <script>${ADMIN_UI_CLIENT}</script>
 </body>
 </html>`;
+}
+
+export function renderAdminLoginPage(options: { formToken: string; error?: string | null; unavailableReason?: string | null }): string {
+  const message = options.unavailableReason || options.error || '';
+  const messageClass = options.unavailableReason ? 'login-message error' : options.error ? 'login-message warn' : 'login-message';
+  const disabled = options.unavailableReason ? ' disabled' : '';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <meta name="theme-color" content="#171514">
+  <title>Crispy Admin Login</title>
+  <link rel="icon" href="data:,">
+  <style>${ADMIN_UI_STYLES}</style>
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-card" aria-labelledby="admin-login-title">
+      <div class="login-copy">
+        <p class="eyebrow">Crispy Ops</p>
+        <h1 id="admin-login-title">Admin login</h1>
+        <p class="login-note">Sign in with the dedicated admin credentials. The session cookie stays on <code>/admin</code>, is <code>HttpOnly</code>, and expires automatically.</p>
+      </div>
+      <form method="post" action="/admin/login" class="login-form">
+        <input type="hidden" name="formToken" value="${escapeHtml(options.formToken)}">
+        <label>
+          Username
+          <input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required${disabled}>
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" autocomplete="current-password" required${disabled}>
+        </label>
+        ${message ? `<p class="${messageClass}" role="alert">${escapeHtml(message)}</p>` : ''}
+        <button type="submit"${disabled}>Sign in</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

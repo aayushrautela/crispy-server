@@ -26,6 +26,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
       accountSettings: mergeAccountScopedSettings(baseSettings, {
         ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
+        pricingTier: accountSettingsService.getPricingTierForUser(actor.appUserId),
       }),
       profiles: profiles.map((profile) => mapProfileView(profile)),
     };

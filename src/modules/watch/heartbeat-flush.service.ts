@@ -5,6 +5,7 @@ import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { ensureSupportedMediaType, inferMediaIdentity } from '../identity/media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
+import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { normalizeWatchOccurredAt } from './watch.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
@@ -16,6 +17,7 @@ export class HeartbeatFlushService {
     private readonly watchV2WriteService = new WatchV2WriteService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
+    private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
   ) {}
 
   async flush(profileId: string, mediaKey: string): Promise<{ action: 'persisted' | 'deferred' | 'cleared' | 'missing'; reason: string }> {
@@ -80,6 +82,7 @@ export class HeartbeatFlushService {
 
     if (outcome.action === 'persisted') {
       await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, { mediaKey });
+      await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     }
 
     return outcome;

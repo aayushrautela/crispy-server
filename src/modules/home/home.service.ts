@@ -2,6 +2,7 @@ import { redis } from '../../lib/redis.js';
 import { appConfig } from '../../config/app-config.js';
 import { nowIso } from '../../lib/time.js';
 import { CalendarService } from '../calendar/calendar.service.js';
+import { recommendationConfig } from '../recommendations/recommendation-config.js';
 import { RecommendationOutputService } from '../recommendations/recommendation-output.service.js';
 import { PersonalMediaService } from '../watch/personal-media.service.js';
 import { HomeBuilderService } from './home-builder.service.js';
@@ -34,7 +35,11 @@ export class HomeService {
       calendarItems: calendar.items,
     });
 
-    const activeRecommendation = await this.recommendationOutputService.getActiveRecommendationForAccount(userId, profileId, 'default');
+    const activeRecommendation = await this.recommendationOutputService.getActiveRecommendationForAccount(
+      userId,
+      profileId,
+      recommendationConfig.algorithmVersion,
+    );
 
     const payload: HomeResponse = {
       profileId,

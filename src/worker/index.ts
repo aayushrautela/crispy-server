@@ -1,6 +1,8 @@
 import { Worker } from 'bullmq';
 import { logger } from '../config/logger.js';
 import { bullConnection, projectionQueueName } from '../lib/queue.js';
+import { runGenerateRecommendationsJob } from './jobs/generate-recommendations.job.js';
+import { runPollRecommendationGenerationJob } from './jobs/poll-recommendation-generation.job.js';
 import { HeartbeatFlushService } from '../modules/watch/heartbeat-flush.service.js';
 import { runMetadataRefreshJob } from './jobs/metadata-refresh.job.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
@@ -21,6 +23,7 @@ export function startWorker(): Worker {
         mediaKey?: string;
         importJobId?: string;
         providerAccountId?: string;
+        recommendationJobId?: string;
       };
       switch (payload.reason) {
         case 'flush-heartbeat':
@@ -37,6 +40,12 @@ export function startWorker(): Worker {
           return;
         case 'metadata-refresh':
           await runMetadataRefreshJob(payload);
+          return;
+        case 'generate-recommendations':
+          await runGenerateRecommendationsJob(payload);
+          return;
+        case 'poll-recommendation-generation':
+          await runPollRecommendationGenerationJob(payload);
           return;
         case 'provider-import':
           await runProviderImportJob(payload);

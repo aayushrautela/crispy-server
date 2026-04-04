@@ -1,50 +1,23 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import {
-  RecommendationConsumerRepository,
-  type RecommendationConsumerAdminRecord,
-} from './recommendation-consumer.repo.js';
-import {
-  RecommendationWorkStateRepository,
-  type RecommendationBacklogSummaryRecord,
-  type RecommendationLeaseDiagnosticRecord,
-} from './recommendation-work-state.repo.js';
-import {
   RecommendationEventOutboxRepository,
   type RecommendationEventOutboxAdminRecord,
   type RecommendationEventOutboxLagSummary,
 } from './recommendation-event-outbox.repo.js';
+import {
+  RecommendationGenerationJobsRepository,
+  type RecommendationGenerationJobLagSummary,
+  type RecommendationGenerationJobRecord,
+} from './recommendation-generation-jobs.repo.js';
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export class RecommendationAdminService {
   constructor(
-    private readonly consumerRepository = new RecommendationConsumerRepository(),
-    private readonly workStateRepository = new RecommendationWorkStateRepository(),
     private readonly eventOutboxRepository = new RecommendationEventOutboxRepository(),
+    private readonly generationJobsRepository = new RecommendationGenerationJobsRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
-
-  async listConsumers(limit = 100): Promise<{ consumers: RecommendationConsumerAdminRecord[] }> {
-    return this.runInTransaction(async (client) => ({
-      consumers: await this.consumerRepository.listAll(client, limit),
-    }));
-  }
-
-  async getWorkState(limit = 100): Promise<{
-    activeLeases: RecommendationLeaseDiagnosticRecord[];
-    staleLeases: RecommendationLeaseDiagnosticRecord[];
-    backlog: RecommendationBacklogSummaryRecord[];
-  }> {
-    return this.runInTransaction(async (client) => {
-      const [activeLeases, staleLeases, backlog] = await Promise.all([
-        this.workStateRepository.listActiveLeases(client, limit),
-        this.workStateRepository.listStaleLeases(client, limit),
-        this.workStateRepository.listBacklogSummaries(client, limit),
-      ]);
-
-      return { activeLeases, staleLeases, backlog };
-    });
-  }
 
   async getOutbox(limit = 100): Promise<{
     lag: RecommendationEventOutboxLagSummary;
@@ -58,5 +31,25 @@ export class RecommendationAdminService {
 
       return { lag, undelivered };
     });
+  }
+
+  async getGenerationJobs(limit = 100): Promise<{
+    lag: RecommendationGenerationJobLagSummary;
+    jobs: RecommendationGenerationJobRecord[];
+  }> {
+    return this.runInTransaction(async (client) => {
+      const [lag, jobs] = await Promise.all([
+        this.generationJobsRepository.getLagSummary(client),
+        this.generationJobsRepository.listRecent(client, limit),
+      ]);
+
+      return { lag, jobs };
+    });
+  }
+
+  async getGenerationJob(jobId: string): Promise<{ job: RecommendationGenerationJobRecord | null }> {
+    return this.runInTransaction(async (client) => ({
+      job: await this.generationJobsRepository.findById(client, jobId),
+    }));
   }
 }

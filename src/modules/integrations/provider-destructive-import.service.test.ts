@@ -22,7 +22,6 @@ function createService(overrides?: {
       append: async () => {},
     } as never,
     { clearOutputsForProfile: async () => {} } as never,
-    { clearClaimsForProfile: async () => {} } as never,
     (overrides?.projectionRebuildService ?? {
       rebuildProfile: async () => ({ titleProjections: 0, trackedTitleStates: 0 }),
     }) as never,

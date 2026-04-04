@@ -25,6 +25,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
+        pricingTier: accountSettingsService.getPricingTierForUser(actor.appUserId),
       }),
     };
   });
@@ -40,6 +41,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
+        pricingTier: accountSettingsService.getPricingTierForUser(actor.appUserId),
       }),
     };
   });

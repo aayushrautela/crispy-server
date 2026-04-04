@@ -46,27 +46,30 @@
     SUPABASE_SECRET_KEY=replace_with_supabase_secret_key
     ```
 
-   The API requires `SERVICE_CLIENTS_JSON` for service-to-service authentication. Internal callers such as the recommendation worker must send `x-service-id` and `x-api-key`, and those values must match an active entry in `SERVICE_CLIENTS_JSON`.
+   The API requires `SERVICE_CLIENTS_JSON` for inbound service-to-service authentication. Any privileged caller that sends `x-service-id` and `x-api-key` to this API must match an active entry in `SERVICE_CLIENTS_JSON`.
 
-   When integrating a recommendation worker or other privileged service, model ownership as:
+Recommendation generation is now server-orchestrated. The API server loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists outputs itself. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB/TVDB/Kitsu catalog fetches for enrichment, does not poll the API server for work leases, does not need `recommendation-work:*` scopes, and must return final canonical recommendation identities for every item.
+
+   When integrating a privileged internal caller, model ownership as:
 
    - account/email identifies the owning user in your control plane
    - profile identifies the personal experience being targeted inside that account
    - account-shared secret routes are account-owned even when a current helper route accepts `:profileId`
 
-   Example:
+   Example inbound service auth config:
    ```env
-   SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-recommendation-engine","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","recommendation-work:claim","recommendation-work:renew","recommendation-work:complete","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","admin:diagnostics:read"],"status":"active"}]
+   SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-internal-tool","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","admin:diagnostics:read"],"status":"active"}]
    ```
 
-   The external engine should then use:
+   The API server should use these outbound worker settings for recommendation generation:
    ```env
-   HOSTED_API_BASE_URL=https://your-api-domain.com
-   HOSTED_SERVICE_ID=crispy-recommendation-engine
-   HOSTED_API_KEY=replace_with_long_random_secret
+   RECOMMENDATION_ENGINE_WORKER_BASE_URL=https://your-recommendation-worker-domain.com
+   RECOMMENDATION_ENGINE_WORKER_SERVICE_ID=crispy-api-server
+   RECOMMENDATION_ENGINE_WORKER_API_KEY=replace_with_long_random_secret
+   RECOMMENDATION_ALGORITHM_VERSION=v3.2.1
    ```
 
-   Privileged data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
+   Privileged inbound data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 
 4. Start it:
    ```bash

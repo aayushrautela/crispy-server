@@ -22,7 +22,6 @@ import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
 import { registerRecommendationDataRoutes } from './routes/recommendation-data.js';
 import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
-import { registerRecommendationWorkRoutes } from './routes/recommendation-work.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
 
@@ -70,7 +69,6 @@ export async function buildApp() {
   await registerWatchRoutes(app);
   await registerRecommendationDataRoutes(app);
   await registerRecommendationOutputRoutes(app);
-  await registerRecommendationWorkRoutes(app);
   await registerInternalAccountRoutes(app);
   await registerInternalAdminRecommendationRoutes(app);
   await registerInternalAdminImportRoutes(app);

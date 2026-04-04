@@ -162,12 +162,14 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 #### Watch, home, and calendar
 
+Watch mutations update canonical server state. They do not perform inline write-through to Trakt or Simkl.
+
 - `GET /v1/profiles/:profileId/home` - home surface for one profile
 - `GET /v1/profiles/:profileId/calendar` - calendar surface for one profile
 - `POST /v1/profiles/:profileId/watch/events` - ingest watch event
 - `GET /v1/profiles/:profileId/watch/continue-watching` - continue watching list
 - `DELETE /v1/profiles/:profileId/watch/continue-watching/:id` - dismiss continue watching item
-- `GET /v1/profiles/:profileId/watch/history` - watch history
+- `GET /v1/profiles/:profileId/watch/watched` - watched history
 - `GET /v1/profiles/:profileId/watch/watchlist` - watchlist
 - `GET /v1/profiles/:profileId/watch/ratings` - ratings
 - `GET /v1/profiles/:profileId/watch/state` - resolve watch state for one item
@@ -181,10 +183,7 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 
 #### Library and provider auth
 
-- `GET /v1/profiles/:profileId/library` - combined library view across local and provider-backed sources
-- `GET /v1/profiles/:profileId/provider-auth/state` - provider auth summary for a profile
-- `POST /v1/profiles/:profileId/library/watchlist` - write watchlist state through the library facade
-- `POST /v1/profiles/:profileId/library/rating` - write rating state through the library facade
+- `GET /v1/profiles/:profileId/library` - combined library view across canonical watch state and provider connection summaries
 
 #### Metadata and AI
 
@@ -344,20 +343,14 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 
 #### Recommendations
 
-- `GET /v1/recommendation-consumers` - list user-owned recommendation consumers
-- `POST /v1/recommendation-consumers` - create user-owned recommendation consumer
-- `DELETE /v1/recommendation-consumers/:consumerId` - revoke user-owned recommendation consumer
 - `GET /v1/profiles/:profileId/tracked-series` - tracked series for a profile
 - `GET /v1/profiles/:profileId/taste-profiles` - list taste profiles by source
-- `GET /v1/profiles/:profileId/taste-profile` - read one taste profile
+- `GET /v1/profiles/:profileId/taste-profile` - read one taste profile, defaulting to the canonical recommendation source when `sourceKey` is omitted
 - `PUT /v1/profiles/:profileId/taste-profile` - upsert one taste profile
-- `GET /v1/profiles/:profileId/recommendations` - read recommendation snapshot or active recommendation
+- `GET /v1/profiles/:profileId/recommendations` - read one recommendation snapshot, defaulting to the canonical source and algorithm version when `sourceKey` or `algorithmVersion` is omitted
 - `PUT /v1/profiles/:profileId/recommendations` - upsert recommendation snapshot
-- `GET /v1/profiles/:profileId/recommender-source` - read active recommendation source
-- `PUT /v1/profiles/:profileId/recommender-source` - set active recommendation source
-- `POST /v1/recommendation-work/claim` - public route exists, but it is intended for privileged consumers with the right scopes
-- `POST /v1/recommendation-work/renew` - same note as above
-- `POST /v1/recommendation-work/complete` - same note as above
+
+Recommendation generation is now server-orchestrated. The API server decides when a profile needs regeneration, loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists the resulting taste profile and recommendation snapshot. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB/TVDB/Kitsu catalog fetches for enrichment, and must return final canonical recommendation identities for every item.
 
 ### Internal service routes
 
@@ -371,9 +364,9 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/watchlist` - profile watchlist scoped to the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/ratings` - profile ratings scoped to the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/tracked-series` - tracked series scoped to the owning account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - read taste profile by source under the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - read taste profile by source under the owning account; defaults to the canonical source when `sourceKey` is omitted
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - write taste profile under the owning account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account; defaults to the canonical source and algorithm version when omitted
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - write recommendations under the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/ai-api-key` - read account-shared AI API key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/connection` - provider connection summary after confirming the profile belongs to the account
@@ -396,16 +389,13 @@ The internal AI secret route now returns provider metadata alongside the secret 
 }
 ```
 
-#### Recommendation work and diagnostics
+#### Recommendation diagnostics
 
-- `POST /internal/v1/recommendation-work/claim` - claim recommendation work
-- `POST /internal/v1/recommendation-work/renew` - renew recommendation work lease
-- `POST /internal/v1/recommendation-work/complete` - complete recommendation work
-- `GET /internal/v1/admin/recommendations/consumers` - recommendation consumer diagnostics
-- `GET /internal/v1/admin/recommendations/work-state` - recommendation work-state diagnostics
 - `GET /internal/v1/admin/recommendations/outbox` - recommendation outbox diagnostics
 - `GET /internal/v1/admin/imports/connections` - import connection diagnostics
 - `GET /internal/v1/admin/imports/jobs` - import job diagnostics
+
+The recommendation worker no longer polls the API server for claim/renew/complete leases. It is a stateless compute service invoked by the API server. It must not fetch user/business data or write storage, but it may perform read-only TMDB/TVDB/Kitsu catalog or discovery fetches needed to enrich recommendation outputs.
 
 ## Current product-scoping rules
 
@@ -420,10 +410,11 @@ The internal AI secret route now returns provider metadata alongside the secret 
 
 ## Admin control plane
 
-- `GET /admin` is the API-server-hosted admin UI for recommendation-worker operations and diagnostics.
+- `GET /admin` is the API-server-hosted admin UI for provider-maintenance worker operations plus import and recommendation diagnostics.
 - Admin UI access uses HTTP Basic Auth configured by `ADMIN_UI_USER` and `ADMIN_UI_PASSWORD`.
-- Worker control uses the recommendation engine worker-control endpoint configured with `RECOMMENDATION_ENGINE_WORKER_BASE_URL` and `RECOMMENDATION_ENGINE_WORKER_API_KEY`.
-- The API server now hosts the operator UI and human-readable admin backend. The recommendation engine should be treated as a worker compute node with a narrow control surface, not the primary admin surface.
+- Worker control uses the recommendation engine worker-control endpoint configured with `RECOMMENDATION_ENGINE_WORKER_BASE_URL` and `RECOMMENDATION_ENGINE_WORKER_API_KEY` for control-plane jobs such as provider token maintenance.
+- Recommendation generation itself is not triggered from the admin worker-control queue. The API server calls the recommendation worker business endpoint directly using `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY`.
+- The API server hosts the operator UI and human-readable admin backend. The recommendation engine should be treated as a worker compute node with a narrow control surface, not the primary admin surface.
 
 ## Major feature areas
 
@@ -432,7 +423,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
 - provider-routed metadata search and detail views
 - home and calendar surfaces
 - provider imports from Trakt and Simkl
-- recommendation data, outputs, and work leasing
+- recommendation data, orchestration, and outputs
 - AI search and AI insights
 
 ## Local development
@@ -447,10 +438,12 @@ The internal AI secret route now returns provider metadata alongside the secret 
 
     - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
     - `AUTH_*` values are only used for external auth.
-    - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
-    - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
-    - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
-    - Runtime defaults live in `config/app-config.json.example`. The loader checks `config/app-config.json` first (gitignored, for local overrides), then falls back to the example template. Override the path with `APP_CONFIG_PATH` if needed.
+     - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
+     - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
+     - `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY` configure outbound recommendation-generation calls from the API server to the recommendation worker.
+     - `RECOMMENDATION_ALGORITHM_VERSION` sets the canonical recommendation snapshot version. It defaults to `v3.2.1`.
+     - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
+     - Runtime defaults live in `config/app-config.json.example`. The loader checks `config/app-config.json` first (gitignored, for local overrides), then falls back to the example template. Override the path with `APP_CONFIG_PATH` if needed.
 
 3. Start the stack:
 

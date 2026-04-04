@@ -5,6 +5,7 @@ import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { isBufferedHeartbeatEvent } from './heartbeat-policy.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
+import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { decodeWatchV2ContinueWatchingId } from './watch-v2-utils.js';
 import {
@@ -21,6 +22,7 @@ export class WatchEventIngestService {
     private readonly watchV2WriteService = new WatchV2WriteService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
+    private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
   ) {}
 
   async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
@@ -53,6 +55,7 @@ export class WatchEventIngestService {
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -68,6 +71,7 @@ export class WatchEventIngestService {
       mediaKey: inferMediaIdentity(input).mediaKey,
       refreshMetadata: false,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -82,6 +86,7 @@ export class WatchEventIngestService {
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -97,6 +102,7 @@ export class WatchEventIngestService {
       mediaKey,
       refreshMetadata: false,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -115,6 +121,7 @@ export class WatchEventIngestService {
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: inferMediaIdentity(input).mediaKey,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -130,6 +137,7 @@ export class WatchEventIngestService {
       mediaKey,
       refreshMetadata: false,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -175,6 +183,7 @@ export class WatchEventIngestService {
       mediaKey: mediaKey ?? undefined,
       refreshMetadata: false,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -194,6 +203,7 @@ export class WatchEventIngestService {
     await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
       mediaKey: identity.mediaKey,
     });
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 

@@ -44,6 +44,10 @@ export const accountScopedSettingsSchema = {
   type: 'object',
   additionalProperties: true,
   properties: {
+    pricingTier: {
+      type: 'string',
+      enum: ['free'],
+    },
     ai: aiClientSettingsSchema,
     metadata: metadataClientSettingsSchema,
   },

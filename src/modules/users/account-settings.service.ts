@@ -14,6 +14,10 @@ export type AccountSecretValue = {
   value: string;
 };
 
+export type PricingTier = 'free';
+
+const DEFAULT_PRICING_TIER: PricingTier = 'free';
+
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key']);
@@ -55,6 +59,10 @@ export class AccountSettingsService {
       .then(() => true)
       .catch(() => false);
     return buildAiClientSettings(settings, hasAiApiKey);
+  }
+
+  getPricingTierForUser(_userId: string): PricingTier {
+    return DEFAULT_PRICING_TIER;
   }
 
   async listAiApiKeysForLookup(userId: string): Promise<AiApiKeyLookup> {
@@ -138,7 +146,7 @@ export class AccountSettingsService {
 
 export function mergeAccountScopedSettings(
   accountSettings: Record<string, unknown>,
-  options?: { ai?: AiClientSettings; hasMdbListAccess?: boolean },
+  options?: { ai?: AiClientSettings; hasMdbListAccess?: boolean; pricingTier?: PricingTier },
 ): Record<string, unknown> {
   const merged = { ...accountSettings };
   if (options?.ai) {
@@ -153,6 +161,7 @@ export function mergeAccountScopedSettings(
       hasMdbListAccess: options.hasMdbListAccess,
     };
   }
+  merged.pricingTier = options?.pricingTier ?? DEFAULT_PRICING_TIER;
   return merged;
 }
 
@@ -194,6 +203,8 @@ export function normalizeAccountSettingsPatch(value: unknown): Record<string, un
       delete normalized.metadata;
     }
   }
+
+  delete normalized.pricingTier;
 
   return normalized;
 }

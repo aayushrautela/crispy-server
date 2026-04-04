@@ -81,6 +81,16 @@ test('getAiClientSettingsForUser returns provider metadata and selected provider
   assert.equal(result.providers.some((provider) => provider.id === 'openrouter'), true);
 });
 
+test('getPricingTierForUser defaults to free', () => {
+  const service = new AccountSettingsService(
+    {} as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  assert.equal(service.getPricingTierForUser('user-1'), 'free');
+});
+
 test('setAiApiKeyForUser delegates to repository', async () => {
   const service = new AccountSettingsService(
     { setSecretForUser: async () => {} } as never,
@@ -141,6 +151,7 @@ test('listAiApiKeysForLookup falls back to default provider id', async () => {
 
 test('normalizeAccountSettingsPatch keeps editable AI settings and strips derived fields', async () => {
   const result = normalizeAccountSettingsPatch({
+    pricingTier: 'pro',
     ai: {
       providerId: 'openrouter',
       hasAiApiKey: true,
