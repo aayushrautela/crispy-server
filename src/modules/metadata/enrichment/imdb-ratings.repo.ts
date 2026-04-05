@@ -40,7 +40,7 @@ export class ImdbRatingsRepository {
     await client.query(
       `
         INSERT INTO imdb_ratings (imdb_id, rating, votes, updated_at)
-        VALUES ${values.join(', ')}
+        VALUES ${values.map((value) => `${value}, now()`).join(', ')}
         ON CONFLICT (imdb_id)
         DO UPDATE SET
           rating = EXCLUDED.rating,

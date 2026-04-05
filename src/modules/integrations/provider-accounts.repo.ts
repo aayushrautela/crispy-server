@@ -32,6 +32,7 @@ export type ProviderAccountAdminRecord = ProviderAccountRecord & {
 };
 
 function mapProviderAccount(row: Record<string, unknown>): ProviderAccountRecord {
+  const credentialsJson = (row.credentials_json as Record<string, unknown> | undefined) ?? {};
   return {
     id: String(row.id),
     profileId: String(row.profile_id),
@@ -40,12 +41,14 @@ function mapProviderAccount(row: Record<string, unknown>): ProviderAccountRecord
     stateToken: typeof row.state_token === 'string' ? row.state_token : null,
     providerUserId: typeof row.provider_user_id === 'string' ? row.provider_user_id : null,
     externalUsername: typeof row.external_username === 'string' ? row.external_username : null,
-    credentialsJson: (row.credentials_json as Record<string, unknown> | undefined) ?? {},
+    credentialsJson,
     createdByUserId: String(row.created_by_user_id),
     expiresAt: toDbIsoString(row.expires_at as Date | string | null | undefined, 'provider_accounts.expires_at'),
     lastUsedAt: toDbIsoString(row.last_used_at as Date | string | null | undefined, 'provider_accounts.last_used_at'),
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'provider_accounts.created_at'),
-    connectedAt: toDbIsoString(row.connected_at as Date | string | null | undefined, 'provider_accounts.connected_at'),
+    connectedAt: typeof credentialsJson.connectedAt === 'string'
+      ? toDbIsoString(credentialsJson.connectedAt, 'provider_accounts.credentials_json.connectedAt')
+      : null,
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'provider_accounts.updated_at'),
   };
 }
@@ -72,7 +75,7 @@ export class ProviderAccountsRepository {
         )
         VALUES ($1::uuid, $2, 'pending', $3, $4::jsonb, $5::uuid, $6::timestamptz)
         RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
-                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
       `,
       [
         params.profileId,
@@ -94,7 +97,7 @@ export class ProviderAccountsRepository {
     const result = await client.query(
       `
         SELECT id, profile_id, provider, status, state_token, provider_user_id, external_username,
-               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
         FROM provider_accounts
         WHERE provider = $1 AND state_token = $2 AND status = 'pending'
         ORDER BY created_at DESC
@@ -113,7 +116,7 @@ export class ProviderAccountsRepository {
     const result = await client.query(
       `
         SELECT id, profile_id, provider, status, state_token, provider_user_id, external_username,
-               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
         FROM provider_accounts
         WHERE profile_id = $1::uuid AND provider = $2 AND status = 'connected'
         ORDER BY updated_at DESC, created_at DESC
@@ -128,7 +131,7 @@ export class ProviderAccountsRepository {
     const result = await client.query(
       `
         SELECT id, profile_id, provider, status, state_token, provider_user_id, external_username,
-               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
         FROM provider_accounts
         WHERE id = $1::uuid
       `,
@@ -154,11 +157,10 @@ export class ProviderAccountsRepository {
             credentials_json = $4::jsonb,
             expires_at = null,
             last_used_at = $5::timestamptz,
-            connected_at = $5::timestamptz,
             updated_at = now()
         WHERE id = $1::uuid
         RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
-                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
       `,
       [
         params.providerAccountId,
@@ -199,7 +201,7 @@ export class ProviderAccountsRepository {
         WHERE id = $1::uuid
           AND status = 'connected'
         RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
-                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
       `,
       [
         params.providerAccountId,
@@ -231,7 +233,7 @@ export class ProviderAccountsRepository {
     const result = await client.query(
       `
         SELECT id, profile_id, provider, status, state_token, provider_user_id, external_username,
-               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
         FROM provider_accounts
         WHERE profile_id = $1::uuid
         ORDER BY created_at DESC
@@ -258,7 +260,7 @@ export class ProviderAccountsRepository {
             updated_at = now()
         WHERE id = $1::uuid AND status = 'connected'
         RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
-                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, connected_at, updated_at
+                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
       `,
       [
         params.providerAccountId,
@@ -281,7 +283,7 @@ export class ProviderAccountsRepository {
     const result = await client.query(
       `
         SELECT pa.id, pa.profile_id, pa.provider, pa.status, pa.state_token, pa.provider_user_id, pa.external_username,
-               pa.credentials_json, pa.created_by_user_id, pa.expires_at, pa.last_used_at, pa.created_at, pa.connected_at, pa.updated_at,
+               pa.credentials_json, pa.created_by_user_id, pa.expires_at, pa.last_used_at, pa.created_at, pa.updated_at,
                pg.owner_user_id AS account_id,
                NULLIF(credentials_json ->> 'accessTokenExpiresAt', '') AS access_token_expires_at,
                NULLIF(credentials_json ->> 'lastRefreshAt', '') AS last_refresh_at,
