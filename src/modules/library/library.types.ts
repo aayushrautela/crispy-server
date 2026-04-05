@@ -23,22 +23,38 @@ export type LibraryItemView = {
   origins: string[];
 };
 
-export type ProfileLibrarySectionView = {
-  id: 'watched' | 'watchlist' | 'rated';
-  label: 'Watched' | 'Watchlist' | 'Rated';
+export type LibrarySectionView = {
+  id: string;
+  label: string;
   order: number;
-  itemCount: number;
-  items: LibraryItemView[];
 };
 
-export type ProfileLibraryView = {
+export type LibrarySectionSummaryView = LibrarySectionView & {
+  itemCount: number;
+};
+
+export type ProfileLibraryDiscoveryView = {
   profileId: string;
   source: 'canonical_library';
   generatedAt: string;
   auth: {
     providers: ProviderAuthStateView[];
   };
-  sections: ProfileLibrarySectionView[];
+  sections: LibrarySectionSummaryView[];
+};
+
+export type LibrarySectionPageInfoView = {
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type ProfileLibrarySectionPageView = {
+  profileId: string;
+  source: 'canonical_library';
+  generatedAt: string;
+  section: LibrarySectionView;
+  items: LibraryItemView[];
+  pageInfo: LibrarySectionPageInfoView;
 };
 
 export type LibraryRatingLike = RatingStateView;

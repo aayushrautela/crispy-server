@@ -1,28 +1,71 @@
 import { nowIso } from '../../lib/time.js';
+import { HttpError } from '../../lib/errors.js';
 import { ProviderImportService } from '../integrations/provider-import.service.js';
 import type { ProviderAccountView } from '../integrations/provider-import.views.js';
-import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { PersonalMediaService } from '../watch/personal-media.service.js';
-import type { WatchDerivedProductItem } from '../watch/watch-derived-item.types.js';
+import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
+import type { RatingProductItem, WatchedProductItem, WatchlistProductItem } from '../watch/watch-derived-item.types.js';
 import type {
   LibraryItemView,
-  ProfileLibrarySectionView,
-  ProfileLibraryView,
+  LibrarySectionSummaryView,
+  LibrarySectionView,
+  ProfileLibraryDiscoveryView,
+  ProfileLibrarySectionPageView,
   ProviderAuthStateView,
 } from './library.types.js';
 
+type LibrarySectionPageParams = {
+  limit: number;
+  cursor?: string | null;
+};
+
+type LibrarySectionDefinition = LibrarySectionView & {
+  count: (service: PersonalMediaService, userId: string, profileId: string) => Promise<number>;
+  listPage: (service: PersonalMediaService, userId: string, profileId: string, params: LibrarySectionPageParams) => Promise<PaginatedWatchCollection<LibraryItemView>>;
+};
+
+const LIBRARY_SECTIONS = [
+  {
+    id: 'watched',
+    label: 'Watched',
+    order: 0,
+    count: (service, userId, profileId) => service.countWatchedProducts(userId, profileId),
+    listPage: async (service, userId, profileId, params) => {
+      const page = await service.listWatchedPage(userId, profileId, params);
+      return { items: page.items.map(mapWatchedLibraryItem), pageInfo: page.pageInfo };
+    },
+  },
+  {
+    id: 'watchlist',
+    label: 'Watchlist',
+    order: 1,
+    count: (service, userId, profileId) => service.countWatchlistProducts(userId, profileId),
+    listPage: async (service, userId, profileId, params) => {
+      const page = await service.listWatchlistPage(userId, profileId, params);
+      return { items: page.items.map(mapWatchlistLibraryItem), pageInfo: page.pageInfo };
+    },
+  },
+  {
+    id: 'rated',
+    label: 'Rated',
+    order: 2,
+    count: (service, userId, profileId) => service.countRatingsProducts(userId, profileId),
+    listPage: async (service, userId, profileId, params) => {
+      const page = await service.listRatingsPage(userId, profileId, params);
+      return { items: page.items.map(mapRatedLibraryItem), pageInfo: page.pageInfo };
+    },
+  },
+] as const satisfies readonly LibrarySectionDefinition[];
+
 export class LibraryService {
   constructor(
-    private readonly profileAccessService = new ProfileAccessService(),
     private readonly personalMediaService = new PersonalMediaService(),
     private readonly providerImportService = new ProviderImportService(),
   ) {}
 
-  async getProfileLibrary(userId: string, profileId: string): Promise<ProfileLibraryView> {
-    const [watchedProducts, watchlistProducts, ratingProducts, connections] = await Promise.all([
-      this.personalMediaService.listWatchedProducts(userId, profileId, 100),
-      this.personalMediaService.listWatchlistProducts(userId, profileId, 100),
-      this.personalMediaService.listRatingsProducts(userId, profileId, 100),
+  async getProfileLibrary(userId: string, profileId: string): Promise<ProfileLibraryDiscoveryView> {
+    const [sections, connections] = await Promise.all([
+      this.listSectionSummaries(userId, profileId),
       this.providerImportService.listConnections(userId, profileId),
     ]);
 
@@ -33,32 +76,55 @@ export class LibraryService {
       auth: {
         providers: connections.providerAccounts.map(mapProviderAuthState),
       },
-      sections: [
-        buildSection('watched', 'Watched', 0, watchedProducts, mapWatchedLibraryItem),
-        buildSection('watchlist', 'Watchlist', 1, watchlistProducts, mapWatchlistLibraryItem),
-        buildSection('rated', 'Rated', 2, ratingProducts, mapRatedLibraryItem),
-      ],
+      sections,
     };
+  }
+
+  async getProfileLibrarySectionPage(
+    userId: string,
+    profileId: string,
+    sectionId: string,
+    params: LibrarySectionPageParams,
+  ): Promise<ProfileLibrarySectionPageView> {
+    const section = getLibrarySection(sectionId);
+    const page = await section.listPage(this.personalMediaService, userId, profileId, {
+      limit: params.limit,
+      cursor: params.cursor,
+    });
+    return {
+      profileId,
+      source: 'canonical_library',
+      generatedAt: nowIso(),
+      section: {
+        id: section.id,
+        label: section.label,
+        order: section.order,
+      },
+      items: page.items,
+      pageInfo: page.pageInfo,
+    };
+  }
+
+  private async listSectionSummaries(userId: string, profileId: string): Promise<LibrarySectionSummaryView[]> {
+    const sections = await Promise.all(LIBRARY_SECTIONS.map(async (section) => ({
+      id: section.id,
+      label: section.label,
+      order: section.order,
+      itemCount: await section.count(this.personalMediaService, userId, profileId),
+    })));
+    return sections.sort((left, right) => left.order - right.order);
   }
 }
 
-function buildSection<T extends WatchDerivedProductItem>(
-  id: ProfileLibrarySectionView['id'],
-  label: ProfileLibrarySectionView['label'],
-  order: number,
-  items: T[],
-  mapper: (item: T) => LibraryItemView,
-): ProfileLibrarySectionView {
-  return {
-    id,
-    label,
-    order,
-    itemCount: items.length,
-    items: items.map(mapper),
-  };
+function getLibrarySection(sectionId: string): LibrarySectionDefinition {
+  const section = LIBRARY_SECTIONS.find((entry) => entry.id === sectionId);
+  if (!section) {
+    throw new HttpError(404, `Unknown library section: ${sectionId}.`);
+  }
+  return section;
 }
 
-function mapWatchedLibraryItem(item: WatchDerivedProductItem & { watchedAt: string; origins: string[] }): LibraryItemView {
+function mapWatchedLibraryItem(item: WatchedProductItem): LibraryItemView {
   return {
     id: `${item.media.mediaType}:${item.media.provider}:${item.media.providerId}`,
     media: item.media,
@@ -73,7 +139,7 @@ function mapWatchedLibraryItem(item: WatchDerivedProductItem & { watchedAt: stri
   };
 }
 
-function mapWatchlistLibraryItem(item: WatchDerivedProductItem & { addedAt: string; origins: string[] }): LibraryItemView {
+function mapWatchlistLibraryItem(item: WatchlistProductItem): LibraryItemView {
   return {
     id: `${item.media.mediaType}:${item.media.provider}:${item.media.providerId}`,
     media: item.media,
@@ -88,7 +154,7 @@ function mapWatchlistLibraryItem(item: WatchDerivedProductItem & { addedAt: stri
   };
 }
 
-function mapRatedLibraryItem(item: WatchDerivedProductItem & { rating: { value: number; ratedAt: string }; origins: string[] }): LibraryItemView {
+function mapRatedLibraryItem(item: RatingProductItem): LibraryItemView {
   return {
     id: `${item.media.mediaType}:${item.media.provider}:${item.media.providerId}`,
     media: item.media,

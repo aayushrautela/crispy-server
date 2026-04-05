@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { HttpError } from '../../lib/errors.js';
 import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
 seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-id', SIMKL_IMPORT_CLIENT_ID: 'simkl-id' });
@@ -517,6 +518,7 @@ test('library route returns canonical library sections and auth state', async (t
   const { LibraryService } = await import('../../modules/library/library.service.js');
   const originals = {
     getProfileLibrary: LibraryService.prototype.getProfileLibrary,
+    getProfileLibrarySectionPage: LibraryService.prototype.getProfileLibrarySectionPage,
   };
 
   t.after(() => {
@@ -545,62 +547,12 @@ test('library route returns canonical library sections and auth state', async (t
           label: 'Watched',
           order: 0,
           itemCount: 1,
-          items: [
-            {
-              id: 'movie-1',
-              media: {
-                mediaKey: 'movie:tmdb:1',
-                mediaType: 'movie',
-                provider: 'tmdb',
-                providerId: '1',
-                title: 'Test Movie',
-                posterUrl: 'https://img.test/poster.jpg',
-                releaseYear: null,
-                rating: null,
-                genre: null,
-                subtitle: null,
-              },
-              state: {
-                addedAt: null,
-                watchedAt: '2024-01-15T10:00:00.000Z',
-                ratedAt: null,
-                rating: null,
-                lastActivityAt: null,
-              },
-              origins: ['native'],
-            },
-          ],
         },
         {
           id: 'watchlist',
           label: 'Watchlist',
           order: 1,
           itemCount: 1,
-          items: [
-            {
-              id: 'movie-2',
-              media: {
-                mediaKey: 'movie:tmdb:2',
-                mediaType: 'movie',
-                provider: 'tmdb',
-                providerId: '2',
-                title: 'Watchlisted Movie',
-                posterUrl: 'https://img.test/poster.jpg',
-                releaseYear: null,
-                rating: null,
-                genre: null,
-                subtitle: null,
-              },
-              state: {
-                addedAt: '2024-01-10T08:00:00.000Z',
-                watchedAt: null,
-                ratedAt: null,
-                rating: null,
-                lastActivityAt: null,
-              },
-              origins: ['native'],
-            },
-          ],
         },
         {
           id: 'rated',
@@ -626,8 +578,99 @@ test('library route returns canonical library sections and auth state', async (t
   assert.ok(libraryResponse.json().generatedAt);
   assert.equal(libraryResponse.json().auth.providers[0].provider, 'trakt');
   assert.deepEqual(libraryResponse.json().sections.map((section: { id: string }) => section.id), ['watched', 'watchlist', 'rated']);
-  assert.equal(libraryResponse.json().sections[0].items[0].media.title, 'Test Movie');
-  assert.equal(libraryResponse.json().sections[1].items[0].media.title, 'Watchlisted Movie');
+  assert.equal(libraryResponse.json().sections[0].itemCount, 1);
+  assert.equal(libraryResponse.json().sections[1].itemCount, 1);
+});
+
+test('library section route returns paginated canonical library items', async (t) => {
+  const { LibraryService } = await import('../../modules/library/library.service.js');
+  const originals = {
+    getProfileLibrary: LibraryService.prototype.getProfileLibrary,
+    getProfileLibrarySectionPage: LibraryService.prototype.getProfileLibrarySectionPage,
+  };
+
+  t.after(() => {
+    Object.assign(LibraryService.prototype, originals);
+  });
+
+  LibraryService.prototype.getProfileLibrarySectionPage = async function (_userId, profileId, sectionId) {
+    return {
+      profileId,
+      source: 'canonical_library',
+      generatedAt: '2024-01-01T00:00:00.000Z',
+      section: {
+        id: sectionId,
+        label: 'Watched',
+        order: 0,
+      },
+      items: [
+        {
+          id: 'movie-1',
+          media: {
+            mediaKey: 'movie:tmdb:1',
+            mediaType: 'movie',
+            provider: 'tmdb',
+            providerId: '1',
+            title: 'Test Movie',
+            posterUrl: 'https://img.test/poster.jpg',
+            releaseYear: null,
+            rating: null,
+            genre: null,
+            subtitle: null,
+          },
+          state: {
+            addedAt: null,
+            watchedAt: '2024-01-15T10:00:00.000Z',
+            ratedAt: null,
+            rating: null,
+            lastActivityAt: '2024-01-15T10:00:00.000Z',
+          },
+          origins: ['native'],
+        },
+      ],
+      pageInfo: {
+        nextCursor: 'cursor-1',
+        hasMore: true,
+      },
+    } as never;
+  };
+
+  const { registerLibraryRoutes } = await import('./library.js');
+  const app = await buildTestApp(registerLibraryRoutes);
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+  const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library/sections/watched?limit=25', headers: auth });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().section.id, 'watched');
+  assert.equal(response.json().items[0].media.title, 'Test Movie');
+  assert.equal(response.json().pageInfo.nextCursor, 'cursor-1');
+  assert.equal(response.json().pageInfo.hasMore, true);
+});
+
+test('library section route returns 404 for unknown section ids', async (t) => {
+  const { LibraryService } = await import('../../modules/library/library.service.js');
+  const originals = {
+    getProfileLibrarySectionPage: LibraryService.prototype.getProfileLibrarySectionPage,
+  };
+
+  t.after(() => {
+    Object.assign(LibraryService.prototype, originals);
+  });
+
+  LibraryService.prototype.getProfileLibrarySectionPage = async function () {
+    throw new HttpError(404, 'Unknown library section: favorites.');
+  };
+
+  const { registerLibraryRoutes } = await import('./library.js');
+  const app = await buildTestApp(registerLibraryRoutes);
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+  const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library/sections/favorites', headers: auth });
+
+  assert.equal(response.statusCode, 404);
 });
 
 test('library route returns 404 for non-existent profile', async (t) => {

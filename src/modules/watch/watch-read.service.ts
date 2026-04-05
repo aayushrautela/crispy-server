@@ -42,6 +42,13 @@ export class WatchReadService {
     return page.items;
   }
 
+  async countWatchedProducts(userId: string, profileId: string): Promise<number> {
+    return withDbClient(async (client) => {
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      return this.watchQueryService.countWatchHistory(client, profileId);
+    });
+  }
+
   async listWatchedPage(
     userId: string,
     profileId: string,

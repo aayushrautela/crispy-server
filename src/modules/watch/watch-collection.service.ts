@@ -19,6 +19,13 @@ export class WatchCollectionService {
     return page.items;
   }
 
+  async countWatchlistProducts(userId: string, profileId: string): Promise<number> {
+    return withDbClient(async (client) => {
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      return this.watchQueryService.countWatchlist(client, profileId);
+    });
+  }
+
   async listWatchlistPage(
     userId: string,
     profileId: string,
@@ -42,6 +49,13 @@ export class WatchCollectionService {
   async listRatingsProducts(userId: string, profileId: string, limit: number): Promise<RatingProductItem[]> {
     const page = await this.listRatingsPage(userId, profileId, { limit });
     return page.items;
+  }
+
+  async countRatingsProducts(userId: string, profileId: string): Promise<number> {
+    return withDbClient(async (client) => {
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      return this.watchQueryService.countRatings(client, profileId);
+    });
   }
 
   async listRatingsPage(

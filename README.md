@@ -183,7 +183,8 @@ Watch mutations update canonical server state. They do not perform inline write-
 
 #### Library and provider auth
 
-- `GET /v1/profiles/:profileId/library` - combined library view across canonical watch state and provider connection summaries
+- `GET /v1/profiles/:profileId/library` - library section discovery and provider connection summaries
+- `GET /v1/profiles/:profileId/library/sections/:sectionId` - paginated items for a discovered library section
 
 #### Metadata and AI
 

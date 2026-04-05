@@ -302,6 +302,20 @@ export class WatchQueryService {
     return page.items;
   }
 
+  async countWatchHistory(client: DbClient, profileId: string): Promise<number> {
+    const result = await client.query(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND effective_watched = true
+          AND last_watched_at IS NOT NULL
+      `,
+      [profileId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
   async listWatchHistoryPage(client: DbClient, profileId: string, params: WatchPageParams): Promise<PaginatedWatchCollection<RawWatchHistoryRow>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(
@@ -338,6 +352,20 @@ export class WatchQueryService {
     return page.items;
   }
 
+  async countWatchlist(client: DbClient, profileId: string): Promise<number> {
+    const result = await client.query(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND watchlist_present = true
+          AND watchlist_updated_at IS NOT NULL
+      `,
+      [profileId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
   async listWatchlistPage(client: DbClient, profileId: string, params: WatchPageParams): Promise<PaginatedWatchCollection<RawWatchlistRow>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(
@@ -372,6 +400,20 @@ export class WatchQueryService {
   async listRatings(client: DbClient, profileId: string, limit: number): Promise<RawRatingRow[]> {
     const page = await this.listRatingsPage(client, profileId, { limit });
     return page.items;
+  }
+
+  async countRatings(client: DbClient, profileId: string): Promise<number> {
+    const result = await client.query(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND rating_value IS NOT NULL
+          AND rated_at IS NOT NULL
+      `,
+      [profileId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
   }
 
   async listTrackedSeries(client: DbClient, profileId: string, limit: number): Promise<RawTrackedSeriesRow[]> {

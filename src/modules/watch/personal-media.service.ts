@@ -30,6 +30,10 @@ export class PersonalMediaService {
     return this.watchReadService.listWatchedProducts(userId, profileId, limit);
   }
 
+  async countWatchedProducts(userId: string, profileId: string): Promise<number> {
+    return this.watchReadService.countWatchedProducts(userId, profileId);
+  }
+
   async listWatchedPage(
     userId: string,
     profileId: string,
@@ -42,6 +46,10 @@ export class PersonalMediaService {
     return this.watchCollectionService.listWatchlistProducts(userId, profileId, limit);
   }
 
+  async countWatchlistProducts(userId: string, profileId: string): Promise<number> {
+    return this.watchCollectionService.countWatchlistProducts(userId, profileId);
+  }
+
   async listWatchlistPage(
     userId: string,
     profileId: string,
@@ -52,6 +60,10 @@ export class PersonalMediaService {
 
   async listRatingsProducts(userId: string, profileId: string, limit: number): Promise<RatingProductItem[]> {
     return this.watchCollectionService.listRatingsProducts(userId, profileId, limit);
+  }
+
+  async countRatingsProducts(userId: string, profileId: string): Promise<number> {
+    return this.watchCollectionService.countRatingsProducts(userId, profileId);
   }
 
   async listRatingsPage(
