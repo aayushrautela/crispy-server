@@ -32,6 +32,9 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+    networks:
+      - default
+      - crispy-shared
 
   worker:
     build:
@@ -48,6 +51,14 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+    networks:
+      - default
+      - crispy-shared
 
 volumes:
   postgres-data:
+
+networks:
+  crispy-shared:
+    external: true
+    name: crispy-shared
