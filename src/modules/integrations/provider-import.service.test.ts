@@ -396,6 +396,9 @@ test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb look
     {
       getTitle: async () => ({ tmdbId: 328443 }),
     } as never,
+    {
+      buildCardView: async () => ({ title: 'ok' }),
+    } as never,
   );
 
   try {
@@ -443,6 +446,9 @@ test('resolveImportIdentity falls back to imdb canonicalization when direct trak
       getTitle: async () => {
         throw new HttpError(404, 'missing');
       },
+    } as never,
+    {
+      buildCardView: async () => ({ title: 'ok' }),
     } as never,
   );
 
@@ -493,12 +499,59 @@ test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and i
         throw new HttpError(404, 'missing');
       },
     } as never,
+    {
+      buildCardView: async () => ({ title: 'ok' }),
+    } as never,
   );
 
   try {
     const result = await (service as any).resolveImportIdentity(new Map(), {
       mediaFamily: 'movie',
       tmdbId: 328443,
+      imdbId: 'tt0372784',
+    });
+
+    assert.equal(result, null);
+  } finally {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  }
+});
+
+test('resolveImportIdentity skips movie when metadata card build fails after id resolution', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { db } = await import('../../lib/db.js');
+
+  const originalConnect = db.connect;
+  (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
+
+  const service = new ProviderImportService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      resolve: async () => 272,
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    noopTransaction as never,
+    {
+      getTitle: async () => {
+        throw new Error('should not use direct tmdb');
+      },
+    } as never,
+    {
+      buildCardView: async () => {
+        throw new Error('metadata missing');
+      },
+    } as never,
+  );
+
+  try {
+    const result = await (service as any).resolveImportIdentity(new Map(), {
+      mediaFamily: 'movie',
       imdbId: 'tt0372784',
     });
 

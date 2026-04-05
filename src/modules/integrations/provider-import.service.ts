@@ -28,6 +28,7 @@ import { mapProviderAccountView, type ProviderAccountView } from './provider-imp
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
+import { MetadataCardService } from '../metadata/metadata-card.service.js';
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
@@ -101,6 +102,7 @@ export class ProviderImportService {
     private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly metadataCardService = new MetadataCardService(),
   ) {}
 
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
@@ -1348,25 +1350,32 @@ export class ProviderImportService {
     cache: Map<string, ResolvedImportIdentity | null>,
     params: ImportIdentityLookup,
   ): Promise<ResolvedImportIdentity | null> {
+    const cacheKey = JSON.stringify({
+      mediaFamily: params.mediaFamily,
+      tmdbId: params.tmdbId ?? null,
+      imdbId: params.imdbId?.trim() ?? null,
+      tvdbId: params.tvdbId?.trim() ?? null,
+      kitsuId: normalizeProviderId(params.kitsuId) ?? null,
+    });
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey) ?? null;
+    }
+
     const directTmdbId = params.tmdbId && params.tmdbId > 0 ? params.tmdbId : null;
     const directTvdbId = params.tvdbId?.trim() ? Number(params.tvdbId.trim()) : null;
     const directKitsuId = normalizeProviderId(params.kitsuId);
     const imdbId = params.imdbId?.trim();
 
     if (params.mediaFamily === 'movie' && directTmdbId && !imdbId) {
-      return buildResolvedImportIdentity('movie', {
+      const resolved = buildResolvedImportIdentity('movie', {
         provider: 'tmdb',
         providerId: String(directTmdbId),
         tmdbId: directTmdbId,
       });
+      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
     }
 
     if (params.mediaFamily === 'movie' && directTmdbId && imdbId) {
-      const cacheKey = `movie:tmdb:${directTmdbId}:imdb:${imdbId}`;
-      if (cache.has(cacheKey)) {
-        return cache.get(cacheKey) ?? null;
-      }
-
       const client = await db.connect();
       try {
         try {
@@ -1376,8 +1385,7 @@ export class ProviderImportService {
             providerId: String(directTmdbId),
             tmdbId: directTmdbId,
           });
-          cache.set(cacheKey, resolved);
-          return resolved;
+          return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
         } catch (error) {
           if (!(error instanceof HttpError) || error.statusCode !== 404) {
             throw error;
@@ -1396,8 +1404,11 @@ export class ProviderImportService {
               tmdbId: resolvedTmdbId,
             })
           : null;
-        cache.set(cacheKey, resolved);
-        return resolved;
+        if (!resolved) {
+          cache.set(cacheKey, null);
+          return null;
+        }
+        return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
@@ -1409,29 +1420,26 @@ export class ProviderImportService {
       && (directTvdbId ?? 0) > 0
       && (directTmdbId !== null || !imdbId)
     ) {
-      return buildResolvedImportIdentity('show', {
+      const resolved = buildResolvedImportIdentity('show', {
         provider: 'tvdb',
         providerId: String(directTvdbId),
         tmdbId: directTmdbId,
         tvdbId: directTvdbId,
       });
+      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
     }
 
     if (params.mediaFamily === 'anime' && directKitsuId) {
-      return buildResolvedImportIdentity('anime', {
+      const resolved = buildResolvedImportIdentity('anime', {
         provider: 'kitsu',
         providerId: directKitsuId,
         tmdbId: directTmdbId,
         kitsuId: directKitsuId,
       });
+      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
     }
 
     if (imdbId) {
-      const cacheKey = `${params.mediaFamily}:imdb:${imdbId}`;
-      if (cache.has(cacheKey)) {
-        return cache.get(cacheKey) ?? null;
-      }
-
       const client = await db.connect();
       try {
         const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
@@ -1476,8 +1484,11 @@ export class ProviderImportService {
                   kitsuId: directKitsuId,
                 })
               : null;
-        cache.set(cacheKey, resolved);
-        return resolved;
+        if (!resolved) {
+          cache.set(cacheKey, null);
+          return null;
+        }
+        return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
@@ -1485,11 +1496,6 @@ export class ProviderImportService {
 
     const tvdbId = params.tvdbId?.trim();
     if (tvdbId && params.mediaFamily === 'show') {
-      const cacheKey = `${params.mediaFamily}:tvdb:${tvdbId}`;
-      if (cache.has(cacheKey)) {
-        return cache.get(cacheKey) ?? null;
-      }
-
       const client = await db.connect();
       try {
         const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
@@ -1503,23 +1509,45 @@ export class ProviderImportService {
           tmdbId: resolvedTmdbId,
           tvdbId: Number(tvdbId),
         });
-        cache.set(cacheKey, resolved);
-        return resolved;
+        return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
     }
 
     if (directKitsuId && params.mediaFamily === 'anime') {
-      return buildResolvedImportIdentity('anime', {
+      const resolved = buildResolvedImportIdentity('anime', {
         provider: 'kitsu',
         providerId: directKitsuId,
         tmdbId: directTmdbId,
         kitsuId: directKitsuId,
       });
+      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
     }
 
+    cache.set(cacheKey, null);
     return null;
+  }
+
+  private async validateResolvedImportIdentity(
+    cache: Map<string, ResolvedImportIdentity | null>,
+    cacheKey: string,
+    resolved: ResolvedImportIdentity,
+    existingClient?: DbClient,
+  ): Promise<ResolvedImportIdentity | null> {
+    const client = existingClient ?? await db.connect();
+    try {
+      await this.metadataCardService.buildCardView(client, resolved.identity);
+      cache.set(cacheKey, resolved);
+      return resolved;
+    } catch {
+      cache.set(cacheKey, null);
+      return null;
+    } finally {
+      if (!existingClient) {
+        client.release();
+      }
+    }
   }
 }
 
