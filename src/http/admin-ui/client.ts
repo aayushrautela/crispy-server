@@ -6,8 +6,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       description: 'System health, live worker activity, and quick access to the main control surfaces.',
     },
     jobs: {
-      title: 'Worker Jobs',
-      description: 'Trigger runs, watch progress, and manage the queue without expanding the whole page.',
+      title: 'Recommendation Jobs',
+      description: 'Read-only view of recommendation generation activity tracked by the API server.',
     },
     diagnostics: {
       title: 'Diagnostics',
@@ -18,8 +18,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       description: 'Resolve accounts, choose profiles, and keep profile operations in a dedicated workspace.',
     },
     'worker-control': {
-      title: 'Worker Control',
-      description: 'Bridge health and the raw control payload from the API server to the worker.',
+      title: 'Worker Bridge',
+      description: 'Bridge health and the raw worker status payload seen by the API server.',
     },
   };
 
@@ -62,7 +62,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     navButtons: Array.from(document.querySelectorAll('[data-nav-target]')),
     openViewButtons: Array.from(document.querySelectorAll('[data-open-view]')),
     refreshTargetButtons: Array.from(document.querySelectorAll('[data-refresh-target]')),
-    defaultJobButtons: Array.from(document.querySelectorAll('[data-run-default-job]')),
     sidebarToggle: document.getElementById('sidebar-toggle'),
     sidebarOverlay: document.getElementById('sidebar-overlay'),
     notificationsToggle: document.getElementById('notifications-toggle'),
@@ -122,8 +121,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     bridgeJson: document.getElementById('bridge-json'),
   };
 
-  const triggerForms = Array.from(document.querySelectorAll('form[data-target]'));
-
   bindNavigation();
   bindGlobalActions();
   bindForms();
@@ -175,20 +172,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       });
     }
 
-    for (const button of elements.defaultJobButtons) {
-      button.addEventListener('click', async () => {
-        const target = button.getAttribute('data-run-default-job');
-        if (!target) return;
-        button.disabled = true;
-        try {
-          await triggerJob({ target: target, options: {} }, null);
-          updateView('jobs', true);
-        } finally {
-          button.disabled = false;
-        }
-      });
-    }
-
     if (elements.refreshJobs) {
       elements.refreshJobs.addEventListener('click', () => { void loadJobs(); });
     }
@@ -223,16 +206,6 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function bindForms() {
-    for (const form of triggerForms) {
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const target = form.getAttribute('data-target');
-        if (!target) return;
-        const payload = collectTriggerPayload(form, target);
-        void triggerJob(payload, form);
-      });
-    }
-
     if (elements.lookupForm) {
       elements.lookupForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -386,7 +359,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       state.bridgePayload = fallback;
       renderBridgeStatus(fallback, error);
       if (!(options && options.silent)) {
-        pushNotification('error', 'Worker control unavailable', error.message || 'Unable to read worker control status.', true);
+        pushNotification('error', 'Worker bridge unavailable', error.message || 'Unable to read worker bridge status.', true);
       }
       return fallback;
     } finally {
@@ -400,17 +373,17 @@ export const ADMIN_UI_CLIENT = String.raw`
     const configured = workerControl.configured === true;
     const reachable = workerControl.reachable === true;
     if (!configured) {
-      updateBridgeTexts('Worker status: not configured', 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable worker control.', 'setup');
+      updateBridgeTexts('Worker status: not configured', 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL, RECOMMENDATION_ENGINE_WORKER_SERVICE_ID, and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable the worker bridge.', 'setup');
     } else if (reachable) {
       updateBridgeTexts(
         'Worker status: reachable',
-        'API server can reach the recommendation engine worker-control surface.' + (workerControl.serverTime ? ' Worker clock: ' + formatDate(workerControl.serverTime) + '.' : ''),
+        'API server can reach the recommendation engine worker.' + (workerControl.serverTime ? ' Estimated worker time: ' + formatDate(workerControl.serverTime) + '.' : ''),
         'live'
       );
     } else {
       updateBridgeTexts(
         'Worker status: unreachable',
-        workerControl.error || 'Worker control is configured, but the API server cannot reach the worker right now.',
+        workerControl.error || 'Worker bridge is configured, but the API server cannot reach the worker right now.',
         'down'
       );
     }
@@ -439,17 +412,17 @@ export const ADMIN_UI_CLIENT = String.raw`
     setBusy('jobsBusy', true);
     try {
       const payload = await fetchJson(apiPath('/worker/jobs/status'));
-      const activeJobs = Array.isArray(payload.activeJobs) ? payload.activeJobs : [];
-      const queuedJobs = Array.isArray(payload.queuedJobs) ? payload.queuedJobs : [];
-      const recentJobs = Array.isArray(payload.recentJobs) ? payload.recentJobs : [];
+      const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+      const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
+      const recentJobs = jobs.filter((job) => job.status !== 'pending' && job.status !== 'queued' && job.status !== 'running');
       state.jobsPayload = payload;
       renderJobStats(payload);
-      renderJobs(activeJobs.concat(queuedJobs), elements.activeJobs, true);
+      renderJobs(activeJobs, elements.activeJobs, true);
       renderJobs(recentJobs, elements.recentJobs, false);
       updateJobChrome(payload);
       detectJobTransitions(payload, options && options.silent === true);
       if (!(options && options.silent)) {
-        setMessage(elements.jobMessage, 'info', 'Worker job state refreshed.');
+        setMessage(elements.jobMessage, 'info', 'Recommendation job state refreshed.');
       }
       stampUpdated();
       return payload;
@@ -457,15 +430,15 @@ export const ADMIN_UI_CLIENT = String.raw`
       state.jobsPayload = null;
       renderJobStats(null);
       if (elements.activeJobs) {
-        elements.activeJobs.innerHTML = emptyState('Worker job control is unavailable.');
+        elements.activeJobs.innerHTML = emptyState('Recommendation job status is unavailable.');
       }
       if (elements.recentJobs) {
-        elements.recentJobs.innerHTML = emptyState('No recent worker data available.');
+        elements.recentJobs.innerHTML = emptyState('No recent recommendation job data available.');
       }
       updateJobChrome(null);
-      setMessage(elements.jobMessage, 'error', error.message || 'Failed to load worker jobs.');
+      setMessage(elements.jobMessage, 'error', error.message || 'Failed to load recommendation jobs.');
       if (!(options && options.silent)) {
-        pushNotification('error', 'Worker jobs unavailable', error.message || 'Failed to load worker jobs.', true);
+        pushNotification('error', 'Recommendation jobs unavailable', error.message || 'Failed to load recommendation jobs.', true);
       }
       void loadBridgeStatus({ silent: true });
       return null;
@@ -476,9 +449,9 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function updateJobChrome(payload) {
-    const activeJobs = payload && Array.isArray(payload.activeJobs) ? payload.activeJobs : [];
-    const queuedJobs = payload && Array.isArray(payload.queuedJobs) ? payload.queuedJobs : [];
-    const count = activeJobs.length + queuedJobs.length;
+    const jobs = payload && Array.isArray(payload.jobs) ? payload.jobs : [];
+    const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
+    const count = activeJobs.length;
     if (elements.topbarRunningCount) {
       elements.topbarRunningCount.textContent = String(count);
     }
@@ -487,8 +460,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     if (elements.sidebarRunningStatus) {
       elements.sidebarRunningStatus.textContent = count
-        ? count + ' jobs in flight. Next up: ' + String((queuedJobs[0] && queuedJobs[0].target) || (activeJobs[0] && activeJobs[0].target) || 'unknown')
-        : 'No running or queued worker jobs.';
+        ? count + ' recommendation jobs in flight. Next up: ' + String((activeJobs[0] && activeJobs[0].profileId) || 'unknown-profile')
+        : 'No running or queued recommendation jobs.';
     }
   }
 
@@ -565,26 +538,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       return null;
     } finally {
       state.generationDetailBusy = false;
-    }
-  }
-
-  async function triggerJob(payload, form) {
-    if (form) setFormDisabled(form, true);
-    setMessage(elements.jobMessage, 'info', 'Sending worker trigger request...');
-    try {
-      const response = await fetchJson(apiPath('/worker/jobs/trigger'), {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const text = response.message || 'Worker job request sent.';
-      setMessage(elements.jobMessage, 'success', text);
-      pushNotification('success', 'Worker job requested', text, true);
-      await loadJobs({ silent: true });
-    } catch (error) {
-      setMessage(elements.jobMessage, 'error', error.message || 'Unable to trigger worker job.');
-      pushNotification('error', 'Trigger failed', error.message || 'Unable to trigger worker job.', true);
-    } finally {
-      if (form) setFormDisabled(form, false);
     }
   }
 
@@ -921,147 +874,79 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (!elements.jobStats) return;
     if (!payload) {
       elements.jobStats.innerHTML = [
-        statCard('Active jobs', '0', 'bridge unavailable'),
-        statCard('Queued jobs', '0', 'bridge unavailable'),
-        statCard('Recent jobs', '0', 'bridge unavailable'),
-        statCard('Worker clock', '--', 'no worker response'),
+        statCard('Pending jobs', '0', 'status unavailable'),
+        statCard('Running jobs', '0', 'status unavailable'),
+        statCard('Failed jobs', '0', 'status unavailable'),
+        statCard('Latest update', '--', 'no job data'),
       ].join('');
       return;
     }
 
-    const activeJobs = Array.isArray(payload.activeJobs) ? payload.activeJobs : [];
-    const queuedJobs = Array.isArray(payload.queuedJobs) ? payload.queuedJobs : [];
-    const recentJobs = Array.isArray(payload.recentJobs) ? payload.recentJobs : [];
-    const successCount = recentJobs.filter((job) => job.status === 'success').length;
+    const lag = payload.lag || {};
+    const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+    const failedCount = jobs.filter((job) => job.status === 'failed').length;
+    const latestUpdatedAt = jobs.length ? jobs[0].updatedAt || jobs[0].createdAt : null;
 
     elements.jobStats.innerHTML = [
-      statCard('Active jobs', activeJobs.length, activeJobs.filter((job) => job.cancelRequestedAt).length + ' cancel requested'),
-      statCard('Queued jobs', queuedJobs.length, queuedJobs.length ? 'next: ' + escapeHtml(String(queuedJobs[0].target || 'unknown')) : 'no queue'),
-      statCard('Recent successes', successCount, recentJobs.length + ' recent total'),
-      statCard('Worker clock', formatDate(payload.serverTime), payload.serverTime || 'n/a'),
+      statCard('Pending jobs', Number(lag.pendingCount || 0), Number(lag.submitFailureCount || 0) + ' submit failures'),
+      statCard('Running jobs', Number(lag.runningCount || 0), Number(lag.queuedCount || 0) + ' queued'),
+      statCard('Failed jobs', failedCount, Number(lag.pollFailureCount || 0) + ' poll failures'),
+      statCard('Latest update', latestUpdatedAt ? formatDate(latestUpdatedAt) : '--', latestUpdatedAt || 'n/a'),
     ].join('');
   }
 
   function renderJobs(jobs, target, includeQueueContext) {
     if (!target) return;
     if (!jobs || jobs.length === 0) {
-      target.innerHTML = emptyState(includeQueueContext ? 'No active or queued worker jobs.' : 'No recent worker jobs.');
+      target.innerHTML = emptyState(includeQueueContext ? 'No pending or running recommendation jobs.' : 'No recent recommendation jobs.');
       return;
     }
 
     target.innerHTML = jobs.map((job) => renderJobCard(job, includeQueueContext)).join('');
-    bindJobActions();
   }
 
   function renderJobCard(job, includeQueueContext) {
-    const percent = job && job.progress && typeof job.progress.percent === 'number' ? Math.max(0, Math.min(100, job.progress.percent)) : 0;
-    const args = Array.isArray(job.args) && job.args.length ? job.args.join(' ') : '(no args)';
-    const queueText = includeQueueContext && job.queuePosition ? 'Queue position ' + job.queuePosition : null;
+    const statusPayload = job && job.lastStatusPayload && typeof job.lastStatusPayload === 'object' ? job.lastStatusPayload : {};
+    const failureJson = job && job.failureJson && typeof job.failureJson === 'object' ? job.failureJson : {};
+    const result = statusPayload && statusPayload.result && typeof statusPayload.result === 'object' ? statusPayload.result : null;
+    const failure = statusPayload && statusPayload.failure && typeof statusPayload.failure === 'object' ? statusPayload.failure : failureJson;
+    const queueText = includeQueueContext && job.nextPollAt ? 'next poll ' + formatDate(job.nextPollAt) : null;
     const meta = [
       'id ' + job.id,
-      'script ' + job.script,
-      job.pid ? 'pid ' + job.pid : null,
+      job.workerJobId ? 'worker ' + job.workerJobId : 'worker pending',
       queueText,
+      'profile ' + job.profileId,
+      'source ' + job.sourceKey,
       job.startedAt ? 'started ' + formatDate(job.startedAt) : 'created ' + formatDate(job.createdAt),
     ].filter(Boolean).map((item) => '<span>' + escapeHtml(item) + '</span>').join('');
 
-    const actions = [];
-    if (job.status === 'running' || job.status === 'queued') {
-      actions.push('<button class="warn" type="button" data-cancel-job="' + escapeHtml(job.id) + '">Cancel</button>');
-    }
-    if (job.status === 'success' || job.status === 'error' || job.status === 'canceled') {
-      actions.push('<button class="ghost" type="button" data-delete-job="' + escapeHtml(job.id) + '">Delete</button>');
-    }
+    const detailLines = [
+      'algorithm: ' + String(job.algorithmVersion || 'n/a'),
+      'history generation: ' + String(job.historyGeneration || 'n/a'),
+      'submit attempts: ' + String(Number(job.submitAttempts || 0)),
+      'poll attempts: ' + String(Number(job.pollAttempts || 0)),
+      'poll errors: ' + String(Number(job.pollErrorCount || 0)),
+      'accepted: ' + String(job.acceptedAt || 'n/a'),
+      'completed: ' + String(job.completedAt || 'n/a'),
+      result ? 'result: available' : 'result: pending',
+      failure && Object.keys(failure).length ? 'failure: ' + JSON.stringify(failure) : 'failure: none',
+    ];
 
     return '<article class="job-card">'
       + '<div class="job-head">'
       + '  <div class="job-title">'
       + '    <div class="badge ' + escapeHtml(job.status) + '">' + escapeHtml(job.status) + '</div>'
-      + '    <h3>' + escapeHtml(job.target) + '</h3>'
+      + '    <h3>' + escapeHtml(String(job.profileId || 'unknown-profile')) + '</h3>'
       + '    <div class="job-meta">' + meta + '</div>'
       + '  </div>'
-      + '  <div class="job-actions">' + actions.join('') + '</div>'
       + '</div>'
-      + '<div><strong>' + escapeHtml(job.progress && job.progress.phase || 'No phase') + '</strong><div class="muted">' + escapeHtml(job.progress && job.progress.message || 'No message') + '</div></div>'
-      + '<div class="progress"><span class="progress-bar" style="width:' + percent + '%"></span></div>'
       + '<div class="job-meta">'
-      + '  <span>processed ' + escapeHtml(String(job.progress && job.progress.processed || 0)) + '</span>'
-      + '  <span>skipped ' + escapeHtml(String(job.progress && job.progress.skipped || 0)) + '</span>'
-      + '  <span>errors ' + escapeHtml(String(job.progress && job.progress.errors || 0)) + '</span>'
+      + '  <span>account ' + escapeHtml(String(job.accountId || 'unknown-account')) + '</span>'
+      + '  <span>worker ' + escapeHtml(String(job.workerJobId || 'pending')) + '</span>'
+      + '  <span>updated ' + escapeHtml(String(job.updatedAt || 'n/a')) + '</span>'
       + '</div>'
-      + '<div class="code">' + escapeHtml(args + '\n\nstdout:\n' + ((job.stdoutTail || []).join('\n') || '(empty)') + '\n\nstderr:\n' + ((job.stderrTail || []).join('\n') || '(empty)')) + '</div>'
+      + '<div class="code">' + escapeHtml(detailLines.join('\n')) + '</div>'
       + '</article>';
-  }
-
-  function bindJobActions() {
-    const cancelButtons = Array.from(document.querySelectorAll('[data-cancel-job]'));
-    for (const button of cancelButtons) {
-      button.onclick = async () => {
-        const jobId = button.getAttribute('data-cancel-job');
-        if (!jobId) return;
-        button.disabled = true;
-        try {
-          const payload = await fetchJson(apiPath('/worker/jobs/' + encodeURIComponent(jobId) + '/cancel'), { method: 'POST' });
-          setMessage(elements.jobMessage, 'success', payload.message || 'Cancellation requested.');
-          pushNotification('warn', 'Job cancellation requested', payload.message || ('Requested cancellation for ' + jobId + '.'), true);
-          await loadJobs({ silent: true });
-        } catch (error) {
-          setMessage(elements.jobMessage, 'error', error.message || 'Unable to cancel job.');
-          pushNotification('error', 'Cancel failed', error.message || 'Unable to cancel job.', true);
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
-
-    const deleteButtons = Array.from(document.querySelectorAll('[data-delete-job]'));
-    for (const button of deleteButtons) {
-      button.onclick = async () => {
-        const jobId = button.getAttribute('data-delete-job');
-        if (!jobId) return;
-        button.disabled = true;
-        try {
-          const payload = await fetchJson(apiPath('/worker/jobs/' + encodeURIComponent(jobId)), { method: 'DELETE' });
-          setMessage(elements.jobMessage, 'success', payload.message || 'Job deleted.');
-          pushNotification('info', 'Job deleted', payload.message || ('Deleted ' + jobId + '.'), true);
-          await loadJobs({ silent: true });
-        } catch (error) {
-          setMessage(elements.jobMessage, 'error', error.message || 'Unable to delete job.');
-          pushNotification('error', 'Delete failed', error.message || 'Unable to delete job.', true);
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
-  }
-
-  function collectTriggerPayload(form, target) {
-    const formData = new FormData(form);
-    const options = {};
-    for (const [key, value] of formData.entries()) {
-      if (typeof value !== 'string') continue;
-      const text = value.trim();
-      if (!text) continue;
-      if (key === 'dueWithinHours') {
-        options[key] = Number(text);
-      } else {
-        options[key] = text;
-      }
-    }
-    const checkboxes = form.querySelectorAll('input[type="checkbox"]');
-    for (const checkbox of checkboxes) {
-      if (checkbox.checked) {
-        options[checkbox.name] = true;
-      }
-    }
-    return { target: target, options: options };
-  }
-
-  function setFormDisabled(form, disabled) {
-    const fields = Array.from(form.querySelectorAll('input, select, textarea, button'));
-    for (const field of fields) {
-      field.disabled = disabled;
-    }
   }
 
   function setBusy(key, value) {
@@ -1475,10 +1360,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function detectJobTransitions(payload, silent) {
     const current = new Map();
-    const jobs = []
-      .concat(Array.isArray(payload.activeJobs) ? payload.activeJobs : [])
-      .concat(Array.isArray(payload.queuedJobs) ? payload.queuedJobs : [])
-      .concat(Array.isArray(payload.recentJobs) ? payload.recentJobs : []);
+    const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
 
     for (const job of jobs) {
       current.set(job.id, job.status);
@@ -1486,13 +1368,13 @@ export const ADMIN_UI_CLIENT = String.raw`
       const previous = state.jobsSnapshot.get(job.id);
       if (!previous) {
         if (!silent) {
-          pushNotification('info', 'New worker job', job.target + ' entered as ' + job.status + '.', job.status === 'running' || job.status === 'queued');
+          pushNotification('info', 'New recommendation job', String(job.profileId || job.id) + ' entered as ' + job.status + '.', job.status === 'running' || job.status === 'queued' || job.status === 'pending');
         }
         continue;
       }
       if (previous !== job.status) {
-        const tone = job.status === 'success' ? 'success' : job.status === 'error' ? 'error' : job.status === 'canceled' ? 'warn' : 'info';
-        pushNotification(tone, 'Job ' + job.status, job.target + ' changed from ' + previous + ' to ' + job.status + '.', job.status === 'success' || job.status === 'error' || job.status === 'canceled');
+        const tone = job.status === 'succeeded' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'cancelled' ? 'warn' : 'info';
+        pushNotification(tone, 'Job ' + job.status, String(job.profileId || job.id) + ' changed from ' + previous + ' to ' + job.status + '.', job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled');
       }
     }
 
@@ -1513,11 +1395,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     state.bridgeSignature = signature;
     if (silent) return;
     if (workerControl.configured !== true) {
-      pushNotification('warn', 'Worker control not configured', 'Set the worker bridge environment variables to enable control features.', true);
+      pushNotification('warn', 'Worker bridge not configured', 'Set the worker bridge environment variables to enable worker reachability checks.', true);
     } else if (workerControl.reachable === true) {
-      pushNotification('success', 'Worker control reachable', 'The API server can talk to the worker again.', true);
+      pushNotification('success', 'Worker bridge reachable', 'The API server can talk to the recommendation worker again.', true);
     } else {
-      pushNotification('error', 'Worker control unreachable', workerControl.error || 'The bridge is configured but the worker cannot be reached.', true);
+      pushNotification('error', 'Worker bridge unreachable', workerControl.error || 'The bridge is configured but the worker cannot be reached.', true);
     }
   }
 
@@ -1624,8 +1506,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (!elements.overviewSummary) return;
     const jobsPayload = state.jobsPayload;
     const diagnostics = state.diagnosticsPayload;
-    const activeJobs = jobsPayload && Array.isArray(jobsPayload.activeJobs) ? jobsPayload.activeJobs : [];
-    const queuedJobs = jobsPayload && Array.isArray(jobsPayload.queuedJobs) ? jobsPayload.queuedJobs : [];
+    const jobs = jobsPayload && Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
+    const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
     const generationJobs = diagnostics && diagnostics.generationJobs ? diagnostics.generationJobs : { lag: null, jobs: [] };
     const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { providerAccounts: [] };
     const bridge = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
@@ -1634,7 +1516,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       : 0;
 
     elements.overviewSummary.innerHTML = [
-      statCard('Running now', activeJobs.length, queuedJobs.length + ' queued behind them'),
+      statCard('Running now', activeJobs.length, 'recommendation jobs in flight'),
       statCard('Recommendation jobs', countArray(generationJobs.jobs), generationLagText(generationJobs.lag)),
       statCard('Import warnings', refreshFailures, countArray(imports.providerAccounts) + ' accounts scanned'),
       statCard('Worker bridge', bridge ? (bridge.reachable ? 'live' : bridge.configured ? 'down' : 'setup') : 'check', state.lastUpdatedAt ? 'updated ' + formatTimeAgo(state.lastUpdatedAt) : 'waiting'),
@@ -1644,16 +1526,14 @@ export const ADMIN_UI_CLIENT = String.raw`
   function renderOverviewRunningJobs() {
     if (!elements.overviewRunningJobs) return;
     const jobsPayload = state.jobsPayload;
-    const jobs = []
-      .concat(jobsPayload && Array.isArray(jobsPayload.activeJobs) ? jobsPayload.activeJobs : [])
-      .concat(jobsPayload && Array.isArray(jobsPayload.queuedJobs) ? jobsPayload.queuedJobs : [])
+    const jobs = (jobsPayload && Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [])
+      .filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running')
       .slice(0, 3);
     if (!jobs.length) {
-      elements.overviewRunningJobs.innerHTML = emptyState('No running or queued jobs right now.');
+      elements.overviewRunningJobs.innerHTML = emptyState('No running or queued recommendation jobs right now.');
       return;
     }
     elements.overviewRunningJobs.innerHTML = jobs.map((job) => renderJobCard(job, true)).join('');
-    bindJobActions();
   }
 
   function renderOverviewBridge() {

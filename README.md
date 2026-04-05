@@ -410,11 +410,11 @@ The recommendation worker no longer polls the API server for claim/renew/complet
 
 ## Admin control plane
 
-- `GET /admin` is the API-server-hosted admin UI for provider-maintenance worker operations plus import and recommendation diagnostics.
+- `GET /admin` is the API-server-hosted admin UI for recommendation and import diagnostics plus worker bridge health.
 - Admin UI access uses HTTP Basic Auth configured by `ADMIN_UI_USER` and `ADMIN_UI_PASSWORD`.
-- Worker control uses the recommendation engine worker-control endpoint configured with `RECOMMENDATION_ENGINE_WORKER_BASE_URL` and `RECOMMENDATION_ENGINE_WORKER_API_KEY` for control-plane jobs such as provider token maintenance.
-- Recommendation generation itself is not triggered from the admin worker-control queue. The API server calls the recommendation worker business endpoint directly using `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY`.
-- The API server hosts the operator UI and human-readable admin backend. The recommendation engine should be treated as a worker compute node with a narrow control surface, not the primary admin surface.
+- The worker bridge is read-only. It checks worker reachability through the recommendation worker's supported `/ready` and `/v1/stats` endpoints.
+- Recommendation generation uses the same worker contract everywhere: `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY`.
+- The API server hosts the operator UI and human-readable admin backend. The recommendation engine should be treated as a worker compute node with a narrow business API, not the primary admin surface.
 
 ## Major feature areas
 
@@ -440,7 +440,7 @@ The recommendation worker no longer polls the API server for claim/renew/complet
     - `AUTH_*` values are only used for external auth.
      - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
      - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
-     - `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY` configure outbound recommendation-generation calls from the API server to the recommendation worker.
+     - `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY` configure outbound recommendation-generation calls and read-only worker bridge checks from the API server to the recommendation worker.
      - `RECOMMENDATION_ENGINE_WORKER_SUBMIT_TIMEOUT_MS`, `RECOMMENDATION_ENGINE_WORKER_STATUS_TIMEOUT_MS`, `RECOMMENDATION_GENERATION_POLL_DELAY_MS`, and `RECOMMENDATION_GENERATION_MAX_POLL_DELAY_MS` tune async submit-plus-poll orchestration with the recommendation worker.
      - `RECOMMENDATION_ALGORITHM_VERSION` sets the canonical recommendation snapshot version. It defaults to `v3.2.1`.
      - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.

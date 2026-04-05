@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
-import { WorkerControlClient, type WorkerControlJobTarget } from '../../modules/admin/worker-control-client.js';
+import { WorkerControlClient } from '../../modules/admin/worker-control-client.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
 import {
   recommendationConfig,
@@ -64,7 +64,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     }
 
     try {
-      const status = await workerControlClient.getJobStatus();
+      const status = await workerControlClient.getBridgeStatus();
       return {
         workerControl: {
           configured: true,
@@ -87,24 +87,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
 
   app.get('/admin/api/worker/jobs/status', async (request, reply) => {
     await requireAdmin(request);
-    return workerControlClient.getJobStatus();
-  });
-
-  app.post('/admin/api/worker/jobs/trigger', async (request, reply) => {
-    await requireAdminMutation(request);
-    return workerControlClient.triggerJob(parseTriggerInput(request.body));
-  });
-
-  app.post('/admin/api/worker/jobs/:jobId/cancel', async (request, reply) => {
-    await requireAdminMutation(request);
-    const params = asRecord(request.params);
-    return workerControlClient.cancelJob(readRequiredString(params.jobId, 'jobId'));
-  });
-
-  app.delete('/admin/api/worker/jobs/:jobId', async (request, reply) => {
-    await requireAdminMutation(request);
-    const params = asRecord(request.params);
-    return workerControlClient.deleteJob(readRequiredString(params.jobId, 'jobId'));
+    return recommendationAdminService.getGenerationJobs(parseLimit(asRecord(request.query).limit));
   });
 
   app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
@@ -376,22 +359,6 @@ async function loadProviderStates(
       throw error;
     }
   }));
-}
-
-function parseTriggerInput(body: unknown): { target: WorkerControlJobTarget; options?: Record<string, unknown> } {
-  const value = asRecord(body);
-  const target = readRequiredString(value.target, 'target');
-  if (target !== 'provider_token_maintenance') {
-    throw new HttpError(400, 'Invalid worker target.');
-  }
-
-  const options = value.options;
-  return {
-    target,
-    options: typeof options === 'object' && options !== null && !Array.isArray(options)
-      ? options as Record<string, unknown>
-      : undefined,
-  };
 }
 
 function parseAccountProfileParams(value: unknown): { accountId: string; profileId: string } {

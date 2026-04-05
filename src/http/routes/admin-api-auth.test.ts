@@ -64,14 +64,14 @@ test('admin api rejects state-changing requests without the admin csrf header', 
 
   const response = await app.inject({
     method: 'POST',
-    url: '/admin/api/worker/jobs/trigger',
+    url: '/admin/api/accounts/test-account/profiles/test-profile/imports/start',
     headers: {
       cookie: sessionCookie,
       'content-type': 'application/json',
       host: 'localhost',
       origin: 'http://localhost',
     },
-    payload: JSON.stringify({ target: 'provider_token_maintenance', options: {} }),
+    payload: JSON.stringify({ provider: 'trakt' }),
   });
 
   assert.equal(response.statusCode, 403);

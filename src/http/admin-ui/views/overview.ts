@@ -4,7 +4,7 @@ export function renderOverviewView(): string {
       <header class="view-header">
         <h2>Overview</h2>
         <div class="view-header-actions">
-          <button type="button" data-open-view="jobs">Open worker jobs</button>
+          <button type="button" data-open-view="jobs">Open recommendation jobs</button>
         </div>
       </header>
 
@@ -14,7 +14,7 @@ export function renderOverviewView(): string {
         <section class="panel">
           <div class="panel-head">
             <h3>Live activity</h3>
-            <button type="button" class="secondary" data-open-view="jobs">Detailed queue</button>
+            <button type="button" class="secondary" data-open-view="jobs">Detailed jobs</button>
           </div>
           <div class="panel-body" id="overview-running-jobs"></div>
         </section>

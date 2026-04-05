@@ -29,7 +29,7 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
             <span>Overview</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="jobs">
-            <span>Worker Jobs</span>
+            <span>Recommendation Jobs</span>
             <span class="nav-meta" id="nav-jobs-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="diagnostics">
@@ -41,15 +41,15 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
             <span class="nav-meta" id="nav-accounts-badge">0</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="worker-control">
-            <span>Worker Control</span>
+            <span>Worker Bridge</span>
             <span class="nav-meta" id="nav-bridge-badge">check</span>
           </button>
         </nav>
       </div>
 
       <div class="sidebar-status">
-        <div id="sidebar-running-status">Checking worker queue...</div>
-        <div id="sidebar-bridge-status">Checking worker control...</div>
+        <div id="sidebar-running-status">Checking recommendation jobs...</div>
+        <div id="sidebar-bridge-status">Checking worker bridge...</div>
       </div>
     </aside>
 
@@ -67,7 +67,7 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
 
         <div class="topbar-right">
           <div class="topbar-stat"><strong id="topbar-running-count">0</strong><span>running or queued</span></div>
-          <div class="topbar-stat" id="worker-control-pill"><strong>Checking</strong><span>worker status</span></div>
+          <div class="topbar-stat" id="worker-control-pill"><strong>Checking</strong><span>worker bridge</span></div>
           <div class="topbar-stat"><strong id="topbar-last-update">Starting</strong><span>last update</span></div>
           <form method="post" action="/admin/logout" class="logout-form">
             <input type="hidden" name="csrfToken" value="${escapeHtml(options.logoutToken)}">
@@ -90,7 +90,7 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
     <div class="notification-head">
       <div>
         <h3>Notifications</h3>
-        <p class="panel-note">Worker, import, and control-plane events.</p>
+            <p class="panel-note">Worker, recommendation, and import events.</p>
       </div>
       <button type="button" class="secondary" id="notifications-clear">Mark all read</button>
     </div>

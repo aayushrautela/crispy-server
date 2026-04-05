@@ -2,16 +2,16 @@ export function renderWorkerControlView(): string {
   return `
     <section class="view" data-view="worker-control" hidden>
       <header class="view-header">
-        <h2>Worker Control</h2>
+        <h2>Worker Bridge</h2>
       </header>
 
       <div class="narrow-panel">
         <section class="panel">
           <div class="panel-head">
-            <h3>Worker control status</h3>
+            <h3>Worker bridge status</h3>
           </div>
           <div class="panel-body">
-            <p id="bridge-text">Checking worker control configuration...</p>
+            <p id="bridge-text">Checking worker bridge configuration...</p>
           </div>
         </section>
 

@@ -1,147 +1,88 @@
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 
-type FetchJsonMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type JsonRecord = Record<string, unknown>;
 
-export type WorkerControlJobTarget = 'provider_token_maintenance';
-export type WorkerControlJobState = 'queued' | 'running' | 'success' | 'error' | 'canceled';
-
-export type WorkerControlJobProgress = {
-  phase: string | null;
-  message: string | null;
-  current: number | null;
-  total: number | null;
-  percent: number | null;
-  processed: number;
-  skipped: number;
-  errors: number;
-  updatedAt: string;
-};
-
-export type WorkerControlJobRecord = {
-  id: string;
-  target: WorkerControlJobTarget;
-  script: string;
-  args: string[];
-  status: WorkerControlJobState;
-  createdAt: string;
-  startedAt: string | null;
-  finishedAt: string | null;
-  exitCode: number | null;
-  pid: number | null;
-  cancelRequestedAt: string | null;
-  progress: WorkerControlJobProgress;
-  stdoutTail: string[];
-  stderrTail: string[];
-  queuePosition?: number | null;
-};
-
-export type WorkerControlJobStatus = {
+export type WorkerBridgeStatus = {
   ok: boolean;
-  activeJobs: WorkerControlJobRecord[];
-  queuedJobs: WorkerControlJobRecord[];
-  recentJobs: WorkerControlJobRecord[];
   serverTime: string;
-};
-
-export type WorkerControlJobTriggerInput = {
-  target: WorkerControlJobTarget;
-  options?: Record<string, unknown>;
-};
-
-export type WorkerControlJobMutationResult = {
-  ok: boolean;
-  queued?: boolean;
-  message?: string;
-  error?: string;
-  job?: WorkerControlJobRecord;
 };
 
 type WorkerControlClientConfig = {
   baseUrl: string;
   apiKey: string;
+  serviceId: string;
   timeoutMs?: number;
 };
-
-type JsonRecord = Record<string, unknown>;
 
 export class WorkerControlClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly serviceId: string;
   private readonly timeoutMs: number;
 
   constructor(config?: Partial<WorkerControlClientConfig>) {
     this.baseUrl = normalizeBaseUrl(config?.baseUrl ?? env.recommendationEngineWorkerBaseUrl);
     this.apiKey = (config?.apiKey ?? env.recommendationEngineWorkerApiKey).trim();
+    this.serviceId = (config?.serviceId ?? env.recommendationEngineWorkerServiceId).trim();
     this.timeoutMs = config?.timeoutMs ?? 10_000;
   }
 
   isConfigured(): boolean {
-    return this.baseUrl.length > 0 && this.apiKey.length > 0;
+    return this.baseUrl.length > 0 && this.apiKey.length > 0 && this.serviceId.length > 0;
   }
 
   assertConfigured(): void {
     if (!this.isConfigured()) {
-      throw new HttpError(
-        503,
-        'Recommendation engine worker control bridge is not configured.',
-        {
-          missing: [
-            this.baseUrl ? null : 'RECOMMENDATION_ENGINE_WORKER_BASE_URL',
-            this.apiKey ? null : 'RECOMMENDATION_ENGINE_WORKER_API_KEY',
-          ].filter(Boolean),
-        },
-      );
+      throw new HttpError(503, 'Recommendation engine worker bridge is not configured.', {
+        missing: [
+          this.baseUrl ? null : 'RECOMMENDATION_ENGINE_WORKER_BASE_URL',
+          this.apiKey ? null : 'RECOMMENDATION_ENGINE_WORKER_API_KEY',
+          this.serviceId ? null : 'RECOMMENDATION_ENGINE_WORKER_SERVICE_ID',
+        ].filter(Boolean),
+      });
     }
   }
 
-  async getJobStatus(): Promise<WorkerControlJobStatus> {
+  async getBridgeStatus(): Promise<WorkerBridgeStatus> {
     this.assertConfigured();
-    return this.fetchJson('/internal/v1/worker/jobs/status');
+    const ready = await this.fetchJson<{ ok?: boolean }>('/ready', { includeAuth: false });
+    const stats = await this.fetchJson<{ uptimeSec?: number }>('/v1/stats', { includeAuth: true });
+    const uptimeSec = Number(stats && stats.uptimeSec);
+    const serverTime = Number.isFinite(uptimeSec)
+      ? new Date(Date.now() - Math.max(0, uptimeSec) * 1000).toISOString()
+      : new Date().toISOString();
+    return {
+      ok: ready?.ok !== false,
+      serverTime,
+    };
   }
 
-  async triggerJob(input: WorkerControlJobTriggerInput): Promise<WorkerControlJobMutationResult> {
-    this.assertConfigured();
-    return this.fetchJson('/internal/v1/worker/jobs/trigger', {
-      method: 'POST',
-      body: input,
-    });
-  }
-
-  async cancelJob(jobId: string): Promise<WorkerControlJobMutationResult> {
-    this.assertConfigured();
-    return this.fetchJson(`/internal/v1/worker/jobs/${encodeURIComponent(jobId)}/cancel`, {
-      method: 'POST',
-    });
-  }
-
-  async deleteJob(jobId: string): Promise<WorkerControlJobMutationResult> {
-    this.assertConfigured();
-    return this.fetchJson(`/internal/v1/worker/jobs/${encodeURIComponent(jobId)}`, {
-      method: 'DELETE',
-    });
-  }
-
-  private async fetchJson<T>(pathname: string, options?: { method?: FetchJsonMethod; body?: unknown }): Promise<T> {
+  private async fetchJson<T>(pathname: string, options: { includeAuth: boolean }): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const headers: Record<string, string> = {
+        accept: 'application/json',
+      };
+
+      if (options.includeAuth) {
+        headers['x-service-id'] = this.serviceId;
+        headers['x-api-key'] = this.apiKey;
+        headers['x-request-id'] = `admin-worker-bridge-${Date.now()}`;
+      }
+
       const response = await fetch(`${this.baseUrl}${pathname}`, {
-        method: options?.method ?? 'GET',
-        headers: {
-          accept: 'application/json',
-          'x-internal-api-key': this.apiKey,
-          ...(options?.body === undefined ? {} : { 'content-type': 'application/json' }),
-        },
-        body: options?.body === undefined ? undefined : JSON.stringify(options.body),
+        method: 'GET',
+        headers,
         signal: controller.signal,
       });
 
       const text = await response.text();
       const payload = parseJson(text);
       if (!response.ok) {
-        const message = readErrorMessage(payload) ?? `Worker control request failed with status ${response.status}.`;
+        const message = readErrorMessage(payload) ?? `Worker bridge request failed with status ${response.status}.`;
         const errorDetails = payload ?? (text ? { raw: text } : null);
         throw new HttpError(response.status, message, errorDetails);
       }
@@ -152,7 +93,7 @@ export class WorkerControlClient {
         throw error;
       }
 
-      throw new HttpError(502, 'Recommendation engine worker control request failed.', {
+      throw new HttpError(502, 'Recommendation engine worker bridge request failed.', {
         message: error instanceof Error ? error.message : String(error),
         target: pathname,
       });
@@ -163,7 +104,7 @@ export class WorkerControlClient {
 }
 
 function normalizeBaseUrl(value: string): string {
-  return value.trim().replace(/\/$/, '');
+  return value.trim().replace(/\/+$/, '');
 }
 
 function parseJson(text: string): JsonRecord | null {
@@ -185,6 +126,14 @@ function parseJson(text: string): JsonRecord | null {
 function readErrorMessage(payload: JsonRecord | null): string | null {
   if (!payload) {
     return null;
+  }
+
+  const nestedError = payload.error;
+  if (typeof nestedError === 'object' && nestedError !== null && !Array.isArray(nestedError)) {
+    const nestedMessage = (nestedError as JsonRecord).message;
+    if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+      return nestedMessage;
+    }
   }
 
   if (typeof payload.error === 'string' && payload.error.trim()) {
