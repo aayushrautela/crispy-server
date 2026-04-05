@@ -326,7 +326,11 @@ export const ADMIN_UI_CLIENT = String.raw`
       }
     }
     if (!response.ok) {
-      const message = payload && typeof payload.error === 'string' ? payload.error : 'Request failed';
+      const message = payload && typeof payload.message === 'string'
+        ? payload.message
+        : payload && typeof payload.error === 'string'
+          ? payload.error
+          : 'Request failed';
       const error = new Error(message);
       error.payload = payload;
       throw error;
