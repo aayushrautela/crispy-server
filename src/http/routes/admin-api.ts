@@ -347,13 +347,13 @@ async function loadProviderStates(
         error: null,
       };
     } catch (error) {
-      if (error instanceof HttpError && error.statusCode === 404) {
+      if (error instanceof HttpError && (error.statusCode === 404 || error.statusCode === 409 || error.statusCode === 503)) {
         return {
           provider,
           connected: false,
           connection: null,
           tokenStatus: null,
-          error: null,
+          error: error.message,
         };
       }
       throw error;

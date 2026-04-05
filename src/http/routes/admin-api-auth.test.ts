@@ -78,6 +78,107 @@ test('admin api rejects state-changing requests without the admin csrf header', 
   assert.match(response.body, /Invalid admin CSRF token/);
 });
 
+test('admin imports overview tolerates unavailable provider state', async (t) => {
+  const Fastify = (await import('fastify')).default;
+  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
+  const { default: adminUiAuthPlugin } = await import('../plugins/admin-ui-auth.js');
+  const { registerAdminUiRoutes } = await import('./admin-ui.js');
+  const { registerAdminApiRoutes } = await import('./admin-api.js');
+  const { HttpError } = await import('../../lib/errors.js');
+  const { ProviderImportService } = await import('../../modules/integrations/provider-import.service.js');
+  const { ProviderTokenAccessService } = await import('../../modules/integrations/provider-token-access.service.js');
+
+  const originalListConnections = ProviderImportService.prototype.listConnections;
+  const originalListJobs = ProviderImportService.prototype.listJobs;
+  const originalGetConnection = ProviderTokenAccessService.prototype.getConnectionForAccountProfile;
+  const originalGetTokenStatus = ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile;
+
+  ProviderImportService.prototype.listConnections = async function () {
+    return { providerAccounts: [], watchDataState: null } as never;
+  };
+  ProviderImportService.prototype.listJobs = async function () {
+    return { jobs: [], watchDataState: null } as never;
+  };
+  ProviderTokenAccessService.prototype.getConnectionForAccountProfile = async function (_accountId, _profileId, provider) {
+    if (provider === 'trakt') {
+      throw new HttpError(503, 'Provider token refresh is not configured.', { provider });
+    }
+    throw new HttpError(404, 'Provider connection not found.');
+  };
+  ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile = async function (_accountId, _profileId, provider) {
+    if (provider === 'trakt') {
+      throw new HttpError(503, 'Provider token refresh is not configured.', { provider });
+    }
+    throw new HttpError(404, 'Provider connection not found.');
+  };
+
+  t.after(() => {
+    ProviderImportService.prototype.listConnections = originalListConnections;
+    ProviderImportService.prototype.listJobs = originalListJobs;
+    ProviderTokenAccessService.prototype.getConnectionForAccountProfile = originalGetConnection;
+    ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile = originalGetTokenStatus;
+  });
+
+  const app = Fastify();
+  await app.register(errorHandlerPlugin);
+  await app.register(adminUiAuthPlugin);
+  await registerAdminUiRoutes(app);
+  await registerAdminApiRoutes(app);
+
+  t.after(async () => { await app.close(); });
+
+  const loginPage = await app.inject({ method: 'GET', url: '/admin/login' });
+  const formToken = readHiddenInput(loginPage.body, 'formToken');
+  const loginResponse = await app.inject({
+    method: 'POST',
+    url: '/admin/login',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      host: 'localhost',
+      origin: 'http://localhost',
+    },
+    payload: new URLSearchParams({
+      formToken,
+      username: 'admin-user',
+      password: 'admin-pass',
+    }).toString(),
+  });
+  const sessionCookie = readCookieHeader(loginResponse.headers['set-cookie']);
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/admin/api/accounts/test-account/profiles/test-profile/imports/overview',
+    headers: {
+      cookie: sessionCookie,
+      host: 'localhost',
+      origin: 'http://localhost',
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    watchDataState: null,
+    providerAccounts: [],
+    jobs: [],
+    providers: [
+      {
+        provider: 'trakt',
+        connected: false,
+        connection: null,
+        tokenStatus: null,
+        error: 'Provider token refresh is not configured.',
+      },
+      {
+        provider: 'simkl',
+        connected: false,
+        connection: null,
+        tokenStatus: null,
+        error: 'Provider connection not found.',
+      },
+    ],
+  });
+});
+
 function readCookieHeader(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {
     return value[0] ?? '';
