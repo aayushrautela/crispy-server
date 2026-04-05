@@ -342,21 +342,7 @@ Envelope:
       "id": "string",
       "label": "string",
       "order": "integer",
-      "itemCount": "integer",
-      "items": [
-        {
-          "id": "string",
-          "media": "RegularCard",
-          "state": {
-            "addedAt": "string | null",
-            "watchedAt": "string | null",
-            "ratedAt": "string | null",
-            "rating": "number | null",
-            "lastActivityAt": "string | null"
-          },
-          "origins": ["string"]
-        }
-      ]
+      "itemCount": "integer"
     }
   ]
 }
@@ -364,8 +350,61 @@ Envelope:
 
 Notes:
 
+- `/library` is section discovery only; it does not embed section items
+- clients must render whatever `sections[]` the server returns
+- clients must load actual library rows from `GET /v1/profiles/:profileId/library/sections/:sectionId`
+- client apps should standardize on `/library/sections/:sectionId` for all library browsing
+
+## `GET /v1/profiles/:profileId/library/sections/:sectionId`
+
+Query:
+
+```json
+{
+  "limit": "integer | string",
+  "cursor": "string"
+}
+```
+
+Envelope:
+
+```json
+{
+  "profileId": "string",
+  "source": "canonical_library",
+  "generatedAt": "string",
+  "section": {
+    "id": "string",
+    "label": "string",
+    "order": "integer"
+  },
+  "items": [
+    {
+      "id": "string",
+      "media": "RegularCard",
+      "state": {
+        "addedAt": "string | null",
+        "watchedAt": "string | null",
+        "ratedAt": "string | null",
+        "rating": "number | null",
+        "lastActivityAt": "string | null"
+      },
+      "origins": ["string"]
+    }
+  ],
+  "pageInfo": {
+    "nextCursor": "string | null",
+    "hasMore": "boolean"
+  }
+}
+```
+
+Notes:
+
 - use `media.mediaKey` for navigation
 - do not expect legacy `detailsTarget`, `playbackTarget`, or `episodeContext` fields
+- `sectionId` must come from the `/library` discovery response
+- unknown `sectionId` returns `404`
 
 ## Watch Collection Endpoints
 

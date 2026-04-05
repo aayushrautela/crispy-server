@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { logger } from '../../config/logger.js';
 import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
 import { parentMediaTypeForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import type { WatchMediaProjection } from '../watch/watch.types.js';
@@ -13,7 +14,22 @@ export class WatchV2MetadataService {
   async buildProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
     const projection = await this.metadataProjectionService
       .buildWatchProjection(client, identity)
-      .catch(() => fallbackProjection(identity));
+      .catch((error) => {
+        logger.warn({
+          err: error,
+          mediaKey: identity.mediaKey,
+          mediaType: identity.mediaType,
+          provider: identity.provider,
+          providerId: identity.providerId,
+          parentProvider: identity.parentProvider,
+          parentProviderId: identity.parentProviderId,
+          tmdbId: identity.tmdbId,
+          showTmdbId: identity.showTmdbId,
+          seasonNumber: identity.seasonNumber,
+          episodeNumber: identity.episodeNumber,
+        }, 'failed to build watch metadata projection, using fallback projection');
+        return fallbackProjection(identity);
+      });
 
     await this.watchMediaCardCacheService.upsertFromProjection(client, identity, projection);
     return projection;

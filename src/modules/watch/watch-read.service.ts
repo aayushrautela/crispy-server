@@ -1,9 +1,14 @@
 import { withDbClient } from '../../lib/db.js';
+import { logger } from '../../config/logger.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { WatchQueryService } from './watch-query.service.js';
 import type { ContinueWatchingProductItem, WatchedProductItem } from './watch-derived-item.types.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';
-import { mapContinueWatchingRowToProduct, mapWatchedRowToProduct } from './watch-row-product.mapper.js';
+import {
+  diagnoseContinueWatchingRow,
+  mapContinueWatchingRowToProduct,
+  mapWatchedRowToProduct,
+} from './watch-row-product.mapper.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { fallbackRegularCard } from './regular-card-fallback.js';
 
@@ -28,10 +33,46 @@ export class WatchReadService {
       await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const page = await this.watchQueryService.listContinueWatchingPage(client, profileId, params);
+      const items: ContinueWatchingProductItem[] = [];
+      let droppedCount = 0;
+
+      for (const row of page.items) {
+        const item = mapContinueWatchingRowToProduct(row);
+        if (item) {
+          items.push(item);
+          continue;
+        }
+
+        droppedCount += 1;
+        const diagnostics = diagnoseContinueWatchingRow(row);
+        logger.warn({
+          profileId,
+          continueWatchingId: row.id,
+          mediaKey: row.mediaKey,
+          missing: diagnostics.missing,
+          provider: diagnostics.provider,
+          providerId: diagnostics.providerId,
+          titleMediaType: diagnostics.titleMediaType,
+          title: row.title,
+          posterUrl: row.posterUrl,
+          backdropUrl: diagnostics.backdropUrl,
+          playbackParentProvider: row.playbackParentProvider,
+          playbackParentProviderId: row.playbackParentProviderId,
+        }, 'dropped continue watching row with incomplete media');
+      }
+
+      if (droppedCount > 0) {
+        logger.warn({
+          profileId,
+          requestedLimit: params.limit,
+          sourceRowCount: page.items.length,
+          returnedItemCount: items.length,
+          droppedCount,
+        }, 'continue watching page dropped rows during product mapping');
+      }
+
       return {
-        items: page.items
-          .map((row) => mapContinueWatchingRowToProduct(row))
-          .filter((item): item is ContinueWatchingProductItem => item !== null),
+        items,
         pageInfo: page.pageInfo,
       };
     });

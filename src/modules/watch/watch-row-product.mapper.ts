@@ -16,6 +16,14 @@ import type {
 
 type ContinueWatchingStoredRow = RawContinueWatchingRow;
 
+export type ContinueWatchingRowDiagnostics = {
+  provider: SupportedProvider | null;
+  providerId: string | null;
+  titleMediaType: MetadataTitleMediaType | null;
+  backdropUrl: string | null;
+  missing: string[];
+};
+
 export function mapContinueWatchingRowToProduct(row: RawContinueWatchingRow): ContinueWatchingProductItem | null {
   const media = mapLandscapeMedia(row);
   if (!media) {
@@ -85,6 +93,43 @@ export function mapRegularStateToProductMedia(media: RegularCardView | null | un
   }
 
   return media;
+}
+
+export function diagnoseContinueWatchingRow(row: RawContinueWatchingRow): ContinueWatchingRowDiagnostics {
+  const parsed = parseMediaKey(row.mediaKey);
+  const provider = resolveTitleProvider(row, parsed);
+  const providerId = resolveTitleProviderId(row, parsed);
+  const titleMediaType = resolveTitleMediaType(row, parsed);
+  const episodeBackdrop = row.episodeStillUrl ?? row.detailsStillUrl;
+  const backdropUrl = episodeBackdrop ?? row.backdropUrl ?? row.posterUrl;
+  const missing: string[] = [];
+
+  if (!provider) {
+    missing.push('provider');
+  }
+  if (!providerId) {
+    missing.push('providerId');
+  }
+  if (!titleMediaType) {
+    missing.push('titleMediaType');
+  }
+  if (!row.title) {
+    missing.push('title');
+  }
+  if (!row.posterUrl) {
+    missing.push('posterUrl');
+  }
+  if (!backdropUrl) {
+    missing.push('backdropUrl');
+  }
+
+  return {
+    provider,
+    providerId,
+    titleMediaType,
+    backdropUrl,
+    missing,
+  };
 }
 
 function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | null {
