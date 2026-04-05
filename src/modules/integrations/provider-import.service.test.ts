@@ -368,3 +368,142 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
     globalThis.fetch = originalFetch;
   }
 });
+
+test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb lookup succeeds', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { db } = await import('../../lib/db.js');
+
+  const resolverCalls: Array<Record<string, unknown>> = [];
+  const originalConnect = db.connect;
+  (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
+
+  const service = new ProviderImportService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      resolve: async (_client: unknown, params: Record<string, unknown>) => {
+        resolverCalls.push(params);
+        return 272;
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    async <T>(work: (client: never) => Promise<T>) => work({} as never),
+    {
+      getTitle: async () => ({ tmdbId: 328443 }),
+    } as never,
+  );
+
+  try {
+    const result = await (service as any).resolveImportIdentity(new Map(), {
+      mediaFamily: 'movie',
+      tmdbId: 328443,
+      imdbId: 'tt0372784',
+    });
+
+    assert.equal(resolverCalls.length, 0);
+    assert.equal(result.identity.mediaKey, 'movie:tmdb:328443');
+    assert.equal(result.identity.providerId, '328443');
+    assert.equal(result.tmdbId, 328443);
+  } finally {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  }
+});
+
+test('resolveImportIdentity falls back to imdb canonicalization when direct trakt tmdb lookup 404s', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { db } = await import('../../lib/db.js');
+  const { HttpError } = await import('../../lib/errors.js');
+
+  const resolverCalls: Array<Record<string, unknown>> = [];
+  const originalConnect = db.connect;
+  (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
+
+  const service = new ProviderImportService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      resolve: async (_client: unknown, params: Record<string, unknown>) => {
+        resolverCalls.push(params);
+        return 272;
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    async <T>(work: (client: never) => Promise<T>) => work({} as never),
+    {
+      getTitle: async () => {
+        throw new HttpError(404, 'missing');
+      },
+    } as never,
+  );
+
+  try {
+    const result = await (service as any).resolveImportIdentity(new Map(), {
+      mediaFamily: 'movie',
+      tmdbId: 328443,
+      imdbId: 'tt0372784',
+    });
+
+    assert.equal(resolverCalls.length, 1);
+    assert.deepEqual(resolverCalls[0], {
+      source: 'imdb_id',
+      externalId: 'tt0372784',
+      mediaType: 'movie',
+    });
+    assert.equal(result.identity.mediaKey, 'movie:tmdb:272');
+    assert.equal(result.identity.providerId, '272');
+    assert.equal(result.tmdbId, 272);
+  } finally {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  }
+});
+
+test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and imdb recovery misses', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { db } = await import('../../lib/db.js');
+  const { HttpError } = await import('../../lib/errors.js');
+
+  const originalConnect = db.connect;
+  (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
+
+  const service = new ProviderImportService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      resolve: async () => null,
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    async <T>(work: (client: never) => Promise<T>) => work({} as never),
+    {
+      getTitle: async () => {
+        throw new HttpError(404, 'missing');
+      },
+    } as never,
+  );
+
+  try {
+    const result = await (service as any).resolveImportIdentity(new Map(), {
+      mediaFamily: 'movie',
+      tmdbId: 328443,
+      imdbId: 'tt0372784',
+    });
+
+    assert.equal(result, null);
+  } finally {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  }
+});

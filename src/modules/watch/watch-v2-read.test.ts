@@ -54,6 +54,81 @@ test('listContinueWatchingPage emits synthetic cw2 ids from title projection row
   assert.equal(page.pageInfo.nextCursor, null);
 });
 
+test('listContinueWatchingPage filters invalid projection rows before filling the page window', { concurrency: false }, async () => {
+  const service = new WatchQueryService();
+  const queries: Array<{ sql: string; params: unknown[] | undefined }> = [];
+  const client = {
+    query: async (sql: string, params?: unknown[]) => {
+      queries.push({ sql, params });
+      return {
+        rows: [
+          {
+            title_content_id: '22222222-2222-4222-8222-222222222222',
+            title_media_key: 'movie:tmdb:200',
+            title_media_type: 'movie',
+            title_text: 'Valid Movie',
+            title_subtitle: null,
+            title_poster_url: 'https://img.test/movie-poster.jpg',
+            title_backdrop_url: 'https://img.test/movie-backdrop.jpg',
+            title_release_year: 2024,
+            title_runtime_minutes: 120,
+            title_rating: 7.5,
+            active_media_key: 'movie:tmdb:200',
+            active_media_type: 'movie',
+            active_provider: 'tmdb',
+            active_provider_id: '200',
+            active_parent_provider: null,
+            active_parent_provider_id: null,
+            active_season_number: null,
+            active_episode_number: null,
+            active_episode_title: null,
+            active_episode_release_at: null,
+            active_position_seconds: 300,
+            active_duration_seconds: 7200,
+            active_progress_percent: 4,
+            last_activity_at: '2024-01-03T00:00:00.000Z',
+          },
+          {
+            title_content_id: '11111111-1111-4111-8111-111111111111',
+            title_media_key: 'show:tvdb:100',
+            title_media_type: 'show',
+            title_text: 'Example Show',
+            title_subtitle: null,
+            title_poster_url: 'https://img.test/poster.jpg',
+            title_backdrop_url: 'https://img.test/backdrop.jpg',
+            title_release_year: 2024,
+            title_runtime_minutes: 45,
+            title_rating: 8.2,
+            active_media_key: 'episode:tvdb:100:1:2',
+            active_media_type: 'episode',
+            active_provider: 'tvdb',
+            active_provider_id: '100:1:2',
+            active_parent_provider: 'tvdb',
+            active_parent_provider_id: '100',
+            active_season_number: 1,
+            active_episode_number: 2,
+            active_episode_title: 'Episode 2',
+            active_episode_release_at: '2024-01-02T00:00:00.000Z',
+            active_position_seconds: 120,
+            active_duration_seconds: 2400,
+            active_progress_percent: 5,
+            last_activity_at: '2024-01-02T00:00:00.000Z',
+          },
+        ],
+      };
+    },
+  } as never;
+
+  const page = await service.listContinueWatchingPage(client, 'profile-1', { limit: 1 });
+
+  assert.equal(page.items.length, 1);
+  assert.equal(page.items[0]?.title, 'Valid Movie');
+  assert.equal(page.pageInfo.hasMore, true);
+  assert.equal(page.pageInfo.nextCursor, 'eyJ2IjoxLCJzIjoiMjAyNC0wMS0wM1QwMDowMDowMC4wMDBaIiwidCI6IjIyMjIyMjIyLTIyMjItNDIyMi04MjIyLTIyMjIyMjIyMjIyMiJ9');
+  assert.match(queries[0]?.sql ?? '', /title_text IS NOT NULL/);
+  assert.match(queries[0]?.sql ?? '', /title_poster_url IS NOT NULL/);
+});
+
 test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projection rows', { concurrency: false }, async (t) => {
   const originalConnect = db.connect;
   const notifications: Array<Record<string, unknown>> = [];

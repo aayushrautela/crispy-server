@@ -34,6 +34,7 @@ type RawWatchProjectionSnapshot = {
 
 export type RawContinueWatchingRow = RawWatchProjectionSnapshot & {
   id: string;
+  titleContentId: string;
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -151,6 +152,7 @@ function mapContinueWatchingRow(row: Record<string, unknown>): RawContinueWatchi
   return {
     ...mapProjectionSnapshot(row),
     id: String(row.id),
+    titleContentId: typeof row.title_content_id === 'string' ? row.title_content_id : String(row.id),
     mediaKey: String(row.media_key),
     mediaType: String(row.media_type),
     tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
@@ -275,6 +277,9 @@ export class WatchQueryService {
           AND has_in_progress = true
           AND dismissed_at IS NULL
           AND last_activity_at IS NOT NULL
+          AND title_text IS NOT NULL
+          AND title_poster_url IS NOT NULL
+          AND COALESCE(active_media_key, title_media_key) IS NOT NULL
           AND (
             $2::timestamptz IS NULL
             OR last_activity_at < $2::timestamptz
@@ -291,7 +296,9 @@ export class WatchQueryService {
     return {
       items,
       pageInfo: {
-        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.lastActivityAt, tieBreaker: last.id }) : null,
+        nextCursor: result.rows.length > params.limit && last
+          ? encodeWatchPageCursor({ sortValue: last.lastActivityAt, tieBreaker: last.titleContentId })
+          : null,
         hasMore: result.rows.length > params.limit,
       },
     };
@@ -601,6 +608,7 @@ function mapContinueWatchingProjectionRow(row: Record<string, unknown>): RawCont
   return {
     ...mapProjectionSnapshotFromTitleRow(row),
     id: encodeWatchV2ContinueWatchingId(String(row.title_content_id)),
+    titleContentId: String(row.title_content_id),
     mediaKey: typeof row.active_media_key === 'string' ? row.active_media_key : String(row.title_media_key),
     mediaType: typeof row.active_media_type === 'string' ? row.active_media_type : String(row.title_media_type),
     tmdbId: null,

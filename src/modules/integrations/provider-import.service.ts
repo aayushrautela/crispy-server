@@ -27,6 +27,7 @@ import {
 import { mapProviderAccountView, type ProviderAccountView } from './provider-import.views.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
@@ -99,6 +100,7 @@ export class ProviderImportService {
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
     private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
+    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
@@ -1351,12 +1353,54 @@ export class ProviderImportService {
     const directKitsuId = normalizeProviderId(params.kitsuId);
     const imdbId = params.imdbId?.trim();
 
-    if (params.mediaFamily === 'movie' && directTmdbId) {
+    if (params.mediaFamily === 'movie' && directTmdbId && !imdbId) {
       return buildResolvedImportIdentity('movie', {
         provider: 'tmdb',
         providerId: String(directTmdbId),
         tmdbId: directTmdbId,
       });
+    }
+
+    if (params.mediaFamily === 'movie' && directTmdbId && imdbId) {
+      const cacheKey = `movie:tmdb:${directTmdbId}:imdb:${imdbId}`;
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey) ?? null;
+      }
+
+      const client = await db.connect();
+      try {
+        try {
+          await this.tmdbCacheService.getTitle(client, 'movie', directTmdbId);
+          const resolved = buildResolvedImportIdentity('movie', {
+            provider: 'tmdb',
+            providerId: String(directTmdbId),
+            tmdbId: directTmdbId,
+          });
+          cache.set(cacheKey, resolved);
+          return resolved;
+        } catch (error) {
+          if (!(error instanceof HttpError) || error.statusCode !== 404) {
+            throw error;
+          }
+        }
+
+        const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
+          source: 'imdb_id',
+          externalId: imdbId,
+          mediaType: 'movie',
+        });
+        const resolved = resolvedTmdbId
+          ? buildResolvedImportIdentity('movie', {
+              provider: 'tmdb',
+              providerId: String(resolvedTmdbId),
+              tmdbId: resolvedTmdbId,
+            })
+          : null;
+        cache.set(cacheKey, resolved);
+        return resolved;
+      } finally {
+        client.release();
+      }
     }
 
     if (
