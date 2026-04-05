@@ -4,6 +4,8 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-client-id', TRAKT_IMPORT_CLIENT_SECRET: 'trakt-client-secret', TRAKT_IMPORT_REDIRECT_URI: 'https://api.crispytv.tech/v1/imports/trakt/callback' });
 
+const noopTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
+
 test('buildAuthUrl uses trakt.tv authorize host', async () => {
   const { ProviderImportService } = await import('./provider-import.service.js');
   const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
@@ -56,6 +58,130 @@ test('traktGetArray includes upstream response details for import failures', asy
       (error: unknown) => {
         assert.ok(error instanceof HttpError);
         assert.equal(error.statusCode, 401);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('disconnectConnection revokes trakt upstream before local disconnect', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+
+  const profileRepository = {
+    findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
+  };
+  const providerAccount = {
+    id: 'acct-1',
+    profileId: 'profile-1',
+    provider: 'trakt',
+    status: 'connected',
+    stateToken: null,
+    providerUserId: 'user-1',
+    externalUsername: 'crispy',
+    credentialsJson: { refreshToken: 'refresh-123', accessToken: 'access-123' },
+    createdByUserId: 'account-1',
+    expiresAt: null,
+    lastUsedAt: null,
+    createdAt: '2026-03-24T00:00:00.000Z',
+    connectedAt: '2026-03-24T00:05:00.000Z',
+    updatedAt: '2026-03-26T00:00:00.000Z',
+  };
+  const providerAccountsRepository = {
+    findLatestConnectedForProfile: async () => providerAccount,
+    revokeProviderAccount: async (_client: unknown, params: { credentialsJson?: Record<string, unknown>; lastUsedAt?: string | null }) => ({
+      ...providerAccount,
+      status: 'revoked',
+      credentialsJson: params.credentialsJson ?? {},
+      lastUsedAt: params.lastUsedAt ?? null,
+    }),
+  };
+
+  const originalFetch = globalThis.fetch;
+  const fetchCalls: Array<{ url: string; body: string | null }> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchCalls.push({
+      url: String(input),
+      body: typeof init?.body === 'string' ? init.body : null,
+    });
+    return new Response('', { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const service = new ProviderImportService(
+      profileRepository as never,
+      providerAccountsRepository as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      noopTransaction as never,
+    );
+
+    const result = await service.disconnectConnection('account-1', 'profile-1', 'trakt');
+    assert.equal(result.providerAccount.status, 'revoked');
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0]?.url, 'https://api.trakt.tv/oauth/revoke');
+    assert.match(fetchCalls[0]?.body ?? '', /"token":"refresh-123"/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('disconnectConnection surfaces trakt revoke failures', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { HttpError } = await import('../../lib/errors.js');
+
+  const profileRepository = {
+    findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
+  };
+  const providerAccountsRepository = {
+    findLatestConnectedForProfile: async () => ({
+      id: 'acct-1',
+      profileId: 'profile-1',
+      provider: 'trakt',
+      status: 'connected',
+      stateToken: null,
+      providerUserId: 'user-1',
+      externalUsername: 'crispy',
+      credentialsJson: { refreshToken: 'refresh-123' },
+      createdByUserId: 'account-1',
+      expiresAt: null,
+      lastUsedAt: null,
+      createdAt: '2026-03-24T00:00:00.000Z',
+      connectedAt: '2026-03-24T00:05:00.000Z',
+      updatedAt: '2026-03-26T00:00:00.000Z',
+    }),
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('blocked', { status: 403, headers: { 'content-type': 'text/plain' } })) as typeof fetch;
+
+  try {
+    const service = new ProviderImportService(
+      profileRepository as never,
+      providerAccountsRepository as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      noopTransaction as never,
+    );
+
+    await assert.rejects(
+      () => service.disconnectConnection('account-1', 'profile-1', 'trakt'),
+      (error: unknown) => {
+        assert.ok(error instanceof HttpError);
+        assert.equal(error.statusCode, 403);
+        assert.equal(error.message, 'Unable to revoke the Trakt authorization.');
+        assert.deepEqual(error.details, { provider: 'trakt', providerStatus: 403, responseBody: 'blocked' });
         return true;
       },
     );

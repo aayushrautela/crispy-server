@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { db, withTransaction } from '../../lib/db.js';
+import { db, withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.js';
@@ -72,6 +72,8 @@ type ImportIdentityLookup = {
 
 type ResolveImportIdentityFn = (params: ImportIdentityLookup) => Promise<ResolvedImportIdentity | null>;
 
+type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
+
 type ImportAccumulator = {
   importedEvents: ImportedWatchEventDraft[];
   importedHistoryEntries: ImportedHistoryEntryDraft[];
@@ -96,11 +98,12 @@ export class ProviderImportService {
     private readonly metadataRefreshService = new MetadataRefreshService(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
     private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
+    private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
     assertProviderEnabled(provider);
-    const started = await withTransaction(async (client) => {
+    const started = await this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -177,7 +180,7 @@ export class ProviderImportService {
     params: ProviderCallbackParams,
   ): Promise<CompletedProviderImportCallback> {
     assertProviderEnabled(provider);
-    const completed = await withTransaction(async (client) => {
+    const completed = await this.runInTransaction(async (client) => {
       const providerAccount = await this.providerAccountsRepository.findPendingByStateToken(client, provider, params.state);
       if (!providerAccount) {
         throw new HttpError(404, 'Provider import connection not found for callback state.');
@@ -275,7 +278,7 @@ export class ProviderImportService {
   }
 
   async listJobs(userId: string, profileId: string): Promise<{ jobs: ProviderImportJobRecord[]; watchDataState: ProfileWatchDataStateRecord | null }> {
-    return withTransaction(async (client) => {
+    return this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -294,7 +297,7 @@ export class ProviderImportService {
     userId: string,
     profileId: string,
   ): Promise<{ providerAccounts: ProviderAccountView[]; watchDataState: ProfileWatchDataStateRecord | null }> {
-    return withTransaction(async (client) => {
+    return this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -319,17 +322,22 @@ export class ProviderImportService {
   ): Promise<{ providerAccount: ProviderAccountView }> {
     assertProviderEnabled(provider);
 
-    const disconnected = await withTransaction(async (client) => {
+    const providerAccount = await this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
 
-      const providerAccount = await this.providerAccountsRepository.findLatestConnectedForProfile(client, profileId, provider);
-      if (!providerAccount) {
-        throw new HttpError(404, 'Provider connection not found.');
-      }
+      return this.providerAccountsRepository.findLatestConnectedForProfile(client, profileId, provider);
+    });
 
+    if (!providerAccount) {
+      throw new HttpError(404, 'Provider connection not found.');
+    }
+
+    await this.revokeProviderAuthorization(providerAccount);
+
+    const disconnected = await this.runInTransaction(async (client) => {
       const disconnectedAt = new Date().toISOString();
       let updated: ProviderAccountRecord | null;
       try {
@@ -363,8 +371,57 @@ export class ProviderImportService {
     };
   }
 
+  private async revokeProviderAuthorization(providerAccount: ProviderAccountRecord): Promise<void> {
+    if (providerAccount.provider === 'trakt') {
+      await this.revokeTraktAuthorization(providerAccount);
+      return;
+    }
+  }
+
+  private async revokeTraktAuthorization(providerAccount: ProviderAccountRecord): Promise<void> {
+    if (!env.traktImportClientId || !env.traktImportClientSecret) {
+      throw new HttpError(503, 'Trakt import is not configured.');
+    }
+
+    const token = asString(providerAccount.credentialsJson.refreshToken) ?? asString(providerAccount.credentialsJson.accessToken);
+    if (!token) {
+      return;
+    }
+
+    const response = await fetch('https://api.trakt.tv/oauth/revoke', {
+      method: 'POST',
+      headers: buildTraktHeaders({ includeAuthorization: false }),
+      body: JSON.stringify({
+        token,
+        client_id: env.traktImportClientId,
+        client_secret: env.traktImportClientSecret,
+      }),
+    });
+
+    if (response.ok || response.status === 404) {
+      return;
+    }
+
+    const rawBody = await response.text();
+    const payload = parseProviderJson(rawBody);
+    throw new HttpError(
+      response.status || 502,
+      resolveProviderError(payload, 'Unable to revoke the Trakt authorization.'),
+      rawBody.trim()
+        ? {
+            provider: 'trakt',
+            providerStatus: response.status,
+            responseBody: rawBody.slice(0, 500),
+          }
+        : {
+            provider: 'trakt',
+            providerStatus: response.status,
+          },
+    );
+  }
+
   async getJob(userId: string, profileId: string, jobId: string): Promise<ProviderImportJobRecord> {
-    return withTransaction(async (client) => {
+    return this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -382,7 +439,7 @@ export class ProviderImportService {
   async runQueuedImport(jobId: string): Promise<void> {
     const requestId = randomUUID();
 
-    const runningJob = await withTransaction(async (client) => {
+    const runningJob = await this.runInTransaction(async (client) => {
       const job = await this.jobsRepository.findById(client, jobId);
       if (!job) {
         throw new HttpError(404, 'Import job not found.');
@@ -401,7 +458,7 @@ export class ProviderImportService {
     }
 
     try {
-      const providerAccount = await withTransaction(async (client) => {
+      const providerAccount = await this.runInTransaction(async (client) => {
         if (!runningJob.providerAccountId) {
           throw new HttpError(400, 'Queued provider import is missing a provider connection.');
         }
@@ -420,7 +477,7 @@ export class ProviderImportService {
         ? await this.fetchAndNormalizeTraktImport(runningJob, activeProviderAccount)
         : await this.fetchAndNormalizeSimklImport(runningJob, activeProviderAccount);
 
-      const replaceResult = await withTransaction(async (client) => {
+      const replaceResult = await this.runInTransaction(async (client) => {
         return this.destructiveImportService.replaceProfileWatchData(client, {
           job: runningJob,
           provider: runningJob.provider,
@@ -476,7 +533,7 @@ export class ProviderImportService {
         warnings.push(`failed to schedule recommendation generation: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
 
-      await withTransaction(async (client) => {
+      await this.runInTransaction(async (client) => {
         const payload = {
           checkpointJson: {
             phase: 'completed',
@@ -512,7 +569,7 @@ export class ProviderImportService {
         warnings,
       }, 'provider replace import completed');
     } catch (error) {
-      await withTransaction(async (client) => {
+      await this.runInTransaction(async (client) => {
         await this.jobsRepository.markFailed(client, runningJob.id, {
           code: error instanceof HttpError && error.statusCode === 503
             ? 'provider_import_not_implemented'

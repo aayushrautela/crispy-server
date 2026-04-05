@@ -740,30 +740,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       };
     }
 
-    const refreshButtons = Array.from(container.querySelectorAll('[data-refresh-provider-token]'));
-    for (const button of refreshButtons) {
-      button.onclick = async () => {
-        const provider = button.getAttribute('data-refresh-provider-token');
-        if (!provider) return;
-        button.disabled = true;
-        setMessage(messageEl, 'info', 'Refreshing ' + provider + ' token...');
-        try {
-          await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/providers/' + encodeURIComponent(provider) + '/refresh-token'), {
-            method: 'POST',
-          });
-          setMessage(messageEl, 'success', 'Refreshed ' + provider + ' token.');
-          pushNotification('success', 'Token refreshed', 'Refreshed ' + provider + ' token for profile ' + profileId + '.', true);
-          await inspectProfile(accountId, profileId);
-        } catch (error) {
-          const description = describeApiError(error, 'Unable to refresh provider token.');
-          setMessage(messageEl, 'error', description);
-          pushNotification('error', 'Token refresh failed', description, true);
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
-
     const disconnectButtons = Array.from(container.querySelectorAll('[data-disconnect-provider]'));
     for (const button of disconnectButtons) {
       button.onclick = async () => {
@@ -1081,7 +1057,6 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Refresh error', tokenStatus && tokenStatus.lastRefreshError ? tokenStatus.lastRefreshError : (provider.error || 'none'))
       + '</div>'
       + '<div class="inline-actions">'
-        + '<button type="button" class="ghost" data-refresh-provider-token="' + escapeHtml(String(provider.provider || '')) + '"' + (connected ? '' : ' disabled') + '>Refresh token</button>'
         + '<button type="button" class="ghost" data-disconnect-provider="' + escapeHtml(String(provider.provider || '')) + '"' + (connected ? '' : ' disabled') + '>Disconnect</button>'
       + '</div>'
     + '</div>';
