@@ -8,6 +8,7 @@ import {
   nullableStringSchema,
   nonEmptyStringSchema,
   positiveIntegerLikeSchema,
+  profileIdAndMediaKeyParamsSchema,
   regularCardViewSchema,
   stringListSchema,
   stringSchema,
@@ -360,7 +361,7 @@ const metadataProductionInfoViewSchema = {
 const metadataTitleDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['item', 'seasons', 'videos', 'cast', 'directors', 'creators', 'reviews', 'production', 'collection', 'similar'],
+  required: ['item', 'seasons', 'videos', 'cast', 'directors', 'creators', 'production', 'collection', 'similar'],
   properties: {
     item: metadataViewSchema,
     seasons: { type: 'array', items: metadataSeasonViewSchema },
@@ -368,7 +369,6 @@ const metadataTitleDetailResponseSchema = {
     cast: { type: 'array', items: metadataPersonRefViewSchema },
     directors: { type: 'array', items: metadataPersonRefViewSchema },
     creators: { type: 'array', items: metadataPersonRefViewSchema },
-    reviews: { type: 'array', items: metadataReviewViewSchema },
     production: metadataProductionInfoViewSchema,
     collection: {
       anyOf: [
@@ -377,6 +377,15 @@ const metadataTitleDetailResponseSchema = {
       ],
     },
     similar: { type: 'array', items: regularCardViewSchema },
+  },
+} as const;
+
+const metadataTitleReviewsResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reviews'],
+  properties: {
+    reviews: { type: 'array', items: metadataReviewViewSchema },
   },
 } as const;
 
@@ -618,6 +627,14 @@ export const metadataTitleContentRouteSchema = withDefaultErrorResponses({
   params: metadataTitleParamsSchema,
   response: {
     200: metadataTitleContentResponseSchema,
+  },
+});
+
+export const metadataTitleReviewsRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndMediaKeyParamsSchema,
+  querystring: metadataLanguageQuerystringSchema,
+  response: {
+    200: metadataTitleReviewsResponseSchema,
   },
 });
 

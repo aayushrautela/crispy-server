@@ -34,8 +34,8 @@ function buildFallbackReview(id: string, content: string): MetadataReviewView {
   };
 }
 
-test('MetadataDetailCoreService tops up TMDB movie reviews from Trakt when under threshold', async () => {
-  const { MetadataDetailCoreService } = await import('./metadata-detail-core.service.js');
+test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under threshold', async () => {
+  const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
 
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'movie',
@@ -69,37 +69,47 @@ test('MetadataDetailCoreService tops up TMDB movie reviews from Trakt when under
     expiresAt: '2026-03-23T00:00:00.000Z',
   };
 
-  const traktCalls: Array<{ mediaType: 'movie' | 'show'; externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null } }> = [];
-  const service = new MetadataDetailCoreService(
+  const traktCalls: Array<{ mediaType: 'movie' | 'show'; accessToken?: string; externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null } }> = [];
+  const service = new MetadataReviewsService(
     { getTitle: async () => tmdbTitle } as never,
-    {
-      ensureSeasonContentIds: async () => new Map(),
-      ensureContentIds: async () => new Map(),
-    } as never,
-    { loadIdentityContext: async () => null } as never,
+    {} as never,
+    {} as never,
     {
       isConfigured: () => true,
-      fetchTitleReviews: async (mediaType: 'movie' | 'show', externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }) => {
-        traktCalls.push({ mediaType, externalIds });
+      fetchTitleReviews: async (
+        mediaType: 'movie' | 'show',
+        externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null },
+        _limit: number,
+        options?: { accessToken?: string },
+      ) => {
+        traktCalls.push({ mediaType, externalIds, accessToken: options?.accessToken });
         return [
           buildFallbackReview('trakt-1', 'Trakt review 1'),
           buildFallbackReview('trakt-2', 'Trakt review 2'),
         ];
       },
     } as never,
+    {
+      getAccessTokenForAccountProfile: async () => ({ accessToken: 'user-trakt-token' }),
+    } as never,
   );
 
-  const detail = await service.getTitleDetail({} as never, inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }));
+  const reviews = await service.loadTitleReviews(
+    {} as never,
+    'user-1',
+    'profile-1',
+    inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
+  );
 
-  assert.equal(detail.reviews.length, 3);
-  assert.equal(detail.reviews[0]?.id, 'tmdb-1');
-  assert.equal(detail.reviews[1]?.id, 'trakt-1');
-  assert.equal(detail.reviews[2]?.id, 'trakt-2');
-  assert.deepEqual(traktCalls, [{ mediaType: 'movie', externalIds: { imdb: 'tt0372784', tmdb: 42, tvdb: null, kitsu: null } }]);
+  assert.equal(reviews.length, 3);
+  assert.equal(reviews[0]?.id, 'tmdb-1');
+  assert.equal(reviews[1]?.id, 'trakt-1');
+  assert.equal(reviews[2]?.id, 'trakt-2');
+  assert.deepEqual(traktCalls, [{ mediaType: 'movie', accessToken: 'user-trakt-token', externalIds: { imdb: 'tt0372784', tmdb: 42, tvdb: null, kitsu: null } }]);
 });
 
-test('MetadataDetailCoreService tops up anime reviews from Trakt through provider detail flow', async () => {
-  const { MetadataDetailCoreService } = await import('./metadata-detail-core.service.js');
+test('MetadataReviewsService tops up anime reviews from Trakt through provider detail flow', async () => {
+  const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
 
   const providerTitle: ProviderTitleRecord = {
     mediaType: 'anime',
@@ -125,12 +135,9 @@ test('MetadataDetailCoreService tops up anime reviews from Trakt through provide
   };
 
   let traktMediaType: 'movie' | 'show' | null = null;
-  const service = new MetadataDetailCoreService(
+  const service = new MetadataReviewsService(
     {} as never,
-    {
-      ensureSeasonContentIds: async () => new Map(),
-      ensureContentIds: async () => new Map(),
-    } as never,
+    {} as never,
     {
       loadIdentityContext: async () => ({
         title: providerTitle,
@@ -168,17 +175,25 @@ test('MetadataDetailCoreService tops up anime reviews from Trakt through provide
         ];
       },
     } as never,
+    {
+      getAccessTokenForAccountProfile: async () => ({ accessToken: 'anime-token' }),
+    } as never,
   );
 
-  const detail = await service.getTitleDetail({} as never, inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }));
+  const reviews = await service.loadTitleReviews(
+    {} as never,
+    'user-1',
+    'profile-1',
+    inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }),
+  );
 
-  assert.equal(detail.reviews.length, 3);
-  assert.equal(detail.reviews[0]?.id, 'kitsu-1');
+  assert.equal(reviews.length, 3);
+  assert.equal(reviews[0]?.id, 'kitsu-1');
   assert.equal(traktMediaType, 'show');
 });
 
-test('MetadataDetailCoreService skips Trakt fallback when three primary reviews already exist', async () => {
-  const { MetadataDetailCoreService } = await import('./metadata-detail-core.service.js');
+test('MetadataReviewsService skips Trakt fallback when three primary reviews already exist', async () => {
+  const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
 
   const providerTitle: ProviderTitleRecord = {
     mediaType: 'show',
@@ -204,12 +219,9 @@ test('MetadataDetailCoreService skips Trakt fallback when three primary reviews 
   };
 
   let traktCalled = false;
-  const service = new MetadataDetailCoreService(
+  const service = new MetadataReviewsService(
     {} as never,
-    {
-      ensureSeasonContentIds: async () => new Map(),
-      ensureContentIds: async () => new Map(),
-    } as never,
+    {} as never,
     {
       loadIdentityContext: async () => ({
         title: providerTitle,
@@ -238,10 +250,82 @@ test('MetadataDetailCoreService skips Trakt fallback when three primary reviews 
         return [];
       },
     } as never,
+    {} as never,
   );
 
-  const detail = await service.getTitleDetail({} as never, inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }));
+  const reviews = await service.loadTitleReviews(
+    {} as never,
+    'user-1',
+    'profile-1',
+    inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }),
+  );
 
-  assert.equal(detail.reviews.length, 3);
+  assert.equal(reviews.length, 3);
   assert.equal(traktCalled, false);
+});
+
+test('MetadataReviewsService falls back to app-key Trakt when profile token is unavailable', async () => {
+  const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
+
+  const tmdbTitle: TmdbTitleRecord = {
+    mediaType: 'movie',
+    tmdbId: 7,
+    name: 'Se7en',
+    originalName: 'Se7en',
+    overview: 'Detectives.',
+    releaseDate: '1995-09-22',
+    firstAirDate: null,
+    status: 'Released',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: 127,
+    episodeRunTime: [],
+    numberOfSeasons: null,
+    numberOfEpisodes: null,
+    externalIds: { imdb_id: 'tt0114369', tvdb_id: null },
+    raw: {
+      genres: [],
+      videos: { results: [] },
+      credits: { cast: [], crew: [] },
+      created_by: [],
+      reviews: { results: [buildTmdbReview('tmdb-7', 'Primary review')] },
+      production_companies: [],
+      networks: [],
+      production_countries: [],
+      spoken_languages: [],
+      similar: { results: [] },
+    },
+    fetchedAt: '2026-03-22T00:00:00.000Z',
+    expiresAt: '2026-03-23T00:00:00.000Z',
+  };
+
+  let usedAccessToken: string | undefined;
+  const service = new MetadataReviewsService(
+    { getTitle: async () => tmdbTitle } as never,
+    {} as never,
+    {} as never,
+    {
+      isConfigured: () => true,
+      fetchTitleReviews: async (_mediaType: 'movie' | 'show', _externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }, _limit: number, options?: { accessToken?: string }) => {
+        usedAccessToken = options?.accessToken;
+        return [buildFallbackReview('trakt-fallback', 'Fallback review')];
+      },
+    } as never,
+    {
+      getAccessTokenForAccountProfile: async () => {
+        const { HttpError } = await import('../../lib/errors.js');
+        throw new HttpError(404, 'Provider connection not found.');
+      },
+    } as never,
+  );
+
+  const reviews = await service.loadTitleReviews(
+    {} as never,
+    'user-1',
+    'profile-1',
+    inferMediaIdentity({ mediaType: 'movie', tmdbId: 7 }),
+  );
+
+  assert.equal(reviews.length, 2);
+  assert.equal(usedAccessToken, undefined);
 });

@@ -42,6 +42,38 @@ test('TraktClient fetches movie reviews with trakt headers', async () => {
   assert.equal(headers.get('accept'), 'application/json');
   assert.equal(headers.get('trakt-api-key'), 'trakt-test-id');
   assert.equal(headers.get('trakt-api-version'), '2');
+  assert.equal(headers.get('authorization'), null);
+});
+
+test('TraktClient includes bearer token when provided', async () => {
+  let capturedHeaders: Headers | null = null;
+
+  const fetcher: typeof fetch = async (_input, init) => {
+    capturedHeaders = new Headers(init?.headers);
+    return new Response(JSON.stringify([
+      {
+        comment: {
+          id: 301,
+          comment: 'Private-token request works.',
+          review: true,
+          created_at: '2015-04-25T00:14:57.000Z',
+          updated_at: '2015-04-25T00:14:57.000Z',
+          user: { name: 'Trakt User', username: 'trakt-user', ids: { slug: 'trakt-user' } },
+          user_stats: { rating: 9 },
+        },
+      },
+    ]), { status: 200 });
+  };
+
+  const { TraktClient } = await import('./trakt.client.js');
+  const client = new TraktClient(fetcher);
+  const reviews = await client.fetchTitleReviews('movie', { imdb: 'tt0372784', tmdb: null, tvdb: null }, 5, {
+    accessToken: 'user-token-123',
+  });
+
+  assert.equal(reviews.length, 1);
+  assert.ok(capturedHeaders);
+  assert.equal((capturedHeaders as Headers).get('authorization'), 'Bearer user-token-123');
 });
 
 test('TraktClient resolves TMDB ids through search before loading show reviews', async () => {

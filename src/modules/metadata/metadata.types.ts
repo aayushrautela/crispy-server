@@ -316,10 +316,13 @@ export type MetadataTitleDetail = {
   cast: MetadataPersonRefView[];
   directors: MetadataPersonRefView[];
   creators: MetadataPersonRefView[];
-  reviews: MetadataReviewView[];
   production: MetadataProductionInfoView;
   collection: MetadataCollectionView | null;
   similar: CatalogItem[];
+};
+
+export type MetadataTitleReviewsResponse = {
+  reviews: MetadataReviewView[];
 };
 
 export type MetadataSeasonDetail = {

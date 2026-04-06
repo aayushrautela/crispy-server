@@ -11,6 +11,10 @@ type ParsedTraktReview = MetadataReviewView & {
   isReview: boolean;
 };
 
+type TraktRequestOptions = {
+  accessToken?: string;
+};
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
 }
@@ -80,12 +84,13 @@ export class TraktClient {
     mediaType: TraktTitleMediaType,
     externalIds: Pick<MetadataExternalIds, 'imdb' | 'tmdb' | 'tvdb'>,
     limit = 10,
+    options: TraktRequestOptions = {},
   ): Promise<MetadataReviewView[]> {
     if (!this.isConfigured()) {
       return [];
     }
 
-    const traktId = await this.resolveTitleId(mediaType, externalIds);
+    const traktId = await this.resolveTitleId(mediaType, externalIds, options);
     if (!traktId) {
       return [];
     }
@@ -93,7 +98,7 @@ export class TraktClient {
     const pathname = mediaType === 'movie'
       ? `/movies/${encodeURIComponent(traktId)}/comments`
       : `/shows/${encodeURIComponent(traktId)}/comments`;
-    const comments = await this.requestArray(pathname, { limit });
+    const comments = await this.requestArray(pathname, { limit }, options);
     const parsed = comments
       .map((entry) => normalizeTraktComment(entry))
       .filter((entry): entry is ParsedTraktReview => entry !== null);
@@ -109,17 +114,18 @@ export class TraktClient {
   private async resolveTitleId(
     mediaType: TraktTitleMediaType,
     externalIds: Pick<MetadataExternalIds, 'imdb' | 'tmdb' | 'tvdb'>,
+    options: TraktRequestOptions,
   ): Promise<string | null> {
     if (externalIds.imdb) {
       return externalIds.imdb;
     }
 
     if (externalIds.tmdb !== null) {
-      return this.searchTitleId('tmdb', externalIds.tmdb, mediaType);
+      return this.searchTitleId('tmdb', externalIds.tmdb, mediaType, options);
     }
 
     if (externalIds.tvdb !== null) {
-      return this.searchTitleId('tvdb', externalIds.tvdb, mediaType);
+      return this.searchTitleId('tvdb', externalIds.tvdb, mediaType, options);
     }
 
     return null;
@@ -129,11 +135,12 @@ export class TraktClient {
     source: 'tmdb' | 'tvdb',
     id: number,
     mediaType: TraktTitleMediaType,
+    options: TraktRequestOptions,
   ): Promise<string | null> {
     const results = await this.requestArray(`/search/${source}/${encodeURIComponent(String(id))}`, {
       type: mediaType,
       limit: 1,
-    });
+    }, options);
     const match = results[0];
     if (!match) {
       return null;
@@ -152,6 +159,7 @@ export class TraktClient {
   private async requestArray(
     pathname: string,
     query: Record<string, string | number | undefined> = {},
+    options: TraktRequestOptions = {},
   ): Promise<Record<string, unknown>[]> {
     if (!env.traktImportClientId) {
       throw new HttpError(503, 'Trakt is not configured.');
@@ -171,6 +179,7 @@ export class TraktClient {
         'Content-Type': 'application/json',
         'trakt-api-key': env.traktImportClientId,
         'trakt-api-version': '2',
+        ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
       },
     });
 

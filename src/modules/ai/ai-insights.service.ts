@@ -1,8 +1,9 @@
-import { withTransaction } from '../../lib/db.js';
+import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { MetadataDetailService } from '../metadata/metadata-detail.service.js';
-import type { MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
+import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
+import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
@@ -10,7 +11,9 @@ import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsPayload } from './ai.types.js';
 
-const GENERATION_VERSION = 'v3';
+const GENERATION_VERSION = 'v4';
+
+type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export class AiInsightsService {
   constructor(
@@ -19,6 +22,8 @@ export class AiInsightsService {
     private readonly entitlementService = new FeatureEntitlementService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly metadataDetailService = new MetadataDetailService(),
+    private readonly metadataReviewsService = new MetadataReviewsService(),
+    private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
   async getInsights(userId: string, input: {
@@ -36,7 +41,7 @@ export class AiInsightsService {
     if (!profileId) {
       throw new HttpError(400, 'Profile is required.');
     }
-    await withTransaction(async (client) => {
+    await this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
@@ -45,7 +50,7 @@ export class AiInsightsService {
     const request = await this.entitlementService.resolveAiRequestForUser(userId, 'insights');
     const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
-    const cached = await withTransaction(async (client) => {
+    const cached = await this.runInTransaction(async (client) => {
         return this.cacheRepository.findByKey(client, {
         contentId: mediaKey,
         locale,
@@ -56,8 +61,11 @@ export class AiInsightsService {
       return cached.payload;
     }
 
-    const titleDetail = await this.metadataDetailService.getTitleDetailById(mediaKey);
-    const titleContext = buildTitleInsightsContext(titleDetail);
+    const [titleDetail, titleReviews] = await Promise.all([
+      this.metadataDetailService.getTitleDetailById(mediaKey),
+      this.metadataReviewsService.getTitleReviews(userId, profileId, mediaKey),
+    ]);
+    const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.reviews);
     if (!titleContext) {
       throw new HttpError(404, 'Unable to load title data for AI insights.');
     }
@@ -74,7 +82,7 @@ export class AiInsightsService {
       throw new HttpError(502, 'AI insights returned invalid data.');
     }
 
-    return withTransaction(async (client) => {
+    return this.runInTransaction(async (client) => {
       return this.cacheRepository.upsert(client, {
         contentId: mediaKey,
         locale,
@@ -87,7 +95,7 @@ export class AiInsightsService {
   }
 }
 
-function buildTitleInsightsContext(detail: MetadataTitleDetail): TitleInsightsContext | null {
+function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: MetadataReviewView[]): TitleInsightsContext | null {
   const mediaType = detail.item.mediaType;
   if (mediaType !== 'movie' && mediaType !== 'show' && mediaType !== 'anime') {
     return null;
@@ -108,7 +116,7 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail): TitleInsightsCo
       ? detail.item.rating.toFixed(1)
       : null,
     genres: detail.item.genres,
-    reviews: detail.reviews
+    reviews: reviews
       .map((review) => ({
         author: review.author?.trim() || review.username?.trim() || 'Unknown',
         rating: review.rating,

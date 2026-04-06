@@ -9,6 +9,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   const { MetadataContentService } = await import('../../modules/metadata/metadata-content.service.js');
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
   const { EpisodeNavigationService } = await import('../../modules/metadata/episode-navigation.service.js');
+  const { MetadataReviewsService } = await import('../../modules/metadata/metadata-reviews.service.js');
   const { PersonDetailService } = await import('../../modules/metadata/person-detail.service.js');
   const { PlaybackResolveService } = await import('../../modules/metadata/playback-resolve.service.js');
   const originals = {
@@ -16,6 +17,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
     listEpisodes: EpisodeNavigationService.prototype.listEpisodes,
     getNextEpisode: EpisodeNavigationService.prototype.getNextEpisode,
     getTitleContent: MetadataContentService.prototype.getTitleContent,
+    getTitleReviews: MetadataReviewsService.prototype.getTitleReviews,
     resolvePlayback: PlaybackResolveService.prototype.resolvePlayback,
     getTitleDetailById: MetadataDetailService.prototype.getTitleDetailById,
   };
@@ -24,6 +26,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
     Object.assign(PersonDetailService.prototype, { getPersonDetail: originals.getPersonDetail });
     Object.assign(EpisodeNavigationService.prototype, { listEpisodes: originals.listEpisodes, getNextEpisode: originals.getNextEpisode });
     Object.assign(MetadataContentService.prototype, { getTitleContent: originals.getTitleContent });
+    Object.assign(MetadataReviewsService.prototype, { getTitleReviews: originals.getTitleReviews });
     Object.assign(PlaybackResolveService.prototype, { resolvePlayback: originals.resolvePlayback });
     Object.assign(MetadataDetailService.prototype, { getTitleDetailById: originals.getTitleDetailById });
   });
@@ -37,6 +40,10 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   let receivedShowMediaKey: string | null = null;
   let receivedNowMs: number | null = null;
   let receivedPlaybackMediaKey: string | null = null;
+  let receivedReviewsLanguage: string | null = null;
+  let receivedReviewsMediaKey: string | null = null;
+  let receivedReviewsProfileId: string | null = null;
+  let receivedReviewsUserId: string | null = null;
   let receivedResolveInput: { mediaType?: string; kitsuId?: number | string | null } | null = null;
 
   PersonDetailService.prototype.getPersonDetail = async function (id, language) {
@@ -200,6 +207,15 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       },
     } as never;
   };
+  MetadataReviewsService.prototype.getTitleReviews = async function (userId, profileId, mediaKey, language?: string | null) {
+    receivedReviewsUserId = userId;
+    receivedReviewsProfileId = profileId;
+    receivedReviewsMediaKey = mediaKey;
+    receivedReviewsLanguage = language ?? null;
+    return {
+      reviews: [{ id: 'review-1', author: 'Critic', username: 'critic1', content: 'Great movie', createdAt: '2024-01-02T00:00:00.000Z', updatedAt: '2024-01-03T00:00:00.000Z', url: 'https://example.com/review', rating: 8, avatarUrl: null }],
+    } as never;
+  };
   MetadataDetailService.prototype.getTitleDetailById = async function (id: string, language?: string | null) {
     receivedTitleLanguage = language ?? null;
     return {
@@ -240,7 +256,6 @@ test('metadata direct routes parse inputs and return service payloads', async (t
       cast: [{ id: 'person:tmdb:10', provider: 'tmdb', providerId: '10', tmdbPersonId: 10, name: 'Lead Actor', role: 'Hero', department: 'Acting', profileUrl: 'https://image.tmdb.org/t/p/w185/actor.jpg' }],
       directors: [{ id: 'person:tmdb:11', provider: 'tmdb', providerId: '11', tmdbPersonId: 11, name: 'Director Name', role: 'Director', department: 'Directing', profileUrl: null }],
       creators: [{ id: 'person:tmdb:12', provider: 'tmdb', providerId: '12', tmdbPersonId: 12, name: 'Creator Name', role: null, department: 'Writing', profileUrl: null }],
-      reviews: [{ id: 'review-1', author: 'Critic', username: 'critic1', content: 'Great movie', createdAt: '2024-01-02T00:00:00.000Z', updatedAt: '2024-01-03T00:00:00.000Z', url: 'https://example.com/review', rating: 8, avatarUrl: null }],
       production: { originalLanguage: 'en', originCountries: ['US'], spokenLanguages: ['English'], productionCountries: ['United States of America'], companies: [], networks: [] },
       collection: {
         id: 99,
@@ -335,13 +350,20 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(titleDetailResponse.json().cast[0].name, 'Lead Actor');
   assert.equal(titleDetailResponse.json().directors[0].name, 'Director Name');
   assert.equal(titleDetailResponse.json().creators[0].name, 'Creator Name');
-  assert.equal(titleDetailResponse.json().reviews[0].id, 'review-1');
   assert.equal(titleDetailResponse.json().production.originalLanguage, 'en');
   assert.equal(titleDetailResponse.json().collection.name, 'Saga Collection');
   assert.equal(titleDetailResponse.json().collection.parts[0].mediaKey, 'movie:tmdb:101');
   assert.equal(titleDetailResponse.json().collection.parts[0].providerId, '101');
   assert.equal(titleDetailResponse.json().similar[0].mediaKey, 'movie:tmdb:77');
   assert.equal(titleDetailResponse.json().similar[0].providerId, '77');
+
+  const titleReviewsResponse = await app.inject({ method: 'GET', url: `/v1/profiles/profile-1/metadata/titles/${movieMediaKey}/reviews?language=it-IT`, headers: auth });
+  assert.equal(titleReviewsResponse.statusCode, 200);
+  assert.equal(titleReviewsResponse.json().reviews[0].id, 'review-1');
+  assert.equal(receivedReviewsUserId, 'user-1');
+  assert.equal(receivedReviewsProfileId, 'profile-1');
+  assert.equal(receivedReviewsMediaKey, movieMediaKey);
+  assert.equal(receivedReviewsLanguage, 'it-IT');
 
   const nextEpisodeResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showMediaKey}/next-episode?currentSeasonNumber=1&currentEpisodeNumber=2&watchedKeys=tt1:1:3,tt1:1:4&showMediaKey=show:tvdb:tt1&nowMs=1700000000000&language=ja-JP`, headers: auth });
   assert.equal(nextEpisodeResponse.statusCode, 200);
