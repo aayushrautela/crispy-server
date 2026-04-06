@@ -41,12 +41,14 @@ import {
   extractCollectionParts,
   extractCreators,
   extractCrewByJob,
+  extractExternalIds,
   extractProduction,
   extractReviews,
   extractSimilarTitles,
   extractVideos,
 } from './metadata-builder.shared.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
+import { TraktClient } from './providers/trakt.client.js';
 import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type { TmdbEpisodeRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
@@ -56,6 +58,7 @@ export class MetadataDetailCoreService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly traktClient = new TraktClient(),
   ) {}
 
   async buildMetadataView(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataView> {
@@ -98,6 +101,11 @@ export class MetadataDetailCoreService {
         providerContext?.seasons.map((season) => season.seasonNumber) ?? [],
       );
       const showTmdbId = resolvedTitle.externalIds.tmdb ?? null;
+      const reviews = await this.resolveTitleReviews(
+        resolvedTitle.mediaType,
+        resolvedTitle.externalIds,
+        providerContext?.reviews ?? [],
+      );
 
       return {
         item: buildProviderMetadataView({
@@ -116,7 +124,7 @@ export class MetadataDetailCoreService {
         cast: providerContext?.cast ?? [],
         directors: providerContext?.directors ?? [],
         creators: providerContext?.creators ?? [],
-        reviews: providerContext?.reviews ?? [],
+        reviews,
         production: providerContext?.production ?? emptyProductionInfo(),
         collection: providerContext?.collection ?? null,
         similar: await this.buildProviderSimilarCards(client, providerContext?.similar ?? []),
@@ -147,6 +155,11 @@ export class MetadataDetailCoreService {
       tmdbId: titleRecord.tmdbId,
     }));
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
+    const reviews = await this.resolveTitleReviews(
+      resolvedTitle.mediaType === 'movie' ? 'movie' : 'show',
+      extractExternalIds(resolvedTitle),
+      extractReviews(resolvedTitle),
+    );
 
     return {
       item: buildMetadataView({
@@ -160,7 +173,7 @@ export class MetadataDetailCoreService {
       cast: extractCast(resolvedTitle),
       directors: extractCrewByJob(resolvedTitle, 'Director'),
       creators: extractCreators(resolvedTitle),
-      reviews: extractReviews(resolvedTitle),
+      reviews,
       production: extractProduction(resolvedTitle),
       collection: collection
         ? {
@@ -304,6 +317,21 @@ export class MetadataDetailCoreService {
     });
   }
 
+  private async resolveTitleReviews(
+    mediaType: 'movie' | 'show' | 'anime',
+    externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null },
+    primaryReviews: MetadataTitleDetail['reviews'],
+  ): Promise<MetadataTitleDetail['reviews']> {
+    const normalizedPrimary = primaryReviews.slice(0, 10);
+    if (normalizedPrimary.length >= 3 || !this.traktClient.isConfigured()) {
+      return normalizedPrimary;
+    }
+
+    const traktMediaType = mediaType === 'movie' ? 'movie' : 'show';
+    const fallbackReviews = await this.traktClient.fetchTitleReviews(traktMediaType, externalIds).catch(() => []);
+    return mergeReviews(normalizedPrimary, fallbackReviews);
+  }
+
   private async loadIdentityContext(client: DbClient, identity: MediaIdentity): Promise<{
     title: TmdbTitleRecord | null;
     currentEpisode: TmdbEpisodeRecord | null;
@@ -378,6 +406,25 @@ function emptyProductionInfo(): MetadataProductionInfoView {
     companies: [],
     networks: [],
   };
+}
+
+function mergeReviews(primary: MetadataTitleDetail['reviews'], fallback: MetadataTitleDetail['reviews']): MetadataTitleDetail['reviews'] {
+  const merged: MetadataTitleDetail['reviews'] = [];
+  const seen = new Set<string>();
+
+  for (const review of [...primary, ...fallback]) {
+    const dedupeKey = `${review.author ?? ''}:${review.username ?? ''}:${review.content.trim().toLowerCase()}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+    merged.push(review);
+    if (merged.length >= 10) {
+      break;
+    }
+  }
+
+  return merged;
 }
 
 function extractSeasonNumbersFromTitle(title: TmdbTitleRecord): number[] {
