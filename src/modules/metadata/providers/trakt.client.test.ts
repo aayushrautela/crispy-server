@@ -42,6 +42,7 @@ test('TraktClient fetches movie reviews with trakt headers', async () => {
   assert.equal(headers.get('accept'), 'application/json');
   assert.equal(headers.get('trakt-api-key'), 'trakt-test-id');
   assert.equal(headers.get('trakt-api-version'), '2');
+  assert.equal(headers.get('user-agent'), 'CrispyServer/1.0');
   assert.equal(headers.get('authorization'), null);
 });
 

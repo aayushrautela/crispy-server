@@ -205,6 +205,7 @@ export class TraktClient {
         'Content-Type': 'application/json',
         'trakt-api-key': env.traktImportClientId,
         'trakt-api-version': '2',
+        'User-Agent': 'CrispyServer/1.0',
         ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
       },
     });
