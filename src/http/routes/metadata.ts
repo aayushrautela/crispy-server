@@ -51,13 +51,15 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalNumber(query.seasonNumber),
       episodeNumber: parseOptionalNumber(query.episodeNumber),
+      language: asOptionalString(query.language),
     });
   });
 
   app.get('/v1/metadata/titles/:mediaKey', { schema: metadataTitleDetailRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
-    return metadataDetailService.getTitleDetailById(params.mediaKey);
+    const query = (request.query ?? {}) as MetadataPersonQuery;
+    return metadataDetailService.getTitleDetailById(params.mediaKey, asOptionalString(query.language));
   });
 
   app.get('/v1/metadata/titles/:mediaKey/content', { schema: metadataTitleContentRouteSchema }, async (request) => {
@@ -70,8 +72,9 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   app.get('/v1/metadata/titles/:mediaKey/seasons/:seasonNumber', { schema: metadataSeasonRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataSeasonParams;
+    const query = (request.query ?? {}) as MetadataPersonQuery;
     const seasonNumber = parseRequiredPositiveNumber(params.seasonNumber, 'seasonNumber');
-    return metadataDetailService.getSeasonDetailByShowId(params.mediaKey, seasonNumber);
+    return metadataDetailService.getSeasonDetailByShowId(params.mediaKey, seasonNumber, asOptionalString(query.language));
   });
 
   app.get('/v1/metadata/people/:id', { schema: metadataPersonRouteSchema }, async (request) => {
@@ -85,7 +88,11 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataEpisodesQuery;
-    return episodeNavigationService.listEpisodes(params.mediaKey, parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'));
+    return episodeNavigationService.listEpisodes(
+      params.mediaKey,
+      parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
+      asOptionalString(query.language),
+    );
   });
 
   app.get('/v1/metadata/titles/:mediaKey/next-episode', { schema: metadataNextEpisodeRouteSchema }, async (request) => {
@@ -98,6 +105,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       watchedKeys: parseStringList(query.watchedKeys),
       showMediaKey: asOptionalString(query.showMediaKey),
       nowMs: parseOptionalNumber(query.nowMs),
+      language: asOptionalString(query.language),
     });
   });
 
@@ -114,6 +122,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
       episodeNumber: parseOptionalPositiveNumber(query.episodeNumber, 'episodeNumber'),
+      language: asOptionalString(query.language),
     });
   });
 

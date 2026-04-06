@@ -24,6 +24,7 @@ export type MetadataResolveQuery = {
   parentProviderId?: number | string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
+  language?: string;
 };
 
 export type MetadataTitleParams = {
@@ -45,6 +46,7 @@ export type MetadataPersonQuery = {
 
 export type MetadataEpisodesQuery = {
   seasonNumber?: number | string;
+  language?: string;
 };
 
 export type MetadataNextEpisodeQuery = {
@@ -53,6 +55,7 @@ export type MetadataNextEpisodeQuery = {
   watchedKeys?: string | string[];
   showMediaKey?: string;
   nowMs?: number | string;
+  language?: string;
 };
 
 export type MetadataSearchQuery = {
@@ -75,6 +78,15 @@ const metadataResolveQuerystringSchema = {
     parentProviderId: positiveIntegerLikeSchema,
     seasonNumber: positiveIntegerLikeSchema,
     episodeNumber: positiveIntegerLikeSchema,
+    language: stringSchema,
+  },
+} as const;
+
+const metadataLanguageQuerystringSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    language: stringSchema,
   },
 } as const;
 
@@ -596,6 +608,7 @@ export const metadataResolveRouteSchema = withDefaultErrorResponses({
 
 export const metadataTitleDetailRouteSchema = withDefaultErrorResponses({
   params: metadataTitleParamsSchema,
+  querystring: metadataLanguageQuerystringSchema,
   response: {
     200: metadataTitleDetailResponseSchema,
   },
@@ -610,6 +623,7 @@ export const metadataTitleContentRouteSchema = withDefaultErrorResponses({
 
 export const metadataSeasonRouteSchema = withDefaultErrorResponses({
   params: metadataSeasonParamsSchema,
+  querystring: metadataLanguageQuerystringSchema,
   response: {
     200: metadataSeasonDetailResponseSchema,
   },
@@ -650,6 +664,7 @@ export const metadataEpisodesRouteSchema = withDefaultErrorResponses({
     additionalProperties: false,
     properties: {
       seasonNumber: positiveIntegerLikeSchema,
+      language: stringSchema,
     },
   },
   response: {
@@ -675,6 +690,7 @@ export const metadataNextEpisodeRouteSchema = withDefaultErrorResponses({
       watchedKeys: stringListSchema,
       showMediaKey: stringSchema,
       nowMs: integerLikeSchema,
+      language: stringSchema,
     },
   },
   response: {

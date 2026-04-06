@@ -27,6 +27,7 @@ export type ResolveMetadataInput = {
   mediaType?: SupportedMediaType | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  language?: string | null;
 };
 
 export class PlaybackResolveService {
@@ -41,7 +42,7 @@ export class PlaybackResolveService {
   async resolvePlayback(input: ResolveMetadataInput): Promise<PlaybackResolveResponse> {
     return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
-      const item = await this.metadataDetailCoreService.buildMetadataView(client, identity);
+      const item = await this.metadataDetailCoreService.buildMetadataView(client, identity, input.language ?? null);
       let show: MetadataView | null = null;
       let season: MetadataSeasonView | null = null;
 
@@ -53,10 +54,10 @@ export class PlaybackResolveService {
           providerId: identity.parentProviderId,
           tmdbId: identity.showTmdbId,
         });
-        show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity);
+        show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity, input.language ?? null);
 
         if (identity.seasonNumber !== null) {
-          const providerSeasonContext = await this.providerMetadataService.loadSeasonContext(client, identity, identity.seasonNumber);
+          const providerSeasonContext = await this.providerMetadataService.loadSeasonContext(client, identity, identity.seasonNumber, input.language ?? null);
           if (providerSeasonContext?.season) {
             const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
               parentMediaType: providerSeasonContext.season.parentMediaType,

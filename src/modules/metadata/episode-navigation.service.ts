@@ -27,6 +27,7 @@ export type NextEpisodeInput = {
   watchedKeys?: string[] | null;
   showMediaKey?: string | null;
   nowMs?: number | null;
+  language?: string | null;
 };
 
 export class EpisodeNavigationService {
@@ -37,12 +38,12 @@ export class EpisodeNavigationService {
     private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
 
-  async listEpisodes(id: string, requestedSeasonNumber?: number | null): Promise<MetadataEpisodeListResponse> {
+  async listEpisodes(id: string, requestedSeasonNumber?: number | null, language?: string | null): Promise<MetadataEpisodeListResponse> {
     return withDbClient(async (client) => {
       const showIdentity = await this.resolveShowIdentity(client, id);
-      const providerContext = await this.providerMetadataService.loadIdentityContext(client, showIdentity);
+      const providerContext = await this.providerMetadataService.loadIdentityContext(client, showIdentity, language ?? null);
       if (providerContext?.title) {
-        const show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity);
+        const show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity, language ?? null);
         const seasonNumbers = selectProviderSeasonNumbers(providerContext.episodes, providerContext.title.seasonCount, requestedSeasonNumber ?? null);
         const filteredEpisodes = providerContext.episodes.filter((episode) => seasonNumbers.includes(episode.seasonNumber ?? 1));
         const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
@@ -83,7 +84,7 @@ export class EpisodeNavigationService {
         episodes.push(...await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber));
       }
 
-      const show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity);
+      const show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity, language ?? null);
       const dedupedEpisodes = dedupeEpisodes(episodes);
       const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
         client,
@@ -116,7 +117,7 @@ export class EpisodeNavigationService {
   }
 
   async getNextEpisode(id: string, input: NextEpisodeInput): Promise<MetadataNextEpisodeResponse> {
-    const episodeList = await this.listEpisodes(id, input.currentSeasonNumber);
+    const episodeList = await this.listEpisodes(id, input.currentSeasonNumber, input.language ?? null);
     const nextEpisode = findNextEpisode({
       currentSeasonNumber: input.currentSeasonNumber,
       currentEpisodeNumber: input.currentEpisodeNumber,

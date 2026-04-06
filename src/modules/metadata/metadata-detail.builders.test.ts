@@ -206,7 +206,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
   assert.equal(extractSimilarTitles(title)[0]?.name, 'Breaking Point: Aftermath');
 });
 
-test('TVDB title normalization prefers artworks and leaves unsupported rating empty', async () => {
+test('TVDB title normalization localizes text and does not use generic image as backdrop', async () => {
   const { normalizeTvdbTitle } = await import('./provider-metadata.service.js');
 
   const title = normalizeTvdbTitle({
@@ -222,23 +222,34 @@ test('TVDB title normalization prefers artworks and leaves unsupported rating em
       genres: [{ name: 'Animation' }],
       episodeCount: 9,
       seasons: [{ number: 1 }],
+      translations: {
+        nameTranslations: [
+          { language: 'spa', name: 'Coches en la carretera' },
+          { language: 'eng', name: 'Cars on the Road' },
+        ],
+        overviewTranslations: [
+          { language: 'spa', overview: 'Rayo y Mate salen de viaje.' },
+          { language: 'eng', overview: 'Lightning and Mater hit the road.' },
+        ],
+      },
       artworks: [
-        { type: 'background', image: '/banners/background.jpg' },
-        { type: 'clearlogo', image: '/banners/logo.png' },
-        { type: 'poster', image: '/banners/poster.jpg' },
+        { type: 'clearlogo', language: 'spa', image: '/banners/logo.png' },
+        { type: 'poster', language: 'spa', image: '/banners/poster.jpg' },
       ],
       remoteIds: [{ sourceName: 'IMDB', id: 'tt1234567' }],
     },
-  }, '412436');
+  }, '412436', 'es-ES');
 
+  assert.equal(title.title, 'Coches en la carretera');
+  assert.equal(title.summary, 'Rayo y Mate salen de viaje.');
   assert.equal(title.posterUrl, 'https://artworks.thetvdb.com/banners/poster.jpg');
-  assert.equal(title.backdropUrl, 'https://artworks.thetvdb.com/banners/background.jpg');
+  assert.equal(title.backdropUrl, null);
   assert.equal(title.logoUrl, 'https://artworks.thetvdb.com/banners/logo.png');
   assert.equal(title.rating, null);
   assert.equal(title.certification, 'TV-G');
 });
 
-test('TVDB episode normalization expands relative stills and leaves unsupported rating empty', async () => {
+test('TVDB episode normalization localizes text and expands relative stills', async () => {
   const { normalizeTvdbEpisode } = await import('./provider-metadata.service.js');
 
   const episode = normalizeTvdbEpisode({
@@ -250,9 +261,15 @@ test('TVDB episode normalization expands relative stills and leaves unsupported 
     runtime: 22,
     score: 9812,
     image: '/banners/v4/episode/8835563/screencap/test.jpg',
-  }, '412436');
+    translations: {
+      nameTranslations: [{ language: 'spa', name: 'Luces fuera' }],
+      overviewTranslations: [{ language: 'spa', overview: 'El viaje por carretera continua.' }],
+    },
+  }, '412436', 'es-ES');
 
   assert.ok(episode);
+  assert.equal(episode?.title, 'Luces fuera');
+  assert.equal(episode?.summary, 'El viaje por carretera continua.');
   assert.equal(episode?.stillUrl, 'https://artworks.thetvdb.com/banners/v4/episode/8835563/screencap/test.jpg');
   assert.equal(episode?.rating, null);
 });
@@ -279,7 +296,7 @@ test('Kitsu title normalization converts average rating to 10-point scale', asyn
   assert.equal(title.backdropUrl, 'https://cdn.example/cover.jpg');
 });
 
-test('TVDB crew and reviews stay empty when unsupported', async () => {
+test('TVDB crew extracts direct roles and reviews stay empty when unsupported', async () => {
   const { buildProviderCrew, buildProviderReviews } = await import('./provider-metadata.service.js');
 
   const tvdbTitle: ProviderTitleRecord = {
@@ -304,11 +321,14 @@ test('TVDB crew and reviews stay empty when unsupported', async () => {
     episodeCount: null,
     raw: {
       data: {
-        characters: [{ peopleId: '1', personName: 'Actor Name', name: 'Character Name', peopleType: 'Actor' }],
+        characters: [
+          { peopleId: '1', personName: 'Actor Name', name: 'Character Name', peopleType: 'Actor' },
+          { peopleId: '2', personName: 'Director Name', name: 'Director', peopleType: 'Director' },
+        ],
       },
     },
   };
 
-  assert.deepEqual(buildProviderCrew(tvdbTitle, undefined, ['director']), []);
+  assert.equal(buildProviderCrew(tvdbTitle, undefined, ['director'])[0]?.name, 'Director Name');
   assert.deepEqual(buildProviderReviews(tvdbTitle, undefined), []);
 });

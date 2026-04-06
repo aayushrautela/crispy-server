@@ -58,8 +58,8 @@ export class MetadataDetailCoreService {
     private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
 
-  async buildMetadataView(client: DbClient, identity: MediaIdentity): Promise<MetadataView> {
-    const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity);
+  async buildMetadataView(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataView> {
+    const providerContext = await this.providerMetadataService.loadIdentityContext(client, identity, language ?? null);
     if (providerContext?.title) {
       return buildProviderMetadataView({
         identity,
@@ -79,14 +79,14 @@ export class MetadataDetailCoreService {
     });
   }
 
-  async getTitleDetail(client: DbClient, identity: MediaIdentity): Promise<MetadataTitleDetail> {
+  async getTitleDetail(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataTitleDetail> {
     if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
       throw new Error('Title detail normalization requires a title identity.');
     }
 
     const providerIdentity = this.normalizeProviderTitleIdentity(identity);
     if (providerIdentity) {
-      const providerContext = await this.providerMetadataService.loadIdentityContext(client, providerIdentity);
+      const providerContext = await this.providerMetadataService.loadIdentityContext(client, providerIdentity, language ?? null);
       const resolvedTitle = assertPresent(providerContext?.title, 'Metadata title not found.');
       const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(
         client,
@@ -178,8 +178,8 @@ export class MetadataDetailCoreService {
     };
   }
 
-  async getSeasonDetail(client: DbClient, showIdentity: MediaIdentity, seasonNumber: number): Promise<MetadataSeasonDetail> {
-    const providerContext = await this.providerMetadataService.loadSeasonContext(client, showIdentity, seasonNumber);
+  async getSeasonDetail(client: DbClient, showIdentity: MediaIdentity, seasonNumber: number, language?: string | null): Promise<MetadataSeasonDetail> {
+    const providerContext = await this.providerMetadataService.loadSeasonContext(client, showIdentity, seasonNumber, language ?? null);
     if (providerContext?.title && providerContext.season) {
       const parentMediaType = providerContext.title.mediaType === 'anime' ? 'anime' : 'show';
       const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {

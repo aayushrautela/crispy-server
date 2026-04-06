@@ -18,6 +18,7 @@ type ResolveInput = {
   mediaType?: SupportedMediaType | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  language?: string | null;
 };
 
 export class MetadataDetailService {
@@ -32,30 +33,30 @@ export class MetadataDetailService {
     return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
       return {
-        item: await this.metadataDetailCoreService.buildMetadataView(client, identity),
+        item: await this.metadataDetailCoreService.buildMetadataView(client, identity, input.language ?? null),
       };
     });
   }
 
-  async getTitleDetailById(id: string): Promise<MetadataTitleDetail> {
+  async getTitleDetailById(id: string, language?: string | null): Promise<MetadataTitleDetail> {
     return withDbClient(async (client) => {
       const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, id);
       if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
         throw new HttpError(400, 'Title details require a title mediaKey.');
       }
 
-      return this.metadataDetailCoreService.getTitleDetail(client, identity);
+      return this.metadataDetailCoreService.getTitleDetail(client, identity, language ?? null);
     });
   }
 
-  async getSeasonDetailByShowId(showId: string, seasonNumber: number): Promise<MetadataSeasonDetail> {
+  async getSeasonDetailByShowId(showId: string, seasonNumber: number, language?: string | null): Promise<MetadataSeasonDetail> {
     return withDbClient(async (client) => {
       const identity = await resolveShowRouteIdentity(client, this.contentIdentityService, showId);
       if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
         throw new HttpError(400, 'Season details require a show or anime mediaKey.');
       }
 
-      return this.metadataDetailCoreService.getSeasonDetail(client, identity, seasonNumber);
+      return this.metadataDetailCoreService.getSeasonDetail(client, identity, seasonNumber, language ?? null);
     });
   }
 

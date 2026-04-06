@@ -7,7 +7,19 @@ import {
   buildSeasonProviderId,
 } from '../identity/media-key.js';
 import { ImdbRatingsService, imdbRatingsService } from './enrichment/imdb-ratings.service.js';
+import {
+  buildMetadataImages,
+  extractCast,
+  extractCertification,
+  extractCreators,
+  extractCrewByJob,
+  extractProduction,
+  extractRating,
+  extractVideos,
+} from './metadata-builder.shared.js';
 import { KitsuClient } from './providers/kitsu.client.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import type {
   MetadataCollectionView,
   MetadataCompanyView,
@@ -24,6 +36,7 @@ import type {
   ProviderEpisodeRecord,
   ProviderSeasonRecord,
 } from './metadata-card.types.js';
+import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { TvdbClient } from './providers/tvdb.client.js';
 
 type ProviderTitleBundle = {
@@ -59,6 +72,8 @@ export class ProviderMetadataService {
   constructor(
     private readonly tvdbClient = new TvdbClient(),
     private readonly kitsuClient = new KitsuClient(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly tmdbExternalIds = new TmdbExternalIdResolverService(),
     private readonly imdbRatings: ImdbRatingsService = imdbRatingsService,
   ) {}
 
@@ -82,37 +97,38 @@ export class ProviderMetadataService {
     return sortProviderTitles(query, dedupeProviderTitles(results)).slice(0, limit);
   }
 
-  async loadIdentityContext(client: DbClient, identity: MediaIdentity): Promise<ProviderIdentityContext | null> {
-    const bundle = await this.loadBundle(identity);
+  async loadIdentityContext(
+    client: DbClient,
+    identity: MediaIdentity,
+    language?: string | null,
+  ): Promise<ProviderIdentityContext | null> {
+    const bundle = await this.loadBundle(identity, language ?? null);
     if (!bundle) {
       return null;
     }
 
-    if (bundle.title.provider === 'tvdb' && bundle.title.rating === null) {
-      const imdbId = bundle.title.externalIds.imdb;
-      if (imdbId) {
-        const imdbRating = await this.imdbRatings.getRating(client, imdbId);
-        if (imdbRating) {
-          bundle.title = { ...bundle.title, rating: imdbRating.rating };
-        }
-      }
-    }
+    const tmdbFallbackTitle = bundle.title.provider === 'tvdb'
+      ? await this.loadTvdbFallbackTitle(client, bundle.title)
+      : null;
+    const title = bundle.title.provider === 'tvdb'
+      ? await this.enrichTvdbTitle(client, bundle.title, tmdbFallbackTitle)
+      : bundle.title;
 
     const currentEpisode = selectCurrentEpisode(bundle.episodes, identity);
     return {
-      title: bundle.title,
+      title,
       currentEpisode,
       nextEpisode: selectNextEpisode(bundle.episodes, identity, currentEpisode),
       seasons: bundle.seasons,
       episodes: bundle.episodes,
-      videos: buildProviderVideos(bundle.title),
-      cast: buildProviderCast(bundle.title, bundle.extras),
-      directors: buildProviderCrew(bundle.title, bundle.extras, ['director']),
-      creators: buildProviderCrew(bundle.title, bundle.extras, ['creator', 'writer', 'author']),
-      reviews: buildProviderReviews(bundle.title, bundle.extras),
-      production: buildProviderProduction(bundle.title, bundle.extras),
-      collection: buildProviderCollection(bundle.title),
-      similar: buildProviderSimilar(bundle.title, bundle.extras),
+      videos: buildProviderVideos(title, tmdbFallbackTitle, language ?? null),
+      cast: buildProviderCast(title, bundle.extras, tmdbFallbackTitle),
+      directors: buildProviderCrew(title, bundle.extras, ['director'], tmdbFallbackTitle),
+      creators: buildProviderCrew(title, bundle.extras, ['creator', 'writer', 'author'], tmdbFallbackTitle),
+      reviews: buildProviderReviews(title, bundle.extras),
+      production: buildProviderProduction(title, bundle.extras, tmdbFallbackTitle),
+      collection: buildProviderCollection(title),
+      similar: buildProviderSimilar(title, bundle.extras),
     };
   }
 
@@ -120,13 +136,14 @@ export class ProviderMetadataService {
     _client: DbClient,
     identity: MediaIdentity,
     seasonNumber: number,
+    language?: string | null,
   ): Promise<{
     title: ProviderTitleRecord | null;
     season: ProviderSeasonRecord | null;
     episodes: ProviderEpisodeRecord[];
     nextEpisode: ProviderEpisodeRecord | null;
   } | null> {
-    const context = await this.loadIdentityContext(_client, identity);
+    const context = await this.loadIdentityContext(_client, identity, language ?? null);
     if (!context) {
       return null;
     }
@@ -159,14 +176,14 @@ export class ProviderMetadataService {
       .slice(0, limit);
   }
 
-  private async loadBundle(identity: MediaIdentity): Promise<ProviderTitleBundle | null> {
+  private async loadBundle(identity: MediaIdentity, language?: string | null): Promise<ProviderTitleBundle | null> {
     const titleProvider = resolveTitleProvider(identity);
     if (!titleProvider) {
       return null;
     }
 
     if (titleProvider.provider === 'tvdb') {
-      return this.loadTvdbSeriesBundle(titleProvider.providerId);
+      return this.loadTvdbSeriesBundle(titleProvider.providerId, language ?? null);
     }
 
     if (titleProvider.provider === 'kitsu') {
@@ -176,7 +193,7 @@ export class ProviderMetadataService {
     return null;
   }
 
-  private async loadTvdbSeriesBundle(seriesId: string): Promise<ProviderTitleBundle> {
+  private async loadTvdbSeriesBundle(seriesId: string, language?: string | null): Promise<ProviderTitleBundle> {
     const [seriesPayload, episodesPayload] = await Promise.all([
       this.tvdbClient.fetchSeriesExtended(seriesId),
       this.tvdbClient.fetchSeriesEpisodes(seriesId, 'default').catch(() => ({ data: [] })),
@@ -187,10 +204,10 @@ export class ProviderMetadataService {
       throw new HttpError(404, 'Show metadata not found.');
     }
 
-    const title = normalizeTvdbTitle(seriesPayload, seriesId);
+    const title = normalizeTvdbTitle(seriesPayload, seriesId, language ?? null);
     const episodes = dedupeProviderEpisodes([
-      ...extractTvdbEpisodes(seriesPayload, seriesId),
-      ...extractTvdbEpisodes(episodesPayload, seriesId),
+      ...extractTvdbEpisodes(seriesPayload, seriesId, language ?? null),
+      ...extractTvdbEpisodes(episodesPayload, seriesId, language ?? null),
     ]);
     const seasons = deriveTvdbSeasons(series, seriesId, episodes, title.episodeCount);
 
@@ -266,6 +283,66 @@ export class ProviderMetadataService {
     }
 
     return { data };
+  }
+
+  private async loadTvdbFallbackTitle(client: DbClient, title: ProviderTitleRecord): Promise<TmdbTitleRecord | null> {
+    let tmdbId = title.externalIds.tmdb;
+
+    if (!tmdbId && title.externalIds.imdb) {
+      tmdbId = await this.tmdbExternalIds.resolve(client, {
+        source: 'imdb_id',
+        externalId: title.externalIds.imdb,
+        mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+      });
+    }
+
+    if (!tmdbId && title.externalIds.tvdb) {
+      tmdbId = await this.tmdbExternalIds.resolve(client, {
+        source: 'tvdb_id',
+        externalId: String(title.externalIds.tvdb),
+        mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+      });
+    }
+
+    if (!tmdbId) {
+      return null;
+    }
+
+    return this.tmdbCacheService.ensureTitleCached(client, title.mediaType === 'movie' ? 'movie' : 'tv', tmdbId).catch(() => null);
+  }
+
+  private async enrichTvdbTitle(
+    client: DbClient,
+    title: ProviderTitleRecord,
+    tmdbTitle: TmdbTitleRecord | null,
+  ): Promise<ProviderTitleRecord> {
+    const tmdbImages = tmdbTitle ? buildMetadataImages(tmdbTitle, null) : null;
+    const externalIds = {
+      ...title.externalIds,
+      tmdb: tmdbTitle?.tmdbId ?? title.externalIds.tmdb,
+      imdb: title.externalIds.imdb ?? asString(tmdbTitle?.externalIds.imdb_id),
+    };
+
+    let rating = title.rating;
+    if (rating === null && externalIds.imdb) {
+      const imdbRating = await this.imdbRatings.getRating(client, externalIds.imdb);
+      if (imdbRating) {
+        rating = imdbRating.rating;
+      }
+    }
+    if (rating === null && tmdbTitle) {
+      rating = extractRating(tmdbTitle, null);
+    }
+
+    return {
+      ...title,
+      externalIds,
+      posterUrl: title.posterUrl ?? tmdbImages?.posterUrl ?? null,
+      backdropUrl: title.backdropUrl ?? tmdbImages?.backdropUrl ?? null,
+      logoUrl: title.logoUrl ?? tmdbImages?.logoUrl ?? null,
+      rating,
+      certification: title.certification ?? (tmdbTitle ? extractCertification(tmdbTitle) : null),
+    };
   }
 }
 
@@ -515,7 +592,7 @@ function deriveKitsuSeasons(
   return [...seasonMap.values()].sort((left, right) => left.seasonNumber - right.seasonNumber);
 }
 
-function extractTvdbEpisodes(payload: Record<string, unknown>, seriesId: string): ProviderEpisodeRecord[] {
+function extractTvdbEpisodes(payload: Record<string, unknown>, seriesId: string, language?: string | null): ProviderEpisodeRecord[] {
   const records = [
     ...asArray(asRecord(payload.data)?.episodes),
     ...asArray(asRecord(asRecord(payload.data)?.episodes)?.data),
@@ -525,7 +602,7 @@ function extractTvdbEpisodes(payload: Record<string, unknown>, seriesId: string)
   return records
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry) => normalizeTvdbEpisode(entry, seriesId))
+    .map((entry) => normalizeTvdbEpisode(entry, seriesId, language ?? null))
     .filter((entry): entry is ProviderEpisodeRecord => entry !== null);
 }
 
@@ -564,7 +641,7 @@ export function normalizeTvdbSearchTitle(record: Record<string, unknown>): Provi
     releaseDate: asString(record.first_air_time) ?? asString(record.year),
     status: asString(record.status),
     posterUrl: normalizeTvdbImageUrl(asString(record.image_url) ?? asString(record.image) ?? asString(record.thumbnail)),
-    backdropUrl: normalizeTvdbImageUrl(asString(record.banner) ?? asString(record.image)),
+    backdropUrl: normalizeTvdbImageUrl(asString(record.banner)),
     logoUrl: null,
     runtimeMinutes: null,
     rating: null,
@@ -582,25 +659,26 @@ export function normalizeTvdbSearchTitle(record: Record<string, unknown>): Provi
   };
 }
 
-export function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: string): ProviderTitleRecord {
+export function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: string, language?: string | null): ProviderTitleRecord {
   const data = asRecord(payload.data) ?? {};
   const artworks = asArray(data.artworks)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const preferredLanguage = normalizeLanguagePreference(language ?? null);
 
   return {
     mediaType: 'show',
     provider: 'tvdb',
     providerId: asString(data.id) ?? seriesId,
-    title: asString(data.name),
+    title: extractTvdbTranslatedText(data, 'name', preferredLanguage.tvdb) ?? asString(data.name),
     originalTitle: asString(data.originalName) ?? asString(data.name),
-    summary: asString(data.overview),
-    overview: asString(data.overview),
+    summary: extractTvdbTranslatedText(data, 'overview', preferredLanguage.tvdb) ?? asString(data.overview),
+    overview: extractTvdbTranslatedText(data, 'overview', preferredLanguage.tvdb) ?? asString(data.overview),
     releaseDate: asString(data.firstAired) ?? asString(data.year),
     status: asString(asRecord(data.status)?.name) ?? asString(data.status),
-    posterUrl: extractTvdbArtworkUrl(artworks, ['poster']) ?? normalizeTvdbImageUrl(asString(data.image)),
-    backdropUrl: extractTvdbArtworkUrl(artworks, ['background', 'fanart']) ?? normalizeTvdbImageUrl(asString(data.image)),
-    logoUrl: extractTvdbArtworkUrl(artworks, ['clearlogo', 'logo']),
+    posterUrl: extractTvdbArtworkUrl(artworks, ['poster'], preferredLanguage.tvdb) ?? normalizeTvdbImageUrl(asString(data.image)),
+    backdropUrl: extractTvdbArtworkUrl(artworks, ['background'], preferredLanguage.tvdb),
+    logoUrl: extractTvdbArtworkUrl(artworks, ['clearlogo'], preferredLanguage.tvdb),
     runtimeMinutes: asInteger(data.averageRuntime) ?? asInteger(data.runtime),
     rating: null,
     certification: asString(data.contentRating),
@@ -614,7 +692,7 @@ export function normalizeTvdbTitle(payload: Record<string, unknown>, seriesId: s
   };
 }
 
-export function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: string): ProviderEpisodeRecord | null {
+export function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: string, language?: string | null): ProviderEpisodeRecord | null {
   const seasonNumber = asInteger(record.seasonNumber) ?? asInteger(record.airedSeason) ?? 1;
   const episodeNumber = asInteger(record.number) ?? asInteger(record.episodeNumber) ?? asInteger(record.absoluteNumber);
   if (episodeNumber === null) {
@@ -622,6 +700,7 @@ export function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: 
   }
 
   const absoluteEpisodeNumber = asInteger(record.absoluteNumber);
+  const preferredLanguage = normalizeLanguagePreference(language ?? null);
   return {
     mediaType: 'episode',
     provider: 'tvdb',
@@ -632,8 +711,8 @@ export function normalizeTvdbEpisode(record: Record<string, unknown>, seriesId: 
     seasonNumber,
     episodeNumber,
     absoluteEpisodeNumber,
-    title: asString(record.name),
-    summary: asString(record.overview),
+    title: extractTvdbTranslatedText(record, 'name', preferredLanguage.tvdb) ?? asString(record.name),
+    summary: extractTvdbTranslatedText(record, 'overview', preferredLanguage.tvdb) ?? asString(record.overview),
     airDate: asString(record.aired) ?? asString(record.firstAired),
     runtimeMinutes: asInteger(record.runtime),
     rating: null,
@@ -798,11 +877,19 @@ function extractKitsuCategories(included: unknown[]): string[] {
     .filter((entry): entry is string => Boolean(entry));
 }
 
-export function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoView[] {
+export function buildProviderVideos(
+  title: ProviderTitleRecord,
+  tmdbTitle?: TmdbTitleRecord | null,
+  language?: string | null,
+): MetadataVideoView[] {
   if (title.provider === 'tvdb') {
-    return asArray(asRecord(asRecord(title.raw)?.data)?.trailers)
-      .map((entry) => asRecord(entry))
-      .filter((entry): entry is Record<string, unknown> => entry !== null)
+    const preferredLanguage = normalizeLanguagePreference(language ?? null);
+    const trailers = rankTvdbTrailers(
+      asArray(asRecord(asRecord(title.raw)?.data)?.trailers)
+        .map((entry) => asRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry !== null),
+      preferredLanguage,
+    )
       .flatMap((entry) => {
         const id = asString(entry.id) ?? asString(entry.url);
         const url = asString(entry.url);
@@ -819,9 +906,15 @@ export function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoVi
           official: true,
           publishedAt: null,
           url,
-          thumbnailUrl: null,
+          thumbnailUrl: normalizeTvdbImageUrl(asString(entry.thumbnail) ?? asString(entry.image)),
         } satisfies MetadataVideoView];
       });
+
+    if (trailers.length) {
+      return trailers;
+    }
+
+    return tmdbTitle ? rankTmdbVideos(extractVideos(tmdbTitle), tmdbTitle, preferredLanguage) : [];
   }
 
   if (title.provider === 'kitsu') {
@@ -850,12 +943,13 @@ export function buildProviderVideos(title: ProviderTitleRecord): MetadataVideoVi
 export function buildProviderCast(
   title: ProviderTitleRecord,
   extras?: ProviderTitleBundle['extras'],
+  tmdbTitle?: TmdbTitleRecord | null,
 ): MetadataPersonRefView[] {
   if (title.provider !== 'tvdb') {
     return buildKitsuCast(extras);
   }
 
-  return asArray(asRecord(asRecord(title.raw)?.data)?.characters)
+  const cast = asArray(asRecord(asRecord(title.raw)?.data)?.characters)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .flatMap((entry) => {
@@ -873,21 +967,49 @@ export function buildProviderCast(
         name,
         role: asString(entry.name),
         department: asString(entry.peopleType) ?? 'Cast',
-        profileUrl: asString(entry.personImgURL) ?? asString(entry.image),
-      } satisfies MetadataPersonRefView];
+          profileUrl: asString(entry.personImgURL) ?? asString(entry.image),
+        } satisfies MetadataPersonRefView];
     });
+
+  return cast.length ? cast : (tmdbTitle ? extractCast(tmdbTitle) : []);
 }
 
 export function buildProviderCrew(
   title: ProviderTitleRecord,
   extras: ProviderTitleBundle['extras'] | undefined,
   roles: string[],
+  tmdbTitle?: TmdbTitleRecord | null,
 ): MetadataPersonRefView[] {
+  const normalizedRoles = roles.map((role) => role.toLowerCase());
   if (title.provider === 'tvdb') {
-    return [];
+    const source = buildProviderCast(title, extras, null);
+    const seen = new Set<string>();
+    const crew = source.filter((entry) => {
+      const department = entry.department?.toLowerCase() ?? '';
+      const role = entry.role?.toLowerCase() ?? '';
+      const matches = normalizedRoles.some((candidate) => department.includes(candidate) || role.includes(candidate));
+      if (!matches || seen.has(entry.id)) {
+        return false;
+      }
+      seen.add(entry.id);
+      return true;
+    });
+
+    if (crew.length) {
+      return crew;
+    }
+
+    if (!tmdbTitle) {
+      return [];
+    }
+
+    if (normalizedRoles.includes('director')) {
+      return extractCrewByJob(tmdbTitle, 'Director');
+    }
+
+    return dedupePeople([...extractCreators(tmdbTitle), ...extractCrewByJob(tmdbTitle, 'Writer')]);
   }
 
-  const normalizedRoles = roles.map((role) => role.toLowerCase());
   const seen = new Set<string>();
   const source = buildKitsuCrew(extras);
   return source.filter((entry) => {
@@ -905,6 +1027,7 @@ export function buildProviderCrew(
 export function buildProviderProduction(
   title: ProviderTitleRecord,
   extras?: ProviderTitleBundle['extras'],
+  tmdbTitle?: TmdbTitleRecord | null,
 ): MetadataProductionInfoView | null {
   if (title.provider === 'tvdb') {
     const data = asRecord(asRecord(title.raw)?.data) ?? {};
@@ -918,14 +1041,20 @@ export function buildProviderProduction(
       .map((entry) => buildProviderCompany(entry, 'tvdb'))
       .filter((entry): entry is MetadataCompanyView => entry !== null);
 
-    return {
+    const production = {
       originalLanguage: asString(data.originalLanguage),
       originCountries: uniqueStrings([asString(data.country)]),
       spokenLanguages: [],
       productionCountries: companies.map((company) => company.originCountry).filter((entry): entry is string => Boolean(entry)),
       companies,
       networks,
-    };
+    } satisfies MetadataProductionInfoView;
+
+    if (production.companies.length || production.networks.length || production.originalLanguage || production.originCountries.length) {
+      return production;
+    }
+
+    return tmdbTitle ? extractProduction(tmdbTitle) : production;
   }
 
   return buildKitsuProduction(extras);
@@ -1255,15 +1384,157 @@ function normalizeTvdbImageUrl(value: string | null): string | null {
   return `https://artworks.thetvdb.com${normalizedPath}`;
 }
 
-function extractTvdbArtworkUrl(records: Record<string, unknown>[], preferredTypes: string[]): string | null {
+function extractTvdbArtworkUrl(records: Record<string, unknown>[], preferredTypes: string[], language?: string | null): string | null {
   const normalizedTypes = preferredTypes.map((type) => type.toLowerCase());
-  const match = records.find((record) => {
+  const preferredLanguage = normalizeLanguagePreference(language ?? null);
+  const matches = records.filter((record) => {
     const type = asString(record.type)?.toLowerCase() ?? asString(record.typeName)?.toLowerCase() ?? '';
     return normalizedTypes.some((candidate) => type.includes(candidate));
-  }) ?? null;
+  });
+
+  const match = rankTvdbLocalizedRecords(matches, preferredLanguage)[0] ?? null;
 
   return normalizeTvdbImageUrl(asString(match?.image));
 }
+
+function extractTvdbTranslatedText(record: Record<string, unknown>, field: 'name' | 'overview', language: string): string | null {
+  const translations = asRecord(record.translations);
+  const key = field === 'name' ? 'nameTranslations' : 'overviewTranslations';
+  const entries = asArray(translations?.[key])
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+  const primaryField = field === 'name' ? 'name' : 'overview';
+  return selectTvdbTranslatedEntry(entries, primaryField, language)
+    ?? selectTvdbTranslatedEntry(entries, primaryField, 'eng');
+}
+
+function selectTvdbTranslatedEntry(entries: Record<string, unknown>[], field: string, language: string): string | null {
+  return entries
+    .find((entry) => normalizeTvdbTranslationLanguage(asString(entry.language)) === language)
+    ?.[field] as string | null ?? null;
+}
+
+function normalizeLanguagePreference(language: string | null): { alpha2: string; tvdb: string } {
+  const alpha2 = (language?.split('-')[0]?.trim().toLowerCase() || 'en');
+  const tvdb = TVDB_LANGUAGE_MAP[alpha2] ?? 'eng';
+  return { alpha2, tvdb };
+}
+
+function normalizeTvdbTranslationLanguage(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized.length === 2) {
+    return TVDB_LANGUAGE_MAP[normalized] ?? normalized;
+  }
+  return normalized;
+}
+
+function rankTvdbLocalizedRecords<T extends Record<string, unknown>>(
+  records: T[],
+  preferredLanguage: { alpha2: string; tvdb: string },
+): T[] {
+  return [...records].sort((left, right) => compareTvdbLanguageRank(left, preferredLanguage) - compareTvdbLanguageRank(right, preferredLanguage));
+}
+
+function compareTvdbLanguageRank(record: Record<string, unknown>, preferredLanguage: { alpha2: string; tvdb: string }): number {
+  const language = normalizeTvdbTranslationLanguage(asString(record.language) ?? asString(record.iso6391) ?? asString(record.lang));
+  if (language === preferredLanguage.tvdb || language === preferredLanguage.alpha2) {
+    return 0;
+  }
+  if (language === 'eng' || language === 'en') {
+    return 1;
+  }
+  if (language === null) {
+    return 2;
+  }
+  return 3;
+}
+
+function rankTvdbTrailers(
+  trailers: Record<string, unknown>[],
+  preferredLanguage: { alpha2: string; tvdb: string },
+): Record<string, unknown>[] {
+  return [...trailers].sort((left, right) => compareTvdbLanguageRank(left, preferredLanguage) - compareTvdbLanguageRank(right, preferredLanguage));
+}
+
+function rankTmdbVideos(
+  videos: MetadataVideoView[],
+  tmdbTitle: TmdbTitleRecord,
+  preferredLanguage: { alpha2: string; tvdb: string },
+): MetadataVideoView[] {
+  const byId = new Map(videos.map((video) => [video.id, video] as const));
+  const rawVideos = asArray(asRecord(tmdbTitle.raw.videos)?.results)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .sort((left, right) => {
+      const leftLang = asString(left.iso_639_1)?.toLowerCase() ?? null;
+      const rightLang = asString(right.iso_639_1)?.toLowerCase() ?? null;
+      return compareTmdbLanguageRank(leftLang, preferredLanguage.alpha2) - compareTmdbLanguageRank(rightLang, preferredLanguage.alpha2);
+    });
+
+  return rawVideos
+    .map((entry) => byId.get(asString(entry.id) ?? ''))
+    .filter((entry): entry is MetadataVideoView => entry !== undefined);
+}
+
+function compareTmdbLanguageRank(language: string | null, preferredAlpha2: string): number {
+  if (language === preferredAlpha2) {
+    return 0;
+  }
+  if (language === 'en') {
+    return 1;
+  }
+  if (language === null) {
+    return 2;
+  }
+  return 3;
+}
+
+function dedupePeople(people: MetadataPersonRefView[]): MetadataPersonRefView[] {
+  const seen = new Set<string>();
+  return people.filter((entry) => {
+    if (seen.has(entry.id)) {
+      return false;
+    }
+    seen.add(entry.id);
+    return true;
+  });
+}
+
+const TVDB_LANGUAGE_MAP: Record<string, string> = {
+  ar: 'ara',
+  cs: 'ces',
+  da: 'dan',
+  de: 'deu',
+  el: 'ell',
+  en: 'eng',
+  es: 'spa',
+  fi: 'fin',
+  fr: 'fra',
+  he: 'heb',
+  hi: 'hin',
+  hu: 'hun',
+  id: 'ind',
+  it: 'ita',
+  ja: 'jpn',
+  ko: 'kor',
+  nl: 'nld',
+  no: 'nor',
+  pl: 'pol',
+  pt: 'por',
+  ro: 'ron',
+  ru: 'rus',
+  sv: 'swe',
+  th: 'tha',
+  tr: 'tur',
+  uk: 'ukr',
+  vi: 'vie',
+  zh: 'zho',
+};
 
 function firstString(values: unknown[]): string | null {
   for (const value of values) {
