@@ -145,6 +145,20 @@ export type MetadataTitleReviewsResponse = {
   reviews: MetadataReviewView[];
 };
 
+export type MetadataTitleRatingsResponse = {
+  ratings: {
+    imdb: number | null;
+    tmdb: number | null;
+    trakt: number | null;
+    metacritic: number | null;
+    rottenTomatoes: number | null;
+    audience: number | null;
+    letterboxd: number | null;
+    rogerEbert: number | null;
+    myAnimeList: number | null;
+  };
+};
+
 export type MetadataSeasonDetail = {
   show: MetadataView;
   season: MetadataSeasonView;
@@ -186,7 +200,6 @@ export type MdbContentView = {
     metacritic: number | null;
     rottenTomatoes: number | null;
     letterboxdRating: number | null;
-    mdblistRating: number | null;
   };
   posterUrl: string | null;
   backdropUrl: string | null;

@@ -389,6 +389,30 @@ const metadataTitleReviewsResponseSchema = {
   },
 } as const;
 
+const metadataTitleRatingsResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ratings'],
+  properties: {
+    ratings: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'audience', 'letterboxd', 'rogerEbert', 'myAnimeList'],
+      properties: {
+        imdb: nullableNumberSchema,
+        tmdb: nullableNumberSchema,
+        trakt: nullableNumberSchema,
+        metacritic: nullableNumberSchema,
+        rottenTomatoes: nullableNumberSchema,
+        audience: nullableNumberSchema,
+        letterboxd: nullableNumberSchema,
+        rogerEbert: nullableNumberSchema,
+        myAnimeList: nullableNumberSchema,
+      },
+    },
+  },
+} as const;
+
 const metadataResolveResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -451,7 +475,7 @@ const mdbContentViewSchema = {
     ratings: {
       type: 'object',
       additionalProperties: false,
-      required: ['imdbRating', 'imdbVotes', 'tmdbRating', 'metacritic', 'rottenTomatoes', 'letterboxdRating', 'mdblistRating'],
+      required: ['imdbRating', 'imdbVotes', 'tmdbRating', 'metacritic', 'rottenTomatoes', 'letterboxdRating'],
       properties: {
         imdbRating: nullableNumberSchema,
         imdbVotes: nullableNumberSchema,
@@ -459,7 +483,6 @@ const mdbContentViewSchema = {
         metacritic: nullableNumberSchema,
         rottenTomatoes: nullableNumberSchema,
         letterboxdRating: nullableNumberSchema,
-        mdblistRating: nullableNumberSchema,
       },
     },
     posterUrl: nullableStringSchema,
@@ -635,6 +658,13 @@ export const metadataTitleReviewsRouteSchema = withDefaultErrorResponses({
   querystring: metadataLanguageQuerystringSchema,
   response: {
     200: metadataTitleReviewsResponseSchema,
+  },
+});
+
+export const metadataTitleRatingsRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndMediaKeyParamsSchema,
+  response: {
+    200: metadataTitleRatingsResponseSchema,
   },
 });
 

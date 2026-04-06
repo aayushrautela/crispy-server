@@ -366,7 +366,6 @@ export type MdbContentView = {
     metacritic: number | null;
     rottenTomatoes: number | null;
     letterboxdRating: number | null;
-    mdblistRating: number | null;
   };
   posterUrl: string | null;
   backdropUrl: string | null;

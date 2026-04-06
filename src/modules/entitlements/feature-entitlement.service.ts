@@ -2,12 +2,14 @@ import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import { AiProviderResolver } from '../ai/ai-provider-resolver.js';
 import type { AiFeatureId, ResolvedAiRequest } from '../ai/ai.types.js';
+import { AccountSettingsService } from '../users/account-settings.service.js';
 
-const MDB_NOT_CONFIGURED_MESSAGE = 'MDBList is not configured. Set MDBLIST_API_KEY in your environment.';
+const MDB_NOT_CONFIGURED_MESSAGE = 'MDBList is not configured. Add your MDBList API key or set MDBLIST_API_KEY in your environment.';
 
 export class FeatureEntitlementService {
   constructor(
     private readonly aiProviderResolver = new AiProviderResolver(),
+    private readonly accountSettingsService = new AccountSettingsService(),
     private readonly mdblistApiKey = env.mdblistApiKey,
   ) {}
 
@@ -19,14 +21,14 @@ export class FeatureEntitlementService {
     return this.aiProviderResolver.resolveForUser(userId, feature, options);
   }
 
-  async getMetadataClientSettingsForUser(_userId: string): Promise<{ hasMdbListAccess: boolean }> {
+  async getMetadataClientSettingsForUser(userId: string): Promise<{ hasMdbListAccess: boolean }> {
     return {
-      hasMdbListAccess: this.isMetadataEnrichmentAvailable(),
+      hasMdbListAccess: await this.hasMetadataEnrichmentAccessForUser(userId),
     };
   }
 
-  async hasMetadataEnrichmentAccessForUser(_userId: string): Promise<boolean> {
-    return this.isMetadataEnrichmentAvailable();
+  async hasMetadataEnrichmentAccessForUser(userId: string): Promise<boolean> {
+    return (await this.resolveMdbListApiKeyForUser(userId)) !== null;
   }
 
   async assertMetadataEnrichmentAccessForUser(userId: string): Promise<void> {
@@ -35,7 +37,20 @@ export class FeatureEntitlementService {
     }
   }
 
-  private isMetadataEnrichmentAvailable(): boolean {
+  async resolveMdbListApiKeyForUser(userId: string): Promise<string | null> {
+    try {
+      const secret = await this.accountSettingsService.getMdbListApiKeyForUser(userId);
+      return secret.value;
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.statusCode !== 404) {
+        throw error;
+      }
+    }
+
+    return this.isServerMdbListKeyAvailable() ? this.mdblistApiKey.trim() : null;
+  }
+
+  private isServerMdbListKeyAvailable(): boolean {
     return typeof this.mdblistApiKey === 'string' && this.mdblistApiKey.trim().length > 0;
   }
 }

@@ -53,6 +53,19 @@ test('getAiApiKeyForUser throws 404 when not found', async () => {
   );
 });
 
+test('getMdbListApiKeyForUser returns secret when present', async () => {
+  const service = new AccountSettingsService(
+    { getSecretForUser: async () => 'mdb-key-value' } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.getMdbListApiKeyForUser('user-1');
+  assert.equal(result.key, 'mdblist.api_key');
+  assert.equal(result.value, 'mdb-key-value');
+  assert.equal(result.appUserId, 'user-1');
+});
+
 test('getAiProviderIdForUser falls back to default provider', async () => {
   const service = new AccountSettingsService(
     { getSettingsForUser: async () => ({}) } as never,
@@ -111,6 +124,29 @@ test('clearAiApiKeyForUser returns true when secret existed', async () => {
   );
 
   const result = await service.clearAiApiKeyForUser('user-1');
+  assert.equal(result, true);
+});
+
+test('setMdbListApiKeyForUser delegates to repository', async () => {
+  const service = new AccountSettingsService(
+    { setSecretForUser: async () => {} } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.setMdbListApiKeyForUser('user-1', 'new-mdb-key');
+  assert.equal(result.key, 'mdblist.api_key');
+  assert.equal(result.value, 'new-mdb-key');
+});
+
+test('clearMdbListApiKeyForUser returns true when secret existed', async () => {
+  const service = new AccountSettingsService(
+    { deleteSecretForUser: async () => true } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.clearMdbListApiKeyForUser('user-1');
   assert.equal(result, true);
 });
 

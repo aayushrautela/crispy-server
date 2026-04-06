@@ -6,7 +6,7 @@ import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-acc
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
 
-export type AccountSecretField = 'ai.api_key';
+export type AccountSecretField = 'ai.api_key' | 'mdblist.api_key';
 
 export type AccountSecretValue = {
   appUserId: string;
@@ -20,9 +20,9 @@ const DEFAULT_PRICING_TIER: PricingTier = 'free';
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key']);
-const ACCOUNT_SECRET_SETTING_KEYS = new Set(['ai.api_key']);
-const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', 'ai.api_key', 'addons']);
+const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key', 'mdblist.api_key']);
+const ACCOUNT_SECRET_SETTING_KEYS = new Set(['ai.api_key', 'mdblist.api_key']);
+const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', 'ai.api_key', 'mdblist.api_key', 'addons']);
 
 export class AccountSettingsService {
   constructor(
@@ -46,6 +46,14 @@ export class AccountSettingsService {
 
   async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
     return this.setSecretForUser(userId, 'ai.api_key', value);
+  }
+
+  async getMdbListApiKeyForUser(userId: string): Promise<AccountSecretValue> {
+    return this.getSecretForUser(userId, 'mdblist.api_key');
+  }
+
+  async setMdbListApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
+    return this.setSecretForUser(userId, 'mdblist.api_key', value);
   }
 
   async getAiProviderIdForUser(userId: string): Promise<string> {
@@ -87,6 +95,10 @@ export class AccountSettingsService {
 
   async clearAiApiKeyForUser(userId: string): Promise<boolean> {
     return this.clearSecretForUser(userId, 'ai.api_key');
+  }
+
+  async clearMdbListApiKeyForUser(userId: string): Promise<boolean> {
+    return this.clearSecretForUser(userId, 'mdblist.api_key');
   }
 
   async getSecretForUser(userId: string, field: string): Promise<AccountSecretValue> {

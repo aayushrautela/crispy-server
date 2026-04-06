@@ -23,6 +23,36 @@ export type MdbListRatings = {
   mdblist_votes: number | null;
 };
 
+export type MdbListRatingProvider = 'imdb' | 'tmdb';
+
+export type MdbListMediaType = 'movie' | 'show';
+
+export type MdbListReturnRating =
+  | 'trakt'
+  | 'imdb'
+  | 'tmdb'
+  | 'letterboxd'
+  | 'tomatoes'
+  | 'audience'
+  | 'metacritic'
+  | 'rogerebert'
+  | 'mal';
+
+export type MdbListRatingsRequest = {
+  provider: MdbListRatingProvider;
+  ids: Array<number | string>;
+};
+
+export type MdbListRatingsResponse = {
+  provider_id: string | null;
+  provider_rating: string | null;
+  mediatype: string | null;
+  ratings: Array<{
+    id: number | string;
+    rating: number | null;
+  }>;
+};
+
 export type MdbListTitleResponse = {
   title: string;
   original_title: string | null;
@@ -81,7 +111,6 @@ export type MdbListTitleView = {
     metacritic: number | null;
     rottenTomatoes: number | null;
     letterboxdRating: number | null;
-    mdblistRating: number | null;
   };
   posterUrl: string | null;
   backdropUrl: string | null;
@@ -104,16 +133,16 @@ export type MdbListTitleView = {
   updatedAt: string | null;
 };
 
-export type MdbListRatingsView = {
-  ids: MdbListIds;
-  scores: {
-    imdbRating: number | null;
-    imdbVotes: number | null;
-    tmdbRating: number | null;
+export type MdbListTitleRatingsView = {
+  ratings: {
+    imdb: number | null;
+    tmdb: number | null;
+    trakt: number | null;
     metacritic: number | null;
     rottenTomatoes: number | null;
-    letterboxdRating: number | null;
-    mdblistRating: number | null;
-    mdblistScore: number | null;
+    audience: number | null;
+    letterboxd: number | null;
+    rogerEbert: number | null;
+    myAnimeList: number | null;
   };
 };

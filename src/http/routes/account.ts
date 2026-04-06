@@ -5,6 +5,8 @@ import {
   aiAccountSecretGetRouteSchema,
   aiAccountSecretPutRouteSchema,
   deleteResultRouteSchema,
+  mdblistAccountSecretGetRouteSchema,
+  mdblistAccountSecretPutRouteSchema,
 } from '../contracts/account.js';
 import { AccountDeletionService } from '../../modules/users/account-deletion.service.js';
 import { FeatureEntitlementService } from '../../modules/entitlements/feature-entitlement.service.js';
@@ -68,6 +70,31 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     const actor = app.requireUserActor(request);
     return {
       deleted: await accountSettingsService.clearAiApiKeyForUser(actor.appUserId),
+    };
+  });
+
+  app.get('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretGetRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request);
+    return {
+      secret: await accountSettingsService.getMdbListApiKeyForUser(actor.appUserId),
+    };
+  });
+
+  app.put('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretPutRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request);
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    return {
+      secret: await accountSettingsService.setMdbListApiKeyForUser(actor.appUserId, String(body.value ?? '')),
+    };
+  });
+
+  app.delete('/v1/account/secrets/mdblist-api-key', { schema: deleteResultRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request);
+    return {
+      deleted: await accountSettingsService.clearMdbListApiKeyForUser(actor.appUserId),
     };
   });
 

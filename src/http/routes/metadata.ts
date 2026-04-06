@@ -8,6 +8,7 @@ import {
   metadataSeasonRouteSchema,
   metadataTitleContentRouteSchema,
   metadataTitleDetailRouteSchema,
+  metadataTitleRatingsRouteSchema,
   metadataTitleReviewsRouteSchema,
   playbackResolveRouteSchema,
   type MetadataEpisodesQuery,
@@ -25,6 +26,7 @@ import { EpisodeNavigationService } from '../../modules/metadata/episode-navigat
 import { MetadataContentService } from '../../modules/metadata/metadata-content.service.js';
 import { PersonDetailService } from '../../modules/metadata/person-detail.service.js';
 import { PlaybackResolveService } from '../../modules/metadata/playback-resolve.service.js';
+import { MetadataRatingsService } from '../../modules/metadata/metadata-ratings.service.js';
 import { MetadataReviewsService } from '../../modules/metadata/metadata-reviews.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
@@ -35,6 +37,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const metadataDetailService = new MetadataDetailService();
   const titleSearchService = new TitleSearchService();
   const metadataContentService = new MetadataContentService();
+  const metadataRatingsService = new MetadataRatingsService();
   const metadataReviewsService = new MetadataReviewsService();
   const personDetailService = new PersonDetailService();
   const episodeNavigationService = new EpisodeNavigationService();
@@ -78,6 +81,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const params = request.params as { profileId: string; mediaKey: string };
     const query = (request.query ?? {}) as MetadataPersonQuery;
     return metadataReviewsService.getTitleReviews(actor.appUserId, params.profileId, params.mediaKey, asOptionalString(query.language));
+  });
+
+  app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/ratings', { schema: metadataTitleRatingsRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const params = request.params as { profileId: string; mediaKey: string };
+    return metadataRatingsService.getTitleRatings(actor.appUserId, params.profileId, params.mediaKey);
   });
 
   app.get('/v1/metadata/titles/:mediaKey/seasons/:seasonNumber', { schema: metadataSeasonRouteSchema }, async (request) => {

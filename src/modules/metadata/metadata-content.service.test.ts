@@ -11,6 +11,11 @@ test('getTitleContent requires MDBList key when not configured', async () => {
   const service = new MetadataContentService(
     {} as never,
     {} as never,
+    {
+      getTitleContent: async () => {
+        throw new HttpError(412, 'MDBList is not configured. Add your MDBList API key or set MDBLIST_API_KEY in your environment.');
+      },
+    } as never,
   );
 
   service.resolveTitleMetadataView = async function () {
@@ -42,7 +47,7 @@ test('getTitleContent resolves MDBList content with valid key', async () => {
         year: 2024,
         description: 'A movie',
         score: 85,
-        ratings: { imdbRating: 7.5, imdbVotes: 1000, tmdbRating: 7.8, metacritic: 70, rottenTomatoes: 80, letterboxdRating: null, mdblistRating: 85 },
+        ratings: { imdbRating: 7.5, imdbVotes: 1000, tmdbRating: 7.8, metacritic: 70, rottenTomatoes: 80, letterboxdRating: null },
         posterUrl: null,
         backdropUrl: null,
         genres: ['Drama'],

@@ -146,6 +146,19 @@ export const aiAccountSecretPutRouteSchema = withDefaultErrorResponses({
   },
 });
 
+export const mdblistAccountSecretGetRouteSchema = withDefaultErrorResponses({
+  response: {
+    200: secretEnvelopeSchema,
+  },
+});
+
+export const mdblistAccountSecretPutRouteSchema = withDefaultErrorResponses({
+  body: secretValueBodySchema,
+  response: {
+    200: secretEnvelopeSchema,
+  },
+});
+
 export const deleteResultRouteSchema = withDefaultErrorResponses({
   response: {
     200: deleteEnvelopeSchema,

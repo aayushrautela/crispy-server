@@ -1,5 +1,11 @@
 import { HttpError } from '../../lib/errors.js';
-import type { MdbListTitleResponse } from './mdblist.types.js';
+import type {
+  MdbListMediaType,
+  MdbListRatingsRequest,
+  MdbListRatingsResponse,
+  MdbListReturnRating,
+  MdbListTitleResponse,
+} from './mdblist.types.js';
 
 type FetchLike = typeof fetch;
 
@@ -17,19 +23,13 @@ async function readJson(response: Response, pathname: string): Promise<Record<st
 }
 
 export class MdbListClient {
-  private apiKey: string;
   private baseUrl = 'https://api.mdblist.com';
 
-  constructor(apiKey: string, private readonly fetcher: FetchLike = fetch) {
-    if (!apiKey?.trim()) {
-      throw new Error('MDBList API key is required');
-    }
-    this.apiKey = apiKey.trim();
-  }
+  constructor(private readonly fetcher: FetchLike = fetch) {}
 
-  async fetchMovieByTmdb(tmdbId: number): Promise<MdbListTitleResponse> {
+  async fetchMovieByTmdb(apiKey: string, tmdbId: number): Promise<MdbListTitleResponse> {
     const pathname = `/movie/tmdb/${tmdbId}`;
-    const url = `${this.baseUrl}${pathname}?apikey=${this.apiKey}`;
+    const url = this.buildApiKeyUrl(pathname, apiKey);
 
     const response = await this.fetcher(url, {
       headers: {
@@ -48,9 +48,9 @@ export class MdbListClient {
     return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
   }
 
-  async fetchShowByTmdb(tmdbId: number): Promise<MdbListTitleResponse> {
+  async fetchShowByTmdb(apiKey: string, tmdbId: number): Promise<MdbListTitleResponse> {
     const pathname = `/show/tmdb/${tmdbId}`;
-    const url = `${this.baseUrl}${pathname}?apikey=${this.apiKey}`;
+    const url = this.buildApiKeyUrl(pathname, apiKey);
 
     const response = await this.fetcher(url, {
       headers: {
@@ -69,31 +69,47 @@ export class MdbListClient {
     return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
   }
 
-  async fetchByImdb(imdbId: string): Promise<MdbListTitleResponse> {
-    const pathname = `/imdb/${imdbId}`;
-    const url = `${this.baseUrl}${pathname}?apikey=${this.apiKey}`;
+  async fetchTitle(apiKey: string, mediaType: MdbListMediaType, tmdbId: number): Promise<MdbListTitleResponse> {
+    if (mediaType === 'movie') {
+      return this.fetchMovieByTmdb(apiKey, tmdbId);
+    }
+    return this.fetchShowByTmdb(apiKey, tmdbId);
+  }
+
+  async fetchRatings(
+    apiKey: string,
+    mediaType: MdbListMediaType,
+    returnRating: MdbListReturnRating,
+    request: MdbListRatingsRequest,
+  ): Promise<MdbListRatingsResponse> {
+    const pathname = `/rating/${mediaType}/${returnRating}`;
+    const url = this.buildApiKeyUrl(pathname, apiKey);
 
     const response = await this.fetcher(url, {
+      method: 'POST',
       headers: {
         Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify(request),
     });
 
     if (response.status === 404) {
-      throw new HttpError(404, `MDBList title not found for IMDb id ${imdbId}`);
+      throw new HttpError(404, `MDBList ratings not found for ${pathname}`);
     }
 
     if (!response.ok) {
       throw new HttpError(response.status, `MDBList request failed for ${pathname}`);
     }
 
-    return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
+    return (await readJson(response, pathname)) as unknown as MdbListRatingsResponse;
   }
 
-  async fetchTitle(mediaType: 'movie' | 'show', tmdbId: number): Promise<MdbListTitleResponse> {
-    if (mediaType === 'movie') {
-      return this.fetchMovieByTmdb(tmdbId);
+  private buildApiKeyUrl(pathname: string, apiKey: string): string {
+    const normalized = apiKey.trim();
+    if (!normalized) {
+      throw new Error('MDBList API key is required');
     }
-    return this.fetchShowByTmdb(tmdbId);
+    return `${this.baseUrl}${pathname}?apikey=${encodeURIComponent(normalized)}`;
   }
 }

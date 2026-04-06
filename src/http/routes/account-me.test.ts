@@ -128,6 +128,56 @@ test('account settings patch route returns API error contract for unsupported AI
   });
 });
 
+test('account MDBList secret routes delegate to account settings service', async (t) => {
+  const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
+  const originals = {
+    getMdbListApiKeyForUser: AccountSettingsService.prototype.getMdbListApiKeyForUser,
+    setMdbListApiKeyForUser: AccountSettingsService.prototype.setMdbListApiKeyForUser,
+    clearMdbListApiKeyForUser: AccountSettingsService.prototype.clearMdbListApiKeyForUser,
+  };
+
+  t.after(() => {
+    Object.assign(AccountSettingsService.prototype, originals);
+  });
+
+  AccountSettingsService.prototype.getMdbListApiKeyForUser = async function () {
+    return { appUserId: 'user-1', key: 'mdblist.api_key', value: 'mdb-user-key' } as never;
+  };
+  AccountSettingsService.prototype.setMdbListApiKeyForUser = async function (_userId, value) {
+    return { appUserId: 'user-1', key: 'mdblist.api_key', value } as never;
+  };
+  AccountSettingsService.prototype.clearMdbListApiKeyForUser = async function () {
+    return true;
+  };
+
+  const { registerAccountRoutes } = await import('./account.js');
+  const app = await buildTestApp(registerAccountRoutes);
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+
+  const getResponse = await app.inject({ method: 'GET', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
+  assert.equal(getResponse.statusCode, 200);
+  assert.deepEqual(getResponse.json(), {
+    secret: { appUserId: 'user-1', key: 'mdblist.api_key', value: 'mdb-user-key' },
+  });
+
+  const putResponse = await app.inject({
+    method: 'PUT',
+    url: '/v1/account/secrets/mdblist-api-key',
+    headers: auth,
+    payload: { value: 'new-mdb-key' },
+  });
+  assert.equal(putResponse.statusCode, 200);
+  assert.deepEqual(putResponse.json(), {
+    secret: { appUserId: 'user-1', key: 'mdblist.api_key', value: 'new-mdb-key' },
+  });
+
+  const deleteResponse = await app.inject({ method: 'DELETE', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
+  assert.equal(deleteResponse.statusCode, 200);
+  assert.deepEqual(deleteResponse.json(), { deleted: true });
+});
+
 test('me route returns AI client configuration in account settings', async (t) => {
   const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
   const { FeatureEntitlementService } = await import('../../modules/entitlements/feature-entitlement.service.js');
