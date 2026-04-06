@@ -180,55 +180,57 @@ test('MetadataDetailCoreService tops up anime reviews from Trakt through provide
 test('MetadataDetailCoreService skips Trakt fallback when three primary reviews already exist', async () => {
   const { MetadataDetailCoreService } = await import('./metadata-detail-core.service.js');
 
-  const tmdbTitle: TmdbTitleRecord = {
-    mediaType: 'tv',
-    tmdbId: 1396,
-    name: 'Breaking Bad',
-    originalName: 'Breaking Bad',
+  const providerTitle: ProviderTitleRecord = {
+    mediaType: 'show',
+    provider: 'tvdb',
+    providerId: '81189',
+    title: 'Breaking Bad',
+    originalTitle: 'Breaking Bad',
+    summary: 'Chemistry.',
     overview: 'Chemistry.',
-    releaseDate: null,
-    firstAirDate: '2008-01-20',
+    releaseDate: '2008-01-20',
     status: 'Ended',
-    posterPath: '/poster.jpg',
-    backdropPath: '/backdrop.jpg',
-    runtime: null,
-    episodeRunTime: [45],
-    numberOfSeasons: 5,
-    numberOfEpisodes: 62,
-    externalIds: { imdb_id: 'tt0903747', tvdb_id: 81189 },
-    raw: {
-      genres: [],
-      seasons: [],
-      videos: { results: [] },
-      credits: { cast: [], crew: [] },
-      created_by: [],
-      reviews: { results: [
-        buildTmdbReview('tmdb-1', 'TMDB review 1'),
-        buildTmdbReview('tmdb-2', 'TMDB review 2'),
-        buildTmdbReview('tmdb-3', 'TMDB review 3'),
-      ] },
-      production_companies: [],
-      networks: [],
-      production_countries: [],
-      spoken_languages: [],
-      similar: { results: [] },
-    },
-    fetchedAt: '2026-03-22T00:00:00.000Z',
-    expiresAt: '2026-03-23T00:00:00.000Z',
+    posterUrl: 'https://cdn.example/poster.jpg',
+    backdropUrl: 'https://cdn.example/backdrop.jpg',
+    logoUrl: null,
+    runtimeMinutes: 45,
+    rating: 9.5,
+    certification: 'TV-MA',
+    genres: ['Drama'],
+    externalIds: { imdb: 'tt0903747', tmdb: 1396, tvdb: 81189, kitsu: null },
+    seasonCount: 5,
+    episodeCount: 62,
+    raw: {},
   };
 
   let traktCalled = false;
   const service = new MetadataDetailCoreService(
-    {
-      getTitle: async () => tmdbTitle,
-      ensureSeasonCached: async () => null,
-      listEpisodesForShow: async () => [],
-    } as never,
+    {} as never,
     {
       ensureSeasonContentIds: async () => new Map(),
       ensureContentIds: async () => new Map(),
     } as never,
-    { loadIdentityContext: async () => null } as never,
+    {
+      loadIdentityContext: async () => ({
+        title: providerTitle,
+        currentEpisode: null,
+        nextEpisode: null,
+        seasons: [],
+        episodes: [],
+        videos: [],
+        cast: [],
+        directors: [],
+        creators: [],
+        reviews: [
+          buildFallbackReview('provider-1', 'Provider review 1'),
+          buildFallbackReview('provider-2', 'Provider review 2'),
+          buildFallbackReview('provider-3', 'Provider review 3'),
+        ],
+        production: null,
+        collection: null,
+        similar: [],
+      }),
+    } as never,
     {
       isConfigured: () => true,
       fetchTitleReviews: async () => {
@@ -238,7 +240,7 @@ test('MetadataDetailCoreService skips Trakt fallback when three primary reviews 
     } as never,
   );
 
-  const detail = await service.getTitleDetail({} as never, inferMediaIdentity({ mediaType: 'show', tmdbId: 1396 }));
+  const detail = await service.getTitleDetail({} as never, inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }));
 
   assert.equal(detail.reviews.length, 3);
   assert.equal(traktCalled, false);

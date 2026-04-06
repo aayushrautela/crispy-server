@@ -508,13 +508,13 @@ export class WatchV2WriteService {
     const titleMediaType = parentMediaTypeForIdentity(identity) as WatchV2TitleKind;
     const titleProvider = identity.parentProvider ?? identity.provider ?? titleProviderForIdentity(identity);
     const titleProviderId = identity.parentProviderId ?? identity.providerId ?? identity.mediaKey;
+    const titleTmdbId = titleMediaType === 'show' ? showTmdbIdForIdentity(identity) : null;
     const titleIdentity = inferMediaIdentity({
       contentId: identity.parentContentId,
       mediaType: titleMediaType,
       provider: titleProvider,
       providerId: titleProviderId,
-      tmdbId: titleProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
-      showTmdbId: titleProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      providerMetadata: titleTmdbId ? { tmdbId: titleTmdbId, showTmdbId: titleTmdbId } : undefined,
     });
     const titleContentId = await this.contentIdentityService.ensureContentId(client, titleIdentity);
     return {

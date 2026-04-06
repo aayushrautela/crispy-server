@@ -47,13 +47,13 @@ export async function resolveWatchV2Lookup(
 
   const titleProvider = identity.parentProvider ?? identity.provider;
   const titleProviderId = identity.parentProviderId ?? identity.providerId ?? identity.mediaKey;
+  const titleTmdbId = parentMediaTypeForIdentity(identity) === 'show' ? showTmdbIdForIdentity(identity) : null;
   const titleIdentity = inferMediaIdentity({
     contentId: identity.parentContentId,
     mediaType: parentMediaTypeForIdentity(identity),
     provider: titleProvider,
     providerId: titleProviderId,
-    tmdbId: titleProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
-    showTmdbId: titleProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+    providerMetadata: titleTmdbId ? { tmdbId: titleTmdbId, showTmdbId: titleTmdbId } : undefined,
   });
   const titleContentId = await contentIdentityService.ensureContentId(client, titleIdentity);
   return {
@@ -69,13 +69,13 @@ export function toTrackedTitleIdentity(identity: MediaIdentity): MediaIdentity |
   }
 
   if ((identity.mediaType === 'season' || identity.mediaType === 'episode') && identity.parentProvider && identity.parentProviderId) {
+    const titleTmdbId = parentMediaTypeForIdentity(identity) === 'show' ? showTmdbIdForIdentity(identity) : null;
     return inferMediaIdentity({
       contentId: identity.parentContentId,
       mediaType: parentMediaTypeForIdentity(identity),
       provider: identity.parentProvider,
       providerId: identity.parentProviderId,
-      tmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
-      showTmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      providerMetadata: titleTmdbId ? { tmdbId: titleTmdbId, showTmdbId: titleTmdbId } : undefined,
     });
   }
 

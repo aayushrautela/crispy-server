@@ -78,12 +78,8 @@ export function showTmdbIdForIdentity(identity: MediaIdentity): number | null {
     return identity.showTmdbId;
   }
 
-  if (identity.mediaType === 'show' && identity.provider === 'tmdb') {
+  if (identity.mediaType === 'show' && identity.tmdbId) {
     return identity.tmdbId;
-  }
-
-  if ((identity.mediaType === 'season' || identity.mediaType === 'episode') && identity.parentProvider === 'tmdb') {
-    return identity.showTmdbId;
   }
 
   return null;
@@ -121,6 +117,7 @@ export function parseMediaKey(mediaKey: string): MediaIdentity {
 
   const mediaType = ensureSupportedMediaType(parts[0] ?? '');
   const provider = ensureSupportedProvider(parts[1] ?? '');
+  assertProviderSupportsMediaType(mediaType, provider);
   if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime') {
     const providerId = parseProviderId(parts[2], 'Invalid provider id in media key.');
     return createMediaIdentity({
@@ -251,16 +248,6 @@ export function inferMediaIdentity(input: {
     });
   }
 
-  if (input.mediaType === 'show' && input.tmdbId) {
-    return createMediaIdentity({
-      contentId: normalizeNullableString(input.contentId),
-      mediaType: 'show',
-      provider: 'tmdb',
-      providerId: String(input.tmdbId),
-      providerMetadata: input.providerMetadata,
-    });
-  }
-
   if (
     mediaType === 'episode' &&
     normalizedProviderId.parentProviderId &&
@@ -348,8 +335,16 @@ function createMediaIdentity(input: {
 }): MediaIdentity {
   const mediaKey = input.mediaKey ?? buildMediaKey(input);
   const providerMetadata = input.providerMetadata ?? {};
+  assertProviderSupportsMediaType(input.mediaType, input.provider);
   const tmdbId = deriveTmdbId(input.provider, input.providerId, providerMetadata);
-  const showTmdbId = deriveShowTmdbId(input.parentProvider ?? null, input.parentProviderId ?? null, input.mediaType, input.provider, input.providerId);
+  const showTmdbId = deriveShowTmdbId(
+    input.parentProvider ?? null,
+    input.parentProviderId ?? null,
+    input.mediaType,
+    input.provider,
+    input.providerId,
+    providerMetadata,
+  );
 
   return {
     contentId: input.contentId ?? null,
@@ -461,7 +456,7 @@ function resolveProviderId(input: {
     return { providerId, parentProviderId, providerSource: 'direct' };
   }
 
-  if (typeof input.tmdbId === 'number' && Number.isInteger(input.tmdbId) && input.tmdbId > 0) {
+  if (mediaType === 'movie' && typeof input.tmdbId === 'number' && Number.isInteger(input.tmdbId) && input.tmdbId > 0) {
     return { providerId: String(input.tmdbId), parentProviderId, providerSource: 'tmdb' };
   }
 
@@ -473,10 +468,6 @@ function resolveProviderId(input: {
   const kitsuId = normalizeProviderId(input.kitsuId);
   if (kitsuId) {
     return { providerId: kitsuId, parentProviderId, providerSource: 'kitsu' };
-  }
-
-  if (typeof input.showTmdbId === 'number' && Number.isInteger(input.showTmdbId) && input.showTmdbId > 0) {
-    return { providerId: String(input.showTmdbId), parentProviderId: String(input.showTmdbId), providerSource: 'tmdb' };
   }
 
   if (parentProviderId) {
@@ -545,7 +536,13 @@ function deriveShowTmdbId(
   mediaType: SupportedMediaType,
   provider: SupportedProvider,
   providerId: string,
+  providerMetadata: Record<string, unknown>,
 ): number | null {
+  const metadataShowTmdbId = Number(providerMetadata.showTmdbId ?? providerMetadata.tmdbId);
+  if (Number.isInteger(metadataShowTmdbId) && metadataShowTmdbId > 0) {
+    return metadataShowTmdbId;
+  }
+
   if (mediaType === 'show' && provider === 'tmdb') {
     const parsed = Number(providerId);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -557,4 +554,24 @@ function deriveShowTmdbId(
   }
 
   return null;
+}
+
+function assertProviderSupportsMediaType(mediaType: SupportedMediaType, provider: SupportedProvider): void {
+  if (mediaType === 'movie' && provider === 'tmdb') {
+    return;
+  }
+
+  if (mediaType === 'show' && provider === 'tvdb') {
+    return;
+  }
+
+  if (mediaType === 'anime' && provider === 'kitsu') {
+    return;
+  }
+
+  if ((mediaType === 'season' || mediaType === 'episode') && (provider === 'tvdb' || provider === 'kitsu')) {
+    return;
+  }
+
+  throw new HttpError(400, 'Unsupported media key format.');
 }

@@ -39,6 +39,10 @@ export class TvdbClient {
     });
   }
 
+  async searchByRemoteId(remoteId: string): Promise<Record<string, unknown>> {
+    return this.request(`/search/remoteid/${encodeURIComponent(remoteId)}`);
+  }
+
   async fetchSeriesExtended(seriesId: string | number, meta = 'translations,episodes'): Promise<Record<string, unknown>> {
     return this.request(`/series/${encodeURIComponent(String(seriesId))}/extended`, {
       meta,

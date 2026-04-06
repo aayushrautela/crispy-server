@@ -135,9 +135,9 @@ test('replaceProfileWatchData writes imported events and history directly into v
       importedAt: '2024-01-01T00:00:00.000Z',
         importedEvents: [{
           eventType: 'mark_watched',
-          mediaKey: 'episode:tmdb:100:1:2',
+          mediaKey: 'episode:tvdb:100:1:2',
           mediaType: 'episode',
-        provider: 'tmdb',
+        provider: 'tvdb',
         providerId: '100',
         tmdbId: 100,
         showTmdbId: 100,
@@ -148,9 +148,9 @@ test('replaceProfileWatchData writes imported events and history directly into v
         payload: { source: 'test' },
       }],
       importedHistoryEntries: [{
-        mediaKey: 'episode:tmdb:100:1:2',
+        mediaKey: 'episode:tvdb:100:1:2',
         mediaType: 'episode',
-        provider: 'tmdb',
+        provider: 'tvdb',
         providerId: '100',
         tmdbId: 100,
         showTmdbId: 100,

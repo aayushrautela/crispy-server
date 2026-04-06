@@ -78,14 +78,11 @@ export class MetadataRefreshService {
       return summary;
     }
 
-    if (trackedIdentity.provider === 'tmdb') {
-      const showTmdbId = trackedIdentity.tmdbId ?? showTmdbIdForIdentity(trackedIdentity);
-      if (!showTmdbId) {
-        const summary = emptySummary();
-        summary.skipped += 1;
-        return summary;
-      }
-      const trackedTitle = await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, trackedIdentity.mediaKey);
+    const showTmdbId = trackedIdentity.tmdbId ?? showTmdbIdForIdentity(trackedIdentity);
+    if (showTmdbId) {
+      const trackedTitle = trackedIdentity.contentId
+        ? await this.metadataRefreshQueryService.getTrackedTitleByContentId(client, profileId, trackedIdentity.contentId)
+        : await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, trackedIdentity.mediaKey);
       return this.tmdbRefreshService.refreshShow(
         client,
         profileId,
@@ -109,12 +106,7 @@ export class MetadataRefreshService {
     profileId: string,
     row: Awaited<ReturnType<MetadataRefreshQueryService['listTrackedTitles']>>[number],
   ): Promise<MetadataRefreshSummary> {
-    if (row.provider === 'tmdb') {
-      if (!row.showTmdbId) {
-        const summary = emptySummary();
-        summary.skipped += 1;
-        return summary;
-      }
+    if (row.showTmdbId) {
       return this.tmdbRefreshService.refreshShow(
         client,
         profileId,
@@ -189,8 +181,8 @@ function toTrackedIdentity(identity: MediaIdentity): TrackedMediaIdentity | null
       parentContentId: null,
       parentProvider: null,
       parentProviderId: null,
-      tmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
-      showTmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      tmdbId: showTmdbIdForIdentity(identity),
+      showTmdbId: showTmdbIdForIdentity(identity),
       seasonNumber: null,
       episodeNumber: null,
       absoluteEpisodeNumber: null,

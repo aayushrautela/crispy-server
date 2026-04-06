@@ -70,3 +70,31 @@ test('TvdbClient refreshes token after unauthorized response', async () => {
   assert.equal(loginCount, 2);
   assert.equal(seriesCount, 2);
 });
+
+test('TvdbClient searches by remote id with bearer auth', async () => {
+  const calls: string[] = [];
+
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = String(input);
+    calls.push(url);
+
+    if (url.endsWith('/login')) {
+      return new Response(JSON.stringify({ data: { token: 'tvdb-token' } }), { status: 200 });
+    }
+
+    if (url.includes('/search/remoteid/tt0903747')) {
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer tvdb-token');
+      return new Response(JSON.stringify({ data: [{ series: { id: 81189 } }] }), { status: 200 });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  const { TvdbClient } = await import('./tvdb.client.js');
+  const client = new TvdbClient(fetcher);
+  const payload = await client.searchByRemoteId('tt0903747');
+
+  assert.deepEqual(payload, { data: [{ series: { id: 81189 } }] });
+  assert.equal(calls[0], 'https://api4.thetvdb.com/v4/login');
+  assert.equal(calls[1], 'https://api4.thetvdb.com/v4/search/remoteid/tt0903747');
+});

@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
+import { inferMediaIdentity, parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 
 export type TrackedTitleRow = {
   titleContentId: string;
@@ -86,7 +86,7 @@ export class WatchV2TrackedQueryService {
         nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_tracked_title_state.next_episode_air_date'),
         metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_tracked_title_state.metadata_refreshed_at'),
         payload: (row.payload as Record<string, unknown> | undefined) ?? {},
-        showTmdbId: identity.provider === 'tmdb' ? identity.tmdbId ?? null : null,
+        showTmdbId: showTmdbIdForIdentity(identity),
       });
     }
 
@@ -140,6 +140,11 @@ export class WatchV2TrackedQueryService {
 
     const trackedRows = await this.listTrackedTitles(client, profileId, 1_000_000);
     return trackedRows.find((entry) => entry.titleContentId === String(row.title_content_id)) ?? null;
+  }
+
+  async getTrackedTitleByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<TrackedTitleRow | null> {
+    const trackedRows = await this.listTrackedTitles(client, profileId, 1_000_000);
+    return trackedRows.find((entry) => entry.titleContentId === titleContentId) ?? null;
   }
 
   private async resolveTitleIdentity(client: DbClient, titleContentId: string, fallback: MediaIdentity): Promise<MediaIdentity> {

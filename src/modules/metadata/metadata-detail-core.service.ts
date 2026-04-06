@@ -150,10 +150,12 @@ export class MetadataDetailCoreService {
     }));
     const collectionContentIds = await this.contentIdentityService.ensureContentIds(client, collectionIdentities);
     const similarTitles = extractSimilarTitles(resolvedTitle);
-    const similarIdentities = similarTitles.map((titleRecord) => inferMediaIdentity({
-      mediaType: titleRecord.mediaType === 'movie' ? 'movie' : 'show',
-      tmdbId: titleRecord.tmdbId,
-    }));
+    const similarIdentities = similarTitles
+      .filter((titleRecord) => titleRecord.mediaType === 'movie')
+      .map((titleRecord) => inferMediaIdentity({
+        mediaType: 'movie',
+        tmdbId: titleRecord.tmdbId,
+      }));
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
     const reviews = await this.resolveTitleReviews(
       resolvedTitle.mediaType === 'movie' ? 'movie' : 'show',
@@ -193,94 +195,56 @@ export class MetadataDetailCoreService {
 
   async getSeasonDetail(client: DbClient, showIdentity: MediaIdentity, seasonNumber: number, language?: string | null): Promise<MetadataSeasonDetail> {
     const providerContext = await this.providerMetadataService.loadSeasonContext(client, showIdentity, seasonNumber, language ?? null);
-    if (providerContext?.title && providerContext.season) {
-      const parentMediaType = providerContext.title.mediaType === 'anime' ? 'anime' : 'show';
-      const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
-        parentMediaType,
-        provider: providerContext.season.provider,
-        parentProviderId: providerContext.season.parentProviderId,
-        seasonNumber,
-      });
-      const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
-        client,
-        providerContext.episodes.map((episode) => ({
-          parentMediaType: episode.parentMediaType,
-          provider: episode.provider,
-          parentProviderId: episode.parentProviderId,
-          seasonNumber: episode.seasonNumber,
-          episodeNumber: episode.episodeNumber,
-          absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
-        })),
-      );
-
-      return {
-        show: buildProviderMetadataView({
-          identity: this.normalizeProviderTitleIdentity(showIdentity) ?? showIdentity,
-          title: providerContext.title,
-          currentEpisode: null,
-          nextEpisode: providerContext.nextEpisode,
-        }),
-        season: buildProviderSeasonViewFromRecord(
-          providerContext.season,
-          seasonId,
-          '',
-          providerContext.title.externalIds.tmdb ?? null,
-        ),
-        episodes: providerContext.episodes.flatMap((episode) => {
-          const contentId = episodeIds.get(episode.providerId);
-          return contentId
-            ? [buildProviderEpisodeView(providerContext.title as ProviderTitleRecord, episode, contentId, '')]
-            : [];
-        }),
-      };
-    }
-
-    const showTmdbId = assertPresent(showIdentity.tmdbId, 'Season details require a TMDB-backed show id.');
-    const { title, nextEpisode } = await this.loadIdentityContext(client, showIdentity);
-    const resolvedTitle = assertPresent(title, 'Show metadata not found.');
-    const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
-    const resolvedSeason = assertPresent(seasonRecord, 'Season metadata not found.');
-    const episodes = await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber);
+    const resolvedTitle = assertPresent(providerContext?.title, 'Show metadata not found.');
+    const resolvedSeason = assertPresent(providerContext?.season, 'Season metadata not found.');
+    const parentMediaType = resolvedTitle.mediaType === 'anime' ? 'anime' : 'show';
     const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
-      parentMediaType: 'show',
-      provider: 'tmdb',
-      parentProviderId: showTmdbId,
+      parentMediaType,
+      provider: resolvedSeason.provider,
+      parentProviderId: resolvedSeason.parentProviderId,
       seasonNumber,
     });
     const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
       client,
-      episodes.map((episode) => ({
-        parentMediaType: 'show' as const,
-        provider: 'tmdb' as const,
-        parentProviderId: episode.showTmdbId,
+      providerContext?.episodes.map((episode) => ({
+        parentMediaType: episode.parentMediaType,
+        provider: episode.provider,
+        parentProviderId: episode.parentProviderId,
         seasonNumber: episode.seasonNumber,
         episodeNumber: episode.episodeNumber,
-      })),
+        absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+      })) ?? [],
     );
 
     return {
-      show: buildMetadataView({
-        identity: showIdentity,
+      show: buildProviderMetadataView({
+        identity: this.normalizeProviderTitleIdentity(showIdentity) ?? showIdentity,
         title: resolvedTitle,
         currentEpisode: null,
-        nextEpisode,
+        nextEpisode: providerContext?.nextEpisode ?? null,
       }),
-      season: buildSeasonViewFromRecord(showTmdbId, resolvedSeason, seasonId, ''),
-      episodes: episodes.map((episode) => buildEpisodeView(
-        resolvedTitle,
-        episode,
-        assertPresent(
-          episodeIds.get(episodeRefMapKey(episode.showTmdbId, episode.seasonNumber, episode.episodeNumber)),
-          'Episode metadata not found.',
-        ),
+      season: buildProviderSeasonViewFromRecord(
+        resolvedSeason,
+        seasonId,
         '',
-      )),
+        resolvedTitle.externalIds.tmdb ?? null,
+      ),
+      episodes: (providerContext?.episodes ?? []).flatMap((episode) => {
+        const contentId = episodeIds.get(episode.providerId);
+        return contentId
+          ? [buildProviderEpisodeView(resolvedTitle as ProviderTitleRecord, episode, contentId, '')]
+          : [];
+      }),
     };
   }
 
   private buildTmdbCatalogItem(title: TmdbTitleRecord, contentIds: Map<string, string>): CatalogItem | null {
+    if (title.mediaType !== 'movie') {
+      return null;
+    }
+
     const identity = inferMediaIdentity({
-      mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+      mediaType: 'movie',
       tmdbId: title.tmdbId,
     });
     const contentId = contentIds.get(identity.mediaKey);

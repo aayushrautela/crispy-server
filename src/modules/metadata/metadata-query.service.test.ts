@@ -43,7 +43,7 @@ test('resolveTitleRouteIdentity rejects non-title media keys', async () => {
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Title routes require a title mediaKey.');
+      assert.equal(error.message, 'Unsupported media key format.');
       return true;
     },
   );

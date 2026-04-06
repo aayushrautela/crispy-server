@@ -43,10 +43,10 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
     {
       listTrackedTitles: async () => [{
         titleContentId: 'content-show-42',
-        trackedMediaKey: 'show:tmdb:42',
+        trackedMediaKey: 'show:tvdb:500',
         trackedMediaType: 'show',
-        provider: 'tmdb',
-        providerId: '42',
+        provider: 'tvdb',
+        providerId: '500',
         reason: 'watch_activity',
         lastInteractedAt: new Date().toISOString(),
         nextEpisodeAirDate: null,
@@ -54,12 +54,12 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
         payload: { source: 'test' },
         showTmdbId: 42,
       }],
-      getTrackedTitleByMediaKey: async () => ({
+      getTrackedTitleByContentId: async () => ({
         titleContentId: 'content-show-42',
-        trackedMediaKey: 'show:tmdb:42',
+        trackedMediaKey: 'show:tvdb:500',
         trackedMediaType: 'show',
-        provider: 'tmdb',
-        providerId: '42',
+        provider: 'tvdb',
+        providerId: '500',
         reason: 'watch_activity',
         lastInteractedAt: new Date().toISOString(),
         nextEpisodeAirDate: null,
@@ -81,6 +81,6 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
   assert.equal(result.refreshedSeasons, 1);
   assert.equal(trackedStateWrites.length, 1);
   assert.equal(trackedStateWrites[0]?.titleContentId, 'content-show-42');
-  assert.equal(trackedStateWrites[0]?.titleMediaKey, 'show:tmdb:42');
+  assert.equal(trackedStateWrites[0]?.titleMediaKey, 'show:tvdb:500');
   assert.deepEqual(trackedStateWrites[0]?.payload, { source: 'test' });
 });

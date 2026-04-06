@@ -37,18 +37,18 @@ export class MetadataProjectionService {
   }
 
   async resolveNextEpisodeAirDate(client: DbClient, identity: MediaIdentity): Promise<string | null> {
-    if (identity.provider === 'tmdb') {
-      const showTmdbId = showTmdbIdForIdentity(identity);
-      if (!showTmdbId) {
-        return null;
-      }
-
-      const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
-      return extractNextEpisodeToAir(title)?.airDate ?? null;
+    const context = await this.providerMetadataService.loadIdentityContext(client, identity);
+    if (context?.nextEpisode?.airDate) {
+      return context.nextEpisode.airDate;
     }
 
-    const context = await this.providerMetadataService.loadIdentityContext(client, identity);
-    return context?.nextEpisode?.airDate ?? null;
+    const showTmdbId = showTmdbIdForIdentity(identity);
+    if (!showTmdbId) {
+      return null;
+    }
+
+    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
+    return extractNextEpisodeToAir(title)?.airDate ?? null;
   }
 
   private async buildTitleProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
@@ -153,23 +153,23 @@ function resolveParentIdentity(identity: MediaIdentity): MediaIdentity {
   const parentMediaType = parentMediaTypeForIdentity(identity);
 
   if (identity.parentContentId) {
+    const parentTmdbId = showTmdbIdForIdentity(identity);
     return inferMediaIdentity({
       contentId: identity.parentContentId,
       mediaType: parentMediaType,
       provider: identity.parentProvider ?? undefined,
       providerId: identity.parentProviderId,
-      tmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
-      showTmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      providerMetadata: parentTmdbId ? { tmdbId: parentTmdbId, showTmdbId: parentTmdbId } : undefined,
     });
   }
 
   if (identity.parentProvider && identity.parentProviderId) {
+    const parentTmdbId = showTmdbIdForIdentity(identity);
     return inferMediaIdentity({
       mediaType: parentMediaType,
       provider: identity.parentProvider,
       providerId: identity.parentProviderId,
-      tmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
-      showTmdbId: identity.parentProvider === 'tmdb' ? showTmdbIdForIdentity(identity) : null,
+      providerMetadata: parentTmdbId ? { tmdbId: parentTmdbId, showTmdbId: parentTmdbId } : undefined,
     });
   }
 

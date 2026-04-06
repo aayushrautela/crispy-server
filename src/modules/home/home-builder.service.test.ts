@@ -7,9 +7,9 @@ import type { ContinueWatchingProductItem } from '../watch/watch-derived-item.ty
 function createContinueWatchingItem(mediaType: 'movie' | 'show' | 'anime' = 'movie'): ContinueWatchingProductItem {
   return {
     media: {
-      mediaKey: mediaType === 'movie' ? 'movie:tmdb:1' : 'show:tmdb:1',
+      mediaKey: mediaType === 'movie' ? 'movie:tmdb:1' : 'show:tvdb:1',
       mediaType,
-      provider: 'tmdb',
+      provider: mediaType === 'movie' ? 'tmdb' : 'tvdb',
       providerId: '1',
       title: mediaType === 'movie' ? 'Example Movie' : 'Example Show',
       posterUrl: 'https://img.test/poster.jpg',
@@ -40,9 +40,9 @@ function createCalendarItem(bucket: CalendarItem['bucket']): CalendarItem {
   return {
     bucket,
     media: {
-      mediaKey: 'episode:tmdb:10:1:3',
+      mediaKey: 'episode:tvdb:10:1:3',
       mediaType: 'episode',
-      provider: 'tmdb',
+      provider: 'tvdb',
       providerId: '10:1:3',
       title: 'Episode 3',
       posterUrl: 'https://img.test/poster.jpg',
@@ -57,9 +57,9 @@ function createCalendarItem(bucket: CalendarItem['bucket']): CalendarItem {
       runtimeMinutes: 44,
     },
     relatedShow: {
-      mediaKey: 'show:tmdb:10',
+      mediaKey: 'show:tvdb:10',
       mediaType: 'show',
-      provider: 'tmdb',
+      provider: 'tvdb',
       providerId: '10',
       title: 'Example Show',
       posterUrl: 'https://img.test/show-poster.jpg',

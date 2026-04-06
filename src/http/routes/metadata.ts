@@ -232,6 +232,10 @@ function mapProviderResolveQuery(query: MetadataResolveQuery): {
   const parentProvider = parseOptionalProvider(query.parentProvider);
   const parentProviderId = parseOptionalStringOrNumber(query.parentProviderId);
 
+  if ((mediaType === 'show' && provider === 'tmdb') || (mediaType === 'episode' && parentProvider === 'tmdb')) {
+    throw new HttpError(400, 'Show resolution requires a TVDB or IMDB id.');
+  }
+
   if (mediaType === 'episode') {
     return mapProviderReference(parentProvider, parentProviderId);
   }

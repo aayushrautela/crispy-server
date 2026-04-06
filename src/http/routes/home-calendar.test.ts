@@ -220,9 +220,9 @@ test('calendar route returns canonical envelope fields', async (t) => {
         {
           bucket: 'this_week',
           media: {
-            mediaKey: 'show:tmdb:500',
+            mediaKey: 'show:tvdb:500',
             mediaType: 'show',
-            provider: 'tmdb',
+            provider: 'tvdb',
             providerId: '500',
             title: 'Example Show',
             posterUrl: 'https://img.test/show-poster.jpg',
@@ -237,9 +237,9 @@ test('calendar route returns canonical envelope fields', async (t) => {
             runtimeMinutes: 44,
           },
           relatedShow: {
-            mediaKey: 'show:tmdb:500',
+            mediaKey: 'show:tvdb:500',
             mediaType: 'show',
-            provider: 'tmdb',
+            provider: 'tvdb',
             providerId: '500',
             title: 'Example Show',
             posterUrl: 'https://img.test/show-poster.jpg',
@@ -269,9 +269,9 @@ test('calendar route returns canonical envelope fields', async (t) => {
       {
         bucket: 'this_week',
         media: {
-          mediaKey: 'show:tmdb:500',
+          mediaKey: 'show:tvdb:500',
           mediaType: 'show',
-          provider: 'tmdb',
+          provider: 'tvdb',
           providerId: '500',
           title: 'Example Show',
           posterUrl: 'https://img.test/show-poster.jpg',
@@ -286,9 +286,9 @@ test('calendar route returns canonical envelope fields', async (t) => {
           runtimeMinutes: 44,
         },
         relatedShow: {
-          mediaKey: 'show:tmdb:500',
+          mediaKey: 'show:tvdb:500',
           mediaType: 'show',
-          provider: 'tmdb',
+          provider: 'tvdb',
           providerId: '500',
           title: 'Example Show',
           posterUrl: 'https://img.test/show-poster.jpg',

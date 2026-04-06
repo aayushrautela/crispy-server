@@ -12,6 +12,7 @@ import { ProviderMetadataService } from './provider-metadata.service.js';
 import { MetadataDetailCoreService } from './metadata-detail-core.service.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import { TvdbRemoteIdResolverService } from './providers/tvdb-remote-id-resolver.service.js';
 import type {
   MetadataSeasonView,
   MetadataView,
@@ -37,6 +38,7 @@ export class PlaybackResolveService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly tvdbRemoteIdResolver = new TvdbRemoteIdResolverService(),
   ) {}
 
   async resolvePlayback(input: ResolveMetadataInput): Promise<PlaybackResolveResponse> {
@@ -101,6 +103,10 @@ export class PlaybackResolveService {
 
     const mediaType = normalizeResolveMediaType(input.mediaType, input.seasonNumber, input.episodeNumber);
 
+    if ((mediaType === 'show' || mediaType === 'episode') && typeof input.tmdbId === 'number' && Number.isInteger(input.tmdbId) && input.tmdbId > 0) {
+      throw new HttpError(400, 'Show resolution requires a TVDB or IMDB id.');
+    }
+
     if (mediaType === 'show' && typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
       return inferMediaIdentity({
         mediaType: 'show',
@@ -118,6 +124,7 @@ export class PlaybackResolveService {
     }
 
     if (mediaType === 'episode') {
+      const resolvedShowTvdbId = await this.resolveShowTvdbId(input);
       if (typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
         if (input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
           throw new HttpError(400, 'Episode resolution requires show id, season number, and episode number.');
@@ -128,6 +135,21 @@ export class PlaybackResolveService {
           provider: 'tvdb',
           parentProvider: 'tvdb',
           parentProviderId: input.tvdbId,
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+        });
+      }
+
+      if (resolvedShowTvdbId) {
+        if (input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
+          throw new HttpError(400, 'Episode resolution requires show id, season number, and episode number.');
+        }
+
+        return inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'tvdb',
+          parentProvider: 'tvdb',
+          parentProviderId: resolvedShowTvdbId,
           seasonNumber: input.seasonNumber,
           episodeNumber: input.episodeNumber,
         });
@@ -149,25 +171,38 @@ export class PlaybackResolveService {
       }
     }
 
-    const resolvedTmdbId = await this.resolveTmdbId(client, input, mediaType);
-
-    if (mediaType === 'episode') {
-      if (!resolvedTmdbId || input.seasonNumber === null || input.seasonNumber === undefined || input.episodeNumber === null || input.episodeNumber === undefined) {
-        throw new HttpError(400, 'Episode resolution requires show id, season number, and episode number.');
+    if (mediaType === 'show') {
+      const resolvedShowTvdbId = await this.resolveShowTvdbId(input);
+      if (!resolvedShowTvdbId) {
+        throw new HttpError(404, 'Metadata title not found.');
       }
 
       return inferMediaIdentity({
-        mediaType: 'episode',
-        showTmdbId: resolvedTmdbId,
-        seasonNumber: input.seasonNumber,
-        episodeNumber: input.episodeNumber,
+        mediaType: 'show',
+        provider: 'tvdb',
+        providerId: resolvedShowTvdbId,
       });
     }
+
+    const resolvedTmdbId = await this.resolveTmdbId(client, input, mediaType);
 
     return inferMediaIdentity({
       mediaType,
       tmdbId: assertPresent(resolvedTmdbId, 'Unable to resolve metadata identity.'),
     });
+  }
+
+  private async resolveShowTvdbId(input: ResolveMetadataInput): Promise<string | null> {
+    if (typeof input.tvdbId === 'number' && Number.isInteger(input.tvdbId) && input.tvdbId > 0) {
+      return String(input.tvdbId);
+    }
+
+    const imdbId = normalizeImdbId(input.imdbId ?? null);
+    if (!imdbId) {
+      return null;
+    }
+
+    return this.tvdbRemoteIdResolver.resolveSeriesId(imdbId);
   }
 
   private async resolveTmdbId(

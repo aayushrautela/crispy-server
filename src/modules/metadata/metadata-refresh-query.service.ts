@@ -11,4 +11,8 @@ export class MetadataRefreshQueryService {
   async getTrackedTitleByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<TrackedTitleRow | null> {
     return this.trackedQueryService.getTrackedTitleByMediaKey(client, profileId, mediaKey);
   }
+
+  async getTrackedTitleByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<TrackedTitleRow | null> {
+    return this.trackedQueryService.getTrackedTitleByContentId(client, profileId, titleContentId);
+  }
 }

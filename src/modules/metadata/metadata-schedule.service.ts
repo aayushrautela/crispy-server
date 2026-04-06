@@ -22,41 +22,37 @@ export class MetadataScheduleService {
   ) {}
 
   async getScheduleInfo(client: DbClient, identity: MediaIdentity): Promise<ScheduleInfo> {
-    if (identity.provider === 'tmdb') {
-      const showTmdbId = showTmdbIdForIdentity(identity);
-      if (!showTmdbId) {
-        return { nextEpisodeAirDate: null, nextEpisode: null };
-      }
-
-      const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
-      const nextEpisode = extractNextEpisodeToAir(title);
-      
+    const context = await this.providerMetadataService.loadIdentityContext(client, identity);
+    if (context?.nextEpisode) {
       return {
-        nextEpisodeAirDate: nextEpisode?.airDate ?? null,
-        nextEpisode: nextEpisode
-          ? {
-              seasonNumber: nextEpisode.seasonNumber ?? 0,
-              episodeNumber: nextEpisode.episodeNumber ?? 0,
-              title: nextEpisode.name,
-              airDate: nextEpisode.airDate,
-            }
-          : null,
+        nextEpisodeAirDate: context.nextEpisode.airDate,
+        nextEpisode: {
+          seasonNumber: context.nextEpisode.seasonNumber,
+          episodeNumber: context.nextEpisode.episodeNumber,
+          title: context.nextEpisode.title,
+          airDate: context.nextEpisode.airDate,
+        },
       };
     }
 
-    const context = await this.providerMetadataService.loadIdentityContext(client, identity);
-    if (!context?.nextEpisode) {
+    const showTmdbId = showTmdbIdForIdentity(identity);
+    if (!showTmdbId) {
       return { nextEpisodeAirDate: null, nextEpisode: null };
     }
 
+    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
+    const nextEpisode = extractNextEpisodeToAir(title);
+
     return {
-      nextEpisodeAirDate: context.nextEpisode.airDate,
-      nextEpisode: {
-        seasonNumber: context.nextEpisode.seasonNumber,
-        episodeNumber: context.nextEpisode.episodeNumber,
-        title: context.nextEpisode.title,
-        airDate: context.nextEpisode.airDate,
-      },
+      nextEpisodeAirDate: nextEpisode?.airDate ?? null,
+      nextEpisode: nextEpisode
+        ? {
+            seasonNumber: nextEpisode.seasonNumber ?? 0,
+            episodeNumber: nextEpisode.episodeNumber ?? 0,
+            title: nextEpisode.name,
+            airDate: nextEpisode.airDate,
+          }
+        : null,
     };
   }
 

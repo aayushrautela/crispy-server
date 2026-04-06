@@ -318,7 +318,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(personResponse.statusCode, 200);
   assert.equal(receivedPersonLanguage, 'en-US');
 
-  const showMediaKey = 'show:tmdb:111';
+  const showMediaKey = 'show:tvdb:111';
   const movieMediaKey = 'movie:tmdb:222';
 
   const episodesResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showMediaKey}/episodes?seasonNumber=2&language=es-ES`, headers: auth });
@@ -502,7 +502,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     method: 'POST',
     url: '/v1/profiles/profile-1/watch/states',
     headers: auth,
-    payload: { items: [{ mediaKey: 'movie:tmdb:1' }, { mediaKey: 'show:tmdb:2' }] },
+    payload: { items: [{ mediaKey: 'movie:tmdb:1' }, { mediaKey: 'show:tvdb:2' }] },
   });
   assert.equal(statesResponse.statusCode, 200);
   assert.equal(statesResponse.json().profileId, 'profile-1');

@@ -1,25 +1,17 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
-import { assertPresent, HttpError } from '../../lib/errors.js';
+import { HttpError } from '../../lib/errors.js';
 import type { MediaIdentity } from '../identity/media-key.js';
-import {
-  buildEpisodeView,
-  buildProviderEpisodeView,
-} from './metadata-detail.builders.js';
-import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
+import { buildProviderEpisodeView } from './metadata-detail.builders.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { MetadataDetailCoreService } from './metadata-detail-core.service.js';
 import { findNextEpisode } from './next-episode.js';
-import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { resolveShowRouteIdentity } from './metadata-detail.service.js';
 import type {
   MetadataEpisodeListResponse,
   MetadataNextEpisodeResponse,
 } from './metadata-detail.types.js';
-import type {
-  TmdbEpisodeRecord,
-  TmdbTitleRecord,
-} from './providers/tmdb.types.js';
 
 export type NextEpisodeInput = {
   currentSeasonNumber: number;
@@ -33,7 +25,6 @@ export type NextEpisodeInput = {
 export class EpisodeNavigationService {
   constructor(
     private readonly metadataDetailCoreService = new MetadataDetailCoreService(),
-    private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
   ) {}
@@ -42,76 +33,37 @@ export class EpisodeNavigationService {
     return withDbClient(async (client) => {
       const showIdentity = await this.resolveShowIdentity(client, id);
       const providerContext = await this.providerMetadataService.loadIdentityContext(client, showIdentity, language ?? null);
-      if (providerContext?.title) {
-        const show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity, language ?? null);
-        const seasonNumbers = selectProviderSeasonNumbers(providerContext.episodes, providerContext.title.seasonCount, requestedSeasonNumber ?? null);
-        const filteredEpisodes = providerContext.episodes.filter((episode) => seasonNumbers.includes(episode.seasonNumber ?? 1));
-        const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
-          client,
-          filteredEpisodes.map((episode) => ({
-            parentMediaType: episode.parentMediaType,
-            provider: episode.provider,
-            parentProviderId: episode.parentProviderId,
-            seasonNumber: episode.seasonNumber,
-            episodeNumber: episode.episodeNumber,
-            absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
-          })),
-        );
-
-        return {
-          show,
-          requestedSeasonNumber: requestedSeasonNumber ?? null,
-          effectiveSeasonNumber: seasonNumbers[0] ?? 1,
-          includedSeasonNumbers: seasonNumbers,
-          episodes: filteredEpisodes.flatMap((episode) => {
-            const contentId = episodeIds.get(episode.providerId);
-            return contentId
-              ? [buildProviderEpisodeView(providerContext.title!, episode, contentId, '')]
-              : [];
-          }),
-        };
-      }
-
-      const showTmdbId = assertPresent(showIdentity.tmdbId, 'Show metadata not found.');
-      const title = assertPresent(
-        await this.tmdbCacheService.ensureTitleCached(client, 'tv', showTmdbId),
-        'Show metadata not found.',
-      );
-      const seasonNumbers = selectEpisodeSeasonNumbers(title, requestedSeasonNumber ?? null);
-      const episodes: TmdbEpisodeRecord[] = [];
-      for (const seasonNumber of seasonNumbers) {
-        await this.tmdbCacheService.ensureSeasonCached(client, showTmdbId, seasonNumber);
-        episodes.push(...await this.tmdbCacheService.listEpisodesForSeason(client, showTmdbId, seasonNumber));
+      const resolvedTitle = providerContext?.title;
+      if (!resolvedTitle) {
+        throw new HttpError(404, 'Show metadata not found.');
       }
 
       const show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity, language ?? null);
-      const dedupedEpisodes = dedupeEpisodes(episodes);
+      const seasonNumbers = selectProviderSeasonNumbers(providerContext.episodes, resolvedTitle.seasonCount, requestedSeasonNumber ?? null);
+      const filteredEpisodes = providerContext.episodes.filter((episode) => seasonNumbers.includes(episode.seasonNumber ?? 1));
       const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
         client,
-        dedupedEpisodes.map((episode) => ({
-          parentMediaType: 'show' as const,
-          provider: 'tmdb' as const,
-          parentProviderId: episode.showTmdbId,
+        filteredEpisodes.map((episode) => ({
+          parentMediaType: episode.parentMediaType,
+          provider: episode.provider,
+          parentProviderId: episode.parentProviderId,
           seasonNumber: episode.seasonNumber,
           episodeNumber: episode.episodeNumber,
+          absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
         })),
       );
-      const uniqueEpisodes = dedupedEpisodes.map((episode) => buildEpisodeView(
-        title,
-        episode,
-        assertPresent(
-          episodeIds.get(episodeRefMapKey(episode.showTmdbId, episode.seasonNumber, episode.episodeNumber)),
-          'Episode metadata not found.',
-        ),
-        '',
-      ));
 
       return {
         show,
         requestedSeasonNumber: requestedSeasonNumber ?? null,
         effectiveSeasonNumber: seasonNumbers[0] ?? 1,
         includedSeasonNumbers: seasonNumbers,
-        episodes: uniqueEpisodes,
+        episodes: filteredEpisodes.flatMap((episode) => {
+          const contentId = episodeIds.get(episode.providerId);
+          return contentId
+            ? [buildProviderEpisodeView(resolvedTitle, episode, contentId, '')]
+            : [];
+        }),
       };
     });
   }
@@ -150,33 +102,6 @@ export class EpisodeNavigationService {
     }
     throw new HttpError(400, 'Episode listing requires a show or anime mediaKey.');
   }
-}
-
-function selectEpisodeSeasonNumbers(title: TmdbTitleRecord, requestedSeasonNumber: number | null): number[] {
-  const maxSeasonNumber = title.numberOfSeasons && title.numberOfSeasons > 0 ? title.numberOfSeasons : null;
-  const effectiveSeasonNumber = requestedSeasonNumber && requestedSeasonNumber > 0
-    ? maxSeasonNumber ? Math.min(requestedSeasonNumber, maxSeasonNumber) : requestedSeasonNumber
-    : maxSeasonNumber ?? 1;
-  const seasons = [Math.max(1, effectiveSeasonNumber)];
-
-  if (requestedSeasonNumber && maxSeasonNumber && effectiveSeasonNumber < maxSeasonNumber) {
-    seasons.push(effectiveSeasonNumber + 1);
-  }
-
-  return Array.from(new Set(seasons)).sort((left, right) => left - right);
-}
-
-function dedupeEpisodes(episodes: TmdbEpisodeRecord[]): TmdbEpisodeRecord[] {
-  const deduped = new Map<string, TmdbEpisodeRecord>();
-  for (const episode of episodes) {
-    deduped.set(`${episode.seasonNumber}:${episode.episodeNumber}`, episode);
-  }
-  return [...deduped.values()].sort((left, right) => {
-    if (left.seasonNumber !== right.seasonNumber) {
-      return left.seasonNumber - right.seasonNumber;
-    }
-    return left.episodeNumber - right.episodeNumber;
-  });
 }
 
 function selectProviderSeasonNumbers(
