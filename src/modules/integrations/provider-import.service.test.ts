@@ -369,6 +369,100 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
   }
 });
 
+test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime', async () => {
+  const { ProviderImportService } = await import('./provider-import.service.js');
+  const { inferMediaIdentity } = await import('../identity/media-key.js');
+
+  const service = new ProviderImportService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      resolve: async () => 272,
+    } as never,
+    {} as never,
+  );
+  (service as any).resolveImportIdentity = async (_cache: unknown, params: { tmdbId?: number | null }) => {
+    if (params.tmdbId !== 272) {
+      return null;
+    }
+
+    const identity = inferMediaIdentity({
+      mediaType: 'movie',
+      provider: 'tmdb',
+      providerId: '272',
+      tmdbId: 272,
+      providerMetadata: { tmdbId: 272 },
+    });
+
+    return {
+      identity,
+      mediaType: 'movie',
+      tmdbId: 272,
+      tvdbId: null,
+      kitsuId: null,
+    };
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/sync/playback')) {
+      return Response.json([{
+        id: 13,
+        type: 'movie',
+        progress: 10,
+        paused_at: '2015-01-25T22:01:32.000Z',
+        movie: {
+          title: 'Batman Begins',
+          year: 2005,
+          ids: {
+            trakt: 1,
+            slug: 'batman-begins-2005',
+            imdb: 'tt0372784',
+            tmdb: 272,
+          },
+        },
+      }]);
+    }
+    return Response.json([]);
+  }) as typeof fetch;
+
+  try {
+    const result = await (service as any).fetchAndNormalizeTraktImport(
+      { id: 'job-1' },
+      { credentialsJson: { accessToken: 'token-123' } },
+    );
+
+    assert.equal(result.importedEvents.length, 1);
+    assert.deepEqual(result.importedEvents[0], {
+      eventType: 'playback_progress_snapshot',
+      mediaKey: 'movie:tmdb:272',
+      mediaType: 'movie',
+      provider: 'tmdb',
+      providerId: '272',
+      tmdbId: 272,
+      tvdbId: null,
+      kitsuId: null,
+      showTmdbId: null,
+      rating: null,
+      positionSeconds: null,
+      durationSeconds: null,
+      occurredAt: '2015-01-25T22:01:32.000Z',
+      payload: {
+        provider: 'trakt',
+        source: 'playback',
+        playbackId: '13',
+        progressPercent: 10,
+      },
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb lookup succeeds', async () => {
   const { ProviderImportService } = await import('./provider-import.service.js');
   const { db } = await import('../../lib/db.js');

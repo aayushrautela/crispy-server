@@ -275,14 +275,20 @@ export class ProviderDestructiveImportService {
           sourceUpdatedAt: event.occurredAt,
         });
       } else if (event.eventType === 'playback_progress_snapshot') {
+        const payloadProgressPercent = typeof event.payload?.progressPercent === 'number'
+          ? event.payload.progressPercent
+          : null;
+        const inferredInProgress = payloadProgressPercent !== null && payloadProgressPercent > 0 && payloadProgressPercent < 90;
         await this.watchV2Repository.upsertPlayableState(client, {
           profileId: params.profileId,
           contentId: lookup.contentId,
           titleContentId: lookup.titleContentId,
-          playbackStatus: (event.positionSeconds ?? 0) > 0 ? 'in_progress' : 'idle',
+          playbackStatus: (event.positionSeconds ?? 0) > 0 || inferredInProgress ? 'in_progress' : 'idle',
           positionSeconds: Math.max(0, event.positionSeconds ?? 0),
           durationSeconds: event.durationSeconds ?? null,
-          progressPercent: event.durationSeconds && event.durationSeconds > 0 ? Math.min(100, Math.max(0, (event.positionSeconds ?? 0) / event.durationSeconds * 100)) : 0,
+          progressPercent: event.durationSeconds && event.durationSeconds > 0
+            ? Math.min(100, Math.max(0, (event.positionSeconds ?? 0) / event.durationSeconds * 100))
+            : Math.min(100, Math.max(0, payloadProgressPercent ?? 0)),
           playCount: 0,
           firstCompletedAt: null,
           lastCompletedAt: null,
