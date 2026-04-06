@@ -35,7 +35,7 @@ test('TraktClient fetches movie reviews with trakt headers', async () => {
   assert.equal(reviews[0]?.author, 'Justin N.');
   assert.equal(reviews[0]?.rating, 10);
   assert.equal(reviews[0]?.url, 'https://trakt.tv/comments/267');
-  assert.match(capturedUrl, /\/movies\/tt0372784\/comments\?/);
+  assert.match(capturedUrl, /\/movies\/tt0372784\/comments\/newest\?/);
   assert.match(capturedUrl, /limit=5/);
   assert.ok(capturedHeaders);
   const headers = capturedHeaders as Headers;
@@ -89,7 +89,7 @@ test('TraktClient resolves TMDB ids through search before loading show reviews',
       ]), { status: 200 });
     }
 
-    if (url.includes('/shows/1/comments')) {
+    if (url.includes('/shows/1/comments/newest')) {
       return new Response(JSON.stringify([
         {
           comment: {
@@ -116,5 +116,5 @@ test('TraktClient resolves TMDB ids through search before loading show reviews',
   assert.equal(reviews[0]?.id, 'trakt:199');
   assert.match(calls[0] ?? '', /\/search\/tmdb\/1396\?/);
   assert.match(calls[0] ?? '', /type=show/);
-  assert.match(calls[1] ?? '', /\/shows\/1\/comments\?/);
+  assert.match(calls[1] ?? '', /\/shows\/1\/comments\/newest\?/);
 });

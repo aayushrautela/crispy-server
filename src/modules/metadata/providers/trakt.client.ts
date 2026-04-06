@@ -104,8 +104,8 @@ export class TraktClient {
     }
 
     const pathname = mediaType === 'movie'
-      ? `/movies/${encodeURIComponent(traktId)}/comments`
-      : `/shows/${encodeURIComponent(traktId)}/comments`;
+      ? `/movies/${encodeURIComponent(traktId)}/comments/newest`
+      : `/shows/${encodeURIComponent(traktId)}/comments/newest`;
     logger.info({ mediaType, externalIds, lookupSource, lookupValue, traktId, pathname, limit }, 'requesting trakt title reviews');
     const comments = await this.requestArray(pathname, { limit }, options);
     const parsed = comments
