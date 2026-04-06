@@ -279,11 +279,8 @@ export class TmdbCacheService {
       limit: number;
     }): Promise<TmdbTitleRecord[]> {
     const requestedTypes: Array<{ mediaType: TmdbTitleType; genreId: number }> = [];
-    if (params.filter !== 'series' && params.movieGenreId) {
+    if ((params.filter === 'movies' || params.filter === 'all') && params.movieGenreId) {
       requestedTypes.push({ mediaType: 'movie', genreId: params.movieGenreId });
-    }
-    if (params.filter !== 'movies' && params.tvGenreId) {
-      requestedTypes.push({ mediaType: 'tv', genreId: params.tvGenreId });
     }
 
     const payloads = await Promise.all(

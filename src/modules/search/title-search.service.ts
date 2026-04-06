@@ -21,6 +21,12 @@ type GenreMapping = {
   tvGenreId?: number | null;
 };
 
+type SearchCandidate = CatalogItem & {
+  normalizedTitle: string;
+  normalizedSubtitle: string;
+  sourcePriority: number;
+};
+
 export class TitleSearchService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
@@ -105,27 +111,26 @@ export class TitleSearchService {
         return item ? [item] : [];
       });
 
+      const items = rankCatalogItems(normalizedQuery, [
+        ...tmdbItems
+          .map((item) => (item ? toCatalogItem(item) : null))
+          .filter((item): item is CatalogItem => item !== null),
+        ...providerItems,
+      ]).slice(0, limit);
+
       return {
         query: normalizedQuery,
-        items: [
-          ...tmdbItems
-            .map((item) => (item ? toCatalogItem(item) : null))
-            .filter((item): item is CatalogItem => item !== null),
-          ...providerItems,
-        ].slice(0, limit),
+        items,
       };
     });
   }
 }
 
 export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTitleType[] {
-  if (filter === 'movies') {
+  if (filter === 'movies' || filter === 'all') {
     return ['movie'];
   }
-  if (filter === 'series' || filter === 'anime') {
-    return [];
-  }
-  return ['movie', 'tv'];
+  return [];
 }
 
 function normalizeSearchLocale(value: string | null | undefined): string | null {
@@ -138,24 +143,89 @@ function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined):
 }
 
 function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilter): boolean {
-  if (filter === 'movies') {
+  if (filter === 'movies' || filter === 'all') {
     return match.mediaType === 'movie';
   }
-  if (filter === 'series') {
-    return match.mediaType === 'tv';
-  }
-  if (filter === 'anime') {
-    return false;
-  }
-  return true;
+  return false;
 }
 
 function shouldQueryTmdb(filter: MetadataSearchFilter): boolean {
-  return filter !== 'series' && filter !== 'anime';
+  return filter === 'movies' || filter === 'all';
 }
 
 function normalizeGenreKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function rankCatalogItems(query: string, items: CatalogItem[]): CatalogItem[] {
+  const seen = new Set<string>();
+  return items
+    .filter((item) => {
+      const key = `${item.mediaType}:${item.provider}:${item.providerId}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .map((item) => ({
+      ...item,
+      normalizedTitle: normalizeSearchText(item.title),
+      normalizedSubtitle: normalizeSearchText(item.subtitle),
+      sourcePriority: item.mediaType === 'movie' ? 0 : 1,
+    }))
+    .sort(compareCatalogItems(query))
+    .map(({ normalizedTitle: _normalizedTitle, normalizedSubtitle: _normalizedSubtitle, sourcePriority: _sourcePriority, ...item }) => item);
+}
+
+function compareCatalogItems(query: string): (left: SearchCandidate, right: SearchCandidate) => number {
+  const normalizedQuery = normalizeSearchText(query);
+  return (left, right) => {
+    const leftRank = rankCatalogItem(normalizedQuery, left);
+    const rightRank = rankCatalogItem(normalizedQuery, right);
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+
+    const leftYear = left.releaseYear ?? Number.MIN_SAFE_INTEGER;
+    const rightYear = right.releaseYear ?? Number.MIN_SAFE_INTEGER;
+    if (leftYear !== rightYear) {
+      return rightYear - leftYear;
+    }
+
+    const leftRating = left.rating ?? Number.MIN_SAFE_INTEGER;
+    const rightRating = right.rating ?? Number.MIN_SAFE_INTEGER;
+    if (leftRating !== rightRating) {
+      return rightRating - leftRating;
+    }
+
+    if (left.sourcePriority !== right.sourcePriority) {
+      return left.sourcePriority - right.sourcePriority;
+    }
+
+    return left.title.localeCompare(right.title);
+  };
+}
+
+function rankCatalogItem(query: string, item: Pick<SearchCandidate, 'normalizedTitle' | 'normalizedSubtitle'>): number {
+  if (!query) {
+    return 4;
+  }
+
+  if (item.normalizedTitle === query || item.normalizedSubtitle === query) {
+    return 0;
+  }
+  if (item.normalizedTitle.startsWith(query) || item.normalizedSubtitle.startsWith(query)) {
+    return 1;
+  }
+  if (item.normalizedTitle.includes(query) || item.normalizedSubtitle.includes(query)) {
+    return 2;
+  }
+  return 3;
+}
+
+function normalizeSearchText(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
 }
 
 function resolveGenreMapping(genre: string | null | undefined): GenreMapping | null {
