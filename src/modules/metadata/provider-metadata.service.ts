@@ -196,7 +196,7 @@ export class ProviderMetadataService {
   private async loadTvdbSeriesBundle(seriesId: string, language?: string | null): Promise<ProviderTitleBundle> {
     const [seriesPayload, episodesPayload] = await Promise.all([
       this.tvdbClient.fetchSeriesExtended(seriesId),
-      this.tvdbClient.fetchSeriesEpisodes(seriesId, 'default').catch(() => ({ data: [] })),
+      this.fetchTvdbEpisodesWithFallback(seriesId).catch(() => ({ data: [] })),
     ]);
 
     const series = asRecord(seriesPayload.data);
@@ -205,11 +205,17 @@ export class ProviderMetadataService {
     }
 
     const title = normalizeTvdbTitle(seriesPayload, seriesId, language ?? null);
-    const episodes = dedupeProviderEpisodes([
+    const normalized = normalizeTvdbSeasons(
+      asArray(series.seasons)
+        .map((entry) => asRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry !== null),
+      dedupeProviderEpisodes([
       ...extractTvdbEpisodes(seriesPayload, seriesId, language ?? null),
       ...extractTvdbEpisodes(episodesPayload, seriesId, language ?? null),
-    ]);
-    const seasons = deriveTvdbSeasons(series, seriesId, episodes, title.episodeCount);
+      ]),
+    );
+    const episodes = normalized.episodes;
+    const seasons = deriveTvdbSeasons(normalized.seasons, series, seriesId, episodes, title.episodeCount);
 
     return {
       title: {
@@ -283,6 +289,16 @@ export class ProviderMetadataService {
     }
 
     return { data };
+  }
+
+  private async fetchTvdbEpisodesWithFallback(seriesId: string): Promise<Record<string, unknown>> {
+    const defaultPayload = await this.tvdbClient.fetchSeriesEpisodes(seriesId, 'default').catch(() => ({ data: [] }));
+    const defaultEpisodes = extractTvdbEpisodeItems(defaultPayload);
+    if (defaultEpisodes.length > 0) {
+      return defaultPayload;
+    }
+
+    return this.tvdbClient.fetchSeriesEpisodes(seriesId, 'official').catch(() => ({ data: [] }));
   }
 
   private async loadTvdbFallbackTitle(client: DbClient, title: ProviderTitleRecord): Promise<TmdbTitleRecord | null> {
@@ -479,14 +495,14 @@ function dedupeProviderEpisodes(episodes: ProviderEpisodeRecord[]): ProviderEpis
 }
 
 function deriveTvdbSeasons(
+  normalizedSeasons: Record<string, unknown>[],
   series: Record<string, unknown>,
   seriesId: string,
   episodes: ProviderEpisodeRecord[],
   episodeCount: number | null,
 ): ProviderSeasonRecord[] {
   const seasonMap = new Map<number, ProviderSeasonRecord>();
-  for (const entry of asArray(series.seasons)) {
-    const season = asRecord(entry);
+  for (const season of normalizedSeasons) {
     const seasonNumber = asInteger(season?.number) ?? asInteger(season?.seasonNumber);
     if (seasonNumber === null) {
       continue;
@@ -545,6 +561,94 @@ function deriveTvdbSeasons(
   }
 
   return [...seasonMap.values()].sort((left, right) => left.seasonNumber - right.seasonNumber);
+}
+
+function normalizeTvdbSeasons(
+  seasons: Record<string, unknown>[],
+  episodes: ProviderEpisodeRecord[],
+): {
+  seasons: Record<string, unknown>[];
+  episodes: ProviderEpisodeRecord[];
+} {
+  const hasYearSeasons = seasons.some((season) => {
+    const seasonNumber = asInteger(season.number) ?? asInteger(season.seasonNumber);
+    return seasonNumber !== null && seasonNumber > 1900;
+  });
+
+  if (!hasYearSeasons) {
+    return { seasons, episodes };
+  }
+
+  const sortedSeasons = [...seasons].sort((left, right) => {
+    const leftNumber = asInteger(left.number) ?? asInteger(left.seasonNumber) ?? 0;
+    const rightNumber = asInteger(right.number) ?? asInteger(right.seasonNumber) ?? 0;
+    return leftNumber - rightNumber;
+  });
+
+  const seasonMap = new Map<number, number>();
+  const normalizedSeasons: Record<string, unknown>[] = [];
+  const specials = sortedSeasons.find((season) => {
+    const seasonNumber = asInteger(season.number) ?? asInteger(season.seasonNumber);
+    return seasonNumber === 0;
+  });
+  if (specials) {
+    normalizedSeasons.push(specials);
+  }
+
+  let seasonCounter = 1;
+  for (const season of sortedSeasons) {
+    const seasonNumber = asInteger(season.number) ?? asInteger(season.seasonNumber);
+    if (seasonNumber === null || seasonNumber === 0) {
+      continue;
+    }
+
+    seasonMap.set(seasonNumber, seasonCounter);
+    normalizedSeasons.push({
+      ...season,
+      number: seasonCounter,
+      name: asString(season.name) ?? `Season ${seasonCounter} (${seasonNumber})`,
+    });
+    seasonCounter += 1;
+  }
+
+  const normalizedEpisodes = episodes.map((episode) => {
+    if ((episode.seasonNumber ?? 0) === 0) {
+      return episode;
+    }
+
+    const newSeasonNumber = episode.seasonNumber === null ? null : seasonMap.get(episode.seasonNumber) ?? null;
+    if (newSeasonNumber === null) {
+      return episode;
+    }
+
+    return {
+      ...episode,
+      seasonNumber: newSeasonNumber,
+      raw: {
+        ...asRecord(episode.raw),
+        originalSeasonNumber: episode.seasonNumber,
+      },
+    } satisfies ProviderEpisodeRecord;
+  });
+
+  return {
+    seasons: normalizedSeasons,
+    episodes: normalizedEpisodes,
+  };
+}
+
+function extractTvdbEpisodeItems(payload: Record<string, unknown>): Record<string, unknown>[] {
+  const data = asRecord(payload.data);
+  const direct = asArray(payload.data)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  if (direct.length) {
+    return direct;
+  }
+
+  return asArray(data?.episodes)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
 }
 
 function deriveKitsuSeasons(
