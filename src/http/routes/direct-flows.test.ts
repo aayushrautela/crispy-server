@@ -218,7 +218,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
     receivedReviewsMediaKey = mediaKey;
     receivedReviewsLanguage = language ?? null;
     return {
-      reviews: [{ id: 'review-1', author: 'Critic', username: 'critic1', content: 'Great movie', createdAt: '2024-01-02T00:00:00.000Z', updatedAt: '2024-01-03T00:00:00.000Z', url: 'https://example.com/review', rating: 8, avatarUrl: null }],
+      reviews: [{ id: 'review-1', provider: 'tmdb', author: 'Critic', username: 'critic1', content: 'Great movie', createdAt: '2024-01-02T00:00:00.000Z', updatedAt: '2024-01-03T00:00:00.000Z', url: 'https://example.com/review', rating: 8, avatarUrl: null }],
     } as never;
   };
   MetadataRatingsService.prototype.getTitleRatings = async function (userId, profileId, mediaKey) {

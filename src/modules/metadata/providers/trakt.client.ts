@@ -68,6 +68,7 @@ function normalizeTraktComment(entry: Record<string, unknown>): ParsedTraktRevie
 
   return {
     id: `trakt:${reviewId}`,
+    provider: 'trakt',
     author: asString(user?.name),
     username: asString(user?.username) ?? asString(userIds?.slug),
     content,

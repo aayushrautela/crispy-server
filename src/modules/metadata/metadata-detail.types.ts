@@ -89,8 +89,11 @@ export type MetadataPersonRefView = {
   profileUrl: string | null;
 };
 
+export type MetadataReviewSource = SupportedProvider | 'trakt';
+
 export type MetadataReviewView = {
   id: string;
+  provider: MetadataReviewSource;
   author: string | null;
   username: string | null;
   content: string;

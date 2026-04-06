@@ -216,7 +216,7 @@ export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewVie
   return asArray(asRecord(title?.raw.reviews)?.results)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((review) => {
+    .map<MetadataReviewView | null>((review) => {
       const id = asString(review.id);
       const content = asString(review.content);
       if (!id || !content) {
@@ -226,6 +226,7 @@ export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewVie
       const authorDetails = asRecord(review.author_details);
       return {
         id,
+        provider: 'tmdb',
         author: asString(review.author),
         username: asString(authorDetails?.username),
         content,

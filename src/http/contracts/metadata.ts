@@ -291,9 +291,10 @@ const metadataPersonRefViewSchema = {
 const metadataReviewViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'author', 'username', 'content', 'createdAt', 'updatedAt', 'url', 'rating', 'avatarUrl'],
+  required: ['id', 'provider', 'author', 'username', 'content', 'createdAt', 'updatedAt', 'url', 'rating', 'avatarUrl'],
   properties: {
     id: stringSchema,
+    provider: stringSchema,
     author: nullableStringSchema,
     username: nullableStringSchema,
     content: stringSchema,

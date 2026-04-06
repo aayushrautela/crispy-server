@@ -23,6 +23,7 @@ function buildTmdbReview(id: string, content: string): Record<string, unknown> {
 function buildFallbackReview(id: string, content: string): MetadataReviewView {
   return {
     id,
+    provider: 'trakt',
     author: 'Trakt User',
     username: `trakt-${id}`,
     content,
@@ -151,6 +152,7 @@ test('MetadataReviewsService tops up anime reviews from Trakt through provider d
         creators: [],
         reviews: [{
           id: 'kitsu-1',
+          provider: 'kitsu',
           author: 'Kitsu',
           username: 'kitsu',
           content: 'Kitsu review',

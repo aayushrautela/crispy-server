@@ -1343,6 +1343,7 @@ function buildKitsuReviews(extras?: ProviderTitleBundle['extras']): MetadataRevi
 
       return [{
         id,
+        provider: 'kitsu',
         author: asString(attrs?.source),
         username: asString(attrs?.source),
         content,
