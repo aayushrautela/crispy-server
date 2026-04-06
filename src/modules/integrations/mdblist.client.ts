@@ -8,6 +8,7 @@ import type {
 } from './mdblist.types.js';
 
 type FetchLike = typeof fetch;
+const MDBLIST_ERROR_BODY_LIMIT = 500;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
@@ -20,6 +21,13 @@ async function readJson(response: Response, pathname: string): Promise<Record<st
     throw new HttpError(502, `MDBList returned an invalid response for ${pathname}`);
   }
   return record;
+}
+
+async function readErrorDetails(response: Response): Promise<{ contentType: string | null; bodySnippet: string | null }> {
+  const contentType = response.headers.get('content-type');
+  const rawBody = await response.text().catch(() => '');
+  const bodySnippet = rawBody.trim().slice(0, MDBLIST_ERROR_BODY_LIMIT) || null;
+  return { contentType, bodySnippet };
 }
 
 export class MdbListClient {
@@ -42,7 +50,13 @@ export class MdbListClient {
     }
 
     if (!response.ok) {
-      throw new HttpError(response.status, `MDBList request failed for ${pathname}`);
+      throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
+        pathname,
+        mediaType: 'movie',
+        lookupProvider: 'tmdb',
+        lookupId: tmdbId,
+        response: await readErrorDetails(response),
+      });
     }
 
     return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
@@ -63,7 +77,13 @@ export class MdbListClient {
     }
 
     if (!response.ok) {
-      throw new HttpError(response.status, `MDBList request failed for ${pathname}`);
+      throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
+        pathname,
+        mediaType: 'show',
+        lookupProvider: 'tmdb',
+        lookupId: tmdbId,
+        response: await readErrorDetails(response),
+      });
     }
 
     return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
@@ -99,7 +119,13 @@ export class MdbListClient {
     }
 
     if (!response.ok) {
-      throw new HttpError(response.status, `MDBList request failed for ${pathname}`);
+      throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
+        pathname,
+        mediaType,
+        returnRating,
+        request,
+        response: await readErrorDetails(response),
+      });
     }
 
     return (await readJson(response, pathname)) as unknown as MdbListRatingsResponse;

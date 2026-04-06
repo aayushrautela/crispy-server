@@ -29,3 +29,59 @@ test('MdbListClient posts documented ratings request shape', async () => {
     ids: [923],
   });
 });
+
+test('MdbListClient includes title lookup details in non-OK errors', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  const client = new MdbListClient(async () => new Response('bad tmdb lookup', {
+    status: 400,
+    headers: {
+      'content-type': 'text/plain',
+    },
+  }));
+
+  await assert.rejects(
+    () => client.fetchMovieByTmdb('test-key', 7131),
+    (error: unknown) => {
+      assert.equal((error as { statusCode?: number }).statusCode, 400);
+      assert.deepEqual((error as { details?: unknown }).details, {
+        pathname: '/movie/tmdb/7131',
+        mediaType: 'movie',
+        lookupProvider: 'tmdb',
+        lookupId: 7131,
+        response: {
+          contentType: 'text/plain',
+          bodySnippet: 'bad tmdb lookup',
+        },
+      });
+      return true;
+    },
+  );
+});
+
+test('MdbListClient includes ratings request details in non-OK errors', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  const client = new MdbListClient(async () => Response.json({ error: 'invalid provider' }, { status: 400 }));
+
+  await assert.rejects(
+    () => client.fetchRatings('test-key', 'show', 'letterboxd', { provider: 'imdb', ids: ['tt1234567'] }),
+    (error: unknown) => {
+      assert.equal((error as { statusCode?: number }).statusCode, 400);
+      assert.deepEqual((error as { details?: unknown }).details, {
+        pathname: '/rating/show/letterboxd',
+        mediaType: 'show',
+        returnRating: 'letterboxd',
+        request: {
+          provider: 'imdb',
+          ids: ['tt1234567'],
+        },
+        response: {
+          contentType: 'application/json',
+          bodySnippet: '{"error":"invalid provider"}',
+        },
+      });
+      return true;
+    },
+  );
+});
