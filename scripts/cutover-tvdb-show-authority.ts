@@ -1,347 +1,230 @@
-import type { DbClient } from '../src/lib/db.js';
 import { db } from '../src/lib/db.js';
 import { logger } from '../src/config/logger.js';
 import { redis } from '../src/lib/redis.js';
 import { homeCacheKey, calendarCacheKey } from '../src/modules/cache/cache-keys.js';
-import { TvdbRemoteIdResolverService } from '../src/modules/metadata/providers/tvdb-remote-id-resolver.service.js';
-import { TmdbCacheService } from '../src/modules/metadata/providers/tmdb-cache.service.js';
 import { ProfileRepository } from '../src/modules/profiles/profile.repo.js';
 import { WatchV2ProjectionRebuildService } from '../src/modules/watch-v2/watch-v2-projection-rebuild.service.js';
 
 const PAGE_SIZE = 100;
 
-type LegacyRef = {
-  contentId: string;
-  externalId: string;
-  metadata: Record<string, unknown>;
-};
+async function purgeLegacyShowData(): Promise<{
+  deletedProjectionRows: number;
+  deletedTrackedRows: number;
+  deletedPlayableRows: number;
+  deletedOverrideRows: number;
+  deletedWatchlistRows: number;
+  deletedRatingRows: number;
+  deletedHistoryRows: number;
+  deletedProviderRows: number;
+  deletedShadowRows: number;
+  deletedRefRows: number;
+  deletedItemRows: number;
+  deletedCacheRows: number;
+}> {
+  const client = await db.connect();
 
-type ContentIdMapping = {
-  oldContentId: string;
-  newContentId: string;
-  reason: string;
-};
+  try {
+    await client.query('BEGIN');
 
-type ResolvedShow = {
-  tmdbShowId: number;
-  tvdbShowId: string;
-};
+    const legacyShowIds = await client.query<{ content_id: string }>(
+      `
+        SELECT DISTINCT content_id::text AS content_id
+        FROM content_provider_refs
+        WHERE provider = 'tmdb'
+          AND entity_type = 'show'
+      `,
+    );
 
-type ParsedSeasonRef = {
-  tmdbShowId: number;
-  seasonNumber: number;
-};
+    const legacySeasonIds = await client.query<{ content_id: string }>(
+      `
+        SELECT DISTINCT content_id::text AS content_id
+        FROM content_provider_refs
+        WHERE provider = 'tmdb'
+          AND entity_type = 'season'
+      `,
+    );
 
-type ParsedEpisodeRef = {
-  tmdbShowId: number;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  absoluteEpisodeNumber: number | null;
-  externalId: string;
-};
+    const legacyEpisodeIds = await client.query<{ content_id: string }>(
+      `
+        SELECT DISTINCT content_id::text AS content_id
+        FROM content_provider_refs
+        WHERE provider = 'tmdb'
+          AND entity_type = 'episode'
+      `,
+    );
 
-type ProviderRefLookup = {
-  contentId: string;
-  metadata: Record<string, unknown>;
-};
+    const allLegacyIds = [
+      ...legacyShowIds.rows.map((row) => row.content_id),
+      ...legacySeasonIds.rows.map((row) => row.content_id),
+      ...legacyEpisodeIds.rows.map((row) => row.content_id),
+    ];
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
-}
+    const deletedProjectionRows = await client.query(
+      `
+        DELETE FROM profile_title_projection
+        WHERE title_content_id = ANY($1::uuid[])
+           OR active_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
 
-function asString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
+    const deletedTrackedRows = await client.query(
+      `DELETE FROM profile_tracked_title_state WHERE title_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
 
-function asPositiveInteger(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-    return value;
-  }
+    const deletedPlayableRows = await client.query(
+      `
+        DELETE FROM profile_playable_state
+        WHERE content_id = ANY($1::uuid[])
+           OR title_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
 
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-  }
+    const deletedOverrideRows = await client.query(
+      `DELETE FROM profile_watch_override WHERE target_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
 
-  return null;
-}
+    const deletedWatchlistRows = await client.query(
+      `DELETE FROM profile_watchlist_state WHERE target_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
 
-function normalizeImdbId(value: string | null): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (trimmed.startsWith('tt')) {
-    return trimmed;
-  }
-  return /^\d+$/.test(trimmed) ? `tt${trimmed}` : null;
-}
+    const deletedRatingRows = await client.query(
+      `DELETE FROM profile_rating_state WHERE target_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
 
-function parseShowTmdbId(externalId: string): number {
-  const parsed = Number(externalId);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid TMDB show ref ${externalId}`);
-  }
-  return parsed;
-}
+    const deletedHistoryRows = await client.query(
+      `
+        DELETE FROM profile_play_history
+        WHERE content_id = ANY($1::uuid[])
+           OR title_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
 
-function parseSeasonRef(externalId: string): ParsedSeasonRef {
-  const match = externalId.match(/^(\d+):s(\d+)$/);
-  if (!match) {
-    throw new Error(`Invalid TMDB season ref ${externalId}`);
-  }
-  return {
-    tmdbShowId: Number(match[1]),
-    seasonNumber: Number(match[2]),
-  };
-}
+    const deletedProviderRows = await client.query(
+      `
+        DELETE FROM provider_outbox
+        WHERE content_id = ANY($1::uuid[])
+           OR title_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
 
-function parseEpisodeRef(externalId: string): ParsedEpisodeRef {
-  const standard = externalId.match(/^(\d+):s(\d+):e(\d+)$/);
-  if (standard) {
+    const deletedProviderHistory = await client.query(
+      `
+        DELETE FROM provider_history_shadow
+        WHERE content_id = ANY($1::uuid[])
+           OR title_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
+    const deletedProviderWatchlist = await client.query(
+      `DELETE FROM provider_watchlist_shadow WHERE title_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
+    const deletedProviderRating = await client.query(
+      `DELETE FROM provider_rating_shadow WHERE title_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
+    const deletedProviderProgress = await client.query(
+      `
+        DELETE FROM provider_progress_shadow
+        WHERE content_id = ANY($1::uuid[])
+           OR title_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
+    const deletedProviderUnresolved = await client.query(
+      `
+        DELETE FROM provider_unresolved_objects
+        WHERE content_id = ANY($1::uuid[])
+           OR title_content_id = ANY($1::uuid[])
+      `,
+      [allLegacyIds],
+    );
+
+    const deletedTraktHistory = await client.query(
+      `DELETE FROM trakt_history_shadow WHERE content_id = ANY($1::uuid[])`,
+      [allLegacyIds],
+    );
+    const deletedTraktWatchlist = await client.query(
+      `DELETE FROM trakt_watchlist_shadow WHERE title_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
+    const deletedTraktRating = await client.query(
+      `DELETE FROM trakt_rating_shadow WHERE title_content_id = ANY($1::uuid[])`,
+      [legacyShowIds.rows.map((row) => row.content_id)],
+    );
+    const deletedTraktProgress = await client.query(
+      `DELETE FROM trakt_progress_shadow WHERE content_id = ANY($1::uuid[])`,
+      [allLegacyIds],
+    );
+
+    const deletedRefRows = await client.query(
+      `
+        DELETE FROM content_provider_refs
+        WHERE provider = 'tmdb'
+          AND entity_type IN ('show', 'season', 'episode')
+      `,
+    );
+
+    const deletedItemRows = await client.query(
+      `
+        DELETE FROM content_items ci
+        WHERE ci.id = ANY($1::uuid[])
+          AND NOT EXISTS (
+            SELECT 1
+            FROM content_provider_refs refs
+            WHERE refs.content_id = ci.id
+          )
+      `,
+      [allLegacyIds],
+    );
+
+    const deletedCacheRows = await client.query(
+      `
+        DELETE FROM watch_media_card_cache
+        WHERE media_key LIKE 'show:tmdb:%'
+           OR media_key LIKE 'season:tmdb:%'
+           OR media_key LIKE 'episode:tmdb:%'
+      `,
+    );
+
+    await client.query('COMMIT');
+
     return {
-      tmdbShowId: Number(standard[1]),
-      seasonNumber: Number(standard[2]),
-      episodeNumber: Number(standard[3]),
-      absoluteEpisodeNumber: null,
-      externalId,
+      deletedProjectionRows: deletedProjectionRows.rowCount ?? 0,
+      deletedTrackedRows: deletedTrackedRows.rowCount ?? 0,
+      deletedPlayableRows: deletedPlayableRows.rowCount ?? 0,
+      deletedOverrideRows: deletedOverrideRows.rowCount ?? 0,
+      deletedWatchlistRows: deletedWatchlistRows.rowCount ?? 0,
+      deletedRatingRows: deletedRatingRows.rowCount ?? 0,
+      deletedHistoryRows: deletedHistoryRows.rowCount ?? 0,
+      deletedProviderRows: (deletedProviderRows.rowCount ?? 0)
+        + (deletedProviderHistory.rowCount ?? 0)
+        + (deletedProviderWatchlist.rowCount ?? 0)
+        + (deletedProviderRating.rowCount ?? 0)
+        + (deletedProviderProgress.rowCount ?? 0)
+        + (deletedProviderUnresolved.rowCount ?? 0),
+      deletedShadowRows: (deletedTraktHistory.rowCount ?? 0)
+        + (deletedTraktWatchlist.rowCount ?? 0)
+        + (deletedTraktRating.rowCount ?? 0)
+        + (deletedTraktProgress.rowCount ?? 0),
+      deletedRefRows: deletedRefRows.rowCount ?? 0,
+      deletedItemRows: deletedItemRows.rowCount ?? 0,
+      deletedCacheRows: deletedCacheRows.rowCount ?? 0,
     };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-
-  const absolute = externalId.match(/^(\d+):a(\d+)$/);
-  if (absolute) {
-    return {
-      tmdbShowId: Number(absolute[1]),
-      seasonNumber: null,
-      episodeNumber: Number(absolute[2]),
-      absoluteEpisodeNumber: Number(absolute[2]),
-      externalId,
-    };
-  }
-
-  throw new Error(`Invalid TMDB episode ref ${externalId}`);
-}
-
-async function listLegacyRefs(client: DbClient, entityType: 'show' | 'season' | 'episode'): Promise<LegacyRef[]> {
-  const result = await client.query(
-    `
-      SELECT content_id::text AS content_id, external_id, metadata
-      FROM content_provider_refs
-      WHERE provider = 'tmdb'
-        AND entity_type = $1
-      ORDER BY external_id ASC
-    `,
-    [entityType],
-  );
-
-  return result.rows.map((row) => ({
-    contentId: String(row.content_id),
-    externalId: String(row.external_id),
-    metadata: asRecord(row.metadata),
-  }));
-}
-
-async function findProviderRef(
-  client: DbClient,
-  provider: 'tvdb' | 'tmdb',
-  entityType: 'show' | 'season' | 'episode',
-  externalId: string,
-): Promise<ProviderRefLookup | null> {
-  const result = await client.query(
-    `
-      SELECT content_id::text AS content_id, metadata
-      FROM content_provider_refs
-      WHERE provider = $1
-        AND entity_type = $2
-        AND external_id = $3
-      LIMIT 1
-    `,
-    [provider, entityType, externalId],
-  );
-
-  const row = result.rows[0];
-  return row
-    ? { contentId: String(row.content_id), metadata: asRecord(row.metadata) }
-    : null;
-}
-
-async function upsertProviderRef(
-  client: DbClient,
-  input: {
-    contentId: string;
-    provider: 'tvdb';
-    entityType: 'show' | 'season' | 'episode';
-    externalId: string;
-    metadata: Record<string, unknown>;
-  },
-): Promise<void> {
-  await client.query(
-    `
-      INSERT INTO content_provider_refs (content_id, provider, entity_type, external_id, metadata)
-      VALUES ($1::uuid, $2, $3, $4, $5::jsonb)
-      ON CONFLICT (provider, entity_type, external_id)
-      DO UPDATE SET
-        content_id = EXCLUDED.content_id,
-        metadata = content_provider_refs.metadata || EXCLUDED.metadata,
-        updated_at = now()
-    `,
-    [input.contentId, input.provider, input.entityType, input.externalId, JSON.stringify(input.metadata)],
-  );
-}
-
-function registerMapping(mappings: Map<string, ContentIdMapping>, oldContentId: string, newContentId: string, reason: string): void {
-  if (oldContentId === newContentId) {
-    return;
-  }
-
-  const existing = mappings.get(oldContentId);
-  if (existing && existing.newContentId !== newContentId) {
-    throw new Error(`Conflicting mapping for ${oldContentId}: ${existing.newContentId} vs ${newContentId}`);
-  }
-
-  mappings.set(oldContentId, { oldContentId, newContentId, reason });
-}
-
-async function resolveShow(client: DbClient, resolver: TvdbRemoteIdResolverService, tmdbCache: TmdbCacheService, tmdbShowId: number): Promise<ResolvedShow | null> {
-  const title = await tmdbCache.getTitle(client, 'tv', tmdbShowId).catch(() => null);
-  if (!title) {
-    return null;
-  }
-
-  const externalIds = asRecord(title.externalIds);
-  const tvdbShowId = asPositiveInteger(externalIds.tvdb_id);
-  if (tvdbShowId !== null) {
-    return { tmdbShowId, tvdbShowId: String(tvdbShowId) };
-  }
-
-  const imdbId = normalizeImdbId(asString(externalIds.imdb_id));
-  if (!imdbId) {
-    return null;
-  }
-
-  const resolvedTvdbId = await resolver.resolveSeriesId(imdbId);
-  if (!resolvedTvdbId) {
-    return null;
-  }
-
-  return { tmdbShowId, tvdbShowId: resolvedTvdbId };
-}
-
-async function deleteConflicts(client: DbClient, table: string, keyColumn: string, scopeColumns: string[], oldContentId: string, newContentId: string): Promise<void> {
-  const scopes = scopeColumns.map((column) => `old_row.${column} = new_row.${column}`).join(' AND ');
-  await client.query(
-    `
-      DELETE FROM ${table} old_row
-      USING ${table} new_row
-      WHERE old_row.${keyColumn} = $1::uuid
-        AND new_row.${keyColumn} = $2::uuid
-        AND ${scopes}
-    `,
-    [oldContentId, newContentId],
-  );
-}
-
-async function updateReferenceColumn(client: DbClient, table: string, column: string, oldContentId: string, newContentId: string): Promise<void> {
-  await client.query(
-    `UPDATE ${table} SET ${column} = $2::uuid WHERE ${column} = $1::uuid`,
-    [oldContentId, newContentId],
-  );
-}
-
-async function applyContentIdMapping(client: DbClient, mapping: ContentIdMapping): Promise<void> {
-  await deleteConflicts(client, 'profile_playable_state', 'content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'profile_watch_override', 'target_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'profile_watchlist_state', 'target_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'profile_rating_state', 'target_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'profile_title_projection', 'title_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'profile_tracked_title_state', 'title_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'trakt_history_shadow', 'content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'trakt_watchlist_shadow', 'title_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'trakt_rating_shadow', 'title_content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-  await deleteConflicts(client, 'trakt_progress_shadow', 'content_id', ['profile_id'], mapping.oldContentId, mapping.newContentId);
-
-  await updateReferenceColumn(client, 'profile_playable_state', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_playable_state', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_watch_override', 'target_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_watchlist_state', 'target_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_rating_state', 'target_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_play_history', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_play_history', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_title_projection', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_title_projection', 'active_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_tracked_title_state', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'profile_bulk_operations', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_outbox', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_outbox', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'trakt_history_shadow', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'trakt_watchlist_shadow', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'trakt_rating_shadow', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'trakt_progress_shadow', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_history_shadow', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_history_shadow', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_watchlist_shadow', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_rating_shadow', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_progress_shadow', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_progress_shadow', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_unresolved_objects', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await updateReferenceColumn(client, 'provider_unresolved_objects', 'title_content_id', mapping.oldContentId, mapping.newContentId);
-
-  await client.query(
-    `
-      DELETE FROM content_provider_refs old_ref
-      USING content_provider_refs new_ref
-      WHERE old_ref.content_id = $1::uuid
-        AND new_ref.content_id = $2::uuid
-        AND old_ref.provider = new_ref.provider
-        AND old_ref.entity_type = new_ref.entity_type
-        AND old_ref.external_id = new_ref.external_id
-    `,
-    [mapping.oldContentId, mapping.newContentId],
-  );
-  await updateReferenceColumn(client, 'content_provider_refs', 'content_id', mapping.oldContentId, mapping.newContentId);
-  await client.query(
-    `
-      DELETE FROM content_items ci
-      WHERE ci.id = $1::uuid
-        AND NOT EXISTS (
-          SELECT 1
-          FROM content_provider_refs refs
-          WHERE refs.content_id = ci.id
-        )
-    `,
-    [mapping.oldContentId],
-  );
-}
-
-async function purgeLegacyRefsAndCaches(client: DbClient): Promise<void> {
-  await client.query(
-    `
-      DELETE FROM content_provider_refs
-      WHERE provider = 'tmdb'
-        AND entity_type IN ('show', 'season', 'episode')
-    `,
-  );
-
-  await client.query(
-    `
-      DELETE FROM content_items ci
-      WHERE ci.entity_type IN ('show', 'season', 'episode')
-        AND NOT EXISTS (
-          SELECT 1
-          FROM content_provider_refs refs
-          WHERE refs.content_id = ci.id
-        )
-    `,
-  );
-
-  await client.query(
-    `
-      DELETE FROM watch_media_card_cache
-      WHERE media_key LIKE 'show:tmdb:%'
-         OR media_key LIKE 'season:tmdb:%'
-         OR media_key LIKE 'episode:tmdb:%'
-    `,
-  );
 }
 
 async function rebuildAllProfiles(): Promise<void> {
@@ -365,7 +248,7 @@ async function rebuildAllProfiles(): Promise<void> {
           await client.query('COMMIT');
           rebuiltProfiles += 1;
           await redis.del(homeCacheKey(profile.id), calendarCacheKey(profile.id)).catch(() => undefined);
-          logger.info({ profileId: profile.id, summary }, 'rebuilt watch projections after show cutover');
+          logger.info({ profileId: profile.id, summary }, 'rebuilt watch projections after TMDB show purge');
         } catch (error) {
           await client.query('ROLLBACK');
           throw error;
@@ -375,145 +258,15 @@ async function rebuildAllProfiles(): Promise<void> {
       offset += profiles.length;
     }
 
-    logger.info({ rebuiltProfiles }, 'completed projection rebuild after show cutover');
+    logger.info({ rebuiltProfiles }, 'completed projection rebuild after TMDB show purge');
   } finally {
     client.release();
   }
-}
-
-async function runCutover(client: DbClient): Promise<{ processedShows: number; contentMappings: number }> {
-  const tmdbCache = new TmdbCacheService();
-  const tvdbResolver = new TvdbRemoteIdResolverService();
-  const showRefs = await listLegacyRefs(client, 'show');
-  const seasonRefs = await listLegacyRefs(client, 'season');
-  const episodeRefs = await listLegacyRefs(client, 'episode');
-  const mappings = new Map<string, ContentIdMapping>();
-  const resolvedShows = new Map<number, ResolvedShow>();
-  const unresolved: string[] = [];
-
-  for (const showRef of showRefs) {
-    const tmdbShowId = parseShowTmdbId(showRef.externalId);
-    const resolved = await resolveShow(client, tvdbResolver, tmdbCache, tmdbShowId);
-    if (!resolved) {
-      unresolved.push(`show:${tmdbShowId}`);
-      continue;
-    }
-
-    resolvedShows.set(tmdbShowId, resolved);
-    const existingTvdbShowRef = await findProviderRef(client, 'tvdb', 'show', resolved.tvdbShowId);
-    const targetContentId = existingTvdbShowRef?.contentId ?? showRef.contentId;
-
-    await upsertProviderRef(client, {
-      contentId: targetContentId,
-      provider: 'tvdb',
-      entityType: 'show',
-      externalId: resolved.tvdbShowId,
-      metadata: {
-        providerId: resolved.tvdbShowId,
-        tmdbId: resolved.tmdbShowId,
-        showTmdbId: resolved.tmdbShowId,
-      },
-    });
-
-    registerMapping(mappings, showRef.contentId, targetContentId, `show ${tmdbShowId} -> ${resolved.tvdbShowId}`);
-  }
-
-  for (const seasonRef of seasonRefs) {
-    const parsed = parseSeasonRef(seasonRef.externalId);
-    const resolved = resolvedShows.get(parsed.tmdbShowId);
-    if (!resolved) {
-      unresolved.push(`season:${seasonRef.externalId}`);
-      continue;
-    }
-
-    const newExternalId = `${resolved.tvdbShowId}:s${parsed.seasonNumber}`;
-    const existingTvdbSeasonRef = await findProviderRef(client, 'tvdb', 'season', newExternalId);
-    const targetContentId = existingTvdbSeasonRef?.contentId ?? seasonRef.contentId;
-
-    await upsertProviderRef(client, {
-      contentId: targetContentId,
-      provider: 'tvdb',
-      entityType: 'season',
-      externalId: newExternalId,
-      metadata: {
-        ...seasonRef.metadata,
-        providerId: newExternalId,
-        parentMediaType: 'show',
-        parentProviderId: resolved.tvdbShowId,
-        seasonNumber: parsed.seasonNumber,
-        tmdbId: resolved.tmdbShowId,
-        showTmdbId: resolved.tmdbShowId,
-      },
-    });
-
-    registerMapping(mappings, seasonRef.contentId, targetContentId, `season ${seasonRef.externalId} -> ${newExternalId}`);
-  }
-
-  for (const episodeRef of episodeRefs) {
-    const parsed = parseEpisodeRef(episodeRef.externalId);
-    const resolved = resolvedShows.get(parsed.tmdbShowId);
-    if (!resolved) {
-      unresolved.push(`episode:${episodeRef.externalId}`);
-      continue;
-    }
-
-    const newExternalId = parsed.absoluteEpisodeNumber !== null && parsed.seasonNumber === null
-      ? `${resolved.tvdbShowId}:a${parsed.absoluteEpisodeNumber}`
-      : `${resolved.tvdbShowId}:s${parsed.seasonNumber}:e${parsed.episodeNumber}`;
-    const existingTvdbEpisodeRef = await findProviderRef(client, 'tvdb', 'episode', newExternalId);
-    const targetContentId = existingTvdbEpisodeRef?.contentId ?? episodeRef.contentId;
-
-    await upsertProviderRef(client, {
-      contentId: targetContentId,
-      provider: 'tvdb',
-      entityType: 'episode',
-      externalId: newExternalId,
-      metadata: {
-        ...episodeRef.metadata,
-        providerId: newExternalId,
-        parentMediaType: 'show',
-        parentProviderId: resolved.tvdbShowId,
-        seasonNumber: parsed.seasonNumber,
-        episodeNumber: parsed.episodeNumber,
-        absoluteEpisodeNumber: parsed.absoluteEpisodeNumber,
-        tmdbId: resolved.tmdbShowId,
-        showTmdbId: resolved.tmdbShowId,
-      },
-    });
-
-    registerMapping(mappings, episodeRef.contentId, targetContentId, `episode ${episodeRef.externalId} -> ${newExternalId}`);
-  }
-
-  if (unresolved.length > 0) {
-    throw new Error(`Unable to resolve TVDB ids for: ${unresolved.join(', ')}`);
-  }
-
-  for (const mapping of mappings.values()) {
-    await applyContentIdMapping(client, mapping);
-  }
-
-  await purgeLegacyRefsAndCaches(client);
-
-  return {
-    processedShows: resolvedShows.size,
-    contentMappings: mappings.size,
-  };
 }
 
 async function main(): Promise<void> {
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-    const summary = await runCutover(client);
-    await client.query('COMMIT');
-    logger.info(summary, 'completed canonical TVDB show ref cutover');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-
+  const summary = await purgeLegacyShowData();
+  logger.info(summary, 'purged legacy TMDB show data and caches');
   await rebuildAllProfiles();
   await redis.quit().catch(() => undefined);
   await db.end();
