@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { logger } from '../../config/logger.js';
 import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
@@ -53,7 +54,17 @@ export class MetadataReviewsService {
     const traktMediaType = source.mediaType === 'movie' ? 'movie' : 'show';
     const fallbackReviews = await this.traktClient.fetchTitleReviews(traktMediaType, source.externalIds, REVIEW_LIMIT, {
       accessToken,
-    }).catch(() => []);
+    }).catch((error) => {
+      logger.warn({
+        err: error,
+        userId,
+        profileId,
+        mediaKey: identity.mediaKey,
+        mediaType: traktMediaType,
+        externalIds: source.externalIds,
+      }, 'failed to fetch trakt fallback reviews');
+      return [];
+    });
 
     return mergeReviews(primaryReviews, fallbackReviews);
   }

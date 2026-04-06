@@ -1,3 +1,4 @@
+import { logger } from '../../../config/logger.js';
 import { env } from '../../../config/env.js';
 import { HttpError } from '../../../lib/errors.js';
 import type { MetadataExternalIds } from '../metadata-card.types.js';
@@ -13,6 +14,12 @@ type ParsedTraktReview = MetadataReviewView & {
 
 type TraktRequestOptions = {
   accessToken?: string;
+};
+
+type TraktIdResolution = {
+  traktId: string | null;
+  lookupSource: 'imdb' | 'tmdb' | 'tvdb' | 'none';
+  lookupValue: string | number | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -90,7 +97,8 @@ export class TraktClient {
       return [];
     }
 
-    const traktId = await this.resolveTitleId(mediaType, externalIds, options);
+    const { traktId, lookupSource, lookupValue } = await this.resolveTitleId(mediaType, externalIds, options);
+    logger.info({ mediaType, externalIds, lookupSource, lookupValue, traktId }, 'resolved trakt review title id');
     if (!traktId) {
       return [];
     }
@@ -98,6 +106,7 @@ export class TraktClient {
     const pathname = mediaType === 'movie'
       ? `/movies/${encodeURIComponent(traktId)}/comments`
       : `/shows/${encodeURIComponent(traktId)}/comments`;
+    logger.info({ mediaType, externalIds, lookupSource, lookupValue, traktId, pathname, limit }, 'requesting trakt title reviews');
     const comments = await this.requestArray(pathname, { limit }, options);
     const parsed = comments
       .map((entry) => normalizeTraktComment(entry))
@@ -115,20 +124,36 @@ export class TraktClient {
     mediaType: TraktTitleMediaType,
     externalIds: Pick<MetadataExternalIds, 'imdb' | 'tmdb' | 'tvdb'>,
     options: TraktRequestOptions,
-  ): Promise<string | null> {
+  ): Promise<TraktIdResolution> {
     if (externalIds.imdb) {
-      return externalIds.imdb;
+      return {
+        traktId: externalIds.imdb,
+        lookupSource: 'imdb',
+        lookupValue: externalIds.imdb,
+      };
     }
 
     if (externalIds.tmdb !== null) {
-      return this.searchTitleId('tmdb', externalIds.tmdb, mediaType, options);
+      return {
+        traktId: await this.searchTitleId('tmdb', externalIds.tmdb, mediaType, options),
+        lookupSource: 'tmdb',
+        lookupValue: externalIds.tmdb,
+      };
     }
 
     if (externalIds.tvdb !== null) {
-      return this.searchTitleId('tvdb', externalIds.tvdb, mediaType, options);
+      return {
+        traktId: await this.searchTitleId('tvdb', externalIds.tvdb, mediaType, options),
+        lookupSource: 'tvdb',
+        lookupValue: externalIds.tvdb,
+      };
     }
 
-    return null;
+    return {
+      traktId: null,
+      lookupSource: 'none',
+      lookupValue: null,
+    };
   }
 
   private async searchTitleId(
@@ -184,10 +209,12 @@ export class TraktClient {
     });
 
     if (response.status === 404) {
+      logger.info({ pathname, query, hasAccessToken: Boolean(options.accessToken) }, 'trakt request returned no results');
       return [];
     }
 
     if (!response.ok) {
+      logger.warn({ pathname, query, status: response.status, hasAccessToken: Boolean(options.accessToken) }, 'trakt request failed');
       throw new HttpError(response.status, `Trakt request failed for ${pathname}`);
     }
 
