@@ -1,5 +1,3 @@
-import type { AiSearchFilter } from './ai.types.js';
-
 export type AiSuggestedMediaType = 'movie' | 'show' | 'anime';
 
 export type AiSearchCandidate = {
@@ -29,11 +27,7 @@ export function parseSearchCandidates(items: unknown[]): AiSearchCandidate[] {
   return candidates;
 }
 
-export function resolveCandidateFilter(requestFilter: AiSearchFilter, mediaType: AiSuggestedMediaType | null): AiSearchFilter[] {
-  if (requestFilter !== 'all') {
-    return [requestFilter];
-  }
-
+export function resolveCandidateFilter(mediaType: AiSuggestedMediaType | null): Array<'movies' | 'series' | 'anime' | 'all'> {
   const hintedFilter = mapSuggestedMediaTypeToSearchFilter(mediaType);
   return hintedFilter ? [hintedFilter, 'all'] : ['all'];
 }
@@ -90,7 +84,7 @@ function normalizeSuggestedMediaType(value: unknown): AiSuggestedMediaType | nul
   return null;
 }
 
-function mapSuggestedMediaTypeToSearchFilter(mediaType: AiSuggestedMediaType | null): AiSearchFilter | null {
+function mapSuggestedMediaTypeToSearchFilter(mediaType: AiSuggestedMediaType | null): 'movies' | 'series' | 'anime' | null {
   if (mediaType === 'movie') {
     return 'movies';
   }

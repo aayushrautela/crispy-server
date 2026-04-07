@@ -50,20 +50,32 @@ export const aiSearchRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   body: {
     type: 'object',
-    additionalProperties: false,
-    properties: {
-      query: stringSchema,
-      filter: stringSchema,
-      locale: stringSchema,
+      additionalProperties: false,
+      properties: {
+        query: stringSchema,
+        locale: stringSchema,
+      },
     },
-  },
   response: {
     200: {
       type: 'object',
       additionalProperties: false,
-      required: ['items'],
+      required: ['query', 'all', 'movies', 'series', 'anime'],
       properties: {
-        items: {
+        query: stringSchema,
+        all: {
+          type: 'array',
+          items: aiSearchItemSchema,
+        },
+        movies: {
+          type: 'array',
+          items: aiSearchItemSchema,
+        },
+        series: {
+          type: 'array',
+          items: aiSearchItemSchema,
+        },
+        anime: {
           type: 'array',
           items: aiSearchItemSchema,
         },

@@ -103,8 +103,8 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
     async <T>(work: (client: DbClient) => Promise<T>) => work({} as DbClient),
   );
 
-  const first = service.search('user-1', { query: 'Alpha', profileId: 'profile-1', filter: 'all', locale: 'en-US' });
-  const second = service.search('user-1', { query: 'Alpha', profileId: 'profile-1', filter: 'all', locale: 'en-US' });
+  const first = service.search('user-1', { query: 'Alpha', profileId: 'profile-1', locale: 'en-US' });
+  const second = service.search('user-1', { query: 'Alpha', profileId: 'profile-1', locale: 'en-US' });
 
   await executorStarted;
   assert.equal(profileChecks, 1);
@@ -116,5 +116,8 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
   assert.deepEqual(left, right);
   assert.equal(profileChecks, 1);
   assert.equal(aiCalls, 1);
-  assert.deepEqual(left.items.map((item) => item.title), ['Alpha Movie']);
+  assert.deepEqual(left.all.map((item) => item.title), ['Alpha Movie']);
+  assert.deepEqual(left.movies.map((item) => item.title), ['Alpha Movie']);
+  assert.deepEqual(left.series, []);
+  assert.deepEqual(left.anime, []);
 });

@@ -1,4 +1,4 @@
-import type { CatalogItem } from '../metadata/metadata-card.types.js';
+import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 
 export type AiFeatureId = 'search' | 'insights';
 
@@ -59,13 +59,7 @@ export type AiExecutionResult = {
   payload: Record<string, unknown>;
 };
 
-export type AiSearchFilter = 'all' | 'movies' | 'series' | 'anime';
-
-export type AiSearchItem = CatalogItem;
-
-export type AiSearchResponse = {
-  items: AiSearchItem[];
-};
+export type AiSearchResponse = MetadataSearchResponse;
 
 export type AiInsightCard = {
   category: string;

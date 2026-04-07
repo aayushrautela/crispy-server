@@ -3,17 +3,17 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import type { CatalogItem } from '../metadata/metadata-card.types.js';
-import type { MetadataSearchFilter } from '../metadata/metadata-detail.types.js';
+import type { MetadataSearchFilter, MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
 import { parseSearchCandidates, resolveCandidateFilter, type AiSearchCandidate } from './ai-search-candidates.js';
-import type { AiSearchFilter, AiSearchItem, AiSearchResponse } from './ai.types.js';
+import type { AiSearchResponse } from './ai.types.js';
 
 type ResolvedSuggestion = {
   candidate: AiSearchCandidate;
-  item: AiSearchItem;
+  item: CatalogItem;
 };
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
@@ -36,12 +36,10 @@ export class AiSearchService {
   async search(userId: string, input: {
     query: string;
     profileId: string;
-    filter?: string | null;
     locale?: string | null;
   }): Promise<AiSearchResponse> {
     const query = normalizeString(input.query);
     const profileId = normalizeString(input.profileId);
-    const filter = normalizeFilter(input.filter);
     const locale = normalizeLocale(input.locale);
     const analysis = analyzeQuery(query);
 
@@ -52,7 +50,7 @@ export class AiSearchService {
       throw new HttpError(400, 'Profile is required.');
     }
 
-    const requestKey = [userId, profileId, query, filter, locale].join('|');
+    const requestKey = [userId, profileId, query, locale].join('|');
 
     return this.requestCoalescer.run(requestKey, async () => {
       await this.runInTransaction(async (client) => {
@@ -65,33 +63,32 @@ export class AiSearchService {
         userId,
         feature: 'search',
         systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope.',
-        userPrompt: buildSearchPrompt(query, filter, locale, analysis),
+        userPrompt: buildSearchPrompt(query, locale, analysis),
       });
 
       const rawItems = Array.isArray(generated.items) ? generated.items : [];
       const candidates = parseSearchCandidates(rawItems);
-      const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, filter, locale);
-      const items = finalizeResolvedItems(resolvedSuggestions, analysis);
+      const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, locale);
+      const response = finalizeResolvedItems(resolvedSuggestions, analysis, query);
 
       logger.info({
         userId,
         profileId,
         query: sampleQuery(query),
-        filter,
         locale,
         providerId: request.providerId,
         model: request.model,
         rawItemCount: rawItems.length,
         candidateCount: candidates.length,
         resolvedCount: resolvedSuggestions.length,
-        finalCount: items.length,
+        finalCount: response.all.length,
         candidateSamples: candidates.slice(0, 8),
         unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: items.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.provider}:${item.providerId}`),
+        resultTitles: response.all.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.provider}:${item.providerId}`),
         generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
-      return { items };
+      return response;
     });
   }
 }
@@ -99,12 +96,11 @@ export class AiSearchService {
 async function resolveSuggestions(
   titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
-  filter: AiSearchFilter,
   locale: string,
 ): Promise<ResolvedSuggestion[]> {
   const resolved = await Promise.all(
     candidates.map(async (candidate) => {
-      const item = await resolveSuggestion(titleSearchService, candidate, filter, locale);
+      const item = await resolveSuggestion(titleSearchService, candidate, locale);
       return item ? { candidate, item } : null;
     }),
   );
@@ -114,10 +110,9 @@ async function resolveSuggestions(
 async function resolveSuggestion(
   titleSearchService: TitleSearchService,
   candidate: AiSearchCandidate,
-  filter: AiSearchFilter,
   locale: string,
-): Promise<AiSearchItem | null> {
-  const searchFilters = resolveCandidateFilter(filter, candidate.mediaType);
+): Promise<CatalogItem | null> {
+  const searchFilters = resolveCandidateFilter(candidate.mediaType);
   const queryVariants = buildResolutionQueryVariants(candidate.title);
 
   for (const candidateFilter of searchFilters) {
@@ -138,7 +133,7 @@ async function resolveSuggestion(
   return null;
 }
 
-function selectBestMetadataMatch(items: CatalogItem[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): AiSearchItem | null {
+function selectBestMetadataMatch(items: CatalogItem[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): CatalogItem | null {
   const normalizedTarget = normalizeTitle(title);
   const sorted = [...items].sort((left, right) => {
     const rightScore = scoreMetadataMatch(right, normalizedTarget, mediaTypeHint);
@@ -198,15 +193,23 @@ function matchesMediaTypeHint(item: CatalogItem, mediaTypeHint: AiSearchCandidat
   return item.mediaType === mediaTypeHint;
 }
 
-function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis): AiSearchItem[] {
+function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis, query: string): MetadataSearchResponse {
   const unique = dedupeResolvedSuggestions(resolved);
+  const kept = analysis.isRecommendation
+    ? filterRecommendationItems(unique, analysis)
+    : unique.slice(0, FINAL_RESULT_LIMIT);
+
+  return bucketResolvedItems(query, kept.map(({ item }) => item));
+}
+
+function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis): ResolvedSuggestion[] {
   if (!analysis.isRecommendation) {
-    return unique.map(({ item }) => item).slice(0, FINAL_RESULT_LIMIT);
+    return resolved.slice(0, FINAL_RESULT_LIMIT);
   }
 
   const kept: ResolvedSuggestion[] = [];
   let skippedAnchor = false;
-  for (const suggestion of unique) {
+  for (const suggestion of resolved) {
     if (!skippedAnchor && matchesAnchorSuggestion(suggestion, analysis.anchorHint)) {
       skippedAnchor = true;
       continue;
@@ -220,7 +223,35 @@ function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQ
     }
   }
 
-  return kept.map(({ item }) => item);
+  return kept;
+}
+
+function bucketResolvedItems(query: string, items: CatalogItem[]): MetadataSearchResponse {
+  const movies: CatalogItem[] = [];
+  const series: CatalogItem[] = [];
+  const anime: CatalogItem[] = [];
+
+  for (const item of items) {
+    if (item.mediaType === 'movie') {
+      movies.push(item);
+      continue;
+    }
+    if (item.mediaType === 'show') {
+      series.push(item);
+      continue;
+    }
+    if (item.mediaType === 'anime') {
+      anime.push(item);
+    }
+  }
+
+  return {
+    query,
+    all: items,
+    movies,
+    series,
+    anime,
+  };
 }
 
 function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggestion[] {
@@ -449,21 +480,7 @@ function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function normalizeFilter(value: unknown): AiSearchFilter {
-  const normalized = normalizeString(value).toLowerCase();
-  if (normalized === 'movies') {
-    return 'movies';
-  }
-  if (normalized === 'series') {
-    return 'series';
-  }
-  if (normalized === 'anime') {
-    return 'anime';
-  }
-  return 'all';
-}
-
-function mapFilterToMetadataFilter(filter: AiSearchFilter): MetadataSearchFilter | null {
+function mapFilterToMetadataFilter(filter: 'movies' | 'series' | 'anime' | 'all'): MetadataSearchFilter | null {
   if (filter === 'movies' || filter === 'series' || filter === 'anime') {
     return filter;
   }

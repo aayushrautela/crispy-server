@@ -1,5 +1,3 @@
-import type { AiSearchFilter } from './ai.types.js';
-
 export type SearchQueryAnalysis = {
   isRecommendation: boolean;
   anchorHint: string | null;
@@ -27,15 +25,15 @@ export type TitleInsightsContext = {
 
 const RAW_SUGGESTION_LIMIT = 16;
 
-export function buildSearchPrompt(query: string, filter: AiSearchFilter, locale: string, analysis: SearchQueryAnalysis): string {
+export function buildSearchPrompt(query: string, locale: string, analysis: SearchQueryAnalysis): string {
   const lines = [
     'You help a streaming app answer what-to-watch questions like a smart friend.',
     `User query: ${query}`,
-    `Catalog scope: ${catalogScopeInstruction(filter)}`,
-    providerRoutingInstruction(filter),
+    'Catalog scope: You may suggest movies, TV shows, or anime.',
+    'Mixed results can come from the movie, TV series, or anime catalogs.',
     `Preferred locale: ${locale}`,
     'Suggest real released titles only.',
-    titleNamingInstruction(filter),
+    'Prefer the commonly used catalog title for each result so it can be matched reliably.',
   ];
 
   if (analysis.isRecommendation) {
@@ -43,7 +41,7 @@ export function buildSearchPrompt(query: string, filter: AiSearchFilter, locale:
     if (analysis.anchorHint) {
       lines.push(`Anchor phrase: ${analysis.anchorHint}`);
     }
-    lines.push('The anchor can come from any franchise or medium, but every result must still match the requested catalog scope.');
+      lines.push('The anchor can come from any franchise or medium.');
     lines.push(`Return up to ${RAW_SUGGESTION_LIMIT} genuinely diverse titles.`);
     lines.push('Do not include the exact title or closest obvious match the user already asked about.');
     lines.push('Include at most one title from the same franchise, collection, series, or shared universe.');
@@ -112,45 +110,6 @@ export function buildInsightsPrompt(context: TitleInsightsContext): string {
     'If you are not confident about a hard production fact, keep the trivia broad and safe instead of inventing details.',
     'Return ONLY valid JSON.',
   ].join('\n\n');
-}
-
-function catalogScopeInstruction(filter: AiSearchFilter): string {
-  if (filter === 'movies') {
-    return 'Only suggest movies.';
-  }
-  if (filter === 'series') {
-    return 'Only suggest TV shows.';
-  }
-  if (filter === 'anime') {
-    return 'Only suggest anime titles.';
-  }
-  return 'You may suggest movies, TV shows, or anime.';
-}
-
-function providerRoutingInstruction(filter: AiSearchFilter): string {
-  if (filter === 'movies') {
-    return 'Movie results are matched against the movie catalog.';
-  }
-  if (filter === 'series') {
-    return 'TV show results are matched against the TV series catalog.';
-  }
-  if (filter === 'anime') {
-    return 'Anime results are matched against the anime catalog.';
-  }
-  return 'Mixed results can come from the movie, TV series, or anime catalogs.';
-}
-
-function titleNamingInstruction(filter: AiSearchFilter): string {
-  if (filter === 'anime') {
-    return 'Prefer the commonly used catalog title for each anime. Use the best-known English or romanized title, and avoid adding extra commentary.';
-  }
-  if (filter === 'series') {
-    return 'Prefer the commonly used catalog title for each TV show, not episode names, taglines, or franchise labels.';
-  }
-  if (filter === 'movies') {
-    return 'Prefer the commonly used catalog title for each movie.';
-  }
-  return 'Prefer the commonly used catalog title for each result so it can be matched reliably.';
 }
 
 function mediaTypeVoiceInstruction(mediaType: TitleInsightsContext['mediaType']): string {

@@ -15,7 +15,6 @@ export async function registerAiRoutes(app: FastifyInstance): Promise<void> {
     return aiSearchService.search(actor.appUserId, {
       query: typeof body.query === 'string' ? body.query : '',
       profileId: params.profileId,
-      filter: typeof body.filter === 'string' ? body.filter : null,
       locale: typeof body.locale === 'string' ? body.locale : null,
     });
   });

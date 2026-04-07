@@ -2,29 +2,27 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildInsightsPrompt, buildSearchPrompt } from './ai-prompts.js';
 
-test('search prompt for series is provider-family aware without TMDB bias', () => {
-  const prompt = buildSearchPrompt('shows like harry potter', 'series', 'en-US', {
+test('search prompt uses mixed catalog guidance without hard category filters', () => {
+  const prompt = buildSearchPrompt('shows like harry potter', 'en-US', {
     isRecommendation: true,
     anchorHint: 'harry potter',
   });
 
-  assert.match(prompt, /Only suggest TV shows\./);
-  assert.match(prompt, /TV show results are matched against the TV series catalog\./);
-  assert.match(prompt, /The anchor can come from any franchise or medium, but every result must still match the requested catalog scope\./);
+  assert.match(prompt, /Catalog scope: You may suggest movies, TV shows, or anime\./);
+  assert.match(prompt, /Mixed results can come from the movie, TV series, or anime catalogs\./);
+  assert.match(prompt, /The anchor can come from any franchise or medium\./);
   assert.match(prompt, /Every item must include `title` and should include `mediaType` when you know it\./);
   assert.match(prompt, /\{"items":\[\{"title":"Title One","mediaType":"movie"\}/);
   assert.doesNotMatch(prompt, /TMDB is likely to recognize/);
 });
 
-test('search prompt for anime prefers anime catalog naming', () => {
-  const prompt = buildSearchPrompt('anime like naruto', 'anime', 'en-US', {
+test('search prompt prefers reliable catalog titles for mixed results', () => {
+  const prompt = buildSearchPrompt('anime like naruto', 'en-US', {
     isRecommendation: true,
     anchorHint: 'naruto',
   });
 
-  assert.match(prompt, /Only suggest anime titles\./);
-  assert.match(prompt, /Anime results are matched against the anime catalog\./);
-  assert.match(prompt, /Use the best-known English or romanized title/);
+  assert.match(prompt, /Prefer the commonly used catalog title for each result so it can be matched reliably\./);
 });
 
 test('insights prompt adds anime-specific guidance', () => {
