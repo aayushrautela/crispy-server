@@ -4,8 +4,8 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('loadTvdbSeriesBundle falls back from default to official episodes and normalizes year seasons', async () => {
-  const { ProviderMetadataService } = await import('./provider-metadata.service.js');
+test('TvdbCacheService falls back from default to official episodes and normalizes year seasons', async () => {
+  const { TvdbCacheService } = await import('./providers/tvdb-cache.service.js');
 
   const fetchCalls: string[] = [];
   const tvdbClient = {
@@ -39,26 +39,23 @@ test('loadTvdbSeriesBundle falls back from default to official episodes and norm
       };
     },
   };
+  const repo = {
+    getTitleBundle: async () => null,
+    upsertTitleBundle: async () => {},
+  };
 
-  const service = new ProviderMetadataService(
-    tvdbClient as never,
-    {} as never,
-    { ensureTitleCached: async () => null } as never,
-    { resolve: async () => null } as never,
-    { getRating: async () => null } as never,
-  );
-
-  const bundle = await (service as any).loadTvdbSeriesBundle('show-1', null);
+  const service = new TvdbCacheService(repo as never, tvdbClient as never);
+  const bundle = await service.refreshTitleBundle({} as never, 'show-1', null);
 
   assert.deepEqual(fetchCalls, ['default', 'official']);
-  assert.deepEqual(bundle.seasons.map((season: { seasonNumber: number; title: string | null }) => ({
+  assert.deepEqual(bundle.seasons.map((season) => ({
     seasonNumber: season.seasonNumber,
     title: season.title,
   })), [
     { seasonNumber: 1, title: '2022' },
     { seasonNumber: 2, title: '2023' },
   ]);
-  assert.deepEqual(bundle.episodes.map((episode: { seasonNumber: number | null; episodeNumber: number | null }) => ({
+  assert.deepEqual(bundle.episodes.map((episode) => ({
     seasonNumber: episode.seasonNumber,
     episodeNumber: episode.episodeNumber,
   })), [

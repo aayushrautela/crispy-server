@@ -1,5 +1,4 @@
 import type { DbClient } from '../../lib/db.js';
-import { HttpError } from '../../lib/errors.js';
 import type { MediaIdentity, SupportedProvider } from '../identity/media-key.js';
 import {
   buildAbsoluteEpisodeProviderId,
@@ -15,11 +14,15 @@ import {
   extractCrewByJob,
   extractProduction,
   extractRating,
+  extractSimilarTitles,
   extractVideos,
 } from './metadata-builder.shared.js';
 import { KitsuClient } from './providers/kitsu.client.js';
+import type { ProviderBundleExtras, ProviderTitleBundle } from './providers/provider-bundle.types.js';
+import { KitsuCacheService } from './providers/kitsu-cache.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
+import { TvdbCacheService } from './providers/tvdb-cache.service.js';
 import type {
   MetadataCollectionView,
   MetadataCompanyView,
@@ -30,27 +33,9 @@ import type {
   MetadataVideoView,
   ProviderTitleRecord,
 } from './metadata-detail.types.js';
-import type {
-  MetadataExternalIds,
-  MetadataParentMediaType,
-  ProviderEpisodeRecord,
-  ProviderSeasonRecord,
-} from './metadata-card.types.js';
+import type { MetadataExternalIds, ProviderEpisodeRecord, ProviderSeasonRecord } from './metadata-card.types.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { TvdbClient } from './providers/tvdb.client.js';
-
-type ProviderTitleBundle = {
-  title: ProviderTitleRecord;
-  seasons: ProviderSeasonRecord[];
-  episodes: ProviderEpisodeRecord[];
-  extras?: {
-    characters?: Record<string, unknown> | null;
-    staff?: Record<string, unknown> | null;
-    relationships?: Record<string, unknown> | null;
-    productions?: Record<string, unknown> | null;
-    reviews?: Record<string, unknown> | null;
-  };
-};
 
 export type ProviderIdentityContext = {
   title: ProviderTitleRecord | null;
@@ -65,6 +50,7 @@ export type ProviderIdentityContext = {
   reviews: MetadataReviewView[];
   production: MetadataProductionInfoView | null;
   collection: MetadataCollectionView | null;
+  collectionItems: Array<ProviderTitleRecord>;
   similar: Array<ProviderTitleRecord>;
 };
 
@@ -72,6 +58,8 @@ export class ProviderMetadataService {
   constructor(
     private readonly tvdbClient = new TvdbClient(),
     private readonly kitsuClient = new KitsuClient(),
+    private readonly tvdbCacheService = new TvdbCacheService(),
+    private readonly kitsuCacheService = new KitsuCacheService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly tmdbExternalIds = new TmdbExternalIdResolverService(),
     private readonly imdbRatings: ImdbRatingsService = imdbRatingsService,
@@ -102,17 +90,17 @@ export class ProviderMetadataService {
     identity: MediaIdentity,
     language?: string | null,
   ): Promise<ProviderIdentityContext | null> {
-    const bundle = await this.loadBundle(identity, language ?? null);
+    const bundle = await this.loadBundle(client, identity, language ?? null);
     if (!bundle) {
       return null;
     }
 
-    const tmdbFallbackTitle = bundle.title.provider === 'tvdb'
-      ? await this.loadTvdbFallbackTitle(client, bundle.title)
+    const tmdbFallbackTitle = bundle.title.provider === 'tvdb' || bundle.title.provider === 'kitsu'
+      ? await this.loadProviderFallbackTitle(client, bundle.title)
       : null;
-    const title = bundle.title.provider === 'tvdb'
-      ? await this.enrichTvdbTitle(client, bundle.title, tmdbFallbackTitle)
-      : bundle.title;
+    const title = await this.enrichProviderTitle(client, bundle.title, tmdbFallbackTitle);
+    const collection = buildProviderCollection(title, bundle.extras);
+    const collectionItems = buildProviderCollectionItems(title, bundle.extras);
 
     const currentEpisode = selectCurrentEpisode(bundle.episodes, identity);
     return {
@@ -127,8 +115,9 @@ export class ProviderMetadataService {
       creators: buildProviderCrew(title, bundle.extras, ['creator', 'writer', 'author'], tmdbFallbackTitle),
       reviews: buildProviderReviews(title, bundle.extras),
       production: buildProviderProduction(title, bundle.extras, tmdbFallbackTitle),
-      collection: buildProviderCollection(title),
-      similar: buildProviderSimilar(title, bundle.extras),
+      collection,
+      collectionItems,
+      similar: await this.buildProviderSimilar(client, title, tmdbFallbackTitle),
     };
   }
 
@@ -176,132 +165,24 @@ export class ProviderMetadataService {
       .slice(0, limit);
   }
 
-  private async loadBundle(identity: MediaIdentity, language?: string | null): Promise<ProviderTitleBundle | null> {
+  private async loadBundle(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<ProviderTitleBundle | null> {
     const titleProvider = resolveTitleProvider(identity);
     if (!titleProvider) {
       return null;
     }
 
     if (titleProvider.provider === 'tvdb') {
-      return this.loadTvdbSeriesBundle(titleProvider.providerId, language ?? null);
+      return this.tvdbCacheService.ensureTitleBundleCached(client, titleProvider.providerId, language ?? null);
     }
 
     if (titleProvider.provider === 'kitsu') {
-      return this.loadKitsuAnimeBundle(titleProvider.providerId);
+      return this.kitsuCacheService.ensureTitleBundleCached(client, titleProvider.providerId);
     }
 
     return null;
   }
 
-  private async loadTvdbSeriesBundle(seriesId: string, language?: string | null): Promise<ProviderTitleBundle> {
-    const [seriesPayload, episodesPayload] = await Promise.all([
-      this.tvdbClient.fetchSeriesExtended(seriesId),
-      this.fetchTvdbEpisodesWithFallback(seriesId).catch(() => ({ data: [] })),
-    ]);
-
-    const series = asRecord(seriesPayload.data);
-    if (!series) {
-      throw new HttpError(404, 'Show metadata not found.');
-    }
-
-    const title = normalizeTvdbTitle(seriesPayload, seriesId, language ?? null);
-    const normalized = normalizeTvdbSeasons(
-      asArray(series.seasons)
-        .map((entry) => asRecord(entry))
-        .filter((entry): entry is Record<string, unknown> => entry !== null),
-      dedupeProviderEpisodes([
-      ...extractTvdbEpisodes(seriesPayload, seriesId, language ?? null),
-      ...extractTvdbEpisodes(episodesPayload, seriesId, language ?? null),
-      ]),
-    );
-    const episodes = normalized.episodes;
-    const seasons = deriveTvdbSeasons(normalized.seasons, series, seriesId, episodes, title.episodeCount);
-
-    return {
-      title: {
-        ...title,
-        seasonCount: title.seasonCount ?? (seasons.length || null),
-        episodeCount: title.episodeCount ?? (episodes.length || null),
-      },
-      seasons,
-      episodes,
-    };
-  }
-
-  private async loadKitsuAnimeBundle(animeId: string): Promise<ProviderTitleBundle> {
-    const [animePayload, episodesPayload, charactersPayload, staffPayload, relationshipsPayload, productionsPayload, reviewsPayload] = await Promise.all([
-      this.kitsuClient.fetchAnime(animeId),
-      this.fetchAllKitsuEpisodes(animeId).catch(() => ({ data: [] })),
-      this.kitsuClient.fetchAnimeCharacters(animeId).catch(() => ({ data: [], included: [] })),
-      this.kitsuClient.fetchAnimeStaff(animeId).catch(() => ({ data: [], included: [] })),
-      this.kitsuClient.fetchAnimeRelationships(animeId).catch(() => ({ data: [], included: [] })),
-      this.kitsuClient.fetchAnimeProductions(animeId).catch(() => ({ data: [] })),
-      this.kitsuClient.fetchAnimeReviews(animeId).catch(() => ({ data: [] })),
-    ]);
-
-    const anime = asRecord(animePayload.data);
-    if (!anime) {
-      throw new HttpError(404, 'Anime metadata not found.');
-    }
-
-    const included = asArray(animePayload.included);
-    const title = normalizeKitsuTitle(animePayload, animeId);
-    const episodes = dedupeProviderEpisodes([
-      ...extractKitsuEpisodesFromIncluded(included, animeId),
-      ...extractKitsuEpisodesFromPayload(episodesPayload, animeId),
-    ]);
-    const seasons = deriveKitsuSeasons(anime, animeId, episodes);
-
-    return {
-      title: {
-        ...title,
-        seasonCount: title.seasonCount ?? (seasons.length || null),
-        episodeCount: title.episodeCount ?? (episodes.length || null),
-      },
-      seasons,
-      episodes,
-      extras: {
-        characters: charactersPayload,
-        staff: staffPayload,
-        relationships: relationshipsPayload,
-        productions: productionsPayload,
-        reviews: reviewsPayload,
-      },
-    };
-  }
-
-  private async fetchAllKitsuEpisodes(animeId: string): Promise<Record<string, unknown>> {
-    const data: unknown[] = [];
-    let offset = 0;
-    const pageSize = 20;
-
-    for (;;) {
-      const payload = await this.kitsuClient.fetchAnimeEpisodes(animeId, pageSize, offset);
-      const page = asArray(payload.data);
-      if (!page.length) {
-        break;
-      }
-      data.push(...page);
-      if (page.length < pageSize) {
-        break;
-      }
-      offset += page.length;
-    }
-
-    return { data };
-  }
-
-  private async fetchTvdbEpisodesWithFallback(seriesId: string): Promise<Record<string, unknown>> {
-    const defaultPayload = await this.tvdbClient.fetchSeriesEpisodes(seriesId, 'default').catch(() => ({ data: [] }));
-    const defaultEpisodes = extractTvdbEpisodeItems(defaultPayload);
-    if (defaultEpisodes.length > 0) {
-      return defaultPayload;
-    }
-
-    return this.tvdbClient.fetchSeriesEpisodes(seriesId, 'official').catch(() => ({ data: [] }));
-  }
-
-  private async loadTvdbFallbackTitle(client: DbClient, title: ProviderTitleRecord): Promise<TmdbTitleRecord | null> {
+  private async loadProviderFallbackTitle(client: DbClient, title: ProviderTitleRecord): Promise<TmdbTitleRecord | null> {
     let tmdbId = title.externalIds.tmdb;
 
     if (!tmdbId && title.externalIds.imdb) {
@@ -327,7 +208,7 @@ export class ProviderMetadataService {
     return this.tmdbCacheService.ensureTitleCached(client, title.mediaType === 'movie' ? 'movie' : 'tv', tmdbId).catch(() => null);
   }
 
-  private async enrichTvdbTitle(
+  private async enrichProviderTitle(
     client: DbClient,
     title: ProviderTitleRecord,
     tmdbTitle: TmdbTitleRecord | null,
@@ -358,6 +239,77 @@ export class ProviderMetadataService {
       logoUrl: title.logoUrl ?? tmdbImages?.logoUrl ?? null,
       rating,
       certification: title.certification ?? (tmdbTitle ? extractCertification(tmdbTitle) : null),
+    };
+  }
+
+  private async buildProviderSimilar(
+    client: DbClient,
+    title: ProviderTitleRecord,
+    tmdbTitle: TmdbTitleRecord | null,
+  ): Promise<ProviderTitleRecord[]> {
+    if (!tmdbTitle) {
+      return [];
+    }
+
+    const tmdbSimilar = extractSimilarTitles(tmdbTitle);
+    if (title.provider === 'tvdb') {
+      const similar = await Promise.all(tmdbSimilar.map((entry) => this.buildTvdbSimilarTitle(client, entry)));
+      return dedupeProviderTitles(similar.filter((entry): entry is ProviderTitleRecord => entry !== null));
+    }
+
+    if (title.provider === 'kitsu') {
+      const similar = await Promise.all(tmdbSimilar.map((entry) => this.buildKitsuSimilarTitle(client, entry)));
+      return dedupeProviderTitles(similar.filter((entry): entry is ProviderTitleRecord => entry !== null));
+    }
+
+    return [];
+  }
+
+  private async buildTvdbSimilarTitle(client: DbClient, title: TmdbTitleRecord): Promise<ProviderTitleRecord | null> {
+    const cached = await this.tmdbCacheService.ensureTitleCached(client, 'tv', title.tmdbId).catch(() => null);
+    if (!cached) {
+      return null;
+    }
+
+    const tvdbId = asInteger(cached.externalIds.tvdb_id);
+    if (!tvdbId) {
+      return null;
+    }
+
+    return buildProviderTitleFromTmdbTitle('show', 'tvdb', String(tvdbId), cached, {
+      tmdb: cached.tmdbId,
+      imdb: asString(cached.externalIds.imdb_id),
+      tvdb: tvdbId,
+      kitsu: null,
+    });
+  }
+
+  private async buildKitsuSimilarTitle(client: DbClient, title: TmdbTitleRecord): Promise<ProviderTitleRecord | null> {
+    const cached = await this.tmdbCacheService.ensureTitleCached(client, 'tv', title.tmdbId).catch(() => null);
+    if (!cached) {
+      return null;
+    }
+
+    const tvdbId = asInteger(cached.externalIds.tvdb_id);
+    if (!tvdbId) {
+      return null;
+    }
+
+    const payload = await this.kitsuClient.fetchMappingsByExternal('thetvdb', String(tvdbId), 'item', 1).catch(() => null);
+    const mappedAnime = extractKitsuMappedAnime(payload);
+    if (!mappedAnime) {
+      return null;
+    }
+
+    const normalized = normalizeKitsuTitle({ data: mappedAnime, included: [] }, asString(mappedAnime.id) ?? '');
+    return {
+      ...normalized,
+      externalIds: {
+        ...normalized.externalIds,
+        tmdb: cached.tmdbId,
+        imdb: asString(cached.externalIds.imdb_id),
+        tvdb: tvdbId,
+      },
     };
   }
 }
@@ -1133,6 +1085,7 @@ export function buildProviderProduction(
   extras?: ProviderTitleBundle['extras'],
   tmdbTitle?: TmdbTitleRecord | null,
 ): MetadataProductionInfoView | null {
+  const tmdbProduction = tmdbTitle ? extractProduction(tmdbTitle) : null;
   if (title.provider === 'tvdb') {
     const data = asRecord(asRecord(title.raw)?.data) ?? {};
     const companies = asArray(data.companies)
@@ -1154,24 +1107,38 @@ export function buildProviderProduction(
       networks,
     } satisfies MetadataProductionInfoView;
 
-    if (production.companies.length || production.networks.length || production.originalLanguage || production.originCountries.length) {
-      return production;
-    }
-
-    return tmdbTitle ? extractProduction(tmdbTitle) : production;
+    return mergeProductionInfo(tmdbProduction, production);
   }
 
-  return buildKitsuProduction(extras);
+  return mergeProductionInfo(tmdbProduction, buildKitsuProduction(extras));
 }
 
-function buildProviderCollection(_title: ProviderTitleRecord): MetadataCollectionView | null {
-  return null;
+function buildProviderCollection(title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): MetadataCollectionView | null {
+  if (title.provider !== 'kitsu') {
+    return null;
+  }
+
+  const items = buildProviderCollectionItems(title, extras);
+  if (!items.length) {
+    return null;
+  }
+
+  return {
+    id: `collection:kitsu:${title.providerId}`,
+    provider: 'kitsu',
+    providerId: title.providerId,
+    name: title.title ? `${title.title} Collection` : 'Collection',
+    posterUrl: title.posterUrl,
+    backdropUrl: title.backdropUrl,
+    parts: [],
+  };
 }
 
-function buildProviderSimilar(title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): ProviderTitleRecord[] {
+function buildProviderCollectionItems(title: ProviderTitleRecord, extras?: ProviderTitleBundle['extras']): ProviderTitleRecord[] {
   if (title.provider !== 'kitsu') {
     return [];
   }
+
   return buildKitsuSimilar(title, extras);
 }
 
@@ -1330,28 +1297,43 @@ function buildKitsuProduction(extras?: ProviderTitleBundle['extras']): MetadataP
 
 function buildKitsuReviews(extras?: ProviderTitleBundle['extras']): MetadataReviewView[] {
   const payload = asRecord(extras?.reviews);
+  const included = asArray(payload?.included)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const usersById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'users')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+
   return asArray(payload?.data)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .flatMap((entry) => {
       const attrs = asRecord(entry.attributes);
+      const relationships = asRecord(entry.relationships);
       const id = asString(entry.id);
       const content = asString(attrs?.content);
       if (!id || !content) {
         return [];
       }
 
+      const userId = asString(asRecord(asRecord(relationships?.user)?.data)?.id);
+      const user = userId ? usersById.get(userId) ?? null : null;
+      const userAttrs = asRecord(user?.attributes);
+
       return [{
         id,
         provider: 'kitsu',
-        author: asString(attrs?.source),
-        username: asString(attrs?.source),
+        author: asString(userAttrs?.name) ?? asString(userAttrs?.slug) ?? asString(attrs?.source),
+        username: asString(userAttrs?.slug) ?? asString(userAttrs?.name) ?? asString(attrs?.source),
         content,
         createdAt: asString(attrs?.createdAt),
         updatedAt: asString(attrs?.updatedAt),
         url: null,
         rating: asInteger(attrs?.ratingTwenty) !== null ? Math.round((asInteger(attrs?.ratingTwenty) ?? 0) / 2) : null,
-        avatarUrl: null,
+        avatarUrl: extractKitsuImageUrl(asRecord(userAttrs?.avatarImage)) ?? extractKitsuImageUrl(asRecord(userAttrs?.avatar)),
       } satisfies MetadataReviewView];
     });
 }
@@ -1405,6 +1387,107 @@ function buildProviderCompany(
     logoUrl: asString(record.image),
     originCountry: asString(record.country),
   };
+}
+
+function mergeProductionInfo(
+  preferred: MetadataProductionInfoView | null,
+  fallback: MetadataProductionInfoView | null,
+): MetadataProductionInfoView | null {
+  if (!preferred && !fallback) {
+    return null;
+  }
+  if (!preferred) {
+    return fallback;
+  }
+  if (!fallback) {
+    return preferred;
+  }
+
+  return {
+    originalLanguage: preferred.originalLanguage ?? fallback.originalLanguage,
+    originCountries: uniqueStrings([...preferred.originCountries, ...fallback.originCountries]),
+    spokenLanguages: uniqueStrings([...preferred.spokenLanguages, ...fallback.spokenLanguages]),
+    productionCountries: uniqueStrings([...preferred.productionCountries, ...fallback.productionCountries]),
+    companies: mergeCompanies(preferred.companies, fallback.companies),
+    networks: mergeCompanies(preferred.networks, fallback.networks),
+  };
+}
+
+function mergeCompanies(preferred: MetadataCompanyView[], fallback: MetadataCompanyView[]): MetadataCompanyView[] {
+  const merged = new Map<string, MetadataCompanyView>();
+  for (const company of [...preferred, ...fallback]) {
+    const key = `${company.name.toLowerCase()}:${company.originCountry ?? ''}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, company);
+      continue;
+    }
+    merged.set(key, {
+      ...existing,
+      logoUrl: existing.logoUrl ?? company.logoUrl,
+      originCountry: existing.originCountry ?? company.originCountry,
+    });
+  }
+
+  return [...merged.values()];
+}
+
+function buildProviderTitleFromTmdbTitle(
+  mediaType: 'show' | 'anime',
+  provider: 'tvdb' | 'kitsu',
+  providerId: string,
+  title: TmdbTitleRecord,
+  externalIds: MetadataExternalIds,
+): ProviderTitleRecord {
+  const images = buildMetadataImages(title, null);
+  const raw = asRecord(title.raw) ?? {};
+
+  return {
+    mediaType,
+    provider,
+    providerId,
+    title: title.name,
+    originalTitle: title.originalName,
+    summary: title.overview,
+    overview: title.overview,
+    releaseDate: title.firstAirDate ?? title.releaseDate,
+    status: title.status,
+    posterUrl: images.posterUrl,
+    backdropUrl: images.backdropUrl,
+    logoUrl: images.logoUrl,
+    runtimeMinutes: title.runtime ?? title.episodeRunTime[0] ?? null,
+    rating: extractRating(title, null),
+    certification: extractCertification(title),
+    genres: asArray(raw.genres)
+      .map((entry) => asString(asRecord(entry)?.name))
+      .filter((entry): entry is string => Boolean(entry)),
+    externalIds,
+    seasonCount: title.numberOfSeasons,
+    episodeCount: title.numberOfEpisodes,
+    raw,
+  };
+}
+
+function extractKitsuMappedAnime(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!payload) {
+    return null;
+  }
+
+  const included = asArray(payload.included)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const animeById = new Map(
+    included
+      .filter((entry) => asString(entry.type) === 'anime')
+      .map((entry) => [asString(entry.id) ?? '', entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+
+  const mapping = asArray(payload.data)
+    .map((entry) => asRecord(entry))
+    .find((entry): entry is Record<string, unknown> => entry !== null) ?? null;
+  const itemId = asString(asRecord(asRecord(asRecord(mapping?.relationships)?.item)?.data)?.id);
+  return itemId ? animeById.get(itemId) ?? null : null;
 }
 
 function uniqueStrings(values: Array<string | null>): string[] {

@@ -83,8 +83,23 @@ export class KitsuClient {
     });
   }
 
-  async fetchAnimeReviews(animeId: string | number, limit = 20): Promise<Record<string, unknown>> {
+  async fetchAnimeReviews(animeId: string | number, limit = 20, include = 'user'): Promise<Record<string, unknown>> {
     return this.request(`/anime/${encodeURIComponent(String(animeId))}/reviews`, {
+      include,
+      'page[limit]': limit,
+    });
+  }
+
+  async fetchMappingsByExternal(
+    externalSite: string,
+    externalId: string | number,
+    include = 'item',
+    limit = 1,
+  ): Promise<Record<string, unknown>> {
+    return this.request('/mappings', {
+      'filter[externalSite]': externalSite,
+      'filter[externalId]': externalId,
+      include,
       'page[limit]': limit,
     });
   }

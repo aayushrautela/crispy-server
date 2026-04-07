@@ -116,7 +116,12 @@ export class MetadataDetailCoreService {
         directors: providerContext?.directors ?? [],
         creators: providerContext?.creators ?? [],
         production: providerContext?.production ?? emptyProductionInfo(),
-        collection: providerContext?.collection ?? null,
+        collection: providerContext?.collection
+          ? {
+              ...providerContext.collection,
+              parts: await this.buildProviderSimilarCards(client, providerContext.collectionItems ?? []),
+            }
+          : null,
         similar: await this.buildProviderSimilarCards(client, providerContext?.similar ?? []),
       };
     }

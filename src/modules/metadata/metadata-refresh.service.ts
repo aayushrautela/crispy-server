@@ -1,9 +1,9 @@
 import type { DbClient } from '../../lib/db.js';
 import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
-import { ProviderMetadataService } from './provider-metadata.service.js';
+import { KitsuRefreshService } from './providers/kitsu-refresh.service.js';
 import { TmdbRefreshService, type MetadataRefreshSummary } from './providers/tmdb-refresh.service.js';
+import { TvdbRefreshService } from './providers/tvdb-refresh.service.js';
 import { MetadataRefreshQueryService } from './metadata-refresh-query.service.js';
-import { WatchV2MetadataService } from '../watch-v2/watch-v2-metadata.service.js';
 
 type TrackedMediaIdentity = MediaIdentity & {
   mediaType: 'show' | 'anime';
@@ -34,8 +34,8 @@ export class MetadataRefreshService {
   constructor(
     private readonly tmdbRefreshService = new TmdbRefreshService(),
     private readonly metadataRefreshQueryService = new MetadataRefreshQueryService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
-    private readonly watchV2MetadataService = new WatchV2MetadataService(),
+    private readonly tvdbRefreshService = new TvdbRefreshService(),
+    private readonly kitsuRefreshService = new KitsuRefreshService(),
   ) {}
 
   async refreshProfileTrackedTitles(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
@@ -128,30 +128,15 @@ export class MetadataRefreshService {
     profileId: string,
     trackedIdentity: TrackedMediaIdentity,
   ): Promise<MetadataRefreshSummary> {
+    if (trackedIdentity.provider === 'tvdb') {
+      return this.tvdbRefreshService.refreshIdentity(client, profileId, trackedIdentity);
+    }
+    if (trackedIdentity.provider === 'kitsu') {
+      return this.kitsuRefreshService.refreshIdentity(client, profileId, trackedIdentity);
+    }
+
     const summary = emptySummary();
-    const context = await this.providerMetadataService.loadIdentityContext(client, trackedIdentity);
-    if (!context?.title) {
-      summary.skipped += 1;
-      return summary;
-    }
-
-    const trackedTitle = await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, trackedIdentity.mediaKey);
-    if (!trackedTitle) {
-      summary.skipped += 1;
-      return summary;
-    }
-
-    await this.watchV2MetadataService.upsertTrackedTitleState(client, {
-      profileId,
-      titleContentId: trackedTitle.titleContentId,
-      titleMediaKey: trackedTitle.trackedMediaKey,
-      nextEpisodeAirDate: context.nextEpisode?.airDate ?? null,
-      metadataRefreshedAt: new Date().toISOString(),
-      payload: trackedTitle.payload ?? {},
-    });
-
-    summary.refreshedTitles += 1;
-    summary.refreshedTrackedShows += 1;
+    summary.skipped += 1;
     return summary;
   }
 }
