@@ -117,6 +117,16 @@ function toNullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function hasRecommendationPayload(record: TmdbTitleRecord): boolean {
+  const recommendations = (record.raw as Record<string, unknown>).recommendations;
+  return typeof recommendations === 'object' && recommendations !== null;
+}
+
+function usesLegacySimilarPayload(record: TmdbTitleRecord): boolean {
+  const raw = record.raw as Record<string, unknown>;
+  return !hasRecommendationPayload(record) && typeof raw.similar === 'object' && raw.similar !== null;
+}
+
 export class TmdbCacheService {
   constructor(
     private readonly tmdbRepository = new TmdbRepository(),
@@ -125,7 +135,8 @@ export class TmdbCacheService {
 
   async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
     const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId);
-    if (cached && Date.parse(cached.expiresAt) > Date.now()) {
+    const hasLegacySimilarPayload = cached ? usesLegacySimilarPayload(cached) : false;
+    if (cached && !hasLegacySimilarPayload && Date.parse(cached.expiresAt) > Date.now()) {
       return cached;
     }
 
@@ -133,7 +144,7 @@ export class TmdbCacheService {
       const fetched = await this.refreshTitle(client, mediaType, tmdbId);
       return fetched ?? cached;
     } catch (error) {
-      if (cached) {
+      if (cached && !hasLegacySimilarPayload) {
         return cached;
       }
       throw error;

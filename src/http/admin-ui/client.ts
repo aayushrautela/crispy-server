@@ -710,6 +710,28 @@ export const ADMIN_UI_CLIENT = String.raw`
   function bindProfileActionButtons(accountId, profileId, container) {
     const messageEl = elements.profileDetailMessage;
 
+    const recommendationButtons = Array.from(container.querySelectorAll('[data-start-recommendations]'));
+    for (const button of recommendationButtons) {
+      button.onclick = async () => {
+        button.disabled = true;
+        setMessage(messageEl, 'info', 'Queueing recommendation generation...');
+        try {
+          await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations/start'), {
+            method: 'POST',
+          });
+          setMessage(messageEl, 'success', 'Queued recommendation generation for this profile.');
+          pushNotification('success', 'Recommendation generation queued', 'Queued recommendation generation for profile ' + profileId + '.', true);
+          await inspectProfile(accountId, profileId);
+        } catch (error) {
+          const description = describeApiError(error, 'Unable to queue recommendation generation.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'Recommendation queue failed', description, true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
+
     const importButtons = Array.from(container.querySelectorAll('[data-start-import]'));
     for (const button of importButtons) {
       button.onclick = async () => {
@@ -1025,6 +1047,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard('Provider + import state',
       '<div class="inline-actions">'
         + '<button type="button" class="secondary" data-refresh-profile-view="true">Refresh profile panel</button>'
+        + '<button type="button" class="secondary" data-start-recommendations="true">Generate recommendations</button>'
         + '<button type="button" data-start-import="trakt">Import Trakt watch data</button>'
         + '<button type="button" data-start-import="simkl">Import Simkl watch data</button>'
       + '</div>'

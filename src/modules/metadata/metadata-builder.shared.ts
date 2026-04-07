@@ -344,7 +344,7 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
 }
 
 export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRecord[] {
-  return asArray(asRecord(title?.raw.similar)?.results)
+  return asArray(asRecord(title?.raw.recommendations)?.results)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .map((entry): TmdbTitleRecord | null => {

@@ -18,6 +18,7 @@ import type {
 import { isProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
+import { RecommendationGenerationDispatcher } from '../../modules/recommendations/recommendation-generation-dispatcher.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { mapProviderAccountView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 
@@ -40,6 +41,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const providerTokenAccessService = new ProviderTokenAccessService();
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
+  const recommendationGenerationDispatcher = new RecommendationGenerationDispatcher();
   const recommendationOutputService = new RecommendationOutputService();
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
@@ -277,6 +279,19 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
       watchDataState: started.watchDataState,
       providerAccount: started.providerAccount ? mapProviderAccountView(started.providerAccount) : null,
       job: mapProviderImportJobView(started.job),
+    };
+  });
+
+  app.post('/admin/api/accounts/:accountId/profiles/:profileId/recommendations/start', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = parseAccountProfileParams(request.params);
+    await recommendationGenerationDispatcher.scheduleProfileGeneration(params.profileId, 0);
+    reply.code(202);
+    return {
+      queued: true,
+      profileId: params.profileId,
+      sourceKey: recommendationConfig.sourceKey,
+      algorithmVersion: recommendationConfig.algorithmVersion,
     };
   });
 

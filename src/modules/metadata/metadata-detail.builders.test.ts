@@ -182,7 +182,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
         { id: 101, title: 'Saga Collection: Part I', overview: 'The beginning.', release_date: '2020-01-01', poster_path: '/part1-poster.jpg', backdrop_path: '/part1-backdrop.jpg' },
         { id: 102, title: 'Saga Collection: Part II', overview: 'The sequel.', release_date: '2021-01-01', poster_path: '/part2-poster.jpg', backdrop_path: '/part2-backdrop.jpg' },
       ],
-      similar: {
+      recommendations: {
         results: [
           { id: 77, name: 'Breaking Point: Aftermath', original_name: 'Breaking Point: Aftermath', overview: 'Another chapter.', first_air_date: '2025-01-01', poster_path: '/similar-poster.jpg', backdrop_path: '/similar-backdrop.jpg' },
         ],
