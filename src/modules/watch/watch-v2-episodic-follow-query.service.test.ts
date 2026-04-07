@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-test('WatchV2TrackedQueryService resolves mediaKey to contentId before querying tracked titles', async () => {
-  const { WatchV2TrackedQueryService } = await import('./watch-v2-tracked-query.service.js');
+test('WatchV2EpisodicFollowQueryService resolves mediaKey to contentId before querying episodic follow rows', async () => {
+  const { WatchV2EpisodicFollowQueryService } = await import('./watch-v2-episodic-follow-query.service.js');
 
   let capturedSql = '';
   let capturedParams: unknown[] = [];
@@ -29,7 +29,7 @@ test('WatchV2TrackedQueryService resolves mediaKey to contentId before querying 
     },
   };
 
-  const service = new WatchV2TrackedQueryService({
+  const service = new WatchV2EpisodicFollowQueryService({
     ensureContentId: async (_client: unknown, identity: { mediaKey: string }) => {
       ensuredMediaKey = identity.mediaKey;
       return '11111111-1111-4111-8111-111111111111';
@@ -39,12 +39,12 @@ test('WatchV2TrackedQueryService resolves mediaKey to contentId before querying 
     },
   } as never);
 
-  const result = await service.getTrackedTitleByMediaKey(client as never, 'profile-1', 'show:tvdb:100');
+  const result = await service.getEpisodicFollowByMediaKey(client as never, 'profile-1', 'show:tvdb:100');
 
   assert.equal(ensuredMediaKey, 'show:tvdb:100');
   assert.match(capturedSql, /projection\.title_content_id = \$2::uuid/);
   assert.doesNotMatch(capturedSql, /projection\.title_media_key = \$2/);
   assert.deepEqual(capturedParams, ['profile-1', '11111111-1111-4111-8111-111111111111']);
   assert.equal(result?.titleContentId, '11111111-1111-4111-8111-111111111111');
-  assert.equal(result?.trackedMediaKey, 'show:tvdb:100');
+  assert.equal(result?.seriesMediaKey, 'show:tvdb:100');
 });

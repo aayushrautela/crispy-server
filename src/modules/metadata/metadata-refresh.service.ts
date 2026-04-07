@@ -5,7 +5,7 @@ import { TmdbRefreshService, type MetadataRefreshSummary } from './providers/tmd
 import { TvdbRefreshService } from './providers/tvdb-refresh.service.js';
 import { MetadataRefreshQueryService } from './metadata-refresh-query.service.js';
 
-type TrackedMediaIdentity = MediaIdentity & {
+type EpisodicSeriesIdentity = MediaIdentity & {
   mediaType: 'show' | 'anime';
   provider: NonNullable<MediaIdentity['provider']>;
   providerId: NonNullable<MediaIdentity['providerId']>;
@@ -38,28 +38,24 @@ export class MetadataRefreshService {
     private readonly kitsuRefreshService = new KitsuRefreshService(),
   ) {}
 
-  async refreshProfileTrackedTitles(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
+  async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
-    const tracked = await this.metadataRefreshQueryService.listTrackedTitles(client, profileId, limit);
+    const episodicFollow = await this.metadataRefreshQueryService.listEpisodicFollow(client, profileId, limit);
 
-    if (tracked.length === 0) {
+    if (episodicFollow.length === 0) {
       summary.skipped += 1;
       return summary;
     }
 
-    for (const row of tracked) {
+    for (const row of episodicFollow) {
       try {
-        mergeSummary(summary, await this.refreshTrackedSeriesRecord(client, profileId, row));
+        mergeSummary(summary, await this.refreshEpisodicFollowRecord(client, profileId, row));
       } catch {
         summary.failures += 1;
       }
     }
 
     return summary;
-  }
-
-  async refreshProfileTrackedSeries(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
-    return this.refreshProfileTrackedTitles(client, profileId, limit);
   }
 
   async refreshMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<MetadataRefreshSummary> {
@@ -71,40 +67,40 @@ export class MetadataRefreshService {
       return this.tmdbRefreshService.refreshIdentity(client, profileId, identity);
     }
 
-    const trackedIdentity = toTrackedIdentity(identity);
-    if (!trackedIdentity) {
+    const seriesIdentity = toEpisodicSeriesIdentity(identity);
+    if (!seriesIdentity) {
       const summary = emptySummary();
       summary.skipped += 1;
       return summary;
     }
 
-    const showTmdbId = trackedIdentity.tmdbId ?? showTmdbIdForIdentity(trackedIdentity);
+    const showTmdbId = seriesIdentity.tmdbId ?? showTmdbIdForIdentity(seriesIdentity);
     if (showTmdbId) {
-      const trackedTitle = trackedIdentity.contentId
-        ? await this.metadataRefreshQueryService.getTrackedTitleByContentId(client, profileId, trackedIdentity.contentId)
-        : await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, trackedIdentity.mediaKey);
+      const episodicFollow = seriesIdentity.contentId
+        ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, seriesIdentity.contentId)
+        : await this.metadataRefreshQueryService.getEpisodicFollowByMediaKey(client, profileId, seriesIdentity.mediaKey);
       return this.tmdbRefreshService.refreshShow(
         client,
         profileId,
         showTmdbId,
         identity.seasonNumber,
-        trackedTitle
+        episodicFollow
           ? {
-              titleContentId: trackedTitle.titleContentId,
-              trackedMediaKey: trackedTitle.trackedMediaKey,
-              payload: trackedTitle.payload,
+              titleContentId: episodicFollow.titleContentId,
+              seriesMediaKey: episodicFollow.seriesMediaKey,
+              payload: episodicFollow.payload,
             }
           : undefined,
       );
     }
 
-    return this.refreshProviderTrackedIdentity(client, profileId, trackedIdentity);
+    return this.refreshProviderSeriesIdentity(client, profileId, seriesIdentity);
   }
 
-  private async refreshTrackedSeriesRecord(
+  private async refreshEpisodicFollowRecord(
     client: DbClient,
     profileId: string,
-    row: Awaited<ReturnType<MetadataRefreshQueryService['listTrackedTitles']>>[number],
+    row: Awaited<ReturnType<MetadataRefreshQueryService['listEpisodicFollow']>>[number],
   ): Promise<MetadataRefreshSummary> {
     if (row.showTmdbId) {
       return this.tmdbRefreshService.refreshShow(
@@ -114,25 +110,25 @@ export class MetadataRefreshService {
         null,
         {
           titleContentId: row.titleContentId,
-          trackedMediaKey: row.trackedMediaKey,
+          seriesMediaKey: row.seriesMediaKey,
           payload: row.payload,
         },
       );
     }
 
-    return this.refreshMediaKey(client, profileId, row.trackedMediaKey);
+    return this.refreshMediaKey(client, profileId, row.seriesMediaKey);
   }
 
-  private async refreshProviderTrackedIdentity(
+  private async refreshProviderSeriesIdentity(
     client: DbClient,
     profileId: string,
-    trackedIdentity: TrackedMediaIdentity,
+    seriesIdentity: EpisodicSeriesIdentity,
   ): Promise<MetadataRefreshSummary> {
-    if (trackedIdentity.provider === 'tvdb') {
-      return this.tvdbRefreshService.refreshIdentity(client, profileId, trackedIdentity);
+    if (seriesIdentity.provider === 'tvdb') {
+      return this.tvdbRefreshService.refreshIdentity(client, profileId, seriesIdentity);
     }
-    if (trackedIdentity.provider === 'kitsu') {
-      return this.kitsuRefreshService.refreshIdentity(client, profileId, trackedIdentity);
+    if (seriesIdentity.provider === 'kitsu') {
+      return this.kitsuRefreshService.refreshIdentity(client, profileId, seriesIdentity);
     }
 
     const summary = emptySummary();
@@ -141,7 +137,7 @@ export class MetadataRefreshService {
   }
 }
 
-function toTrackedIdentity(identity: MediaIdentity): TrackedMediaIdentity | null {
+function toEpisodicSeriesIdentity(identity: MediaIdentity): EpisodicSeriesIdentity | null {
   if ((identity.mediaType === 'show' || identity.mediaType === 'anime') && identity.provider && identity.providerId) {
     return {
       ...identity,

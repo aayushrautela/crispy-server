@@ -18,7 +18,6 @@ src/modules/
 ├── profiles/          # Profile ownership and access (ProfileAccessService)
 ├── metadata/          # Content facts, provider sync, scheduling, card/detail assembly
 ├── watch/             # Profile activity only (projections, raw queries, exports)
-├── home/              # Home screen composition (uses WatchExportService + MetadataCardService)
 ├── calendar/          # Calendar composition (uses WatchExportService + MetadataCardService + MetadataScheduleService)
 ├── library/           # Library composition (uses WatchExportService + MetadataCardService)
 ├── recommendations/   # Recommendation data (uses WatchExportService + MetadataCardService)
@@ -48,8 +47,8 @@ src/modules/
 
 - `identity`: System-wide content identity language (MediaIdentity, parseMediaKey, inferMediaIdentity)
 - `metadata`: Content facts, provider sync, scheduling, card/detail assembly, provider metadata
-- `watch`: Profile activity (watch events, progress, history, continue watching, watchlist, ratings, tracked series)
-- `surfaces` (home, calendar, library): Composed read surfaces that delegate to watch and metadata services
+- `watch`: Profile activity (watch events, progress, history, continue watching, watchlist, ratings, episodic follow state)
+- `surfaces` (calendar, library): Composed read surfaces that delegate to watch and metadata services
 
 ## System Boundary
 

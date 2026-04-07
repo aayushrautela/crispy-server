@@ -4,7 +4,7 @@ import { seedTestEnv } from '../../../test-helpers.js';
 
 seedTestEnv();
 
-test('KitsuRefreshService refreshes cached bundle and tracked title state', async () => {
+test('KitsuRefreshService refreshes cached bundle and episodic follow state', async () => {
   const { KitsuRefreshService } = await import('./kitsu-refresh.service.js');
   const writes: Array<Record<string, unknown>> = [];
 
@@ -17,15 +17,15 @@ test('KitsuRefreshService refreshes cached bundle and tracked title state', asyn
       }),
     } as never,
     {
-      getTrackedTitleByMediaKey: async () => ({
+      getEpisodicFollowByMediaKey: async () => ({
         titleContentId: 'content-anime-1',
-        trackedMediaKey: 'anime:kitsu:1',
+        seriesMediaKey: 'anime:kitsu:1',
         payload: { source: 'test' },
       }),
-      getTrackedTitleByContentId: async () => null,
+      getEpisodicFollowByContentId: async () => null,
     } as never,
     {
-      upsertTrackedTitleState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
+      upsertEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
     } as never,
   );
 

@@ -6,7 +6,7 @@ import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.j
 import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
 import { normalizeIsoString } from '../../lib/time.js';
-import { homeCacheKey, calendarCacheKey } from '../cache/cache-keys.js';
+import { calendarCacheKey } from '../cache/cache-keys.js';
 import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
@@ -526,7 +526,7 @@ export class ProviderImportService {
       }
 
       try {
-        await redis.del(homeCacheKey(runningJob.profileId), calendarCacheKey(runningJob.profileId));
+        await redis.del(calendarCacheKey(runningJob.profileId));
       } catch (error) {
         warnings.push(`failed to invalidate caches: ${error instanceof Error ? error.message : 'unknown error'}`);
       }

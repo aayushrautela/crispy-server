@@ -78,3 +78,11 @@ export type CalendarResponse = {
   generatedAt: string;
   items: CalendarItem[];
 };
+
+export type ThisWeekResponse = {
+  profileId: string;
+  source: 'canonical_calendar';
+  kind: 'this-week';
+  generatedAt: string;
+  items: CalendarItem[];
+};

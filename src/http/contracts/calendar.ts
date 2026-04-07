@@ -27,7 +27,7 @@ export const calendarItemSchema = {
   },
 } as const;
 
-const profileCalendarResponseSchema = {
+const profileCalendarBaseResponseSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['profileId', 'source', 'generatedAt', 'items'],
@@ -42,9 +42,29 @@ const profileCalendarResponseSchema = {
   },
 } as const;
 
+const profileCalendarResponseSchema = {
+  ...profileCalendarBaseResponseSchema,
+} as const;
+
+const profileThisWeekResponseSchema = {
+  ...profileCalendarBaseResponseSchema,
+  required: ['profileId', 'source', 'kind', 'generatedAt', 'items'],
+  properties: {
+    ...profileCalendarBaseResponseSchema.properties,
+    kind: { const: 'this-week' },
+  },
+} as const;
+
 export const profileCalendarRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   response: {
     200: profileCalendarResponseSchema,
+  },
+});
+
+export const profileThisWeekRouteSchema = withDefaultErrorResponses({
+  params: profileIdParamsSchema,
+  response: {
+    200: profileThisWeekResponseSchema,
   },
 });

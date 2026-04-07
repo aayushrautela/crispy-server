@@ -6,24 +6,22 @@ seedTestEnv();
 
 const { ProjectionRefreshDispatcher } = await import('./projection-refresh-dispatcher.js');
 
-test('notifyProfileChanged enqueues home and calendar refresh', async () => {
+test('invalidateCalendar enqueues calendar refresh', async () => {
   const enqueued: string[] = [];
   const mockQueue = {
-    enqueueRefreshHomeCache: async (profileId: string) => { enqueued.push(`home:v2:${profileId}`); },
     enqueueRefreshCalendarCache: async (profileId: string) => { enqueued.push(`calendar:v2:${profileId}`); },
     enqueueMetadataRefresh: async () => {},
   };
 
   const dispatcher = new ProjectionRefreshDispatcher({ warn: () => {} } as never, mockQueue);
-  await dispatcher.notifyProfileChanged('profile-1');
+  await dispatcher.invalidateCalendar('profile-1');
 
-  assert.deepEqual(enqueued, ['home:v2:profile-1', 'calendar:v2:profile-1']);
+  assert.deepEqual(enqueued, ['calendar:v2:profile-1']);
 });
 
-test('notifyProfileChanged enqueues metadata refresh when mediaKey provided', async () => {
+test('refreshMetadata enqueues metadata refresh when mediaKey provided', async () => {
   const enqueued: string[] = [];
   const mockQueue = {
-    enqueueRefreshHomeCache: async () => {},
     enqueueRefreshCalendarCache: async () => {},
     enqueueMetadataRefresh: async (profileId: string, mediaKey?: string) => {
       enqueued.push(`metadata:${profileId}:${mediaKey}`);
@@ -31,15 +29,14 @@ test('notifyProfileChanged enqueues metadata refresh when mediaKey provided', as
   };
 
   const dispatcher = new ProjectionRefreshDispatcher({ warn: () => {} } as never, mockQueue);
-  await dispatcher.notifyProfileChanged('profile-1', { mediaKey: 'movie:tmdb:1' });
+  await dispatcher.refreshMetadata('profile-1', 'movie:tmdb:1');
 
   assert.deepEqual(enqueued, ['metadata:profile-1:movie:tmdb:1']);
 });
 
-test('notifyProfileChanged skips metadata refresh when refreshMetadata is false', async () => {
+test('refreshMetadata accepts missing mediaKey', async () => {
   const enqueued: string[] = [];
   const mockQueue = {
-    enqueueRefreshHomeCache: async () => {},
     enqueueRefreshCalendarCache: async () => {},
     enqueueMetadataRefresh: async (profileId: string, mediaKey?: string) => {
       enqueued.push(`metadata:${profileId}:${mediaKey}`);
@@ -47,16 +44,15 @@ test('notifyProfileChanged skips metadata refresh when refreshMetadata is false'
   };
 
   const dispatcher = new ProjectionRefreshDispatcher({ warn: () => {} } as never, mockQueue);
-  await dispatcher.notifyProfileChanged('profile-1', { mediaKey: 'movie:tmdb:1', refreshMetadata: false });
+  await dispatcher.refreshMetadata('profile-1');
 
-  assert.deepEqual(enqueued, []);
+  assert.deepEqual(enqueued, ['metadata:profile-1:undefined']);
 });
 
-test('notifyProfileChanged swallows queue errors and logs warning', async () => {
+test('invalidateCalendar swallows queue errors and logs warning', async () => {
   let warned = false;
   const mockQueue = {
-    enqueueRefreshHomeCache: async () => { throw new Error('queue down'); },
-    enqueueRefreshCalendarCache: async () => {},
+    enqueueRefreshCalendarCache: async () => { throw new Error('queue down'); },
     enqueueMetadataRefresh: async () => {},
   };
 
@@ -64,6 +60,6 @@ test('notifyProfileChanged swallows queue errors and logs warning', async () => 
     warn: () => { warned = true; },
   } as never, mockQueue);
 
-  await dispatcher.notifyProfileChanged('profile-1');
+  await dispatcher.invalidateCalendar('profile-1');
   assert.equal(warned, true);
 });

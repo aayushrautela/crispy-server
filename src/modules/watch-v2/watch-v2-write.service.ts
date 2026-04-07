@@ -559,15 +559,15 @@ export class WatchV2WriteService {
 
     if (!keepProjection) {
       await this.repository.deleteTitleProjection(client, profileId, resolved.titleContentId);
-      await this.metadataService.deleteTrackedTitleState(client, profileId, resolved.titleContentId);
+      await this.metadataService.deleteEpisodicFollowState(client, profileId, resolved.titleContentId);
       return;
     }
 
-    await this.metadataService.syncTrackedTitleState(client, {
+    await this.metadataService.syncEpisodicFollowState(client, {
       profileId,
       titleContentId: resolved.titleContentId,
       titleMediaKey: resolved.title.mediaKey,
-      trackedIdentity:
+      seriesIdentity:
         resolved.title.mediaType === 'show' || resolved.title.mediaType === 'anime'
           ? inferMediaIdentity({
               mediaKey: resolved.title.mediaKey,

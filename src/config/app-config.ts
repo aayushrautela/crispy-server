@@ -28,7 +28,6 @@ type AppConfig = {
     profileName: string;
   };
   cache: {
-    homeTtlSeconds: number;
     calendarTtlSeconds: number;
     tmdb: {
       movieTtlHours: number;
@@ -161,7 +160,6 @@ function parseCache(root: Record<string, unknown>): AppConfig['cache'] {
   const kitsu = expectRecord(cache.kitsu, 'cache.kitsu');
 
   return {
-    homeTtlSeconds: expectPositiveNumber(cache.homeTtlSeconds, 'cache.homeTtlSeconds'),
     calendarTtlSeconds: expectPositiveNumber(cache.calendarTtlSeconds, 'cache.calendarTtlSeconds'),
     tmdb: {
       movieTtlHours: expectPositiveNumber(tmdb.movieTtlHours, 'cache.tmdb.movieTtlHours'),

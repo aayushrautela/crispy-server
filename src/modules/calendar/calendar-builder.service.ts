@@ -74,36 +74,36 @@ export class CalendarBuilderService {
   ) {}
 
   async build(client: DbClient, profileId: string, limit: number): Promise<CalendarItem[]> {
-    const tracked = await this.watchExportService.listTrackedSeries(client, profileId, Math.max(limit, 20));
+    const episodicFollow = await this.watchExportService.listEpisodicFollow(client, profileId, Math.max(limit, 20));
     const nowMs = Date.now();
     const items: CalendarItem[] = [];
 
-    for (const row of tracked) {
-      const trackedIdentity = parseMediaKey(row.trackedMediaKey);
-      if (trackedIdentity.mediaType !== 'show' && trackedIdentity.mediaType !== 'anime') {
+    for (const row of episodicFollow) {
+      const seriesIdentity = parseMediaKey(row.seriesMediaKey);
+      if (seriesIdentity.mediaType !== 'show' && seriesIdentity.mediaType !== 'anime') {
         continue;
       }
 
-      const relatedShow = await this.metadataCardService.buildCardView(client, trackedIdentity);
+      const relatedShow = await this.metadataCardService.buildCardView(client, seriesIdentity);
       const relatedShowCard = toRegularCard(relatedShow);
       if (!relatedShowCard) {
         continue;
       }
-      const watchedEpisodeKeys = await this.watchExportService.listWatchedEpisodeKeysForShow(client, profileId, row.trackedMediaKey);
+      const watchedEpisodeKeys = await this.watchExportService.listWatchedEpisodeKeysForShow(client, profileId, row.seriesMediaKey);
 
-      const schedule = await this.metadataScheduleService.getScheduleInfo(client, trackedIdentity);
+      const schedule = await this.metadataScheduleService.getScheduleInfo(client, seriesIdentity);
       let episodeToUse = schedule.nextEpisode;
 
       if (!episodeToUse) {
-        const showTmdbId = showTmdbIdForIdentity(trackedIdentity);
+        const showTmdbId = showTmdbIdForIdentity(seriesIdentity);
         if (showTmdbId) {
           const episodes = await this.tmdbCacheService.listEpisodesForShow(client, showTmdbId);
           const fallback = episodes.find((episode) => {
             const fallbackIdentity = inferMediaIdentity({
               mediaType: 'episode',
-              provider: trackedIdentity.provider,
-              parentProvider: trackedIdentity.provider,
-              parentProviderId: trackedIdentity.providerId,
+              provider: seriesIdentity.provider,
+              parentProvider: seriesIdentity.provider,
+              parentProviderId: seriesIdentity.providerId,
               seasonNumber: episode.seasonNumber,
               episodeNumber: episode.episodeNumber,
               providerMetadata: { tmdbId: showTmdbId, showTmdbId },
@@ -149,7 +149,7 @@ export class CalendarBuilderService {
         continue;
       }
 
-      const candidate = await this.buildProviderCalendarItem(client, trackedIdentity, episodeToUse, relatedShow, relatedShowCard, watchedEpisodeKeys, nowMs);
+      const candidate = await this.buildProviderCalendarItem(client, seriesIdentity, episodeToUse, relatedShow, relatedShowCard, watchedEpisodeKeys, nowMs);
       if (candidate) {
         items.push(candidate);
       }
@@ -166,7 +166,7 @@ export class CalendarBuilderService {
 
   private async buildProviderCalendarItem(
     client: DbClient,
-    trackedIdentity: MediaIdentity,
+    seriesIdentity: MediaIdentity,
     episode: { seasonNumber: number | null; episodeNumber: number | null; title: string | null; airDate: string | null },
     relatedShow: MetadataCardView,
     relatedShowCard: RegularCardView,
@@ -175,13 +175,13 @@ export class CalendarBuilderService {
   ): Promise<CalendarItem | null> {
     const episodeIdentity = inferMediaIdentity({
       mediaType: 'episode',
-      provider: trackedIdentity.provider,
-      parentProvider: trackedIdentity.provider,
-      parentProviderId: trackedIdentity.providerId,
+      provider: seriesIdentity.provider,
+      parentProvider: seriesIdentity.provider,
+      parentProviderId: seriesIdentity.providerId,
       seasonNumber: episode.seasonNumber,
       episodeNumber: episode.episodeNumber,
       providerMetadata: (() => {
-        const showTmdbId = showTmdbIdForIdentity(trackedIdentity);
+        const showTmdbId = showTmdbIdForIdentity(seriesIdentity);
         return showTmdbId ? { tmdbId: showTmdbId, showTmdbId } : undefined;
       })(),
     });

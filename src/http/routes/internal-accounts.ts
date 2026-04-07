@@ -9,6 +9,7 @@ import {
   resolveRecommendationSourceKey,
 } from '../../modules/recommendations/recommendation-config.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { PersonalMediaService } from '../../modules/watch/personal-media.service.js';
 import { ProfileSecretAccessService } from '../../modules/profiles/profile-secret-access.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
@@ -17,6 +18,7 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
   const recommendationOutputService = new RecommendationOutputService();
+  const personalMediaService = new PersonalMediaService();
   const profileSecretAccessService = new ProfileSecretAccessService();
   const accountSettingsService = new AccountSettingsService();
   const providerTokenAccessService = new ProviderTokenAccessService();
@@ -54,8 +56,9 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
     app.requireScopes(request, ['watch:read']);
     const params = request.params as { accountId: string; profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 50, 1, 250);
+    const page = await personalMediaService.listContinueWatchingPage(params.accountId, params.profileId, { limit });
     return {
-      items: await recommendationDataService.getContinueWatchingForAccountService(params.accountId, params.profileId, limit),
+      items: page.items,
     };
   });
 
@@ -79,13 +82,13 @@ export async function registerInternalAccountRoutes(app: FastifyInstance): Promi
     };
   });
 
-  app.get('/internal/v1/accounts/:accountId/profiles/:profileId/tracked-series', async (request) => {
+  app.get('/internal/v1/accounts/:accountId/profiles/:profileId/episodic-follow', async (request) => {
     await app.requireServiceAuth(request);
     app.requireScopes(request, ['watch:read']);
     const params = request.params as { accountId: string; profileId: string };
     const limit = clampLimit(parseOptionalNumber((request.query as Record<string, unknown>).limit) ?? 25, 1, 100);
     return {
-      items: await recommendationDataService.getTrackedSeriesForAccountService(params.accountId, params.profileId, limit),
+      items: await recommendationDataService.getEpisodicFollowForAccountService(params.accountId, params.profileId, limit),
     };
   });
 

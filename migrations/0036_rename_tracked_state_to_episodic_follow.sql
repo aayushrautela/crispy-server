@@ -1,0 +1,7 @@
+ALTER TABLE profile_tracked_title_state RENAME TO profile_episodic_follow_state;
+
+ALTER INDEX IF EXISTS profile_tracked_title_state_profile_media_key_idx
+  RENAME TO profile_episodic_follow_state_profile_media_key_idx;
+
+ALTER INDEX IF EXISTS profile_tracked_title_state_profile_next_air_idx
+  RENAME TO profile_episodic_follow_state_profile_next_air_idx;

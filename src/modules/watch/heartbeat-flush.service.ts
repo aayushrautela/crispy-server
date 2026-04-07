@@ -81,7 +81,11 @@ export class HeartbeatFlushService {
     }
 
     if (outcome.action === 'persisted') {
-      await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, { mediaKey });
+      const identity = inferMediaIdentity({ mediaKey, mediaType: ensureSupportedMediaType(snapshot.mediaType) });
+      if (identity.mediaType === 'show' || identity.mediaType === 'anime' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
+        await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+        await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
+      }
       await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     }
 

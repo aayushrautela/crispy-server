@@ -174,8 +174,8 @@ function createProjection(overrides: Record<string, unknown> = {}) {
 function createMetadataService() {
   return {
     buildProjection: async () => createProjection({ title: 'Example Show', posterUrl: 'poster' }),
-    syncTrackedTitleState: async () => {},
-    deleteTrackedTitleState: async () => {},
+    syncEpisodicFollowState: async () => {},
+    deleteEpisodicFollowState: async () => {},
   };
 }
 

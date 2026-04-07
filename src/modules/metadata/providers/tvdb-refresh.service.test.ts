@@ -4,7 +4,7 @@ import { seedTestEnv } from '../../../test-helpers.js';
 
 seedTestEnv();
 
-test('TvdbRefreshService refreshes cached bundle and tracked title state', async () => {
+test('TvdbRefreshService refreshes cached bundle and episodic follow state', async () => {
   const { TvdbRefreshService } = await import('./tvdb-refresh.service.js');
   const writes: Array<Record<string, unknown>> = [];
 
@@ -17,15 +17,15 @@ test('TvdbRefreshService refreshes cached bundle and tracked title state', async
       }),
     } as never,
     {
-      getTrackedTitleByMediaKey: async () => ({
+      getEpisodicFollowByMediaKey: async () => ({
         titleContentId: 'content-show-1',
-        trackedMediaKey: 'show:tvdb:1',
+        seriesMediaKey: 'show:tvdb:1',
         payload: { source: 'test' },
       }),
-      getTrackedTitleByContentId: async () => null,
+      getEpisodicFollowByContentId: async () => null,
     } as never,
     {
-      upsertTrackedTitleState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
+      upsertEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
     } as never,
   );
 

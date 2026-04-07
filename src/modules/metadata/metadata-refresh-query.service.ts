@@ -1,18 +1,18 @@
 import type { DbClient } from '../../lib/db.js';
-import { WatchV2TrackedQueryService, type TrackedTitleRow } from '../watch/watch-v2-tracked-query.service.js';
+import { WatchV2EpisodicFollowQueryService, type EpisodicFollowRow } from '../watch/watch-v2-episodic-follow-query.service.js';
 
 export class MetadataRefreshQueryService {
-  constructor(private readonly trackedQueryService = new WatchV2TrackedQueryService()) {}
+  constructor(private readonly episodicFollowQueryService = new WatchV2EpisodicFollowQueryService()) {}
 
-  async listTrackedTitles(client: DbClient, profileId: string, limit = 100): Promise<TrackedTitleRow[]> {
-    return this.trackedQueryService.listTrackedTitles(client, profileId, limit);
+  async listEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<EpisodicFollowRow[]> {
+    return this.episodicFollowQueryService.listEpisodicFollow(client, profileId, limit);
   }
 
-  async getTrackedTitleByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<TrackedTitleRow | null> {
-    return this.trackedQueryService.getTrackedTitleByMediaKey(client, profileId, mediaKey);
+  async getEpisodicFollowByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<EpisodicFollowRow | null> {
+    return this.episodicFollowQueryService.getEpisodicFollowByMediaKey(client, profileId, mediaKey);
   }
 
-  async getTrackedTitleByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<TrackedTitleRow | null> {
-    return this.trackedQueryService.getTrackedTitleByContentId(client, profileId, titleContentId);
+  async getEpisodicFollowByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<EpisodicFollowRow | null> {
+    return this.episodicFollowQueryService.getEpisodicFollowByContentId(client, profileId, titleContentId);
   }
 }

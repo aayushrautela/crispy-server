@@ -1,15 +1,15 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
-import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata-card.types.js';
+import type { RegularCardView } from '../metadata/metadata-card.types.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
-import { WatchExportService, type TrackedSeriesExport } from '../watch/watch-export.service.js';
+import { WatchExportService } from '../watch/watch-export.service.js';
 import { WatchMediaCardCacheService } from '../watch/watch-media-card-cache.service.js';
 import { fallbackRegularCard } from '../watch/regular-card-fallback.js';
 
-export type RecommendationDataListKind = 'watch-history' | 'continue-watching' | 'watchlist' | 'ratings' | 'tracked-series';
+export type RecommendationDataListKind = 'watch-history' | 'watchlist' | 'ratings' | 'episodic-follow';
 
 type ProfileSummary = {
   id: string;
@@ -20,7 +20,6 @@ type ProfileSummary = {
 };
 
 type HydratedMedia = RegularCardView;
-type HydratedLandscapeMedia = LandscapeCardView;
 
 export class RecommendationDataService {
   constructor(
@@ -94,44 +93,6 @@ export class RecommendationDataService {
           payload: row.payload,
         }];
       });
-    });
-  }
-
-  async getContinueWatchingForAccount(accountId: string, profileId: string, limit: number) {
-    return withDbClient(async (client) => {
-      await this.requireOwnedProfile(client, accountId, profileId);
-      const rows = await this.watchExportService.listContinueWatching(client, profileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        id: row.id,
-        media: await this.buildLandscapeMedia(client, row),
-        progress: {
-          positionSeconds: row.positionSeconds,
-          durationSeconds: row.durationSeconds,
-          progressPercent: row.progressPercent,
-          lastPlayedAt: row.lastActivityAt,
-        },
-        lastActivityAt: row.lastActivityAt,
-        payload: row.payload,
-      })));
-    });
-  }
-
-  async getContinueWatchingForAccountService(accountId: string, profileId: string, limit: number) {
-    return withDbClient(async (client) => {
-      const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
-      const rows = await this.watchExportService.listContinueWatching(client, targetProfileId, limit);
-      return Promise.all(rows.map(async (row) => ({
-        id: row.id,
-        media: await this.buildLandscapeMedia(client, row),
-        progress: {
-          positionSeconds: row.positionSeconds,
-          durationSeconds: row.durationSeconds,
-          progressPercent: row.progressPercent,
-          lastPlayedAt: row.lastActivityAt,
-        },
-        lastActivityAt: row.lastActivityAt,
-        payload: row.payload,
-      })));
     });
   }
 
@@ -245,17 +206,17 @@ export class RecommendationDataService {
     });
   }
 
-  async getTrackedSeriesForAccount(accountId: string, profileId: string, limit: number) {
+  async getEpisodicFollowForAccount(accountId: string, profileId: string, limit: number) {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
-      return this.loadTrackedSeries(client, profileId, limit);
+      return this.loadEpisodicFollow(client, profileId, limit);
     });
   }
 
-  async getTrackedSeriesForAccountService(accountId: string, profileId: string, limit: number) {
+  async getEpisodicFollowForAccountService(accountId: string, profileId: string, limit: number) {
     return withDbClient(async (client) => {
       const targetProfileId = await this.resolveOwnedProfileId(client, accountId, profileId);
-      return this.loadTrackedSeries(client, targetProfileId, limit);
+      return this.loadEpisodicFollow(client, targetProfileId, limit);
     });
   }
 
@@ -268,12 +229,12 @@ export class RecommendationDataService {
     return profile.id;
   }
 
-  private async loadTrackedSeries(client: DbClient, profileId: string, limit: number) {
-    const rows = await this.watchExportService.listTrackedSeries(client, profileId, limit);
+  private async loadEpisodicFollow(client: DbClient, profileId: string, limit: number) {
+    const rows = await this.watchExportService.listEpisodicFollow(client, profileId, limit);
     return Promise.all(rows.map(async (row) => {
       const identity = inferMediaIdentity({
-        mediaKey: row.trackedMediaKey,
-        mediaType: row.trackedMediaType as 'show' | 'anime' | 'movie' | 'season' | 'episode',
+        mediaKey: row.seriesMediaKey,
+        mediaType: row.seriesMediaType as 'show' | 'anime' | 'movie' | 'season' | 'episode',
         provider: row.provider as 'tmdb' | 'tvdb' | 'kitsu' | undefined,
         providerId: row.providerId ? Number(row.providerId) : null,
       });
@@ -287,32 +248,6 @@ export class RecommendationDataService {
       };
     }));
   }
-
-  private async buildLandscapeMedia(client: DbClient, row: Record<string, unknown>): Promise<HydratedLandscapeMedia> {
-    return toLandscapeCard(await this.metadataCardService.buildCardViewFromRow(client, row));
-  }
-}
-
-function toLandscapeCard(card: MetadataCardView): LandscapeCardView {
-  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl ?? '';
-  const backdropUrl = card.images.stillUrl ?? card.artwork.stillUrl ?? card.images.backdropUrl ?? card.artwork.backdropUrl ?? posterUrl;
-  return {
-    mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
-    provider: card.provider,
-    providerId: card.providerId,
-    title: card.title ?? 'Untitled',
-    posterUrl,
-    backdropUrl,
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    seasonNumber: card.seasonNumber,
-    episodeNumber: card.episodeNumber,
-    episodeTitle: card.mediaType === 'episode' ? card.title : null,
-    airDate: card.releaseDate,
-    runtimeMinutes: card.runtimeMinutes,
-  };
 }
 
 async function toProfileSummary(

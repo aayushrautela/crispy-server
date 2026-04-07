@@ -3,7 +3,7 @@ import { requireDbIsoString } from '../../lib/time.js';
 import { episodeRefMapKey, type ContentIdentityService } from '../identity/content-identity.service.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import type { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
-import { toTrackedTitleIdentity } from './watch-v2-utils.js';
+import { toEpisodicSeriesIdentity } from './watch-v2-utils.js';
 
 export async function listWatchV2WatchedEpisodeKeys(
   client: DbClient,
@@ -13,8 +13,8 @@ export async function listWatchV2WatchedEpisodeKeys(
   identity: MediaIdentity,
   titleContentId: string,
 ): Promise<string[]> {
-  const trackedIdentity = toTrackedTitleIdentity(identity);
-  if (!trackedIdentity) {
+  const seriesIdentity = toEpisodicSeriesIdentity(identity);
+  if (!seriesIdentity) {
     return [];
   }
 
@@ -53,13 +53,13 @@ export async function listWatchV2WatchedEpisodeKeys(
     return Array.from(watchedKeys).sort();
   }
 
-  const context = await providerMetadataService.loadIdentityContext(client, trackedIdentity).catch(() => null);
+  const context = await providerMetadataService.loadIdentityContext(client, seriesIdentity).catch(() => null);
   if (!context) {
     return Array.from(watchedKeys).sort();
   }
 
-  const episodeInputs = context.episodes.map((episode) => ({
-    parentMediaType: trackedIdentity.mediaType as 'show' | 'anime',
+    const episodeInputs = context.episodes.map((episode) => ({
+    parentMediaType: seriesIdentity.mediaType as 'show' | 'anime',
     provider: episode.provider,
     parentProviderId: episode.parentProviderId,
     seasonNumber: episode.seasonNumber,

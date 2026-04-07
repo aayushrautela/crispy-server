@@ -182,7 +182,7 @@ export class ProviderDestructiveImportService {
 
   private async clearExistingServerState(client: DbClient, profileId: string): Promise<void> {
     await client.query(`DELETE FROM profile_title_projection WHERE profile_id = $1::uuid`, [profileId]);
-    await client.query(`DELETE FROM profile_tracked_title_state WHERE profile_id = $1::uuid`, [profileId]);
+    await client.query(`DELETE FROM profile_episodic_follow_state WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM profile_play_history WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM profile_rating_state WHERE profile_id = $1::uuid`, [profileId]);
     await client.query(`DELETE FROM profile_watchlist_state WHERE profile_id = $1::uuid`, [profileId]);

@@ -4,7 +4,7 @@ import { withDbClient } from '../../lib/db.js';
 import { nowIso } from '../../lib/time.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { calendarCacheKey } from '../cache/cache-keys.js';
-import type { CalendarResponse } from '../watch/watch-read.types.js';
+import type { CalendarResponse, ThisWeekResponse } from '../watch/watch-read.types.js';
 import { CalendarBuilderService } from './calendar-builder.service.js';
 
 export class CalendarService {
@@ -34,5 +34,16 @@ export class CalendarService {
 
     await redis.set(cacheKey, JSON.stringify(response), 'EX', appConfig.cache.calendarTtlSeconds);
     return response;
+  }
+
+  async getThisWeek(userId: string, profileId: string): Promise<ThisWeekResponse> {
+    const calendar = await this.getCalendar(userId, profileId);
+    return {
+      profileId,
+      source: 'canonical_calendar',
+      kind: 'this-week',
+      generatedAt: calendar.generatedAt,
+      items: calendar.items.filter((item) => item.bucket === 'this_week').slice(0, 10),
+    };
   }
 }

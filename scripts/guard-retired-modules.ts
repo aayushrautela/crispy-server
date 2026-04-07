@@ -16,6 +16,10 @@ const rules: Rule[] = [
     message: 'Top-level personal-media callers should use PersonalMediaService instead of removed thin wrappers.',
   },
   {
+    pattern: 'registerHomeRoutes|canonical_home|homeCacheKey|refresh-home-cache|tracked-series|WatchV2TrackedQueryService|TrackedTitleRow|toTrackedTitleIdentity|syncTrackedTitleState|deleteTrackedTitleState|upsertTrackedTitleState|refreshProfileTrackedTitles|refreshProfileTrackedSeries',
+    message: 'Removed home/tracked-series architecture pieces must not be reintroduced into src runtime code.',
+  },
+  {
     pattern: 'received[A-Z][A-Za-z0-9]*:',
     message: 'Route stubs should not return debug-only received* fields in response payloads. Capture args outside the response object instead.',
     filter: (line) => line.includes('src/http/routes/') && line.includes('.test.ts') && line.includes('received') && line.includes(': input.'),

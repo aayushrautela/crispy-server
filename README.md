@@ -64,7 +64,7 @@ Postgres is the source of truth for application data. The code uses direct `pg` 
 
 ### Redis
 
-Redis backs BullMQ and cached API surfaces such as home and calendar.
+Redis backs BullMQ and cached API surfaces such as calendar.
 
 ## Auth model
 
@@ -76,7 +76,7 @@ Redis backs BullMQ and cached API surfaces such as home and calendar.
 - Profiles do not have their own API keys or bearer tokens.
 - Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
 - Shared account-level settings and secrets include addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
-- Profile-personal data includes profile settings, watch history, continue watching, ratings, watchlist, tracked series, provider connections, imports, taste profiles, and recommendations.
+- Profile-personal data includes profile settings, watch history, continue watching, ratings, watchlist, episodic follow state, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl connections remain per-profile.
 - Internal and external privileged consumers should treat the account as the owning identity and use profile ids only to select which profile's personal experience data to read or write.
 
@@ -160,12 +160,12 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `GET /v1/profiles/:profileId/import-connections` - list Trakt or Simkl connections for a profile
 - `DELETE /v1/profiles/:profileId/import-connections/:provider` - disconnect provider for a profile
 
-#### Watch, home, and calendar
+#### Watch and calendar
 
 Watch mutations update canonical server state. They do not perform inline write-through to Trakt or Simkl.
 
-- `GET /v1/profiles/:profileId/home` - home surface for one profile
 - `GET /v1/profiles/:profileId/calendar` - calendar surface for one profile
+- `GET /v1/profiles/:profileId/calendar/this-week` - this-week calendar slice for one profile
 - `POST /v1/profiles/:profileId/watch/events` - ingest watch event
 - `GET /v1/profiles/:profileId/watch/continue-watching` - continue watching list
 - `DELETE /v1/profiles/:profileId/watch/continue-watching/:id` - dismiss continue watching item
@@ -344,7 +344,6 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 
 #### Recommendations
 
-- `GET /v1/profiles/:profileId/tracked-series` - tracked series for a profile
 - `GET /v1/profiles/:profileId/taste-profiles` - list taste profiles by source
 - `GET /v1/profiles/:profileId/taste-profile` - read one taste profile, defaulting to the canonical recommendation source when `sourceKey` is omitted
 - `PUT /v1/profiles/:profileId/taste-profile` - upsert one taste profile
@@ -364,7 +363,7 @@ Recommendation generation is now server-orchestrated. The API server decides whe
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/continue-watching` - profile continue watching scoped to the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/watchlist` - profile watchlist scoped to the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/ratings` - profile ratings scoped to the owning account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/tracked-series` - tracked series scoped to the owning account
+- `GET /internal/v1/accounts/:accountId/profiles/:profileId/episodic-follow` - episodic follow data scoped to the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - read taste profile by source under the owning account; defaults to the canonical source when `sourceKey` is omitted
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - write taste profile under the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account; defaults to the canonical source and algorithm version when omitted
@@ -403,7 +402,7 @@ The recommendation worker no longer polls the API server for claim/renew/complet
 - Ownership root: the signed-in account owns the profile group; profiles are child personas under that account.
 - Account-shared: addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
 - Account-shared AI settings also include non-secret provider selection metadata such as `ai.providerId`.
-- Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, tracked series, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
+- Profile-personal: profile settings, watch history, continue watching, watchlist, ratings, episodic follow state, Trakt connection, Simkl connection, imports, taste profiles, recommendations.
 - Profile-targeted paths select which persona under the account is being addressed; they are not separate logins or separate API clients.
 - Some internals still use older ownership plumbing. That is an implementation detail pending cleanup, not the intended product contract.
 - Internal services should resolve an account first, then target a profile that belongs to that account.

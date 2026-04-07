@@ -7,12 +7,12 @@ import type {
   RawWatchlistRow,
   RawRatingRow,
   RawProgressRow,
-  RawTrackedSeriesRow,
+  RawEpisodicFollowRow,
 } from './watch-query.service.js';
 
-export type { RawContinueWatchingRow, RawWatchHistoryRow, RawWatchlistRow, RawRatingRow, RawProgressRow, RawTrackedSeriesRow };
+export type { RawContinueWatchingRow, RawWatchHistoryRow, RawWatchlistRow, RawRatingRow, RawProgressRow, RawEpisodicFollowRow };
 
-export type TrackedSeriesExport = RawTrackedSeriesRow;
+export type EpisodicFollowExport = RawEpisodicFollowRow;
 
 export type WatchCollectionBundle = {
   continueWatching: RawContinueWatchingRow[];
@@ -43,8 +43,8 @@ export class WatchExportService {
     return this.watchQueryService.listRatings(client, profileId, limit);
   }
 
-  async listTrackedSeries(client: DbClient, profileId: string, limit: number): Promise<TrackedSeriesExport[]> {
-    return this.watchQueryService.listTrackedSeries(client, profileId, limit);
+  async listEpisodicFollow(client: DbClient, profileId: string, limit: number): Promise<EpisodicFollowExport[]> {
+    return this.watchQueryService.listEpisodicFollow(client, profileId, limit);
   }
 
   async getProgress(client: DbClient, profileId: string, mediaKey: string): Promise<RawProgressRow | null> {
@@ -67,7 +67,7 @@ export class WatchExportService {
     return this.watchQueryService.getRatingByMediaKey(client, profileId, mediaKey);
   }
 
-  async listWatchedEpisodeKeysForShow(client: DbClient, profileId: string, trackedMediaKey: string): Promise<string[]> {
-    return this.watchQueryService.listWatchedEpisodeKeysForShow(client, profileId, trackedMediaKey);
+  async listWatchedEpisodeKeysForShow(client: DbClient, profileId: string, seriesMediaKey: string): Promise<string[]> {
+    return this.watchQueryService.listWatchedEpisodeKeysForShow(client, profileId, seriesMediaKey);
   }
 }

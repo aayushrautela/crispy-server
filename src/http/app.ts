@@ -10,7 +10,6 @@ import { registerAdminUiRoutes } from './routes/admin-ui.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
-import { registerHomeRoutes } from './routes/home.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
@@ -20,7 +19,6 @@ import { registerInternalAdminRecommendationRoutes } from './routes/internal-adm
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
-import { registerRecommendationDataRoutes } from './routes/recommendation-data.js';
 import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
@@ -67,12 +65,10 @@ export async function buildApp() {
   await registerProfileSettingsRoutes(app);
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
-  await registerRecommendationDataRoutes(app);
   await registerRecommendationOutputRoutes(app);
   await registerInternalAccountRoutes(app);
   await registerInternalAdminRecommendationRoutes(app);
   await registerInternalAdminImportRoutes(app);
-  await registerHomeRoutes(app);
   await registerCalendarRoutes(app);
   await registerLibraryRoutes(app);
 

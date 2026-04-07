@@ -45,6 +45,7 @@ export class WatchEventIngestService {
   }
 
   async markWatched(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
+    const mediaKey = inferMediaIdentity(input).mediaKey;
     await this.applyMutation(userId, profileId, 'mark_watched', input, async (client, params) => {
       await this.watchV2WriteService.markWatched(client, {
         profileId,
@@ -52,9 +53,8 @@ export class WatchEventIngestService {
         occurredAt: params.occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey: inferMediaIdentity(input).mediaKey,
-    });
+    await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -67,15 +67,13 @@ export class WatchEventIngestService {
         occurredAt: params.occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey: inferMediaIdentity(input).mediaKey,
-      refreshMetadata: false,
-    });
+    await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
 
   async setWatchlist(userId: string, profileId: string, input: WatchMutationInput): Promise<WatchIngestResult> {
+    const mediaKey = inferMediaIdentity(input).mediaKey;
     await this.applyMutation(userId, profileId, 'watchlist_put', input, async (client, params) => {
       await this.watchV2WriteService.setWatchlist(client, {
         profileId,
@@ -83,9 +81,8 @@ export class WatchEventIngestService {
         occurredAt: params.occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey: inferMediaIdentity(input).mediaKey,
-    });
+    await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -98,10 +95,7 @@ export class WatchEventIngestService {
         occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey,
-      refreshMetadata: false,
-    });
+    await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -110,6 +104,7 @@ export class WatchEventIngestService {
     if (!input.rating || input.rating < 1 || input.rating > 10) {
       throw new HttpError(400, 'Rating must be between 1 and 10.');
     }
+    const mediaKey = inferMediaIdentity(input).mediaKey;
     await this.applyMutation(userId, profileId, 'rating_put', input, async (client, params) => {
       await this.watchV2WriteService.setRating(client, {
         profileId,
@@ -118,9 +113,8 @@ export class WatchEventIngestService {
         occurredAt: params.occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey: inferMediaIdentity(input).mediaKey,
-    });
+    await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -133,10 +127,7 @@ export class WatchEventIngestService {
         occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey,
-      refreshMetadata: false,
-    });
+    await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -179,10 +170,6 @@ export class WatchEventIngestService {
         occurredAt,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey: mediaKey ?? undefined,
-      refreshMetadata: false,
-    });
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -200,9 +187,10 @@ export class WatchEventIngestService {
         durationSeconds: input.durationSeconds,
       });
     });
-    await this.projectionRefreshDispatcher.notifyProfileChanged(profileId, {
-      mediaKey: identity.mediaKey,
-    });
+    if (identity.mediaType === 'show' || identity.mediaType === 'anime' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
+      await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+      await this.projectionRefreshDispatcher.refreshMetadata(profileId, identity.mediaKey);
+    }
     await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
     return { accepted: true, mode: 'synchronous' };
   }

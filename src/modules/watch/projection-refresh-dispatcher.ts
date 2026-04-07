@@ -1,16 +1,11 @@
 import { logger } from '../../config/logger.js';
 
 type ProjectionRefreshQueue = {
-  enqueueRefreshHomeCache: (profileId: string) => Promise<void>;
   enqueueRefreshCalendarCache: (profileId: string) => Promise<void>;
   enqueueMetadataRefresh: (profileId: string, mediaKey?: string) => Promise<void>;
 };
 
 const defaultQueue: ProjectionRefreshQueue = {
-  enqueueRefreshHomeCache: async (profileId) => {
-    const { enqueueRefreshHomeCache } = await import('../../lib/queue.js');
-    await enqueueRefreshHomeCache(profileId);
-  },
   enqueueRefreshCalendarCache: async (profileId) => {
     const { enqueueRefreshCalendarCache } = await import('../../lib/queue.js');
     await enqueueRefreshCalendarCache(profileId);
@@ -27,25 +22,31 @@ export class ProjectionRefreshDispatcher {
     private readonly queue: ProjectionRefreshQueue = defaultQueue,
   ) {}
 
-  async notifyProfileChanged(profileId: string, options?: { mediaKey?: string; refreshMetadata?: boolean }): Promise<void> {
+  async invalidateCalendar(profileId: string): Promise<void> {
     try {
-      const work: Promise<void>[] = [
-        this.queue.enqueueRefreshHomeCache(profileId),
-        this.queue.enqueueRefreshCalendarCache(profileId),
-      ];
-      if (options?.refreshMetadata !== false && options?.mediaKey) {
-        work.push(this.queue.enqueueMetadataRefresh(profileId, options.mediaKey));
-      }
-      await Promise.all(work);
+      await this.queue.enqueueRefreshCalendarCache(profileId);
     } catch (error) {
       this.log.warn(
         {
           err: error,
           profileId,
-          mediaKey: options?.mediaKey,
-          refreshMetadata: options?.refreshMetadata ?? true,
         },
-        'failed to enqueue projection refresh jobs',
+        'failed to enqueue calendar refresh job',
+      );
+    }
+  }
+
+  async refreshMetadata(profileId: string, mediaKey?: string): Promise<void> {
+    try {
+      await this.queue.enqueueMetadataRefresh(profileId, mediaKey);
+    } catch (error) {
+      this.log.warn(
+        {
+          err: error,
+          profileId,
+          mediaKey,
+        },
+        'failed to enqueue metadata refresh job',
       );
     }
   }

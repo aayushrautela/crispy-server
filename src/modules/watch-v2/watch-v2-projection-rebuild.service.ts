@@ -23,11 +23,11 @@ export class WatchV2ProjectionRebuildService {
 
   async rebuildProfile(client: DbClient, profileId: string): Promise<WatchV2ProjectionRebuildSummary> {
     await client.query('DELETE FROM profile_title_projection WHERE profile_id = $1::uuid', [profileId]);
-    await client.query('DELETE FROM profile_tracked_title_state WHERE profile_id = $1::uuid', [profileId]);
+    await client.query('DELETE FROM profile_episodic_follow_state WHERE profile_id = $1::uuid', [profileId]);
 
     const titles = await this.listTitlesToRebuild(client, profileId);
     let titleProjections = 0;
-    let trackedTitleStates = 0;
+    let episodicFollowStates = 0;
 
     for (const title of titles) {
       const titleIdentity = inferMediaIdentity({
@@ -56,7 +56,7 @@ export class WatchV2ProjectionRebuildService {
         continue;
       }
 
-      const trackedIdentity =
+      const seriesIdentity =
         title.titleMediaType === 'show' || title.titleMediaType === 'anime'
           ? inferMediaIdentity({
               contentId: title.titleContentId,
@@ -67,14 +67,14 @@ export class WatchV2ProjectionRebuildService {
             })
           : null;
 
-      await this.metadataService.syncTrackedTitleState(client, {
+      await this.metadataService.syncEpisodicFollowState(client, {
         profileId,
         titleContentId: title.titleContentId,
         titleMediaKey: title.titleMediaKey,
-        trackedIdentity,
+        seriesIdentity,
       });
-      if (trackedIdentity) {
-        trackedTitleStates += 1;
+      if (seriesIdentity) {
+        episodicFollowStates += 1;
       }
 
       await this.repository.upsertTitleProjection(client, {
@@ -98,7 +98,7 @@ export class WatchV2ProjectionRebuildService {
 
     return {
       titleProjections,
-      trackedTitleStates,
+      trackedTitleStates: episodicFollowStates,
     };
   }
 

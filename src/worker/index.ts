@@ -9,7 +9,6 @@ import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRebuildProfileProjectionsJob } from './jobs/rebuild-profile-projections.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
-import { runRefreshHomeCacheJob } from './jobs/refresh-home-cache.job.js';
 
 export function startWorker(): Worker {
   const heartbeatFlushService = new HeartbeatFlushService();
@@ -31,9 +30,6 @@ export function startWorker(): Worker {
             throw new Error('flush-heartbeat job missing mediaKey');
           }
           await heartbeatFlushService.flush(payload.profileId, payload.mediaKey);
-          return;
-        case 'refresh-home-cache':
-          await runRefreshHomeCacheJob(payload);
           return;
         case 'refresh-calendar-cache':
           await runRefreshCalendarCacheJob(payload);

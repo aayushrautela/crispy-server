@@ -31,7 +31,7 @@ export type RecommendationWorkerGenerateRequest = {
   };
   optionalExtras?: {
     continueWatching?: unknown[];
-    trackedSeries?: unknown[];
+    episodicFollow?: unknown[];
     limits?: {
       watchHistory: number;
       ratings: number;

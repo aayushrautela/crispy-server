@@ -35,17 +35,17 @@ export class WatchV2MetadataService {
     return projection;
   }
 
-  async syncTrackedTitleState(
+  async syncEpisodicFollowState(
     client: DbClient,
-    input: { profileId: string; titleContentId: string; titleMediaKey: string; trackedIdentity: MediaIdentity | null },
+    input: { profileId: string; titleContentId: string; titleMediaKey: string; seriesIdentity: MediaIdentity | null },
   ): Promise<void> {
-    if (!input.trackedIdentity || (input.trackedIdentity.mediaType !== 'show' && input.trackedIdentity.mediaType !== 'anime')) {
-      await this.deleteTrackedTitleState(client, input.profileId, input.titleContentId);
+    if (!input.seriesIdentity || (input.seriesIdentity.mediaType !== 'show' && input.seriesIdentity.mediaType !== 'anime')) {
+      await this.deleteEpisodicFollowState(client, input.profileId, input.titleContentId);
       return;
     }
 
-    const nextEpisodeAirDate = await this.metadataProjectionService.resolveNextEpisodeAirDate(client, input.trackedIdentity);
-    await this.upsertTrackedTitleState(client, {
+    const nextEpisodeAirDate = await this.metadataProjectionService.resolveNextEpisodeAirDate(client, input.seriesIdentity);
+    await this.upsertEpisodicFollowState(client, {
       profileId: input.profileId,
       titleContentId: input.titleContentId,
       titleMediaKey: input.titleMediaKey,
@@ -55,7 +55,7 @@ export class WatchV2MetadataService {
     });
   }
 
-  async upsertTrackedTitleState(
+  async upsertEpisodicFollowState(
     client: DbClient,
     input: {
       profileId: string;
@@ -68,7 +68,7 @@ export class WatchV2MetadataService {
   ): Promise<void> {
     await client.query(
       `
-        INSERT INTO profile_tracked_title_state (
+        INSERT INTO profile_episodic_follow_state (
           profile_id,
           title_content_id,
           title_media_key,
@@ -97,9 +97,9 @@ export class WatchV2MetadataService {
     );
   }
 
-  async deleteTrackedTitleState(client: DbClient, profileId: string, titleContentId: string): Promise<void> {
+  async deleteEpisodicFollowState(client: DbClient, profileId: string, titleContentId: string): Promise<void> {
     await client.query(
-      `DELETE FROM profile_tracked_title_state WHERE profile_id = $1 AND title_content_id = $2`,
+      `DELETE FROM profile_episodic_follow_state WHERE profile_id = $1 AND title_content_id = $2`,
       [profileId, titleContentId],
     );
   }

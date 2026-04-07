@@ -71,16 +71,16 @@ export class TmdbRefreshService {
     private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
-  async refreshProfileTrackedSeries(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
+  async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
-    const tracked = await this.metadataRefreshQueryService.listTrackedTitles(client, profileId, limit);
+    const episodicFollow = await this.metadataRefreshQueryService.listEpisodicFollow(client, profileId, limit);
 
-    if (tracked.length === 0) {
+    if (episodicFollow.length === 0) {
       summary.skipped += 1;
       return summary;
     }
 
-    for (const row of tracked) {
+    for (const row of episodicFollow) {
       if (row.showTmdbId === null) {
         summary.skipped += 1;
         continue;
@@ -93,7 +93,7 @@ export class TmdbRefreshService {
           null,
           {
             titleContentId: row.titleContentId,
-            trackedMediaKey: row.trackedMediaKey,
+            seriesMediaKey: row.seriesMediaKey,
             payload: row.payload,
           },
         ));
@@ -132,10 +132,10 @@ export class TmdbRefreshService {
       return summary;
     }
 
-    const trackedTitle = identity.contentId
-      ? await this.metadataRefreshQueryService.getTrackedTitleByContentId(client, profileId, identity.contentId)
+    const episodicFollow = identity.contentId
+      ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, identity.contentId)
       : null;
-    return this.refreshShow(client, profileId, showTmdbId, identity.seasonNumber, trackedTitle ?? undefined);
+    return this.refreshShow(client, profileId, showTmdbId, identity.seasonNumber, episodicFollow ?? undefined);
   }
 
   async refreshShow(
@@ -143,7 +143,7 @@ export class TmdbRefreshService {
     profileId: string,
     showTmdbId: number,
     explicitSeasonNumber?: number | null,
-    trackedTitle?: { titleContentId: string; trackedMediaKey: string; payload?: Record<string, unknown> },
+    episodicFollow?: { titleContentId: string; seriesMediaKey: string; payload?: Record<string, unknown> },
   ): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
     const title = await this.tmdbCacheService.refreshTitle(client, 'tv', showTmdbId);
@@ -160,15 +160,15 @@ export class TmdbRefreshService {
       summary.refreshedSeasons += 1;
     }
 
-    const tracked = trackedTitle;
-    if (tracked) {
-      await this.watchV2MetadataService.upsertTrackedTitleState(client, {
+    const followedSeries = episodicFollow;
+    if (followedSeries) {
+      await this.watchV2MetadataService.upsertEpisodicFollowState(client, {
         profileId,
-        titleContentId: tracked.titleContentId,
-        titleMediaKey: tracked.trackedMediaKey,
+        titleContentId: followedSeries.titleContentId,
+        titleMediaKey: followedSeries.seriesMediaKey,
         nextEpisodeAirDate: extractNextEpisodeToAir(title)?.airDate ?? null,
         metadataRefreshedAt: new Date().toISOString(),
-        payload: tracked.payload ?? {},
+        payload: followedSeries.payload ?? {},
       });
       summary.refreshedTrackedShows += 1;
     } else {

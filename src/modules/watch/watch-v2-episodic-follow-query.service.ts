@@ -3,10 +3,10 @@ import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { inferMediaIdentity, parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 
-export type TrackedTitleRow = {
+export type EpisodicFollowRow = {
   titleContentId: string;
-  trackedMediaKey: string;
-  trackedMediaType: 'show' | 'anime';
+  seriesMediaKey: string;
+  seriesMediaType: 'show' | 'anime';
   provider: string;
   providerId: string;
   reason: string;
@@ -17,10 +17,10 @@ export type TrackedTitleRow = {
   showTmdbId: number | null;
 };
 
-export class WatchV2TrackedQueryService {
+export class WatchV2EpisodicFollowQueryService {
   constructor(private readonly contentIdentityService = new ContentIdentityService()) {}
 
-  async listTrackedTitles(client: DbClient, profileId: string, limit = 100): Promise<TrackedTitleRow[]> {
+  async listEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<EpisodicFollowRow[]> {
     const result = await client.query(
       `
         SELECT
@@ -44,7 +44,7 @@ export class WatchV2TrackedQueryService {
           metadata.metadata_refreshed_at,
           COALESCE(metadata.payload, '{}'::jsonb) AS payload
         FROM profile_title_projection projection
-        LEFT JOIN profile_tracked_title_state metadata
+        LEFT JOIN profile_episodic_follow_state metadata
           ON metadata.profile_id = projection.profile_id
          AND metadata.title_content_id = projection.title_content_id
         WHERE projection.profile_id = $1::uuid
@@ -69,25 +69,25 @@ export class WatchV2TrackedQueryService {
       [profileId, limit],
     );
 
-    const rows: TrackedTitleRow[] = [];
+    const rows: EpisodicFollowRow[] = [];
     for (const row of result.rows) {
-      rows.push(await this.mapTrackedTitleRow(client, row));
+      rows.push(await this.mapEpisodicFollowRow(client, row));
     }
 
     return rows;
   }
 
-  async getTrackedTitleByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<TrackedTitleRow | null> {
+  async getEpisodicFollowByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<EpisodicFollowRow | null> {
     const identity = parseMediaKey(mediaKey);
     if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
       return null;
     }
 
     const titleContentId = await this.contentIdentityService.ensureContentId(client, identity);
-    return this.getTrackedTitleByContentId(client, profileId, titleContentId);
+    return this.getEpisodicFollowByContentId(client, profileId, titleContentId);
   }
 
-  async getTrackedTitleByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<TrackedTitleRow | null> {
+  async getEpisodicFollowByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<EpisodicFollowRow | null> {
     const result = await client.query(
       `
         SELECT
@@ -111,7 +111,7 @@ export class WatchV2TrackedQueryService {
           metadata.metadata_refreshed_at,
           COALESCE(metadata.payload, '{}'::jsonb) AS payload
         FROM profile_title_projection projection
-        LEFT JOIN profile_tracked_title_state metadata
+        LEFT JOIN profile_episodic_follow_state metadata
           ON metadata.profile_id = projection.profile_id
          AND metadata.title_content_id = projection.title_content_id
         WHERE projection.profile_id = $1::uuid
@@ -129,7 +129,7 @@ export class WatchV2TrackedQueryService {
     );
 
     const row = result.rows[0];
-    return row ? this.mapTrackedTitleRow(client, row) : null;
+    return row ? this.mapEpisodicFollowRow(client, row) : null;
   }
 
   private async resolveTitleIdentity(client: DbClient, titleContentId: string, fallback: MediaIdentity): Promise<MediaIdentity> {
@@ -148,21 +148,21 @@ export class WatchV2TrackedQueryService {
     });
   }
 
-  private async mapTrackedTitleRow(client: DbClient, row: Record<string, unknown>): Promise<TrackedTitleRow> {
-    const trackedMediaKey = String(row.title_media_key);
-    const parsed = parseMediaKey(trackedMediaKey);
+  private async mapEpisodicFollowRow(client: DbClient, row: Record<string, unknown>): Promise<EpisodicFollowRow> {
+    const seriesMediaKey = String(row.title_media_key);
+    const parsed = parseMediaKey(seriesMediaKey);
     const titleContentId = String(row.title_content_id);
     const identity = await this.resolveTitleIdentity(client, titleContentId, parsed);
     return {
       titleContentId,
-      trackedMediaKey,
-      trackedMediaType: parsed.mediaType === 'anime' ? 'anime' : 'show',
+      seriesMediaKey,
+      seriesMediaType: parsed.mediaType === 'anime' ? 'anime' : 'show',
       provider: identity.provider ?? String(row.title_provider),
       providerId: identity.providerId ?? String(row.title_provider_id),
       reason: typeof row.reason === 'string' ? row.reason : 'watch_activity',
       lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_title_projection.last_interacted_at'),
-      nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_tracked_title_state.next_episode_air_date'),
-      metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_tracked_title_state.metadata_refreshed_at'),
+      nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_episodic_follow_state.next_episode_air_date'),
+      metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_episodic_follow_state.metadata_refreshed_at'),
       payload: (row.payload as Record<string, unknown> | undefined) ?? {},
       showTmdbId: showTmdbIdForIdentity(identity),
     };

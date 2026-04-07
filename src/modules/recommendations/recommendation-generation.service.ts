@@ -1,8 +1,6 @@
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { redis } from '../../lib/redis.js';
 import { logger } from '../../config/logger.js';
-import { homeCacheKey } from '../cache/cache-keys.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { RecommendationDataService } from './recommendation-data.service.js';
@@ -10,6 +8,7 @@ import { recommendationConfig } from './recommendation-config.js';
 import { RecommendationOutputService } from './recommendation-output.service.js';
 import { RecommendationSnapshotsRepository } from './recommendation-snapshots.repo.js';
 import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
+import { PersonalMediaService } from '../watch/personal-media.service.js';
 import type {
   RecommendationWorkerGenerateRequest,
   RecommendationWorkerGenerateResponse,
@@ -46,6 +45,7 @@ export class RecommendationGenerationService {
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
     private readonly recommendationDataService = new RecommendationDataService(),
+    private readonly personalMediaService = new PersonalMediaService(),
     private readonly featureEntitlementService = new FeatureEntitlementService(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
   ) {}
@@ -68,8 +68,6 @@ export class RecommendationGenerationService {
       this.recommendationOutputService.upsertTasteProfileForAccountService(context.accountId, context.profileId, normalizedTasteProfile),
       this.recommendationOutputService.upsertRecommendationsForAccountService(context.accountId, context.profileId, normalizedSnapshot),
     ]);
-
-    await redis.del(homeCacheKey(context.profileId));
 
     logger.info({
       profileId: context.profileId,
@@ -127,12 +125,12 @@ export class RecommendationGenerationService {
     aiRequest: Awaited<ReturnType<FeatureEntitlementService['resolveAiRequestForUser']>>,
   ): Promise<RecommendationWorkerGenerateRequest> {
     const limits = recommendationConfig.payloadLimits;
-    const [watchHistory, ratings, watchlist, continueWatching, trackedSeries] = await Promise.all([
+    const [watchHistory, ratings, watchlist, continueWatching, episodicFollow] = await Promise.all([
       this.recommendationDataService.getWatchHistoryForAccount(context.accountId, context.profileId, limits.watchHistory),
       this.recommendationDataService.getRatingsForAccount(context.accountId, context.profileId, limits.ratings),
       this.recommendationDataService.getWatchlistForAccount(context.accountId, context.profileId, limits.watchlist),
-      this.recommendationDataService.getContinueWatchingForAccount(context.accountId, context.profileId, limits.continueWatching),
-      this.recommendationDataService.getTrackedSeriesForAccount(context.accountId, context.profileId, limits.trackedSeries),
+      this.personalMediaService.listContinueWatchingProducts(context.accountId, context.profileId, limits.continueWatching),
+      this.recommendationDataService.getEpisodicFollowForAccount(context.accountId, context.profileId, limits.trackedSeries),
     ]);
 
     return {
@@ -166,7 +164,7 @@ export class RecommendationGenerationService {
       },
       optionalExtras: {
         continueWatching,
-        trackedSeries,
+        episodicFollow,
         limits,
       },
     };

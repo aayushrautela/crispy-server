@@ -10,7 +10,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { encodeWatchV2ContinueWatchingId, resolveWatchV2Lookup } from './watch-v2-utils.js';
 import { listWatchV2WatchedEpisodeKeys } from './watch-v2-episode-keys.js';
 import { WatchV2EpisodeHistoryService } from '../watch-v2/watch-v2-episode-history.service.js';
-import { WatchV2TrackedQueryService } from './watch-v2-tracked-query.service.js';
+import { WatchV2EpisodicFollowQueryService } from './watch-v2-episodic-follow-query.service.js';
 
 type RawWatchProjectionSnapshot = {
   detailsTitleMediaType: 'movie' | 'show' | 'anime' | null;
@@ -105,9 +105,9 @@ export type RawProgressRow = {
   lastPlayedAt: string;
 };
 
-export type RawTrackedSeriesRow = {
-  trackedMediaKey: string;
-  trackedMediaType: 'show' | 'anime';
+export type RawEpisodicFollowRow = {
+  seriesMediaKey: string;
+  seriesMediaType: 'show' | 'anime';
   provider: string;
   providerId: string;
   reason: string | null;
@@ -259,7 +259,7 @@ export class WatchQueryService {
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
     private readonly episodeHistoryService = new WatchV2EpisodeHistoryService(),
-    private readonly trackedQueryService = new WatchV2TrackedQueryService(),
+    private readonly episodicFollowQueryService = new WatchV2EpisodicFollowQueryService(),
   ) {}
 
   async listContinueWatching(client: DbClient, profileId: string, limit: number): Promise<RawContinueWatchingRow[]> {
@@ -423,11 +423,11 @@ export class WatchQueryService {
     return Number(result.rows[0]?.count ?? 0);
   }
 
-  async listTrackedSeries(client: DbClient, profileId: string, limit: number): Promise<RawTrackedSeriesRow[]> {
-    const rows = await this.trackedQueryService.listTrackedTitles(client, profileId, limit);
+  async listEpisodicFollow(client: DbClient, profileId: string, limit: number): Promise<RawEpisodicFollowRow[]> {
+    const rows = await this.episodicFollowQueryService.listEpisodicFollow(client, profileId, limit);
     return rows.map((row) => ({
-      trackedMediaKey: row.trackedMediaKey,
-      trackedMediaType: row.trackedMediaType,
+      seriesMediaKey: row.seriesMediaKey,
+      seriesMediaType: row.seriesMediaType,
       provider: row.provider,
       providerId: row.providerId,
       reason: row.reason,
@@ -587,18 +587,18 @@ export class WatchQueryService {
     return row ? mapRatingRow(row) : null;
   }
 
-  async listWatchedEpisodeKeysForShow(client: DbClient, profileId: string, trackedMediaKey: string): Promise<string[]> {
-    const trackedIdentity = parseMediaKey(trackedMediaKey);
-    if (trackedIdentity.mediaType !== 'show' && trackedIdentity.mediaType !== 'anime') {
+  async listWatchedEpisodeKeysForShow(client: DbClient, profileId: string, seriesMediaKey: string): Promise<string[]> {
+    const seriesIdentity = parseMediaKey(seriesMediaKey);
+    if (seriesIdentity.mediaType !== 'show' && seriesIdentity.mediaType !== 'anime') {
       return [];
     }
-    const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, trackedIdentity);
+    const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, seriesIdentity);
     return listWatchV2WatchedEpisodeKeys(
       client,
       this.contentIdentityService,
       this.providerMetadataService,
       profileId,
-      trackedIdentity,
+      seriesIdentity,
       lookup.titleContentId,
     );
   }

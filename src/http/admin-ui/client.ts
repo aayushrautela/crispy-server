@@ -671,7 +671,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/continue-watching?limit=6')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watchlist?limit=8')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/ratings?limit=8')),
-        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/tracked-series?limit=8')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/episodic-follow?limit=8')),
       ]);
 
       elements.profileDetailBody.innerHTML = [
@@ -680,7 +680,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         renderMediaSection('Continue watching', results[4], 'continue'),
         renderMediaSection('Watchlist', results[5], 'watchlist'),
         renderMediaSection('Ratings', results[6], 'ratings'),
-        renderTrackedSeriesSection(results[7]),
+        renderEpisodicFollowSection(results[7]),
         renderTasteProfileSection(results[1]),
         renderRecommendationsSection(results[2]),
       ].join('');
@@ -1160,16 +1160,16 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard(title, '<div class="item-list">' + items.map((item) => renderMediaRow(item, kind)).join('') + '</div>');
   }
 
-  function renderTrackedSeriesSection(result) {
+  function renderEpisodicFollowSection(result) {
     if (result && result.error) {
-      return sectionCard('Tracked series', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      return sectionCard('Episodic follow', '<div class="message error">' + escapeHtml(result.error) + '</div>');
     }
     const items = result && Array.isArray(result.items) ? result.items : [];
     if (items.length === 0) {
-      return sectionCard('Tracked series', emptyState('No tracked series for this profile.'));
+      return sectionCard('Episodic follow', emptyState('No episodic follow items for this profile.'));
     }
-    return sectionCard('Tracked series', '<div class="item-list">' + items.map((item) => {
-      const media = item && item.show ? item.show : null;
+    return sectionCard('Episodic follow', '<div class="item-list">' + items.map((item) => {
+      const media = item && item.series ? item.series : null;
       return '<div class="item-row">'
         + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
         + '<div class="muted">' + escapeHtml(item.reason || 'no reason captured') + '</div>'

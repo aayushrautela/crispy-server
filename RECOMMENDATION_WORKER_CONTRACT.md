@@ -35,7 +35,7 @@ The design goal for v1 is to preserve the **current request payload shape** and 
 |---|---|
 | Detecting that a profile needs regeneration | API Server |
 | Debouncing / coalescing noisy user triggers | API Server |
-| Reading user data, watch history, ratings, watchlist, continue watching, tracked series | API Server |
+| Reading user data, watch history, ratings, watchlist, continue watching, episodic follow | API Server |
 | Resolving AI provider, model, API key, and credential source | API Server |
 | Building the generation payload | API Server |
 | Submitting generation work | API Server |
@@ -288,9 +288,9 @@ The request body reuses the current server-built `RecommendationWorkerGenerateRe
         "payload": {}
       }
     ],
-    "trackedSeries": [
+    "episodicFollow": [
       {
-        "show": {
+        "series": {
           "mediaType": "show",
           "kind": "title",
           "mediaKey": "show:tvdb:81189",
@@ -337,10 +337,10 @@ The request body reuses the current server-built `RecommendationWorkerGenerateRe
       "ratings": 100,
       "watchlist": 100,
       "continueWatching": 50,
-      "trackedSeries": 25
+        "trackedSeries": 25
+      }
     }
   }
-}
 ```
 
 ### Field notes

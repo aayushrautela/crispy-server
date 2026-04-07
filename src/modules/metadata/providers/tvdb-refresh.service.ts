@@ -60,21 +60,21 @@ export class TvdbRefreshService {
       const bundle = await this.tvdbCacheService.refreshTitleBundle(client, identity.providerId);
       summary.refreshedTitles += 1;
 
-      const trackedTitle = identity.contentId
-        ? await this.metadataRefreshQueryService.getTrackedTitleByContentId(client, profileId, identity.contentId)
-        : await this.metadataRefreshQueryService.getTrackedTitleByMediaKey(client, profileId, identity.mediaKey);
-      if (!trackedTitle) {
+      const episodicFollow = identity.contentId
+        ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, identity.contentId)
+        : await this.metadataRefreshQueryService.getEpisodicFollowByMediaKey(client, profileId, identity.mediaKey);
+      if (!episodicFollow) {
         summary.skipped += 1;
         return summary;
       }
 
-      await this.watchV2MetadataService.upsertTrackedTitleState(client, {
+      await this.watchV2MetadataService.upsertEpisodicFollowState(client, {
         profileId,
-        titleContentId: trackedTitle.titleContentId,
-        titleMediaKey: trackedTitle.trackedMediaKey,
+        titleContentId: episodicFollow.titleContentId,
+        titleMediaKey: episodicFollow.seriesMediaKey,
         nextEpisodeAirDate: nextUpcomingEpisodeAirDate(bundle.episodes),
         metadataRefreshedAt: new Date().toISOString(),
-        payload: trackedTitle.payload ?? {},
+        payload: episodicFollow.payload ?? {},
       });
       summary.refreshedTrackedShows += 1;
       return summary;

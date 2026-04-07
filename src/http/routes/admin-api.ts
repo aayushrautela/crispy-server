@@ -10,6 +10,7 @@ import {
 import { ProviderAdminService } from '../../modules/integrations/provider-admin.service.js';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
+import { PersonalMediaService } from '../../modules/watch/personal-media.service.js';
 import type {
   ProviderAccountStatus,
   ProviderImportJobStatus,
@@ -43,6 +44,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const recommendationDataService = new RecommendationDataService();
   const recommendationGenerationDispatcher = new RecommendationGenerationDispatcher();
   const recommendationOutputService = new RecommendationOutputService();
+  const personalMediaService = new PersonalMediaService();
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
     await app.requireAdminUi(request);
@@ -169,12 +171,11 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
+    const page = await personalMediaService.listContinueWatchingPage(params.accountId, params.profileId, {
+      limit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
+    });
     return {
-      items: await recommendationDataService.getContinueWatchingForAccountService(
-        params.accountId,
-        params.profileId,
-        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
-      ),
+      items: page.items,
     };
   });
 
@@ -204,12 +205,12 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     };
   });
 
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/tracked-series', async (request, reply) => {
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/episodic-follow', async (request, reply) => {
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     return {
-      items: await recommendationDataService.getTrackedSeriesForAccountService(
+      items: await recommendationDataService.getEpisodicFollowForAccountService(
         params.accountId,
         params.profileId,
         clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),

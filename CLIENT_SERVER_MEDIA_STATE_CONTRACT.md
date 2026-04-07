@@ -20,8 +20,8 @@ This document is intentionally strict.
 
 This contract applies to:
 
-- `GET /v1/profiles/:profileId/home`
 - `GET /v1/profiles/:profileId/calendar`
+- `GET /v1/profiles/:profileId/calendar/this-week`
 - `GET /v1/profiles/:profileId/library`
 - `GET /v1/profiles/:profileId/watch/continue-watching`
 - `GET /v1/profiles/:profileId/watch/watched`
@@ -130,7 +130,6 @@ Landscape cards are used by:
 
 - continue watching
 - calendar items
-- home runtime landscape sections
 - recommendation snapshot `landscape` sections
 
 Required fields:
@@ -209,87 +208,6 @@ Important:
 
 ## Endpoint Contract
 
-## `GET /v1/profiles/:profileId/home`
-
-Envelope:
-
-```json
-{
-  "profileId": "string",
-  "source": "canonical_home",
-  "generatedAt": "string",
-  "runtime": {
-    "continueWatching": {
-      "id": "continue-watching",
-      "title": "Continue Watching",
-      "layout": "landscape",
-      "source": "canonical_watch",
-      "items": []
-    },
-    "thisWeek": {
-      "id": "this-week",
-      "title": "This Week",
-      "layout": "landscape",
-      "source": "canonical_calendar",
-      "items": []
-    }
-  },
-  "snapshot": {
-    "sourceKey": "string | null",
-    "generatedAt": "string | null",
-    "sections": []
-  }
-}
-```
-
-### `home.runtime`
-
-`runtime` is app-generated and user-state-driven.
-
-Current sections are fixed:
-
-- `continueWatching`
-- `thisWeek`
-
-`runtime.continueWatching.items` use the continue-watching item shape documented below.
-
-`runtime.thisWeek.items` use the calendar item shape documented below.
-
-### `home.snapshot`
-
-`snapshot` is recommendation-engine output.
-
-Current supported `layout` values:
-
-- `regular`
-- `landscape`
-- `collection`
-- `hero`
-
-Section discriminators:
-
-```json
-{
-  "id": "string",
-  "title": "string",
-  "layout": "regular | landscape | collection | hero",
-  "items": "layout-specific array",
-  "meta": {}
-}
-```
-
-Layout-specific rules:
-
-- `regular` section items are `{ media, reason, score, rank, payload }` where `media` is a regular card
-- `landscape` section items are `{ media, reason, score, rank, payload }` where `media` is a landscape card
-- `hero` section items are hero cards and include `mediaKey`
-- `collection` section items are collection cards and do not guarantee `mediaKey`
-
-Client guidance:
-
-- branch rendering on `layout`
-- do not try to normalize collection items into a universal navigation model without additional server support
-
 ## `GET /v1/profiles/:profileId/calendar`
 
 Envelope:
@@ -316,6 +234,34 @@ Notes:
 - `media.mediaKey` is present and is the primary navigation key
 - `relatedShow.mediaKey` is also present for the associated series/show card
 - `bucket` is an explicit enum and clients should not assume additional undocumented bucket values
+
+## `GET /v1/profiles/:profileId/calendar/this-week`
+
+Envelope:
+
+```json
+{
+  "profileId": "string",
+  "source": "canonical_calendar",
+  "kind": "this-week",
+  "generatedAt": "string",
+  "items": [
+    {
+      "bucket": "this_week",
+      "media": "LandscapeCard",
+      "relatedShow": "RegularCard",
+      "airDate": "string | null",
+      "watched": "boolean"
+    }
+  ]
+}
+```
+
+Notes:
+
+- this surface is a narrowed calendar read, not a screen aggregator
+- items use the same calendar item shape as the full calendar endpoint
+- `kind` is fixed to `this-week`
 
 ## `GET /v1/profiles/:profileId/library`
 

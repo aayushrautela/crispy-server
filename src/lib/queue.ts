@@ -55,10 +55,6 @@ export async function enqueueHeartbeatFlush(profileId: string, mediaKey: string,
   );
 }
 
-export async function enqueueRefreshHomeCache(profileId: string): Promise<void> {
-  await enqueueProjectionRefreshJob({ profileId, reason: 'refresh-home-cache' });
-}
-
 export async function enqueueRefreshCalendarCache(profileId: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, reason: 'refresh-calendar-cache' });
 }

@@ -7,27 +7,27 @@ seedTestEnv();
 test('TmdbRefreshService has expected methods', async () => {
   const { TmdbRefreshService } = await import('./tmdb-refresh.service.js');
   const service = new TmdbRefreshService();
-  assert.ok(typeof service.refreshProfileTrackedSeries === 'function');
+  assert.ok(typeof service.refreshProfileEpisodicFollow === 'function');
 });
 
-test('refreshProfileTrackedSeries returns empty summary when no tracked series', async () => {
+test('refreshProfileEpisodicFollow returns empty summary when no episodic follow rows exist', async () => {
   const { TmdbRefreshService } = await import('./tmdb-refresh.service.js');
 
   const service = new TmdbRefreshService(
     {} as never,
-    { listTrackedTitles: async () => [] } as never,
+    { listEpisodicFollow: async () => [] } as never,
     {} as never,
   );
 
-  const result = await service.refreshProfileTrackedSeries({} as never, 'profile-1');
+  const result = await service.refreshProfileEpisodicFollow({} as never, 'profile-1');
   assert.equal(result.skipped, 1);
   assert.equal(result.refreshedTitles, 0);
   assert.equal(result.failures, 0);
 });
 
-test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
+test('refreshProfileEpisodicFollow refreshes episodic follow rows', async () => {
   const { TmdbRefreshService } = await import('./tmdb-refresh.service.js');
-  const trackedStateWrites: Array<Record<string, unknown>> = [];
+  const episodicFollowWrites: Array<Record<string, unknown>> = [];
 
   const service = new TmdbRefreshService(
     {
@@ -41,10 +41,10 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
       refreshSeason: async () => {},
     } as never,
     {
-      listTrackedTitles: async () => [{
+      listEpisodicFollow: async () => [{
         titleContentId: 'content-show-42',
-        trackedMediaKey: 'show:tvdb:500',
-        trackedMediaType: 'show',
+        seriesMediaKey: 'show:tvdb:500',
+        seriesMediaType: 'show',
         provider: 'tvdb',
         providerId: '500',
         reason: 'watch_activity',
@@ -54,10 +54,10 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
         payload: { source: 'test' },
         showTmdbId: 42,
       }],
-      getTrackedTitleByContentId: async () => ({
+      getEpisodicFollowByContentId: async () => ({
         titleContentId: 'content-show-42',
-        trackedMediaKey: 'show:tvdb:500',
-        trackedMediaType: 'show',
+        seriesMediaKey: 'show:tvdb:500',
+        seriesMediaType: 'show',
         provider: 'tvdb',
         providerId: '500',
         reason: 'watch_activity',
@@ -69,18 +69,18 @@ test('refreshProfileTrackedSeries refreshes tracked shows', async () => {
       }),
     } as never,
     {
-      upsertTrackedTitleState: async (_client: unknown, input: Record<string, unknown>) => {
-        trackedStateWrites.push(input);
+      upsertEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => {
+        episodicFollowWrites.push(input);
       },
     } as never,
   );
 
-  const result = await service.refreshProfileTrackedSeries({} as never, 'profile-1');
+  const result = await service.refreshProfileEpisodicFollow({} as never, 'profile-1');
   assert.equal(result.refreshedTrackedShows, 1);
   assert.equal(result.refreshedTitles, 1);
   assert.equal(result.refreshedSeasons, 1);
-  assert.equal(trackedStateWrites.length, 1);
-  assert.equal(trackedStateWrites[0]?.titleContentId, 'content-show-42');
-  assert.equal(trackedStateWrites[0]?.titleMediaKey, 'show:tvdb:500');
-  assert.deepEqual(trackedStateWrites[0]?.payload, { source: 'test' });
+  assert.equal(episodicFollowWrites.length, 1);
+  assert.equal(episodicFollowWrites[0]?.titleContentId, 'content-show-42');
+  assert.equal(episodicFollowWrites[0]?.titleMediaKey, 'show:tvdb:500');
+  assert.deepEqual(episodicFollowWrites[0]?.payload, { source: 'test' });
 });

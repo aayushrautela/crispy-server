@@ -63,7 +63,7 @@ export async function resolveWatchV2Lookup(
   };
 }
 
-export function toTrackedTitleIdentity(identity: MediaIdentity): MediaIdentity | null {
+export function toEpisodicSeriesIdentity(identity: MediaIdentity): MediaIdentity | null {
   if (identity.mediaType === 'show' || identity.mediaType === 'anime') {
     return identity;
   }
