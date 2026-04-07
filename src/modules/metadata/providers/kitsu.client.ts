@@ -47,7 +47,7 @@ export class KitsuClient {
   async fetchAnimeCharacters(
     animeId: string | number,
     include = 'character,voices.person',
-    limit = 50,
+    limit = 20,
   ): Promise<Record<string, unknown>> {
     return this.request(`/anime/${encodeURIComponent(String(animeId))}/characters`, {
       include,
@@ -58,7 +58,7 @@ export class KitsuClient {
   async fetchAnimeStaff(
     animeId: string | number,
     include = 'person',
-    limit = 50,
+    limit = 20,
   ): Promise<Record<string, unknown>> {
     return this.request(`/anime/${encodeURIComponent(String(animeId))}/staff`, {
       include,
@@ -69,7 +69,7 @@ export class KitsuClient {
   async fetchAnimeRelationships(
     animeId: string | number,
     include = 'destination',
-    limit = 50,
+    limit = 20,
   ): Promise<Record<string, unknown>> {
     return this.request(`/anime/${encodeURIComponent(String(animeId))}/media-relationships`, {
       include,
@@ -77,7 +77,7 @@ export class KitsuClient {
     });
   }
 
-  async fetchAnimeProductions(animeId: string | number, limit = 50): Promise<Record<string, unknown>> {
+  async fetchAnimeProductions(animeId: string | number, limit = 20): Promise<Record<string, unknown>> {
     return this.request(`/anime/${encodeURIComponent(String(animeId))}/productions`, {
       'page[limit]': limit,
     });

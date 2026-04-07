@@ -44,3 +44,25 @@ test('KitsuClient fetchAnime includes related resources', async () => {
   assert.match(capturedUrl, /\/anime\/1\?/);
   assert.match(capturedUrl, /include=episodes%2Cmappings%2Ccategories/);
 });
+
+test('KitsuClient uses Kitsu max page size for related anime resources', async () => {
+  const capturedUrls: string[] = [];
+
+  const fetcher: typeof fetch = async (input) => {
+    capturedUrls.push(String(input));
+    return new Response(JSON.stringify({ data: [], included: [] }), { status: 200 });
+  };
+
+  const { KitsuClient } = await import('./kitsu.client.js');
+  const client = new KitsuClient(fetcher);
+
+  await client.fetchAnimeCharacters(509);
+  await client.fetchAnimeStaff(509);
+  await client.fetchAnimeRelationships(509);
+  await client.fetchAnimeProductions(509);
+
+  assert.equal(capturedUrls.length, 4);
+  for (const url of capturedUrls) {
+    assert.match(url, /page%5Blimit%5D=20/);
+  }
+});
