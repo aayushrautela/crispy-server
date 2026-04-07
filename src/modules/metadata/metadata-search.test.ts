@@ -15,7 +15,7 @@ test('searchTitles returns empty when query is blank', async () => {
   );
 
   const response = await svc.searchTitles({ query: '   ', limit: 10 });
-  assert.deepEqual(response, { query: '', items: [] });
+  assert.deepEqual(response, { query: '', all: [], movies: [], series: [], anime: [] });
 });
 
 test('series filter does not request TMDB search types', async () => {
@@ -89,9 +89,140 @@ test('all filter combines movie, series, and anime results without TMDB tv searc
 
     assert.deepEqual(tmdbCalls, [{ query: 'Alpha', limit: 2, mediaTypes: ['movie'], locale: 'en-US' }]);
     assert.deepEqual(providerCalls, [{ query: 'Alpha', filter: 'all', limit: 2 }]);
-    assert.deepEqual(response.items.map((item) => item.mediaType), ['show', 'anime']);
-    assert.deepEqual(response.items.map((item) => item.title), ['Alpha Series', 'Alpha Anime']);
+    assert.deepEqual(response.movies.map((item) => item.title), ['Alpha Movie']);
+    assert.deepEqual(response.series.map((item) => item.title), ['Alpha Series']);
+    assert.deepEqual(response.anime.map((item) => item.title), ['Alpha Anime']);
+    assert.deepEqual(response.all.map((item) => item.title), ['Alpha Series', 'Alpha Anime', 'Alpha Movie']);
     assert.deepEqual(ensuredMediaKeys, ['movie:tmdb:101', 'show:tvdb:201', 'anime:kitsu:301']);
+  } finally {
+    db.connect = originalConnect;
+  }
+});
+
+test('searchTitles drops results without posters', async () => {
+  const { db } = await import('../../lib/db.js');
+  const originalConnect = db.connect.bind(db);
+  db.connect = async () => ({
+    release() {
+      return undefined;
+    },
+  }) as never;
+
+  try {
+    const pkg = await import('../search/title-search.service.js');
+    const svc = new pkg.TitleSearchService(
+      {
+        searchTitles: async () => [createTmdbMovieRecord({ tmdbId: 41, name: 'Poster Movie', posterPath: '/poster.jpg' })],
+        discoverTitlesByGenre: async () => [],
+      } as never,
+      {
+        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
+          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+        },
+        ensureContentId: async () => null,
+      } as never,
+      {
+        searchTitles: async () => [
+          createProviderTitleRecord({ providerId: 'show-without-poster', title: 'Hidden Series', posterUrl: null }),
+          createProviderTitleRecord({ mediaType: 'anime', provider: 'kitsu', providerId: 'anime-with-poster', title: 'Visible Anime' }),
+        ],
+      } as never,
+    );
+
+    const response = await svc.searchTitles({ query: 'Visible', filter: 'all', limit: 20 });
+
+    assert.deepEqual(response.series, []);
+    assert.deepEqual(response.anime.map((item) => item.title), ['Visible Anime']);
+    assert.deepEqual(response.all.map((item) => item.title), ['Visible Anime', 'Poster Movie']);
+  } finally {
+    db.connect = originalConnect;
+  }
+});
+
+test('searchTitles moves noisy anime results to the end without disturbing clean order', async () => {
+  const { db } = await import('../../lib/db.js');
+  const originalConnect = db.connect.bind(db);
+  db.connect = async () => ({
+    release() {
+      return undefined;
+    },
+  }) as never;
+
+  try {
+    const pkg = await import('../search/title-search.service.js');
+    const svc = new pkg.TitleSearchService(
+      { searchTitles: async () => [], discoverTitlesByGenre: async () => [] } as never,
+      {
+        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
+          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+        },
+        ensureContentId: async () => null,
+      } as never,
+      {
+        searchTitles: async () => [
+          createProviderTitleRecord({ mediaType: 'anime', provider: 'kitsu', providerId: 'clean-1', title: 'Naruto', releaseDate: '2002-10-03', rating: 8.4 }),
+          createProviderTitleRecord({ mediaType: 'anime', provider: 'kitsu', providerId: 'noisy-1', title: 'Naruto Lost', releaseDate: null, rating: null }),
+          createProviderTitleRecord({ mediaType: 'anime', provider: 'kitsu', providerId: 'clean-2', title: 'Naruto Next', releaseDate: '2017-04-05', rating: 7.9 }),
+        ],
+      } as never,
+    );
+
+    const response = await svc.searchTitles({ query: 'Naruto', filter: 'anime', limit: 20 });
+
+    assert.deepEqual(response.anime.map((item) => item.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
+    assert.deepEqual(response.all.map((item) => item.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
+  } finally {
+    db.connect = originalConnect;
+  }
+});
+
+test('searchTitles coalesces identical in-flight requests', async () => {
+  const { db } = await import('../../lib/db.js');
+  const originalConnect = db.connect.bind(db);
+  db.connect = async () => ({
+    release() {
+      return undefined;
+    },
+  }) as never;
+
+  try {
+    const pkg = await import('../search/title-search.service.js');
+    let tmdbCalls = 0;
+    let resolveTmdb!: (value: TmdbTitleRecord[]) => void;
+    const tmdbPromise = new Promise<TmdbTitleRecord[]>((resolve) => {
+      resolveTmdb = resolve;
+    });
+
+    const svc = new pkg.TitleSearchService(
+      {
+        searchTitles: async () => {
+          tmdbCalls += 1;
+          return tmdbPromise;
+        },
+        discoverTitlesByGenre: async () => [],
+      } as never,
+      {
+        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
+          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+        },
+        ensureContentId: async () => null,
+      } as never,
+      { searchTitles: async () => [] } as never,
+    );
+
+    const first = svc.searchTitles({ query: 'Alpha', filter: 'all', limit: 20, locale: 'en-US' });
+    const second = svc.searchTitles({ query: 'Alpha', filter: 'all', limit: 20, locale: 'en-US' });
+
+    await Promise.resolve();
+    assert.equal(tmdbCalls, 1);
+
+    resolveTmdb([
+      createTmdbMovieRecord({ tmdbId: 77, name: 'Alpha Movie', releaseDate: '2024-01-01', posterPath: '/alpha.jpg' }),
+    ]);
+
+    const [left, right] = await Promise.all([first, second]);
+    assert.deepEqual(left, right);
+    assert.equal(tmdbCalls, 1);
   } finally {
     db.connect = originalConnect;
   }

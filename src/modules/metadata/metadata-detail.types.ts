@@ -269,7 +269,10 @@ export type MetadataSearchResult = CatalogItem;
 
 export type MetadataSearchResponse = {
   query: string;
-  items: MetadataSearchResult[];
+  all: MetadataSearchResult[];
+  movies: MetadataSearchResult[];
+  series: MetadataSearchResult[];
+  anime: MetadataSearchResult[];
 };
 
 export type MetadataResolveResponse = {

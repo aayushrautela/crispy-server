@@ -622,10 +622,22 @@ const playbackResolveResponseSchema = {
 const metadataSearchResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'items'],
+  required: ['query', 'all', 'movies', 'series', 'anime'],
   properties: {
     query: stringSchema,
-    items: {
+    all: {
+      type: 'array',
+      items: regularCardViewSchema,
+    },
+    movies: {
+      type: 'array',
+      items: regularCardViewSchema,
+    },
+    series: {
+      type: 'array',
+      items: regularCardViewSchema,
+    },
+    anime: {
       type: 'array',
       items: regularCardViewSchema,
     },

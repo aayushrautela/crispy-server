@@ -1,6 +1,7 @@
 import { logger } from '../../config/logger.js';
-import { withTransaction } from '../../lib/db.js';
+import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import type { CatalogItem } from '../metadata/metadata-card.types.js';
 import type { MetadataSearchFilter } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
@@ -15,16 +16,21 @@ type ResolvedSuggestion = {
   item: AiSearchItem;
 };
 
+type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
+
 const FINAL_RESULT_LIMIT = 12;
 const RESOLUTION_SEARCH_LIMIT = 20;
 const MIN_METADATA_MATCH_SCORE = 36;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
+const AI_SEARCH_CACHE_TTL_MS = 10_000;
 
 export class AiSearchService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly titleSearchService = new TitleSearchService(),
+    private readonly requestCoalescer = new ShortLivedRequestCoalescer<AiSearchResponse>(AI_SEARCH_CACHE_TTL_MS),
+    private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
   async search(userId: string, input: {
@@ -46,43 +52,47 @@ export class AiSearchService {
       throw new HttpError(400, 'Profile is required.');
     }
 
-    await withTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+    const requestKey = [userId, profileId, query, filter, locale].join('|');
+
+    return this.requestCoalescer.run(requestKey, async () => {
+      await this.runInTransaction(async (client) => {
+        const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
+        if (!profile) {
+          throw new HttpError(404, 'Profile not found.');
+        }
+      });
+      const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
+        userId,
+        feature: 'search',
+        systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope.',
+        userPrompt: buildSearchPrompt(query, filter, locale, analysis),
+      });
+
+      const rawItems = Array.isArray(generated.items) ? generated.items : [];
+      const candidates = parseSearchCandidates(rawItems);
+      const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, filter, locale);
+      const items = finalizeResolvedItems(resolvedSuggestions, analysis);
+
+      logger.info({
+        userId,
+        profileId,
+        query: sampleQuery(query),
+        filter,
+        locale,
+        providerId: request.providerId,
+        model: request.model,
+        rawItemCount: rawItems.length,
+        candidateCount: candidates.length,
+        resolvedCount: resolvedSuggestions.length,
+        finalCount: items.length,
+        candidateSamples: candidates.slice(0, 8),
+        unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
+        resultTitles: items.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.provider}:${item.providerId}`),
+        generatedKeys: Object.keys(generated).slice(0, 10),
+      }, 'AI search completed');
+
+      return { items };
     });
-    const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
-      userId,
-      feature: 'search',
-      systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope.',
-      userPrompt: buildSearchPrompt(query, filter, locale, analysis),
-    });
-
-    const rawItems = Array.isArray(generated.items) ? generated.items : [];
-    const candidates = parseSearchCandidates(rawItems);
-    const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, filter, locale);
-    const items = finalizeResolvedItems(resolvedSuggestions, analysis);
-
-    logger.info({
-      userId,
-      profileId,
-      query: sampleQuery(query),
-      filter,
-      locale,
-      providerId: request.providerId,
-      model: request.model,
-      rawItemCount: rawItems.length,
-      candidateCount: candidates.length,
-      resolvedCount: resolvedSuggestions.length,
-      finalCount: items.length,
-      candidateSamples: candidates.slice(0, 8),
-      unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-      resultTitles: items.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.provider}:${item.providerId}`),
-      generatedKeys: Object.keys(generated).slice(0, 10),
-    }, 'AI search completed');
-
-    return { items };
   }
 }
 
@@ -118,7 +128,7 @@ async function resolveSuggestion(
         limit: RESOLUTION_SEARCH_LIMIT,
         locale,
       });
-      const selected = selectBestMetadataMatch(response.items, candidate.title, candidate.mediaType);
+      const selected = selectBestMetadataMatch(response.all, candidate.title, candidate.mediaType);
       if (selected) {
         return selected;
       }

@@ -1,4 +1,5 @@
 import { withDbClient } from '../../lib/db.js';
+import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
 import { buildMetadataCardView, buildProviderMetadataCardView, toCatalogItem } from '../metadata/metadata-card.builders.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
@@ -27,11 +28,35 @@ type SearchCandidate = CatalogItem & {
   sourcePriority: number;
 };
 
+type SearchBucketEntry = {
+  item: CatalogItem;
+  noisy: boolean;
+};
+
+type SearchBuckets = {
+  movies: SearchBucketEntry[];
+  series: SearchBucketEntry[];
+  anime: SearchBucketEntry[];
+};
+
+type SearchEntryCandidate = SearchBucketEntry & {
+  normalizedTitle: string;
+  normalizedSubtitle: string;
+  sourcePriority: number;
+};
+
+const MOVIES_LIMIT = 20;
+const SERIES_LIMIT = 20;
+const ANIME_LIMIT = 20;
+const ALL_LIMIT = 60;
+const SEARCH_CACHE_TTL_MS = 3_000;
+
 export class TitleSearchService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly requestCoalescer = new ShortLivedRequestCoalescer<MetadataSearchResponse>(SEARCH_CACHE_TTL_MS),
   ) {}
 
   async searchTitles(input: SearchTitlesInput): Promise<MetadataSearchResponse> {
@@ -42,14 +67,19 @@ export class TitleSearchService {
     const locale = normalizeSearchLocale(input.locale);
 
     if (!normalizedQuery && !genreMapping) {
-      return {
-        query: normalizedQuery,
-        items: [],
-      };
+      return emptySearchResponse(normalizedQuery);
     }
 
     const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
-    return withDbClient(async (client) => {
+    const requestKey = buildSearchRequestKey({
+      query: normalizedQuery,
+      filter: normalizedFilter,
+      genreMapping,
+      limit,
+      locale,
+    });
+
+    return this.requestCoalescer.run(requestKey, () => withDbClient(async (client) => {
       const tmdbMatches = shouldQueryTmdb(normalizedFilter)
         ? genreMapping
           ? await this.tmdbCacheService.discoverTitlesByGenre({
@@ -91,10 +121,11 @@ export class TitleSearchService {
           return null;
         }
 
-        return buildMetadataCardView({
+        const item = toCatalogItem(buildMetadataCardView({
           identity,
           title: match,
-        });
+        }));
+        return item ? { item, noisy: isNoisyTmdbMatch(match) } : null;
       }));
 
       const providerItems = providerMatches.flatMap((match: ProviderTitleRecord) => {
@@ -108,22 +139,38 @@ export class TitleSearchService {
           return [];
         }
         const item = toCatalogItem(buildProviderMetadataCardView({ identity, title: match }));
-        return item ? [item] : [];
+        return item ? [{ item, noisy: isNoisyProviderMatch(match) }] : [];
       });
 
-      const items = rankCatalogItems(normalizedQuery, [
-        ...tmdbItems
-          .map((item) => (item ? toCatalogItem(item) : null))
-          .filter((item): item is CatalogItem => item !== null),
+      return buildBucketedSearchResponse(normalizedQuery, limit, [
+        ...tmdbItems.filter((item): item is SearchBucketEntry => item !== null),
         ...providerItems,
-      ]).slice(0, limit);
-
-      return {
-        query: normalizedQuery,
-        items,
-      };
-    });
+      ]);
+    }));
   }
+}
+
+function emptySearchResponse(query: string): MetadataSearchResponse {
+  return {
+    query,
+    all: [],
+    movies: [],
+    series: [],
+    anime: [],
+  };
+}
+
+function buildSearchRequestKey(params: {
+  query: string;
+  filter: MetadataSearchFilter;
+  genreMapping: GenreMapping | null;
+  limit: number;
+  locale: string | null;
+}): string {
+  const genreKey = params.genreMapping
+    ? `${params.genreMapping.movieGenreId}:${params.genreMapping.tvGenreId ?? ''}`
+    : '';
+  return [params.query, params.filter, genreKey, String(params.limit), params.locale ?? ''].join('|');
 }
 
 export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTitleType[] {
@@ -157,10 +204,10 @@ function normalizeGenreKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-function rankCatalogItems(query: string, items: CatalogItem[]): CatalogItem[] {
+function rankSearchEntries(query: string, entries: SearchBucketEntry[]): SearchBucketEntry[] {
   const seen = new Set<string>();
-  return items
-    .filter((item) => {
+  return entries
+    .filter(({ item }) => {
       const key = `${item.mediaType}:${item.provider}:${item.providerId}`;
       if (seen.has(key)) {
         return false;
@@ -168,17 +215,95 @@ function rankCatalogItems(query: string, items: CatalogItem[]): CatalogItem[] {
       seen.add(key);
       return true;
     })
-    .map((item) => ({
-      ...item,
-      normalizedTitle: normalizeSearchText(item.title),
-      normalizedSubtitle: normalizeSearchText(item.subtitle),
-      sourcePriority: item.mediaType === 'movie' ? 0 : 1,
+    .map((entry) => ({
+      ...entry,
+      normalizedTitle: normalizeSearchText(entry.item.title),
+      normalizedSubtitle: normalizeSearchText(entry.item.subtitle),
+      sourcePriority: entry.item.mediaType === 'movie' ? 0 : 1,
     }))
-    .sort(compareCatalogItems(query))
-    .map(({ normalizedTitle: _normalizedTitle, normalizedSubtitle: _normalizedSubtitle, sourcePriority: _sourcePriority, ...item }) => item);
+    .sort(compareSearchEntries(query))
+    .map(({ normalizedTitle: _normalizedTitle, normalizedSubtitle: _normalizedSubtitle, sourcePriority: _sourcePriority, ...entry }) => entry);
 }
 
-function compareCatalogItems(query: string): (left: SearchCandidate, right: SearchCandidate) => number {
+function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
+  const buckets: SearchBuckets = {
+    movies: [],
+    series: [],
+    anime: [],
+  };
+
+  for (const entry of items) {
+    if (!hasSearchPoster(entry.item)) {
+      continue;
+    }
+
+    const bucket = bucketForMediaType(entry.item.mediaType);
+    if (bucket) {
+      buckets[bucket].push(entry);
+    }
+  }
+
+  return buckets;
+}
+
+function buildBucketedSearchResponse(query: string, limit: number, entries: SearchBucketEntry[]): MetadataSearchResponse {
+  const buckets = buildSearchBuckets(entries);
+  const movies = finalizeBucket(query, buckets.movies, Math.min(limit, MOVIES_LIMIT));
+  const series = finalizeBucket(query, buckets.series, Math.min(limit, SERIES_LIMIT));
+  const anime = finalizeBucket(query, buckets.anime, Math.min(limit, ANIME_LIMIT));
+  const all = finalizeBucket(query, [...movies, ...series, ...anime], Math.min(limit * 3, ALL_LIMIT));
+
+  return {
+    query,
+    all: toCatalogItems(all),
+    movies: toCatalogItems(movies),
+    series: toCatalogItems(series),
+    anime: toCatalogItems(anime),
+  };
+}
+
+function finalizeBucket(query: string, items: SearchBucketEntry[], limit: number): SearchBucketEntry[] {
+  const ranked = rankSearchEntries(query, items);
+  return moveNoisyItemsToEnd(ranked).slice(0, limit);
+}
+
+function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
+  const clean: SearchBucketEntry[] = [];
+  const noisy: SearchBucketEntry[] = [];
+
+  for (const item of items) {
+    if (item.noisy) {
+      noisy.push(item);
+    } else {
+      clean.push(item);
+    }
+  }
+
+  return [...clean, ...noisy];
+}
+
+function hasSearchPoster(item: CatalogItem): boolean {
+  return Boolean(item.posterUrl?.trim());
+}
+
+function toCatalogItems(entries: SearchBucketEntry[]): CatalogItem[] {
+  return entries.map(({ item }) => item);
+}
+
+function bucketForMediaType(mediaType: CatalogItem['mediaType']): keyof SearchBuckets | null {
+  if (mediaType === 'movie') {
+    return 'movies';
+  }
+  if (mediaType === 'show') {
+    return 'series';
+  }
+  if (mediaType === 'anime') {
+    return 'anime';
+  }
+  return null;
+}
+
+function compareSearchEntries(query: string): (left: SearchEntryCandidate, right: SearchEntryCandidate) => number {
   const normalizedQuery = normalizeSearchText(query);
   return (left, right) => {
     const leftRank = rankCatalogItem(normalizedQuery, left);
@@ -187,14 +312,14 @@ function compareCatalogItems(query: string): (left: SearchCandidate, right: Sear
       return leftRank - rightRank;
     }
 
-    const leftYear = left.releaseYear ?? Number.MIN_SAFE_INTEGER;
-    const rightYear = right.releaseYear ?? Number.MIN_SAFE_INTEGER;
+    const leftYear = left.item.releaseYear ?? Number.MIN_SAFE_INTEGER;
+    const rightYear = right.item.releaseYear ?? Number.MIN_SAFE_INTEGER;
     if (leftYear !== rightYear) {
       return rightYear - leftYear;
     }
 
-    const leftRating = left.rating ?? Number.MIN_SAFE_INTEGER;
-    const rightRating = right.rating ?? Number.MIN_SAFE_INTEGER;
+    const leftRating = left.item.rating ?? Number.MIN_SAFE_INTEGER;
+    const rightRating = right.item.rating ?? Number.MIN_SAFE_INTEGER;
     if (leftRating !== rightRating) {
       return rightRating - leftRating;
     }
@@ -203,8 +328,28 @@ function compareCatalogItems(query: string): (left: SearchCandidate, right: Sear
       return left.sourcePriority - right.sourcePriority;
     }
 
-    return left.title.localeCompare(right.title);
+    return left.item.title.localeCompare(right.item.title);
   };
+}
+
+function isNoisyTmdbMatch(match: TmdbTitleRecord): boolean {
+  return !hasDate(match.releaseDate ?? match.firstAirDate) && !hasText(match.overview);
+}
+
+function isNoisyProviderMatch(match: ProviderTitleRecord): boolean {
+  if (match.provider === 'kitsu') {
+    return !hasDate(match.releaseDate) && match.rating == null;
+  }
+
+  return !hasDate(match.releaseDate) && !hasText(match.overview) && !hasText(match.summary);
+}
+
+function hasDate(value: string | null | undefined): boolean {
+  return Boolean(value?.trim());
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return Boolean(value?.trim());
 }
 
 function rankCatalogItem(query: string, item: Pick<SearchCandidate, 'normalizedTitle' | 'normalizedSubtitle'>): number {
