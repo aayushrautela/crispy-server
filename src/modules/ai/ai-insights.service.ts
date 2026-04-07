@@ -1,6 +1,8 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { parseMediaKey } from '../identity/media-key.js';
 import { MetadataDetailService } from '../metadata/metadata-detail.service.js';
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
 import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
@@ -19,6 +21,7 @@ export class AiInsightsService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
+    private readonly contentIdentityService = new ContentIdentityService(),
     private readonly entitlementService = new FeatureEntitlementService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly metadataDetailService = new MetadataDetailService(),
@@ -47,12 +50,15 @@ export class AiInsightsService {
         throw new HttpError(404, 'Profile not found.');
       }
     });
+    const contentId = await this.runInTransaction(async (client) => {
+      return this.contentIdentityService.ensureContentId(client, parseMediaKey(mediaKey));
+    });
     const request = await this.entitlementService.resolveAiRequestForUser(userId, 'insights');
     const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
     const cached = await this.runInTransaction(async (client) => {
-        return this.cacheRepository.findByKey(client, {
-        contentId: mediaKey,
+      return this.cacheRepository.findByKey(client, {
+        contentId,
         locale,
         generationVersion,
       });
@@ -84,7 +90,7 @@ export class AiInsightsService {
 
     return this.runInTransaction(async (client) => {
       return this.cacheRepository.upsert(client, {
-        contentId: mediaKey,
+        contentId,
         locale,
         generationVersion: actualGenerationVersion,
         modelName: `${execution.request.providerId}:${execution.request.model}`,

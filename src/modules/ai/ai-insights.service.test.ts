@@ -8,14 +8,23 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
 
   let capturedPrompt = '';
   let capturedGenerationVersion = '';
+  let capturedContentId = '';
+  let ensuredMediaKey = '';
 
   const service = new AiInsightsService(
     { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
     {
       findByKey: async () => null,
-      upsert: async (_client: unknown, params: { generationVersion: string; payload: { insights: Array<Record<string, unknown>>; trivia: string } }) => {
+      upsert: async (_client: unknown, params: { contentId: string; generationVersion: string; payload: { insights: Array<Record<string, unknown>>; trivia: string } }) => {
+        capturedContentId = params.contentId;
         capturedGenerationVersion = params.generationVersion;
         return params.payload;
+      },
+    } as never,
+    {
+      ensureContentId: async (_client: unknown, identity: { mediaKey: string }) => {
+        ensuredMediaKey = identity.mediaKey;
+        return '11111111-1111-4111-8111-111111111111';
       },
     } as never,
     {
@@ -72,6 +81,8 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
   });
 
   assert.equal(payload.insights.length, 1);
+  assert.equal(ensuredMediaKey, 'movie:tmdb:1');
+  assert.equal(capturedContentId, '11111111-1111-4111-8111-111111111111');
   assert.match(capturedPrompt, /Great pacing and payoff\./);
   assert.match(capturedGenerationVersion, /^v4:/);
 });

@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+test('WatchV2TrackedQueryService resolves mediaKey to contentId before querying tracked titles', async () => {
+  const { WatchV2TrackedQueryService } = await import('./watch-v2-tracked-query.service.js');
+
+  let capturedSql = '';
+  let capturedParams: unknown[] = [];
+  let ensuredMediaKey = '';
+
+  const client = {
+    query: async (sql: string, params: unknown[]) => {
+      capturedSql = sql;
+      capturedParams = params;
+      return {
+        rows: [{
+          title_content_id: '11111111-1111-4111-8111-111111111111',
+          title_media_key: 'show:tvdb:100',
+          title_media_type: 'show',
+          title_provider: 'tvdb',
+          title_provider_id: '100',
+          reason: 'watch_activity',
+          last_interacted_at: '2026-04-07T12:00:00.000Z',
+          next_episode_air_date: null,
+          metadata_refreshed_at: null,
+          payload: {},
+        }],
+      };
+    },
+  };
+
+  const service = new WatchV2TrackedQueryService({
+    ensureContentId: async (_client: unknown, identity: { mediaKey: string }) => {
+      ensuredMediaKey = identity.mediaKey;
+      return '11111111-1111-4111-8111-111111111111';
+    },
+    resolveContentReference: async () => {
+      throw new Error('not found');
+    },
+  } as never);
+
+  const result = await service.getTrackedTitleByMediaKey(client as never, 'profile-1', 'show:tvdb:100');
+
+  assert.equal(ensuredMediaKey, 'show:tvdb:100');
+  assert.match(capturedSql, /projection\.title_content_id = \$2::uuid/);
+  assert.doesNotMatch(capturedSql, /projection\.title_media_key = \$2/);
+  assert.deepEqual(capturedParams, ['profile-1', '11111111-1111-4111-8111-111111111111']);
+  assert.equal(result?.titleContentId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(result?.trackedMediaKey, 'show:tvdb:100');
+});

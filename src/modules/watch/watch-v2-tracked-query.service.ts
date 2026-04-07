@@ -71,23 +71,7 @@ export class WatchV2TrackedQueryService {
 
     const rows: TrackedTitleRow[] = [];
     for (const row of result.rows) {
-      const trackedMediaKey = String(row.title_media_key);
-      const parsed = parseMediaKey(trackedMediaKey);
-      const titleContentId = String(row.title_content_id);
-      const identity = await this.resolveTitleIdentity(client, titleContentId, parsed);
-      rows.push({
-        titleContentId,
-        trackedMediaKey,
-        trackedMediaType: parsed.mediaType === 'anime' ? 'anime' : 'show',
-        provider: identity.provider ?? String(row.title_provider),
-        providerId: identity.providerId ?? String(row.title_provider_id),
-        reason: typeof row.reason === 'string' ? row.reason : 'watch_activity',
-        lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_title_projection.last_interacted_at'),
-        nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_tracked_title_state.next_episode_air_date'),
-        metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_tracked_title_state.metadata_refreshed_at'),
-        payload: (row.payload as Record<string, unknown> | undefined) ?? {},
-        showTmdbId: showTmdbIdForIdentity(identity),
-      });
+      rows.push(await this.mapTrackedTitleRow(client, row));
     }
 
     return rows;
@@ -99,6 +83,11 @@ export class WatchV2TrackedQueryService {
       return null;
     }
 
+    const titleContentId = await this.contentIdentityService.ensureContentId(client, identity);
+    return this.getTrackedTitleByContentId(client, profileId, titleContentId);
+  }
+
+  async getTrackedTitleByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<TrackedTitleRow | null> {
     const result = await client.query(
       `
         SELECT
@@ -126,25 +115,21 @@ export class WatchV2TrackedQueryService {
           ON metadata.profile_id = projection.profile_id
          AND metadata.title_content_id = projection.title_content_id
         WHERE projection.profile_id = $1::uuid
-          AND projection.title_media_key = $2
+          AND projection.title_content_id = $2::uuid
           AND projection.title_media_type IN ('show', 'anime')
+          AND (
+            projection.has_in_progress = true
+            OR projection.effective_watched = true
+            OR projection.watchlist_present = true
+            OR projection.rating_value IS NOT NULL
+          )
         LIMIT 1
       `,
-      [profileId, mediaKey],
+      [profileId, titleContentId],
     );
 
     const row = result.rows[0];
-    if (!row) {
-      return null;
-    }
-
-    const trackedRows = await this.listTrackedTitles(client, profileId, 1_000_000);
-    return trackedRows.find((entry) => entry.titleContentId === String(row.title_content_id)) ?? null;
-  }
-
-  async getTrackedTitleByContentId(client: DbClient, profileId: string, titleContentId: string): Promise<TrackedTitleRow | null> {
-    const trackedRows = await this.listTrackedTitles(client, profileId, 1_000_000);
-    return trackedRows.find((entry) => entry.titleContentId === titleContentId) ?? null;
+    return row ? this.mapTrackedTitleRow(client, row) : null;
   }
 
   private async resolveTitleIdentity(client: DbClient, titleContentId: string, fallback: MediaIdentity): Promise<MediaIdentity> {
@@ -161,5 +146,25 @@ export class WatchV2TrackedQueryService {
       tmdbId: fallback.tmdbId,
       showTmdbId: fallback.showTmdbId,
     });
+  }
+
+  private async mapTrackedTitleRow(client: DbClient, row: Record<string, unknown>): Promise<TrackedTitleRow> {
+    const trackedMediaKey = String(row.title_media_key);
+    const parsed = parseMediaKey(trackedMediaKey);
+    const titleContentId = String(row.title_content_id);
+    const identity = await this.resolveTitleIdentity(client, titleContentId, parsed);
+    return {
+      titleContentId,
+      trackedMediaKey,
+      trackedMediaType: parsed.mediaType === 'anime' ? 'anime' : 'show',
+      provider: identity.provider ?? String(row.title_provider),
+      providerId: identity.providerId ?? String(row.title_provider_id),
+      reason: typeof row.reason === 'string' ? row.reason : 'watch_activity',
+      lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_title_projection.last_interacted_at'),
+      nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_tracked_title_state.next_episode_air_date'),
+      metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_tracked_title_state.metadata_refreshed_at'),
+      payload: (row.payload as Record<string, unknown> | undefined) ?? {},
+      showTmdbId: showTmdbIdForIdentity(identity),
+    };
   }
 }
