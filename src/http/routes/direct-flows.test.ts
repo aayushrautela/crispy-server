@@ -422,7 +422,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   const originals = {
     listContinueWatchingProducts: PersonalMediaService.prototype.listContinueWatchingProducts,
     listContinueWatchingPage: PersonalMediaService.prototype.listContinueWatchingPage,
-    listWatchedPage: PersonalMediaService.prototype.listWatchedPage,
+    listHistoryPage: PersonalMediaService.prototype.listHistoryPage,
     listWatchlistPage: PersonalMediaService.prototype.listWatchlistPage,
     listRatingsPage: PersonalMediaService.prototype.listRatingsPage,
     dismissContinueWatching: WatchEventIngestService.prototype.dismissContinueWatching,
@@ -434,7 +434,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     Object.assign(PersonalMediaService.prototype, {
       listContinueWatchingProducts: originals.listContinueWatchingProducts,
       listContinueWatchingPage: originals.listContinueWatchingPage,
-      listWatchedPage: originals.listWatchedPage,
+      listHistoryPage: originals.listHistoryPage,
       listWatchlistPage: originals.listWatchlistPage,
       listRatingsPage: originals.listRatingsPage,
     });
@@ -471,6 +471,32 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   PersonalMediaService.prototype.listContinueWatchingPage = async function (_userId, _profileId, _params) {
     return {
       items: await this.listContinueWatchingProducts('user-1', 'profile-1', 20),
+      pageInfo: {
+        nextCursor: null,
+        hasMore: false,
+      },
+    } as never;
+  };
+  PersonalMediaService.prototype.listHistoryPage = async function () {
+    return {
+      items: [
+        {
+          media: {
+            mediaKey: 'movie:tmdb:42',
+            mediaType: 'movie',
+            provider: 'tmdb',
+            providerId: '42',
+            title: 'History Movie',
+            posterUrl: 'https://img.test/poster.jpg',
+            releaseYear: null,
+            rating: null,
+            genre: null,
+            subtitle: null,
+          },
+          watchedAt: '2024-01-02T00:00:00.000Z',
+          origins: ['native'],
+        },
+      ],
       pageInfo: {
         nextCursor: null,
         hasMore: false,
@@ -543,6 +569,11 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.equal(listResponse.json().pageInfo.nextCursor, null);
   assert.equal(listResponse.json().pageInfo.hasMore, false);
 
+  const historyResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/history?limit=7', headers: auth });
+  assert.equal(historyResponse.statusCode, 200);
+  assert.equal(historyResponse.json().kind, 'history');
+  assert.equal(historyResponse.json().items[0].watchedAt, '2024-01-02T00:00:00.000Z');
+
   const stateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:1', headers: auth });
   assert.equal(stateResponse.statusCode, 200);
   assert.equal(stateResponse.json().profileId, 'profile-1');
@@ -578,187 +609,52 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   assert.deepEqual(dismissResponse.json(), { dismissed: true, userId: 'user-1', profileId: 'profile-1', id: 'cw-1' });
 });
 
-test('library route returns canonical library sections and auth state', async (t) => {
-  const { LibraryService } = await import('../../modules/library/library.service.js');
+test('profile routes expose import-connections', async (t) => {
+  const { ProviderImportService } = await import('../../modules/integrations/provider-import.service.js');
   const originals = {
-    getProfileLibrary: LibraryService.prototype.getProfileLibrary,
-    getProfileLibrarySectionPage: LibraryService.prototype.getProfileLibrarySectionPage,
+    listConnections: ProviderImportService.prototype.listConnections,
   };
 
   t.after(() => {
-    Object.assign(LibraryService.prototype, originals);
+    Object.assign(ProviderImportService.prototype, originals);
   });
 
-  LibraryService.prototype.getProfileLibrary = async function (userId, profileId) {
+  ProviderImportService.prototype.listConnections = async function (_userId, _profileId) {
     return {
-      profileId,
-      source: 'canonical_library',
-      generatedAt: '2024-01-01T00:00:00.000Z',
-      auth: {
-        providers: [
-          {
-            provider: 'trakt',
-            connected: true,
-            status: 'connected',
-            externalUsername: 'crispy-user',
-            statusMessage: 'Connected as crispy-user',
-          },
-        ],
-      },
-      sections: [
+      providerAccounts: [
         {
-          id: 'watched',
-          label: 'Watched',
-          order: 0,
-          itemCount: 1,
-        },
-        {
-          id: 'watchlist',
-          label: 'Watchlist',
-          order: 1,
-          itemCount: 1,
-        },
-        {
-          id: 'rated',
-          label: 'Rated',
-          order: 2,
-          itemCount: 0,
-          items: [],
+          id: 'conn-1',
+          provider: 'trakt',
+          status: 'connected',
+          providerUserId: 'user-42',
+          externalUsername: 'crispy-user',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-02T00:00:00.000Z',
+          lastUsedAt: null,
+          lastImportJobId: null,
+          lastImportCompletedAt: null,
         },
       ],
-    } as never;
-  };
-
-  const { registerLibraryRoutes } = await import('./library.js');
-  const app = await buildTestApp(registerLibraryRoutes);
-  t.after(async () => { await app.close(); });
-
-  const auth = { authorization: 'Bearer test' };
-
-  const libraryResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library', headers: auth });
-  assert.equal(libraryResponse.statusCode, 200);
-  assert.equal(libraryResponse.json().profileId, 'profile-1');
-  assert.equal(libraryResponse.json().source, 'canonical_library');
-  assert.ok(libraryResponse.json().generatedAt);
-  assert.equal(libraryResponse.json().auth.providers[0].provider, 'trakt');
-  assert.deepEqual(libraryResponse.json().sections.map((section: { id: string }) => section.id), ['watched', 'watchlist', 'rated']);
-  assert.equal(libraryResponse.json().sections[0].itemCount, 1);
-  assert.equal(libraryResponse.json().sections[1].itemCount, 1);
-});
-
-test('library section route returns paginated canonical library items', async (t) => {
-  const { LibraryService } = await import('../../modules/library/library.service.js');
-  const originals = {
-    getProfileLibrary: LibraryService.prototype.getProfileLibrary,
-    getProfileLibrarySectionPage: LibraryService.prototype.getProfileLibrarySectionPage,
-  };
-
-  t.after(() => {
-    Object.assign(LibraryService.prototype, originals);
-  });
-
-  LibraryService.prototype.getProfileLibrarySectionPage = async function (_userId, profileId, sectionId) {
-    return {
-      profileId,
-      source: 'canonical_library',
-      generatedAt: '2024-01-01T00:00:00.000Z',
-      section: {
-        id: sectionId,
-        label: 'Watched',
-        order: 0,
-      },
-      items: [
-        {
-          id: 'movie-1',
-          media: {
-            mediaKey: 'movie:tmdb:1',
-            mediaType: 'movie',
-            provider: 'tmdb',
-            providerId: '1',
-            title: 'Test Movie',
-            posterUrl: 'https://img.test/poster.jpg',
-            releaseYear: null,
-            rating: null,
-            genre: null,
-            subtitle: null,
-          },
-          state: {
-            addedAt: null,
-            watchedAt: '2024-01-15T10:00:00.000Z',
-            ratedAt: null,
-            rating: null,
-            lastActivityAt: '2024-01-15T10:00:00.000Z',
-          },
-          origins: ['native'],
-        },
-      ],
-      pageInfo: {
-        nextCursor: 'cursor-1',
-        hasMore: true,
+      watchDataState: {
+        profileId: 'profile-1',
+        watchDataUpdatedAt: '2024-01-03T00:00:00.000Z',
+        watchDataOrigin: 'provider_import',
+        lastImportCompletedAt: '2024-01-03T00:00:00.000Z',
       },
     } as never;
   };
 
-  const { registerLibraryRoutes } = await import('./library.js');
-  const app = await buildTestApp(registerLibraryRoutes);
+  const { registerProfileRoutes } = await import('./profiles.js');
+  const app = await buildTestApp(registerProfileRoutes);
   t.after(async () => { await app.close(); });
 
   const auth = { authorization: 'Bearer test' };
-  const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library/sections/watched?limit=25', headers: auth });
+  const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/import-connections', headers: auth });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().section.id, 'watched');
-  assert.equal(response.json().items[0].media.title, 'Test Movie');
-  assert.equal(response.json().pageInfo.nextCursor, 'cursor-1');
-  assert.equal(response.json().pageInfo.hasMore, true);
-});
-
-test('library section route returns 404 for unknown section ids', async (t) => {
-  const { LibraryService } = await import('../../modules/library/library.service.js');
-  const originals = {
-    getProfileLibrarySectionPage: LibraryService.prototype.getProfileLibrarySectionPage,
-  };
-
-  t.after(() => {
-    Object.assign(LibraryService.prototype, originals);
-  });
-
-  LibraryService.prototype.getProfileLibrarySectionPage = async function () {
-    throw new HttpError(404, 'Unknown library section: favorites.');
-  };
-
-  const { registerLibraryRoutes } = await import('./library.js');
-  const app = await buildTestApp(registerLibraryRoutes);
-  t.after(async () => { await app.close(); });
-
-  const auth = { authorization: 'Bearer test' };
-  const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/library/sections/favorites', headers: auth });
-
-  assert.equal(response.statusCode, 404);
-});
-
-test('library route returns 404 for non-existent profile', async (t) => {
-  const { LibraryService } = await import('../../modules/library/library.service.js');
-  const originals = {
-    getProfileLibrary: LibraryService.prototype.getProfileLibrary,
-  };
-
-  t.after(() => {
-    Object.assign(LibraryService.prototype, originals);
-  });
-
-  LibraryService.prototype.getProfileLibrary = async function () {
-    throw new Error('Profile not found.');
-  };
-
-  const { registerLibraryRoutes } = await import('./library.js');
-  const app = await buildTestApp(registerLibraryRoutes);
-  t.after(async () => { await app.close(); });
-
-  const auth = { authorization: 'Bearer test' };
-
-  const libraryResponse = await app.inject({ method: 'GET', url: '/v1/profiles/non-existent/library', headers: auth });
-  assert.equal(libraryResponse.statusCode, 500);
+  assert.equal(response.json().providerAccounts[0].provider, 'trakt');
+  assert.equal(response.json().providerAccounts[0].status, 'connected');
+  assert.equal(response.json().watchDataState.watchDataOrigin, 'provider_import');
 });
 
 test('metadata resolve route accepts provider-shaped query input', async (t) => {

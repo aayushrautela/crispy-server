@@ -3,6 +3,69 @@ import { ProviderImportService, parseImportProvider } from '../../modules/integr
 import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
 import { mapProfileView } from '../../modules/profiles/profile.views.js';
+import { nonEmptyStringSchema, profileIdParamsSchema, stringSchema, withDefaultErrorResponses } from '../contracts/shared.js';
+
+const providerConnectionRouteSchema = withDefaultErrorResponses({
+  params: profileIdParamsSchema,
+  response: {
+    200: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['providerAccounts', 'watchDataState'],
+      properties: {
+        providerAccounts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id', 'provider', 'status', 'providerUserId', 'externalUsername', 'createdAt', 'updatedAt', 'lastUsedAt', 'lastImportJobId', 'lastImportCompletedAt'],
+            properties: {
+              id: stringSchema,
+              provider: { type: 'string', enum: ['trakt', 'simkl'] },
+              status: { type: 'string', enum: ['pending', 'connected', 'expired', 'revoked'] },
+              providerUserId: { anyOf: [stringSchema, { type: 'null' }] },
+              externalUsername: { anyOf: [stringSchema, { type: 'null' }] },
+              createdAt: stringSchema,
+              updatedAt: stringSchema,
+              lastUsedAt: { anyOf: [stringSchema, { type: 'null' }] },
+              lastImportJobId: { anyOf: [stringSchema, { type: 'null' }] },
+              lastImportCompletedAt: { anyOf: [stringSchema, { type: 'null' }] },
+            },
+          },
+        },
+        watchDataState: {
+          anyOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
+              properties: {
+                profileId: stringSchema,
+                watchDataUpdatedAt: stringSchema,
+                watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
+                lastImportCompletedAt: { anyOf: [stringSchema, { type: 'null' }] },
+              },
+            },
+            { type: 'null' },
+          ],
+        },
+      },
+    },
+  },
+});
+
+const providerConnectionDeleteRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['profileId', 'provider'],
+    properties: {
+      profileId: profileIdParamsSchema.properties.profileId,
+      provider: nonEmptyStringSchema,
+    },
+  },
+  body: { type: 'object', additionalProperties: false },
+});
 
 export async function registerProfileRoutes(app: FastifyInstance): Promise<void> {
   const profileService = new ProfileService();
@@ -71,18 +134,14 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     };
   });
 
-  app.get('/v1/profiles/:profileId/import-connections', async (request) => {
+  app.get('/v1/profiles/:profileId/import-connections', { schema: providerConnectionRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     return providerImportService.listConnections(actor.appUserId, params.profileId);
   });
 
-  app.delete('/v1/profiles/:profileId/import-connections/:provider', {
-    schema: {
-      body: { type: 'object', additionalProperties: false },
-    },
-  }, async (request) => {
+  app.delete('/v1/profiles/:profileId/import-connections/:provider', { schema: providerConnectionDeleteRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; provider: string };

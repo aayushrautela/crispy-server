@@ -122,7 +122,7 @@ const watchProductItemSchema = {
   },
 } as const;
 
-const watchedItemSchema = {
+const historyItemSchema = {
   ...watchProductItemSchema,
   required: [...watchProductItemSchema.required, 'watchedAt', 'origins'],
   properties: {
@@ -293,7 +293,7 @@ const watchStatesEnvelopeSchema = {
   },
 } as const;
 
-function buildWatchCollectionResponseSchema(kind: 'continue-watching' | 'watched' | 'watchlist' | 'ratings', itemSchema: Record<string, unknown>) {
+function buildWatchCollectionResponseSchema(kind: 'continue-watching' | 'history' | 'watchlist' | 'ratings', itemSchema: Record<string, unknown>) {
   return {
     type: 'object',
     additionalProperties: false,
@@ -385,10 +385,10 @@ export const continueWatchingListRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const watchedListRouteSchema = withDefaultErrorResponses({
+export const historyListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: buildWatchCollectionResponseSchema('watched', watchedItemSchema),
+    200: buildWatchCollectionResponseSchema('history', historyItemSchema),
   },
 });
 

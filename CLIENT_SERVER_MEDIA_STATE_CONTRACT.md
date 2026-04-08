@@ -22,13 +22,13 @@ This contract applies to:
 
 - `GET /v1/profiles/:profileId/calendar`
 - `GET /v1/profiles/:profileId/calendar/this-week`
-- `GET /v1/profiles/:profileId/library`
 - `GET /v1/profiles/:profileId/watch/continue-watching`
-- `GET /v1/profiles/:profileId/watch/watched`
+- `GET /v1/profiles/:profileId/watch/history`
 - `GET /v1/profiles/:profileId/watch/watchlist`
 - `GET /v1/profiles/:profileId/watch/ratings`
 - `GET /v1/profiles/:profileId/watch/state`
 - `POST /v1/profiles/:profileId/watch/states`
+- `GET /v1/profiles/:profileId/import-connections`
 - `GET /v1/search/titles`
 - `GET /v1/metadata/resolve`
 - `GET /v1/metadata/titles/:mediaKey`
@@ -99,7 +99,7 @@ Regular cards are used by:
 
 - search results
 - library items
-- watched items
+- history items
 - watchlist items
 - ratings items
 - metadata `similar`
@@ -263,101 +263,46 @@ Notes:
 - items use the same calendar item shape as the full calendar endpoint
 - `kind` is fixed to `this-week`
 
-## `GET /v1/profiles/:profileId/library`
+## `GET /v1/profiles/:profileId/import-connections`
 
 Envelope:
 
 ```json
 {
-  "profileId": "string",
-  "source": "canonical_library",
-  "generatedAt": "string",
-  "auth": {
-    "providers": [
-      {
-        "provider": "string",
-        "connected": "boolean",
-        "status": "string",
-        "externalUsername": "string | null",
-        "statusMessage": "string | null"
-      }
-    ]
-  },
-  "sections": [
+  "providerAccounts": [
     {
       "id": "string",
-      "label": "string",
-      "order": "integer",
-      "itemCount": "integer"
-    }
-  ]
-}
-```
-
-Notes:
-
-- `/library` is section discovery only; it does not embed section items
-- clients must render whatever `sections[]` the server returns
-- clients must load actual library rows from `GET /v1/profiles/:profileId/library/sections/:sectionId`
-- client apps should standardize on `/library/sections/:sectionId` for all library browsing
-
-## `GET /v1/profiles/:profileId/library/sections/:sectionId`
-
-Query:
-
-```json
-{
-  "limit": "integer | string",
-  "cursor": "string"
-}
-```
-
-Envelope:
-
-```json
-{
-  "profileId": "string",
-  "source": "canonical_library",
-  "generatedAt": "string",
-  "section": {
-    "id": "string",
-    "label": "string",
-    "order": "integer"
-  },
-  "items": [
-    {
-      "id": "string",
-      "media": "RegularCard",
-      "state": {
-        "addedAt": "string | null",
-        "watchedAt": "string | null",
-        "ratedAt": "string | null",
-        "rating": "number | null",
-        "lastActivityAt": "string | null"
-      },
-      "origins": ["string"]
+      "provider": "trakt | simkl",
+      "status": "pending | connected | expired | revoked",
+      "providerUserId": "string | null",
+      "externalUsername": "string | null",
+      "createdAt": "string",
+      "updatedAt": "string",
+      "lastUsedAt": "string | null",
+      "lastImportJobId": "string | null",
+      "lastImportCompletedAt": "string | null"
     }
   ],
-  "pageInfo": {
-    "nextCursor": "string | null",
-    "hasMore": "boolean"
-  }
+  "watchDataState": {
+    "profileId": "string",
+    "watchDataUpdatedAt": "string",
+    "watchDataOrigin": "native | provider_import",
+    "lastImportCompletedAt": "string | null"
+  } | null
 }
 ```
 
 Notes:
 
-- use `media.mediaKey` for navigation
-- do not expect legacy `detailsTarget`, `playbackTarget`, or `episodeContext` fields
-- `sectionId` must come from the `/library` discovery response
-- unknown `sectionId` returns `404`
+- this endpoint is the canonical public contract for provider connection state
+- screen composition and placement are client-owned; no public endpoint implies Home or Library placement
 
 ## Watch Collection Endpoints
 
 The following endpoints all return paginated canonical watch envelopes:
 
 - `GET /v1/profiles/:profileId/watch/continue-watching`
-- `GET /v1/profiles/:profileId/watch/watched`
+- `GET /v1/profiles/:profileId/watch/history`
 - `GET /v1/profiles/:profileId/watch/watchlist`
 - `GET /v1/profiles/:profileId/watch/ratings`
 
@@ -366,7 +311,7 @@ Shared envelope:
 ```json
 {
   "profileId": "string",
-  "kind": "continue-watching | watched | watchlist | ratings",
+  "kind": "continue-watching | history | watchlist | ratings",
   "source": "canonical_watch",
   "generatedAt": "string",
   "items": [],
@@ -402,7 +347,7 @@ Important:
 - continue-watching items do not currently include `watchedAt`
 - clients must not require `watchedAt` on continue-watching rows
 
-### Watched items
+### History items
 
 Shape:
 

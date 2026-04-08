@@ -10,7 +10,6 @@ import { registerAdminUiRoutes } from './routes/admin-ui.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
-import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerInternalAdminImportRoutes } from './routes/internal-admin-imports.js';
@@ -70,7 +69,6 @@ export async function buildApp() {
   await registerInternalAdminRecommendationRoutes(app);
   await registerInternalAdminImportRoutes(app);
   await registerCalendarRoutes(app);
-  await registerLibraryRoutes(app);
 
   return app;
 }

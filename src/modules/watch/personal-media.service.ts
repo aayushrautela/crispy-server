@@ -1,7 +1,7 @@
 import type {
   ContinueWatchingProductItem,
+  HistoryProductItem,
   RatingProductItem,
-  WatchedProductItem,
   WatchlistProductItem,
 } from './watch-derived-item.types.js';
 import { WatchCollectionService } from './watch-collection.service.js';
@@ -26,20 +26,24 @@ export class PersonalMediaService {
     return this.watchReadService.listContinueWatchingPage(userId, profileId, params);
   }
 
-  async listWatchedProducts(userId: string, profileId: string, limit: number): Promise<WatchedProductItem[]> {
-    return this.watchReadService.listWatchedProducts(userId, profileId, limit);
+  async countContinueWatchingProducts(userId: string, profileId: string): Promise<number> {
+    return this.watchReadService.countContinueWatchingProducts(userId, profileId);
   }
 
-  async countWatchedProducts(userId: string, profileId: string): Promise<number> {
-    return this.watchReadService.countWatchedProducts(userId, profileId);
+  async listHistoryProducts(userId: string, profileId: string, limit: number): Promise<HistoryProductItem[]> {
+    return this.watchReadService.listHistoryProducts(userId, profileId, limit);
   }
 
-  async listWatchedPage(
+  async countHistoryProducts(userId: string, profileId: string): Promise<number> {
+    return this.watchReadService.countHistoryProducts(userId, profileId);
+  }
+
+  async listHistoryPage(
     userId: string,
     profileId: string,
     params: { limit: number; cursor?: string | null },
-  ): Promise<PaginatedWatchCollection<WatchedProductItem>> {
-    return this.watchReadService.listWatchedPage(userId, profileId, params);
+  ): Promise<PaginatedWatchCollection<HistoryProductItem>> {
+    return this.watchReadService.listHistoryPage(userId, profileId, params);
   }
 
   async listWatchlistProducts(userId: string, profileId: string, limit: number): Promise<WatchlistProductItem[]> {

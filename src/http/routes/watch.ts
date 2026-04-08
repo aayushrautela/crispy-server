@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import {
   continueWatchingListRouteSchema,
+  historyListRouteSchema,
   ratingsListRouteSchema,
-  watchedListRouteSchema,
   watchContinueWatchingDismissRouteSchema,
   watchEventsRouteSchema,
   watchMediaKeyMutationRouteSchema,
@@ -87,17 +87,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     return ingestService.dismissContinueWatching(actor.appUserId, profileId, params.id);
   });
 
-  app.get('/v1/profiles/:profileId/watch/watched', { schema: watchedListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/history', { schema: historyListRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await personalMediaService.listWatchedPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await personalMediaService.listHistoryPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
     return {
       profileId,
-      kind: 'watched' as const,
+      kind: 'history' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: page.items,

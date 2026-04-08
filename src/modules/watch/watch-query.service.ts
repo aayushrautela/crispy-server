@@ -267,6 +267,24 @@ export class WatchQueryService {
     return page.items;
   }
 
+  async countContinueWatching(client: DbClient, profileId: string): Promise<number> {
+    const result = await client.query(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND has_in_progress = true
+          AND dismissed_at IS NULL
+          AND last_activity_at IS NOT NULL
+          AND title_text IS NOT NULL
+          AND title_poster_url IS NOT NULL
+          AND COALESCE(active_media_key, title_media_key) IS NOT NULL
+      `,
+      [profileId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
   async listContinueWatchingPage(client: DbClient, profileId: string, params: WatchPageParams): Promise<PaginatedWatchCollection<RawContinueWatchingRow>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(

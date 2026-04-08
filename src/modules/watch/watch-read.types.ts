@@ -17,7 +17,7 @@ export type {
   WatchStateLookupInput,
 } from './watch-state.types.js';
 
-export type CanonicalWatchCollectionKind = 'continue-watching' | 'watched' | 'watchlist' | 'ratings';
+export type CanonicalWatchCollectionKind = 'continue-watching' | 'history' | 'watchlist' | 'ratings';
 
 export type WatchCollectionPageInfo = {
   nextCursor: string | null;

@@ -2,8 +2,8 @@ import { parseMediaKey, type SupportedProvider } from '../identity/media-key.js'
 import type { LandscapeCardView, MetadataTitleMediaType, RegularCardView } from '../metadata/metadata-card.types.js';
 import type {
   ContinueWatchingProductItem,
+  HistoryProductItem,
   RatingProductItem,
-  WatchedProductItem,
   WatchlistProductItem,
 } from './watch-derived-item.types.js';
 import { deriveWatchOrigins } from './watch-origins.js';
@@ -45,7 +45,7 @@ export function mapContinueWatchingRowToProduct(row: RawContinueWatchingRow): Co
   };
 }
 
-export function mapWatchedRowToProduct(row: RawWatchHistoryRow): WatchedProductItem | null {
+export function mapHistoryRowToProduct(row: RawWatchHistoryRow): HistoryProductItem | null {
   const media = mapRegularStateToProductMedia(row.media);
   if (!media) {
     return null;

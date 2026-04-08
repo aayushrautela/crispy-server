@@ -16,7 +16,7 @@ export type ContinueWatchingProductItem = Omit<WatchDerivedProductItem, 'media'>
   dismissible: boolean;
 };
 
-export type WatchedProductItem = WatchDerivedProductItem & {
+export type HistoryProductItem = WatchDerivedProductItem & {
   watchedAt: string;
   origins: string[];
 };

@@ -169,7 +169,7 @@ Watch mutations update canonical server state. They do not perform inline write-
 - `POST /v1/profiles/:profileId/watch/events` - ingest watch event
 - `GET /v1/profiles/:profileId/watch/continue-watching` - continue watching list
 - `DELETE /v1/profiles/:profileId/watch/continue-watching/:id` - dismiss continue watching item
-- `GET /v1/profiles/:profileId/watch/watched` - watched history
+- `GET /v1/profiles/:profileId/watch/history` - watch history
 - `GET /v1/profiles/:profileId/watch/watchlist` - watchlist
 - `GET /v1/profiles/:profileId/watch/ratings` - ratings
 - `GET /v1/profiles/:profileId/watch/state` - resolve watch state for one item
@@ -181,10 +181,12 @@ Watch mutations update canonical server state. They do not perform inline write-
 - `PUT /v1/profiles/:profileId/watch/rating/:mediaKey` - set rating
 - `DELETE /v1/profiles/:profileId/watch/rating/:mediaKey` - remove rating
 
-#### Library and provider auth
+#### Provider connections
 
-- `GET /v1/profiles/:profileId/library` - library section discovery and provider connection summaries
-- `GET /v1/profiles/:profileId/library/sections/:sectionId` - paginated items for a discovered library section
+- `GET /v1/profiles/:profileId/import-connections` - list Trakt or Simkl connections for a profile
+- `DELETE /v1/profiles/:profileId/import-connections/:provider` - disconnect provider for a profile
+
+Public contracts are collection-oriented. The backend does not prescribe Home, Library, or any other client placement. Clients should compose their own surfaces from the canonical `/watch/*` endpoints and `/import-connections`.
 
 #### Metadata and AI
 

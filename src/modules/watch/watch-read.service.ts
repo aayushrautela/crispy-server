@@ -2,12 +2,12 @@ import { withDbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { WatchQueryService } from './watch-query.service.js';
-import type { ContinueWatchingProductItem, WatchedProductItem } from './watch-derived-item.types.js';
+import type { ContinueWatchingProductItem, HistoryProductItem } from './watch-derived-item.types.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';
 import {
   diagnoseContinueWatchingRow,
   mapContinueWatchingRowToProduct,
-  mapWatchedRowToProduct,
+  mapHistoryRowToProduct,
 } from './watch-row-product.mapper.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { fallbackRegularCard } from './regular-card-fallback.js';
@@ -22,6 +22,13 @@ export class WatchReadService {
   async listContinueWatchingProducts(userId: string, profileId: string, limit: number): Promise<ContinueWatchingProductItem[]> {
     const page = await this.listContinueWatchingPage(userId, profileId, { limit });
     return page.items;
+  }
+
+  async countContinueWatchingProducts(userId: string, profileId: string): Promise<number> {
+    return withDbClient(async (client) => {
+      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      return this.watchQueryService.countContinueWatching(client, profileId);
+    });
   }
 
   async listContinueWatchingPage(
@@ -78,23 +85,23 @@ export class WatchReadService {
     });
   }
 
-  async listWatchedProducts(userId: string, profileId: string, limit: number): Promise<WatchedProductItem[]> {
-    const page = await this.listWatchedPage(userId, profileId, { limit });
+  async listHistoryProducts(userId: string, profileId: string, limit: number): Promise<HistoryProductItem[]> {
+    const page = await this.listHistoryPage(userId, profileId, { limit });
     return page.items;
   }
 
-  async countWatchedProducts(userId: string, profileId: string): Promise<number> {
+  async countHistoryProducts(userId: string, profileId: string): Promise<number> {
     return withDbClient(async (client) => {
       await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       return this.watchQueryService.countWatchHistory(client, profileId);
     });
   }
 
-  async listWatchedPage(
+  async listHistoryPage(
     userId: string,
     profileId: string,
     params: { limit: number; cursor?: string | null },
-  ): Promise<PaginatedWatchCollection<WatchedProductItem>> {
+  ): Promise<PaginatedWatchCollection<HistoryProductItem>> {
     return withDbClient(async (client) => {
       await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
@@ -103,8 +110,8 @@ export class WatchReadService {
       return {
         items: page.items
           .map((row) => ({ ...row, media: mediaMap.get(row.mediaKey) ?? fallbackRegularCard(row.mediaKey, row.title, row.posterUrl, row.subtitle, row.detailsReleaseYear, row.detailsRating) }))
-          .map((row) => mapWatchedRowToProduct(row))
-          .filter((item): item is WatchedProductItem => item !== null),
+          .map((row) => mapHistoryRowToProduct(row))
+          .filter((item): item is HistoryProductItem => item !== null),
         pageInfo: page.pageInfo,
       };
     });
