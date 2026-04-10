@@ -15,7 +15,7 @@ export class MetadataTitlePageService {
 
   async getTitlePage(mediaKey: string, language?: string | null): Promise<MetadataTitleDetail> {
     const cacheKey = metadataTitlePageCacheKey(mediaKey, language ?? null);
-    return this.cacheService.getOrSet(cacheKey, async () => withDbClient(async (client) => {
+    return this.cacheService.getOrSet(cacheKey, mediaKey, async () => withDbClient(async (client) => {
       const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, mediaKey);
       return this.aggregateBuilder.buildTitleDetail(client, identity, language ?? null);
     }));

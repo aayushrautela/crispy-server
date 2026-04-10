@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
+import { showTmdbIdForIdentity } from '../identity/media-key.js';
 import { ProviderMetadataService } from './provider-metadata.service.js';
 import { normalizeProviderTitleIdentity } from './metadata-title-identity.js';
 import type { MetadataTitleSourceSnapshot } from './metadata-title-source.types.js';
@@ -26,13 +27,20 @@ export class MetadataTitleSourceService {
         providerIdentity,
         providerContext,
         tmdbTitle: null,
+        tmdbCurrentEpisode: null,
         tmdbNextEpisode: null,
       };
     }
 
     const titleType = identity.mediaType === 'movie' ? 'movie' : 'tv';
-    const titleTmdbId = identity.tmdbId;
+    const titleTmdbId = identity.mediaType === 'episode' ? showTmdbIdForIdentity(identity) : identity.tmdbId;
     const tmdbTitle = titleTmdbId ? await this.tmdbCacheService.getTitle(client, titleType, titleTmdbId) : null;
+    const tmdbCurrentEpisode = titleTmdbId
+      && identity.mediaType === 'episode'
+      && identity.seasonNumber !== null
+      && identity.episodeNumber !== null
+      ? await this.tmdbCacheService.getEpisode(client, titleTmdbId, identity.seasonNumber, identity.episodeNumber)
+      : null;
 
     return {
       identity,
@@ -40,6 +48,7 @@ export class MetadataTitleSourceService {
       providerIdentity,
       providerContext: null,
       tmdbTitle,
+      tmdbCurrentEpisode,
       tmdbNextEpisode: identity.mediaType !== 'movie' && tmdbTitle?.mediaType === 'tv'
         ? extractNextEpisodeToAir(tmdbTitle)
         : null,

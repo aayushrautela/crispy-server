@@ -3,7 +3,7 @@ import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { parseMediaKey } from '../identity/media-key.js';
 import type { RegularCardView } from '../metadata/metadata-card.types.js';
-import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
+import { MetadataTitleSourceService } from '../metadata/metadata-title-source.service.js';
 import { decodeWatchPageCursor, encodeWatchPageCursor } from './watch-pagination.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
@@ -257,7 +257,7 @@ export class WatchQueryService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly contentIdentityService = new ContentIdentityService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly metadataTitleSourceService = new MetadataTitleSourceService(),
     private readonly episodeHistoryService = new WatchV2EpisodeHistoryService(),
     private readonly episodicFollowQueryService = new WatchV2EpisodicFollowQueryService(),
   ) {}
@@ -614,7 +614,7 @@ export class WatchQueryService {
     return listWatchV2WatchedEpisodeKeys(
       client,
       this.contentIdentityService,
-      this.providerMetadataService,
+      this.metadataTitleSourceService,
       profileId,
       seriesIdentity,
       lookup.titleContentId,

@@ -2,13 +2,13 @@ import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { episodeRefMapKey, type ContentIdentityService } from '../identity/content-identity.service.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
-import type { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
+import type { MetadataTitleSourceService } from '../metadata/metadata-title-source.service.js';
 import { toEpisodicSeriesIdentity } from './watch-v2-utils.js';
 
 export async function listWatchV2WatchedEpisodeKeys(
   client: DbClient,
   contentIdentityService: ContentIdentityService,
-  providerMetadataService: ProviderMetadataService,
+  metadataTitleSourceService: MetadataTitleSourceService,
   profileId: string,
   identity: MediaIdentity,
   titleContentId: string,
@@ -53,12 +53,13 @@ export async function listWatchV2WatchedEpisodeKeys(
     return Array.from(watchedKeys).sort();
   }
 
-  const context = await providerMetadataService.loadIdentityContext(client, seriesIdentity).catch(() => null);
-  if (!context) {
+  const source = await metadataTitleSourceService.loadTitleSource(client, seriesIdentity).catch(() => null);
+  const episodes = source?.providerContext?.episodes ?? [];
+  if (!episodes.length) {
     return Array.from(watchedKeys).sort();
   }
 
-    const episodeInputs = context.episodes.map((episode) => ({
+  const episodeInputs = episodes.map((episode) => ({
     parentMediaType: seriesIdentity.mediaType as 'show' | 'anime',
     provider: episode.provider,
     parentProviderId: episode.parentProviderId,
@@ -85,7 +86,7 @@ export async function listWatchV2WatchedEpisodeKeys(
   }
 
   const cutoff = requireOptionalIsoString(titleOverride.applies_through_release_at as Date | string | null | undefined);
-  for (const episode of context.episodes) {
+  for (const episode of episodes) {
     const contentId = episodeContentIds.get(episodeRefMapKey(
       episode.parentProviderId,
       episode.seasonNumber,

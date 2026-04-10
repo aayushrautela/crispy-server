@@ -10,15 +10,14 @@ import {
   type SupportedProvider,
 } from '../identity/media-key.js';
 import type { WatchMediaProjection } from '../watch/watch.types.js';
-import { ProviderMetadataService } from './provider-metadata.service.js';
-import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 
 export class MetadataProjectionService {
   constructor(
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly titleSourceService = new MetadataTitleSourceService(),
     private readonly metadataCardService = new MetadataCardService(),
   ) {}
 
@@ -37,18 +36,8 @@ export class MetadataProjectionService {
   }
 
   async resolveNextEpisodeAirDate(client: DbClient, identity: MediaIdentity): Promise<string | null> {
-    const context = await this.providerMetadataService.loadIdentityContext(client, identity);
-    if (context?.nextEpisode?.airDate) {
-      return context.nextEpisode.airDate;
-    }
-
-    const showTmdbId = showTmdbIdForIdentity(identity);
-    if (!showTmdbId) {
-      return null;
-    }
-
-    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
-    return extractNextEpisodeToAir(title)?.airDate ?? null;
+    const source = await this.titleSourceService.loadTitleSource(client, identity);
+    return source.providerContext?.nextEpisode?.airDate ?? source.tmdbNextEpisode?.airDate ?? null;
   }
 
   private async buildTitleProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {

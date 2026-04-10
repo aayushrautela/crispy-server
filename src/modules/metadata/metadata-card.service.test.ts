@@ -6,64 +6,62 @@ seedTestEnv({});
 
 test('buildCardViewFromRow preserves tmdb linkage for provider-backed rows', async (t) => {
   const { MetadataCardService } = await import('./metadata-card.service.js');
-  const { ProviderMetadataService } = await import('./provider-metadata.service.js');
-  const { TmdbCacheService } = await import('./providers/tmdb-cache.service.js');
+  const { MetadataTitleSourceService } = await import('./metadata-title-source.service.js');
 
   const originals = {
-    loadIdentityContext: ProviderMetadataService.prototype.loadIdentityContext,
-    getTitle: TmdbCacheService.prototype.getTitle,
-    getEpisode: TmdbCacheService.prototype.getEpisode,
+    loadTitleSource: MetadataTitleSourceService.prototype.loadTitleSource,
   };
 
   t.after(() => {
-    ProviderMetadataService.prototype.loadIdentityContext = originals.loadIdentityContext;
-    TmdbCacheService.prototype.getTitle = originals.getTitle;
-    TmdbCacheService.prototype.getEpisode = originals.getEpisode;
+    MetadataTitleSourceService.prototype.loadTitleSource = originals.loadTitleSource;
   });
 
-  ProviderMetadataService.prototype.loadIdentityContext = async function (_client, identity) {
+  MetadataTitleSourceService.prototype.loadTitleSource = async function (_client, identity) {
     return {
-      title: {
-        mediaType: 'show',
-        provider: 'tvdb',
-        providerId: identity.providerId ?? '121361',
-        title: 'Provider Show',
-        originalTitle: 'Provider Show',
-        summary: 'Summary',
-        overview: 'Overview',
-        releaseDate: '2024-01-01',
-        status: 'Continuing',
-        posterUrl: 'https://img.example/poster.jpg',
-        backdropUrl: 'https://img.example/backdrop.jpg',
-        logoUrl: null,
-        runtimeMinutes: 45,
-        rating: 8.7,
-        certification: null,
-        genres: ['Drama'],
-        externalIds: { tmdb: 1399, imdb: 'tt0944947', tvdb: 121361, kitsu: null },
-        seasonCount: 8,
-        episodeCount: 73,
-        raw: {},
+      identity,
+      language: null,
+      providerIdentity: identity,
+      providerContext: {
+        title: {
+          mediaType: 'show',
+          provider: 'tvdb',
+          providerId: identity.providerId ?? '121361',
+          title: 'Provider Show',
+          originalTitle: 'Provider Show',
+          summary: 'Summary',
+          overview: 'Overview',
+          releaseDate: '2024-01-01',
+          status: 'Continuing',
+          posterUrl: 'https://img.example/poster.jpg',
+          backdropUrl: 'https://img.example/backdrop.jpg',
+          logoUrl: null,
+          runtimeMinutes: 45,
+          rating: 8.7,
+          certification: null,
+          genres: ['Drama'],
+          externalIds: { tmdb: 1399, imdb: 'tt0944947', tvdb: 121361, kitsu: null },
+          seasonCount: 8,
+          episodeCount: 73,
+          raw: {},
+        },
+        currentEpisode: null,
+        nextEpisode: null,
+        seasons: [],
+        episodes: [],
+        videos: [],
+        cast: [],
+        directors: [],
+        creators: [],
+        reviews: [],
+        production: null,
+        collection: null,
+        collectionItems: [],
+        similar: [],
       },
-      currentEpisode: null,
-      nextEpisode: null,
-      seasons: [],
-      episodes: [],
-      videos: [],
-      cast: [],
-      directors: [],
-      creators: [],
-      reviews: [],
-      production: null,
-      collection: null,
-      similar: [],
+      tmdbTitle: null,
+      tmdbCurrentEpisode: null,
+      tmdbNextEpisode: null,
     } as never;
-  };
-  TmdbCacheService.prototype.getTitle = async function () {
-    throw new Error('tmdb lookup should not run for provider-backed row hydration');
-  };
-  TmdbCacheService.prototype.getEpisode = async function () {
-    throw new Error('tmdb episode lookup should not run for provider-backed row hydration');
   };
 
   const service = new MetadataCardService();

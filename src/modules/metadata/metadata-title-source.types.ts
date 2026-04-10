@@ -8,5 +8,6 @@ export type MetadataTitleSourceSnapshot = {
   providerIdentity: MediaIdentity | null;
   providerContext: ProviderIdentityContext | null;
   tmdbTitle: TmdbTitleRecord | null;
+  tmdbCurrentEpisode: TmdbEpisodeRecord | null;
   tmdbNextEpisode: TmdbEpisodeRecord | null;
 };

@@ -5,6 +5,11 @@ import { TmdbRefreshService, type MetadataRefreshSummary } from './providers/tmd
 import { TvdbRefreshService } from './providers/tvdb-refresh.service.js';
 import { MetadataRefreshQueryService } from './metadata-refresh-query.service.js';
 
+export type MetadataRefreshResult = {
+  summary: MetadataRefreshSummary;
+  mediaKeys: string[];
+};
+
 type EpisodicSeriesIdentity = MediaIdentity & {
   mediaType: 'show' | 'anime';
   provider: NonNullable<MediaIdentity['provider']>;
@@ -30,6 +35,23 @@ function mergeSummary(target: MetadataRefreshSummary, incoming: MetadataRefreshS
   return target;
 }
 
+function emptyResult(): MetadataRefreshResult {
+  return {
+    summary: emptySummary(),
+    mediaKeys: [],
+  };
+}
+
+function mergeResult(target: MetadataRefreshResult, incoming: MetadataRefreshResult): MetadataRefreshResult {
+  mergeSummary(target.summary, incoming.summary);
+  for (const mediaKey of incoming.mediaKeys) {
+    if (!target.mediaKeys.includes(mediaKey)) {
+      target.mediaKeys.push(mediaKey);
+    }
+  }
+  return target;
+}
+
 export class MetadataRefreshService {
   constructor(
     private readonly tmdbRefreshService = new TmdbRefreshService(),
@@ -38,40 +60,43 @@ export class MetadataRefreshService {
     private readonly kitsuRefreshService = new KitsuRefreshService(),
   ) {}
 
-  async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
-    const summary = emptySummary();
+  async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshResult> {
+    const result = emptyResult();
     const episodicFollow = await this.metadataRefreshQueryService.listEpisodicFollow(client, profileId, limit);
 
     if (episodicFollow.length === 0) {
-      summary.skipped += 1;
-      return summary;
+      result.summary.skipped += 1;
+      return result;
     }
 
     for (const row of episodicFollow) {
       try {
-        mergeSummary(summary, await this.refreshEpisodicFollowRecord(client, profileId, row));
+        mergeResult(result, await this.refreshEpisodicFollowRecord(client, profileId, row));
       } catch {
-        summary.failures += 1;
+        result.summary.failures += 1;
       }
     }
 
-    return summary;
+    return result;
   }
 
-  async refreshMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<MetadataRefreshSummary> {
+  async refreshMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<MetadataRefreshResult> {
     return this.refreshIdentity(client, profileId, parseMediaKey(mediaKey));
   }
 
-  async refreshIdentity(client: DbClient, profileId: string, identity: MediaIdentity): Promise<MetadataRefreshSummary> {
+  async refreshIdentity(client: DbClient, profileId: string, identity: MediaIdentity): Promise<MetadataRefreshResult> {
     if (identity.mediaType === 'movie') {
-      return this.tmdbRefreshService.refreshIdentity(client, profileId, identity);
+      return {
+        summary: await this.tmdbRefreshService.refreshIdentity(client, profileId, identity),
+        mediaKeys: [identity.mediaKey],
+      };
     }
 
     const seriesIdentity = toEpisodicSeriesIdentity(identity);
     if (!seriesIdentity) {
-      const summary = emptySummary();
-      summary.skipped += 1;
-      return summary;
+      const result = emptyResult();
+      result.summary.skipped += 1;
+      return result;
     }
 
     const showTmdbId = seriesIdentity.tmdbId ?? showTmdbIdForIdentity(seriesIdentity);
@@ -79,19 +104,22 @@ export class MetadataRefreshService {
       const episodicFollow = seriesIdentity.contentId
         ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, seriesIdentity.contentId)
         : await this.metadataRefreshQueryService.getEpisodicFollowByMediaKey(client, profileId, seriesIdentity.mediaKey);
-      return this.tmdbRefreshService.refreshShow(
-        client,
-        profileId,
-        showTmdbId,
-        identity.seasonNumber,
-        episodicFollow
-          ? {
-              titleContentId: episodicFollow.titleContentId,
-              seriesMediaKey: episodicFollow.seriesMediaKey,
-              payload: episodicFollow.payload,
-            }
-          : undefined,
-      );
+      return {
+        summary: await this.tmdbRefreshService.refreshShow(
+          client,
+          profileId,
+          showTmdbId,
+          identity.seasonNumber,
+          episodicFollow
+            ? {
+                titleContentId: episodicFollow.titleContentId,
+                seriesMediaKey: episodicFollow.seriesMediaKey,
+                payload: episodicFollow.payload,
+              }
+            : undefined,
+        ),
+        mediaKeys: [seriesIdentity.mediaKey],
+      };
     }
 
     return this.refreshProviderSeriesIdentity(client, profileId, seriesIdentity);
@@ -101,19 +129,22 @@ export class MetadataRefreshService {
     client: DbClient,
     profileId: string,
     row: Awaited<ReturnType<MetadataRefreshQueryService['listEpisodicFollow']>>[number],
-  ): Promise<MetadataRefreshSummary> {
+  ): Promise<MetadataRefreshResult> {
     if (row.showTmdbId) {
-      return this.tmdbRefreshService.refreshShow(
-        client,
-        profileId,
-        row.showTmdbId,
-        null,
-        {
-          titleContentId: row.titleContentId,
-          seriesMediaKey: row.seriesMediaKey,
-          payload: row.payload,
-        },
-      );
+      return {
+        summary: await this.tmdbRefreshService.refreshShow(
+          client,
+          profileId,
+          row.showTmdbId,
+          null,
+          {
+            titleContentId: row.titleContentId,
+            seriesMediaKey: row.seriesMediaKey,
+            payload: row.payload,
+          },
+        ),
+        mediaKeys: [row.seriesMediaKey],
+      };
     }
 
     return this.refreshMediaKey(client, profileId, row.seriesMediaKey);
@@ -123,17 +154,23 @@ export class MetadataRefreshService {
     client: DbClient,
     profileId: string,
     seriesIdentity: EpisodicSeriesIdentity,
-  ): Promise<MetadataRefreshSummary> {
+  ): Promise<MetadataRefreshResult> {
     if (seriesIdentity.provider === 'tvdb') {
-      return this.tvdbRefreshService.refreshIdentity(client, profileId, seriesIdentity);
+      return {
+        summary: await this.tvdbRefreshService.refreshIdentity(client, profileId, seriesIdentity),
+        mediaKeys: [seriesIdentity.mediaKey],
+      };
     }
     if (seriesIdentity.provider === 'kitsu') {
-      return this.kitsuRefreshService.refreshIdentity(client, profileId, seriesIdentity);
+      return {
+        summary: await this.kitsuRefreshService.refreshIdentity(client, profileId, seriesIdentity),
+        mediaKeys: [seriesIdentity.mediaKey],
+      };
     }
 
-    const summary = emptySummary();
-    summary.skipped += 1;
-    return summary;
+    const result = emptyResult();
+    result.summary.skipped += 1;
+    return result;
   }
 }
 

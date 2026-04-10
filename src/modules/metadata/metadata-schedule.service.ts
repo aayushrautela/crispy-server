@@ -1,9 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
-import { showTmdbIdForIdentity } from '../identity/media-key.js';
-import { extractNextEpisodeToAir } from './providers/tmdb-episode-helpers.js';
-import { TmdbCacheService } from './providers/tmdb-cache.service.js';
-import { ProviderMetadataService } from './provider-metadata.service.js';
+import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 
 export type ScheduleInfo = {
   nextEpisodeAirDate: string | null;
@@ -17,40 +14,35 @@ export type ScheduleInfo = {
 
 export class MetadataScheduleService {
   constructor(
-    private readonly tmdbCacheService = new TmdbCacheService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
+    private readonly titleSourceService = new MetadataTitleSourceService(),
   ) {}
 
   async getScheduleInfo(client: DbClient, identity: MediaIdentity): Promise<ScheduleInfo> {
-    const context = await this.providerMetadataService.loadIdentityContext(client, identity);
-    if (context?.nextEpisode) {
+    const source = await this.titleSourceService.loadTitleSource(client, identity);
+    if (source.providerContext?.nextEpisode) {
       return {
-        nextEpisodeAirDate: context.nextEpisode.airDate,
+        nextEpisodeAirDate: source.providerContext.nextEpisode.airDate,
         nextEpisode: {
-          seasonNumber: context.nextEpisode.seasonNumber,
-          episodeNumber: context.nextEpisode.episodeNumber,
-          title: context.nextEpisode.title,
-          airDate: context.nextEpisode.airDate,
+          seasonNumber: source.providerContext.nextEpisode.seasonNumber,
+          episodeNumber: source.providerContext.nextEpisode.episodeNumber,
+          title: source.providerContext.nextEpisode.title,
+          airDate: source.providerContext.nextEpisode.airDate,
         },
       };
     }
 
-    const showTmdbId = showTmdbIdForIdentity(identity);
-    if (!showTmdbId) {
+    if (!source.tmdbNextEpisode) {
       return { nextEpisodeAirDate: null, nextEpisode: null };
     }
 
-    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
-    const nextEpisode = extractNextEpisodeToAir(title);
-
     return {
-      nextEpisodeAirDate: nextEpisode?.airDate ?? null,
-      nextEpisode: nextEpisode
+      nextEpisodeAirDate: source.tmdbNextEpisode.airDate ?? null,
+      nextEpisode: source.tmdbNextEpisode
         ? {
-            seasonNumber: nextEpisode.seasonNumber ?? 0,
-            episodeNumber: nextEpisode.episodeNumber ?? 0,
-            title: nextEpisode.name,
-            airDate: nextEpisode.airDate,
+            seasonNumber: source.tmdbNextEpisode.seasonNumber ?? 0,
+            episodeNumber: source.tmdbNextEpisode.episodeNumber ?? 0,
+            title: source.tmdbNextEpisode.name,
+            airDate: source.tmdbNextEpisode.airDate,
           }
         : null,
     };
