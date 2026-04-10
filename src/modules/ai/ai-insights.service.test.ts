@@ -54,9 +54,11 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
       },
     } as never,
     {
-      getTitleDetailById: async () => ({
+      getTitlePage: async () => ({
         item: createMockMetadataView({ mediaKey: 'movie:tmdb:1', title: 'The Movie', overview: 'A good film.', releaseYear: 2024, rating: 7.3, genres: ['Drama'] }),
         seasons: [],
+        episodes: [],
+        nextEpisode: null,
         videos: [],
         cast: [],
         directors: [],

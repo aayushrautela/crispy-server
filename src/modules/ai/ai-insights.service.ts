@@ -3,9 +3,9 @@ import { HttpError } from '../../lib/errors.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { parseMediaKey } from '../identity/media-key.js';
-import { MetadataDetailService } from '../metadata/metadata-detail.service.js';
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
 import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
+import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
@@ -24,7 +24,7 @@ export class AiInsightsService {
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly entitlementService = new FeatureEntitlementService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
-    private readonly metadataDetailService = new MetadataDetailService(),
+    private readonly metadataTitlePageService = new MetadataTitlePageService(),
     private readonly metadataReviewsService = new MetadataReviewsService(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
@@ -68,7 +68,7 @@ export class AiInsightsService {
     }
 
     const [titleDetail, titleReviews] = await Promise.all([
-      this.metadataDetailService.getTitleDetailById(mediaKey),
+      this.metadataTitlePageService.getTitlePage(mediaKey),
       this.metadataReviewsService.getTitleReviews(userId, profileId, mediaKey),
     ]);
     const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.reviews);

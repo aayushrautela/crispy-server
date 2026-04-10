@@ -72,8 +72,16 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
 
   const traktCalls: Array<{ mediaType: 'movie' | 'show'; accessToken?: string; externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null } }> = [];
   const service = new MetadataReviewsService(
-    { getTitle: async () => tmdbTitle } as never,
-    {} as never,
+    {
+      loadTitleSource: async () => ({
+        identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
+        language: null,
+        providerIdentity: null,
+        providerContext: null,
+        tmdbTitle,
+        tmdbNextEpisode: null,
+      }),
+    } as never,
     {} as never,
     {
       isConfigured: () => true,
@@ -137,36 +145,43 @@ test('MetadataReviewsService tops up anime reviews from Trakt through provider d
 
   let traktMediaType: 'movie' | 'show' | null = null;
   const service = new MetadataReviewsService(
-    {} as never,
-    {} as never,
     {
-      loadIdentityContext: async () => ({
-        title: providerTitle,
-        currentEpisode: null,
-        nextEpisode: null,
-        seasons: [],
-        episodes: [],
-        videos: [],
-        cast: [],
-        directors: [],
-        creators: [],
-        reviews: [{
-          id: 'kitsu-1',
-          provider: 'kitsu',
-          author: 'Kitsu',
-          username: 'kitsu',
-          content: 'Kitsu review',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z',
-          url: null,
-          rating: 8,
-          avatarUrl: null,
-        }],
-        production: null,
-        collection: null,
-        similar: [],
+      loadTitleSource: async () => ({
+        identity: inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }),
+        language: null,
+        providerIdentity: inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }),
+        providerContext: {
+          title: providerTitle,
+          currentEpisode: null,
+          nextEpisode: null,
+          seasons: [],
+          episodes: [],
+          videos: [],
+          cast: [],
+          directors: [],
+          creators: [],
+          reviews: [{
+            id: 'kitsu-1',
+            provider: 'kitsu',
+            author: 'Kitsu',
+            username: 'kitsu',
+            content: 'Kitsu review',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            url: null,
+            rating: 8,
+            avatarUrl: null,
+          }],
+          production: null,
+          collection: null,
+          collectionItems: [],
+          similar: [],
+        },
+        tmdbTitle: null,
+        tmdbNextEpisode: null,
       }),
     } as never,
+    {} as never,
     {
       isConfigured: () => true,
       fetchTitleReviews: async (mediaType: 'movie' | 'show') => {
@@ -222,29 +237,36 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
 
   let traktCalled = false;
   const service = new MetadataReviewsService(
-    {} as never,
-    {} as never,
     {
-      loadIdentityContext: async () => ({
-        title: providerTitle,
-        currentEpisode: null,
-        nextEpisode: null,
-        seasons: [],
-        episodes: [],
-        videos: [],
-        cast: [],
-        directors: [],
-        creators: [],
-        reviews: [
-          buildFallbackReview('provider-1', 'Provider review 1'),
-          buildFallbackReview('provider-2', 'Provider review 2'),
-          buildFallbackReview('provider-3', 'Provider review 3'),
-        ],
-        production: null,
-        collection: null,
-        similar: [],
+      loadTitleSource: async () => ({
+        identity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }),
+        language: null,
+        providerIdentity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }),
+        providerContext: {
+          title: providerTitle,
+          currentEpisode: null,
+          nextEpisode: null,
+          seasons: [],
+          episodes: [],
+          videos: [],
+          cast: [],
+          directors: [],
+          creators: [],
+          reviews: [
+            buildFallbackReview('provider-1', 'Provider review 1'),
+            buildFallbackReview('provider-2', 'Provider review 2'),
+            buildFallbackReview('provider-3', 'Provider review 3'),
+          ],
+          production: null,
+          collection: null,
+          collectionItems: [],
+          similar: [],
+        },
+        tmdbTitle: null,
+        tmdbNextEpisode: null,
       }),
     } as never,
+    {} as never,
     {
       isConfigured: () => true,
       fetchTitleReviews: async () => {
@@ -303,8 +325,16 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
 
   let usedAccessToken: string | undefined;
   const service = new MetadataReviewsService(
-    { getTitle: async () => tmdbTitle } as never,
-    {} as never,
+    {
+      loadTitleSource: async () => ({
+        identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 7 }),
+        language: null,
+        providerIdentity: null,
+        providerContext: null,
+        tmdbTitle,
+        tmdbNextEpisode: null,
+      }),
+    } as never,
     {} as never,
     {
       isConfigured: () => true,

@@ -7,20 +7,18 @@ import { ProviderTokenAccessService } from '../integrations/provider-token-acces
 import type { MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { extractExternalIds, extractReviews } from './metadata-builder.shared.js';
-import { ProviderMetadataService } from './provider-metadata.service.js';
-import { resolveTitleRouteIdentity } from './metadata-detail.service.js';
+import { resolveTitleRouteIdentity } from './metadata-route-identity.js';
 import type { MetadataReviewView, MetadataTitleReviewsResponse } from './metadata-detail.types.js';
+import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import { TraktClient } from './providers/trakt.client.js';
-import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 
 const PRIMARY_REVIEW_THRESHOLD = 3;
 const REVIEW_LIMIT = 10;
 
 export class MetadataReviewsService {
   constructor(
-    private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly titleSourceService = new MetadataTitleSourceService(),
     private readonly contentIdentityService = new ContentIdentityService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
     private readonly traktClient = new TraktClient(),
     private readonly providerTokenAccessService = new ProviderTokenAccessService(),
   ) {}
@@ -78,13 +76,9 @@ export class MetadataReviewsService {
     externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null };
     primaryReviews: MetadataReviewView[];
   }> {
-    const providerIdentity = normalizeProviderTitleIdentity(identity);
-    if (providerIdentity) {
-      const providerContext = await this.providerMetadataService.loadIdentityContext(client, providerIdentity, language ?? null);
-      const title = providerContext?.title;
-      if (!title) {
-        throw new HttpError(404, 'Metadata title not found.');
-      }
+    const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
+    if (source.providerContext?.title) {
+      const title = source.providerContext.title;
 
       return {
         mediaType: title.mediaType,
@@ -93,13 +87,11 @@ export class MetadataReviewsService {
           tmdb: title.externalIds.tmdb,
           tvdb: title.externalIds.tvdb,
         },
-        primaryReviews: providerContext?.reviews ?? [],
+        primaryReviews: source.providerContext.reviews ?? [],
       };
     }
 
-    const tmdbType = identity.mediaType === 'movie' ? 'movie' : 'tv';
-    const tmdbId = assertPresent(identity.tmdbId, 'Metadata title not found.');
-    const title = await this.tmdbCacheService.getTitle(client, tmdbType, tmdbId);
+    const title = assertPresent(source.tmdbTitle, 'Metadata title not found.');
 
     return {
       mediaType: identity.mediaType === 'movie' ? 'movie' : 'show',
@@ -138,14 +130,4 @@ export function mergeReviews(primary: MetadataReviewView[], fallback: MetadataRe
   }
 
   return merged;
-}
-
-function normalizeProviderTitleIdentity(identity: MediaIdentity): MediaIdentity | null {
-  if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-    return null;
-  }
-
-  return identity.provider === 'tvdb' || identity.provider === 'kitsu'
-    ? identity
-    : null;
 }

@@ -3,12 +3,12 @@ import { withDbClient } from '../../lib/db.js';
 import { assertPresent, HttpError } from '../../lib/errors.js';
 import type { MediaIdentity, SupportedMediaType } from '../identity/media-key.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { MetadataDetailCoreService } from './metadata-detail-core.service.js';
+import { MetadataTitlePageService } from './metadata-title-page.service.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { TvdbRemoteIdResolverService } from './providers/tvdb-remote-id-resolver.service.js';
-import type { MetadataResolveResponse, MetadataSeasonDetail, MetadataTitleDetail } from './metadata-detail.types.js';
+import type { MetadataResolveResponse, MetadataTitleDetail } from './metadata-detail.types.js';
 
 type ResolveInput = {
   mediaKey?: string;
@@ -27,8 +27,8 @@ export class MetadataDetailService {
     private readonly metadataDetailCoreService = new MetadataDetailCoreService(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly tmdbCacheService = new TmdbCacheService(),
-    private readonly contentIdentityService = new ContentIdentityService(),
     private readonly tvdbRemoteIdResolver = new TvdbRemoteIdResolverService(),
+    private readonly metadataTitlePageService = new MetadataTitlePageService(),
   ) {}
 
   async resolve(input: ResolveInput): Promise<MetadataResolveResponse> {
@@ -41,25 +41,7 @@ export class MetadataDetailService {
   }
 
   async getTitleDetailById(id: string, language?: string | null): Promise<MetadataTitleDetail> {
-    return withDbClient(async (client) => {
-      const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, id);
-      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-        throw new HttpError(400, 'Title details require a title mediaKey.');
-      }
-
-      return this.metadataDetailCoreService.getTitleDetail(client, identity, language ?? null);
-    });
-  }
-
-  async getSeasonDetailByShowId(showId: string, seasonNumber: number, language?: string | null): Promise<MetadataSeasonDetail> {
-    return withDbClient(async (client) => {
-      const identity = await resolveShowRouteIdentity(client, this.contentIdentityService, showId);
-      if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-        throw new HttpError(400, 'Season details require a show or anime mediaKey.');
-      }
-
-      return this.metadataDetailCoreService.getSeasonDetail(client, identity, seasonNumber, language ?? null);
-    });
+    return this.metadataTitlePageService.getTitlePage(id, language ?? null);
   }
 
   private async resolveIdentity(client: DbClient, input: ResolveInput) {
@@ -199,32 +181,6 @@ export class MetadataDetailService {
 
     return null;
   }
-}
-
-export async function resolveTitleRouteIdentity(
-  _client: DbClient,
-  _contentIdentityService: ContentIdentityService,
-  mediaKey: string,
-): Promise<MediaIdentity> {
-  const identity = parseMediaKey(mediaKey.trim());
-  if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-    throw new HttpError(400, 'Title routes require a title mediaKey.');
-  }
-
-  return identity;
-}
-
-export async function resolveShowRouteIdentity(
-  client: DbClient,
-  contentIdentityService: ContentIdentityService,
-  mediaKey: string,
-): Promise<MediaIdentity> {
-  const identity = await resolveTitleRouteIdentity(client, contentIdentityService, mediaKey);
-  if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-    throw new HttpError(400, 'Season routes require a show or anime mediaKey.');
-  }
-
-  return identity;
 }
 
 function normalizeResolveMediaType(

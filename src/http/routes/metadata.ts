@@ -1,29 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import {
-  metadataEpisodesRouteSchema,
-  metadataNextEpisodeRouteSchema,
   metadataPersonRouteSchema,
   metadataResolveRouteSchema,
   metadataSearchRouteSchema,
-  metadataSeasonRouteSchema,
-  metadataTitleContentRouteSchema,
   metadataTitleDetailRouteSchema,
   metadataTitleRatingsRouteSchema,
   metadataTitleReviewsRouteSchema,
   playbackResolveRouteSchema,
-  type MetadataEpisodesQuery,
-  type MetadataNextEpisodeQuery,
   type MetadataPersonParams,
   type MetadataPersonQuery,
   type MetadataResolveQuery,
   type MetadataSearchQuery,
-  type MetadataSeasonParams,
   type MetadataTitleParams,
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDetailService } from '../../modules/metadata/metadata-detail.service.js';
-import { EpisodeNavigationService } from '../../modules/metadata/episode-navigation.service.js';
-import { MetadataContentService } from '../../modules/metadata/metadata-content.service.js';
 import { PersonDetailService } from '../../modules/metadata/person-detail.service.js';
 import { PlaybackResolveService } from '../../modules/metadata/playback-resolve.service.js';
 import { MetadataRatingsService } from '../../modules/metadata/metadata-ratings.service.js';
@@ -36,11 +27,9 @@ import { TitleSearchService } from '../../modules/search/title-search.service.js
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataDetailService = new MetadataDetailService();
   const titleSearchService = new TitleSearchService();
-  const metadataContentService = new MetadataContentService();
   const metadataRatingsService = new MetadataRatingsService();
   const metadataReviewsService = new MetadataReviewsService();
   const personDetailService = new PersonDetailService();
-  const episodeNavigationService = new EpisodeNavigationService();
   const playbackResolveService = new PlaybackResolveService();
 
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
@@ -68,13 +57,6 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     return metadataDetailService.getTitleDetailById(params.mediaKey, asOptionalString(query.language));
   });
 
-  app.get('/v1/metadata/titles/:mediaKey/content', { schema: metadataTitleContentRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as MetadataTitleParams;
-    return metadataContentService.getTitleContent(actor.appUserId, params.mediaKey);
-  });
-
   app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/reviews', { schema: metadataTitleReviewsRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
@@ -90,44 +72,11 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     return metadataRatingsService.getTitleRatings(actor.appUserId, params.profileId, params.mediaKey);
   });
 
-  app.get('/v1/metadata/titles/:mediaKey/seasons/:seasonNumber', { schema: metadataSeasonRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const params = request.params as MetadataSeasonParams;
-    const query = (request.query ?? {}) as MetadataPersonQuery;
-    const seasonNumber = parseRequiredPositiveNumber(params.seasonNumber, 'seasonNumber');
-    return metadataDetailService.getSeasonDetailByShowId(params.mediaKey, seasonNumber, asOptionalString(query.language));
-  });
-
   app.get('/v1/metadata/people/:id', { schema: metadataPersonRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataPersonParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
     return personDetailService.getPersonDetail(params.id, asOptionalString(query.language));
-  });
-
-  app.get('/v1/metadata/titles/:mediaKey/episodes', { schema: metadataEpisodesRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const params = request.params as MetadataTitleParams;
-    const query = (request.query ?? {}) as MetadataEpisodesQuery;
-    return episodeNavigationService.listEpisodes(
-      params.mediaKey,
-      parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
-      asOptionalString(query.language),
-    );
-  });
-
-  app.get('/v1/metadata/titles/:mediaKey/next-episode', { schema: metadataNextEpisodeRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const params = request.params as MetadataTitleParams;
-    const query = (request.query ?? {}) as MetadataNextEpisodeQuery;
-    return episodeNavigationService.getNextEpisode(params.mediaKey, {
-      currentSeasonNumber: parseRequiredPositiveQueryNumber(query.currentSeasonNumber, 'currentSeasonNumber'),
-      currentEpisodeNumber: parseRequiredPositiveQueryNumber(query.currentEpisodeNumber, 'currentEpisodeNumber'),
-      watchedKeys: parseStringList(query.watchedKeys),
-      showMediaKey: asOptionalString(query.showMediaKey),
-      nowMs: parseOptionalNumber(query.nowMs),
-      language: asOptionalString(query.language),
-    });
   });
 
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {

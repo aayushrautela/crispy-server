@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../../lib/errors.js';
-import { NOOP_TRANSACTION, createMockMetadataView, seedTestEnv } from '../../test-helpers.js';
+import { NOOP_TRANSACTION, seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
@@ -9,7 +9,19 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
   const { MetadataRatingsService } = await import('./metadata-ratings.service.js');
 
   const service = new MetadataRatingsService(
-    { buildMetadataView: async () => createMockMetadataView({ mediaType: 'movie', externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null } }) } as never,
+    {
+      loadTitleSource: async () => ({
+        identity: {} as never,
+        language: null,
+        providerIdentity: null,
+        providerContext: null,
+        tmdbTitle: {
+          tmdbId: 222,
+          externalIds: { imdb_id: 'tt1234567' },
+        },
+        tmdbNextEpisode: null,
+      }),
+    } as never,
     {} as never,
     { resolveMdbListApiKeyForUser: async () => 'user-mdb-key' } as never,
     {

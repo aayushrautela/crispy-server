@@ -48,7 +48,7 @@ test('resolve rejects episode without season/episode numbers', async () => {
 
   await assert.rejects(
     async () => (svc as any).resolveIdentity(null, { tmdbId: 42, mediaType: 'episode' }),
-    (error: unknown) => error instanceof Error && /Episode resolution requires/.test(error.message),
+    (error: unknown) => error instanceof Error && /Show resolution requires a TVDB or IMDB id/.test(error.message),
   );
 });
 

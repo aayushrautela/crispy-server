@@ -135,6 +135,8 @@ export type MetadataProductionInfoView = {
 export type MetadataTitleDetail = {
   item: MetadataView;
   seasons: MetadataSeasonView[];
+  episodes: MetadataEpisodeView[];
+  nextEpisode: MetadataEpisodeView | null;
   videos: MetadataVideoView[];
   cast: MetadataPersonRefView[];
   directors: MetadataPersonRefView[];
@@ -181,53 +183,6 @@ export type MetadataNextEpisodeResponse = {
   currentSeasonNumber: number;
   currentEpisodeNumber: number;
   item: MetadataEpisodeView | null;
-};
-
-export type MdbContentView = {
-  ids: {
-    imdb: string | null;
-    tmdb: number | null;
-    trakt: number | null;
-    tvdb: number | null;
-  };
-  title: string | null;
-  originalTitle: string | null;
-  type: string | null;
-  year: number | null;
-  description: string | null;
-  score: number | null;
-  ratings: {
-    imdbRating: number | null;
-    imdbVotes: number | null;
-    tmdbRating: number | null;
-    metacritic: number | null;
-    rottenTomatoes: number | null;
-    letterboxdRating: number | null;
-  };
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  genres: string[];
-  keywords: string[];
-  runtime: number | null;
-  certification: string | null;
-  released: string | null;
-  language: string | null;
-  country: string | null;
-  seasonCount: number | null;
-  episodeCount: number | null;
-  directors: string[];
-  writers: string[];
-  network: string | null;
-  studio: string | null;
-  status: string | null;
-  budget: number | null;
-  revenue: number | null;
-  updatedAt: string | null;
-};
-
-export type MetadataTitleContentResponse = {
-  item: MetadataView;
-  content: MdbContentView;
 };
 
 export type PlaybackResolveResponse = {

@@ -362,10 +362,17 @@ const metadataProductionInfoViewSchema = {
 const metadataTitleDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['item', 'seasons', 'videos', 'cast', 'directors', 'creators', 'production', 'collection', 'similar'],
+  required: ['item', 'seasons', 'episodes', 'nextEpisode', 'videos', 'cast', 'directors', 'creators', 'production', 'collection', 'similar'],
   properties: {
     item: metadataViewSchema,
     seasons: { type: 'array', items: metadataSeasonViewSchema },
+    episodes: { type: 'array', items: metadataEpisodeViewSchema },
+    nextEpisode: {
+      anyOf: [
+        metadataEpisodeViewSchema,
+        { type: 'null' },
+      ],
+    },
     videos: { type: 'array', items: metadataVideoViewSchema },
     cast: { type: 'array', items: metadataPersonRefViewSchema },
     directors: { type: 'array', items: metadataPersonRefViewSchema },
@@ -423,112 +430,6 @@ const metadataResolveResponseSchema = {
   },
 } as const;
 
-const mdbContentViewSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'ids',
-    'title',
-    'originalTitle',
-    'type',
-    'year',
-    'description',
-    'score',
-    'ratings',
-    'posterUrl',
-    'backdropUrl',
-    'genres',
-    'keywords',
-    'runtime',
-    'certification',
-    'released',
-    'language',
-    'country',
-    'seasonCount',
-    'episodeCount',
-    'directors',
-    'writers',
-    'network',
-    'studio',
-    'status',
-    'budget',
-    'revenue',
-    'updatedAt',
-  ],
-  properties: {
-    ids: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['imdb', 'tmdb', 'trakt', 'tvdb'],
-      properties: {
-        imdb: nullableStringSchema,
-        tmdb: nullableIntegerSchema,
-        trakt: nullableIntegerSchema,
-        tvdb: nullableIntegerSchema,
-      },
-    },
-    title: nullableStringSchema,
-    originalTitle: nullableStringSchema,
-    type: nullableStringSchema,
-    year: nullableIntegerSchema,
-    description: nullableStringSchema,
-    score: nullableNumberSchema,
-    ratings: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['imdbRating', 'imdbVotes', 'tmdbRating', 'metacritic', 'rottenTomatoes', 'letterboxdRating'],
-      properties: {
-        imdbRating: nullableNumberSchema,
-        imdbVotes: nullableNumberSchema,
-        tmdbRating: nullableNumberSchema,
-        metacritic: nullableNumberSchema,
-        rottenTomatoes: nullableNumberSchema,
-        letterboxdRating: nullableNumberSchema,
-      },
-    },
-    posterUrl: nullableStringSchema,
-    backdropUrl: nullableStringSchema,
-    genres: { type: 'array', items: stringSchema },
-    keywords: { type: 'array', items: stringSchema },
-    runtime: nullableIntegerSchema,
-    certification: nullableStringSchema,
-    released: nullableStringSchema,
-    language: nullableStringSchema,
-    country: nullableStringSchema,
-    seasonCount: nullableIntegerSchema,
-    episodeCount: nullableIntegerSchema,
-    directors: { type: 'array', items: stringSchema },
-    writers: { type: 'array', items: stringSchema },
-    network: nullableStringSchema,
-    studio: nullableStringSchema,
-    status: nullableStringSchema,
-    budget: nullableNumberSchema,
-    revenue: nullableNumberSchema,
-    updatedAt: nullableStringSchema,
-  },
-} as const;
-
-const metadataTitleContentResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['item', 'content'],
-  properties: {
-    item: metadataViewSchema,
-    content: mdbContentViewSchema,
-  },
-} as const;
-
-const metadataSeasonDetailResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['show', 'season', 'episodes'],
-  properties: {
-    show: metadataViewSchema,
-    season: metadataSeasonViewSchema,
-    episodes: { type: 'array', items: metadataEpisodeViewSchema },
-  },
-} as const;
-
 const metadataPersonKnownForItemSchema = {
   type: 'object',
   additionalProperties: false,
@@ -565,36 +466,6 @@ const metadataPersonDetailResponseSchema = {
     instagramId: nullableStringSchema,
     twitterId: nullableStringSchema,
     knownFor: { type: 'array', items: metadataPersonKnownForItemSchema },
-  },
-} as const;
-
-const metadataEpisodeListResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['show', 'requestedSeasonNumber', 'effectiveSeasonNumber', 'includedSeasonNumbers', 'episodes'],
-  properties: {
-    show: metadataViewSchema,
-    requestedSeasonNumber: nullableIntegerSchema,
-    effectiveSeasonNumber: { type: 'integer' },
-    includedSeasonNumbers: { type: 'array', items: { type: 'integer' } },
-    episodes: { type: 'array', items: metadataEpisodeViewSchema },
-  },
-} as const;
-
-const metadataNextEpisodeResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['show', 'currentSeasonNumber', 'currentEpisodeNumber', 'item'],
-  properties: {
-    show: metadataViewSchema,
-    currentSeasonNumber: { type: 'integer' },
-    currentEpisodeNumber: { type: 'integer' },
-    item: {
-      anyOf: [
-        metadataEpisodeViewSchema,
-        { type: 'null' },
-      ],
-    },
   },
 } as const;
 
@@ -659,13 +530,6 @@ export const metadataTitleDetailRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const metadataTitleContentRouteSchema = withDefaultErrorResponses({
-  params: metadataTitleParamsSchema,
-  response: {
-    200: metadataTitleContentResponseSchema,
-  },
-});
-
 export const metadataTitleReviewsRouteSchema = withDefaultErrorResponses({
   params: profileIdAndMediaKeyParamsSchema,
   querystring: metadataLanguageQuerystringSchema,
@@ -678,14 +542,6 @@ export const metadataTitleRatingsRouteSchema = withDefaultErrorResponses({
   params: profileIdAndMediaKeyParamsSchema,
   response: {
     200: metadataTitleRatingsResponseSchema,
-  },
-});
-
-export const metadataSeasonRouteSchema = withDefaultErrorResponses({
-  params: metadataSeasonParamsSchema,
-  querystring: metadataLanguageQuerystringSchema,
-  response: {
-    200: metadataSeasonDetailResponseSchema,
   },
 });
 
@@ -707,54 +563,6 @@ export const metadataPersonRouteSchema = withDefaultErrorResponses({
   },
   response: {
     200: metadataPersonDetailResponseSchema,
-  },
-});
-
-export const metadataEpisodesRouteSchema = withDefaultErrorResponses({
-  params: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['mediaKey'],
-    properties: {
-      mediaKey: nonEmptyStringSchema,
-    },
-  },
-  querystring: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      seasonNumber: positiveIntegerLikeSchema,
-      language: stringSchema,
-    },
-  },
-  response: {
-    200: metadataEpisodeListResponseSchema,
-  },
-});
-
-export const metadataNextEpisodeRouteSchema = withDefaultErrorResponses({
-  params: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['mediaKey'],
-    properties: {
-      mediaKey: nonEmptyStringSchema,
-    },
-  },
-  querystring: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      currentSeasonNumber: positiveIntegerLikeSchema,
-      currentEpisodeNumber: positiveIntegerLikeSchema,
-      watchedKeys: stringListSchema,
-      showMediaKey: stringSchema,
-      nowMs: integerLikeSchema,
-      language: stringSchema,
-    },
-  },
-  response: {
-    200: metadataNextEpisodeResponseSchema,
   },
 });
 

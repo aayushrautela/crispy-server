@@ -6,18 +6,13 @@ import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-id', SIMKL_IMPORT_CLIENT_ID: 'simkl-id' });
 
 test('metadata direct routes parse inputs and return service payloads', async (t) => {
-  const { MetadataContentService } = await import('../../modules/metadata/metadata-content.service.js');
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
-  const { EpisodeNavigationService } = await import('../../modules/metadata/episode-navigation.service.js');
   const { MetadataRatingsService } = await import('../../modules/metadata/metadata-ratings.service.js');
   const { MetadataReviewsService } = await import('../../modules/metadata/metadata-reviews.service.js');
   const { PersonDetailService } = await import('../../modules/metadata/person-detail.service.js');
   const { PlaybackResolveService } = await import('../../modules/metadata/playback-resolve.service.js');
   const originals = {
     getPersonDetail: PersonDetailService.prototype.getPersonDetail,
-    listEpisodes: EpisodeNavigationService.prototype.listEpisodes,
-    getNextEpisode: EpisodeNavigationService.prototype.getNextEpisode,
-    getTitleContent: MetadataContentService.prototype.getTitleContent,
     getTitleRatings: MetadataRatingsService.prototype.getTitleRatings,
     getTitleReviews: MetadataReviewsService.prototype.getTitleReviews,
     resolvePlayback: PlaybackResolveService.prototype.resolvePlayback,
@@ -26,8 +21,6 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   t.after(() => {
     Object.assign(PersonDetailService.prototype, { getPersonDetail: originals.getPersonDetail });
-    Object.assign(EpisodeNavigationService.prototype, { listEpisodes: originals.listEpisodes, getNextEpisode: originals.getNextEpisode });
-    Object.assign(MetadataContentService.prototype, { getTitleContent: originals.getTitleContent });
     Object.assign(MetadataRatingsService.prototype, { getTitleRatings: originals.getTitleRatings });
     Object.assign(MetadataReviewsService.prototype, { getTitleReviews: originals.getTitleReviews });
     Object.assign(PlaybackResolveService.prototype, { resolvePlayback: originals.resolvePlayback });
@@ -36,12 +29,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
 
   let receivedPersonLanguage: string | null = null;
   let receivedTitleLanguage: string | null = null;
-  let receivedEpisodesLanguage: string | null = null;
-  let receivedNextEpisodeLanguage: string | null = null;
   let receivedPlaybackLanguage: string | null = null;
-  let receivedWatchedKeys: string[] | null = null;
-  let receivedShowMediaKey: string | null = null;
-  let receivedNowMs: number | null = null;
   let receivedPlaybackMediaKey: string | null = null;
   let receivedReviewsLanguage: string | null = null;
   let receivedReviewsMediaKey: string | null = null;
@@ -55,162 +43,6 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   PersonDetailService.prototype.getPersonDetail = async function (id, language) {
     receivedPersonLanguage = language ?? null;
     return { id: `person:${id}`, provider: 'tmdb', providerId: '44', tmdbPersonId: 44, name: 'Person', knownForDepartment: null, biography: null, birthday: null, placeOfBirth: null, profileUrl: null, imdbId: null, instagramId: null, twitterId: null, knownFor: [] } as never;
-  };
-  EpisodeNavigationService.prototype.listEpisodes = async function (id, seasonNumber, language) {
-    receivedEpisodesLanguage = language ?? null;
-    return {
-      show: {
-        mediaType: 'show',
-        kind: 'title',
-        mediaKey: id,
-        provider: 'tmdb',
-        providerId: id,
-        parentMediaType: null,
-        parentProvider: null,
-        parentProviderId: null,
-        tmdbId: 111,
-        showTmdbId: null,
-        seasonNumber: null,
-        episodeNumber: null,
-        absoluteEpisodeNumber: null,
-        title: 'Show',
-        subtitle: null,
-        summary: null,
-        overview: null,
-        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-        releaseDate: null,
-        releaseYear: null,
-        runtimeMinutes: null,
-        rating: null,
-        certification: null,
-        status: null,
-        genres: [],
-        externalIds: { tmdb: 111, imdb: 'tt123', tvdb: null, kitsu: null },
-        seasonCount: null,
-        episodeCount: null,
-        nextEpisode: null,
-      },
-      requestedSeasonNumber: seasonNumber ?? null,
-      effectiveSeasonNumber: seasonNumber ?? 1,
-      includedSeasonNumbers: seasonNumber ? [seasonNumber] : [1],
-      episodes: [],
-    } as never;
-  };
-  EpisodeNavigationService.prototype.getNextEpisode = async function (id, input) {
-    receivedNextEpisodeLanguage = input.language ?? null;
-    receivedWatchedKeys = input.watchedKeys ?? null;
-    receivedShowMediaKey = input.showMediaKey ?? null;
-    receivedNowMs = input.nowMs ?? null;
-    return {
-      show: {
-        mediaType: 'show',
-        kind: 'title',
-        mediaKey: id,
-        provider: 'tmdb',
-        providerId: id,
-        parentMediaType: null,
-        parentProvider: null,
-        parentProviderId: null,
-        tmdbId: 111,
-        showTmdbId: null,
-        seasonNumber: null,
-        episodeNumber: null,
-        absoluteEpisodeNumber: null,
-        title: 'Show',
-        subtitle: null,
-        summary: null,
-        overview: null,
-        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-        releaseDate: null,
-        releaseYear: null,
-        runtimeMinutes: null,
-        rating: null,
-        certification: null,
-        status: null,
-        genres: [],
-        externalIds: { tmdb: 111, imdb: 'tt123', tvdb: null, kitsu: null },
-        seasonCount: null,
-        episodeCount: null,
-        nextEpisode: null,
-      },
-      currentSeasonNumber: input.currentSeasonNumber,
-      currentEpisodeNumber: input.currentEpisodeNumber,
-      item: null,
-    } as never;
-  };
-  MetadataContentService.prototype.getTitleContent = async function (userId, id) {
-    return {
-      item: {
-        mediaType: 'movie',
-        kind: 'title',
-        mediaKey: id,
-        provider: 'tmdb',
-        providerId: id,
-        parentMediaType: null,
-        parentProvider: null,
-        parentProviderId: null,
-        tmdbId: 222,
-        showTmdbId: null,
-        seasonNumber: null,
-        episodeNumber: null,
-        absoluteEpisodeNumber: null,
-        title: 'Movie',
-        subtitle: null,
-        summary: null,
-        overview: null,
-        artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-        images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
-        releaseDate: null,
-        releaseYear: null,
-        runtimeMinutes: null,
-        rating: null,
-        certification: null,
-        status: null,
-        genres: [],
-        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null },
-        seasonCount: null,
-        episodeCount: null,
-        nextEpisode: null,
-      },
-      content: {
-        ids: { imdb: 'tt1234567', tmdb: 222, trakt: null, tvdb: null },
-        title: 'Movie',
-        originalTitle: null,
-        type: 'movie',
-        year: null,
-        description: null,
-        score: null,
-        ratings: {
-          imdbRating: null,
-          imdbVotes: null,
-          tmdbRating: null,
-          metacritic: null,
-          rottenTomatoes: null,
-          letterboxdRating: null,
-        },
-        posterUrl: null,
-        backdropUrl: null,
-        genres: [],
-        keywords: [],
-        runtime: null,
-        certification: null,
-        released: null,
-        language: null,
-        country: null,
-        seasonCount: null,
-        episodeCount: null,
-        directors: [],
-        writers: [],
-        network: null,
-        studio: null,
-        status: null,
-        budget: null,
-        revenue: null,
-        updatedAt: null,
-      },
-    } as never;
   };
   MetadataReviewsService.prototype.getTitleReviews = async function (userId, profileId, mediaKey, language?: string | null) {
     receivedReviewsUserId = userId;
@@ -275,6 +107,8 @@ test('metadata direct routes parse inputs and return service payloads', async (t
         nextEpisode: null,
       },
       seasons: [],
+      episodes: [],
+      nextEpisode: null,
       videos: [{ id: 'video-1', key: 'abc123', name: 'Trailer', site: 'YouTube', type: 'Trailer', official: true, publishedAt: '2024-01-01T00:00:00.000Z', url: 'https://www.youtube.com/watch?v=abc123', thumbnailUrl: 'https://img.youtube.com/vi/abc123/hqdefault.jpg' }],
       cast: [{ id: 'person:tmdb:10', provider: 'tmdb', providerId: '10', tmdbPersonId: 10, name: 'Lead Actor', role: 'Hero', department: 'Acting', profileUrl: 'https://image.tmdb.org/t/p/w185/actor.jpg' }],
       directors: [{ id: 'person:tmdb:11', provider: 'tmdb', providerId: '11', tmdbPersonId: 11, name: 'Director Name', role: 'Director', department: 'Directing', profileUrl: null }],
@@ -356,14 +190,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(personResponse.statusCode, 200);
   assert.equal(receivedPersonLanguage, 'en-US');
 
-  const showMediaKey = 'show:tvdb:111';
   const movieMediaKey = 'movie:tmdb:222';
-
-  const episodesResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showMediaKey}/episodes?seasonNumber=2&language=es-ES`, headers: auth });
-  assert.equal(episodesResponse.statusCode, 200);
-  assert.equal(episodesResponse.json().requestedSeasonNumber, 2);
-  assert.equal(episodesResponse.json().show.mediaKey, showMediaKey);
-  assert.equal(receivedEpisodesLanguage, 'es-ES');
 
   const titleDetailResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieMediaKey}?language=fr-FR`, headers: auth });
   assert.equal(titleDetailResponse.statusCode, 200);
@@ -394,18 +221,6 @@ test('metadata direct routes parse inputs and return service payloads', async (t
   assert.equal(receivedRatingsUserId, 'user-1');
   assert.equal(receivedRatingsProfileId, 'profile-1');
   assert.equal(receivedRatingsMediaKey, movieMediaKey);
-
-  const nextEpisodeResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${showMediaKey}/next-episode?currentSeasonNumber=1&currentEpisodeNumber=2&watchedKeys=tt1:1:3,tt1:1:4&showMediaKey=show:tvdb:tt1&nowMs=1700000000000&language=ja-JP`, headers: auth });
-  assert.equal(nextEpisodeResponse.statusCode, 200);
-  assert.equal(receivedNextEpisodeLanguage, 'ja-JP');
-  assert.deepEqual(receivedWatchedKeys, ['tt1:1:3', 'tt1:1:4']);
-  assert.equal(receivedShowMediaKey, 'show:tvdb:tt1');
-  assert.equal(receivedNowMs, 1700000000000);
-
-  const contentResponse = await app.inject({ method: 'GET', url: `/v1/metadata/titles/${movieMediaKey}/content`, headers: auth });
-  assert.equal(contentResponse.statusCode, 200);
-  assert.equal(contentResponse.json().item.mediaKey, movieMediaKey);
-  assert.equal(contentResponse.json().content.ids.imdb, 'tt1234567');
 
   const playbackResponse = await app.inject({ method: 'GET', url: `/v1/playback/resolve?mediaKey=${movieMediaKey}&language=de-DE`, headers: auth });
   assert.equal(playbackResponse.statusCode, 200);
