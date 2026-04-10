@@ -1,7 +1,19 @@
 import { Redis } from 'ioredis';
 import { env } from '../config/env.js';
 
-type RedisLike = Pick<Redis, 'get' | 'set' | 'del' | 'sadd' | 'smembers' | 'eval' | 'scan' | 'disconnect' | 'on'>;
+type RedisValue = string | number;
+
+type RedisLike = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, ...args: RedisValue[]): Promise<'OK'>;
+  del(...keys: string[]): Promise<number>;
+  sadd(key: string, ...members: string[]): Promise<number>;
+  smembers(key: string): Promise<string[]>;
+  eval(script: string, numKeys: number, ...args: string[]): Promise<number | null>;
+  scan(cursor: number | string, ...args: RedisValue[]): Promise<[string, string[]]>;
+  disconnect(): void;
+  on(event: string, listener: (...args: unknown[]) => void): RedisLike;
+};
 
 const isTestEnv = process.env.NODE_ENV?.trim() === 'test'
   || process.execArgv.includes('--test')
@@ -55,7 +67,11 @@ class TestRedis implements RedisLike {
   async eval(_script: string, numKeys: number, ...args: string[]): Promise<number | null> {
     const keys = args.slice(0, numKeys);
     const [key] = keys;
-    const raw = key ? this.kv.get(key) ?? null : null;
+    if (!key) {
+      return null;
+    }
+
+    const raw = this.kv.get(key) ?? null;
     if (!raw) {
       return null;
     }
@@ -78,7 +94,7 @@ class TestRedis implements RedisLike {
     this.sets.clear();
   }
 
-  on(_event: string, _listener: (...args: unknown[]) => void): this {
+  on(_event: string, _listener: (...args: unknown[]) => void): RedisLike {
     return this;
   }
 }
@@ -90,4 +106,4 @@ export const redis: RedisLike = env.nodeEnv === 'test'
       maxRetriesPerRequest: null,
       lazyConnect: true,
       enableOfflineQueue: true,
-    });
+    }) as unknown as RedisLike;

@@ -1270,11 +1270,11 @@ export class ProviderImportService {
         seen.add(normalized);
         try {
           const result = await this.metadataRefreshService.refreshMediaKey(client, profileId, normalized);
-          summary.refreshedTitles += result.refreshedTitles;
-          summary.refreshedSeasons += result.refreshedSeasons;
-          summary.refreshedTrackedShows += result.refreshedTrackedShows;
-          summary.skipped += result.skipped;
-          summary.failures += result.failures;
+          summary.refreshedTitles += result.summary.refreshedTitles;
+          summary.refreshedSeasons += result.summary.refreshedSeasons;
+          summary.refreshedTrackedShows += result.summary.refreshedTrackedShows;
+          summary.skipped += result.summary.skipped;
+          summary.failures += result.summary.failures;
         } catch {
           summary.failures += 1;
         }

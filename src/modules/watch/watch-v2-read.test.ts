@@ -7,6 +7,7 @@ seedTestEnv();
 const { WatchQueryService } = await import('./watch-query.service.js');
 const { WatchStateService } = await import('./watch-state.service.js');
 const { WatchEventIngestService } = await import('./event-ingest.service.js');
+const { parseMediaKey } = await import('../identity/media-key.js');
 const { db } = await import('../../lib/db.js');
 
 test('listContinueWatchingPage emits synthetic cw2 ids from title projection rows', { concurrency: false }, async () => {

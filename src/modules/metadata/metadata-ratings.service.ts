@@ -8,10 +8,14 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { resolveTitleRouteIdentity } from './metadata-route-identity.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import type { MetadataTitleRatingsResponse } from './metadata-detail.types.js';
+import type { MetadataTitleSourceSnapshot } from './metadata-title-source.types.js';
 
 type DbRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-function resolveRatingsLookup(snapshot: { providerContext: { title: { externalIds: { tmdb: number | null; imdb: string | null } } } | null; tmdbTitle: { tmdbId: number; externalIds: { imdb_id?: string | null } } | null }): { provider: 'tmdb' | 'imdb'; id: number | string } | null {
+function resolveRatingsLookup(snapshot: MetadataTitleSourceSnapshot): { provider: 'tmdb' | 'imdb'; id: number | string } | null {
+  const tmdbImdbId = typeof snapshot.tmdbTitle?.externalIds.imdb_id === 'string'
+    ? snapshot.tmdbTitle.externalIds.imdb_id
+    : null;
   const externalIds = snapshot.providerContext?.title?.externalIds
     ? {
         tmdb: snapshot.providerContext.title.externalIds.tmdb,
@@ -20,7 +24,7 @@ function resolveRatingsLookup(snapshot: { providerContext: { title: { externalId
     : snapshot.tmdbTitle
       ? {
           tmdb: snapshot.tmdbTitle.tmdbId,
-          imdb: snapshot.tmdbTitle.externalIds.imdb_id ?? null,
+          imdb: tmdbImdbId,
         }
       : null;
 
