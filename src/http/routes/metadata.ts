@@ -139,22 +139,6 @@ function parseOptionalPositiveNumber(value: unknown, field: string): number | nu
   return parsed;
 }
 
-function parseRequiredPositiveQueryNumber(value: unknown, field: string): number {
-  const parsed = parseOptionalPositiveNumber(value, field);
-  if (parsed === null) {
-    throw new HttpError(400, `Missing ${field}.`);
-  }
-  return parsed;
-}
-
-function parseRequiredPositiveNumber(value: string | number, field: string): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new HttpError(400, `Invalid ${field}.`);
-  }
-  return parsed;
-}
-
 function parseSupportedMediaType(value: unknown): SupportedMediaType | null {
   if (value === 'movie' || value === 'show' || value === 'anime' || value === 'episode') {
     return value;
@@ -250,26 +234,6 @@ function mapProviderReference(
     tvdbId: null,
     kitsuId: null,
   };
-}
-
-function parseStringList(value: unknown): string[] | null {
-  if (Array.isArray(value)) {
-    const items = value
-      .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : []))
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    return items.length ? items : null;
-  }
-
-  if (typeof value === 'string') {
-    const items = value
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    return items.length ? items : null;
-  }
-
-  return null;
 }
 
 function clampLimit(value: number, min: number, max: number): number {
