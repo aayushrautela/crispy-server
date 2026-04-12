@@ -1,6 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
-import { ProfileAccessService } from '../profiles/profile-access.service.js';
+import { requireDbIsoString } from '../../lib/time.js';
 import { parseMediaKey } from '../identity/media-key.js';
 import type { RegularCardView } from '../metadata/metadata-card.types.js';
 import { MetadataTitleSourceService } from '../metadata/metadata-title-source.service.js';
@@ -9,7 +8,6 @@ import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodeWatchV2ContinueWatchingId, resolveWatchV2Lookup } from './watch-v2-utils.js';
 import { listWatchV2WatchedEpisodeKeys } from './watch-v2-episode-keys.js';
-import { WatchV2EpisodeHistoryService } from '../watch-v2/watch-v2-episode-history.service.js';
 import { WatchV2EpisodicFollowQueryService } from './watch-v2-episodic-follow-query.service.js';
 
 type RawWatchProjectionSnapshot = {
@@ -53,6 +51,8 @@ export type RawContinueWatchingRow = RawWatchProjectionSnapshot & {
 };
 
 export type RawWatchHistoryRow = RawWatchProjectionSnapshot & {
+  id: string;
+  titleContentId: string;
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -69,6 +69,8 @@ export type RawWatchHistoryRow = RawWatchProjectionSnapshot & {
 };
 
 export type RawWatchlistRow = RawWatchProjectionSnapshot & {
+  id: string;
+  titleContentId: string;
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -83,6 +85,8 @@ export type RawWatchlistRow = RawWatchProjectionSnapshot & {
 };
 
 export type RawRatingRow = RawWatchProjectionSnapshot & {
+  id: string;
+  titleContentId: string;
   mediaKey: string;
   mediaType: string;
   tmdbId: number | null;
@@ -173,38 +177,39 @@ function mapContinueWatchingRow(row: Record<string, unknown>): RawContinueWatchi
 
 function mapWatchHistoryRow(row: Record<string, unknown>): RawWatchHistoryRow {
   return {
-    ...emptyProjectionSnapshot(),
-    mediaKey: String(row.media_key),
-    mediaType: String(row.media_type),
-    tmdbId: row.tmdb_id === null ? null : Number(row.tmdb_id),
-    showTmdbId: row.show_tmdb_id === null ? null : Number(row.show_tmdb_id),
-    seasonNumber: row.season_number === null ? null : Number(row.season_number),
-    episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
-    title: null,
-    subtitle: null,
-    posterUrl: null,
-    backdropUrl: null,
-    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'watch_history.watched_at'),
-    payload: (row.payload as Record<string, unknown> | undefined) ?? {},
+    ...mapProjectionSnapshotFromTitleRow(row),
+    id: String(row.id),
+    titleContentId: String(row.title_content_id),
+    mediaKey: String(row.title_media_key),
+    mediaType: String(row.title_media_type),
+    tmdbId: null,
+    showTmdbId: null,
+    seasonNumber: null,
+    episodeNumber: null,
+    title: typeof row.title_text === 'string' ? row.title_text : null,
+    subtitle: typeof row.title_subtitle === 'string' ? row.title_subtitle : null,
+    posterUrl: typeof row.title_poster_url === 'string' ? row.title_poster_url : null,
+    backdropUrl: typeof row.title_backdrop_url === 'string' ? row.title_backdrop_url : null,
+    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'profile_play_history.completed_at'),
+    payload: {},
     media: null,
   };
 }
 
 function mapWatchlistRow(row: Record<string, unknown>): RawWatchlistRow {
   return {
-    ...mapProjectionSnapshot(row),
-    mediaKey: String(row.title_media_key ?? row.media_key),
-    mediaType: String(row.title_media_type ?? row.media_type),
+    ...mapProjectionSnapshotFromTitleRow(row),
+    id: String(row.id),
+    titleContentId: String(row.title_content_id),
+    mediaKey: String(row.title_media_key),
+    mediaType: String(row.title_media_type),
     tmdbId: null,
     title: typeof row.title_text === 'string' ? row.title_text : null,
     subtitle: typeof row.title_subtitle === 'string' ? row.title_subtitle : null,
     posterUrl: typeof row.title_poster_url === 'string' ? row.title_poster_url : null,
     releaseYear: row.title_release_year === null ? null : Number(row.title_release_year),
     titleRating: row.title_rating === null ? null : Number(row.title_rating),
-    addedAt: requireDbIsoString(
-      row.watchlist_updated_at as Date | string | null | undefined ?? row.added_at as Date | string | null | undefined,
-      'profile_title_projection.watchlist_updated_at',
-    ),
+    addedAt: requireDbIsoString(row.added_at as Date | string | null | undefined, 'profile_watchlist_state.added_at'),
     payload: {},
     media: null,
   };
@@ -212,20 +217,19 @@ function mapWatchlistRow(row: Record<string, unknown>): RawWatchlistRow {
 
 function mapRatingRow(row: Record<string, unknown>): RawRatingRow {
   return {
-    ...mapProjectionSnapshot(row),
-    mediaKey: String(row.title_media_key ?? row.media_key),
-    mediaType: String(row.title_media_type ?? row.media_type),
+    ...mapProjectionSnapshotFromTitleRow(row),
+    id: String(row.id),
+    titleContentId: String(row.title_content_id),
+    mediaKey: String(row.title_media_key),
+    mediaType: String(row.title_media_type),
     tmdbId: null,
     title: typeof row.title_text === 'string' ? row.title_text : null,
     subtitle: typeof row.title_subtitle === 'string' ? row.title_subtitle : null,
     posterUrl: typeof row.title_poster_url === 'string' ? row.title_poster_url : null,
     releaseYear: row.title_release_year === null ? null : Number(row.title_release_year),
     titleRating: row.title_rating === null ? null : Number(row.title_rating),
-    rating: Number(row.rating_value ?? row.rating),
-    ratedAt: requireDbIsoString(
-      row.rated_at as Date | string | null | undefined,
-      'profile_title_projection.rated_at',
-    ),
+    rating: Number(row.rating),
+    ratedAt: requireDbIsoString(row.rated_at as Date | string | null | undefined, 'profile_rating_state.rated_at'),
     payload: {},
     media: null,
   };
@@ -255,10 +259,8 @@ function emptyProjectionSnapshot(): RawWatchProjectionSnapshot {
 
 export class WatchQueryService {
   constructor(
-    private readonly profileAccessService = new ProfileAccessService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly metadataTitleSourceService = new MetadataTitleSourceService(),
-    private readonly episodeHistoryService = new WatchV2EpisodeHistoryService(),
     private readonly episodicFollowQueryService = new WatchV2EpisodicFollowQueryService(),
   ) {}
 
@@ -331,10 +333,12 @@ export class WatchQueryService {
     const result = await client.query(
       `
         SELECT COUNT(*)::int AS count
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND effective_watched = true
-          AND last_watched_at IS NOT NULL
+        FROM profile_play_history history
+        JOIN profile_title_projection projection
+          ON projection.profile_id = history.profile_id
+         AND projection.title_content_id = history.title_content_id
+        WHERE history.profile_id = $1::uuid
+          AND history.voided_at IS NULL
       `,
       [profileId],
     );
@@ -345,28 +349,30 @@ export class WatchQueryService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(
       `
-        SELECT *
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND effective_watched = true
-          AND last_watched_at IS NOT NULL
+        SELECT history.id::text AS id, history.completed_at AS watched_at, projection.*
+        FROM profile_play_history history
+        JOIN profile_title_projection projection
+          ON projection.profile_id = history.profile_id
+         AND projection.title_content_id = history.title_content_id
+        WHERE history.profile_id = $1::uuid
+          AND history.voided_at IS NULL
           AND (
             $2::timestamptz IS NULL
-            OR last_watched_at < $2::timestamptz
-            OR (last_watched_at = $2::timestamptz AND title_content_id::text < $3)
+            OR history.completed_at < $2::timestamptz
+            OR (history.completed_at = $2::timestamptz AND history.id::text < $3)
           )
-        ORDER BY last_watched_at DESC, title_content_id DESC
+        ORDER BY history.completed_at DESC, history.id DESC
         LIMIT $4
       `,
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1],
     );
     const rows = result.rows.slice(0, params.limit);
-    const items = rows.map((row) => mapWatchHistoryProjectionRow(row));
+    const items = rows.map((row) => mapWatchHistoryRow(row));
     const last = items.at(-1) ?? null;
     return {
       items,
       pageInfo: {
-        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.watchedAt, tieBreaker: last.mediaKey }) : null,
+        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.watchedAt, tieBreaker: last.id }) : null,
         hasMore: result.rows.length > params.limit,
       },
     };
@@ -381,10 +387,13 @@ export class WatchQueryService {
     const result = await client.query(
       `
         SELECT COUNT(*)::int AS count
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND watchlist_present = true
-          AND watchlist_updated_at IS NOT NULL
+        FROM profile_watchlist_state state
+        JOIN profile_title_projection projection
+          ON projection.profile_id = state.profile_id
+         AND projection.title_content_id = state.target_content_id
+        WHERE state.profile_id = $1::uuid
+          AND state.present = true
+          AND state.added_at IS NOT NULL
       `,
       [profileId],
     );
@@ -395,17 +404,20 @@ export class WatchQueryService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(
       `
-        SELECT *
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND watchlist_present = true
-          AND watchlist_updated_at IS NOT NULL
+        SELECT state.target_content_id::text AS id, state.added_at, projection.*
+        FROM profile_watchlist_state state
+        JOIN profile_title_projection projection
+          ON projection.profile_id = state.profile_id
+         AND projection.title_content_id = state.target_content_id
+        WHERE state.profile_id = $1::uuid
+          AND state.present = true
+          AND state.added_at IS NOT NULL
           AND (
             $2::timestamptz IS NULL
-            OR watchlist_updated_at < $2::timestamptz
-            OR (watchlist_updated_at = $2::timestamptz AND title_content_id::text < $3)
+            OR state.added_at < $2::timestamptz
+            OR (state.added_at = $2::timestamptz AND state.target_content_id::text < $3)
           )
-        ORDER BY watchlist_updated_at DESC, title_content_id DESC
+        ORDER BY state.added_at DESC, state.target_content_id DESC
         LIMIT $4
       `,
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1],
@@ -416,7 +428,7 @@ export class WatchQueryService {
     return {
       items,
       pageInfo: {
-        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.addedAt, tieBreaker: last.mediaKey }) : null,
+        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.addedAt, tieBreaker: last.id }) : null,
         hasMore: result.rows.length > params.limit,
       },
     };
@@ -431,10 +443,13 @@ export class WatchQueryService {
     const result = await client.query(
       `
         SELECT COUNT(*)::int AS count
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND rating_value IS NOT NULL
-          AND rated_at IS NOT NULL
+        FROM profile_rating_state state
+        JOIN profile_title_projection projection
+          ON projection.profile_id = state.profile_id
+         AND projection.title_content_id = state.target_content_id
+        WHERE state.profile_id = $1::uuid
+          AND state.rating IS NOT NULL
+          AND state.rated_at IS NOT NULL
       `,
       [profileId],
     );
@@ -460,17 +475,20 @@ export class WatchQueryService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(
       `
-        SELECT *
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND rating_value IS NOT NULL
-          AND rated_at IS NOT NULL
+        SELECT state.target_content_id::text AS id, state.rating, state.rated_at, projection.*
+        FROM profile_rating_state state
+        JOIN profile_title_projection projection
+          ON projection.profile_id = state.profile_id
+         AND projection.title_content_id = state.target_content_id
+        WHERE state.profile_id = $1::uuid
+          AND state.rating IS NOT NULL
+          AND state.rated_at IS NOT NULL
           AND (
             $2::timestamptz IS NULL
-            OR rated_at < $2::timestamptz
-            OR (rated_at = $2::timestamptz AND title_content_id::text < $3)
+            OR state.rated_at < $2::timestamptz
+            OR (state.rated_at = $2::timestamptz AND state.target_content_id::text < $3)
           )
-        ORDER BY rated_at DESC, title_content_id DESC
+        ORDER BY state.rated_at DESC, state.target_content_id DESC
         LIMIT $4
       `,
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1],
@@ -481,7 +499,7 @@ export class WatchQueryService {
     return {
       items,
       pageInfo: {
-        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.ratedAt, tieBreaker: last.mediaKey }) : null,
+        nextCursor: result.rows.length > params.limit && last ? encodeWatchPageCursor({ sortValue: last.ratedAt, tieBreaker: last.id }) : null,
         hasMore: result.rows.length > params.limit,
       },
     };
@@ -533,54 +551,39 @@ export class WatchQueryService {
 
   async getWatchHistoryByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<RawWatchHistoryRow | null> {
     const identity = parseMediaKey(mediaKey);
-    if (identity.mediaType === 'episode') {
-      const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
-      const watchedAt = await this.episodeHistoryService.getEpisodeWatchedAt(client, profileId, lookup.contentId, lookup.titleContentId, null);
-      return watchedAt
-        ? {
-            ...emptyProjectionSnapshot(),
-            mediaKey,
-            mediaType: identity.mediaType,
-            tmdbId: identity.tmdbId ?? null,
-            showTmdbId: identity.showTmdbId ?? null,
-            seasonNumber: identity.seasonNumber ?? null,
-            episodeNumber: identity.episodeNumber ?? null,
-            title: null,
-            subtitle: null,
-            posterUrl: null,
-            backdropUrl: null,
-            watchedAt,
-            payload: {},
-            media: null,
-          }
-        : null;
-    }
     const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
     const result = await client.query(
       `
-        SELECT *
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND title_content_id = $2::uuid
-          AND effective_watched = true
-          AND last_watched_at IS NOT NULL
+        SELECT history.id::text AS id, history.completed_at AS watched_at, projection.*
+        FROM profile_play_history history
+        JOIN profile_title_projection projection
+          ON projection.profile_id = history.profile_id
+         AND projection.title_content_id = history.title_content_id
+        WHERE history.profile_id = $1::uuid
+          AND history.voided_at IS NULL
+          AND ${identity.mediaType === 'episode' ? 'history.content_id = $2::uuid' : 'history.title_content_id = $2::uuid'}
+        ORDER BY history.completed_at DESC, history.id DESC
+        LIMIT 1
       `,
-      [profileId, lookup.titleContentId],
+      [profileId, identity.mediaType === 'episode' ? lookup.contentId : lookup.titleContentId],
     );
     const row = result.rows[0];
-    return row ? mapWatchHistoryProjectionRow(row) : null;
+    return row ? mapWatchHistoryRow(row) : null;
   }
 
   async getWatchlistByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<RawWatchlistRow | null> {
     const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, parseMediaKey(mediaKey));
     const result = await client.query(
       `
-        SELECT *
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND title_content_id = $2::uuid
-          AND watchlist_present = true
-          AND watchlist_updated_at IS NOT NULL
+        SELECT state.target_content_id::text AS id, state.added_at, projection.*
+        FROM profile_watchlist_state state
+        JOIN profile_title_projection projection
+          ON projection.profile_id = state.profile_id
+         AND projection.title_content_id = state.target_content_id
+        WHERE state.profile_id = $1::uuid
+          AND state.target_content_id = $2::uuid
+          AND state.present = true
+          AND state.added_at IS NOT NULL
       `,
       [profileId, lookup.titleContentId],
     );
@@ -592,12 +595,15 @@ export class WatchQueryService {
     const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, parseMediaKey(mediaKey));
     const result = await client.query(
       `
-        SELECT *
-        FROM profile_title_projection
-        WHERE profile_id = $1::uuid
-          AND title_content_id = $2::uuid
-          AND rating_value IS NOT NULL
-          AND rated_at IS NOT NULL
+        SELECT state.target_content_id::text AS id, state.rating, state.rated_at, projection.*
+        FROM profile_rating_state state
+        JOIN profile_title_projection projection
+          ON projection.profile_id = state.profile_id
+         AND projection.title_content_id = state.target_content_id
+        WHERE state.profile_id = $1::uuid
+          AND state.target_content_id = $2::uuid
+          AND state.rating IS NOT NULL
+          AND state.rated_at IS NOT NULL
       `,
       [profileId, lookup.titleContentId],
     );
@@ -642,25 +648,6 @@ function mapContinueWatchingProjectionRow(row: Record<string, unknown>): RawCont
     progressPercent: Number(row.active_progress_percent ?? 0),
     lastActivityAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'profile_title_projection.last_activity_at'),
     payload: {},
-  };
-}
-
-function mapWatchHistoryProjectionRow(row: Record<string, unknown>): RawWatchHistoryRow {
-  return {
-    ...mapProjectionSnapshotFromTitleRow(row),
-    mediaKey: String(row.title_media_key),
-    mediaType: String(row.title_media_type),
-    tmdbId: null,
-    showTmdbId: null,
-    seasonNumber: null,
-    episodeNumber: null,
-    title: typeof row.title_text === 'string' ? row.title_text : null,
-    subtitle: typeof row.title_subtitle === 'string' ? row.title_subtitle : null,
-    posterUrl: typeof row.title_poster_url === 'string' ? row.title_poster_url : null,
-    backdropUrl: typeof row.title_backdrop_url === 'string' ? row.title_backdrop_url : null,
-    watchedAt: requireDbIsoString(row.last_watched_at as Date | string | null | undefined, 'profile_title_projection.last_watched_at'),
-    payload: {},
-    media: null,
   };
 }
 

@@ -124,9 +124,10 @@ const watchProductItemSchema = {
 
 const historyItemSchema = {
   ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'watchedAt', 'origins'],
+  required: [...watchProductItemSchema.required, 'id', 'watchedAt', 'origins'],
   properties: {
     ...watchProductItemSchema.properties,
+    id: stringSchema,
     watchedAt: stringSchema,
     origins: {
       type: 'array',
@@ -137,9 +138,10 @@ const historyItemSchema = {
 
 const watchlistItemSchema = {
   ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'addedAt', 'origins'],
+  required: [...watchProductItemSchema.required, 'id', 'addedAt', 'origins'],
   properties: {
     ...watchProductItemSchema.properties,
+    id: stringSchema,
     addedAt: stringSchema,
     origins: {
       type: 'array',
@@ -150,9 +152,10 @@ const watchlistItemSchema = {
 
 const ratingItemSchema = {
   ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'rating', 'origins'],
+  required: [...watchProductItemSchema.required, 'id', 'rating', 'origins'],
   properties: {
     ...watchProductItemSchema.properties,
+    id: stringSchema,
     rating: {
       type: 'object',
       additionalProperties: false,

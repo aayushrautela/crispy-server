@@ -17,16 +17,19 @@ export type ContinueWatchingProductItem = Omit<WatchDerivedProductItem, 'media'>
 };
 
 export type HistoryProductItem = WatchDerivedProductItem & {
+  id: string;
   watchedAt: string;
   origins: string[];
 };
 
 export type WatchlistProductItem = WatchDerivedProductItem & {
+  id: string;
   addedAt: string;
   origins: string[];
 };
 
 export type RatingProductItem = WatchDerivedProductItem & {
+  id: string;
   rating: { value: number; ratedAt: string };
   origins: string[];
 };

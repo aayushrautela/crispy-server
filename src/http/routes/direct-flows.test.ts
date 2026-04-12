@@ -296,6 +296,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     return {
       items: [
         {
+          id: 'history-1',
           media: {
             mediaKey: 'movie:tmdb:42',
             mediaType: 'movie',
@@ -309,6 +310,63 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
             subtitle: null,
           },
           watchedAt: '2024-01-02T00:00:00.000Z',
+          origins: ['native'],
+        },
+      ],
+      pageInfo: {
+        nextCursor: null,
+        hasMore: false,
+      },
+    } as never;
+  };
+  PersonalMediaService.prototype.listWatchlistPage = async function () {
+    return {
+      items: [
+        {
+          id: 'watchlist-1',
+          media: {
+            mediaKey: 'movie:tmdb:43',
+            mediaType: 'movie',
+            provider: 'tmdb',
+            providerId: '43',
+            title: 'Watchlist Movie',
+            posterUrl: 'https://img.test/poster-2.jpg',
+            releaseYear: null,
+            rating: null,
+            genre: null,
+            subtitle: null,
+          },
+          addedAt: '2024-01-03T00:00:00.000Z',
+          origins: ['native'],
+        },
+      ],
+      pageInfo: {
+        nextCursor: null,
+        hasMore: false,
+      },
+    } as never;
+  };
+  PersonalMediaService.prototype.listRatingsPage = async function () {
+    return {
+      items: [
+        {
+          id: 'rating-1',
+          media: {
+            mediaKey: 'movie:tmdb:44',
+            mediaType: 'movie',
+            provider: 'tmdb',
+            providerId: '44',
+            title: 'Rated Movie',
+            posterUrl: 'https://img.test/poster-3.jpg',
+            releaseYear: null,
+            rating: null,
+            genre: null,
+            subtitle: null,
+          },
+          rating: {
+            value: 8,
+            ratedAt: '2024-01-04T00:00:00.000Z',
+          },
           origins: ['native'],
         },
       ],
@@ -387,7 +445,20 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
   const historyResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/history?limit=7', headers: auth });
   assert.equal(historyResponse.statusCode, 200);
   assert.equal(historyResponse.json().kind, 'history');
+  assert.equal(historyResponse.json().items[0].id, 'history-1');
   assert.equal(historyResponse.json().items[0].watchedAt, '2024-01-02T00:00:00.000Z');
+
+  const watchlistResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/watchlist?limit=7', headers: auth });
+  assert.equal(watchlistResponse.statusCode, 200);
+  assert.equal(watchlistResponse.json().kind, 'watchlist');
+  assert.equal(watchlistResponse.json().items[0].id, 'watchlist-1');
+  assert.equal(watchlistResponse.json().items[0].addedAt, '2024-01-03T00:00:00.000Z');
+
+  const ratingsResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/ratings?limit=7', headers: auth });
+  assert.equal(ratingsResponse.statusCode, 200);
+  assert.equal(ratingsResponse.json().kind, 'ratings');
+  assert.equal(ratingsResponse.json().items[0].id, 'rating-1');
+  assert.equal(ratingsResponse.json().items[0].rating.value, 8);
 
   const stateResponse = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:1', headers: auth });
   assert.equal(stateResponse.statusCode, 200);

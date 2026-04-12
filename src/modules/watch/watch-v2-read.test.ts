@@ -130,6 +130,153 @@ test('listContinueWatchingPage filters invalid projection rows before filling th
   assert.match(queries[0]?.sql ?? '', /title_poster_url IS NOT NULL/);
 });
 
+test('listWatchHistoryPage uses entry ids and paginates repeated media without collisions', { concurrency: false }, async () => {
+  const service = new WatchQueryService();
+  const watchedAt = '2024-01-03T00:00:00.000Z';
+  const firstRow = createTitleFeedRow({
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    title_content_id: '11111111-1111-4111-8111-111111111111',
+    watched_at: watchedAt,
+    title_media_key: 'movie:tmdb:42',
+    title_media_type: 'movie',
+    title_text: 'Example Movie',
+  });
+  const secondRow = createTitleFeedRow({
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    title_content_id: '11111111-1111-4111-8111-111111111111',
+    watched_at: watchedAt,
+    title_media_key: 'movie:tmdb:42',
+    title_media_type: 'movie',
+    title_text: 'Example Movie',
+  });
+  const queries: Array<{ sql: string; params: unknown[] | undefined }> = [];
+  const client = {
+    query: async (sql: string, params?: unknown[]) => {
+      queries.push({ sql, params });
+      if (!params?.[1]) {
+        return { rows: [firstRow, secondRow] };
+      }
+      assert.deepEqual(params, ['profile-1', watchedAt, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2]);
+      return { rows: [secondRow] };
+    },
+  } as never;
+
+  const page1 = await service.listWatchHistoryPage(client, 'profile-1', { limit: 1 });
+
+  assert.equal(page1.items.length, 1);
+  assert.equal(page1.items[0]?.id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  assert.equal(page1.items[0]?.mediaKey, 'movie:tmdb:42');
+  assert.equal(page1.items[0]?.watchedAt, watchedAt);
+  assert.equal(page1.pageInfo.hasMore, true);
+  assert.deepEqual(decodeCursor(page1.pageInfo.nextCursor), {
+    v: 1,
+    s: watchedAt,
+    t: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  });
+  assert.match(queries[0]?.sql ?? '', /FROM profile_play_history history/);
+  assert.match(queries[0]?.sql ?? '', /ORDER BY history.completed_at DESC, history.id DESC/);
+
+  const page2 = await service.listWatchHistoryPage(client, 'profile-1', { limit: 1, cursor: page1.pageInfo.nextCursor });
+
+  assert.equal(page2.items.length, 1);
+  assert.equal(page2.items[0]?.id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  assert.equal(page2.items[0]?.mediaKey, 'movie:tmdb:42');
+  assert.equal(page2.pageInfo.hasMore, false);
+  assert.equal(page2.pageInfo.nextCursor, null);
+});
+
+test('listWatchlistPage uses title state ids in the cursor tie-breaker', { concurrency: false }, async () => {
+  const service = new WatchQueryService();
+  const addedAt = '2024-01-04T00:00:00.000Z';
+  const firstRow = createTitleFeedRow({
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    title_content_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    added_at: addedAt,
+    title_media_key: 'movie:tmdb:42',
+    title_media_type: 'movie',
+    title_text: 'Watchlist Movie',
+  });
+  const secondRow = createTitleFeedRow({
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    title_content_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    added_at: addedAt,
+    title_media_key: 'movie:tmdb:43',
+    title_media_type: 'movie',
+    title_text: 'Second Watchlist Movie',
+  });
+  const client = {
+    query: async (_sql: string, params?: unknown[]) => {
+      if (!params?.[1]) {
+        return { rows: [firstRow, secondRow] };
+      }
+      assert.deepEqual(params, ['profile-1', addedAt, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2]);
+      return { rows: [secondRow] };
+    },
+  } as never;
+
+  const page1 = await service.listWatchlistPage(client, 'profile-1', { limit: 1 });
+
+  assert.equal(page1.items[0]?.id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  assert.deepEqual(decodeCursor(page1.pageInfo.nextCursor), {
+    v: 1,
+    s: addedAt,
+    t: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  });
+
+  const page2 = await service.listWatchlistPage(client, 'profile-1', { limit: 1, cursor: page1.pageInfo.nextCursor });
+
+  assert.equal(page2.items[0]?.id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  assert.equal(page2.pageInfo.nextCursor, null);
+});
+
+test('listRatingsPage uses title state ids in the cursor tie-breaker', { concurrency: false }, async () => {
+  const service = new WatchQueryService();
+  const ratedAt = '2024-01-05T00:00:00.000Z';
+  const firstRow = createTitleFeedRow({
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    title_content_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    rated_at: ratedAt,
+    rating: 8,
+    title_media_key: 'movie:tmdb:42',
+    title_media_type: 'movie',
+    title_text: 'Rated Movie',
+  });
+  const secondRow = createTitleFeedRow({
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    title_content_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    rated_at: ratedAt,
+    rating: 7,
+    title_media_key: 'movie:tmdb:43',
+    title_media_type: 'movie',
+    title_text: 'Second Rated Movie',
+  });
+  const client = {
+    query: async (_sql: string, params?: unknown[]) => {
+      if (!params?.[1]) {
+        return { rows: [firstRow, secondRow] };
+      }
+      assert.deepEqual(params, ['profile-1', ratedAt, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2]);
+      return { rows: [secondRow] };
+    },
+  } as never;
+
+  const page1 = await service.listRatingsPage(client, 'profile-1', { limit: 1 });
+
+  assert.equal(page1.items[0]?.id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  assert.equal(page1.items[0]?.rating, 8);
+  assert.deepEqual(decodeCursor(page1.pageInfo.nextCursor), {
+    v: 1,
+    s: ratedAt,
+    t: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  });
+
+  const page2 = await service.listRatingsPage(client, 'profile-1', { limit: 1, cursor: page1.pageInfo.nextCursor });
+
+  assert.equal(page2.items[0]?.id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  assert.equal(page2.items[0]?.rating, 7);
+  assert.equal(page2.pageInfo.nextCursor, null);
+});
+
 test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projection rows', { concurrency: false }, async (t) => {
   const originalConnect = db.connect;
   const notifications: Array<Record<string, unknown>> = [];
@@ -401,4 +548,40 @@ function createProjection() {
     posterUrl: 'poster',
     backdropUrl: 'backdrop',
   };
+}
+
+function createTitleFeedRow(overrides: Record<string, unknown>) {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    title_content_id: '11111111-1111-4111-8111-111111111111',
+    title_media_key: 'movie:tmdb:42',
+    title_media_type: 'movie',
+    title_text: 'Example Title',
+    title_subtitle: null,
+    title_poster_url: 'https://img.test/poster.jpg',
+    title_backdrop_url: 'https://img.test/backdrop.jpg',
+    title_release_year: 2024,
+    title_runtime_minutes: 120,
+    title_rating: 7.8,
+    active_media_key: 'movie:tmdb:42',
+    active_media_type: 'movie',
+    active_provider: 'tmdb',
+    active_provider_id: '42',
+    active_parent_provider: null,
+    active_parent_provider_id: null,
+    active_season_number: null,
+    active_episode_number: null,
+    active_episode_title: null,
+    active_episode_release_at: null,
+    added_at: '2024-01-04T00:00:00.000Z',
+    rated_at: '2024-01-05T00:00:00.000Z',
+    rating: 8,
+    watched_at: '2024-01-03T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function decodeCursor(cursor: string | null) {
+  assert.ok(cursor);
+  return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
 }

@@ -62,6 +62,7 @@ export class RecommendationDataService {
           return [];
         }
         return [{
+          id: row.id,
           media,
           watchedAt: requireDbIsoString(row.watchedAt, 'watch_history.watched_at'),
           payload: row.payload,
@@ -88,6 +89,7 @@ export class RecommendationDataService {
           return [];
         }
         return [{
+          id: row.id,
           media,
           watchedAt: requireDbIsoString(row.watchedAt, 'watch_history.watched_at'),
           payload: row.payload,
@@ -114,6 +116,7 @@ export class RecommendationDataService {
           return [];
         }
         return [{
+          id: row.id,
           media,
           addedAt: row.addedAt,
           payload: row.payload,
@@ -140,6 +143,7 @@ export class RecommendationDataService {
           return [];
         }
         return [{
+          id: row.id,
           media,
           addedAt: row.addedAt,
           payload: row.payload,
@@ -166,6 +170,7 @@ export class RecommendationDataService {
           return [];
         }
         return [{
+          id: row.id,
           media,
           rating: {
             value: row.rating,
@@ -195,6 +200,7 @@ export class RecommendationDataService {
           return [];
         }
         return [{
+          id: row.id,
           media,
           rating: {
             value: row.rating,

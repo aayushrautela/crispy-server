@@ -52,6 +52,7 @@ export function mapHistoryRowToProduct(row: RawWatchHistoryRow): HistoryProductI
   }
 
   return {
+    id: row.id,
     media,
     watchedAt: row.watchedAt,
     origins: deriveWatchOrigins(row.payload),
@@ -65,6 +66,7 @@ export function mapWatchlistRowToProduct(row: RawWatchlistRow): WatchlistProduct
   }
 
   return {
+    id: row.id,
     media,
     addedAt: row.addedAt,
     origins: deriveWatchOrigins(row.payload),
@@ -78,6 +80,7 @@ export function mapRatingRowToProduct(row: RawRatingRow): RatingProductItem | nu
   }
 
   return {
+    id: row.id,
     media,
     rating: {
       value: row.rating,
