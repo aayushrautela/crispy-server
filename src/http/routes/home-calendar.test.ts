@@ -103,6 +103,8 @@ test('calendar route returns canonical envelope fields', async (t) => {
       },
     ],
   });
+  assert.equal('kind' in response.json(), false);
+  assert.equal('relatedShow' in response.json().items[0], true);
 });
 
 test('calendar this-week route returns narrowed canonical envelope fields', async (t) => {
@@ -206,4 +208,6 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
       },
     ],
   });
+  assert.equal(response.json().kind, 'this-week');
+  assert.equal('relatedShow' in response.json().items[0], true);
 });
