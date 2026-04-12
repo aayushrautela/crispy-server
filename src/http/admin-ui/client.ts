@@ -1169,7 +1169,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       return sectionCard('Episodic follow', emptyState('No episodic follow items for this profile.'));
     }
     return sectionCard('Episodic follow', '<div class="item-list">' + items.map((item) => {
-      const media = item && item.series ? item.series : null;
+      const media = item && item.show ? item.show : null;
       return '<div class="item-row">'
         + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
         + '<div class="muted">' + escapeHtml(item.reason || 'no reason captured') + '</div>'
