@@ -190,7 +190,7 @@ function mapWatchHistoryRow(row: Record<string, unknown>): RawWatchHistoryRow {
     subtitle: typeof row.title_subtitle === 'string' ? row.title_subtitle : null,
     posterUrl: typeof row.title_poster_url === 'string' ? row.title_poster_url : null,
     backdropUrl: typeof row.title_backdrop_url === 'string' ? row.title_backdrop_url : null,
-    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'profile_play_history.completed_at'),
+    watchedAt: requireDbIsoString(row.watched_at as Date | string | null | undefined, 'profile_title_projection.last_watched_at'),
     payload: {},
     media: null,
   };
@@ -333,12 +333,10 @@ export class WatchQueryService {
     const result = await client.query(
       `
         SELECT COUNT(*)::int AS count
-        FROM profile_play_history history
-        JOIN profile_title_projection projection
-          ON projection.profile_id = history.profile_id
-         AND projection.title_content_id = history.title_content_id
-        WHERE history.profile_id = $1::uuid
-          AND history.voided_at IS NULL
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND effective_watched = true
+          AND last_watched_at IS NOT NULL
       `,
       [profileId],
     );
@@ -349,19 +347,17 @@ export class WatchQueryService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const result = await client.query(
       `
-        SELECT history.id::text AS id, history.completed_at AS watched_at, projection.*
-        FROM profile_play_history history
-        JOIN profile_title_projection projection
-          ON projection.profile_id = history.profile_id
-         AND projection.title_content_id = history.title_content_id
-        WHERE history.profile_id = $1::uuid
-          AND history.voided_at IS NULL
+        SELECT title_content_id::text AS id, last_watched_at AS watched_at, *
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND effective_watched = true
+          AND last_watched_at IS NOT NULL
           AND (
             $2::timestamptz IS NULL
-            OR history.completed_at < $2::timestamptz
-            OR (history.completed_at = $2::timestamptz AND history.id::text < $3)
+            OR last_watched_at < $2::timestamptz
+            OR (last_watched_at = $2::timestamptz AND title_content_id::text < $3)
           )
-        ORDER BY history.completed_at DESC, history.id DESC
+        ORDER BY last_watched_at DESC, title_content_id DESC
         LIMIT $4
       `,
       [profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1],
@@ -554,18 +550,14 @@ export class WatchQueryService {
     const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
     const result = await client.query(
       `
-        SELECT history.id::text AS id, history.completed_at AS watched_at, projection.*
-        FROM profile_play_history history
-        JOIN profile_title_projection projection
-          ON projection.profile_id = history.profile_id
-         AND projection.title_content_id = history.title_content_id
-        WHERE history.profile_id = $1::uuid
-          AND history.voided_at IS NULL
-          AND ${identity.mediaType === 'episode' ? 'history.content_id = $2::uuid' : 'history.title_content_id = $2::uuid'}
-        ORDER BY history.completed_at DESC, history.id DESC
-        LIMIT 1
+        SELECT title_content_id::text AS id, last_watched_at AS watched_at, *
+        FROM profile_title_projection
+        WHERE profile_id = $1::uuid
+          AND title_content_id = $2::uuid
+          AND effective_watched = true
+          AND last_watched_at IS NOT NULL
       `,
-      [profileId, identity.mediaType === 'episode' ? lookup.contentId : lookup.titleContentId],
+      [profileId, lookup.titleContentId],
     );
     const row = result.rows[0];
     return row ? mapWatchHistoryRow(row) : null;

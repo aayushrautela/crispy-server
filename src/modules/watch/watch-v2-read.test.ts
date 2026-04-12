@@ -130,11 +130,11 @@ test('listContinueWatchingPage filters invalid projection rows before filling th
   assert.match(queries[0]?.sql ?? '', /title_poster_url IS NOT NULL/);
 });
 
-test('listWatchHistoryPage uses entry ids and paginates repeated media without collisions', { concurrency: false }, async () => {
+test('listWatchHistoryPage collapses repeated entries to one title row and paginates by title id', { concurrency: false }, async () => {
   const service = new WatchQueryService();
   const watchedAt = '2024-01-03T00:00:00.000Z';
   const firstRow = createTitleFeedRow({
-    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    id: '11111111-1111-4111-8111-111111111111',
     title_content_id: '11111111-1111-4111-8111-111111111111',
     watched_at: watchedAt,
     title_media_key: 'movie:tmdb:42',
@@ -142,12 +142,12 @@ test('listWatchHistoryPage uses entry ids and paginates repeated media without c
     title_text: 'Example Movie',
   });
   const secondRow = createTitleFeedRow({
-    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    title_content_id: '11111111-1111-4111-8111-111111111111',
+    id: '22222222-2222-4222-8222-222222222222',
+    title_content_id: '22222222-2222-4222-8222-222222222222',
     watched_at: watchedAt,
-    title_media_key: 'movie:tmdb:42',
+    title_media_key: 'movie:tmdb:43',
     title_media_type: 'movie',
-    title_text: 'Example Movie',
+    title_text: 'Second Movie',
   });
   const queries: Array<{ sql: string; params: unknown[] | undefined }> = [];
   const client = {
@@ -156,7 +156,7 @@ test('listWatchHistoryPage uses entry ids and paginates repeated media without c
       if (!params?.[1]) {
         return { rows: [firstRow, secondRow] };
       }
-      assert.deepEqual(params, ['profile-1', watchedAt, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2]);
+      assert.deepEqual(params, ['profile-1', watchedAt, '11111111-1111-4111-8111-111111111111', 2]);
       return { rows: [secondRow] };
     },
   } as never;
@@ -164,23 +164,23 @@ test('listWatchHistoryPage uses entry ids and paginates repeated media without c
   const page1 = await service.listWatchHistoryPage(client, 'profile-1', { limit: 1 });
 
   assert.equal(page1.items.length, 1);
-  assert.equal(page1.items[0]?.id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  assert.equal(page1.items[0]?.id, '11111111-1111-4111-8111-111111111111');
   assert.equal(page1.items[0]?.mediaKey, 'movie:tmdb:42');
   assert.equal(page1.items[0]?.watchedAt, watchedAt);
   assert.equal(page1.pageInfo.hasMore, true);
   assert.deepEqual(decodeCursor(page1.pageInfo.nextCursor), {
     v: 1,
     s: watchedAt,
-    t: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    t: '11111111-1111-4111-8111-111111111111',
   });
-  assert.match(queries[0]?.sql ?? '', /FROM profile_play_history history/);
-  assert.match(queries[0]?.sql ?? '', /ORDER BY history.completed_at DESC, history.id DESC/);
+  assert.match(queries[0]?.sql ?? '', /FROM profile_title_projection/);
+  assert.match(queries[0]?.sql ?? '', /ORDER BY last_watched_at DESC, title_content_id DESC/);
 
   const page2 = await service.listWatchHistoryPage(client, 'profile-1', { limit: 1, cursor: page1.pageInfo.nextCursor });
 
   assert.equal(page2.items.length, 1);
-  assert.equal(page2.items[0]?.id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-  assert.equal(page2.items[0]?.mediaKey, 'movie:tmdb:42');
+  assert.equal(page2.items[0]?.id, '22222222-2222-4222-8222-222222222222');
+  assert.equal(page2.items[0]?.mediaKey, 'movie:tmdb:43');
   assert.equal(page2.pageInfo.hasMore, false);
   assert.equal(page2.pageInfo.nextCursor, null);
 });
@@ -366,6 +366,18 @@ test('getState returns v2 title state and expands watched episode keys from titl
           ],
         } as never;
       }
+      if (sql.includes('SELECT present, added_at') && sql.includes('FROM profile_watchlist_state')) {
+        assert.deepEqual(params, ['profile-1', '11111111-1111-4111-8111-111111111111']);
+        return {
+          rows: [{ present: true, added_at: '2024-01-01T00:00:00.000Z' }],
+        } as never;
+      }
+      if (sql.includes('SELECT rating, rated_at') && sql.includes('FROM profile_rating_state')) {
+        assert.deepEqual(params, ['profile-1', '11111111-1111-4111-8111-111111111111']);
+        return {
+          rows: [{ rating: 8, rated_at: '2024-01-02T00:00:00.000Z' }],
+        } as never;
+      }
       if (sql.includes('SELECT override_state, applies_through_release_at') && sql.includes('FROM profile_watch_override')) {
         return {
           rows: [{ override_state: 'watched', applies_through_release_at: '2024-01-31T00:00:00.000Z' }],
@@ -519,8 +531,8 @@ test('getState returns v2 title state and expands watched episode keys from titl
     lastActivityAt: '2024-01-03T00:00:00.000Z',
   });
   assert.deepEqual(state.watched, { watchedAt: '2024-01-10T00:00:00.000Z' });
-  assert.deepEqual(state.watchlist, { addedAt: '2024-01-04T00:00:00.000Z' });
-  assert.deepEqual(state.rating, { value: 8, ratedAt: '2024-01-05T00:00:00.000Z' });
+  assert.deepEqual(state.watchlist, { addedAt: '2024-01-01T00:00:00.000Z' });
+  assert.deepEqual(state.rating, { value: 8, ratedAt: '2024-01-02T00:00:00.000Z' });
   assert.deepEqual(state.watchedEpisodeKeys, ['episode:tvdb:100:1:1']);
 });
 

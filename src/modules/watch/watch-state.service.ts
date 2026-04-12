@@ -25,13 +25,15 @@ export class WatchStateService {
       const identity = resolveIdentity(input);
       const media = await this.metadataCardService.buildCardView(client, identity);
       const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, identity);
-      const [projection, progress, episodeWatchedAt, watchedEpisodeKeys] = await Promise.all([
+      const [projection, progress, episodeWatchedAt, watchedEpisodeKeys, watchlistState, ratingState] = await Promise.all([
         this.getTitleProjection(client, profileId, lookup.titleContentId),
         this.getPlayableProgress(client, profileId, lookup.contentId, identity.mediaType),
         identity.mediaType === 'episode'
           ? this.getEpisodeWatchedAt(client, profileId, lookup.contentId, lookup.titleContentId, media.releaseDate)
           : Promise.resolve(null),
         this.listWatchedEpisodeKeys(client, profileId, identity, lookup.titleContentId),
+        this.getWatchlistState(client, profileId, lookup.titleContentId),
+        this.getRatingState(client, profileId, lookup.titleContentId),
       ]);
 
       return {
@@ -64,15 +66,15 @@ export class WatchStateService {
                 watchedAt: requireDbIsoString(projection.last_watched_at as Date | string | null | undefined, 'profile_title_projection.last_watched_at'),
               }
             : null,
-        watchlist: projection && projection.watchlist_present === true && projection.watchlist_updated_at
+        watchlist: watchlistState && watchlistState.present === true && watchlistState.addedAt
           ? {
-              addedAt: requireDbIsoString(projection.watchlist_updated_at as Date | string | null | undefined, 'profile_title_projection.watchlist_updated_at'),
+              addedAt: watchlistState.addedAt,
             }
           : null,
-        rating: projection && projection.rating_value !== null && projection.rated_at
+        rating: ratingState && ratingState.value !== null && ratingState.ratedAt
           ? {
-              value: Number(projection.rating_value),
-              ratedAt: requireDbIsoString(projection.rated_at as Date | string | null | undefined, 'profile_title_projection.rated_at'),
+              value: ratingState.value,
+              ratedAt: ratingState.ratedAt,
             }
           : null,
         watchedEpisodeKeys,
@@ -120,6 +122,46 @@ export class WatchStateService {
       progressPercent: Number(row.progress_percent ?? 0),
       status: String(row.playback_status),
       lastPlayedAt: requireDbIsoString(row.last_activity_at as Date | string | null | undefined, 'profile_playable_state.last_activity_at'),
+    };
+  }
+
+  private async getWatchlistState(client: DbClient, profileId: string, titleContentId: string): Promise<{ present: boolean; addedAt: string | null } | null> {
+    const result = await client.query(
+      `
+        SELECT present, added_at
+        FROM profile_watchlist_state
+        WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
+      `,
+      [profileId, titleContentId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      present: Boolean(row.present),
+      addedAt: row.added_at ? requireDbIsoString(row.added_at as Date | string | null | undefined, 'profile_watchlist_state.added_at') : null,
+    };
+  }
+
+  private async getRatingState(client: DbClient, profileId: string, titleContentId: string): Promise<{ value: number | null; ratedAt: string | null } | null> {
+    const result = await client.query(
+      `
+        SELECT rating, rated_at
+        FROM profile_rating_state
+        WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
+      `,
+      [profileId, titleContentId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      value: row.rating === null ? null : Number(row.rating),
+      ratedAt: row.rated_at ? requireDbIsoString(row.rated_at as Date | string | null | undefined, 'profile_rating_state.rated_at') : null,
     };
   }
 
