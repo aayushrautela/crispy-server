@@ -299,7 +299,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/refresh-token', async (request, reply) => {
     await requireAdminMutation(request);
     const params = parseProviderParams(request.params);
-    await providerTokenAccessService.getAccessTokenForAccountProfile(
+    const accessToken = await providerTokenAccessService.getAccessTokenForAccountProfile(
       params.accountId,
       params.profileId,
       params.provider,
@@ -308,7 +308,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
 
     return {
       provider: params.provider,
-      refreshed: true,
+      refreshed: accessToken.refreshed,
       connection: await providerTokenAccessService.getConnectionForAccountProfile(
         params.accountId,
         params.profileId,

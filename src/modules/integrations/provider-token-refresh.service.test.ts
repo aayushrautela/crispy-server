@@ -76,3 +76,26 @@ test('refreshProviderAccount returns refreshed false when no refresh token exist
   const result = await service.refreshProviderAccount(providerAccount as never);
   assert.equal(result.refreshed, false);
 });
+
+test('refreshProviderAccount forces refresh for simkl when force option is set', async () => {
+  const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
+  const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const providerAccount = {
+    id: 'acct-1', status: 'connected', provider: 'simkl',
+    credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({ access_token: 'new-simkl-access', refresh_token: 'new-simkl-refresh', expires_in: 3600 })) as typeof fetch;
+
+  try {
+    const service = new ProviderTokenRefreshService({
+      updateConnectedCredentials: async () => ({ ...providerAccount, credentialsJson: { ...providerAccount.credentialsJson, accessToken: 'new-simkl-access' } }),
+    } as never, noopTransaction);
+
+    const result = await service.refreshProviderAccount(providerAccount as never, { force: true });
+    assert.equal(result.refreshed, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

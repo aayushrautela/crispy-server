@@ -762,6 +762,31 @@ export const ADMIN_UI_CLIENT = String.raw`
       };
     }
 
+    const refreshButtons = Array.from(container.querySelectorAll('[data-refresh-provider-token]'));
+    for (const button of refreshButtons) {
+      button.onclick = async () => {
+        const provider = button.getAttribute('data-refresh-provider-token');
+        if (!provider) return;
+        button.disabled = true;
+        setMessage(messageEl, 'info', 'Refreshing ' + provider + ' token...');
+        try {
+          const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/providers/' + encodeURIComponent(provider) + '/refresh-token'), {
+            method: 'POST',
+          });
+          const refreshed = payload && payload.refreshed === true;
+          setMessage(messageEl, 'success', refreshed ? 'Refreshed ' + provider + ' token.' : 'Checked ' + provider + ' token state.');
+          pushNotification('success', 'Token refreshed', 'Refreshed ' + provider + ' token for profile ' + profileId + '.', true);
+          await inspectProfile(accountId, profileId);
+        } catch (error) {
+          const description = describeApiError(error, 'Unable to refresh provider token.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'Token refresh failed', description, true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
+
     const disconnectButtons = Array.from(container.querySelectorAll('[data-disconnect-provider]'));
     for (const button of disconnectButtons) {
       button.onclick = async () => {
@@ -1066,6 +1091,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     const connection = provider && provider.connection ? provider.connection : null;
     const tokenStatus = provider && provider.tokenStatus ? provider.tokenStatus : null;
     const connected = provider && provider.connected === true;
+    const canRefresh = tokenStatus && tokenStatus.canRefresh === true;
+    const refreshActionEnabled = connected && canRefresh;
     const tone = connected ? statusTone(tokenStatus && tokenStatus.tokenState ? tokenStatus.tokenState : 'connected') : 'warn';
     return '<div class="provider-card">'
       + '<div><strong>' + escapeHtml(String(provider.provider || 'provider')) + '</strong></div>'
@@ -1078,8 +1105,11 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Expires', tokenStatus && tokenStatus.accessTokenExpiresAt ? formatDate(tokenStatus.accessTokenExpiresAt) : 'n/a')
         + kvPair('Last refresh', tokenStatus && tokenStatus.lastRefreshAt ? formatDate(tokenStatus.lastRefreshAt) : 'n/a')
         + kvPair('Refresh error', tokenStatus && tokenStatus.lastRefreshError ? tokenStatus.lastRefreshError : (provider.error || 'none'))
+        + kvPair('Refresh support', connected ? (canRefresh ? 'available' : 'missing refresh token') : 'n/a')
+        + kvPair('Recommended delay', formatRefreshDelay(tokenStatus && tokenStatus.recommendedRefreshDelayMs))
       + '</div>'
       + '<div class="inline-actions">'
+        + '<button type="button" class="ghost" title="Force refresh this provider token now" data-refresh-provider-token="' + escapeHtml(String(provider.provider || '')) + '"' + (refreshActionEnabled ? '' : ' disabled') + '>Refresh token</button>'
         + '<button type="button" class="ghost" data-disconnect-provider="' + escapeHtml(String(provider.provider || '')) + '"' + (connected ? '' : ' disabled') + '>Disconnect</button>'
       + '</div>'
     + '</div>';
@@ -1344,6 +1374,24 @@ export const ADMIN_UI_CLIENT = String.raw`
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
     return date.toLocaleString();
+  }
+
+  function formatRefreshDelay(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return 'n/a';
+    }
+    if (value <= 0) {
+      return 'eligible now';
+    }
+
+    const seconds = Math.round(value / 1000);
+    if (seconds < 60) return 'in ' + seconds + 's';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return 'in ' + minutes + 'm';
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return 'in ' + hours + 'h';
+    const days = Math.round(hours / 24);
+    return 'in ' + days + 'd';
   }
 
   function formatTimeAgo(value) {

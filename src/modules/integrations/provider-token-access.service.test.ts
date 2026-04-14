@@ -86,3 +86,55 @@ test('getTokenStatusForAccountProfile returns token state', async () => {
   assert.equal(result.provider, 'simkl');
   assert.equal(result.providerAccountId, 'acct-1');
 });
+
+test('getAccessTokenForAccountProfile passes force refresh through to refresh service', async () => {
+  const calls: Array<{ options: { force?: boolean } | undefined }> = [];
+  const service = new ProviderTokenAccessService(
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    {
+      findLatestConnectedForProfile: async () => ({
+        id: 'acct-1', profileId: 'profile-1', provider: 'trakt', status: 'connected',
+        credentialsJson: { accessToken: 'forced-access-token', accessTokenExpiresAt: null, refreshToken: 'refresh-token' },
+      }),
+    } as never,
+    {
+      refreshProviderAccount: async (providerAccount: unknown, options?: { force?: boolean }) => {
+        calls.push({ options });
+        return { providerAccount, refreshed: true };
+      },
+      getRecommendedDelayMs: () => null,
+    } as never,
+    noopTransaction,
+  );
+
+  const result = await service.getAccessTokenForAccountProfile('user-1', 'profile-1', 'trakt', { forceRefresh: true });
+  assert.equal(result.accessToken, 'forced-access-token');
+  assert.equal(result.refreshed, true);
+  assert.deepEqual(calls, [{ options: { force: true } }]);
+});
+
+test('getTokenStatusForAccountProfile exposes refresh metadata fields', async () => {
+  const service = new ProviderTokenAccessService(
+    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    {
+      findLatestConnectedForProfile: async () => ({
+        id: 'acct-1', profileId: 'profile-1', provider: 'simkl', status: 'connected',
+        credentialsJson: {
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          accessTokenExpiresAt: new Date(Date.now() + 3600000).toISOString(),
+          lastRefreshAt: '2026-04-14T15:20:00.000Z',
+          lastRefreshError: 'temporary upstream error',
+        },
+      }),
+    } as never,
+    { getRecommendedDelayMs: () => 60000 } as never,
+    noopTransaction,
+  );
+
+  const result = await service.getTokenStatusForAccountProfile('user-1', 'profile-1', 'simkl');
+  assert.equal(result.canRefresh, true);
+  assert.equal(result.lastRefreshAt, '2026-04-14T15:20:00.000Z');
+  assert.equal(result.lastRefreshError, 'temporary upstream error');
+  assert.equal(result.recommendedRefreshDelayMs, 60000);
+});

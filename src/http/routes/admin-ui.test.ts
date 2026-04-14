@@ -97,6 +97,49 @@ test('admin ui signs in, serves the dashboard, and logs out safely', async (t) =
   assert.match(readCookieHeader(logoutResponse.headers['set-cookie']), /Max-Age=0/);
 });
 
+test('admin ui embeds provider token refresh actions in the dashboard client', async (t) => {
+  const Fastify = (await import('fastify')).default;
+  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
+  const { default: adminUiAuthPlugin } = await import('../plugins/admin-ui-auth.js');
+  const { registerAdminUiRoutes } = await import('./admin-ui.js');
+
+  const app = Fastify();
+  await app.register(errorHandlerPlugin);
+  await app.register(adminUiAuthPlugin);
+  await registerAdminUiRoutes(app);
+
+  t.after(async () => { await app.close(); });
+
+  const loginPage = await app.inject({ method: 'GET', url: '/admin/login' });
+  const loginFormToken = readHiddenInput(loginPage.body, 'formToken');
+  const loginResponse = await app.inject({
+    method: 'POST',
+    url: '/admin/login',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      host: 'localhost',
+      origin: 'http://localhost',
+    },
+    payload: new URLSearchParams({
+      formToken: loginFormToken,
+      username: 'admin-user',
+      password: 'admin-pass',
+    }).toString(),
+  });
+
+  const sessionCookie = readCookieHeader(loginResponse.headers['set-cookie']);
+  const authorized = await app.inject({
+    method: 'GET',
+    url: '/admin',
+    headers: { cookie: sessionCookie },
+  });
+
+  assert.equal(authorized.statusCode, 200);
+  assert.match(authorized.body, /data-refresh-provider-token/);
+  assert.match(authorized.body, /\/refresh-token/);
+  assert.match(authorized.body, /Refreshing '\s*\+ provider \+ '\s*token\.\.\./);
+});
+
 test('admin ui rejects wrong credentials and missing same-origin protection', async (t) => {
   const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');

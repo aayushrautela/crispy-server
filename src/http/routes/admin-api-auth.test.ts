@@ -226,6 +226,151 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
   });
 });
 
+test('admin provider token refresh route forces refresh for trakt and returns updated state', async (t) => {
+  const Fastify = (await import('fastify')).default;
+  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
+  const { default: adminUiAuthPlugin } = await import('../plugins/admin-ui-auth.js');
+  const { registerAdminUiRoutes } = await import('./admin-ui.js');
+  const { registerAdminApiRoutes } = await import('./admin-api.js');
+  const { ProviderTokenAccessService } = await import('../../modules/integrations/provider-token-access.service.js');
+
+  const originalGetAccessToken = ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile;
+  const originalGetConnection = ProviderTokenAccessService.prototype.getConnectionForAccountProfile;
+  const originalGetTokenStatus = ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile;
+  const calls: Array<{ provider: string; options: { forceRefresh?: boolean } | undefined }> = [];
+
+  ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile = async function (_accountId, _profileId, provider, options) {
+    calls.push({ provider, options });
+    return {
+      providerAccountId: provider + '-acct-1',
+      profileId: 'test-profile',
+      provider,
+      accessToken: provider + '-access-token',
+      accessTokenExpiresAt: '2026-04-20T00:00:00.000Z',
+      refreshed: true,
+    } as never;
+  };
+  ProviderTokenAccessService.prototype.getConnectionForAccountProfile = async function (_accountId, _profileId, provider) {
+    return {
+      providerAccountId: provider + '-acct-1',
+      profileId: 'test-profile',
+      provider,
+      status: 'connected',
+      providerUserId: provider + '-user',
+      externalUsername: provider + '-name',
+      createdAt: '2026-04-01T00:00:00.000Z',
+      updatedAt: '2026-04-14T00:00:00.000Z',
+      lastUsedAt: '2026-04-14T12:00:00.000Z',
+      accessTokenExpiresAt: '2026-04-20T00:00:00.000Z',
+      hasAccessToken: true,
+      hasRefreshToken: true,
+      lastRefreshAt: '2026-04-14T15:20:00.000Z',
+      lastRefreshError: null,
+      recommendedRefreshDelayMs: 120000,
+    } as never;
+  };
+  ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile = async function (_accountId, _profileId, provider) {
+    return {
+      providerAccountId: provider + '-acct-1',
+      profileId: 'test-profile',
+      provider,
+      tokenState: 'valid',
+      accessTokenExpiresAt: '2026-04-20T00:00:00.000Z',
+      hasAccessToken: true,
+      canRefresh: true,
+      lastRefreshAt: '2026-04-14T15:20:00.000Z',
+      lastRefreshError: null,
+      recommendedRefreshDelayMs: 120000,
+    } as never;
+  };
+
+  t.after(() => {
+    ProviderTokenAccessService.prototype.getAccessTokenForAccountProfile = originalGetAccessToken;
+    ProviderTokenAccessService.prototype.getConnectionForAccountProfile = originalGetConnection;
+    ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile = originalGetTokenStatus;
+  });
+
+  const app = Fastify();
+  await app.register(errorHandlerPlugin);
+  await app.register(adminUiAuthPlugin);
+  await registerAdminUiRoutes(app);
+  await registerAdminApiRoutes(app);
+
+  t.after(async () => { await app.close(); });
+
+  const loginPage = await app.inject({ method: 'GET', url: '/admin/login' });
+  const formToken = readHiddenInput(loginPage.body, 'formToken');
+  const loginResponse = await app.inject({
+    method: 'POST',
+    url: '/admin/login',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      host: 'localhost',
+      origin: 'http://localhost',
+    },
+    payload: new URLSearchParams({
+      formToken,
+      username: 'admin-user',
+      password: 'admin-pass',
+    }).toString(),
+  });
+  const sessionCookie = readCookieHeader(loginResponse.headers['set-cookie']);
+  const csrfToken = /data-admin-csrf="([^"]+)"/.exec((await app.inject({ method: 'GET', url: '/admin', headers: { cookie: sessionCookie, host: 'localhost' } })).body)?.[1] ?? '';
+
+  for (const provider of ['trakt', 'simkl'] as const) {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/admin/api/accounts/test-account/profiles/test-profile/providers/' + provider + '/refresh-token',
+      headers: {
+        cookie: sessionCookie,
+        host: 'localhost',
+        origin: 'http://localhost',
+        'x-admin-csrf': csrfToken,
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      provider,
+      refreshed: true,
+      connection: {
+        providerAccountId: provider + '-acct-1',
+        profileId: 'test-profile',
+        provider,
+        status: 'connected',
+        providerUserId: provider + '-user',
+        externalUsername: provider + '-name',
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-14T00:00:00.000Z',
+        lastUsedAt: '2026-04-14T12:00:00.000Z',
+        accessTokenExpiresAt: '2026-04-20T00:00:00.000Z',
+        hasAccessToken: true,
+        hasRefreshToken: true,
+        lastRefreshAt: '2026-04-14T15:20:00.000Z',
+        lastRefreshError: null,
+        recommendedRefreshDelayMs: 120000,
+      },
+      tokenStatus: {
+        providerAccountId: provider + '-acct-1',
+        profileId: 'test-profile',
+        provider,
+        tokenState: 'valid',
+        accessTokenExpiresAt: '2026-04-20T00:00:00.000Z',
+        hasAccessToken: true,
+        canRefresh: true,
+        lastRefreshAt: '2026-04-14T15:20:00.000Z',
+        lastRefreshError: null,
+        recommendedRefreshDelayMs: 120000,
+      },
+    });
+  }
+
+  assert.deepEqual(calls, [
+    { provider: 'trakt', options: { forceRefresh: true } },
+    { provider: 'simkl', options: { forceRefresh: true } },
+  ]);
+});
+
 function readCookieHeader(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {
     return value[0] ?? '';
