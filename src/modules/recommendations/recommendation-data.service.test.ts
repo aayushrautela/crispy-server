@@ -45,8 +45,10 @@ test('getWatchHistoryForAccount falls back to synthesized regular cards on cache
 
   assert.equal(result.length, 1);
   assert.deepEqual(result[0], {
+    id: undefined,
     media: {
       mediaType: 'show',
+      mediaKey: 'show:tvdb:100',
       provider: 'tvdb',
       providerId: '100',
       title: 'Example Show',
@@ -100,8 +102,10 @@ test('getRatingsForAccount falls back to synthesized regular cards on cache miss
 
   assert.equal(result.length, 1);
   assert.deepEqual(result[0], {
+    id: undefined,
     media: {
       mediaType: 'anime',
+      mediaKey: 'anime:kitsu:200',
       provider: 'kitsu',
       providerId: '200',
       title: 'Example Anime',
@@ -117,4 +121,142 @@ test('getRatingsForAccount falls back to synthesized regular cards on cache miss
     },
     payload: { source: 'rating' },
   });
+});
+
+test('getEpisodicFollowForAccount returns canonical next-episode fields', async (t) => {
+  const originalConnect = db.connect;
+  (db as { connect: typeof db.connect }).connect = async () => ({
+    release: () => {},
+  }) as never;
+  t.after(() => {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  });
+
+  const service = new RecommendationDataService(
+    {
+      assertOwnedProfile: async () => ({ id: 'profile-1' }),
+    } as never,
+    {} as never,
+    {
+      buildCardView: async () => ({
+        mediaType: 'show',
+        mediaKey: 'show:tvdb:100',
+        provider: 'tvdb',
+        providerId: '100',
+        title: 'Example Show',
+        posterUrl: 'https://img.test/poster.jpg',
+        releaseYear: 2024,
+        rating: 8.2,
+        genre: null,
+        subtitle: null,
+      }),
+    } as never,
+    {
+      listEpisodicFollow: async () => [
+        {
+          seriesMediaKey: 'show:tvdb:100',
+          seriesMediaType: 'show',
+          provider: 'tvdb',
+          providerId: '100',
+          reason: 'watchlist',
+          lastInteractedAt: '2026-04-07T12:00:00.000Z',
+          nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
+          nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+          nextEpisodeSeasonNumber: 1,
+          nextEpisodeEpisodeNumber: 2,
+          nextEpisodeAbsoluteEpisodeNumber: null,
+          nextEpisodeTitle: 'Episode 2',
+          metadataRefreshedAt: '2026-04-07T12:10:00.000Z',
+          payload: { source: 'follow' },
+        },
+      ],
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getEpisodicFollowForAccount('user-1', 'profile-1', 10);
+
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0], {
+    show: {
+      mediaType: 'show',
+      mediaKey: 'show:tvdb:100',
+      provider: 'tvdb',
+      providerId: '100',
+      title: 'Example Show',
+      posterUrl: 'https://img.test/poster.jpg',
+      releaseYear: 2024,
+      rating: 8.2,
+      genre: null,
+      subtitle: null,
+    },
+    reason: 'watchlist',
+    lastInteractedAt: '2026-04-07T12:00:00.000Z',
+    nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
+    nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+    nextEpisodeSeasonNumber: 1,
+    nextEpisodeEpisodeNumber: 2,
+    nextEpisodeAbsoluteEpisodeNumber: null,
+    nextEpisodeTitle: 'Episode 2',
+    metadataRefreshedAt: '2026-04-07T12:10:00.000Z',
+    payload: { source: 'follow' },
+  });
+});
+
+test('getEpisodicFollowForAccount preserves unresolved next episode rows', async (t) => {
+  const originalConnect = db.connect;
+  (db as { connect: typeof db.connect }).connect = async () => ({
+    release: () => {},
+  }) as never;
+  t.after(() => {
+    (db as { connect: typeof db.connect }).connect = originalConnect;
+  });
+
+  const service = new RecommendationDataService(
+    {
+      assertOwnedProfile: async () => ({ id: 'profile-1' }),
+    } as never,
+    {} as never,
+    {
+      buildCardView: async () => ({
+        mediaType: 'show',
+        mediaKey: 'show:tvdb:100',
+        provider: 'tvdb',
+        providerId: '100',
+        title: 'Example Show',
+        posterUrl: 'https://img.test/poster.jpg',
+        releaseYear: 2024,
+        rating: 8.2,
+        genre: null,
+        subtitle: null,
+      }),
+    } as never,
+    {
+      listEpisodicFollow: async () => [
+        {
+          seriesMediaKey: 'show:tvdb:100',
+          seriesMediaType: 'show',
+          provider: 'tvdb',
+          providerId: '100',
+          reason: 'watchlist',
+          lastInteractedAt: '2026-04-07T12:00:00.000Z',
+          nextEpisodeAirDate: '2026-04-12T00:00:00.000Z',
+          nextEpisodeMediaKey: null,
+          nextEpisodeSeasonNumber: null,
+          nextEpisodeEpisodeNumber: null,
+          nextEpisodeAbsoluteEpisodeNumber: null,
+          nextEpisodeTitle: null,
+          metadataRefreshedAt: '2026-04-07T12:10:00.000Z',
+          payload: { source: 'follow' },
+        },
+      ],
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getEpisodicFollowForAccount('user-1', 'profile-1', 10);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.nextEpisodeAirDate, '2026-04-12T00:00:00.000Z');
+  assert.equal(result[0]?.nextEpisodeMediaKey, null);
 });

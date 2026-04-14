@@ -1170,13 +1170,30 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     return sectionCard('Episodic follow', '<div class="item-list">' + items.map((item) => {
       const media = item && item.show ? item.show : null;
+      const hasCanonicalNextEpisode = Boolean(item && item.nextEpisodeMediaKey);
+      const hasSeasonEpisode = item && item.nextEpisodeSeasonNumber != null && item.nextEpisodeEpisodeNumber != null;
+      const episodeLabel =
+        hasSeasonEpisode
+          ? 'S' + item.nextEpisodeSeasonNumber + 'E' + item.nextEpisodeEpisodeNumber
+          : item && item.nextEpisodeAbsoluteEpisodeNumber != null
+            ? 'E' + item.nextEpisodeAbsoluteEpisodeNumber
+            : '';
+      const nextPrimary =
+        hasCanonicalNextEpisode
+          ? (item.nextEpisodeAirDate ? 'next ' + formatDate(item.nextEpisodeAirDate) : 'next resolved')
+          : (item.nextEpisodeAirDate ? 'next unresolved' : 'next n/a');
+      const nextSecondary =
+        hasCanonicalNextEpisode
+          ? [episodeLabel, item.nextEpisodeTitle].filter(Boolean).join(' • ')
+          : (item.nextEpisodeAirDate ? 'raw date ' + formatDate(item.nextEpisodeAirDate) : '');
       return '<div class="item-row">'
         + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
         + '<div class="muted">' + escapeHtml(item.reason || 'no reason captured') + '</div>'
         + '<div class="item-meta">'
-          + '<span>next ' + escapeHtml(item.nextEpisodeAirDate ? formatDate(item.nextEpisodeAirDate) : 'n/a') + '</span>'
+          + '<span>' + escapeHtml(nextPrimary) + '</span>'
           + '<span>last interacted ' + escapeHtml(item.lastInteractedAt ? formatDate(item.lastInteractedAt) : 'n/a') + '</span>'
         + '</div>'
+        + (nextSecondary ? '<div class="muted">' + escapeHtml(nextSecondary) + '</div>' : '')
       + '</div>';
     }).join('') + '</div>');
   }

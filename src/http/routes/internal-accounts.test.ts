@@ -103,3 +103,76 @@ test('internal AI secret route returns provider-aware secret contract', async (t
     },
   });
 });
+
+test('internal episodic-follow route returns canonical next-episode fields', async (t) => {
+  const { RecommendationDataService } = await import('../../modules/recommendations/recommendation-data.service.js');
+  const original = RecommendationDataService.prototype.getEpisodicFollowForAccountService;
+
+  RecommendationDataService.prototype.getEpisodicFollowForAccountService = async function () {
+    return [{
+      show: {
+        mediaType: 'show',
+        mediaKey: 'show:tvdb:100',
+        provider: 'tvdb',
+        providerId: '100',
+        title: 'Example Show',
+        posterUrl: 'https://img.test/poster.jpg',
+        releaseYear: 2024,
+        rating: 8.2,
+        genre: null,
+        subtitle: null,
+      },
+      reason: 'watchlist',
+      lastInteractedAt: '2026-04-07T12:00:00.000Z',
+      nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
+      nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+      nextEpisodeSeasonNumber: 1,
+      nextEpisodeEpisodeNumber: 2,
+      nextEpisodeAbsoluteEpisodeNumber: null,
+      nextEpisodeTitle: 'Episode 2',
+      metadataRefreshedAt: '2026-04-07T12:10:00.000Z',
+      payload: { source: 'follow' },
+    }] as never;
+  };
+
+  t.after(() => {
+    RecommendationDataService.prototype.getEpisodicFollowForAccountService = original;
+  });
+
+  const app = await buildInternalApp();
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/internal/v1/accounts/account-1/profiles/profile-1/episodic-follow',
+    headers: { 'x-service-id': 'test-service', 'x-api-key': 'test-key' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    items: [{
+      show: {
+        mediaType: 'show',
+        mediaKey: 'show:tvdb:100',
+        provider: 'tvdb',
+        providerId: '100',
+        title: 'Example Show',
+        posterUrl: 'https://img.test/poster.jpg',
+        releaseYear: 2024,
+        rating: 8.2,
+        genre: null,
+        subtitle: null,
+      },
+      reason: 'watchlist',
+      lastInteractedAt: '2026-04-07T12:00:00.000Z',
+      nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
+      nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+      nextEpisodeSeasonNumber: 1,
+      nextEpisodeEpisodeNumber: 2,
+      nextEpisodeAbsoluteEpisodeNumber: null,
+      nextEpisodeTitle: 'Episode 2',
+      metadataRefreshedAt: '2026-04-07T12:10:00.000Z',
+      payload: { source: 'follow' },
+    }],
+  });
+});

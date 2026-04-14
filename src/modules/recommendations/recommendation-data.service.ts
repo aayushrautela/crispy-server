@@ -8,6 +8,7 @@ import { inferMediaIdentity } from '../identity/media-key.js';
 import { WatchExportService } from '../watch/watch-export.service.js';
 import { WatchMediaCardCacheService } from '../watch/watch-media-card-cache.service.js';
 import { fallbackRegularCard } from '../watch/regular-card-fallback.js';
+import type { EpisodicFollowView } from '../watch/watch-episodic-follow.types.js';
 
 export type RecommendationDataListKind = 'watch-history' | 'watchlist' | 'ratings' | 'episodic-follow';
 
@@ -235,7 +236,7 @@ export class RecommendationDataService {
     return profile.id;
   }
 
-  private async loadEpisodicFollow(client: DbClient, profileId: string, limit: number) {
+  private async loadEpisodicFollow(client: DbClient, profileId: string, limit: number): Promise<EpisodicFollowView[]> {
     const rows = await this.watchExportService.listEpisodicFollow(client, profileId, limit);
     return Promise.all(rows.map(async (row) => {
       const identity = inferMediaIdentity({
@@ -249,6 +250,11 @@ export class RecommendationDataService {
         reason: row.reason,
         lastInteractedAt: row.lastInteractedAt,
         nextEpisodeAirDate: row.nextEpisodeAirDate,
+        nextEpisodeMediaKey: row.nextEpisodeMediaKey,
+        nextEpisodeSeasonNumber: row.nextEpisodeSeasonNumber,
+        nextEpisodeEpisodeNumber: row.nextEpisodeEpisodeNumber,
+        nextEpisodeAbsoluteEpisodeNumber: row.nextEpisodeAbsoluteEpisodeNumber,
+        nextEpisodeTitle: row.nextEpisodeTitle,
         metadataRefreshedAt: row.metadataRefreshedAt,
         payload: row.payload,
       };
