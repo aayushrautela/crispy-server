@@ -99,18 +99,19 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['provider'],
+    required: ['provider', 'action'],
     properties: {
       provider: { type: 'string', enum: ['trakt', 'simkl'] },
+      action: { type: 'string', enum: ['connect', 'reconnect', 'import'] },
     },
   },
   response: {
     201: {
       type: 'object',
       additionalProperties: false,
-      required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction', 'providerAccount'],
+      required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction'],
       properties: {
-        job: { type: 'object', additionalProperties: true },
+        job: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
         providerState: providerStateSchema,
         watchDataState: {
           anyOf: [
@@ -130,15 +131,14 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
         },
         authUrl: nullableStringSchema,
         nextAction: { type: 'string', enum: ['authorize_provider', 'queued'] },
-        providerAccount: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
       },
     },
     202: {
       type: 'object',
       additionalProperties: false,
-      required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction', 'providerAccount'],
+      required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction'],
       properties: {
-        job: { type: 'object', additionalProperties: true },
+        job: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
         providerState: providerStateSchema,
         watchDataState: {
           anyOf: [
@@ -158,7 +158,6 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
         },
         authUrl: nullableStringSchema,
         nextAction: { type: 'string', enum: ['authorize_provider', 'queued'] },
-        providerAccount: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
       },
     },
   },
@@ -208,15 +207,17 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const started = await providerImportService.startReplaceImport(
-      actor.appUserId,
-      params.profileId,
-      parseImportProvider(body.provider),
-    );
+    const provider = parseImportProvider(body.provider);
+    const action = typeof body.action === 'string' ? body.action.trim().toLowerCase() : 'import';
+    const started = action === 'connect'
+      ? await providerImportService.connectProvider(actor.appUserId, params.profileId, provider)
+      : action === 'reconnect'
+        ? await providerImportService.reconnectProvider(actor.appUserId, params.profileId, provider)
+        : await providerImportService.importProviderNow(actor.appUserId, params.profileId, provider);
     reply.code(started.nextAction === 'queued' ? 202 : 201);
     return {
       ...started,
-      job: mapProviderImportJobView(started.job),
+      job: started.job ? mapProviderImportJobView(started.job) : null,
     };
   });
 
@@ -235,14 +236,14 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
-    return providerImportService.listConnections(actor.appUserId, params.profileId);
+    return providerImportService.listProviderSessions(actor.appUserId, params.profileId);
   });
 
   app.delete('/v1/profiles/:profileId/import-connections/:provider', { schema: providerConnectionDeleteRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; provider: string };
-    return providerImportService.disconnectConnection(actor.appUserId, params.profileId, parseImportProvider(params.provider));
+    return providerImportService.disconnectProviderSession(actor.appUserId, params.profileId, parseImportProvider(params.provider));
   });
 
   app.get('/v1/profiles/:profileId/imports/:jobId', async (request) => {

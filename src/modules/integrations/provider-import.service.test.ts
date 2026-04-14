@@ -478,6 +478,7 @@ test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb look
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
     {
       resolve: async (_client: unknown, params: Record<string, unknown>) => {
         resolverCalls.push(params);
@@ -522,6 +523,7 @@ test('resolveImportIdentity falls back to imdb canonicalization when direct trak
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
   const service = new ProviderImportService(
+    {} as never,
     {} as never,
     {} as never,
     {} as never,
@@ -582,6 +584,7 @@ test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and i
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
     {
       resolve: async () => null,
     } as never,
@@ -620,6 +623,7 @@ test('resolveImportIdentity skips movie when metadata card build fails after id 
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
   const service = new ProviderImportService(
+    {} as never,
     {} as never,
     {} as never,
     {} as never,

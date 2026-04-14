@@ -26,10 +26,15 @@ import {
 } from './provider-destructive-import.service.js';
 import {
   mapProviderAccountView,
+  mapProviderSessionStateView,
   mapProviderStateView,
   type ProviderAccountView,
   type ProviderStateView,
 } from './provider-import.views.js';
+import {
+  ProviderSessionsRepository,
+  type ProviderSessionRecord,
+} from './provider-sessions.repo.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
@@ -48,6 +53,14 @@ export type CompletedProviderImportCallback = {
   job: ProviderImportJobRecord;
   providerAccount: ProviderAccountRecord;
   nextAction: 'queued';
+};
+
+export type ProviderSessionActionResult = {
+  job: ProviderImportJobRecord | null;
+  providerState: ProviderStateView;
+  watchDataState: ProfileWatchDataStateRecord;
+  authUrl: string | null;
+  nextAction: 'authorize_provider' | 'queued';
 };
 
 type ProviderTokenExchangeResult = {
@@ -95,10 +108,18 @@ type ProviderCallbackParams = {
   errorDescription?: string;
 };
 
+type ProviderWatchDataStateView = {
+  profileId: string;
+  watchDataUpdatedAt: string;
+  watchDataOrigin: 'native' | 'provider_import';
+  lastImportCompletedAt: string | null;
+};
+
 export class ProviderImportService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
     private readonly providerAccountsRepository = new ProviderAccountsRepository(),
+    private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly destructiveImportService = new ProviderDestructiveImportService(),
@@ -110,6 +131,182 @@ export class ProviderImportService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly metadataCardService = new MetadataCardService(),
   ) {}
+
+  async connectProvider(
+    userId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderSessionActionResult> {
+    return this.startProviderAuthorization(userId, profileId, provider);
+  }
+
+  async reconnectProvider(
+    userId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderSessionActionResult> {
+    return this.startProviderAuthorization(userId, profileId, provider);
+  }
+
+  async importProviderNow(
+    userId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderSessionActionResult> {
+    assertProviderEnabled(provider);
+    const started = await this.runInTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+
+      const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
+      const providerSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
+      if (!providerSession || providerSession.state !== 'connected' || !providerSession.providerAccountId) {
+        const providerState = mapProviderSessionStateView(provider, providerSession);
+        throw new HttpError(409, `Log in to ${providerLabel(provider)} again to continue importing.`, {
+          provider,
+          code: providerState.connectionState === 'not_connected' ? 'provider_not_connected' : 'provider_reauth_required',
+          providerState,
+        });
+      }
+
+      const providerAccount = await this.providerAccountsRepository.findById(client, providerSession.providerAccountId);
+      if (!providerAccount || providerAccount.status !== 'connected') {
+        const reauthSession = await this.providerSessionsRepository.markReauthRequired(client, {
+          profileId,
+          provider,
+          providerAccountId: providerSession.providerAccountId,
+          providerUserId: providerSession.providerUserId,
+          externalUsername: providerSession.externalUsername,
+          credentialsJson: sanitizeReauthSessionCredentials(providerSession.credentialsJson, providerSession.lastRefreshError),
+          lastRefreshAt: providerSession.lastRefreshAt,
+          lastRefreshError: providerSession.lastRefreshError,
+          lastImportCompletedAt: providerSession.lastImportCompletedAt,
+        });
+        const providerState = mapProviderSessionStateView(provider, reauthSession);
+        throw new HttpError(409, `Log in to ${providerLabel(provider)} again to continue importing.`, {
+          provider,
+          code: 'provider_reauth_required',
+          providerState,
+        });
+      }
+
+      const { providerAccount: activeProviderAccount, providerSession: activeProviderSession } =
+        await this.ensureImportableSessionAccount(client, providerSession, providerAccount);
+      const queuedJob = await this.jobsRepository.create(client, {
+        profileId,
+        profileGroupId: profile.profileGroupId,
+        provider,
+        requestedByUserId: userId,
+        providerAccountId: activeProviderAccount.id,
+        status: 'queued',
+      });
+
+      return {
+        job: queuedJob,
+        providerState: mapProviderSessionStateView(provider, activeProviderSession),
+        watchDataState,
+        authUrl: null,
+        nextAction: 'queued' as const,
+      };
+    });
+
+    if (started.job) {
+      await enqueueProviderImport(profileId, started.job.id);
+    }
+
+    return started;
+  }
+
+  async listProviderSessions(
+    userId: string,
+    profileId: string,
+  ): Promise<{ providerStates: ProviderStateView[]; watchDataState: ProviderWatchDataStateView | null }> {
+    return this.runInTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+
+      const [providerSessions, watchDataState] = await Promise.all([
+        this.providerSessionsRepository.listForProfile(client, profileId),
+        this.watchDataStateRepository.getForProfile(client, profileId),
+      ]);
+
+      return {
+        providerStates: [
+          mapProviderSessionStateView('trakt', pickProviderSession(providerSessions, 'trakt')),
+          mapProviderSessionStateView('simkl', pickProviderSession(providerSessions, 'simkl')),
+        ],
+        watchDataState: mapWatchDataStateView(watchDataState),
+      };
+    });
+  }
+
+  async disconnectProviderSession(
+    userId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<{ providerState: ProviderStateView }> {
+    assertProviderEnabled(provider);
+
+    const context = await this.runInTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+
+      const providerSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
+      const providerAccount = providerSession?.providerAccountId
+        ? await this.providerAccountsRepository.findById(client, providerSession.providerAccountId)
+        : null;
+      return { providerSession, providerAccount };
+    });
+
+    if (context.providerAccount) {
+      await this.revokeProviderAuthorization(context.providerAccount);
+    }
+
+    const disconnected = await this.runInTransaction(async (client) => {
+      const disconnectedAt = new Date().toISOString();
+
+      if (context.providerAccount) {
+        try {
+          await this.providerAccountsRepository.clearProviderAccount(client, {
+            providerAccountId: context.providerAccount.id,
+            lastUsedAt: disconnectedAt,
+            providerUserId: null,
+            externalUsername: null,
+            credentialsJson: sanitizeDisconnectedCredentials(context.providerAccount.credentialsJson, disconnectedAt, userId),
+          });
+        } catch (error) {
+          logger.warn({
+            err: error,
+            providerAccountId: context.providerAccount.id,
+            profileId,
+            provider,
+          }, 'provider disconnect credential scrub failed; retrying revoke without credential rewrite');
+          await this.providerAccountsRepository.clearProviderAccount(client, {
+            providerAccountId: context.providerAccount.id,
+            lastUsedAt: disconnectedAt,
+            providerUserId: null,
+            externalUsername: null,
+          });
+        }
+      }
+
+      return this.providerSessionsRepository.markDisconnected(client, {
+        profileId,
+        provider,
+        disconnectedAt,
+      });
+    });
+
+    return {
+      providerState: mapProviderSessionStateView(provider, disconnected),
+    };
+  }
 
   async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
     assertProviderEnabled(provider);
@@ -264,6 +461,15 @@ export class ProviderImportService {
           tokenPayload: exchanged.raw,
         },
       });
+      await this.providerSessionsRepository.markConnected(client, {
+        profileId: providerAccount.profileId,
+        provider,
+        providerAccountId: updatedProviderAccount.id,
+        providerUserId: profile.providerUserId,
+        externalUsername: profile.externalUsername,
+        connectedAt,
+        credentialsJson: buildConnectedSessionCredentials(updatedProviderAccount.credentialsJson),
+      });
 
       await this.jobsRepository.markQueued(client, pendingJob.id, {
         providerAccountId: updatedProviderAccount.id,
@@ -411,6 +617,132 @@ export class ProviderImportService {
 
       throw error;
     }
+  }
+
+  private async ensureImportableSessionAccount(
+    client: DbClient,
+    providerSession: ProviderSessionRecord,
+    providerAccount: ProviderAccountRecord,
+  ): Promise<{ providerAccount: ProviderAccountRecord; providerSession: ProviderSessionRecord }> {
+    try {
+      const refreshed = await this.tokenRefreshService.refreshProviderAccount(providerAccount, { force: true });
+      const connectedAt = asIsoString(refreshed.providerAccount.credentialsJson.connectedAt) ?? new Date().toISOString();
+      const activeSession = await this.providerSessionsRepository.markConnected(client, {
+        profileId: providerSession.profileId,
+        provider: providerSession.provider,
+        providerAccountId: refreshed.providerAccount.id,
+        providerUserId: refreshed.providerAccount.providerUserId,
+        externalUsername: refreshed.providerAccount.externalUsername,
+        connectedAt,
+        credentialsJson: buildConnectedSessionCredentials(refreshed.providerAccount.credentialsJson),
+      });
+      return { providerAccount: refreshed.providerAccount, providerSession: activeSession };
+    } catch (error) {
+      const latestProviderAccount = await this.providerAccountsRepository.findById(client, providerAccount.id);
+      const legacyProviderState = mapProviderStateView(providerSession.provider, latestProviderAccount);
+      if (legacyProviderState.connectionState === 'reauthorization_required') {
+        const errorMessage = error instanceof Error ? error.message : 'Provider access token refresh failed.';
+        const reauthSession = await this.providerSessionsRepository.markReauthRequired(client, {
+          profileId: providerSession.profileId,
+          provider: providerSession.provider,
+          providerAccountId: latestProviderAccount?.id ?? providerSession.providerAccountId,
+          providerUserId: latestProviderAccount?.providerUserId ?? providerSession.providerUserId,
+          externalUsername: latestProviderAccount?.externalUsername ?? providerSession.externalUsername,
+          credentialsJson: sanitizeReauthSessionCredentials(
+            latestProviderAccount?.credentialsJson ?? providerSession.credentialsJson,
+            errorMessage,
+          ),
+          lastRefreshAt: asIsoString(latestProviderAccount?.credentialsJson.lastRefreshAt) ?? providerSession.lastRefreshAt,
+          lastRefreshError: errorMessage,
+          lastImportCompletedAt: providerSession.lastImportCompletedAt,
+        });
+        const providerState = mapProviderSessionStateView(providerSession.provider, reauthSession);
+        throw new HttpError(409, `Log in to ${providerLabel(providerSession.provider)} again to continue importing.`, {
+          provider: providerSession.provider,
+          code: 'provider_reauth_required',
+          providerState,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  private async startProviderAuthorization(
+    userId: string,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderSessionActionResult> {
+    assertProviderEnabled(provider);
+    const started = await this.runInTransaction(async (client) => {
+      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
+      if (!profile) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+
+      const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
+      const currentSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
+      const stateToken = randomUUID();
+      const pkce = generatePkcePair();
+      const authUrl = this.buildAuthUrl(provider, stateToken, pkce.codeChallenge);
+      if (!authUrl) {
+        throw new HttpError(503, `Provider import is not configured for ${provider}.`);
+      }
+
+      if (currentSession?.providerAccountId) {
+        const currentProviderAccount = await this.providerAccountsRepository.findById(client, currentSession.providerAccountId);
+        if (currentProviderAccount) {
+          await this.providerAccountsRepository.clearProviderAccount(client, {
+            providerAccountId: currentProviderAccount.id,
+            lastUsedAt: new Date().toISOString(),
+            providerUserId: null,
+            externalUsername: null,
+            credentialsJson: sanitizeDisconnectedCredentials(currentProviderAccount.credentialsJson, new Date().toISOString(), userId),
+          });
+        }
+      }
+
+      const providerAccount = await this.providerAccountsRepository.createPending(client, {
+        profileId,
+        provider,
+        createdByUserId: userId,
+        stateToken,
+        credentialsJson: {
+          pkceCodeVerifier: pkce.codeVerifier,
+          pkceCodeChallenge: pkce.codeChallenge,
+        },
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      });
+      const providerSession = await this.providerSessionsRepository.upsertPending(client, {
+        profileId,
+        provider,
+        providerAccountId: providerAccount.id,
+        stateToken,
+        expiresAt: providerAccount.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        credentialsJson: {
+          pkceCodeVerifier: pkce.codeVerifier,
+          pkceCodeChallenge: pkce.codeChallenge,
+        },
+      });
+      const pendingJob = await this.jobsRepository.create(client, {
+        profileId,
+        profileGroupId: profile.profileGroupId,
+        provider,
+        requestedByUserId: userId,
+        providerAccountId: providerAccount.id,
+        status: 'oauth_pending',
+      });
+
+      return {
+        job: pendingJob,
+        providerState: mapProviderSessionStateView(provider, providerSession),
+        watchDataState,
+        authUrl,
+        nextAction: 'authorize_provider' as const,
+      };
+    });
+
+    return started;
   }
 
   private async revokeProviderAuthorization(providerAccount: ProviderAccountRecord): Promise<void> {
@@ -2071,6 +2403,56 @@ function pickLatestProviderAccount(
   provider: ProviderImportProvider,
 ): ProviderAccountRecord | null {
   return providerAccounts.find((providerAccount) => providerAccount.provider === provider) ?? null;
+}
+
+function pickProviderSession(
+  providerSessions: ProviderSessionRecord[],
+  provider: ProviderImportProvider,
+): ProviderSessionRecord | null {
+  return providerSessions.find((providerSession) => providerSession.provider === provider) ?? null;
+}
+
+function buildConnectedSessionCredentials(credentials: Record<string, unknown>): Record<string, unknown> {
+  return {
+    accessToken: asString(credentials.accessToken),
+    refreshToken: asString(credentials.refreshToken),
+    accessTokenExpiresAt: asIsoString(credentials.accessTokenExpiresAt),
+    connectedAt: asIsoString(credentials.connectedAt),
+    lastRefreshAt: asIsoString(credentials.lastRefreshAt),
+    lastImportJobId: asString(credentials.lastImportJobId),
+    lastImportCompletedAt: asIsoString(credentials.lastImportCompletedAt),
+  };
+}
+
+function sanitizeReauthSessionCredentials(
+  credentials: Record<string, unknown>,
+  refreshError: string | null,
+): Record<string, unknown> {
+  return {
+    connectedAt: asIsoString(credentials.connectedAt),
+    lastRefreshAt: asIsoString(credentials.lastRefreshAt),
+    lastRefreshError: refreshError,
+    lastImportJobId: asString(credentials.lastImportJobId),
+    lastImportCompletedAt: asIsoString(credentials.lastImportCompletedAt),
+  };
+}
+
+function mapWatchDataStateView(watchDataState: ProfileWatchDataStateRecord | null): {
+  profileId: string;
+  watchDataUpdatedAt: string;
+  watchDataOrigin: 'native' | 'provider_import';
+  lastImportCompletedAt: string | null;
+} | null {
+  if (!watchDataState) {
+    return null;
+  }
+
+  return {
+    profileId: watchDataState.profileId,
+    watchDataUpdatedAt: watchDataState.updatedAt,
+    watchDataOrigin: watchDataState.currentOrigin,
+    lastImportCompletedAt: watchDataState.lastImportCompletedAt,
+  };
 }
 
 function sanitizeDisconnectedCredentials(

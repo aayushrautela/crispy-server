@@ -133,15 +133,16 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
   const { registerAdminApiRoutes } = await import('./admin-api.js');
   const { HttpError } = await import('../../lib/errors.js');
   const { ProviderImportService } = await import('../../modules/integrations/provider-import.service.js');
+  const { ProviderAdminService } = await import('../../modules/integrations/provider-admin.service.js');
   const { ProviderTokenAccessService } = await import('../../modules/integrations/provider-token-access.service.js');
 
-  const originalListConnections = ProviderImportService.prototype.listConnections;
+  const originalAdminListConnections = ProviderAdminService.prototype.listConnections;
   const originalListJobs = ProviderImportService.prototype.listJobs;
   const originalGetConnection = ProviderTokenAccessService.prototype.getConnectionForAccountProfile;
   const originalGetTokenStatus = ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile;
 
-  ProviderImportService.prototype.listConnections = async function () {
-    return { providerStates: [], watchDataState: null } as never;
+  ProviderAdminService.prototype.listConnections = async function () {
+    return { connections: [] } as never;
   };
   ProviderImportService.prototype.listJobs = async function () {
     return { jobs: [], watchDataState: null } as never;
@@ -160,7 +161,7 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
   };
 
   t.after(() => {
-    ProviderImportService.prototype.listConnections = originalListConnections;
+    ProviderAdminService.prototype.listConnections = originalAdminListConnections;
     ProviderImportService.prototype.listJobs = originalListJobs;
     ProviderTokenAccessService.prototype.getConnectionForAccountProfile = originalGetConnection;
     ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile = originalGetTokenStatus;

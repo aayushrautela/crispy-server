@@ -1,6 +1,7 @@
 import { normalizeIsoString } from '../../lib/time.js';
 import type { ProviderAccountRecord } from './provider-accounts.repo.js';
 import type { ProviderImportJobAdminRecord, ProviderImportJobRecord } from './provider-import-jobs.repo.js';
+import type { ProviderSessionRecord } from './provider-sessions.repo.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
 
 export type ProviderAccountView = {
@@ -138,6 +139,86 @@ export function mapProviderStateView(
   };
 }
 
+export function mapProviderSessionStateView(
+  provider: ProviderImportProvider,
+  providerSession: ProviderSessionRecord | null,
+  nowMs = Date.now(),
+): ProviderStateView {
+  if (!providerSession || providerSession.state === 'not_connected' || providerSession.state === 'disconnected_by_user') {
+    return {
+      provider,
+      providerAccountId: null,
+      connectionState: 'not_connected',
+      accountStatus: null,
+      primaryAction: 'connect',
+      canImport: false,
+      canReconnect: false,
+      canDisconnect: false,
+      externalUsername: null,
+      statusLabel: 'Not connected',
+      statusMessage: `Connect ${providerLabel(provider)} to import watch history.`,
+      lastImportCompletedAt: null,
+    };
+  }
+
+  const lastImportCompletedAt = firstIsoString(
+    providerSession.lastImportCompletedAt,
+    providerSession.credentialsJson.lastImportCompletedAt,
+  );
+  const externalUsername = providerSession.externalUsername;
+
+  if (providerSession.state === 'oauth_pending') {
+    return {
+      provider,
+      providerAccountId: providerSession.providerAccountId,
+      connectionState: 'pending_authorization',
+      accountStatus: 'pending',
+      primaryAction: 'reconnect',
+      canImport: false,
+      canReconnect: true,
+      canDisconnect: true,
+      externalUsername,
+      statusLabel: 'Authorization pending',
+      statusMessage: `Finish ${providerLabel(provider)} authorization in your browser or reconnect to start over.`,
+      lastImportCompletedAt,
+    };
+  }
+
+  if (providerSession.state === 'connected' && hasUsableSessionAccessToken(providerSession, nowMs)) {
+    return {
+      provider,
+      providerAccountId: providerSession.providerAccountId,
+      connectionState: 'connected',
+      accountStatus: 'connected',
+      primaryAction: 'import',
+      canImport: true,
+      canReconnect: true,
+      canDisconnect: true,
+      externalUsername,
+      statusLabel: 'Connected',
+      statusMessage: externalUsername
+        ? `Connected as ${externalUsername}.`
+        : `${providerLabel(provider)} is ready to import.`,
+      lastImportCompletedAt,
+    };
+  }
+
+  return {
+    provider,
+    providerAccountId: providerSession.providerAccountId,
+    connectionState: 'reauthorization_required',
+    accountStatus: providerSession.state === 'reauth_required' ? 'revoked' : 'connected',
+    primaryAction: 'reconnect',
+    canImport: false,
+    canReconnect: true,
+    canDisconnect: true,
+    externalUsername,
+    statusLabel: 'Reconnect required',
+    statusMessage: `Log in to ${providerLabel(provider)} again to continue importing.`,
+    lastImportCompletedAt,
+  };
+}
+
 export function mapProviderImportJobView(job: ProviderImportJobRecord): ProviderImportJobView {
   const { profileGroupId: _profileGroupId, ...view } = job;
   return view;
@@ -158,6 +239,16 @@ function asIsoString(value: unknown): string | null {
     return null;
   }
   return normalizeIsoString(text);
+}
+
+function firstIsoString(...values: unknown[]): string | null {
+  for (const value of values) {
+    const normalized = asIsoString(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return null;
 }
 
 function asTimestamp(value: unknown): number | null {
@@ -181,6 +272,16 @@ function hasUsableAccessToken(providerAccount: ProviderAccountRecord, nowMs: num
   }
 
   const expiresAt = asTimestamp(providerAccount.credentialsJson.accessTokenExpiresAt);
+  return expiresAt === null || expiresAt > nowMs;
+}
+
+function hasUsableSessionAccessToken(providerSession: ProviderSessionRecord, nowMs: number): boolean {
+  const accessToken = asString(providerSession.credentialsJson.accessToken);
+  if (!accessToken) {
+    return false;
+  }
+
+  const expiresAt = asTimestamp(providerSession.credentialsJson.accessTokenExpiresAt);
   return expiresAt === null || expiresAt > nowMs;
 }
 

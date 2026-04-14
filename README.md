@@ -154,7 +154,7 @@ This is the current API surface registered in `src/http/app.ts`. Keep docs and c
 - `PATCH /v1/profiles/:profileId` - update a profile
 - `GET /v1/profiles/:profileId/settings` - read profile-only settings
 - `PATCH /v1/profiles/:profileId/settings` - update profile-only settings
-- `POST /v1/profiles/:profileId/imports/start` - start Trakt or Simkl import for a profile
+- `POST /v1/profiles/:profileId/imports/start` - provider action for a profile; request body must include `provider` and `action` where `action` is one of `connect`, `reconnect`, or `import`
 - `GET /v1/profiles/:profileId/imports` - list import jobs for a profile
 - `GET /v1/profiles/:profileId/imports/:jobId` - inspect one import job
 - `GET /v1/profiles/:profileId/import-connections` - list Trakt or Simkl connections for a profile

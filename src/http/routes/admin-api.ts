@@ -251,14 +251,14 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const [connectionsResult, jobsResult, providerStates] = await Promise.all([
-      providerImportService.listConnections(params.accountId, params.profileId),
+      providerAdminService.listConnections({ limit: 100 }),
       providerImportService.listJobs(params.accountId, params.profileId),
       loadProviderStates(providerTokenAccessService, params.accountId, params.profileId),
     ]);
 
     return {
-      watchDataState: connectionsResult.watchDataState ?? jobsResult.watchDataState,
-      providerAccounts: connectionsResult.providerStates,
+      watchDataState: jobsResult.watchDataState,
+      providerAccounts: connectionsResult.connections.filter((row) => row.accountId === params.accountId && row.profileId === params.profileId),
       jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
       providers: providerStates,
     };
