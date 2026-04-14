@@ -930,14 +930,123 @@ export class WatchV2WriteRepository {
   }
 
   async getProjectionAggregate(client: DbClient, profileId: string, titleContentId: string): Promise<ProjectionAggregate> {
-    const [activeState, override, watchlist, rating, lastPlayableCompletedAt, lastHistoryCompletedAt] = await Promise.all([
-      this.getActiveStateByTitle(client, profileId, titleContentId),
-      this.getTitleOverride(client, profileId, titleContentId),
-      this.getWatchlistState(client, profileId, titleContentId),
-      this.getRatingState(client, profileId, titleContentId),
-      this.getLatestPlayableCompletion(client, profileId, titleContentId),
-      this.getLatestHistoryCompletion(client, profileId, titleContentId),
-    ]);
+    const result = await client.query(
+      `
+        WITH active_state AS (
+          SELECT
+            content_id,
+            playback_status,
+            position_seconds,
+            duration_seconds,
+            progress_percent,
+            play_count,
+            last_completed_at,
+            last_activity_at,
+            dismissed_at
+          FROM profile_playable_state
+          WHERE profile_id = $1::uuid AND title_content_id = $2::uuid
+          ORDER BY
+            CASE playback_status
+              WHEN 'in_progress' THEN 0
+              WHEN 'completed' THEN 1
+              WHEN 'dismissed' THEN 2
+              ELSE 3
+            END,
+            last_activity_at DESC,
+            updated_at DESC
+          LIMIT 1
+        ),
+        title_override AS (
+          SELECT override_state, source_updated_at
+          FROM profile_watch_override
+          WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
+          LIMIT 1
+        ),
+        watchlist_state AS (
+          SELECT present, COALESCE(added_at, removed_at, updated_at) AS changed_at
+          FROM profile_watchlist_state
+          WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
+          LIMIT 1
+        ),
+        rating_state AS (
+          SELECT rating, COALESCE(rated_at, removed_at, updated_at) AS changed_at
+          FROM profile_rating_state
+          WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
+          LIMIT 1
+        ),
+        playable_completion AS (
+          SELECT MAX(last_completed_at) AS completed_at
+          FROM profile_playable_state
+          WHERE profile_id = $1::uuid AND title_content_id = $2::uuid AND last_completed_at IS NOT NULL
+        ),
+        history_completion AS (
+          SELECT MAX(completed_at) AS completed_at
+          FROM profile_play_history
+          WHERE profile_id = $1::uuid AND title_content_id = $2::uuid AND voided_at IS NULL
+        )
+        SELECT
+          a.content_id AS active_content_id,
+          a.playback_status AS active_playback_status,
+          a.position_seconds AS active_position_seconds,
+          a.duration_seconds AS active_duration_seconds,
+          a.progress_percent AS active_progress_percent,
+          a.play_count AS active_play_count,
+          a.last_completed_at AS active_last_completed_at,
+          a.last_activity_at AS active_last_activity_at,
+          a.dismissed_at AS active_dismissed_at,
+          o.override_state,
+          o.source_updated_at AS override_source_updated_at,
+          w.present AS watchlist_present,
+          w.changed_at AS watchlist_changed_at,
+          r.rating AS rating_value,
+          r.changed_at AS rating_changed_at,
+          pc.completed_at AS last_playable_completed_at,
+          hc.completed_at AS last_history_completed_at
+        FROM (SELECT 1) seed
+        LEFT JOIN active_state a ON true
+        LEFT JOIN title_override o ON true
+        LEFT JOIN watchlist_state w ON true
+        LEFT JOIN rating_state r ON true
+        LEFT JOIN playable_completion pc ON true
+        LEFT JOIN history_completion hc ON true
+      `,
+      [profileId, titleContentId],
+    );
+
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    const activeState = row?.active_content_id
+      ? toPlayableState({
+          content_id: row.active_content_id,
+          playback_status: row.active_playback_status,
+          position_seconds: row.active_position_seconds,
+          duration_seconds: row.active_duration_seconds,
+          progress_percent: row.active_progress_percent,
+          play_count: row.active_play_count,
+          last_completed_at: row.active_last_completed_at,
+          last_activity_at: row.active_last_activity_at,
+          dismissed_at: row.active_dismissed_at,
+        })
+      : null;
+    const override = row?.override_state
+      ? {
+          overrideState: (row.override_state === 'watched' ? 'watched' : 'unwatched') as 'watched' | 'unwatched',
+          sourceUpdatedAt: normalizeIsoString(row.override_source_updated_at as Date | string | null | undefined) ?? new Date(0).toISOString(),
+        }
+      : null;
+    const watchlist = row?.watchlist_present === undefined
+      ? null
+      : {
+          present: Boolean(row.watchlist_present),
+          changedAt: normalizeIsoString(row.watchlist_changed_at as Date | string | null | undefined),
+        };
+    const rating = row?.rating_value === undefined && row?.rating_changed_at === undefined
+      ? null
+      : {
+          rating: row?.rating_value === null ? null : Number(row?.rating_value),
+          changedAt: normalizeIsoString(row?.rating_changed_at as Date | string | null | undefined),
+        };
+    const lastPlayableCompletedAt = normalizeIsoString(row?.last_playable_completed_at as Date | string | null | undefined);
+    const lastHistoryCompletedAt = normalizeIsoString(row?.last_history_completed_at as Date | string | null | undefined);
 
     return {
       activeState,
@@ -1102,121 +1211,6 @@ export class WatchV2WriteRepository {
     );
   }
 
-  private async getActiveStateByTitle(client: DbClient, profileId: string, titleContentId: string): Promise<PlayableStateSnapshot | null> {
-    const result = await client.query(
-      `
-        SELECT
-          content_id,
-          playback_status,
-          position_seconds,
-          duration_seconds,
-          progress_percent,
-          play_count,
-          last_completed_at,
-          last_activity_at,
-          dismissed_at
-        FROM profile_playable_state
-        WHERE profile_id = $1::uuid AND title_content_id = $2::uuid
-        ORDER BY
-          CASE playback_status
-            WHEN 'in_progress' THEN 0
-            WHEN 'completed' THEN 1
-            WHEN 'dismissed' THEN 2
-            ELSE 3
-          END,
-          last_activity_at DESC,
-          updated_at DESC
-        LIMIT 1
-      `,
-      [profileId, titleContentId],
-    );
-
-    return toPlayableState(result.rows[0]);
-  }
-
-  private async getTitleOverride(client: DbClient, profileId: string, titleContentId: string): Promise<OverrideSnapshot | null> {
-    const result = await client.query(
-      `
-        SELECT override_state, source_updated_at
-        FROM profile_watch_override
-        WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
-      `,
-      [profileId, titleContentId],
-    );
-    const row = result.rows[0];
-    if (!row) {
-      return null;
-    }
-
-    return {
-      overrideState: row.override_state === 'watched' ? 'watched' : 'unwatched',
-      sourceUpdatedAt: normalizeIsoString(row.source_updated_at as Date | string | null | undefined) ?? new Date(0).toISOString(),
-    };
-  }
-
-  private async getWatchlistState(client: DbClient, profileId: string, titleContentId: string): Promise<WatchlistSnapshot | null> {
-    const result = await client.query(
-      `
-        SELECT present, COALESCE(added_at, removed_at, updated_at) AS changed_at
-        FROM profile_watchlist_state
-        WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
-      `,
-      [profileId, titleContentId],
-    );
-    const row = result.rows[0];
-    if (!row) {
-      return null;
-    }
-
-    return {
-      present: Boolean(row.present),
-      changedAt: normalizeIsoString(row.changed_at as Date | string | null | undefined),
-    };
-  }
-
-  private async getRatingState(client: DbClient, profileId: string, titleContentId: string): Promise<RatingSnapshot | null> {
-    const result = await client.query(
-      `
-        SELECT rating, COALESCE(rated_at, removed_at, updated_at) AS changed_at
-        FROM profile_rating_state
-        WHERE profile_id = $1::uuid AND target_content_id = $2::uuid
-      `,
-      [profileId, titleContentId],
-    );
-    const row = result.rows[0];
-    if (!row) {
-      return null;
-    }
-
-    return {
-      rating: row.rating === null ? null : Number(row.rating),
-      changedAt: normalizeIsoString(row.changed_at as Date | string | null | undefined),
-    };
-  }
-
-  private async getLatestPlayableCompletion(client: DbClient, profileId: string, titleContentId: string): Promise<string | null> {
-    const result = await client.query(
-      `
-        SELECT MAX(last_completed_at) AS completed_at
-        FROM profile_playable_state
-        WHERE profile_id = $1::uuid AND title_content_id = $2::uuid AND last_completed_at IS NOT NULL
-      `,
-      [profileId, titleContentId],
-    );
-    return normalizeIsoString(result.rows[0]?.completed_at as Date | string | null | undefined);
-  }
-
-  private async getLatestHistoryCompletion(client: DbClient, profileId: string, titleContentId: string): Promise<string | null> {
-    const result = await client.query(
-      `
-        SELECT MAX(completed_at) AS completed_at
-        FROM profile_play_history
-        WHERE profile_id = $1::uuid AND title_content_id = $2::uuid AND voided_at IS NULL
-      `,
-      [profileId, titleContentId],
-    );
-    return normalizeIsoString(result.rows[0]?.completed_at as Date | string | null | undefined);
-  }
 }
 
 function toPlayableState(row: Record<string, unknown> | undefined): PlayableStateSnapshot | null {
