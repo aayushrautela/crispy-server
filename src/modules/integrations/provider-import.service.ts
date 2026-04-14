@@ -24,7 +24,12 @@ import {
   type ImportedWatchEventDraft,
   type ProviderReplaceImportPayload,
 } from './provider-destructive-import.service.js';
-import { mapProviderAccountView, type ProviderAccountView } from './provider-import.views.js';
+import {
+  mapProviderAccountView,
+  mapProviderStateView,
+  type ProviderAccountView,
+  type ProviderStateView,
+} from './provider-import.views.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
@@ -33,6 +38,7 @@ import { MetadataCardService } from '../metadata/metadata-card.service.js';
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
   providerAccount: ProviderAccountRecord | null;
+  providerState: ProviderStateView;
   watchDataState: ProfileWatchDataStateRecord;
   authUrl: string | null;
   nextAction: 'authorize_provider' | 'queued';
@@ -117,18 +123,20 @@ export class ProviderImportService {
       const connectedProviderAccount = await this.providerAccountsRepository.findLatestConnectedForProfile(client, profileId, provider);
 
       if (connectedProviderAccount) {
+        const activeProviderAccount = await this.ensureImportableProviderAccount(client, connectedProviderAccount);
         const queuedJob = await this.jobsRepository.create(client, {
           profileId,
           profileGroupId: profile.profileGroupId,
           provider,
           requestedByUserId: userId,
-          providerAccountId: connectedProviderAccount.id,
+          providerAccountId: activeProviderAccount.id,
           status: 'queued',
         });
 
         return {
           job: queuedJob,
-          providerAccount: connectedProviderAccount,
+          providerAccount: activeProviderAccount,
+          providerState: mapProviderStateView(provider, activeProviderAccount),
           watchDataState,
           authUrl: null,
           nextAction: 'queued' as const,
@@ -166,6 +174,7 @@ export class ProviderImportService {
       return {
         job: pendingJob,
         providerAccount,
+        providerState: mapProviderStateView(provider, providerAccount),
         watchDataState,
         authUrl,
         nextAction: 'authorize_provider' as const,
@@ -300,7 +309,7 @@ export class ProviderImportService {
   async listConnections(
     userId: string,
     profileId: string,
-  ): Promise<{ providerAccounts: ProviderAccountView[]; watchDataState: ProfileWatchDataStateRecord | null }> {
+  ): Promise<{ providerStates: ProviderStateView[]; watchDataState: ProfileWatchDataStateRecord | null }> {
     return this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
@@ -313,7 +322,10 @@ export class ProviderImportService {
       ]);
 
       return {
-        providerAccounts: providerAccounts.map((providerAccount) => mapProviderAccountView(providerAccount)),
+        providerStates: [
+          mapProviderStateView('trakt', pickLatestProviderAccount(providerAccounts, 'trakt')),
+          mapProviderStateView('simkl', pickLatestProviderAccount(providerAccounts, 'simkl')),
+        ],
         watchDataState,
       };
     });
@@ -323,7 +335,7 @@ export class ProviderImportService {
     userId: string,
     profileId: string,
     provider: ProviderImportProvider,
-  ): Promise<{ providerAccount: ProviderAccountView }> {
+  ): Promise<{ providerState: ProviderStateView }> {
     assertProviderEnabled(provider);
 
     const providerAccount = await this.runInTransaction(async (client) => {
@@ -332,7 +344,7 @@ export class ProviderImportService {
         throw new HttpError(404, 'Profile not found.');
       }
 
-      return this.providerAccountsRepository.findLatestConnectedForProfile(client, profileId, provider);
+      return this.providerAccountsRepository.findLatestForProfile(client, profileId, provider);
     });
 
     if (!providerAccount) {
@@ -345,7 +357,7 @@ export class ProviderImportService {
       const disconnectedAt = new Date().toISOString();
       let updated: ProviderAccountRecord | null;
       try {
-        updated = await this.providerAccountsRepository.revokeProviderAccount(client, {
+        updated = await this.providerAccountsRepository.clearProviderAccount(client, {
           providerAccountId: providerAccount.id,
           lastUsedAt: disconnectedAt,
           providerUserId: null,
@@ -359,7 +371,7 @@ export class ProviderImportService {
           profileId,
           provider,
         }, 'provider disconnect credential scrub failed; retrying revoke without credential rewrite');
-        updated = await this.providerAccountsRepository.revokeProviderAccount(client, {
+        updated = await this.providerAccountsRepository.clearProviderAccount(client, {
           providerAccountId: providerAccount.id,
           lastUsedAt: disconnectedAt,
           providerUserId: null,
@@ -375,8 +387,30 @@ export class ProviderImportService {
     });
 
     return {
-      providerAccount: mapProviderAccountView(disconnected),
+      providerState: mapProviderStateView(provider, disconnected),
     };
+  }
+
+  private async ensureImportableProviderAccount(
+    client: DbClient,
+    providerAccount: ProviderAccountRecord,
+  ): Promise<ProviderAccountRecord> {
+    try {
+      const refreshed = await this.tokenRefreshService.refreshProviderAccount(providerAccount, { force: true });
+      return refreshed.providerAccount;
+    } catch (error) {
+      const latestProviderAccount = await this.providerAccountsRepository.findById(client, providerAccount.id);
+      const providerState = mapProviderStateView(providerAccount.provider, latestProviderAccount);
+      if (providerState.connectionState === 'reauthorization_required') {
+        throw new HttpError(409, `Log in to ${providerLabel(providerAccount.provider)} again to continue importing.`, {
+          provider: providerAccount.provider,
+          code: 'provider_reauth_required',
+          providerState,
+        });
+      }
+
+      throw error;
+    }
   }
 
   private async revokeProviderAuthorization(providerAccount: ProviderAccountRecord): Promise<void> {
@@ -2026,6 +2060,17 @@ export function parseImportProvider(value: unknown): ProviderImportProvider {
 
 function assertProviderEnabled(provider: ProviderImportProvider): void {
   void provider;
+}
+
+function providerLabel(provider: ProviderImportProvider): string {
+  return provider === 'trakt' ? 'Trakt' : 'Simkl';
+}
+
+function pickLatestProviderAccount(
+  providerAccounts: ProviderAccountRecord[],
+  provider: ProviderImportProvider,
+): ProviderAccountRecord | null {
+  return providerAccounts.find((providerAccount) => providerAccount.provider === provider) ?? null;
 }
 
 function sanitizeDisconnectedCredentials(

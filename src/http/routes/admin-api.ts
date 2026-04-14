@@ -258,7 +258,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
 
     return {
       watchDataState: connectionsResult.watchDataState ?? jobsResult.watchDataState,
-      providerAccounts: connectionsResult.providerAccounts,
+      providerAccounts: connectionsResult.providerStates,
       jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
       providers: providerStates,
     };

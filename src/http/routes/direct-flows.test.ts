@@ -625,17 +625,19 @@ test('profile routes expose import-connections', async (t) => {
 
   ProviderImportService.prototype.listConnections = async function (_userId, _profileId) {
     return {
-      providerAccounts: [
+      providerStates: [
         {
-          id: 'conn-1',
           provider: 'trakt',
-          status: 'connected',
-          providerUserId: 'user-42',
+          providerAccountId: 'conn-1',
+          connectionState: 'connected',
+          accountStatus: 'connected',
+          primaryAction: 'import',
+          canImport: true,
+          canReconnect: true,
+          canDisconnect: true,
           externalUsername: 'crispy-user',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-02T00:00:00.000Z',
-          lastUsedAt: null,
-          lastImportJobId: null,
+          statusLabel: 'Connected',
+          statusMessage: 'Connected as crispy-user.',
           lastImportCompletedAt: null,
         },
       ],
@@ -656,8 +658,8 @@ test('profile routes expose import-connections', async (t) => {
   const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/import-connections', headers: auth });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().providerAccounts[0].provider, 'trakt');
-  assert.equal(response.json().providerAccounts[0].status, 'connected');
+  assert.equal(response.json().providerStates[0].provider, 'trakt');
+  assert.equal(response.json().providerStates[0].connectionState, 'connected');
   assert.equal(response.json().watchDataState.watchDataOrigin, 'provider_import');
 });
 

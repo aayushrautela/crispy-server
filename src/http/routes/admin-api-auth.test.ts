@@ -141,7 +141,7 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
   const originalGetTokenStatus = ProviderTokenAccessService.prototype.getTokenStatusForAccountProfile;
 
   ProviderImportService.prototype.listConnections = async function () {
-    return { providerAccounts: [], watchDataState: null } as never;
+    return { providerStates: [], watchDataState: null } as never;
   };
   ProviderImportService.prototype.listJobs = async function () {
     return { jobs: [], watchDataState: null } as never;

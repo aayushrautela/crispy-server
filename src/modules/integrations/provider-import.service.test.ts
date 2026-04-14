@@ -123,7 +123,8 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
     );
 
     const result = await service.disconnectConnection('account-1', 'profile-1', 'trakt');
-    assert.equal(result.providerAccount.status, 'revoked');
+    assert.equal(result.providerState.connectionState, 'not_connected');
+    assert.equal(result.providerState.primaryAction, 'connect');
     assert.equal(fetchCalls.length, 1);
     assert.equal(fetchCalls[0]?.url, 'https://api.trakt.tv/oauth/revoke');
     assert.match(fetchCalls[0]?.body ?? '', /"token":"refresh-123"/);

@@ -127,6 +127,25 @@ export class ProviderAccountsRepository {
     return result.rows[0] ? mapProviderAccount(result.rows[0]) : null;
   }
 
+  async findLatestForProfile(
+    client: DbClient,
+    profileId: string,
+    provider: ProviderImportProvider,
+  ): Promise<ProviderAccountRecord | null> {
+    const result = await client.query(
+      `
+        SELECT id, profile_id, provider, status, state_token, provider_user_id, external_username,
+               credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
+        FROM provider_accounts
+        WHERE profile_id = $1::uuid AND provider = $2
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1
+      `,
+      [profileId, provider],
+    );
+    return result.rows[0] ? mapProviderAccount(result.rows[0]) : null;
+  }
+
   async findById(client: DbClient, providerAccountId: string): Promise<ProviderAccountRecord | null> {
     const result = await client.query(
       `
@@ -204,6 +223,39 @@ export class ProviderAccountsRepository {
             updated_at = now()
         WHERE id = $1::uuid
           AND status = 'connected'
+        RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
+                  credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
+      `,
+      [
+        params.providerAccountId,
+        params.credentialsJson ? JSON.stringify(params.credentialsJson) : null,
+        params.lastUsedAt ?? null,
+        params.providerUserId ?? null,
+        params.externalUsername ?? null,
+      ],
+    );
+    return result.rows[0] ? mapProviderAccount(result.rows[0]) : null;
+  }
+
+  async clearProviderAccount(client: DbClient, params: {
+    providerAccountId: string;
+    credentialsJson?: Record<string, unknown>;
+    providerUserId?: string | null;
+    externalUsername?: string | null;
+    lastUsedAt?: string | null;
+  }): Promise<ProviderAccountRecord | null> {
+    const result = await client.query(
+      `
+        UPDATE provider_accounts
+        SET status = 'revoked',
+            state_token = null,
+            expires_at = null,
+            provider_user_id = $4,
+            external_username = $5,
+            credentials_json = CASE WHEN $2::jsonb IS NULL THEN credentials_json ELSE $2::jsonb END,
+            last_used_at = COALESCE($3::timestamptz, last_used_at),
+            updated_at = now()
+        WHERE id = $1::uuid
         RETURNING id, profile_id, provider, status, state_token, provider_user_id, external_username,
                   credentials_json, created_by_user_id, expires_at, last_used_at, created_at, updated_at
       `,
