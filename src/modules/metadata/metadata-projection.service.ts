@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { MetadataCardService } from './metadata-card.service.js';
-import type { MetadataCardView, MetadataTitleMediaType } from './metadata-card.types.js';
+import type { MetadataCardView, MetadataTitleMediaType, ProviderEpisodeRecord } from './metadata-card.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import {
   inferMediaIdentity,
@@ -9,9 +9,11 @@ import {
   type MediaIdentity,
   type SupportedProvider,
 } from '../identity/media-key.js';
+import type { CanonicalNextEpisodeRef } from '../watch/watch-episodic-follow.types.js';
 import type { WatchMediaProjection } from '../watch/watch.types.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
+import type { TmdbEpisodeRecord } from './providers/tmdb.types.js';
 
 export class MetadataProjectionService {
   constructor(
@@ -35,9 +37,30 @@ export class MetadataProjectionService {
     }
   }
 
-  async resolveNextEpisodeAirDate(client: DbClient, identity: MediaIdentity): Promise<string | null> {
+  async resolveNextEpisode(client: DbClient, identity: MediaIdentity): Promise<CanonicalNextEpisodeRef | null> {
     const source = await this.titleSourceService.loadTitleSource(client, identity);
-    return source.providerContext?.nextEpisode?.airDate ?? source.tmdbNextEpisode?.airDate ?? null;
+
+    const providerNextEpisode = source.providerContext?.nextEpisode
+      ? this.resolveProviderNextEpisodeIdentity(identity, source.providerContext.nextEpisode)
+      : null;
+    if (providerNextEpisode) {
+      return this.toCanonicalNextEpisodeRef(providerNextEpisode, {
+        airDate: source.providerContext?.nextEpisode?.airDate ?? null,
+        title: source.providerContext?.nextEpisode?.title ?? null,
+      });
+    }
+
+    const tmdbNextEpisode = source.tmdbNextEpisode
+      ? this.resolveTmdbNextEpisodeIdentity(identity, source.tmdbNextEpisode)
+      : null;
+    if (tmdbNextEpisode && source.tmdbNextEpisode) {
+      return this.toCanonicalNextEpisodeRef(tmdbNextEpisode, {
+        airDate: source.tmdbNextEpisode.airDate,
+        title: source.tmdbNextEpisode.name,
+      });
+    }
+
+    return null;
   }
 
   private async buildTitleProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
@@ -95,6 +118,83 @@ export class MetadataProjectionService {
   private async buildDisplayCard(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
     return this.metadataCardService.buildCardView(client, identity);
   }
+
+  private resolveProviderNextEpisodeIdentity(
+    seriesIdentity: MediaIdentity,
+    nextEpisode: Pick<ProviderEpisodeRecord, 'seasonNumber' | 'episodeNumber' | 'absoluteEpisodeNumber' | 'title' | 'airDate'>,
+  ): MediaIdentity | null {
+    if (!seriesIdentity.provider || !seriesIdentity.providerId) {
+      return null;
+    }
+
+    const providerMetadata = buildEpisodeProviderMetadata(seriesIdentity);
+
+    if (nextEpisode.seasonNumber !== null && nextEpisode.episodeNumber !== null) {
+      return inferMediaIdentity({
+        mediaType: 'episode',
+        provider: seriesIdentity.provider,
+        parentProvider: seriesIdentity.provider,
+        parentProviderId: seriesIdentity.providerId,
+        seasonNumber: nextEpisode.seasonNumber,
+        episodeNumber: nextEpisode.episodeNumber,
+        absoluteEpisodeNumber: nextEpisode.absoluteEpisodeNumber ?? null,
+        providerMetadata,
+      });
+    }
+
+    if (nextEpisode.absoluteEpisodeNumber !== null) {
+      return inferMediaIdentity({
+        mediaType: 'episode',
+        provider: seriesIdentity.provider,
+        parentProvider: seriesIdentity.provider,
+        parentProviderId: seriesIdentity.providerId,
+        absoluteEpisodeNumber: nextEpisode.absoluteEpisodeNumber,
+        providerMetadata,
+      });
+    }
+
+    return null;
+  }
+
+  private resolveTmdbNextEpisodeIdentity(seriesIdentity: MediaIdentity, episode: TmdbEpisodeRecord): MediaIdentity | null {
+    if (!seriesIdentity.provider || !seriesIdentity.providerId) {
+      return null;
+    }
+
+    const showTmdbId = showTmdbIdForIdentity(seriesIdentity);
+    if (!showTmdbId) {
+      return null;
+    }
+
+    return inferMediaIdentity({
+      mediaType: 'episode',
+      provider: seriesIdentity.provider,
+      parentProvider: seriesIdentity.provider,
+      parentProviderId: seriesIdentity.providerId,
+      seasonNumber: episode.seasonNumber,
+      episodeNumber: episode.episodeNumber,
+      providerMetadata: { tmdbId: showTmdbId, showTmdbId },
+    });
+  }
+
+  private toCanonicalNextEpisodeRef(
+    episodeIdentity: MediaIdentity,
+    params: { airDate: string | null; title: string | null },
+  ): CanonicalNextEpisodeRef {
+    return {
+      mediaKey: episodeIdentity.mediaKey,
+      airDate: params.airDate,
+      seasonNumber: episodeIdentity.seasonNumber,
+      episodeNumber: episodeIdentity.episodeNumber,
+      absoluteEpisodeNumber: episodeIdentity.absoluteEpisodeNumber ?? null,
+      title: params.title,
+    };
+  }
+}
+
+function buildEpisodeProviderMetadata(seriesIdentity: MediaIdentity): Record<string, unknown> | undefined {
+  const showTmdbId = showTmdbIdForIdentity(seriesIdentity);
+  return showTmdbId ? { tmdbId: showTmdbId, showTmdbId } : undefined;
 }
 
 function emptyProjection(): WatchMediaProjection {

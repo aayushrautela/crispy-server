@@ -12,6 +12,11 @@ export type EpisodicFollowRow = {
   reason: string;
   lastInteractedAt: string;
   nextEpisodeAirDate: string | null;
+  nextEpisodeMediaKey: string | null;
+  nextEpisodeSeasonNumber: number | null;
+  nextEpisodeEpisodeNumber: number | null;
+  nextEpisodeAbsoluteEpisodeNumber: number | null;
+  nextEpisodeTitle: string | null;
   metadataRefreshedAt: string | null;
   payload: Record<string, unknown>;
   showTmdbId: number | null;
@@ -41,6 +46,11 @@ export class WatchV2EpisodicFollowQueryService {
             projection.watchlist_updated_at
           ) AS last_interacted_at,
           metadata.next_episode_air_date,
+          metadata.next_episode_media_key,
+          metadata.next_episode_season_number,
+          metadata.next_episode_episode_number,
+          metadata.next_episode_absolute_episode_number,
+          metadata.next_episode_title,
           metadata.metadata_refreshed_at,
           COALESCE(metadata.payload, '{}'::jsonb) AS payload
         FROM profile_title_projection projection
@@ -108,6 +118,11 @@ export class WatchV2EpisodicFollowQueryService {
             projection.watchlist_updated_at
           ) AS last_interacted_at,
           metadata.next_episode_air_date,
+          metadata.next_episode_media_key,
+          metadata.next_episode_season_number,
+          metadata.next_episode_episode_number,
+          metadata.next_episode_absolute_episode_number,
+          metadata.next_episode_title,
           metadata.metadata_refreshed_at,
           COALESCE(metadata.payload, '{}'::jsonb) AS payload
         FROM profile_title_projection projection
@@ -162,6 +177,11 @@ export class WatchV2EpisodicFollowQueryService {
       reason: typeof row.reason === 'string' ? row.reason : 'watch_activity',
       lastInteractedAt: requireDbIsoString(row.last_interacted_at as Date | string | null | undefined, 'profile_title_projection.last_interacted_at'),
       nextEpisodeAirDate: toDbIsoString(row.next_episode_air_date as Date | string | null | undefined, 'profile_episodic_follow_state.next_episode_air_date'),
+      nextEpisodeMediaKey: typeof row.next_episode_media_key === 'string' ? row.next_episode_media_key : null,
+      nextEpisodeSeasonNumber: row.next_episode_season_number === null ? null : Number(row.next_episode_season_number),
+      nextEpisodeEpisodeNumber: row.next_episode_episode_number === null ? null : Number(row.next_episode_episode_number),
+      nextEpisodeAbsoluteEpisodeNumber: row.next_episode_absolute_episode_number === null ? null : Number(row.next_episode_absolute_episode_number),
+      nextEpisodeTitle: typeof row.next_episode_title === 'string' ? row.next_episode_title : null,
       metadataRefreshedAt: toDbIsoString(row.metadata_refreshed_at as Date | string | null | undefined, 'profile_episodic_follow_state.metadata_refreshed_at'),
       payload: (row.payload as Record<string, unknown> | undefined) ?? {},
       showTmdbId: showTmdbIdForIdentity(identity),

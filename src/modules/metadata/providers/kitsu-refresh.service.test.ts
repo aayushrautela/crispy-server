@@ -25,7 +25,7 @@ test('KitsuRefreshService refreshes cached bundle and episodic follow state', as
       getEpisodicFollowByContentId: async () => null,
     } as never,
     {
-      upsertEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
+      syncEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
     } as never,
   );
 
@@ -44,5 +44,8 @@ test('KitsuRefreshService refreshes cached bundle and episodic follow state', as
   assert.equal(result.refreshedTitles, 1);
   assert.equal(result.refreshedTrackedShows, 1);
   assert.equal(writes.length, 1);
-  assert.equal(writes[0]?.nextEpisodeAirDate, '2099-02-01');
+  assert.equal(writes[0]?.titleContentId, 'content-anime-1');
+  assert.equal(writes[0]?.titleMediaKey, 'anime:kitsu:1');
+  assert.equal((writes[0]?.seriesIdentity as { mediaKey?: string } | undefined)?.mediaKey, 'anime:kitsu:1');
+  assert.deepEqual(writes[0]?.payload, { source: 'test' });
 });

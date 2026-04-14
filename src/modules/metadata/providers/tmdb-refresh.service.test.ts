@@ -69,7 +69,7 @@ test('refreshProfileEpisodicFollow refreshes episodic follow rows', async () => 
       }),
     } as never,
     {
-      upsertEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => {
+      syncEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => {
         episodicFollowWrites.push(input);
       },
     } as never,
@@ -82,5 +82,6 @@ test('refreshProfileEpisodicFollow refreshes episodic follow rows', async () => 
   assert.equal(episodicFollowWrites.length, 1);
   assert.equal(episodicFollowWrites[0]?.titleContentId, 'content-show-42');
   assert.equal(episodicFollowWrites[0]?.titleMediaKey, 'show:tvdb:500');
+  assert.equal((episodicFollowWrites[0]?.seriesIdentity as { mediaKey?: string } | undefined)?.mediaKey, 'show:tvdb:500');
   assert.deepEqual(episodicFollowWrites[0]?.payload, { source: 'test' });
 });

@@ -117,6 +117,11 @@ export type RawEpisodicFollowRow = {
   reason: string | null;
   lastInteractedAt: string;
   nextEpisodeAirDate: string | null;
+  nextEpisodeMediaKey: string | null;
+  nextEpisodeSeasonNumber: number | null;
+  nextEpisodeEpisodeNumber: number | null;
+  nextEpisodeAbsoluteEpisodeNumber: number | null;
+  nextEpisodeTitle: string | null;
   metadataRefreshedAt: string | null;
   payload: Record<string, unknown>;
 };
@@ -462,6 +467,11 @@ export class WatchQueryService {
       reason: row.reason,
       lastInteractedAt: row.lastInteractedAt,
       nextEpisodeAirDate: row.nextEpisodeAirDate,
+      nextEpisodeMediaKey: row.nextEpisodeMediaKey,
+      nextEpisodeSeasonNumber: row.nextEpisodeSeasonNumber,
+      nextEpisodeEpisodeNumber: row.nextEpisodeEpisodeNumber,
+      nextEpisodeAbsoluteEpisodeNumber: row.nextEpisodeAbsoluteEpisodeNumber,
+      nextEpisodeTitle: row.nextEpisodeTitle,
       metadataRefreshedAt: row.metadataRefreshedAt,
       payload: row.payload,
     }));

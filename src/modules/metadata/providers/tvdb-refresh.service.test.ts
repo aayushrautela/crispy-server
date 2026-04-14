@@ -25,7 +25,7 @@ test('TvdbRefreshService refreshes cached bundle and episodic follow state', asy
       getEpisodicFollowByContentId: async () => null,
     } as never,
     {
-      upsertEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
+      syncEpisodicFollowState: async (_client: unknown, input: Record<string, unknown>) => { writes.push(input); },
     } as never,
   );
 
@@ -44,5 +44,8 @@ test('TvdbRefreshService refreshes cached bundle and episodic follow state', asy
   assert.equal(result.refreshedTitles, 1);
   assert.equal(result.refreshedTrackedShows, 1);
   assert.equal(writes.length, 1);
-  assert.equal(writes[0]?.nextEpisodeAirDate, '2099-01-01');
+  assert.equal(writes[0]?.titleContentId, 'content-show-1');
+  assert.equal(writes[0]?.titleMediaKey, 'show:tvdb:1');
+  assert.equal((writes[0]?.seriesIdentity as { mediaKey?: string } | undefined)?.mediaKey, 'show:tvdb:1');
+  assert.deepEqual(writes[0]?.payload, { source: 'test' });
 });

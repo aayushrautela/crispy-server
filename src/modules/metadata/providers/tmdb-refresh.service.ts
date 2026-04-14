@@ -4,7 +4,6 @@ import { extractLastEpisodeToAir, extractNextEpisodeToAir } from './tmdb-episode
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './tmdb.types.js';
 import { showTmdbIdForIdentity, parseMediaKey, type MediaIdentity } from '../../identity/media-key.js';
-import { ContentIdentityService } from '../../identity/content-identity.service.js';
 import { MetadataRefreshQueryService } from '../metadata-refresh-query.service.js';
 import { WatchV2MetadataService } from '../../watch-v2/watch-v2-metadata.service.js';
 
@@ -68,7 +67,6 @@ export class TmdbRefreshService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly metadataRefreshQueryService = new MetadataRefreshQueryService(),
     private readonly watchV2MetadataService = new WatchV2MetadataService(),
-    private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
   async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
@@ -162,12 +160,11 @@ export class TmdbRefreshService {
 
     const followedSeries = episodicFollow;
     if (followedSeries) {
-      await this.watchV2MetadataService.upsertEpisodicFollowState(client, {
+      await this.watchV2MetadataService.syncEpisodicFollowState(client, {
         profileId,
         titleContentId: followedSeries.titleContentId,
         titleMediaKey: followedSeries.seriesMediaKey,
-        nextEpisodeAirDate: extractNextEpisodeToAir(title)?.airDate ?? null,
-        metadataRefreshedAt: new Date().toISOString(),
+        seriesIdentity: parseMediaKey(followedSeries.seriesMediaKey),
         payload: followedSeries.payload ?? {},
       });
       summary.refreshedTrackedShows += 1;

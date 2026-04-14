@@ -21,7 +21,12 @@ test('WatchV2EpisodicFollowQueryService resolves mediaKey to contentId before qu
           title_provider_id: '100',
           reason: 'watch_activity',
           last_interacted_at: '2026-04-07T12:00:00.000Z',
-          next_episode_air_date: null,
+          next_episode_air_date: '2026-04-10',
+          next_episode_media_key: 'episode:tvdb:100:1:2',
+          next_episode_season_number: 1,
+          next_episode_episode_number: 2,
+          next_episode_absolute_episode_number: null,
+          next_episode_title: 'Episode 2',
           metadata_refreshed_at: null,
           payload: {},
         }],
@@ -47,4 +52,10 @@ test('WatchV2EpisodicFollowQueryService resolves mediaKey to contentId before qu
   assert.deepEqual(capturedParams, ['profile-1', '11111111-1111-4111-8111-111111111111']);
   assert.equal(result?.titleContentId, '11111111-1111-4111-8111-111111111111');
   assert.equal(result?.seriesMediaKey, 'show:tvdb:100');
+  assert.equal(result?.nextEpisodeAirDate, '2026-04-10T00:00:00.000Z');
+  assert.equal(result?.nextEpisodeMediaKey, 'episode:tvdb:100:1:2');
+  assert.equal(result?.nextEpisodeSeasonNumber, 1);
+  assert.equal(result?.nextEpisodeEpisodeNumber, 2);
+  assert.equal(result?.nextEpisodeAbsoluteEpisodeNumber, null);
+  assert.equal(result?.nextEpisodeTitle, 'Episode 2');
 });

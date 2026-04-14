@@ -1,7 +1,7 @@
 import { HttpError } from '../../../lib/errors.js';
 import type { DbClient } from '../../../lib/db.js';
 import type { MediaIdentity } from '../../identity/media-key.js';
-import type { ProviderEpisodeRecord } from '../metadata-card.types.js';
+import { parseMediaKey } from '../../identity/media-key.js';
 import { MetadataRefreshQueryService } from '../metadata-refresh-query.service.js';
 import { WatchV2MetadataService } from '../../watch-v2/watch-v2-metadata.service.js';
 import { KitsuCacheService } from './kitsu-cache.service.js';
@@ -15,27 +15,6 @@ function emptySummary(): MetadataRefreshSummary {
     skipped: 0,
     failures: 0,
   };
-}
-
-function compareEpisodes(left: ProviderEpisodeRecord, right: ProviderEpisodeRecord): number {
-  const leftSeason = left.seasonNumber ?? 0;
-  const rightSeason = right.seasonNumber ?? 0;
-  if (leftSeason !== rightSeason) {
-    return leftSeason - rightSeason;
-  }
-
-  const leftEpisode = left.episodeNumber ?? left.absoluteEpisodeNumber ?? 0;
-  const rightEpisode = right.episodeNumber ?? right.absoluteEpisodeNumber ?? 0;
-  return leftEpisode - rightEpisode;
-}
-
-function nextUpcomingEpisodeAirDate(episodes: ProviderEpisodeRecord[]): string | null {
-  const now = Date.now();
-  const sorted = [...episodes].sort(compareEpisodes);
-  return sorted.find((episode) => {
-    const airDate = episode.airDate?.trim();
-    return airDate ? Date.parse(airDate) >= now : false;
-  })?.airDate ?? null;
 }
 
 function isNotFoundError(error: unknown): boolean {
@@ -57,7 +36,7 @@ export class KitsuRefreshService {
     }
 
     try {
-      const bundle = await this.kitsuCacheService.refreshTitleBundle(client, identity.providerId);
+      await this.kitsuCacheService.refreshTitleBundle(client, identity.providerId);
       summary.refreshedTitles += 1;
 
       const episodicFollow = identity.contentId
@@ -68,12 +47,11 @@ export class KitsuRefreshService {
         return summary;
       }
 
-      await this.watchV2MetadataService.upsertEpisodicFollowState(client, {
+      await this.watchV2MetadataService.syncEpisodicFollowState(client, {
         profileId,
         titleContentId: episodicFollow.titleContentId,
         titleMediaKey: episodicFollow.seriesMediaKey,
-        nextEpisodeAirDate: nextUpcomingEpisodeAirDate(bundle.episodes),
-        metadataRefreshedAt: new Date().toISOString(),
+        seriesIdentity: parseMediaKey(episodicFollow.seriesMediaKey),
         payload: episodicFollow.payload ?? {},
       });
       summary.refreshedTrackedShows += 1;
