@@ -348,6 +348,8 @@ export class ProviderImportService {
         updated = await this.providerAccountsRepository.revokeProviderAccount(client, {
           providerAccountId: providerAccount.id,
           lastUsedAt: disconnectedAt,
+          providerUserId: null,
+          externalUsername: null,
           credentialsJson: sanitizeDisconnectedCredentials(providerAccount.credentialsJson, disconnectedAt, userId),
         });
       } catch (error) {
@@ -360,6 +362,8 @@ export class ProviderImportService {
         updated = await this.providerAccountsRepository.revokeProviderAccount(client, {
           providerAccountId: providerAccount.id,
           lastUsedAt: disconnectedAt,
+          providerUserId: null,
+          externalUsername: null,
         });
       }
 

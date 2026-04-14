@@ -79,12 +79,24 @@ export class ProviderTokenRefreshService {
       return { providerAccount: updated, refreshed: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Provider token refresh failed.';
+      const failedAt = new Date().toISOString();
       await this.runInTransaction(async (client) => {
+        if (shouldRevokeConnection(error)) {
+          await this.providerAccountsRepository.revokeProviderAccount(client, {
+            providerAccountId: providerAccount.id,
+            providerUserId: null,
+            externalUsername: null,
+            lastUsedAt: failedAt,
+            credentialsJson: sanitizeRevokedCredentials(providerAccount.credentialsJson, failedAt, errorMessage),
+          });
+          return;
+        }
+
         await this.providerAccountsRepository.updateConnectedCredentials(client, {
           providerAccountId: providerAccount.id,
           credentialsJson: {
             ...providerAccount.credentialsJson,
-            lastRefreshAt: new Date().toISOString(),
+            lastRefreshAt: failedAt,
             lastRefreshError: errorMessage,
           },
           providerUserId: providerAccount.providerUserId,
@@ -234,6 +246,44 @@ function resolveProviderError(payload: Record<string, unknown> | null, fallback:
     return payload.error;
   }
   return fallback;
+}
+
+function shouldRevokeConnection(error: unknown): boolean {
+  if (!(error instanceof HttpError)) {
+    return false;
+  }
+
+  if (![400, 401, 403].includes(error.statusCode)) {
+    return false;
+  }
+
+  const message = error.message.trim().toLowerCase();
+  if (!message) {
+    return false;
+  }
+
+  return message.includes('invalid_grant') ||
+    message.includes('invalid grant') ||
+    message.includes('invalid refresh token') ||
+    (message.includes('refresh token') && message.includes('expired')) ||
+    message.includes('invalid token') ||
+    message.includes('token is invalid') ||
+    message.includes('token has expired') ||
+    message.includes('authorization has expired');
+}
+
+function sanitizeRevokedCredentials(
+  credentials: Record<string, unknown>,
+  revokedAt: string,
+  refreshError: string,
+): Record<string, unknown> {
+  return {
+    lastImportJobId: asString(credentials.lastImportJobId),
+    lastImportCompletedAt: asString(credentials.lastImportCompletedAt),
+    lastRefreshAt: revokedAt,
+    lastRefreshError: refreshError,
+    revokedAt,
+  };
 }
 
 function parseProviderJson(rawBody: string): Record<string, unknown> | null {

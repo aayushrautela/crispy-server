@@ -187,6 +187,8 @@ export class ProviderAccountsRepository {
   async revokeProviderAccount(client: DbClient, params: {
     providerAccountId: string;
     credentialsJson?: Record<string, unknown>;
+    providerUserId?: string | null;
+    externalUsername?: string | null;
     lastUsedAt?: string | null;
   }): Promise<ProviderAccountRecord | null> {
     const result = await client.query(
@@ -195,6 +197,8 @@ export class ProviderAccountsRepository {
         SET status = 'revoked',
             state_token = null,
             expires_at = null,
+            provider_user_id = $4,
+            external_username = $5,
             credentials_json = CASE WHEN $2::jsonb IS NULL THEN credentials_json ELSE $2::jsonb END,
             last_used_at = COALESCE($3::timestamptz, last_used_at),
             updated_at = now()
@@ -207,6 +211,8 @@ export class ProviderAccountsRepository {
         params.providerAccountId,
         params.credentialsJson ? JSON.stringify(params.credentialsJson) : null,
         params.lastUsedAt ?? null,
+        params.providerUserId ?? null,
+        params.externalUsername ?? null,
       ],
     );
     return result.rows[0] ? mapProviderAccount(result.rows[0]) : null;
