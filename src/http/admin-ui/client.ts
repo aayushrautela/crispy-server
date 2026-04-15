@@ -671,6 +671,8 @@ export const ADMIN_UI_CLIENT = String.raw`
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/continue-watching?limit=6')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/watchlist?limit=8')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/ratings?limit=8')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/calendar')),
+        safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/calendar/this-week')),
         safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/episodic-follow?limit=8')),
       ]);
 
@@ -680,7 +682,9 @@ export const ADMIN_UI_CLIENT = String.raw`
         renderMediaSection('Continue watching', results[4], 'continue'),
         renderMediaSection('Watchlist', results[5], 'watchlist'),
         renderMediaSection('Ratings', results[6], 'ratings'),
-        renderEpisodicFollowSection(results[7]),
+        renderCalendarSection(results[7]),
+        renderThisWeekSection(results[8]),
+        renderEpisodicFollowSection(results[9]),
         renderTasteProfileSection(results[1]),
         renderRecommendationsSection(results[2]),
       ].join('');
@@ -1192,13 +1196,13 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function renderEpisodicFollowSection(result) {
     if (result && result.error) {
-      return sectionCard('Episodic follow', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+      return sectionCard('Episodic Follow (Diagnostic)', '<div class="message error">' + escapeHtml(result.error) + '</div>');
     }
     const items = result && Array.isArray(result.items) ? result.items : [];
     if (items.length === 0) {
-      return sectionCard('Episodic follow', emptyState('No episodic follow items for this profile.'));
+      return sectionCard('Episodic Follow (Diagnostic)', emptyState('No episodic follow items for this profile.'));
     }
-    return sectionCard('Episodic follow', '<div class="item-list">' + items.map((item) => {
+    return sectionCard('Episodic Follow (Diagnostic)', '<div class="item-list">' + items.map((item) => {
       const media = item && item.show ? item.show : null;
       const hasCanonicalNextEpisode = Boolean(item && item.nextEpisodeMediaKey);
       const hasSeasonEpisode = item && item.nextEpisodeSeasonNumber != null && item.nextEpisodeEpisodeNumber != null;
@@ -1226,6 +1230,61 @@ export const ADMIN_UI_CLIENT = String.raw`
         + (nextSecondary ? '<div class="muted">' + escapeHtml(nextSecondary) + '</div>' : '')
       + '</div>';
     }).join('') + '</div>');
+  }
+
+  function renderCalendarSection(result) {
+    if (result && result.error) {
+      return sectionCard('Calendar', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+    }
+    const items = result && Array.isArray(result.items) ? result.items : [];
+    if (items.length === 0) {
+      return sectionCard('Calendar', emptyState('No canonical calendar items for this profile.'));
+    }
+
+    const orderedBuckets = ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'];
+    const labels = {
+      up_next: 'Up Next',
+      this_week: 'This Week',
+      upcoming: 'Upcoming',
+      recently_released: 'Recently Released',
+      no_scheduled: 'No Scheduled',
+    };
+    const groups = orderedBuckets
+      .map((bucket) => ({ bucket: bucket, items: items.filter((item) => item && item.bucket === bucket) }))
+      .filter((group) => group.items.length > 0);
+
+    return sectionCard('Calendar', '<div class="section-stack">' + groups.map((group) => {
+      return '<div class="section-card"><strong>' + escapeHtml(labels[group.bucket] || group.bucket) + '</strong>'
+        + '<div class="item-list">' + group.items.map((item) => renderCalendarRow(item)).join('') + '</div></div>';
+    }).join('') + '</div>');
+  }
+
+  function renderThisWeekSection(result) {
+    if (result && result.error) {
+      return sectionCard('This Week', '<div class="message error">' + escapeHtml(result.error) + '</div>');
+    }
+    const items = result && Array.isArray(result.items) ? result.items : [];
+    if (items.length === 0) {
+      return sectionCard('This Week', emptyState('No canonical this-week items for this profile.'));
+    }
+    return sectionCard('This Week', '<div class="item-list">' + items.map((item) => renderCalendarRow(item)).join('') + '</div>');
+  }
+
+  function renderCalendarRow(item) {
+    const media = item && item.media ? item.media : null;
+    const relatedShow = item && item.relatedShow ? item.relatedShow : null;
+    const meta = [];
+    const episodeBits = [];
+    if (media && media.seasonNumber != null) episodeBits.push('S' + media.seasonNumber);
+    if (media && media.episodeNumber != null) episodeBits.push('E' + media.episodeNumber);
+    if (item && item.airDate) meta.push('airs ' + formatDate(item.airDate));
+    meta.push('watched ' + ((item && item.watched) ? 'yes' : 'no'));
+
+    return '<div class="item-row">'
+      + '<strong>' + escapeHtml(mediaTitle(relatedShow || media)) + '</strong>'
+      + '<div class="muted">' + escapeHtml([episodeBits.join(' '), media && media.episodeTitle ? media.episodeTitle : mediaSubtitle(media)].filter(Boolean).join(' • ') || 'No extra metadata') + '</div>'
+      + '<div class="item-meta">' + meta.map((value) => '<span>' + escapeHtml(value) + '</span>').join('') + '</div>'
+    + '</div>';
   }
 
   function renderTasteProfileSection(result) {

@@ -21,6 +21,7 @@ import { RecommendationDataService } from '../../modules/recommendations/recomme
 import { RecommendationGenerationDispatcher } from '../../modules/recommendations/recommendation-generation-dispatcher.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
+import { CalendarService } from '../../modules/calendar/calendar.service.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -43,6 +44,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const recommendationGenerationDispatcher = new RecommendationGenerationDispatcher();
   const recommendationOutputService = new RecommendationOutputService();
   const personalMediaService = new PersonalMediaService();
+  const calendarService = new CalendarService();
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
     await app.requireAdminUi(request);
@@ -213,6 +215,18 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
         clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
       ),
     };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/calendar', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    return calendarService.getCalendarForAccountService(params.accountId, params.profileId);
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/calendar/this-week', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    return calendarService.getThisWeekForAccountService(params.accountId, params.profileId);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/taste-profile', async (request, reply) => {
