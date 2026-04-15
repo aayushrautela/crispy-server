@@ -2,9 +2,11 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import {
-  ProviderAccountsRepository,
-  type ProviderAccountRecord,
-} from './provider-accounts.repo.js';
+  ProviderSessionsRepository,
+  type ProviderSessionConnectedRecord,
+  type ProviderSessionRecord,
+} from './provider-sessions.repo.js';
+import type { ProviderImportProvider } from './provider-import.types.js';
 
 const REFRESH_WINDOW_MS = 10 * 60 * 1000;
 const MIN_DELAY_MS = 30 * 1000;
@@ -20,49 +22,51 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 
 export class ProviderTokenRefreshService {
   constructor(
-    private readonly providerAccountsRepository = new ProviderAccountsRepository(),
+    private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
-  async refreshProviderAccountById(
-    providerAccountId: string,
+  async refreshProviderSession(
+    profileId: string,
+    provider: ProviderImportProvider,
     options?: { force?: boolean },
-  ): Promise<{ providerAccount: ProviderAccountRecord; refreshed: boolean } | null> {
-    const providerAccount = await this.runInTransaction(async (client) => {
-      return this.providerAccountsRepository.findById(client, providerAccountId);
+  ): Promise<{ providerSession: ProviderSessionConnectedRecord; refreshed: boolean } | null> {
+    const providerSession = await this.runInTransaction(async (client) => {
+      return this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
     });
-    if (!providerAccount || providerAccount.status !== 'connected') {
+    if (!providerSession) {
       return null;
     }
 
-    return this.refreshProviderAccount(providerAccount, options);
+    return this.refreshConnectedSession(providerSession, options);
   }
 
-  async refreshProviderAccount(
-    providerAccount: ProviderAccountRecord,
+  async refreshConnectedSession(
+    providerSession: ProviderSessionConnectedRecord,
     options?: { force?: boolean },
-  ): Promise<{ providerAccount: ProviderAccountRecord; refreshed: boolean }> {
-    const refreshToken = asString(providerAccount.credentialsJson.refreshToken);
+  ): Promise<{ providerSession: ProviderSessionConnectedRecord; refreshed: boolean }> {
+    const refreshToken = asString(providerSession.credentialsJson.refreshToken);
     if (!refreshToken) {
-      return { providerAccount, refreshed: false };
+      return { providerSession, refreshed: false };
     }
 
-    const expiresAt = asTimestamp(providerAccount.credentialsJson.accessTokenExpiresAt);
+    const expiresAt = asTimestamp(providerSession.credentialsJson.accessTokenExpiresAt);
     const shouldRefresh = options?.force === true || expiresAt === null || expiresAt - Date.now() <= REFRESH_WINDOW_MS;
     if (!shouldRefresh) {
-      return { providerAccount, refreshed: false };
+      return { providerSession, refreshed: false };
     }
 
     try {
-      const exchanged = providerAccount.provider === 'simkl'
+      const exchanged = providerSession.provider === 'simkl'
         ? await this.exchangeSimklRefreshToken(refreshToken)
         : await this.exchangeTraktRefreshToken(refreshToken);
       const refreshedAt = new Date().toISOString();
       const updated = await this.runInTransaction(async (client) => {
-        return this.providerAccountsRepository.updateConnectedCredentials(client, {
-          providerAccountId: providerAccount.id,
+        return this.providerSessionsRepository.updateConnectedTokens(client, {
+          profileId: providerSession.profileId,
+          provider: providerSession.provider,
           credentialsJson: {
-            ...providerAccount.credentialsJson,
+            ...providerSession.credentialsJson,
             accessToken: exchanged.accessToken,
             refreshToken: exchanged.refreshToken ?? refreshToken,
             accessTokenExpiresAt: exchanged.accessTokenExpiresAt,
@@ -70,50 +74,57 @@ export class ProviderTokenRefreshService {
             lastRefreshError: null,
             tokenPayload: exchanged.raw,
           },
-          providerUserId: providerAccount.providerUserId,
-          externalUsername: providerAccount.externalUsername,
-          lastUsedAt: refreshedAt,
+          providerUserId: providerSession.providerUserId,
+          externalUsername: providerSession.externalUsername,
+          lastRefreshAt: refreshedAt,
+          lastImportCompletedAt: providerSession.lastImportCompletedAt,
         });
       });
 
-      return { providerAccount: updated, refreshed: true };
+      return { providerSession: updated, refreshed: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Provider token refresh failed.';
       const failedAt = new Date().toISOString();
       await this.runInTransaction(async (client) => {
         if (shouldRevokeConnection(error)) {
-          await this.providerAccountsRepository.revokeProviderAccount(client, {
-            providerAccountId: providerAccount.id,
-            providerUserId: null,
-            externalUsername: null,
-            lastUsedAt: failedAt,
-            credentialsJson: sanitizeRevokedCredentials(providerAccount.credentialsJson, failedAt, errorMessage),
+          await this.providerSessionsRepository.markReauthRequired(client, {
+            profileId: providerSession.profileId,
+            provider: providerSession.provider,
+            providerUserId: providerSession.providerUserId,
+            externalUsername: providerSession.externalUsername,
+            credentialsJson: sanitizeRevokedCredentials(providerSession.credentialsJson, failedAt, errorMessage),
+            lastRefreshAt: failedAt,
+            lastRefreshError: errorMessage,
+            lastImportCompletedAt: providerSession.lastImportCompletedAt,
           });
           return;
         }
 
-        await this.providerAccountsRepository.updateConnectedCredentials(client, {
-          providerAccountId: providerAccount.id,
+        await this.providerSessionsRepository.updateConnectedTokens(client, {
+          profileId: providerSession.profileId,
+          provider: providerSession.provider,
           credentialsJson: {
-            ...providerAccount.credentialsJson,
+            ...providerSession.credentialsJson,
             lastRefreshAt: failedAt,
             lastRefreshError: errorMessage,
           },
-          providerUserId: providerAccount.providerUserId,
-          externalUsername: providerAccount.externalUsername,
+          providerUserId: providerSession.providerUserId,
+          externalUsername: providerSession.externalUsername,
+          lastRefreshAt: failedAt,
+          lastImportCompletedAt: providerSession.lastImportCompletedAt,
         });
       });
       throw error;
     }
   }
 
-  getRecommendedDelayMs(providerAccount: ProviderAccountRecord): number | null {
-    const refreshToken = asString(providerAccount.credentialsJson.refreshToken);
+  getRecommendedDelayMs(providerSession: ProviderSessionRecord): number | null {
+    const refreshToken = asString(providerSession.credentialsJson.refreshToken);
     if (!refreshToken) {
       return null;
     }
 
-    const expiresAt = asTimestamp(providerAccount.credentialsJson.accessTokenExpiresAt);
+    const expiresAt = asTimestamp(providerSession.credentialsJson.accessTokenExpiresAt);
     if (expiresAt === null) {
       return MIN_DELAY_MS;
     }

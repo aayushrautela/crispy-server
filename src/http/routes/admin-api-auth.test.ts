@@ -206,7 +206,7 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
     watchDataState: null,
-    providerAccounts: [],
+    providerDiagnostics: [],
     jobs: [],
     providers: [
       {

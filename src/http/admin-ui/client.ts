@@ -516,8 +516,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     const generationJobsPayload = payload && payload.generationJobs ? payload.generationJobs : { lag: null, jobs: [] };
     const generationJobs = Array.isArray(generationJobsPayload.jobs) ? generationJobsPayload.jobs : [];
     const generationLag = generationJobsPayload.lag || null;
-    const providerAccounts = payload && payload.imports && Array.isArray(payload.imports.providerAccounts) ? payload.imports.providerAccounts : [];
-    const warningCount = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length
+    const providerDiagnostics = payload && payload.imports && Array.isArray(payload.imports.providerDiagnostics) ? payload.imports.providerDiagnostics : [];
+    const warningCount = providerDiagnostics.filter((row) => !!row.lastRefreshError).length
       + generationJobs.filter((row) => String(row.status || '') === 'failed').length
       + Number(generationLag && generationLag.submitFailureCount || 0)
       + Number(generationLag && generationLag.pollFailureCount || 0)
@@ -828,9 +828,9 @@ export const ADMIN_UI_CLIENT = String.raw`
     const undelivered = Array.isArray(outbox.undelivered) ? outbox.undelivered : [];
     const generationJobs = Array.isArray(generationJobsPayload && generationJobsPayload.jobs) ? generationJobsPayload.jobs : [];
     const generationLag = generationJobsPayload && generationJobsPayload.lag ? generationJobsPayload.lag : null;
-    const providerAccounts = Array.isArray(imports.providerAccounts) ? imports.providerAccounts : [];
-    const refreshFailures = providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
-    const expiringSoon = providerAccounts.filter((row) => row.accessTokenExpiresAt).length;
+    const providerDiagnostics = Array.isArray(imports.providerDiagnostics) ? imports.providerDiagnostics : [];
+    const refreshFailures = providerDiagnostics.filter((row) => !!row.lastRefreshError).length;
+    const expiringSoon = providerDiagnostics.filter((row) => row.accessTokenExpiresAt).length;
     const activeGenerations = generationJobs.filter((row) => String(row.status || '') === 'queued' || String(row.status || '') === 'running').length;
     const failedGenerations = generationJobs.filter((row) => String(row.status || '') === 'failed').length;
     const submitFailures = Number(generationLag && generationLag.submitFailureCount || 0);
@@ -865,9 +865,9 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.outboxSummary.textContent = lagText(outbox.lag);
     }
     if (elements.importSummary) {
-      elements.importSummary.textContent = providerAccounts.length
-        ? refreshFailures + ' connections show refresh failures across ' + providerAccounts.length + ' recent rows.'
-        : 'No recent import connections returned.';
+      elements.importSummary.textContent = providerDiagnostics.length
+        ? refreshFailures + ' current provider sessions have refresh issues across ' + providerDiagnostics.length + ' providers.'
+        : 'No provider diagnostics returned.';
     }
     if (elements.backlogRows) {
       elements.backlogRows.innerHTML = undelivered.length
@@ -888,12 +888,12 @@ export const ADMIN_UI_CLIENT = String.raw`
       bindGenerationJobDetailButtons();
     }
     if (elements.importRows) {
-      elements.importRows.innerHTML = providerAccounts.length
-        ? providerAccounts.map((row) => '<tr><td>'
-          + '<strong>' + escapeHtml(String(row.accountId || 'unknown-account')) + '</strong><br>'
-          + '<span class="muted">' + escapeHtml(String(row.profileId || 'unknown-profile')) + ' · ' + escapeHtml(String(row.provider || 'unknown-provider')) + '</span>'
-          + '</td><td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.refreshFailureCount || 0)) + '</td></tr>').join('')
-        : emptyTableRow('No import connection diagnostics.', 5);
+      elements.importRows.innerHTML = providerDiagnostics.length
+        ? providerDiagnostics.map((row) => '<tr><td>'
+          + '<strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong><br>'
+          + '<span class="muted">' + escapeHtml(String(row.provider || 'unknown-provider')) + '</span>'
+          + '</td><td>' + badge(String(row.state || 'unknown'), statusTone(String(row.state || 'unknown'))) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.lastRefreshError || 'none')) + '</td></tr>').join('')
+        : emptyTableRow('No provider diagnostics.', 5);
     }
   }
 
@@ -1576,16 +1576,16 @@ export const ADMIN_UI_CLIENT = String.raw`
     const jobs = jobsPayload && Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
     const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
     const generationJobs = diagnostics && diagnostics.generationJobs ? diagnostics.generationJobs : { lag: null, jobs: [] };
-    const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { providerAccounts: [] };
+    const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { providerDiagnostics: [] };
     const bridge = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
-    const refreshFailures = imports && Array.isArray(imports.providerAccounts)
-      ? imports.providerAccounts.filter((row) => Number(row.refreshFailureCount || 0) > 0).length
+    const refreshFailures = imports && Array.isArray(imports.providerDiagnostics)
+      ? imports.providerDiagnostics.filter((row) => !!row.lastRefreshError).length
       : 0;
 
     elements.overviewSummary.innerHTML = [
       statCard('Running now', activeJobs.length, 'recommendation jobs in flight'),
       statCard('Recommendation jobs', countArray(generationJobs.jobs), generationLagText(generationJobs.lag)),
-      statCard('Import warnings', refreshFailures, countArray(imports.providerAccounts) + ' accounts scanned'),
+      statCard('Import warnings', refreshFailures, countArray(imports.providerDiagnostics) + ' providers tracked'),
       statCard('Worker bridge', bridge ? (bridge.reachable ? 'live' : bridge.configured ? 'down' : 'setup') : 'check', state.lastUpdatedAt ? 'updated ' + formatTimeAgo(state.lastUpdatedAt) : 'waiting'),
     ].join('');
   }
@@ -1628,10 +1628,10 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.overviewDiagnostics.innerHTML = emptyState('Diagnostics have not loaded yet.');
       return;
     }
-    const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerAccounts) ? diagnostics.imports.providerAccounts : [];
+    const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerDiagnostics) ? diagnostics.imports.providerDiagnostics : [];
     const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
     const generationJobs = diagnostics.generationJobs && diagnostics.generationJobs.lag ? diagnostics.generationJobs.lag : null;
-    const refreshFailures = imports.filter((row) => Number(row.refreshFailureCount || 0) > 0).length;
+    const refreshFailures = imports.filter((row) => !!row.lastRefreshError).length;
     elements.overviewDiagnostics.innerHTML =
       '<div class="kv-grid">'
       + kvPair('Generation pending', String(generationJobs && generationJobs.pendingCount || 0))

@@ -12,7 +12,6 @@ import { ProviderImportService, parseImportProvider } from '../../modules/integr
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
 import { PersonalMediaService } from '../../modules/watch/personal-media.service.js';
 import type {
-  ProviderAccountStatus,
   ProviderImportJobStatus,
   ProviderImportProvider,
 } from '../../modules/integrations/provider-import.types.js';
@@ -21,9 +20,8 @@ import { AccountLookupService } from '../../modules/users/account-lookup.service
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationGenerationDispatcher } from '../../modules/recommendations/recommendation-generation-dispatcher.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
-import { mapProviderAccountView, mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
+import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 
-const CONNECTION_STATUSES = new Set<ProviderAccountStatus>(['pending', 'connected', 'expired', 'revoked']);
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
   'queued',
@@ -117,7 +115,6 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     const query = asRecord(request.query);
     return providerAdminService.listConnections({
       provider: parseProvider(query.provider),
-      status: parseConnectionStatus(query.status),
       expiringWithinHours: parseOptionalNumber(query.expiringWithinHours),
       refreshFailuresOnly: query.refreshFailuresOnly === true || query.refreshFailuresOnly === 'true',
       limit: parseLimit(query.limit),
@@ -258,7 +255,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
 
     return {
       watchDataState: jobsResult.watchDataState,
-      providerAccounts: connectionsResult.connections.filter((row) => row.accountId === params.accountId && row.profileId === params.profileId),
+      providerDiagnostics: connectionsResult.connections.filter((row) => row.profileId === params.profileId),
       jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
       providers: providerStates,
     };
@@ -268,18 +265,20 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdminMutation(request);
     const params = parseAccountProfileParams(request.params);
     const body = asRecord(request.body);
-    const started = await providerImportService.startReplaceImport(
-      params.accountId,
-      params.profileId,
-      parseImportProvider(body.provider),
-    );
+    const provider = parseImportProvider(body.provider);
+    const action = typeof body.action === 'string' ? body.action.trim().toLowerCase() : 'import';
+    const started = action === 'connect'
+      ? await providerImportService.connectProvider(params.accountId, params.profileId, provider)
+      : action === 'reconnect'
+        ? await providerImportService.reconnectProvider(params.accountId, params.profileId, provider)
+        : await providerImportService.importProviderNow(params.accountId, params.profileId, provider);
     reply.code(started.nextAction === 'queued' ? 202 : 201);
     return {
       nextAction: started.nextAction,
       authUrl: started.authUrl,
       watchDataState: started.watchDataState,
-      providerAccount: started.providerAccount ? mapProviderAccountView(started.providerAccount) : null,
-      job: mapProviderImportJobView(started.job),
+      providerState: started.providerState,
+      job: started.job ? mapProviderImportJobView(started.job) : null,
     };
   });
 
@@ -325,7 +324,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   app.delete('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/connection', async (request, reply) => {
     await requireAdminMutation(request);
     const params = parseProviderParams(request.params);
-    return providerImportService.disconnectConnection(
+    return providerImportService.disconnectProviderSession(
       params.accountId,
       params.profileId,
       params.provider,
@@ -401,16 +400,6 @@ function parseProvider(value: unknown): ProviderImportProvider | null {
     throw new HttpError(400, 'Invalid provider filter.');
   }
   return value;
-}
-
-function parseConnectionStatus(value: unknown): ProviderAccountStatus | null {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-  if (typeof value !== 'string' || !CONNECTION_STATUSES.has(value as ProviderAccountStatus)) {
-    throw new HttpError(400, 'Invalid connection status filter.');
-  }
-  return value as ProviderAccountStatus;
 }
 
 function parseJobStatus(value: unknown): ProviderImportJobStatus | null {

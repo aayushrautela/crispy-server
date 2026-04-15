@@ -4,12 +4,10 @@ import { ProviderAdminService } from '../../modules/integrations/provider-admin.
 import { mapProviderImportJobAdminView } from '../../modules/integrations/provider-import.views.js';
 import {
   isProviderImportProvider,
-  type ProviderAccountStatus,
   type ProviderImportJobStatus,
   type ProviderImportProvider,
 } from '../../modules/integrations/provider-import.types.js';
 
-const CONNECTION_STATUSES = new Set<ProviderAccountStatus>(['pending', 'connected', 'expired', 'revoked']);
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
   'queued',
@@ -29,7 +27,6 @@ export async function registerInternalAdminImportRoutes(app: FastifyInstance): P
     const query = asRecord(request.query);
     return adminService.listConnections({
       provider: parseProvider(query.provider),
-      status: parseConnectionStatus(query.status),
       expiringWithinHours: parseOptionalNumber(query.expiringWithinHours),
       refreshFailuresOnly: query.refreshFailuresOnly === true || query.refreshFailuresOnly === 'true',
       limit: parseLimit(query.limit),
@@ -62,18 +59,6 @@ function parseProvider(value: unknown): ProviderImportProvider | null {
   }
 
   return value;
-}
-
-function parseConnectionStatus(value: unknown): ProviderAccountStatus | null {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-
-  if (typeof value !== 'string' || !CONNECTION_STATUSES.has(value as ProviderAccountStatus)) {
-    throw new HttpError(400, 'Invalid connection status filter.');
-  }
-
-  return value as ProviderAccountStatus;
 }
 
 function parseJobStatus(value: unknown): ProviderImportJobStatus | null {

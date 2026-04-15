@@ -2,17 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
 
-type RevokeParams = {
-  providerAccountId: string;
+type ReauthParams = {
+  profileId: string;
+  provider: string;
   providerUserId?: string | null;
   externalUsername?: string | null;
-  lastUsedAt?: string | null;
-  credentialsJson?: Record<string, unknown>;
+  credentialsJson: Record<string, unknown>;
+  lastRefreshAt?: string | null;
+  lastRefreshError?: string | null;
+  lastImportCompletedAt?: string | null;
 };
 
 type UpdateParams = {
-  providerAccountId: string;
+  profileId: string;
+  provider: string;
   credentialsJson: Record<string, unknown>;
+  providerUserId?: string | null;
+  externalUsername?: string | null;
+  lastRefreshAt: string;
+  lastImportCompletedAt?: string | null;
 };
 
 seedTestEnv({
@@ -26,75 +34,95 @@ seedTestEnv({
 
 const noopTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
 
-test('refreshProviderAccountById returns null for non-existent account', async () => {
+const connectedSession = {
+  profileId: 'profile-1',
+  provider: 'trakt',
+  state: 'connected',
+  providerAccountId: null,
+  providerUserId: 'user-1',
+  externalUsername: 'crispy',
+  credentialsJson: { accessToken: 'access', refreshToken: 'refresh' },
+  stateToken: null,
+  expiresAt: null,
+  lastRefreshAt: null,
+  lastRefreshError: null,
+  lastImportCompletedAt: null,
+  disconnectedAt: null,
+  createdAt: '2026-04-14T15:20:00.000Z',
+  updatedAt: '2026-04-14T15:20:00.000Z',
+} as const;
+
+test('refreshProviderSession returns null for non-existent session', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
-  const service = new ProviderTokenRefreshService({ findById: async () => null } as never, noopTransaction);
-  const result = await service.refreshProviderAccountById('missing-account');
+  const service = new ProviderTokenRefreshService({ getConnectedSession: async () => null } as never, noopTransaction);
+  const result = await service.refreshProviderSession('profile-1', 'trakt');
   assert.equal(result, null);
 });
 
-test('refreshProviderAccountById returns null for non-connected status', async () => {
-  const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
-  const service = new ProviderTokenRefreshService({
-    findById: async () => ({ id: 'acct-1', status: 'expired', provider: 'trakt', credentialsJson: {} }),
-  } as never, noopTransaction);
-  const result = await service.refreshProviderAccountById('acct-1');
-  assert.equal(result, null);
-});
-
-test('refreshProviderAccount skips refresh when token is not expiring', async () => {
+test('refreshConnectedSession skips refresh when token is not expiring', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const providerAccount = {
-    id: 'acct-1', status: 'connected', provider: 'trakt',
+  const providerSession = {
+    ...connectedSession,
     credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
   };
   const service = new ProviderTokenRefreshService({} as never, noopTransaction);
 
-  const result = await service.refreshProviderAccount(providerAccount as never);
+  const result = await service.refreshConnectedSession(providerSession as never);
   assert.equal(result.refreshed, false);
 });
 
-test('refreshProviderAccount forces refresh when force option is set', async () => {
+test('refreshConnectedSession forces refresh when force option is set', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const providerAccount = {
-    id: 'acct-1', status: 'connected', provider: 'trakt',
+  const providerSession = {
+    ...connectedSession,
     credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
   };
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => Response.json({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600 })) as typeof fetch;
 
+  let updateParams: UpdateParams | null = null;
+
   try {
     const service = new ProviderTokenRefreshService({
-      updateConnectedCredentials: async () => ({ ...providerAccount, credentialsJson: { ...providerAccount.credentialsJson, accessToken: 'new-access' } }),
+      updateConnectedTokens: async (_client: unknown, params: UpdateParams) => {
+        updateParams = params;
+        return { ...providerSession, credentialsJson: params.credentialsJson, lastRefreshAt: params.lastRefreshAt };
+      },
     } as never, noopTransaction);
 
-    const result = await service.refreshProviderAccount(providerAccount as never, { force: true });
+    const result = await service.refreshConnectedSession(providerSession as never, { force: true });
     assert.equal(result.refreshed, true);
+    assert.ok(updateParams);
+    const capturedUpdate: UpdateParams = updateParams;
+    assert.equal(capturedUpdate.profileId, 'profile-1');
+    assert.equal(capturedUpdate.provider, 'trakt');
+    assert.equal(capturedUpdate.credentialsJson.accessToken, 'new-access');
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('refreshProviderAccount returns refreshed false when no refresh token exists', async () => {
+test('refreshConnectedSession returns refreshed false when no refresh token exists', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
-  const providerAccount = {
-    id: 'acct-1', status: 'connected', provider: 'trakt',
+  const providerSession = {
+    ...connectedSession,
     credentialsJson: { accessToken: 'access' },
   };
   const service = new ProviderTokenRefreshService({} as never, noopTransaction);
 
-  const result = await service.refreshProviderAccount(providerAccount as never);
+  const result = await service.refreshConnectedSession(providerSession as never);
   assert.equal(result.refreshed, false);
 });
 
-test('refreshProviderAccount forces refresh for simkl when force option is set', async () => {
+test('refreshConnectedSession forces refresh for simkl when force option is set', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const providerAccount = {
-    id: 'acct-1', status: 'connected', provider: 'simkl',
+  const providerSession = {
+    ...connectedSession,
+    provider: 'simkl',
     credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
   };
 
@@ -103,26 +131,25 @@ test('refreshProviderAccount forces refresh for simkl when force option is set',
 
   try {
     const service = new ProviderTokenRefreshService({
-      updateConnectedCredentials: async () => ({ ...providerAccount, credentialsJson: { ...providerAccount.credentialsJson, accessToken: 'new-simkl-access' } }),
+      updateConnectedTokens: async (_client: unknown, params: UpdateParams) => ({
+        ...providerSession,
+        credentialsJson: params.credentialsJson,
+        lastRefreshAt: params.lastRefreshAt,
+      }),
     } as never, noopTransaction);
 
-    const result = await service.refreshProviderAccount(providerAccount as never, { force: true });
+    const result = await service.refreshConnectedSession(providerSession as never, { force: true });
     assert.equal(result.refreshed, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('refreshProviderAccount revokes trakt connection when refresh token is invalid', async () => {
+test('refreshConnectedSession marks trakt session reauth required when refresh token is invalid', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const providerAccount = {
-    id: 'acct-1',
-    status: 'connected',
-    provider: 'trakt',
-    profileId: 'profile-1',
-    providerUserId: 'user-1',
-    externalUsername: 'crispy',
+  const providerSession = {
+    ...connectedSession,
     credentialsJson: {
       accessToken: 'access',
       refreshToken: 'refresh',
@@ -138,45 +165,40 @@ test('refreshProviderAccount revokes trakt connection when refresh token is inva
     headers: { 'content-type': 'application/json' },
   })) as typeof fetch;
 
-  let revokedParams: RevokeParams | null = null;
+  let reauthParams: ReauthParams | null = null;
 
   try {
     const service = new ProviderTokenRefreshService({
-      revokeProviderAccount: async (_client: unknown, params: RevokeParams) => {
-        revokedParams = params;
-        return { ...providerAccount, status: 'revoked', providerUserId: null, externalUsername: null, credentialsJson: params.credentialsJson ?? {} };
+      markReauthRequired: async (_client: unknown, params: ReauthParams) => {
+        reauthParams = params;
+        return { ...providerSession, state: 'reauth_required', credentialsJson: params.credentialsJson, lastRefreshAt: params.lastRefreshAt, lastRefreshError: params.lastRefreshError };
       },
-      updateConnectedCredentials: async () => {
-        throw new Error('should not preserve connected credentials on invalid refresh');
+      updateConnectedTokens: async () => {
+        throw new Error('should not preserve connected session tokens on invalid refresh');
       },
     } as never, noopTransaction);
 
-    await assert.rejects(() => service.refreshProviderAccount(providerAccount as never, { force: true }));
-    assert.ok(revokedParams);
-    const capturedRevoke: RevokeParams = revokedParams;
-    assert.equal(capturedRevoke.providerAccountId, 'acct-1');
-    assert.equal(capturedRevoke.providerUserId, null);
-    assert.equal(capturedRevoke.externalUsername, null);
-    assert.equal(capturedRevoke.credentialsJson?.lastImportJobId, 'job-1');
-    assert.equal(capturedRevoke.credentialsJson?.lastImportCompletedAt, '2026-04-14T15:20:00.000Z');
-    assert.equal(capturedRevoke.credentialsJson?.lastRefreshError, 'invalid_grant');
-    assert.equal(typeof capturedRevoke.credentialsJson?.lastRefreshAt, 'string');
-    assert.equal(typeof capturedRevoke.credentialsJson?.revokedAt, 'string');
+    await assert.rejects(() => service.refreshConnectedSession(providerSession as never, { force: true }));
+    assert.ok(reauthParams);
+    const capturedReauth: ReauthParams = reauthParams;
+    assert.equal(capturedReauth.profileId, 'profile-1');
+    assert.equal(capturedReauth.provider, 'trakt');
+    assert.equal(capturedReauth.providerUserId, 'user-1');
+    assert.equal(capturedReauth.externalUsername, 'crispy');
+    assert.equal(capturedReauth.credentialsJson.lastImportJobId, 'job-1');
+    assert.equal(capturedReauth.credentialsJson.lastImportCompletedAt, '2026-04-14T15:20:00.000Z');
+    assert.equal(capturedReauth.lastRefreshError, 'invalid_grant');
+    assert.equal(typeof capturedReauth.lastRefreshAt, 'string');
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('refreshProviderAccount keeps connection when refresh failure is transient', async () => {
+test('refreshConnectedSession keeps session connected when refresh failure is transient', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  const providerAccount = {
-    id: 'acct-1',
-    status: 'connected',
-    provider: 'trakt',
-    profileId: 'profile-1',
-    providerUserId: 'user-1',
-    externalUsername: 'crispy',
+  const providerSession = {
+    ...connectedSession,
     credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
   };
 
@@ -184,27 +206,28 @@ test('refreshProviderAccount keeps connection when refresh failure is transient'
   globalThis.fetch = (async () => new Response('gateway timeout', { status: 502, headers: { 'content-type': 'text/plain' } })) as typeof fetch;
 
   let updateParams: UpdateParams | null = null;
-  let revoked = false;
+  let reauth = false;
 
   try {
     const service = new ProviderTokenRefreshService({
-      updateConnectedCredentials: async (_client: unknown, params: UpdateParams) => {
+      updateConnectedTokens: async (_client: unknown, params: UpdateParams) => {
         updateParams = params;
-        return { ...providerAccount, credentialsJson: params.credentialsJson };
+        return { ...providerSession, credentialsJson: params.credentialsJson, lastRefreshAt: params.lastRefreshAt, lastRefreshError: params.credentialsJson.lastRefreshError as string | null };
       },
-      revokeProviderAccount: async () => {
-        revoked = true;
-        return null;
+      markReauthRequired: async () => {
+        reauth = true;
+        return null as never;
       },
     } as never, noopTransaction);
 
-    await assert.rejects(() => service.refreshProviderAccount(providerAccount as never, { force: true }));
-    assert.equal(revoked, false);
+    await assert.rejects(() => service.refreshConnectedSession(providerSession as never, { force: true }));
+    assert.equal(reauth, false);
     assert.ok(updateParams);
     const capturedUpdate: UpdateParams = updateParams;
-    assert.equal(capturedUpdate.providerAccountId, 'acct-1');
+    assert.equal(capturedUpdate.profileId, 'profile-1');
+    assert.equal(capturedUpdate.provider, 'trakt');
     assert.equal(capturedUpdate.credentialsJson.lastRefreshError, 'Unable to refresh the Trakt access token.');
-    assert.equal(typeof capturedUpdate.credentialsJson.lastRefreshAt, 'string');
+    assert.equal(typeof capturedUpdate.lastRefreshAt, 'string');
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -11,10 +11,6 @@ import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-extern
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import {
-  ProviderAccountsRepository,
-  type ProviderAccountRecord,
-} from './provider-accounts.repo.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import { isProviderImportProvider, type ProviderImportProvider } from './provider-import.types.js';
@@ -24,13 +20,7 @@ import {
   type ImportedWatchEventDraft,
   type ProviderReplaceImportPayload,
 } from './provider-destructive-import.service.js';
-import {
-  mapProviderAccountView,
-  mapProviderSessionStateView,
-  mapProviderStateView,
-  type ProviderAccountView,
-  type ProviderStateView,
-} from './provider-import.views.js';
+import { mapProviderSessionStateView, type ProviderStateView } from './provider-import.views.js';
 import {
   ProviderSessionsRepository,
   type ProviderSessionRecord,
@@ -42,25 +32,33 @@ import { MetadataCardService } from '../metadata/metadata-card.service.js';
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
-  providerAccount: ProviderAccountRecord | null;
   providerState: ProviderStateView;
-  watchDataState: ProfileWatchDataStateRecord;
+  watchDataState: ProviderWatchDataStateView;
   authUrl: string | null;
   nextAction: 'authorize_provider' | 'queued';
 };
 
 export type CompletedProviderImportCallback = {
   job: ProviderImportJobRecord;
-  providerAccount: ProviderAccountRecord;
+  providerState: ProviderStateView;
   nextAction: 'queued';
 };
 
 export type ProviderSessionActionResult = {
   job: ProviderImportJobRecord | null;
   providerState: ProviderStateView;
-  watchDataState: ProfileWatchDataStateRecord;
+  watchDataState: ProviderWatchDataStateView;
   authUrl: string | null;
   nextAction: 'authorize_provider' | 'queued';
+};
+
+type SessionTokenContext = {
+  profileId: string;
+  provider: ProviderImportProvider;
+  credentialsJson: Record<string, unknown>;
+  providerUserId: string | null;
+  externalUsername: string | null;
+  lastImportCompletedAt: string | null;
 };
 
 type ProviderTokenExchangeResult = {
@@ -118,7 +116,6 @@ type ProviderWatchDataStateView = {
 export class ProviderImportService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
-    private readonly providerAccountsRepository = new ProviderAccountsRepository(),
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
@@ -161,8 +158,8 @@ export class ProviderImportService {
       }
 
       const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
-      const providerSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
-      if (!providerSession || providerSession.state !== 'connected' || !providerSession.providerAccountId) {
+      const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
+      if (!providerSession) {
         const providerState = mapProviderSessionStateView(provider, providerSession);
         throw new HttpError(409, `Log in to ${providerLabel(provider)} again to continue importing.`, {
           provider,
@@ -171,42 +168,19 @@ export class ProviderImportService {
         });
       }
 
-      const providerAccount = await this.providerAccountsRepository.findById(client, providerSession.providerAccountId);
-      if (!providerAccount || providerAccount.status !== 'connected') {
-        const reauthSession = await this.providerSessionsRepository.markReauthRequired(client, {
-          profileId,
-          provider,
-          providerAccountId: providerSession.providerAccountId,
-          providerUserId: providerSession.providerUserId,
-          externalUsername: providerSession.externalUsername,
-          credentialsJson: sanitizeReauthSessionCredentials(providerSession.credentialsJson, providerSession.lastRefreshError),
-          lastRefreshAt: providerSession.lastRefreshAt,
-          lastRefreshError: providerSession.lastRefreshError,
-          lastImportCompletedAt: providerSession.lastImportCompletedAt,
-        });
-        const providerState = mapProviderSessionStateView(provider, reauthSession);
-        throw new HttpError(409, `Log in to ${providerLabel(provider)} again to continue importing.`, {
-          provider,
-          code: 'provider_reauth_required',
-          providerState,
-        });
-      }
-
-      const { providerAccount: activeProviderAccount, providerSession: activeProviderSession } =
-        await this.ensureImportableSessionAccount(client, providerSession, providerAccount);
+      const activeProviderSession = await this.ensureImportableSessionAccount(client, providerSession);
       const queuedJob = await this.jobsRepository.create(client, {
         profileId,
         profileGroupId: profile.profileGroupId,
         provider,
         requestedByUserId: userId,
-        providerAccountId: activeProviderAccount.id,
         status: 'queued',
       });
 
       return {
         job: queuedJob,
         providerState: mapProviderSessionStateView(provider, activeProviderSession),
-        watchDataState,
+        watchDataState: mapWatchDataStateView(watchDataState) as ProviderWatchDataStateView,
         authUrl: null,
         nextAction: 'queued' as const,
       };
@@ -251,51 +225,21 @@ export class ProviderImportService {
   ): Promise<{ providerState: ProviderStateView }> {
     assertProviderEnabled(provider);
 
-    const context = await this.runInTransaction(async (client) => {
+    const providerSession = await this.runInTransaction(async (client) => {
       const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
       if (!profile) {
         throw new HttpError(404, 'Profile not found.');
       }
 
-      const providerSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
-      const providerAccount = providerSession?.providerAccountId
-        ? await this.providerAccountsRepository.findById(client, providerSession.providerAccountId)
-        : null;
-      return { providerSession, providerAccount };
+      return this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
     });
 
-    if (context.providerAccount) {
-      await this.revokeProviderAuthorization(context.providerAccount);
+    if (providerSession) {
+      await this.revokeProviderAuthorizationFromSession(provider, providerSession.credentialsJson);
     }
 
     const disconnected = await this.runInTransaction(async (client) => {
       const disconnectedAt = new Date().toISOString();
-
-      if (context.providerAccount) {
-        try {
-          await this.providerAccountsRepository.clearProviderAccount(client, {
-            providerAccountId: context.providerAccount.id,
-            lastUsedAt: disconnectedAt,
-            providerUserId: null,
-            externalUsername: null,
-            credentialsJson: sanitizeDisconnectedCredentials(context.providerAccount.credentialsJson, disconnectedAt, userId),
-          });
-        } catch (error) {
-          logger.warn({
-            err: error,
-            providerAccountId: context.providerAccount.id,
-            profileId,
-            provider,
-          }, 'provider disconnect credential scrub failed; retrying revoke without credential rewrite');
-          await this.providerAccountsRepository.clearProviderAccount(client, {
-            providerAccountId: context.providerAccount.id,
-            lastUsedAt: disconnectedAt,
-            providerUserId: null,
-            externalUsername: null,
-          });
-        }
-      }
-
       return this.providerSessionsRepository.markDisconnected(client, {
         profileId,
         provider,
@@ -308,102 +252,29 @@ export class ProviderImportService {
     };
   }
 
-  async startReplaceImport(userId: string, profileId: string, provider: ProviderImportProvider): Promise<StartedProviderImport> {
-    assertProviderEnabled(provider);
-    const started = await this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
-
-      const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
-      const connectedProviderAccount = await this.providerAccountsRepository.findLatestConnectedForProfile(client, profileId, provider);
-
-      if (connectedProviderAccount) {
-        const activeProviderAccount = await this.ensureImportableProviderAccount(client, connectedProviderAccount);
-        const queuedJob = await this.jobsRepository.create(client, {
-          profileId,
-          profileGroupId: profile.profileGroupId,
-          provider,
-          requestedByUserId: userId,
-          providerAccountId: activeProviderAccount.id,
-          status: 'queued',
-        });
-
-        return {
-          job: queuedJob,
-          providerAccount: activeProviderAccount,
-          providerState: mapProviderStateView(provider, activeProviderAccount),
-          watchDataState,
-          authUrl: null,
-          nextAction: 'queued' as const,
-        };
-      }
-
-      const stateToken = randomUUID();
-      const pkce = generatePkcePair();
-      const authUrl = this.buildAuthUrl(provider, stateToken, pkce.codeChallenge);
-      if (!authUrl) {
-        throw new HttpError(503, `Provider import is not configured for ${provider}.`);
-      }
-
-      const providerAccount = await this.providerAccountsRepository.createPending(client, {
-        profileId,
-        provider,
-        createdByUserId: userId,
-        stateToken,
-        credentialsJson: {
-          pkceCodeVerifier: pkce.codeVerifier,
-          pkceCodeChallenge: pkce.codeChallenge,
-        },
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-      });
-
-      const pendingJob = await this.jobsRepository.create(client, {
-        profileId,
-        profileGroupId: profile.profileGroupId,
-        provider,
-        requestedByUserId: userId,
-        providerAccountId: providerAccount.id,
-        status: 'oauth_pending',
-      });
-
-      return {
-        job: pendingJob,
-        providerAccount,
-        providerState: mapProviderStateView(provider, providerAccount),
-        watchDataState,
-        authUrl,
-        nextAction: 'authorize_provider' as const,
-      };
-    });
-
-    if (started.nextAction === 'queued') {
-      await enqueueProviderImport(profileId, started.job.id);
-    }
-
-    return started;
-  }
-
   async completeOAuthCallback(
     provider: ProviderImportProvider,
     params: ProviderCallbackParams,
   ): Promise<CompletedProviderImportCallback> {
     assertProviderEnabled(provider);
     const completed = await this.runInTransaction(async (client) => {
-      const providerAccount = await this.providerAccountsRepository.findPendingByStateToken(client, provider, params.state);
-      if (!providerAccount) {
+      const providerSession = await this.providerSessionsRepository.findPendingByStateToken(client, provider, params.state);
+      if (!providerSession) {
         throw new HttpError(404, 'Provider import connection not found for callback state.');
       }
 
-      const pendingJob = await this.jobsRepository.findLatestOauthPendingForProviderAccount(client, providerAccount.id);
+      const pendingJob = await this.jobsRepository.findLatestOauthPendingForProfileProvider(client, providerSession.profileId, provider);
       if (!pendingJob) {
         throw new HttpError(404, 'Provider import job not found for callback state.');
       }
 
       const now = Date.now();
-      if (providerAccount.expiresAt && Date.parse(providerAccount.expiresAt) < now) {
-        await this.providerAccountsRepository.markExpired(client, providerAccount.id);
+      if (providerSession.expiresAt && Date.parse(providerSession.expiresAt) < now) {
+        await this.providerSessionsRepository.clearOAuthPending(client, {
+          profileId: providerSession.profileId,
+          provider,
+          finalState: 'not_connected',
+        });
         await this.jobsRepository.markFailed(client, pendingJob.id, {
           code: 'provider_oauth_expired',
           message: 'Provider authorization expired before callback completion.',
@@ -413,7 +284,11 @@ export class ProviderImportService {
       }
 
       if (params.error) {
-        await this.providerAccountsRepository.markExpired(client, providerAccount.id);
+        await this.providerSessionsRepository.clearOAuthPending(client, {
+          profileId: providerSession.profileId,
+          provider,
+          finalState: 'not_connected',
+        });
         await this.jobsRepository.markFailed(client, pendingJob.id, {
           code: 'provider_oauth_denied',
           message: params.errorDescription ?? params.error,
@@ -428,8 +303,8 @@ export class ProviderImportService {
         throw new HttpError(400, 'Missing provider authorization code.');
       }
 
-      const codeVerifier = typeof providerAccount.credentialsJson.pkceCodeVerifier === 'string'
-        ? providerAccount.credentialsJson.pkceCodeVerifier
+      const codeVerifier = typeof providerSession.credentialsJson.pkceCodeVerifier === 'string'
+        ? providerSession.credentialsJson.pkceCodeVerifier
         : '';
       if (!codeVerifier) {
         throw new HttpError(400, 'Missing stored PKCE verifier for provider callback.');
@@ -443,36 +318,24 @@ export class ProviderImportService {
         : await this.fetchSimklProfile(exchanged.accessToken);
       const connectedAt = new Date().toISOString();
 
-      await this.providerAccountsRepository.revokeOtherConnectedForProfile(client, providerAccount.profileId, providerAccount.id);
-      const updatedProviderAccount = await this.providerAccountsRepository.markConnected(client, {
-        providerAccountId: providerAccount.id,
+      const connectedSession = await this.providerSessionsRepository.markConnected(client, {
+        profileId: providerSession.profileId,
+        provider,
         providerUserId: profile.providerUserId,
         externalUsername: profile.externalUsername,
         connectedAt,
-        credentialsJson: {
+        credentialsJson: buildConnectedSessionCredentials({
           accessToken: exchanged.accessToken,
           refreshToken: exchanged.refreshToken,
           accessTokenExpiresAt: exchanged.accessTokenExpiresAt,
-          providerUserId: profile.providerUserId,
-          externalUsername: profile.externalUsername,
           connectedAt,
           lastRefreshAt: connectedAt,
           lastRefreshError: null,
           tokenPayload: exchanged.raw,
-        },
-      });
-      await this.providerSessionsRepository.markConnected(client, {
-        profileId: providerAccount.profileId,
-        provider,
-        providerAccountId: updatedProviderAccount.id,
-        providerUserId: profile.providerUserId,
-        externalUsername: profile.externalUsername,
-        connectedAt,
-        credentialsJson: buildConnectedSessionCredentials(updatedProviderAccount.credentialsJson),
+        }),
       });
 
       await this.jobsRepository.markQueued(client, pendingJob.id, {
-        providerAccountId: updatedProviderAccount.id,
         summaryJson: {
           oauthCompletedAt: connectedAt,
           providerUserId: profile.providerUserId,
@@ -486,13 +349,13 @@ export class ProviderImportService {
 
       return {
         job: queuedJob,
-        providerAccount: updatedProviderAccount,
+        providerState: mapProviderSessionStateView(provider, connectedSession),
         nextAction: 'queued' as const,
       };
     });
 
-    await enqueueProviderImport(completed.providerAccount.profileId, completed.job.id);
-    await this.scheduleProviderRefresh(completed.providerAccount);
+    await enqueueProviderImport(completed.job.profileId, completed.job.id);
+    await this.scheduleProviderRefresh(completed.job.profileId, provider);
     return completed;
   }
 
@@ -512,158 +375,13 @@ export class ProviderImportService {
     });
   }
 
-  async listConnections(
-    userId: string,
-    profileId: string,
-  ): Promise<{ providerStates: ProviderStateView[]; watchDataState: ProfileWatchDataStateRecord | null }> {
-    return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
-
-      const [providerAccounts, watchDataState] = await Promise.all([
-        this.providerAccountsRepository.listForProfile(client, profileId),
-        this.watchDataStateRepository.getForProfile(client, profileId),
-      ]);
-
-      return {
-        providerStates: [
-          mapProviderStateView('trakt', pickLatestProviderAccount(providerAccounts, 'trakt')),
-          mapProviderStateView('simkl', pickLatestProviderAccount(providerAccounts, 'simkl')),
-        ],
-        watchDataState,
-      };
-    });
-  }
-
-  async disconnectConnection(
-    userId: string,
-    profileId: string,
-    provider: ProviderImportProvider,
-  ): Promise<{ providerState: ProviderStateView }> {
-    assertProviderEnabled(provider);
-
-    const providerAccount = await this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
-
-      return this.providerAccountsRepository.findLatestForProfile(client, profileId, provider);
-    });
-
-    if (!providerAccount) {
-      throw new HttpError(404, 'Provider connection not found.');
-    }
-
-    await this.revokeProviderAuthorization(providerAccount);
-
-    const disconnected = await this.runInTransaction(async (client) => {
-      const disconnectedAt = new Date().toISOString();
-      let updated: ProviderAccountRecord | null;
-      try {
-        updated = await this.providerAccountsRepository.clearProviderAccount(client, {
-          providerAccountId: providerAccount.id,
-          lastUsedAt: disconnectedAt,
-          providerUserId: null,
-          externalUsername: null,
-          credentialsJson: sanitizeDisconnectedCredentials(providerAccount.credentialsJson, disconnectedAt, userId),
-        });
-      } catch (error) {
-        logger.warn({
-          err: error,
-          providerAccountId: providerAccount.id,
-          profileId,
-          provider,
-        }, 'provider disconnect credential scrub failed; retrying revoke without credential rewrite');
-        updated = await this.providerAccountsRepository.clearProviderAccount(client, {
-          providerAccountId: providerAccount.id,
-          lastUsedAt: disconnectedAt,
-          providerUserId: null,
-          externalUsername: null,
-        });
-      }
-
-      if (!updated) {
-        throw new HttpError(404, 'Provider connection not found.');
-      }
-
-      return updated;
-    });
-
-    return {
-      providerState: mapProviderStateView(provider, disconnected),
-    };
-  }
-
-  private async ensureImportableProviderAccount(
-    client: DbClient,
-    providerAccount: ProviderAccountRecord,
-  ): Promise<ProviderAccountRecord> {
-    try {
-      const refreshed = await this.tokenRefreshService.refreshProviderAccount(providerAccount, { force: true });
-      return refreshed.providerAccount;
-    } catch (error) {
-      const latestProviderAccount = await this.providerAccountsRepository.findById(client, providerAccount.id);
-      const providerState = mapProviderStateView(providerAccount.provider, latestProviderAccount);
-      if (providerState.connectionState === 'reauthorization_required') {
-        throw new HttpError(409, `Log in to ${providerLabel(providerAccount.provider)} again to continue importing.`, {
-          provider: providerAccount.provider,
-          code: 'provider_reauth_required',
-          providerState,
-        });
-      }
-
-      throw error;
-    }
-  }
-
   private async ensureImportableSessionAccount(
     client: DbClient,
     providerSession: ProviderSessionRecord,
-    providerAccount: ProviderAccountRecord,
-  ): Promise<{ providerAccount: ProviderAccountRecord; providerSession: ProviderSessionRecord }> {
+  ): Promise<ProviderSessionRecord> {
     try {
-      const refreshed = await this.tokenRefreshService.refreshProviderAccount(providerAccount, { force: true });
-      const connectedAt = asIsoString(refreshed.providerAccount.credentialsJson.connectedAt) ?? new Date().toISOString();
-      const activeSession = await this.providerSessionsRepository.markConnected(client, {
-        profileId: providerSession.profileId,
-        provider: providerSession.provider,
-        providerAccountId: refreshed.providerAccount.id,
-        providerUserId: refreshed.providerAccount.providerUserId,
-        externalUsername: refreshed.providerAccount.externalUsername,
-        connectedAt,
-        credentialsJson: buildConnectedSessionCredentials(refreshed.providerAccount.credentialsJson),
-      });
-      return { providerAccount: refreshed.providerAccount, providerSession: activeSession };
+      return (await this.tokenRefreshService.refreshConnectedSession(providerSession as never, { force: true })).providerSession;
     } catch (error) {
-      const latestProviderAccount = await this.providerAccountsRepository.findById(client, providerAccount.id);
-      const legacyProviderState = mapProviderStateView(providerSession.provider, latestProviderAccount);
-      if (legacyProviderState.connectionState === 'reauthorization_required') {
-        const errorMessage = error instanceof Error ? error.message : 'Provider access token refresh failed.';
-        const reauthSession = await this.providerSessionsRepository.markReauthRequired(client, {
-          profileId: providerSession.profileId,
-          provider: providerSession.provider,
-          providerAccountId: latestProviderAccount?.id ?? providerSession.providerAccountId,
-          providerUserId: latestProviderAccount?.providerUserId ?? providerSession.providerUserId,
-          externalUsername: latestProviderAccount?.externalUsername ?? providerSession.externalUsername,
-          credentialsJson: sanitizeReauthSessionCredentials(
-            latestProviderAccount?.credentialsJson ?? providerSession.credentialsJson,
-            errorMessage,
-          ),
-          lastRefreshAt: asIsoString(latestProviderAccount?.credentialsJson.lastRefreshAt) ?? providerSession.lastRefreshAt,
-          lastRefreshError: errorMessage,
-          lastImportCompletedAt: providerSession.lastImportCompletedAt,
-        });
-        const providerState = mapProviderSessionStateView(providerSession.provider, reauthSession);
-        throw new HttpError(409, `Log in to ${providerLabel(providerSession.provider)} again to continue importing.`, {
-          provider: providerSession.provider,
-          code: 'provider_reauth_required',
-          providerState,
-        });
-      }
-
       throw error;
     }
   }
@@ -689,36 +407,14 @@ export class ProviderImportService {
         throw new HttpError(503, `Provider import is not configured for ${provider}.`);
       }
 
-      if (currentSession?.providerAccountId) {
-        const currentProviderAccount = await this.providerAccountsRepository.findById(client, currentSession.providerAccountId);
-        if (currentProviderAccount) {
-          await this.providerAccountsRepository.clearProviderAccount(client, {
-            providerAccountId: currentProviderAccount.id,
-            lastUsedAt: new Date().toISOString(),
-            providerUserId: null,
-            externalUsername: null,
-            credentialsJson: sanitizeDisconnectedCredentials(currentProviderAccount.credentialsJson, new Date().toISOString(), userId),
-          });
-        }
+      if (currentSession) {
+        await this.revokeProviderAuthorizationFromSession(provider, currentSession.credentialsJson);
       }
-
-      const providerAccount = await this.providerAccountsRepository.createPending(client, {
-        profileId,
-        provider,
-        createdByUserId: userId,
-        stateToken,
-        credentialsJson: {
-          pkceCodeVerifier: pkce.codeVerifier,
-          pkceCodeChallenge: pkce.codeChallenge,
-        },
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-      });
       const providerSession = await this.providerSessionsRepository.upsertPending(client, {
         profileId,
         provider,
-        providerAccountId: providerAccount.id,
         stateToken,
-        expiresAt: providerAccount.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         credentialsJson: {
           pkceCodeVerifier: pkce.codeVerifier,
           pkceCodeChallenge: pkce.codeChallenge,
@@ -729,37 +425,40 @@ export class ProviderImportService {
         profileGroupId: profile.profileGroupId,
         provider,
         requestedByUserId: userId,
-        providerAccountId: providerAccount.id,
         status: 'oauth_pending',
       });
 
       return {
         job: pendingJob,
         providerState: mapProviderSessionStateView(provider, providerSession),
-        watchDataState,
+        watchDataState: mapWatchDataStateView(watchDataState) as ProviderWatchDataStateView,
         authUrl,
         nextAction: 'authorize_provider' as const,
       };
     });
 
-    return started;
+      return started;
   }
 
-  private async revokeProviderAuthorization(providerAccount: ProviderAccountRecord): Promise<void> {
-    if (providerAccount.provider === 'trakt') {
-      await this.revokeTraktAuthorization(providerAccount);
+  private async revokeProviderAuthorizationFromSession(
+    provider: ProviderImportProvider,
+    credentialsJson: Record<string, unknown>,
+  ): Promise<void> {
+    if (provider !== 'trakt') {
       return;
     }
-  }
 
-  private async revokeTraktAuthorization(providerAccount: ProviderAccountRecord): Promise<void> {
-    if (!env.traktImportClientId || !env.traktImportClientSecret) {
-      throw new HttpError(503, 'Trakt import is not configured.');
-    }
-
-    const token = asString(providerAccount.credentialsJson.refreshToken) ?? asString(providerAccount.credentialsJson.accessToken);
+    const token = asString(credentialsJson.refreshToken) ?? asString(credentialsJson.accessToken);
     if (!token) {
       return;
+    }
+
+    await this.revokeTraktAuthorizationToken(token);
+  }
+
+  private async revokeTraktAuthorizationToken(token: string): Promise<void> {
+    if (!env.traktImportClientId || !env.traktImportClientSecret) {
+      throw new HttpError(503, 'Trakt import is not configured.');
     }
 
     const response = await fetch('https://api.trakt.tv/oauth/revoke', {
@@ -832,24 +531,18 @@ export class ProviderImportService {
     }
 
     try {
-      const providerAccount = await this.runInTransaction(async (client) => {
-        if (!runningJob.providerAccountId) {
-          throw new HttpError(400, 'Queued provider import is missing a provider connection.');
+      const activeProviderSession = await this.runInTransaction(async (client) => {
+        const providerSession = await this.providerSessionsRepository.getConnectedSession(client, runningJob.profileId, runningJob.provider);
+        if (!providerSession) {
+          throw new HttpError(400, 'Queued provider import does not have a connected provider session.');
         }
 
-        const found = await this.providerAccountsRepository.findById(client, runningJob.providerAccountId);
-        if (!found || found.status !== 'connected') {
-          throw new HttpError(400, 'Queued provider import does not have a connected provider account.');
-        }
-
-        return found;
+        return (await this.tokenRefreshService.refreshConnectedSession(providerSession)).providerSession;
       });
 
-      const activeProviderAccount = (await this.tokenRefreshService.refreshProviderAccount(providerAccount)).providerAccount;
-
       const importedPayload = runningJob.provider === 'trakt'
-        ? await this.fetchAndNormalizeTraktImport(runningJob, activeProviderAccount)
-        : await this.fetchAndNormalizeSimklImport(runningJob, activeProviderAccount);
+        ? await this.fetchAndNormalizeTraktImport(runningJob, activeProviderSession.credentialsJson)
+        : await this.fetchAndNormalizeSimklImport(runningJob, activeProviderSession.credentialsJson);
 
       const replaceResult = await this.runInTransaction(async (client) => {
         return this.destructiveImportService.replaceProfileWatchData(client, {
@@ -884,13 +577,13 @@ export class ProviderImportService {
       }
 
       try {
-        await this.markProviderAccountImportComplete(activeProviderAccount, runningJob.id, importedPayload.importedAt);
+        await this.markProviderSessionImportComplete(activeProviderSession, runningJob.id, importedPayload.importedAt);
       } catch (error) {
         warnings.push(`failed to update provider connection usage: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
 
       try {
-        await this.scheduleProviderRefresh(activeProviderAccount);
+        await this.scheduleProviderRefresh(activeProviderSession.profileId, activeProviderSession.provider);
       } catch (error) {
         warnings.push(`failed to schedule provider refresh: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
@@ -1132,10 +825,10 @@ export class ProviderImportService {
 
   private async fetchAndNormalizeTraktImport(
     job: ProviderImportJobRecord,
-    providerAccount: ProviderAccountRecord,
+    credentialsJson: Record<string, unknown>,
   ): Promise<ProviderReplaceImportPayload> {
     void job;
-    const accessToken = requireConnectedAccessToken(providerAccount);
+    const accessToken = requireConnectedAccessToken(credentialsJson);
 
     const [watchedMovies, watchedShows, watchlistMovies, watchlistShows, ratingMovies, ratingShows, playback] = await Promise.all([
       this.traktGetArray('/sync/watched/movies', accessToken),
@@ -1176,9 +869,9 @@ export class ProviderImportService {
 
   private async fetchAndNormalizeSimklImport(
     _job: ProviderImportJobRecord,
-    providerAccount: ProviderAccountRecord,
+    credentialsJson: Record<string, unknown>,
   ): Promise<ProviderReplaceImportPayload> {
-    const accessToken = requireConnectedAccessToken(providerAccount);
+    const accessToken = requireConnectedAccessToken(credentialsJson);
     const statuses = ['watching', 'plantowatch', 'hold', 'completed', 'dropped'] as const;
     const [movieLists, showLists, animeLists, ratingMovies, ratingShows, ratingAnime, moviePlayback, episodePlayback] = await Promise.all([
       Promise.all(statuses.map(async (status) => ({
@@ -1588,36 +1281,38 @@ export class ProviderImportService {
     };
   }
 
-  private async markProviderAccountImportComplete(
-    providerAccount: ProviderAccountRecord,
+  private async markProviderSessionImportComplete(
+    providerSession: ProviderSessionRecord,
     importJobId: string,
     importedAt: string,
   ): Promise<void> {
     const client = await db.connect();
     try {
-      await this.providerAccountsRepository.updateConnectedCredentials(client, {
-        providerAccountId: providerAccount.id,
-        credentialsJson: {
-          ...providerAccount.credentialsJson,
-          lastImportJobId: importJobId,
-          lastImportCompletedAt: importedAt,
-        },
-        providerUserId: providerAccount.providerUserId,
-        externalUsername: providerAccount.externalUsername,
-        lastUsedAt: importedAt,
+      await this.providerSessionsRepository.touchImportCompleted(client, {
+        profileId: providerSession.profileId,
+        provider: providerSession.provider,
+        completedAt: importedAt,
+        importJobId,
       });
     } finally {
       client.release();
     }
   }
 
-  private async scheduleProviderRefresh(providerAccount: ProviderAccountRecord): Promise<void> {
-    const delayMs = this.tokenRefreshService.getRecommendedDelayMs(providerAccount);
+  private async scheduleProviderRefresh(profileId: string, provider: ProviderImportProvider): Promise<void> {
+    const providerSession = await this.runInTransaction(async (client) => {
+      return this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
+    });
+    if (!providerSession) {
+      return;
+    }
+
+    const delayMs = this.tokenRefreshService.getRecommendedDelayMs(providerSession);
     if (delayMs === null) {
       return;
     }
 
-    await enqueueProviderRefresh(providerAccount.profileId, providerAccount.id, delayMs);
+    await enqueueProviderRefresh(profileId, provider, delayMs);
   }
 
   private async refreshImportedMetadata(profileId: string, mediaKeys: string[]): Promise<Record<string, unknown>> {
@@ -2398,13 +2093,6 @@ function providerLabel(provider: ProviderImportProvider): string {
   return provider === 'trakt' ? 'Trakt' : 'Simkl';
 }
 
-function pickLatestProviderAccount(
-  providerAccounts: ProviderAccountRecord[],
-  provider: ProviderImportProvider,
-): ProviderAccountRecord | null {
-  return providerAccounts.find((providerAccount) => providerAccount.provider === provider) ?? null;
-}
-
 function pickProviderSession(
   providerSessions: ProviderSessionRecord[],
   provider: ProviderImportProvider,
@@ -2621,8 +2309,8 @@ function durationSecondsFromRuntime(value: unknown): number | null {
   return Math.round(runtimeMinutes * 60);
 }
 
-function requireConnectedAccessToken(providerAccount: ProviderAccountRecord): string {
-  const accessToken = asString(providerAccount.credentialsJson.accessToken);
+function requireConnectedAccessToken(credentialsJson: Record<string, unknown>): string {
+  const accessToken = asString(credentialsJson.accessToken);
   if (!accessToken) {
     throw new HttpError(400, 'Provider connection is missing an access token.');
   }

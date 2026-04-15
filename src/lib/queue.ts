@@ -21,7 +21,7 @@ export type ProjectionRefreshJob = {
   reason: string;
   mediaKey?: string;
   importJobId?: string;
-  providerAccountId?: string;
+  provider?: string;
   recommendationJobId?: string;
 };
 
@@ -86,9 +86,9 @@ export async function enqueueProviderImport(profileId: string, importJobId: stri
   await enqueueProjectionRefreshJob({ profileId, importJobId, reason: 'provider-import' });
 }
 
-export async function enqueueProviderRefresh(profileId: string, providerAccountId: string, delayMs?: number): Promise<void> {
+export async function enqueueProviderRefresh(profileId: string, provider: string, delayMs?: number): Promise<void> {
   await enqueueProjectionRefreshJob(
-    { profileId, providerAccountId, reason: 'provider-refresh' },
+    { profileId, provider, reason: 'provider-refresh' },
     { delayMs },
   );
 }
@@ -98,8 +98,8 @@ function resolveProjectionJobId(job: ProjectionRefreshJob): string {
     return `${job.reason}:${job.profileId}:${job.importJobId}`;
   }
 
-  if (job.providerAccountId) {
-    return `${job.reason}:${job.profileId}:${job.providerAccountId}`;
+  if (job.provider) {
+    return `${job.reason}:${job.profileId}:${job.provider}`;
   }
 
   if (job.recommendationJobId) {

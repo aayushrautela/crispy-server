@@ -1,7 +1,5 @@
 export type ProviderImportProvider = 'trakt' | 'simkl';
 
-export type ProviderAccountStatus = 'pending' | 'connected' | 'expired' | 'revoked';
-
 export type ProviderImportJobMode = 'replace_import';
 
 export type ProviderImportJobStatus =

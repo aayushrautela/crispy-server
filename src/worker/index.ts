@@ -21,7 +21,7 @@ export function startWorker(): Worker {
         reason: string;
         mediaKey?: string;
         importJobId?: string;
-        providerAccountId?: string;
+        provider?: string;
         recommendationJobId?: string;
       };
       switch (payload.reason) {

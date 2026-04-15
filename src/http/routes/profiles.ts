@@ -10,7 +10,6 @@ const providerStateSchema = {
   additionalProperties: false,
   required: [
     'provider',
-    'providerAccountId',
     'connectionState',
     'accountStatus',
     'primaryAction',
@@ -24,7 +23,6 @@ const providerStateSchema = {
   ],
   properties: {
     provider: { type: 'string', enum: ['trakt', 'simkl'] },
-    providerAccountId: nullableStringSchema,
     connectionState: { type: 'string', enum: ['not_connected', 'pending_authorization', 'connected', 'reauthorization_required'] },
     accountStatus: { anyOf: [{ type: 'string', enum: ['pending', 'connected', 'expired', 'revoked'] }, { type: 'null' }] },
     primaryAction: { type: 'string', enum: ['connect', 'import', 'reconnect'] },

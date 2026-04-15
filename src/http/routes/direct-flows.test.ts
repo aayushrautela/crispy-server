@@ -616,19 +616,18 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
 test('profile routes expose import-connections', async (t) => {
   const { ProviderImportService } = await import('../../modules/integrations/provider-import.service.js');
   const originals = {
-    listConnections: ProviderImportService.prototype.listConnections,
+    listProviderSessions: ProviderImportService.prototype.listProviderSessions,
   };
 
   t.after(() => {
     Object.assign(ProviderImportService.prototype, originals);
   });
 
-  ProviderImportService.prototype.listConnections = async function (_userId, _profileId) {
+  ProviderImportService.prototype.listProviderSessions = async function (_userId, _profileId) {
     return {
       providerStates: [
         {
           provider: 'trakt',
-          providerAccountId: 'conn-1',
           connectionState: 'connected',
           accountStatus: 'connected',
           primaryAction: 'import',
