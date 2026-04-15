@@ -105,6 +105,42 @@ test('refreshConnectedSession forces refresh when force option is set', async ()
   }
 });
 
+test('refreshConnectedSession sends trakt api headers on refresh', async () => {
+  const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
+  const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const providerSession = {
+    ...connectedSession,
+    credentialsJson: { accessToken: 'access', refreshToken: 'refresh', accessTokenExpiresAt: futureDate },
+  };
+
+  const originalFetch = globalThis.fetch;
+  let capturedHeaders: Record<string, string> | null = null;
+  globalThis.fetch = (async (_input, init) => {
+    capturedHeaders = Object.fromEntries(new Headers(init?.headers).entries());
+    return Response.json({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600 });
+  }) as typeof fetch;
+
+  try {
+    const service = new ProviderTokenRefreshService({
+      updateConnectedTokens: async (_client: unknown, params: UpdateParams) => ({
+        ...providerSession,
+        credentialsJson: params.credentialsJson,
+        lastRefreshAt: params.lastRefreshAt,
+      }),
+    } as never, noopTransaction);
+
+    await service.refreshConnectedSession(providerSession as never, { force: true });
+    assert.ok(capturedHeaders);
+    assert.equal(capturedHeaders['content-type'], 'application/json');
+    assert.equal(capturedHeaders['accept'], 'application/json');
+    assert.equal(capturedHeaders['trakt-api-key'], 'trakt-id');
+    assert.equal(capturedHeaders['trakt-api-version'], '2');
+    assert.equal(capturedHeaders['user-agent'], 'CrispyServer/1.0');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('refreshConnectedSession returns refreshed false when no refresh token exists', async () => {
   const { ProviderTokenRefreshService } = await import('./provider-token-refresh.service.js');
   const providerSession = {

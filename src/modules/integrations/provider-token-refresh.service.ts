@@ -139,10 +139,7 @@ export class ProviderTokenRefreshService {
 
     const response = await fetch('https://api.trakt.tv/oauth/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      headers: buildTraktHeaders(),
       body: JSON.stringify({
         refresh_token: refreshToken,
         client_id: env.traktImportClientId,
@@ -308,4 +305,14 @@ function parseProviderJson(rawBody: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function buildTraktHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'trakt-api-key': env.traktImportClientId,
+    'trakt-api-version': '2',
+    'User-Agent': 'CrispyServer/1.0',
+  };
 }
