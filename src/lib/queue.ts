@@ -22,11 +22,10 @@ export type ProjectionRefreshJob = {
   mediaKey?: string;
   importJobId?: string;
   provider?: string;
-  recommendationJobId?: string;
 };
 
 function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: string): string {
-  return mediaKey ? `${reason}:${profileId}:${mediaKey}` : `${reason}:${profileId}`;
+  return mediaKey ? buildJobId(reason, profileId, mediaKey) : buildJobId(reason, profileId);
 }
 
 async function enqueueProjectionRefreshJob(job: ProjectionRefreshJob, options?: { delayMs?: number }): Promise<void> {
@@ -39,7 +38,7 @@ async function enqueueProjectionRefreshJob(job: ProjectionRefreshJob, options?: 
 }
 
 export function heartbeatFlushJobId(profileId: string, mediaKey: string): string {
-  return `heartbeat-flush:${profileId}:${mediaKey}`;
+  return buildJobId('heartbeat-flush', profileId, mediaKey);
 }
 
 export async function enqueueHeartbeatFlush(profileId: string, mediaKey: string, delayMs?: number): Promise<void> {
@@ -67,21 +66,6 @@ export async function enqueueRebuildProfileProjections(profileId: string): Promi
   await enqueueProjectionRefreshJob({ profileId, reason: 'rebuild-profile-projections' });
 }
 
-export async function enqueueRecommendationGeneration(profileId: string, delayMs?: number): Promise<void> {
-  await enqueueProjectionRefreshJob({ profileId, reason: 'generate-recommendations' }, { delayMs });
-}
-
-export async function enqueueRecommendationGenerationPoll(jobId: string, delayMs?: number): Promise<void> {
-  await enqueueProjectionRefreshJob(
-    {
-      profileId: '00000000-0000-0000-0000-000000000000',
-      recommendationJobId: jobId,
-      reason: 'poll-recommendation-generation',
-    },
-    { delayMs },
-  );
-}
-
 export async function enqueueProviderImport(profileId: string, importJobId: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, importJobId, reason: 'provider-import' });
 }
@@ -95,18 +79,18 @@ export async function enqueueProviderRefresh(profileId: string, provider: string
 
 function resolveProjectionJobId(job: ProjectionRefreshJob): string {
   if (job.importJobId) {
-    return `${job.reason}:${job.profileId}:${job.importJobId}`;
+    return buildJobId(job.reason, job.profileId, job.importJobId);
   }
 
   if (job.provider) {
-    return `${job.reason}:${job.profileId}:${job.provider}`;
-  }
-
-  if (job.recommendationJobId) {
-    return `${job.reason}:${job.recommendationJobId}`;
+    return buildJobId(job.reason, job.profileId, job.provider);
   }
 
   return projectionRefreshJobId(job.reason, job.profileId, job.mediaKey);
+}
+
+function buildJobId(...parts: string[]): string {
+  return parts.map((part) => Buffer.from(part, 'utf8').toString('base64url')).join('__');
 }
 
 function getProjectionQueue(): Queue {

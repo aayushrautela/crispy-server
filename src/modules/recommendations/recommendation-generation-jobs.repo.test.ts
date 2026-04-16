@@ -9,6 +9,7 @@ const { RecommendationGenerationJobsRepository } = await import('./recommendatio
 test('create aligns recommendation_generation_jobs insert placeholders', async () => {
   const repository = new RecommendationGenerationJobsRepository();
   const queries: Array<{ text: string; values: unknown[] }> = [];
+  const nextRunAt = '2024-01-01T00:05:00.000Z';
   const client = {
     query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
@@ -21,9 +22,10 @@ test('create aligns recommendation_generation_jobs insert placeholders', async (
           algorithm_version: values[3],
           history_generation: values[4],
           idempotency_key: values[5],
+          trigger_source: values[6],
           worker_job_id: null,
-          status: values[7],
-          request_payload: JSON.parse(String(values[6] ?? '{}')),
+          status: values[9],
+          request_payload: JSON.parse(String(values[7] ?? '{}')),
           last_status_payload: {},
           failure_json: {},
           submit_attempts: 0,
@@ -33,9 +35,12 @@ test('create aligns recommendation_generation_jobs insert placeholders', async (
           started_at: null,
           completed_at: null,
           cancelled_at: null,
+          last_requested_at: '2024-01-01T00:00:00.000Z',
           last_submitted_at: null,
           last_polled_at: null,
-          next_poll_at: null,
+          next_run_at: values[8] ?? nextRunAt,
+          lease_owner: null,
+          lease_expires_at: null,
           created_at: '2024-01-01T00:00:00.000Z',
           updated_at: '2024-01-01T00:00:00.000Z',
         }],
@@ -50,11 +55,13 @@ test('create aligns recommendation_generation_jobs insert placeholders', async (
     algorithmVersion: 'v3.2.1',
     historyGeneration: 7,
     idempotencyKey: 'recommendation:profile:default:v3.2.1:7',
+    triggerSource: 'admin_manual',
     requestPayload: { test: true },
+    nextRunAt,
   });
 
   const insert = queries.find((entry) => entry.text.includes('INSERT INTO recommendation_generation_jobs'));
   assert.ok(insert, 'expected recommendation_generation_jobs insert query');
-  assert.match(insert.text, /\$6, \$7::jsonb, \$8\)/);
-  assert.equal(insert.values.length, 8);
+  assert.match(insert.text, /\$7, \$8::jsonb, \$9::timestamptz, \$10\)/);
+  assert.equal(insert.values.length, 10);
 });

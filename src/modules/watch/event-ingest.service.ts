@@ -55,7 +55,7 @@ export class WatchEventIngestService {
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -68,7 +68,7 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -83,7 +83,7 @@ export class WatchEventIngestService {
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -96,7 +96,7 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -115,7 +115,7 @@ export class WatchEventIngestService {
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -128,7 +128,7 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -170,7 +170,7 @@ export class WatchEventIngestService {
         occurredAt,
       });
     });
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -191,7 +191,7 @@ export class WatchEventIngestService {
       await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
       await this.projectionRefreshDispatcher.refreshMetadata(profileId, identity.mediaKey);
     }
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 

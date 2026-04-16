@@ -718,18 +718,24 @@ export const ADMIN_UI_CLIENT = String.raw`
     for (const button of recommendationButtons) {
       button.onclick = async () => {
         button.disabled = true;
-        setMessage(messageEl, 'info', 'Queueing recommendation generation...');
+        setMessage(messageEl, 'info', 'Requesting recommendation generation...');
         try {
-          await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations/start'), {
+          const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations/start'), {
             method: 'POST',
           });
-          setMessage(messageEl, 'success', 'Queued recommendation generation for this profile.');
-          pushNotification('success', 'Recommendation generation queued', 'Queued recommendation generation for profile ' + profileId + '.', true);
+          const created = payload && payload.created === true;
+          const status = payload && payload.status ? String(payload.status) : 'pending';
+          const jobId = payload && payload.jobId ? String(payload.jobId) : '';
+          const successText = created
+            ? 'Created recommendation job for this profile.'
+            : 'Reused existing recommendation job for this profile.';
+          setMessage(messageEl, 'success', successText);
+          pushNotification('success', 'Recommendation job scheduled', (created ? 'Created' : 'Reused') + ' job ' + (jobId || '(pending id)') + ' with status ' + status + '.', true);
           await inspectProfile(accountId, profileId);
         } catch (error) {
-          const description = describeApiError(error, 'Unable to queue recommendation generation.');
+          const description = describeApiError(error, 'Unable to start recommendation generation.');
           setMessage(messageEl, 'error', description);
-          pushNotification('error', 'Recommendation queue failed', description, true);
+          pushNotification('error', 'Recommendation job failed', description, true);
         } finally {
           button.disabled = false;
         }
@@ -941,7 +947,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     const failureJson = job && job.failureJson && typeof job.failureJson === 'object' ? job.failureJson : {};
     const result = statusPayload && statusPayload.result && typeof statusPayload.result === 'object' ? statusPayload.result : null;
     const failure = statusPayload && statusPayload.failure && typeof statusPayload.failure === 'object' ? statusPayload.failure : failureJson;
-    const queueText = includeQueueContext && job.nextPollAt ? 'next poll ' + formatDate(job.nextPollAt) : null;
+    const queueText = includeQueueContext && job.nextRunAt ? 'next run ' + formatDate(job.nextRunAt) : null;
     const meta = [
       'id ' + job.id,
       job.workerJobId ? 'worker ' + job.workerJobId : 'worker pending',
@@ -1742,7 +1748,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Submit attempts', String(job.submitAttempts || 0))
         + kvPair('Poll attempts', String(job.pollAttempts || 0))
         + kvPair('Poll failures', String(job.pollErrorCount || 0))
-        + kvPair('Next poll at', job.nextPollAt ? formatDate(job.nextPollAt) : 'n/a')
+        + kvPair('Next run at', job.nextRunAt ? formatDate(job.nextRunAt) : 'n/a')
         + '</div>';
     }
     if (elements.generationDetailJson) {

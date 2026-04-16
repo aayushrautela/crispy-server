@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
+import type { RecommendationWorkerGenerateRequest } from './recommendation-worker.types.js';
 
 seedTestEnv();
 
 const { RecommendationEngineClient } = await import('./recommendation-engine-client.js');
 
-const sampleRequest = {
+const sampleRequest: RecommendationWorkerGenerateRequest = {
   identity: {
     accountId: 'account-1',
     profileId: 'profile-1',

@@ -86,7 +86,7 @@ export class HeartbeatFlushService {
         await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
         await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
       }
-      await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId);
+      await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'heartbeat_flush');
     }
 
     return outcome;

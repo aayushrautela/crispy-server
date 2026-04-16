@@ -299,10 +299,12 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/recommendations/start', async (request, reply) => {
     await requireAdminMutation(request);
     const params = parseAccountProfileParams(request.params);
-    await recommendationGenerationDispatcher.scheduleProfileGeneration(params.profileId, 0);
-    reply.code(202);
+    const result = await recommendationGenerationDispatcher.scheduleProfileGeneration(params.profileId, 0, 'admin_manual');
+    reply.code(result.status === 'succeeded' || result.status === 'failed' || result.status === 'cancelled' ? 200 : 202);
     return {
-      queued: true,
+      jobId: result.jobId,
+      created: result.created,
+      status: result.status,
       profileId: params.profileId,
       sourceKey: recommendationConfig.sourceKey,
       algorithmVersion: recommendationConfig.algorithmVersion,

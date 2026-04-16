@@ -7,7 +7,7 @@ export type RecommendationWorkerGenerateRequest = {
   };
   generationMeta: {
     sourceKey: string;
-    algorithmVersion: string;
+    algorithmVersion: 'v3.2.1';
     historyGeneration: number;
     sourceCursor?: string | null;
     ttlSeconds?: number;
@@ -31,7 +31,7 @@ export type RecommendationWorkerGenerateRequest = {
   };
   optionalExtras?: {
     continueWatching?: unknown[];
-    episodicFollow?: unknown[];
+    trackedSeries?: unknown[];
     limits?: {
       watchHistory: number;
       ratings: number;

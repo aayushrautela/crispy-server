@@ -595,7 +595,7 @@ export class ProviderImportService {
       }
 
       try {
-        await this.recommendationGenerationDispatcher.scheduleProfileGeneration(runningJob.profileId, 0);
+        await this.recommendationGenerationDispatcher.scheduleProfileGeneration(runningJob.profileId, 0, 'provider_import');
       } catch (error) {
         warnings.push(`failed to schedule recommendation generation: ${error instanceof Error ? error.message : 'unknown error'}`);
       }

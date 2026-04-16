@@ -1,23 +1,39 @@
-import { logger } from '../../config/logger.js';
 import { recommendationConfig } from './recommendation-config.js';
+import { RecommendationGenerationOrchestratorService } from './recommendation-generation-orchestrator.service.js';
+import type { RecommendationGenerationTriggerSource } from './recommendation-generation-jobs.repo.js';
 
-type EnqueueRecommendationGeneration = (profileId: string, delayMs?: number) => Promise<void>;
+type ScheduleRecommendationGeneration = (
+  profileId: string,
+  params: {
+    delayMs?: number;
+    triggerSource?: RecommendationGenerationTriggerSource;
+  },
+) => Promise<{ jobId: string; status: string; created: boolean }>;
 
-async function defaultEnqueueRecommendationGeneration(profileId: string, delayMs?: number): Promise<void> {
-  const { enqueueRecommendationGeneration } = await import('../../lib/queue.js');
-  await enqueueRecommendationGeneration(profileId, delayMs);
+async function defaultScheduleRecommendationGeneration(
+  profileId: string,
+  params: {
+    delayMs?: number;
+    triggerSource?: RecommendationGenerationTriggerSource;
+  },
+): Promise<{ jobId: string; status: string; created: boolean }> {
+  const orchestrator = new RecommendationGenerationOrchestratorService();
+  return orchestrator.ensureGeneration(profileId, params);
 }
 
 export class RecommendationGenerationDispatcher {
   constructor(
-    private readonly enqueueRecommendationGeneration: EnqueueRecommendationGeneration = defaultEnqueueRecommendationGeneration,
+    private readonly scheduleRecommendationGeneration: ScheduleRecommendationGeneration = defaultScheduleRecommendationGeneration,
   ) {}
 
-  async scheduleProfileGeneration(profileId: string, delayMs = recommendationConfig.queueDelayMs): Promise<void> {
-    try {
-      await this.enqueueRecommendationGeneration(profileId, delayMs);
-    } catch (error) {
-      logger.warn({ err: error, profileId }, 'failed to enqueue recommendation generation');
-    }
+  async scheduleProfileGeneration(
+    profileId: string,
+    delayMs = recommendationConfig.queueDelayMs,
+    triggerSource: RecommendationGenerationTriggerSource = 'system',
+  ): Promise<{ jobId: string; status: string; created: boolean }> {
+    return this.scheduleRecommendationGeneration(profileId, {
+      delayMs,
+      triggerSource,
+    });
   }
 }

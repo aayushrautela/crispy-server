@@ -125,7 +125,7 @@ export class RecommendationGenerationService {
     aiRequest: Awaited<ReturnType<FeatureEntitlementService['resolveAiRequestForUser']>>,
   ): Promise<RecommendationWorkerGenerateRequest> {
     const limits = recommendationConfig.payloadLimits;
-    const [watchHistory, ratings, watchlist, continueWatching, episodicFollow] = await Promise.all([
+    const [watchHistory, ratings, watchlist, continueWatching, trackedSeries] = await Promise.all([
       this.recommendationDataService.getWatchHistoryForAccount(context.accountId, context.profileId, limits.watchHistory),
       this.recommendationDataService.getRatingsForAccount(context.accountId, context.profileId, limits.ratings),
       this.recommendationDataService.getWatchlistForAccount(context.accountId, context.profileId, limits.watchlist),
@@ -140,7 +140,7 @@ export class RecommendationGenerationService {
       },
       generationMeta: {
         sourceKey: recommendationConfig.sourceKey,
-        algorithmVersion: recommendationConfig.algorithmVersion,
+        algorithmVersion: recommendationConfig.algorithmVersion as RecommendationWorkerGenerateRequest['generationMeta']['algorithmVersion'],
         historyGeneration: context.historyGeneration,
         sourceCursor: context.sourceCursor,
         ttlSeconds: recommendationConfig.generationTtlSeconds,
@@ -164,7 +164,7 @@ export class RecommendationGenerationService {
       },
       optionalExtras: {
         continueWatching,
-        episodicFollow,
+        trackedSeries,
         limits,
       },
     };
@@ -173,7 +173,7 @@ export class RecommendationGenerationService {
 
 function normalizeTasteProfile(response: RecommendationWorkerGenerateResponse, context: GenerationExpectationContext) {
   const tasteProfile = asRecord(response.tasteProfile);
-  const sourceKey = readOptionalString(tasteProfile.sourceKey) ?? recommendationConfig.sourceKey;
+  const sourceKey = readRequiredString(tasteProfile.sourceKey, 'Recommendation worker returned a taste profile without a source key.');
   if (sourceKey !== recommendationConfig.sourceKey) {
     throw new HttpError(502, 'Recommendation worker returned an unexpected taste profile source key.');
   }
@@ -195,9 +195,9 @@ function normalizeTasteProfile(response: RecommendationWorkerGenerateResponse, c
 
 function normalizeRecommendationSnapshot(response: RecommendationWorkerGenerateResponse, context: GenerationExpectationContext) {
   const snapshot = asRecord(response.recommendationSnapshot);
-  const sourceKey = readOptionalString(snapshot.sourceKey) ?? recommendationConfig.sourceKey;
-  const algorithmVersion = readOptionalString(snapshot.algorithmVersion) ?? recommendationConfig.algorithmVersion;
-  const historyGeneration = readOptionalNumber(snapshot.historyGeneration) ?? context.historyGeneration;
+  const sourceKey = readRequiredString(snapshot.sourceKey, 'Recommendation worker returned a snapshot without a source key.');
+  const algorithmVersion = readRequiredString(snapshot.algorithmVersion, 'Recommendation worker returned a snapshot without an algorithm version.');
+  const historyGeneration = readRequiredNumber(snapshot.historyGeneration, 'Recommendation worker returned a snapshot without a history generation.');
 
   if (sourceKey !== recommendationConfig.sourceKey) {
     throw new HttpError(502, 'Recommendation worker returned an unexpected snapshot source key.');
@@ -247,6 +247,14 @@ function readOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function readRequiredString(value: unknown, message: string): string {
+  const parsed = readOptionalString(value);
+  if (!parsed) {
+    throw new HttpError(502, message);
+  }
+  return parsed;
+}
+
 function readOptionalNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -256,6 +264,14 @@ function readOptionalNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function readRequiredNumber(value: unknown, message: string): number {
+  const parsed = readOptionalNumber(value);
+  if (parsed === null) {
+    throw new HttpError(502, message);
+  }
+  return parsed;
 }
 
 function normalizeSection(value: unknown): Record<string, unknown> | null {
