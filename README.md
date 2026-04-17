@@ -438,9 +438,10 @@ The recommendation worker no longer polls the API server for claim/renew/complet
 
 2. Fill the required values in `.env`.
 
-    - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
-    - `AUTH_*` values are only used for external auth.
-     - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
+     - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
+     - `APP_PUBLIC_URL` and `APP_DISPLAY_NAME` define the API server's canonical outbound app identity. They are used for OpenAI-compatible `HTTP-Referer` and `X-Title` headers, including recommendation-worker AI calls.
+     - `AUTH_*` values are only used for external auth.
+      - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
      - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
      - `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY` configure outbound recommendation-generation calls and read-only worker bridge checks from the API server to the recommendation worker.
      - `RECOMMENDATION_ENGINE_WORKER_SUBMIT_TIMEOUT_MS`, `RECOMMENDATION_ENGINE_WORKER_STATUS_TIMEOUT_MS`, `RECOMMENDATION_GENERATION_POLL_DELAY_MS`, and `RECOMMENDATION_GENERATION_MAX_POLL_DELAY_MS` tune async submit-plus-poll orchestration with the recommendation worker.

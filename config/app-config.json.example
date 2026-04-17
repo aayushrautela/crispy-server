@@ -37,8 +37,6 @@
         "id": "openai",
         "label": "OpenAI",
         "endpointUrl": "https://api.openai.com/v1/chat/completions",
-        "httpReferer": "",
-        "title": "",
         "models": {
           "search": "gpt-4o-mini",
           "insights": "gpt-4o-mini"
@@ -48,8 +46,6 @@
         "id": "openrouter",
         "label": "OpenRouter",
         "endpointUrl": "https://openrouter.ai/api/v1/chat/completions",
-        "httpReferer": "",
-        "title": "",
         "models": {
           "search": "openai/gpt-4o-mini",
           "insights": "openai/gpt-4o-mini"

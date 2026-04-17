@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { seedTestEnv } from '../../test-helpers.js';
+
+seedTestEnv();
 
 test('generateJson sends correct request and parses response', async (t) => {
   const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
@@ -20,7 +23,7 @@ test('generateJson sends correct request and parses response', async (t) => {
 
   const client = new OpenAiCompatibleClient();
   const result = await client.generateJson({
-    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
     apiKey: 'test-key',
     model: 'gpt-4o',
     userPrompt: 'Hello',
@@ -53,7 +56,7 @@ test('generateJson exposes provider error param details', async (t) => {
   const client = new OpenAiCompatibleClient();
   await assert.rejects(
     () => client.generateJson({
-      provider: { id: 'custom', label: 'Custom', endpointUrl: 'https://example.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'custom', label: 'Custom', endpointUrl: 'https://example.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       apiKey: 'test-key',
       model: 'trinity-large',
       userPrompt: 'Hello',
@@ -81,7 +84,7 @@ test('generateJson throws 502 on provider error', async (t) => {
   const client = new OpenAiCompatibleClient();
   await assert.rejects(
     () => client.generateJson({
-      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       apiKey: 'test-key',
       model: 'gpt-4o',
       userPrompt: 'Hello',
@@ -110,7 +113,7 @@ test('generateJson exposes retry-after and provider code details', async (t) => 
   const client = new OpenAiCompatibleClient();
   await assert.rejects(
     () => client.generateJson({
-      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       apiKey: 'test-key',
       model: 'gpt-4o',
       userPrompt: 'Hello',
@@ -138,7 +141,7 @@ test('generateJson classifies network failures', async (t) => {
   const client = new OpenAiCompatibleClient();
   await assert.rejects(
     () => client.generateJson({
-      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       apiKey: 'test-key',
       model: 'gpt-4o',
       userPrompt: 'Hello',
@@ -169,7 +172,7 @@ test('generateJson includes system prompt when provided', async (t) => {
 
   const client = new OpenAiCompatibleClient();
   await client.generateJson({
-    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
     apiKey: 'test-key',
     model: 'gpt-4o',
     systemPrompt: 'Be helpful',
@@ -195,7 +198,7 @@ test('generateJson parses array-based content parts', async (t) => {
 
   const client = new OpenAiCompatibleClient();
   const result = await client.generateJson({
-    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
     apiKey: 'test-key',
     model: 'gpt-4o',
     userPrompt: 'Hello',

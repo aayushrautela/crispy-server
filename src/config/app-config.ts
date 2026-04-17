@@ -17,8 +17,6 @@ type AiFeaturePolicy = {
 };
 
 export type AppAiProviderConfig = AiProviderView & {
-  httpReferer: string;
-  title: string;
   models: Record<AiFeatureId, string>;
 };
 
@@ -212,8 +210,6 @@ function parseAiProviders(root: Record<string, unknown>): Record<string, AppAiPr
       id,
       label: expectNonEmptyString(provider.label, `ai.providers[${index}].label`),
       endpointUrl: expectNonEmptyString(provider.endpointUrl, `ai.providers[${index}].endpointUrl`),
-      httpReferer: expectString(provider.httpReferer, `ai.providers[${index}].httpReferer`),
-      title: expectString(provider.title, `ai.providers[${index}].title`),
       models: {
         search: expectNonEmptyString(models.search, `ai.providers[${index}].models.search`),
         insights: expectNonEmptyString(models.insights, `ai.providers[${index}].models.insights`),

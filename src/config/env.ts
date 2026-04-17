@@ -113,6 +113,8 @@ export const env = {
   adminUiSessionSecret: optionalEnv('ADMIN_UI_SESSION_SECRET') ?? '',
   databaseUrl: requireEnv('DATABASE_URL'),
   redisUrl: requireEnv('REDIS_URL'),
+  appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
+  appDisplayName: requireEnv('APP_DISPLAY_NAME'),
   supabaseUrl,
   supabaseSecretKey: optionalEnv('SUPABASE_SECRET_KEY') ?? '',
   authJwksUrl: `${supabaseAuthBaseUrl}/.well-known/jwks.json`,

@@ -6,6 +6,8 @@ const REQUIRED_ENV: Record<string, string> = {
   NODE_ENV: 'test',
   DATABASE_URL: 'postgres://test:test@127.0.0.1:5432/test',
   REDIS_URL: 'redis://127.0.0.1:6379/0',
+  APP_PUBLIC_URL: 'https://api.crispytv.tech',
+  APP_DISPLAY_NAME: 'CrispyTV',
   SUPABASE_URL: 'https://example.supabase.co',
   AUTH_JWT_AUDIENCE: 'authenticated',
   TMDB_API_KEY: 'tmdb-test-key',

@@ -15,7 +15,7 @@ test('request executor retries server models after rate limit', async () => {
     {
       feature: 'search',
       providerId: 'openai',
-      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       model: 'gpt-4o-mini',
       apiKey: 'server-key',
       credentialSource: 'server',
@@ -23,7 +23,7 @@ test('request executor retries server models after rate limit', async () => {
     {
       feature: 'search',
       providerId: 'openai',
-      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       model: 'gpt-4.1-mini',
       apiKey: 'server-key',
       credentialSource: 'server',
@@ -69,7 +69,7 @@ test('request executor blocks server provider on auth-like failures', async () =
     resolveAiRequestForUser: async () => ({
       feature: 'search',
       providerId: 'openai',
-      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: '', title: '' },
+      provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
       model: 'gpt-4o-mini',
       apiKey: 'server-key',
       credentialSource: 'server',

@@ -41,6 +41,8 @@
 
     Example auth config when Supabase is the auth provider:
     ```env
+    APP_PUBLIC_URL=https://api.crispytv.tech
+    APP_DISPLAY_NAME=CrispyTV
     SUPABASE_URL=https://your-project.supabase.co
     AUTH_JWT_AUDIENCE=authenticated
     SUPABASE_SECRET_KEY=replace_with_supabase_secret_key
