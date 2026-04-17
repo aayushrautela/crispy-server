@@ -10,9 +10,11 @@ import { RecommendationSnapshotsRepository } from './recommendation-snapshots.re
 import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
 import { PersonalMediaService } from '../watch/personal-media.service.js';
 import type {
+  RecommendationWorkerContinueWatchingItem,
   RecommendationWorkerGenerateRequest,
   RecommendationWorkerGenerateResponse,
 } from './recommendation-worker.types.js';
+import type { ContinueWatchingProductItem } from '../watch/watch-derived-item.types.js';
 
 type GenerationContext = {
   accountId: string;
@@ -163,12 +165,33 @@ export class RecommendationGenerationService {
         credentialSource: aiRequest.credentialSource,
       },
       optionalExtras: {
-        continueWatching,
+        continueWatching: continueWatching.map(mapContinueWatchingItem),
         trackedSeries,
         limits,
       },
     };
   }
+}
+
+export function mapContinueWatchingItem(item: ContinueWatchingProductItem): RecommendationWorkerContinueWatchingItem {
+  return {
+    id: item.id,
+    media: {
+      mediaType: item.media.mediaType,
+      mediaKey: item.media.mediaKey,
+      provider: item.media.provider,
+      providerId: item.media.providerId,
+      title: item.media.title,
+    },
+    progress: {
+      positionSeconds: item.progress.positionSeconds,
+      durationSeconds: item.progress.durationSeconds,
+      progressPercent: item.progress.progressPercent,
+      ...(item.progress.lastPlayedAt ? { lastPlayedAt: item.progress.lastPlayedAt } : {}),
+    },
+    lastActivityAt: item.lastActivityAt,
+    payload: {},
+  };
 }
 
 function normalizeTasteProfile(response: RecommendationWorkerGenerateResponse, context: GenerationExpectationContext) {

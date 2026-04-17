@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedProvider } from '../identity/media-key.js';
 import { WatchV2MetadataService } from './watch-v2-metadata.service.js';
-import { WatchV2WriteRepository } from './watch-v2-write.service.js';
+import { deriveRuntimeDurationSeconds, WatchV2WriteRepository } from './watch-v2-write.service.js';
 import type { WatchV2ProjectionRebuildSummary } from './watch-v2-projection-summary.js';
 
 type TitleRow = {
@@ -38,11 +38,26 @@ export class WatchV2ProjectionRebuildService {
         providerId: title.titleProviderId,
       });
       const titleProjection = await this.metadataService.buildProjection(client, titleIdentity);
-      const aggregate = await this.repository.getProjectionAggregate(client, profileId, title.titleContentId);
+      let aggregate = await this.repository.getProjectionAggregate(client, profileId, title.titleContentId);
       const activeIdentity = aggregate.activeState
         ? await this.resolvePlayableIdentity(client, aggregate.activeState.contentId).catch(() => null)
         : null;
       const activeProjection = activeIdentity ? await this.metadataService.buildProjection(client, activeIdentity) : null;
+      const healedDurationSeconds = deriveRuntimeDurationSeconds(activeProjection);
+      if (aggregate.activeState && aggregate.activeState.durationSeconds === null && healedDurationSeconds !== null) {
+        await this.repository.backfillPlayableDuration(client, {
+          profileId,
+          contentId: aggregate.activeState.contentId,
+          durationSeconds: healedDurationSeconds,
+        });
+        aggregate = {
+          ...aggregate,
+          activeState: {
+            ...aggregate.activeState,
+            durationSeconds: healedDurationSeconds,
+          },
+        };
+      }
       const effectiveWatched = computeEffectiveWatched(aggregate);
       const keepProjection = Boolean(
         aggregate.activeState

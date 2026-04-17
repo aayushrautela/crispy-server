@@ -5,6 +5,7 @@ import type { WatchMediaProjection } from '../watch/watch.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import {
   inferMediaIdentity,
+  parseMediaKey,
   parentMediaTypeForIdentity,
   showTmdbIdForIdentity,
   type MediaIdentity,
@@ -195,6 +196,13 @@ export class WatchV2WriteService {
     }
 
     await this.refreshProjection(client, params.profileId, resolved, projection);
+  }
+
+  async refreshProjectionForMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<void> {
+    const identity = parseMediaKey(mediaKey);
+    const resolved = await this.resolveTarget(client, identity);
+    const projection = await this.buildProjection(client, identity);
+    await this.refreshProjection(client, profileId, resolved, projection);
   }
 
   async markWatched(client: DbClient, params: {
@@ -536,13 +544,28 @@ export class WatchV2WriteService {
     resolved: WatchV2ResolvedTarget,
     projection: WatchMediaProjection,
   ): Promise<void> {
-    const aggregate = await this.repository.getProjectionAggregate(client, profileId, resolved.titleContentId);
+    let aggregate = await this.repository.getProjectionAggregate(client, profileId, resolved.titleContentId);
     const activeIdentity = aggregate.activeState
       ? await this.resolvePlayableIdentity(client, aggregate.activeState.contentId).catch(() => null)
       : null;
     const activeProjection = activeIdentity
       ? await this.buildProjection(client, activeIdentity)
       : null;
+    const healedDurationSeconds = deriveRuntimeDurationSeconds(activeProjection);
+    if (aggregate.activeState && aggregate.activeState.durationSeconds === null && healedDurationSeconds !== null) {
+      await this.repository.backfillPlayableDuration(client, {
+        profileId,
+        contentId: aggregate.activeState.contentId,
+        durationSeconds: healedDurationSeconds,
+      });
+      aggregate = {
+        ...aggregate,
+        activeState: {
+          ...aggregate.activeState,
+          durationSeconds: healedDurationSeconds,
+        },
+      };
+    }
     const effectiveWatched = computeEffectiveWatched(aggregate);
     const lastCompletedAt = maxIsoStrings(
       aggregate.lastPlayableCompletedAt,
@@ -707,6 +730,24 @@ export class WatchV2WriteRepository {
         params.sourceProvider,
         params.sourceUpdatedAt,
       ],
+    );
+  }
+
+  async backfillPlayableDuration(client: DbClient, params: {
+    profileId: string;
+    contentId: string;
+    durationSeconds: number;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE profile_playable_state
+        SET duration_seconds = $3,
+            updated_at = now()
+        WHERE profile_id = $1::uuid
+          AND content_id = $2::uuid
+          AND duration_seconds IS NULL
+      `,
+      [params.profileId, params.contentId, params.durationSeconds],
     );
   }
 
@@ -1233,6 +1274,14 @@ function toPlayableState(row: Record<string, unknown> | undefined): PlayableStat
 
 function toPlayableStatus(value: unknown): WatchV2PlayableStatus {
   return value === 'completed' || value === 'dismissed' || value === 'idle' ? value : 'in_progress';
+}
+
+export function deriveRuntimeDurationSeconds(projection: WatchMediaProjection | null): number | null {
+  const runtimeMinutes = projection?.episodeRuntimeMinutes ?? projection?.detailsRuntimeMinutes ?? null;
+  if (runtimeMinutes === null || runtimeMinutes <= 0) {
+    return null;
+  }
+  return Math.round(runtimeMinutes * 60);
 }
 
 function computeEffectiveWatched(aggregate: ProjectionAggregate): boolean {

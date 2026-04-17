@@ -1,5 +1,28 @@
 import type { AiCredentialSource } from '../ai/ai.types.js';
 
+export type RecommendationWorkerDisplayMedia = {
+  mediaType: string;
+  mediaKey: string;
+  provider: string;
+  providerId: string;
+  title: string;
+};
+
+export type RecommendationWorkerContinueWatchingProgress = {
+  positionSeconds: number | null;
+  durationSeconds: number | null;
+  progressPercent: number;
+  lastPlayedAt?: string;
+};
+
+export type RecommendationWorkerContinueWatchingItem = {
+  id: string;
+  media: RecommendationWorkerDisplayMedia;
+  progress: RecommendationWorkerContinueWatchingProgress;
+  lastActivityAt: string;
+  payload?: Record<string, unknown>;
+};
+
 export type RecommendationWorkerGenerateRequest = {
   identity: {
     accountId: string;
@@ -30,7 +53,7 @@ export type RecommendationWorkerGenerateRequest = {
     credentialSource: AiCredentialSource;
   };
   optionalExtras?: {
-    continueWatching?: unknown[];
+    continueWatching?: RecommendationWorkerContinueWatchingItem[];
     trackedSeries?: unknown[];
     limits?: {
       watchHistory: number;

@@ -144,6 +144,104 @@ test('unmarkWatched clears playable progress for title targets and voids history
   assert.ok(calls.some((entry) => entry.method === 'upsertWatchOverride' && entry.args.overrideState === 'unwatched'));
 });
 
+test('setWatchlist heals missing active playback duration from metadata runtime', async () => {
+  const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
+  const repository = createRepository(calls, {
+    reserveMutationSequence: 2,
+    getProjectionAggregate: {
+      activeState: {
+        contentId: 'content-episode-1',
+        playbackStatus: 'in_progress',
+        positionSeconds: 300,
+        durationSeconds: null,
+        progressPercent: 14.5,
+        playCount: 0,
+        lastCompletedAt: null,
+        lastActivityAt: '2024-01-03T00:00:00.000Z',
+        dismissedAt: null,
+      },
+      override: null,
+      watchlist: { present: true, changedAt: '2024-01-03T00:00:00.000Z' },
+      rating: null,
+      lastPlayableCompletedAt: null,
+      lastHistoryCompletedAt: null,
+    },
+  });
+  const service = new WatchV2WriteService(
+    repository as never,
+    {
+      ensureContentId: async () => 'content-show-1',
+      resolveContentReference: async (_client: unknown, contentId: string) => ({
+        contentId,
+        entityType: contentId === 'content-show-1' ? 'show' : 'episode',
+        mediaIdentity: contentId === 'content-show-1'
+          ? {
+              contentId: 'content-show-1',
+              mediaKey: 'show:tvdb:100',
+              mediaType: 'show',
+              provider: 'tvdb',
+              providerId: '100',
+              parentContentId: null,
+              parentProvider: null,
+              parentProviderId: null,
+              tmdbId: null,
+              showTmdbId: null,
+              seasonNumber: null,
+              episodeNumber: null,
+              absoluteEpisodeNumber: null,
+            }
+          : {
+              contentId: 'content-episode-1',
+              mediaKey: 'episode:tvdb:100:1:2',
+              mediaType: 'episode',
+              provider: 'tvdb',
+              providerId: '100:s1:e2',
+              parentContentId: 'content-show-1',
+              parentProvider: 'tvdb',
+              parentProviderId: '100',
+              tmdbId: null,
+              showTmdbId: null,
+              seasonNumber: 1,
+              episodeNumber: 2,
+              absoluteEpisodeNumber: null,
+            },
+      }),
+    } as never,
+    {
+      buildWatchProjection: async (_client: unknown, identity: { mediaType?: string }) => (
+        identity.mediaType === 'episode'
+          ? createProjection({ detailsRuntimeMinutes: 45, episodeRuntimeMinutes: 45 })
+          : createProjection({ detailsRuntimeMinutes: 45, episodeRuntimeMinutes: null })
+      ),
+    } as never,
+    createMetadataService() as never,
+  );
+
+  await service.setWatchlist({} as never, {
+    profileId: 'profile-1',
+    identity: {
+      mediaKey: 'show:tvdb:100',
+      mediaType: 'show',
+      provider: 'tvdb',
+      providerId: '100',
+      parentContentId: null,
+      parentProvider: null,
+      parentProviderId: null,
+      tmdbId: null,
+      showTmdbId: null,
+      seasonNumber: null,
+      episodeNumber: null,
+      absoluteEpisodeNumber: null,
+    },
+    occurredAt: '2024-01-03T00:00:00.000Z',
+  });
+
+  assert.ok(calls.some((entry) => entry.method === 'backfillPlayableDuration' && entry.args.durationSeconds === 2700));
+  const projectionCall = calls.find((entry) => entry.method === 'upsertTitleProjection');
+  const aggregate = projectionCall?.args.aggregate as { activeState?: { durationSeconds?: number | null } } | undefined;
+  assert.equal(aggregate?.activeState?.durationSeconds, 2700);
+});
+
 function createProjection(overrides: Record<string, unknown> = {}) {
   return {
     detailsTitleMediaType: 'show',
@@ -184,6 +282,7 @@ function createRepository(calls: Array<{ method: string; args: Record<string, un
     reserveMutationSequence: async () => overrides.reserveMutationSequence ?? 1,
     getPlayableState: async () => overrides.getPlayableState ?? null,
     upsertPlayableState: async (_client: unknown, args: Record<string, unknown>) => { calls.push({ method: 'upsertPlayableState', args }); },
+    backfillPlayableDuration: async (_client: unknown, args: Record<string, unknown>) => { calls.push({ method: 'backfillPlayableDuration', args }); },
     insertPlayHistory: async (_client: unknown, args: Record<string, unknown>) => { calls.push({ method: 'insertPlayHistory', args }); },
     upsertWatchOverride: async (_client: unknown, args: Record<string, unknown>) => { calls.push({ method: 'upsertWatchOverride', args }); },
     upsertWatchlistState: async (_client: unknown, args: Record<string, unknown>) => { calls.push({ method: 'upsertWatchlistState', args }); },
