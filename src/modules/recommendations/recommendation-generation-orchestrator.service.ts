@@ -12,6 +12,7 @@ import {
 } from './recommendation-generation-jobs.repo.js';
 import type {
   RecommendationWorkerGenerateRequest,
+  RecommendationWorkerGenerationStatus,
   RecommendationWorkerStatusResponse,
   RecommendationWorkerSubmitResponse,
 } from './recommendation-worker.types.js';
@@ -30,6 +31,8 @@ type ParsedGenerationPayload = {
     sourceCursor?: string | null;
   };
 };
+
+type RecommendationWorkerActiveStatus = Extract<RecommendationWorkerGenerationStatus, 'queued' | 'running'>;
 
 export class RecommendationGenerationOrchestratorService {
   private readonly leaseOwner = `recommendation-runner:${process.pid}`;
@@ -90,19 +93,28 @@ export class RecommendationGenerationOrchestratorService {
           response.jobId,
           `recommendation-status:${job.id}:${randomUUID()}`,
         );
+        const submittedStatus = isActiveStatus(terminalStatus.status)
+          ? {
+              status: terminalStatus.status,
+              nextRunAt: buildNextRunAt(resolvePollDelayMs(this.config, terminalStatus.pollAfterSeconds)),
+            }
+          : {
+              status: terminalStatus.status,
+              nextRunAt: null,
+            };
         await this.runInTransaction(async (client) => {
           await this.jobsRepository.markSubmitted(client, job.id, {
             workerJobId: response.jobId,
-            status: 'queued',
+            status: submittedStatus.status,
             acceptedAt: response.acceptedAt ?? null,
-            nextRunAt: null,
+            nextRunAt: submittedStatus.nextRunAt,
             lastStatusPayload: response as unknown as Record<string, unknown>,
           });
         });
         const finalStatus = await this.handleStatus({
           ...job,
           workerJobId: response.jobId,
-          status: 'queued',
+          status: submittedStatus.status,
         }, terminalStatus);
         logger.info({
           localJobId: job.id,
@@ -197,16 +209,17 @@ export class RecommendationGenerationOrchestratorService {
 
   private async handleStatus(job: RecommendationGenerationJobRecord, status: RecommendationWorkerStatusResponse): Promise<string> {
     if (status.status === 'queued' || status.status === 'running') {
+      const activeStatus: RecommendationWorkerActiveStatus = status.status;
       const nextRunAt = buildNextRunAt(resolvePollDelayMs(this.config, status.pollAfterSeconds));
       await this.runInTransaction(async (client) => {
         await this.jobsRepository.markStatusPolled(client, job.id, {
-          status: status.status,
+          status: activeStatus,
           startedAt: status.startedAt ?? null,
           nextRunAt,
           lastStatusPayload: status as unknown as Record<string, unknown>,
         });
       });
-      return status.status;
+      return activeStatus;
     }
 
     if (status.status === 'succeeded') {
@@ -394,6 +407,10 @@ function recommendationLeaseSeconds(): number {
 
 function isTerminalStatus(status: string): boolean {
   return status === 'succeeded' || status === 'failed' || status === 'cancelled';
+}
+
+function isActiveStatus(status: RecommendationWorkerGenerationStatus): status is RecommendationWorkerActiveStatus {
+  return status === 'queued' || status === 'running';
 }
 
 function toFailureJson(error: unknown): Record<string, unknown> {

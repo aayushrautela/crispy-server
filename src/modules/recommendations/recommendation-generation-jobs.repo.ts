@@ -3,6 +3,10 @@ import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 
 export type RecommendationGenerationJobStatus = 'pending' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
+type RecommendationGenerationActiveJobStatus = Extract<RecommendationGenerationJobStatus, 'pending' | 'queued' | 'running'>;
+type RecommendationGenerationRunnableJobStatus = Extract<RecommendationGenerationJobStatus, 'queued' | 'running'>;
+type RecommendationGenerationTerminalJobStatus = Extract<RecommendationGenerationJobStatus, 'succeeded' | 'failed' | 'cancelled'>;
+
 export type RecommendationGenerationTriggerSource = 'system' | 'admin_manual' | 'watch_event' | 'heartbeat_flush' | 'provider_import';
 
 export type RecommendationGenerationJobRecord = {
@@ -300,9 +304,9 @@ export class RecommendationGenerationJobsRepository {
 
   async markSubmitted(client: DbClient, jobId: string, params: {
     workerJobId: string;
-    status: RecommendationGenerationJobStatus;
+    status: RecommendationGenerationRunnableJobStatus | RecommendationGenerationTerminalJobStatus;
     acceptedAt?: string | null;
-    nextRunAt?: string | null;
+    nextRunAt: string | null;
     lastStatusPayload?: Record<string, unknown>;
   }): Promise<void> {
     await client.query(
@@ -354,11 +358,11 @@ export class RecommendationGenerationJobsRepository {
   }
 
   async markStatusPolled(client: DbClient, jobId: string, params: {
-    status: RecommendationGenerationJobStatus;
+    status: RecommendationGenerationRunnableJobStatus;
     startedAt?: string | null;
     completedAt?: string | null;
     cancelledAt?: string | null;
-    nextRunAt?: string | null;
+    nextRunAt: string;
     lastStatusPayload?: Record<string, unknown>;
     failureJson?: Record<string, unknown>;
   }): Promise<void> {
@@ -393,7 +397,7 @@ export class RecommendationGenerationJobsRepository {
   }
 
   async markPollError(client: DbClient, jobId: string, params: {
-    nextRunAt: string | null;
+    nextRunAt: string;
     failureJson: Record<string, unknown>;
   }): Promise<void> {
     await client.query(
@@ -414,7 +418,7 @@ export class RecommendationGenerationJobsRepository {
   }
 
   async markTerminal(client: DbClient, jobId: string, params: {
-    status: Extract<RecommendationGenerationJobStatus, 'failed' | 'cancelled' | 'succeeded'>;
+    status: RecommendationGenerationTerminalJobStatus;
     completedAt?: string | null;
     cancelledAt?: string | null;
     startedAt?: string | null;

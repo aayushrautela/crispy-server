@@ -241,6 +241,64 @@ test('pollJob persists worker success using stored request lineage', async () =>
   assert.equal(markTerminalCalls[0]?.status, 'succeeded');
 });
 
+test('pollJob handles immediate terminal submit without queued null next_run_at state', async () => {
+  const submittedJobs: Array<Record<string, unknown>> = [];
+  const markTerminalCalls: Array<Record<string, unknown>> = [];
+  const appliedContexts: Array<Record<string, unknown>> = [];
+  const job = createJob();
+  const workerResult = createWorkerResult();
+
+  const service = new RecommendationGenerationOrchestratorService(
+    {
+      buildGenerationRequest: async () => { throw new Error('not used'); },
+      applyWorkerResponse: async (context: Record<string, unknown>, response: Record<string, unknown>) => {
+        appliedContexts.push({ ...context, response });
+        return { profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 };
+      },
+    } as never,
+    {
+      claimById: async () => job,
+      findById: async () => job,
+      markSubmitted: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
+        submittedJobs.push(params);
+      },
+      markTerminal: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
+        markTerminalCalls.push(params);
+      },
+      markSubmitError: async () => { throw new Error('not used'); },
+    } as never,
+    {
+      submitGeneration: async () => ({
+        jobId: 'worker-job-immediate-success',
+        status: 'succeeded',
+        idempotencyKey: job.idempotencyKey,
+        acceptedAt: '2026-04-04T00:00:02.000Z',
+        pollAfterSeconds: 4,
+      }),
+      getGenerationStatus: async () => ({
+        jobId: 'worker-job-immediate-success',
+        status: 'succeeded',
+        idempotencyKey: job.idempotencyKey,
+        startedAt: '2026-04-04T00:00:03.000Z',
+        completedAt: '2026-04-04T00:01:00.000Z',
+        result: workerResult,
+      }),
+    } as never,
+    NOOP_TRANSACTION,
+    { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+  );
+
+  const result = await service.pollJob(job.id);
+
+  assert.equal(result.status, 'succeeded');
+  assert.equal(submittedJobs.length, 1);
+  assert.equal(submittedJobs[0]?.status, 'succeeded');
+  assert.equal(submittedJobs[0]?.nextRunAt, null);
+  assert.equal(markTerminalCalls.length, 1);
+  assert.equal(markTerminalCalls[0]?.status, 'succeeded');
+  assert.equal(appliedContexts.length, 1);
+});
+
 test('reconcileDueJobs retries pending submissions and reschedules active polls', async () => {
   const recoverableJobs = [
     createJob({ id: 'pending-job', status: 'pending' }),
