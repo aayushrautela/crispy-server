@@ -65,3 +65,23 @@ test('create aligns recommendation_generation_jobs insert placeholders', async (
   assert.match(insert.text, /\$7, \$8::jsonb, \$9::timestamptz, \$10\)/);
   assert.equal(insert.values.length, 10);
 });
+
+test('clearBlockedForRetest deletes only blocked local generation jobs', async () => {
+  const repository = new RecommendationGenerationJobsRepository();
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const client = {
+    query: async (text: string, values: unknown[] = []) => {
+      queries.push({ text, values });
+      return {
+        rows: [{ deleted_count: '3' }],
+      };
+    },
+  } as never;
+
+  const result = await repository.clearBlockedForRetest(client);
+
+  assert.equal(result.deletedCount, 3);
+  assert.match(queries[0]?.text ?? '', /DELETE FROM recommendation_generation_jobs/);
+  assert.match(queries[0]?.text ?? '', /status IN \('pending', 'failed', 'cancelled'\)/);
+  assert.match(queries[0]?.text ?? '', /status = 'queued' AND worker_job_id IS NULL/);
+});

@@ -52,4 +52,8 @@ export class RecommendationAdminService {
       job: await this.generationJobsRepository.findById(client, jobId),
     }));
   }
+
+  async clearBlockedGenerationJobs(): Promise<{ deletedCount: number }> {
+    return this.runInTransaction(async (client) => this.generationJobsRepository.clearBlockedForRetest(client));
+  }
 }

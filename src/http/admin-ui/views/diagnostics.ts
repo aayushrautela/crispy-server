@@ -4,6 +4,7 @@ export function renderDiagnosticsView(): string {
       <header class="view-header">
         <h2>Diagnostics</h2>
         <div class="view-header-actions">
+          <button type="button" class="secondary" id="clear-blocked-generation-jobs">Clear blocked generation jobs</button>
           <button type="button" class="secondary" id="refresh-diagnostics">Refresh diagnostics</button>
         </div>
       </header>

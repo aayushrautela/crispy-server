@@ -88,6 +88,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     overviewNotifications: document.getElementById('overview-notifications'),
     refreshJobs: document.getElementById('refresh-jobs'),
     refreshDiagnostics: document.getElementById('refresh-diagnostics'),
+    clearBlockedGenerationJobs: document.getElementById('clear-blocked-generation-jobs'),
     jobStats: document.getElementById('job-stats'),
     diagStats: document.getElementById('diag-stats'),
     activeJobs: document.getElementById('job-list-active'),
@@ -177,6 +178,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     if (elements.refreshDiagnostics) {
       elements.refreshDiagnostics.addEventListener('click', () => { void loadDiagnostics(); });
+    }
+    if (elements.clearBlockedGenerationJobs) {
+      elements.clearBlockedGenerationJobs.addEventListener('click', () => {
+        void clearBlockedGenerationJobs();
+      });
     }
     if (elements.refreshProfileDetail) {
       elements.refreshProfileDetail.addEventListener('click', () => {
@@ -508,6 +514,35 @@ export const ADMIN_UI_CLIENT = String.raw`
     } finally {
       setBusy('diagnosticsBusy', false);
       renderOverview();
+    }
+  }
+
+  async function clearBlockedGenerationJobs() {
+    if (state.diagnosticsBusy || state.jobsBusy) return;
+    setMessage(elements.jobMessage, 'info', 'Clearing blocked recommendation generation jobs...');
+    if (elements.clearBlockedGenerationJobs) {
+      elements.clearBlockedGenerationJobs.disabled = true;
+    }
+
+    try {
+      const payload = await fetchJson(apiPath('/diagnostics/recommendations/generation-jobs/clear-blocked'), {
+        method: 'POST',
+      });
+      const deletedCount = Number(payload && payload.deletedCount || 0);
+      const description = deletedCount
+        ? 'Removed ' + deletedCount + ' blocked local generation jobs.'
+        : 'No blocked local generation jobs needed clearing.';
+      setMessage(elements.jobMessage, 'success', description);
+      pushNotification('success', 'Generation queue cleared', description, true);
+      await Promise.all([loadJobs({ silent: true }), loadDiagnostics({ silent: true })]);
+    } catch (error) {
+      const message = error && error.message ? error.message : 'Unable to clear blocked generation jobs.';
+      setMessage(elements.jobMessage, 'error', message);
+      pushNotification('error', 'Generation queue cleanup failed', message, true);
+    } finally {
+      if (elements.clearBlockedGenerationJobs) {
+        elements.clearBlockedGenerationJobs.disabled = false;
+      }
     }
   }
 

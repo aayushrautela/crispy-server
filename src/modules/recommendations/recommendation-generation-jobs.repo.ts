@@ -165,6 +165,25 @@ export class RecommendationGenerationJobsRepository {
     return result.rows.map((row) => mapJob(row));
   }
 
+  async clearBlockedForRetest(client: DbClient): Promise<{ deletedCount: number }> {
+    const result = await client.query<{ deleted_count: string }>(
+      `
+        WITH deleted AS (
+          DELETE FROM recommendation_generation_jobs
+          WHERE status IN ('pending', 'failed', 'cancelled')
+             OR (status = 'queued' AND worker_job_id IS NULL)
+          RETURNING 1
+        )
+        SELECT COUNT(*)::text AS deleted_count
+        FROM deleted
+      `,
+    );
+
+    return {
+      deletedCount: Number(result.rows[0]?.deleted_count ?? '0'),
+    };
+  }
+
   async markRequested(client: DbClient, jobId: string, params: {
     triggerSource: RecommendationGenerationTriggerSource;
     requestPayload: Record<string, unknown>;

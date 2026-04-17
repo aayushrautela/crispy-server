@@ -82,3 +82,19 @@ test('getGenerationJob returns a single local recommendation generation job', as
   const result = await service.getGenerationJob('job-123');
   assert.equal(result.job?.id, 'job-123');
 });
+
+test('clearBlockedGenerationJobs delegates to repository in a transaction', async () => {
+  const service = new RecommendationAdminService(
+    {
+      getLagSummary: async () => ({ undeliveredCount: 0, oldestUndeliveredAt: null }),
+      listUndelivered: async () => [],
+    } as never,
+    {
+      clearBlockedForRetest: async () => ({ deletedCount: 4 }),
+    } as never,
+    runInTransaction,
+  );
+
+  const result = await service.clearBlockedGenerationJobs();
+  assert.equal(result.deletedCount, 4);
+});

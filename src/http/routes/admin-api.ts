@@ -112,6 +112,11 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     return recommendationAdminService.getGenerationJob(readRequiredString(params.jobId, 'jobId'));
   });
 
+  app.post('/admin/api/diagnostics/recommendations/generation-jobs/clear-blocked', async (request, reply) => {
+    await requireAdminMutation(request);
+    return recommendationAdminService.clearBlockedGenerationJobs();
+  });
+
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
     await requireAdmin(request);
     const query = asRecord(request.query);
