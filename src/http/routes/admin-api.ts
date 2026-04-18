@@ -305,7 +305,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdminMutation(request);
     const params = parseAccountProfileParams(request.params);
     const result = await recommendationGenerationDispatcher.scheduleProfileGeneration(params.profileId, 0, 'admin_manual');
-    reply.code(result.status === 'succeeded' || result.status === 'failed' || result.status === 'cancelled' ? 200 : 202);
+    reply.code(result.created ? 202 : (result.status === 'succeeded' || result.status === 'failed' || result.status === 'cancelled' ? 200 : 202));
     return {
       jobId: result.jobId,
       created: result.created,

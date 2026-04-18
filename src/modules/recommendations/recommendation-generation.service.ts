@@ -59,6 +59,10 @@ export class RecommendationGenerationService {
     return { context, payload };
   }
 
+  async loadRequestContext(profileId: string): Promise<RecommendationGenerationBuildResult['context']> {
+    return this.loadGenerationContext(profileId);
+  }
+
   async applyWorkerResponse(
     context: GenerationExpectationContext,
     response: RecommendationWorkerGenerateResponse,

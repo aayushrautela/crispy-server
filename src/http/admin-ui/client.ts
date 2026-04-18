@@ -45,6 +45,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     toastCounter: 0,
     selectedAccount: null,
     selectedProfile: null,
+    selectedGenerationJobId: null,
     jobsSnapshot: new Map(),
     jobsLoadedOnce: false,
     bridgeSignature: null,
@@ -53,7 +54,9 @@ export const ADMIN_UI_CLIENT = String.raw`
       jobs: 8000,
       diagnostics: 30000,
       bridge: 15000,
+      generationDetail: 4000,
     },
+    generationDetailTimer: null,
   };
 
   const elements = {
@@ -519,7 +522,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   async function clearBlockedGenerationJobs() {
     if (state.diagnosticsBusy || state.jobsBusy) return;
-    setMessage(elements.jobMessage, 'info', 'Clearing blocked recommendation generation jobs...');
+    setMessage(elements.jobMessage, 'info', 'Clearing resettable recommendation tracking jobs...');
     if (elements.clearBlockedGenerationJobs) {
       elements.clearBlockedGenerationJobs.disabled = true;
     }
@@ -530,15 +533,15 @@ export const ADMIN_UI_CLIENT = String.raw`
       });
       const deletedCount = Number(payload && payload.deletedCount || 0);
       const description = deletedCount
-        ? 'Removed ' + deletedCount + ' blocked local generation jobs.'
-        : 'No blocked local generation jobs needed clearing.';
+        ? 'Removed ' + deletedCount + ' resettable local tracking jobs.'
+        : 'No resettable local tracking jobs needed clearing.';
       setMessage(elements.jobMessage, 'success', description);
-      pushNotification('success', 'Generation queue cleared', description, true);
+      pushNotification('success', 'Generation tracking reset', description, true);
       await Promise.all([loadJobs({ silent: true }), loadDiagnostics({ silent: true })]);
     } catch (error) {
-      const message = error && error.message ? error.message : 'Unable to clear blocked generation jobs.';
+      const message = error && error.message ? error.message : 'Unable to clear resettable recommendation jobs.';
       setMessage(elements.jobMessage, 'error', message);
-      pushNotification('error', 'Generation queue cleanup failed', message, true);
+      pushNotification('error', 'Generation tracking reset failed', message, true);
     } finally {
       if (elements.clearBlockedGenerationJobs) {
         elements.clearBlockedGenerationJobs.disabled = false;
@@ -564,6 +567,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   async function loadGenerationJobDetail(jobId) {
     if (!jobId) return null;
+    state.selectedGenerationJobId = jobId;
     state.generationDetailBusy = true;
     try {
       const payload = await fetchJson(apiPath('/diagnostics/recommendations/generation-jobs/' + encodeURIComponent(jobId)));
@@ -578,6 +582,24 @@ export const ADMIN_UI_CLIENT = String.raw`
     } finally {
       state.generationDetailBusy = false;
     }
+  }
+
+  function scheduleGenerationDetailRefresh(jobId) {
+    if (state.generationDetailTimer) {
+      clearTimeout(state.generationDetailTimer);
+      state.generationDetailTimer = null;
+    }
+
+    const payload = state.generationDetailPayload && state.generationDetailPayload.job ? state.generationDetailPayload.job : null;
+    const active = payload && (payload.status === 'pending' || payload.status === 'queued' || payload.status === 'running');
+    const waitingForApply = payload && payload.status === 'succeeded' && !payload.resultAppliedAt;
+    if (!jobId || (!active && !waitingForApply)) {
+      return;
+    }
+
+    state.generationDetailTimer = setTimeout(() => {
+      void loadGenerationJobDetail(jobId);
+    }, state.intervals.generationDetail);
   }
 
   async function lookupAccount() {
@@ -766,6 +788,9 @@ export const ADMIN_UI_CLIENT = String.raw`
             : 'Reused existing recommendation job for this profile.';
           setMessage(messageEl, 'success', successText);
           pushNotification('success', 'Recommendation job scheduled', (created ? 'Created' : 'Reused') + ' job ' + (jobId || '(pending id)') + ' with status ' + status + '.', true);
+          if (jobId) {
+            await loadGenerationJobDetail(jobId);
+          }
           await inspectProfile(accountId, profileId);
         } catch (error) {
           const description = describeApiError(error, 'Unable to start recommendation generation.');
@@ -879,13 +904,13 @@ export const ADMIN_UI_CLIENT = String.raw`
     const activeGenerations = generationJobs.filter((row) => String(row.status || '') === 'queued' || String(row.status || '') === 'running').length;
     const failedGenerations = generationJobs.filter((row) => String(row.status || '') === 'failed').length;
     const submitFailures = Number(generationLag && generationLag.submitFailureCount || 0);
-    const pollFailures = Number(generationLag && generationLag.pollFailureCount || 0);
+    const syncFailures = Number(generationLag && generationLag.pollFailureCount || 0);
 
     if (elements.diagStats) {
       elements.diagStats.innerHTML = [
         statCard('Undelivered events', undelivered.length, undelivered.length ? 'needs orchestration attention' : 'delivery is caught up'),
         statCard('Generation jobs', generationJobs.length, generationLagText(generationLag)),
-        statCard('Generation failures', submitFailures + pollFailures, submitFailures + ' submit / ' + pollFailures + ' poll'),
+        statCard('Generation failures', submitFailures + syncFailures, submitFailures + ' submit / ' + syncFailures + ' sync'),
         statCard('Outbox undelivered', countArray(outbox.undelivered), lagText(outbox.lag)),
         statCard('Import refresh failures', refreshFailures, expiringSoon + ' with expiry timestamps'),
       ].join('');
@@ -902,8 +927,8 @@ export const ADMIN_UI_CLIENT = String.raw`
         : 'No recent recommendation generation jobs.';
     }
     if (elements.generationFailureSummary) {
-      elements.generationFailureSummary.textContent = (submitFailures || pollFailures)
-        ? submitFailures + ' jobs still need submit recovery; ' + pollFailures + ' have seen at least one poll failure.'
+      elements.generationFailureSummary.textContent = (submitFailures || syncFailures)
+        ? submitFailures + ' jobs still need submit retry; ' + syncFailures + ' have seen at least one sync failure.'
         : 'No current recommendation generation failure backlog.';
     }
     if (elements.outboxSummary) {
@@ -962,7 +987,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     elements.jobStats.innerHTML = [
       statCard('Pending jobs', Number(lag.pendingCount || 0), Number(lag.submitFailureCount || 0) + ' submit failures'),
       statCard('Running jobs', Number(lag.runningCount || 0), Number(lag.queuedCount || 0) + ' queued'),
-      statCard('Failed jobs', failedCount, Number(lag.pollFailureCount || 0) + ' poll failures'),
+      statCard('Failed jobs', failedCount, Number(lag.pollFailureCount || 0) + ' sync failures'),
       statCard('Latest update', latestUpdatedAt ? formatDate(latestUpdatedAt) : '--', latestUpdatedAt || 'n/a'),
     ].join('');
   }
@@ -982,11 +1007,9 @@ export const ADMIN_UI_CLIENT = String.raw`
     const failureJson = job && job.failureJson && typeof job.failureJson === 'object' ? job.failureJson : {};
     const result = statusPayload && statusPayload.result && typeof statusPayload.result === 'object' ? statusPayload.result : null;
     const failure = statusPayload && statusPayload.failure && typeof statusPayload.failure === 'object' ? statusPayload.failure : failureJson;
-    const queueText = includeQueueContext && job.nextRunAt ? 'next run ' + formatDate(job.nextRunAt) : null;
     const meta = [
       'id ' + job.id,
       job.workerJobId ? 'worker ' + job.workerJobId : 'worker pending',
-      queueText,
       'profile ' + job.profileId,
       'source ' + job.sourceKey,
       job.startedAt ? 'started ' + formatDate(job.startedAt) : 'created ' + formatDate(job.createdAt),
@@ -996,8 +1019,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       'algorithm: ' + String(job.algorithmVersion || 'n/a'),
       'history generation: ' + String(job.historyGeneration || 'n/a'),
       'submit attempts: ' + String(Number(job.submitAttempts || 0)),
-      'poll attempts: ' + String(Number(job.pollAttempts || 0)),
-      'poll errors: ' + String(Number(job.pollErrorCount || 0)),
+      'sync attempts: ' + String(Number(job.pollAttempts || 0)),
+      'sync errors: ' + String(Number(job.pollErrorCount || 0)),
       'accepted: ' + String(job.acceptedAt || 'n/a'),
       'completed: ' + String(job.completedAt || 'n/a'),
       result ? 'result: available' : 'result: pending',
@@ -1737,7 +1760,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       + kvPair('Generation pending', String(generationJobs && generationJobs.pendingCount || 0))
       + kvPair('Generation running', String(generationJobs && generationJobs.runningCount || 0))
       + kvPair('Submit failures', String(generationJobs && generationJobs.submitFailureCount || 0))
-      + kvPair('Poll failures', String(generationJobs && generationJobs.pollFailureCount || 0))
+      + kvPair('Sync failures', String(generationJobs && generationJobs.pollFailureCount || 0))
       + kvPair('Refresh failures', String(refreshFailures))
       + kvPair('Outbox lag', lagText(outbox))
       + '</div>';
@@ -1780,10 +1803,12 @@ export const ADMIN_UI_CLIENT = String.raw`
         + kvPair('Profile', job.profileId || 'n/a')
         + kvPair('Worker job id', job.workerJobId || 'pending submit')
         + kvPair('Status', job.status || 'unknown')
+        + kvPair('Trigger source', job.triggerSource || 'n/a')
         + kvPair('Submit attempts', String(job.submitAttempts || 0))
-        + kvPair('Poll attempts', String(job.pollAttempts || 0))
-        + kvPair('Poll failures', String(job.pollErrorCount || 0))
-        + kvPair('Next run at', job.nextRunAt ? formatDate(job.nextRunAt) : 'n/a')
+        + kvPair('Sync attempts', String(job.pollAttempts || 0))
+        + kvPair('Sync failures', String(job.pollErrorCount || 0))
+        + kvPair('Last synced', job.lastSyncedAt ? formatDate(job.lastSyncedAt) : 'n/a')
+        + kvPair('Result applied', job.resultAppliedAt ? formatDate(job.resultAppliedAt) : 'pending')
         + '</div>';
     }
     if (elements.generationDetailJson) {
@@ -1791,8 +1816,10 @@ export const ADMIN_UI_CLIENT = String.raw`
         requestPayload: job.requestPayload || {},
         lastStatusPayload: job.lastStatusPayload || {},
         failureJson: job.failureJson || {},
+        applyErrorJson: job.applyErrorJson || {},
       }, null, 2);
     }
+    scheduleGenerationDetailRefresh(job.id || state.selectedGenerationJobId);
   }
 
   function renderOverviewNotifications() {

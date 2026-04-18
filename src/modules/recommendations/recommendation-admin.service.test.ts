@@ -17,7 +17,7 @@ test('getOutbox returns lag summary and undelivered events', async () => {
       listUndelivered: async () => [{ id: 'event-1' }],
     } as never,
     {
-      getLagSummary: async () => ({ pendingCount: 0, queuedCount: 0, runningCount: 0, failedCount: 0, submitFailureCount: 0, pollFailureCount: 0, oldestPendingCreatedAt: null, oldestNextRunAt: null }),
+      getLagSummary: async () => ({ pendingCount: 0, queuedCount: 0, runningCount: 0, failedCount: 0, submitFailureCount: 0, pollFailureCount: 0, oldestPendingCreatedAt: null }),
       listRecent: async () => [],
     } as never,
     runInTransaction,
@@ -39,7 +39,7 @@ test('getOutbox passes limit to repository', async () => {
       },
     } as never,
     {
-      getLagSummary: async () => ({ pendingCount: 0, queuedCount: 0, runningCount: 0, failedCount: 0, submitFailureCount: 0, pollFailureCount: 0, oldestPendingCreatedAt: null, oldestNextRunAt: null }),
+      getLagSummary: async () => ({ pendingCount: 0, queuedCount: 0, runningCount: 0, failedCount: 0, submitFailureCount: 0, pollFailureCount: 0, oldestPendingCreatedAt: null }),
       listRecent: async () => [],
     } as never,
     runInTransaction,
@@ -56,7 +56,7 @@ test('getGenerationJobs returns lag summary and due jobs', async () => {
       listUndelivered: async () => [],
     } as never,
     {
-      getLagSummary: async () => ({ pendingCount: 1, queuedCount: 2, runningCount: 3, failedCount: 4, submitFailureCount: 5, pollFailureCount: 6, oldestPendingCreatedAt: '2026-03-24T00:00:00.000Z', oldestNextRunAt: '2026-03-24T00:01:00.000Z' }),
+      getLagSummary: async () => ({ pendingCount: 1, queuedCount: 2, runningCount: 3, failedCount: 4, submitFailureCount: 5, pollFailureCount: 6, oldestPendingCreatedAt: '2026-03-24T00:00:00.000Z' }),
       listRecent: async () => [{ id: 'job-1' }],
     } as never,
     runInTransaction,

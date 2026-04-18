@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import { HttpError } from '../../lib/errors.js';
+import { enqueueRecommendationSubmit, enqueueRecommendationSync, type RecommendationQueueStrategy } from '../../lib/queue.js';
 import { recommendationConfig } from './recommendation-config.js';
 import { RecommendationGenerationService } from './recommendation-generation.service.js';
 import { RecommendationEngineClient } from './recommendation-engine-client.js';
@@ -12,12 +13,18 @@ import {
 } from './recommendation-generation-jobs.repo.js';
 import type {
   RecommendationWorkerGenerateRequest,
+  RecommendationWorkerGenerateResponse,
   RecommendationWorkerGenerationStatus,
   RecommendationWorkerStatusResponse,
   RecommendationWorkerSubmitResponse,
 } from './recommendation-worker.types.js';
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
+
+type RecommendationQueueScheduler = {
+  enqueueSubmit(jobId: string, delayMs?: number, strategy?: RecommendationQueueStrategy): Promise<void>;
+  enqueueSync(jobId: string, delayMs?: number, strategy?: RecommendationQueueStrategy): Promise<void>;
+};
 
 type ParsedGenerationPayload = {
   identity: {
@@ -35,26 +42,28 @@ type ParsedGenerationPayload = {
 type RecommendationWorkerActiveStatus = Extract<RecommendationWorkerGenerationStatus, 'queued' | 'running'>;
 
 export class RecommendationGenerationOrchestratorService {
-  private readonly leaseOwner = `recommendation-runner:${process.pid}`;
-
   constructor(
     private readonly generationService = new RecommendationGenerationService(),
     private readonly jobsRepository = new RecommendationGenerationJobsRepository(),
     private readonly workerClient = new RecommendationEngineClient(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly config: Pick<typeof recommendationConfig, 'queueDelayMs' | 'pollDelayMs' | 'maxPollDelayMs'> = recommendationConfig,
+    private readonly queueScheduler: RecommendationQueueScheduler = {
+      enqueueSubmit: enqueueRecommendationSubmit,
+      enqueueSync: enqueueRecommendationSync,
+    },
   ) {}
 
   async ensureGeneration(profileId: string, options?: {
     delayMs?: number;
     triggerSource?: RecommendationGenerationTriggerSource;
   }): Promise<{ jobId: string; status: string; created: boolean }> {
-    const { context, payload } = await this.generationService.buildGenerationRequest(profileId);
+    const context = await this.resolveRequestContext(profileId);
+    const payload = buildRegistrationPayload(context);
     const idempotencyKey = buildIdempotencyKey(payload);
-    const nextRunAt = buildNextRunAt(options?.delayMs ?? this.config.queueDelayMs);
     const triggerSource = options?.triggerSource ?? 'system';
 
-    return this.runInTransaction(async (client) => {
+    const result = await this.runInTransaction(async (client) => {
       const result = await this.findOrCreateJob(client, {
         profileId: context.profileId,
         accountId: context.accountId,
@@ -63,8 +72,7 @@ export class RecommendationGenerationOrchestratorService {
         historyGeneration: payload.generationMeta.historyGeneration,
         idempotencyKey,
         triggerSource,
-        requestPayload: payload as unknown as Record<string, unknown>,
-        nextRunAt,
+        requestPayload: {},
       });
 
       await this.jobsRepository.cancelSuperseded(client, {
@@ -76,6 +84,93 @@ export class RecommendationGenerationOrchestratorService {
 
       return result;
     });
+
+    await this.queueScheduler.enqueueSubmit(result.jobId, Math.max(0, options?.delayMs ?? this.config.queueDelayMs));
+    return result;
+  }
+
+  private async resolveRequestContext(profileId: string): Promise<Awaited<ReturnType<RecommendationGenerationService['loadRequestContext']>>> {
+    const service = this.generationService as RecommendationGenerationService & {
+      loadRequestContext?: (profileId: string) => Promise<Awaited<ReturnType<RecommendationGenerationService['loadRequestContext']>>>;
+    };
+
+    if (typeof service.loadRequestContext === 'function') {
+      return service.loadRequestContext(profileId);
+    }
+
+    const fallback = await this.generationService.buildGenerationRequest(profileId);
+    return fallback.context;
+  }
+
+  async submitQueuedJob(jobId: string): Promise<void> {
+    const job = await this.runInTransaction(async (client) => this.jobsRepository.findById(client, jobId));
+    if (!job || job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled') {
+      return;
+    }
+
+    if (job.workerJobId) {
+      await this.queueScheduler.enqueueSync(job.id);
+      return;
+    }
+
+    const { payload } = await this.generationService.buildGenerationRequest(job.profileId);
+    if (
+      payload.generationMeta.sourceKey !== job.sourceKey
+      || payload.generationMeta.algorithmVersion !== job.algorithmVersion
+      || payload.generationMeta.historyGeneration !== job.historyGeneration
+    ) {
+      await this.runInTransaction(async (client) => {
+        await this.jobsRepository.markTerminal(client, job.id, {
+          status: 'cancelled',
+          cancelledAt: new Date().toISOString(),
+          failureJson: {
+            code: 'stale_generation_context',
+            message: 'Recommendation generation context changed before queued submission ran.',
+          },
+        });
+      });
+      return;
+    }
+
+    await this.submitJob({
+      ...job,
+      requestPayload: payload as unknown as Record<string, unknown>,
+    });
+  }
+
+  async syncQueuedJob(jobId: string): Promise<void> {
+    const job = await this.runInTransaction(async (client) => this.jobsRepository.findById(client, jobId));
+    if (!job) {
+      return;
+    }
+    if (job.status === 'succeeded') {
+      await this.applySucceededJobResult(job);
+      return;
+    }
+    if (job.status === 'failed' || job.status === 'cancelled') {
+      return;
+    }
+    if (!job.workerJobId) {
+      if (job.status === 'pending') {
+        await this.queueScheduler.enqueueSubmit(job.id);
+      }
+      return;
+    }
+    await this.syncTrackedJob(job);
+  }
+
+  async enqueueRecoveryJobs(limit = 250): Promise<{ enqueuedCount: number }> {
+    const jobs = await this.runInTransaction(async (client) => this.jobsRepository.listRecoveryCandidates(client, limit));
+
+    for (const job of jobs) {
+      if (job.status === 'pending' && !job.workerJobId) {
+        await this.queueScheduler.enqueueSubmit(job.id);
+        continue;
+      }
+      await this.queueScheduler.enqueueSync(job.id);
+    }
+
+    return { enqueuedCount: jobs.length };
   }
 
   async submitJob(job: RecommendationGenerationJobRecord): Promise<RecommendationWorkerSubmitResponse> {
@@ -94,23 +189,25 @@ export class RecommendationGenerationOrchestratorService {
           `recommendation-status:${job.id}:${randomUUID()}`,
         );
         const submittedStatus = isActiveStatus(terminalStatus.status)
-          ? {
-              status: terminalStatus.status,
-              nextRunAt: buildNextRunAt(resolvePollDelayMs(this.config, terminalStatus.pollAfterSeconds)),
-            }
+          ? { status: terminalStatus.status }
           : {
               status: terminalStatus.status,
-              nextRunAt: null,
             };
         await this.runInTransaction(async (client) => {
           await this.jobsRepository.markSubmitted(client, job.id, {
             workerJobId: response.jobId,
             status: submittedStatus.status,
             acceptedAt: response.acceptedAt ?? null,
-            nextRunAt: submittedStatus.nextRunAt,
             lastStatusPayload: response as unknown as Record<string, unknown>,
           });
         });
+        if (isActiveStatus(terminalStatus.status)) {
+          await this.queueScheduler.enqueueSync(
+            job.id,
+            resolvePollDelayMs(this.config, terminalStatus.pollAfterSeconds),
+            'followup',
+          );
+        }
         const finalStatus = await this.handleStatus({
           ...job,
           workerJobId: response.jobId,
@@ -129,16 +226,19 @@ export class RecommendationGenerationOrchestratorService {
         };
       }
 
-      const nextRunAt = buildNextRunAt(resolvePollDelayMs(this.config, response.pollAfterSeconds));
       await this.runInTransaction(async (client) => {
         await this.jobsRepository.markSubmitted(client, job.id, {
           workerJobId: response.jobId,
           status: response.status,
           acceptedAt: response.acceptedAt ?? null,
-          nextRunAt,
           lastStatusPayload: response as unknown as Record<string, unknown>,
         });
       });
+      await this.queueScheduler.enqueueSync(
+        job.id,
+        resolvePollDelayMs(this.config, response.pollAfterSeconds),
+        'followup',
+      );
       logger.info({
         localJobId: job.id,
         workerJobId: response.jobId,
@@ -151,74 +251,28 @@ export class RecommendationGenerationOrchestratorService {
       await this.runInTransaction(async (client) => {
         await this.jobsRepository.markSubmitError(client, job.id, {
           failureJson: toFailureJson(error),
-          nextRunAt: buildNextRunAt(retryDelayMs),
         });
       });
+      await this.queueScheduler.enqueueSubmit(job.id, retryDelayMs, 'followup');
       throw error;
     }
-  }
-
-  async pollJob(jobId: string): Promise<{ status: string }> {
-    const now = new Date().toISOString();
-    const claimed = await this.runInTransaction(async (client) => this.jobsRepository.claimById(client, {
-      jobId,
-      now,
-      leaseOwner: this.leaseOwner,
-      leaseSeconds: recommendationLeaseSeconds(),
-    }));
-
-    if (!claimed) {
-      const existing = await this.runInTransaction(async (client) => this.jobsRepository.findById(client, jobId));
-      if (!existing) {
-        throw new HttpError(404, 'Recommendation generation job not found.');
-      }
-      if (existing.status === 'succeeded' || existing.status === 'failed' || existing.status === 'cancelled') {
-        return { status: existing.status };
-      }
-      throw new HttpError(409, 'Recommendation generation job is already being processed.');
-    }
-
-    return this.processClaimedJob(claimed);
-  }
-
-  async reconcileDueJobs(limit = 25): Promise<{ recoveredCount: number; inspectedCount: number }> {
-    const now = new Date().toISOString();
-    const jobs = await this.runInTransaction(async (client) => this.jobsRepository.claimDueJobs(client, {
-      now,
-      leaseOwner: this.leaseOwner,
-      leaseSeconds: recommendationLeaseSeconds(),
-      limit,
-    }));
-
-    let recoveredCount = 0;
-    for (const job of jobs) {
-      try {
-        await this.processClaimedJob(job);
-        recoveredCount += 1;
-      } catch (error) {
-        logger.warn({ localJobId: job.id, err: error }, 'failed to process recommendation generation job');
-      }
-    }
-
-    if (jobs.length > 0) {
-      logger.info({ recoveredCount, inspectedCount: jobs.length }, 'reconciled recommendation generation jobs');
-    }
-
-    return { recoveredCount, inspectedCount: jobs.length };
   }
 
   private async handleStatus(job: RecommendationGenerationJobRecord, status: RecommendationWorkerStatusResponse): Promise<string> {
     if (status.status === 'queued' || status.status === 'running') {
       const activeStatus: RecommendationWorkerActiveStatus = status.status;
-      const nextRunAt = buildNextRunAt(resolvePollDelayMs(this.config, status.pollAfterSeconds));
       await this.runInTransaction(async (client) => {
         await this.jobsRepository.markStatusPolled(client, job.id, {
           status: activeStatus,
           startedAt: status.startedAt ?? null,
-          nextRunAt,
           lastStatusPayload: status as unknown as Record<string, unknown>,
         });
       });
+      await this.queueScheduler.enqueueSync(
+        job.id,
+        resolvePollDelayMs(this.config, status.pollAfterSeconds),
+        'followup',
+      );
       return activeStatus;
     }
 
@@ -227,13 +281,6 @@ export class RecommendationGenerationOrchestratorService {
         throw new HttpError(502, 'Recommendation worker reported success without a result.');
       }
 
-      const payload = parseStoredPayload(job.requestPayload);
-      await this.generationService.applyWorkerResponse({
-        accountId: payload.identity.accountId,
-        profileId: payload.identity.profileId,
-        historyGeneration: payload.generationMeta.historyGeneration,
-        sourceCursor: payload.generationMeta.sourceCursor ?? null,
-      }, status.result);
       await this.runInTransaction(async (client) => {
         await this.jobsRepository.markTerminal(client, job.id, {
           status: 'succeeded',
@@ -242,6 +289,11 @@ export class RecommendationGenerationOrchestratorService {
           lastStatusPayload: status as unknown as Record<string, unknown>,
           failureJson: {},
         });
+      });
+      await this.applySucceededJobResult({
+        ...job,
+        status: 'succeeded',
+        lastStatusPayload: status as unknown as Record<string, unknown>,
       });
       return 'succeeded';
     }
@@ -271,29 +323,58 @@ export class RecommendationGenerationOrchestratorService {
     return 'failed';
   }
 
-  private async processClaimedJob(job: RecommendationGenerationJobRecord): Promise<{ status: string }> {
-    if (job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled') {
-      return { status: job.status };
-    }
-    if (!job.workerJobId || job.status === 'pending') {
-      const submission = await this.submitJob(job);
-      return { status: submission.status };
-    }
-    return this.pollClaimedJob(job);
-  }
-
-  private async pollClaimedJob(job: RecommendationGenerationJobRecord): Promise<{ status: string }> {
+  private async syncTrackedJob(job: RecommendationGenerationJobRecord): Promise<string> {
     const requestId = `recommendation-status:${job.id}:${randomUUID()}`;
     try {
       const status = await this.workerClient.getGenerationStatus(job.workerJobId ?? '', requestId);
-      const result = await this.handleStatus(job, status);
-      return { status: result };
+      return this.handleStatus(job, status);
     } catch (error) {
       const retryDelayMs = Math.min(this.config.maxPollDelayMs, this.config.pollDelayMs * 2);
       await this.runInTransaction(async (client) => {
         await this.jobsRepository.markPollError(client, job.id, {
-          nextRunAt: buildNextRunAt(retryDelayMs),
           failureJson: toFailureJson(error),
+        });
+      });
+      await this.queueScheduler.enqueueSync(job.id, retryDelayMs, 'followup');
+      throw error;
+    }
+  }
+
+  private async applySucceededJobResult(job: RecommendationGenerationJobRecord): Promise<void> {
+    if (job.resultAppliedAt) {
+      return;
+    }
+
+    const statusPayload = asRecord(job.lastStatusPayload);
+    const result = statusPayload.result;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      await this.runInTransaction(async (client) => {
+        await this.jobsRepository.markApplyError(client, job.id, {
+          applyErrorJson: {
+            code: 'missing_terminal_result',
+            message: 'Succeeded recommendation job is missing a stored worker result.',
+          },
+        });
+      });
+      throw new HttpError(502, 'Succeeded recommendation job is missing a stored worker result.');
+    }
+
+    const payload = parseStoredPayload(job.requestPayload);
+
+    try {
+      await this.generationService.applyWorkerResponse({
+        accountId: payload.identity.accountId,
+        profileId: payload.identity.profileId,
+        historyGeneration: payload.generationMeta.historyGeneration,
+        sourceCursor: payload.generationMeta.sourceCursor ?? null,
+      }, result as RecommendationWorkerGenerateResponse);
+      await this.runInTransaction(async (client) => {
+        await this.jobsRepository.markResultApplied(client, job.id);
+      });
+    } catch (error) {
+      await this.runInTransaction(async (client) => {
+        await this.jobsRepository.markApplyError(client, job.id, {
+          applyErrorJson: toFailureJson(error),
         });
       });
       throw error;
@@ -309,7 +390,6 @@ export class RecommendationGenerationOrchestratorService {
     idempotencyKey: string;
     triggerSource: RecommendationGenerationTriggerSource;
     requestPayload: Record<string, unknown>;
-    nextRunAt: string;
   }): Promise<{ jobId: string; status: string; created: boolean }> {
     const existing = await this.jobsRepository.findByGenerationKey(client, {
       profileId: params.profileId,
@@ -324,7 +404,6 @@ export class RecommendationGenerationOrchestratorService {
       await this.jobsRepository.markRequested(client, existing.id, {
         triggerSource: params.triggerSource,
         requestPayload: params.requestPayload,
-        nextRunAt: params.nextRunAt,
       });
       const refreshed = await this.jobsRepository.findById(client, existing.id);
       const job = refreshed ?? existing;
@@ -341,7 +420,6 @@ export class RecommendationGenerationOrchestratorService {
         idempotencyKey: params.idempotencyKey,
         triggerSource: params.triggerSource,
         requestPayload: params.requestPayload,
-        nextRunAt: params.nextRunAt,
       });
       return { jobId: created.id, status: created.status, created: true };
     } catch (error) {
@@ -361,7 +439,6 @@ export class RecommendationGenerationOrchestratorService {
         await this.jobsRepository.markRequested(client, raced.id, {
           triggerSource: params.triggerSource,
           requestPayload: params.requestPayload,
-          nextRunAt: params.nextRunAt,
         });
       }
       return { jobId: raced.id, status: raced.status, created: false };
@@ -377,6 +454,44 @@ function buildIdempotencyKey(payload: RecommendationWorkerGenerateRequest): stri
     payload.generationMeta.algorithmVersion,
     String(payload.generationMeta.historyGeneration),
   ].join(':');
+}
+
+function buildRegistrationPayload(context: Awaited<ReturnType<RecommendationGenerationService['loadRequestContext']>>): RecommendationWorkerGenerateRequest {
+  return {
+    identity: {
+      accountId: context.accountId,
+      profileId: context.profileId,
+    },
+    generationMeta: {
+      sourceKey: recommendationConfig.sourceKey,
+      algorithmVersion: recommendationConfig.algorithmVersion as RecommendationWorkerGenerateRequest['generationMeta']['algorithmVersion'],
+      historyGeneration: context.historyGeneration,
+      sourceCursor: context.sourceCursor,
+      ttlSeconds: recommendationConfig.generationTtlSeconds,
+    },
+    watchHistory: [],
+    ratings: [],
+    watchlist: [],
+    profileContext: {
+      profileName: context.profileName,
+      isKids: context.isKids,
+      watchDataOrigin: context.currentOrigin,
+    },
+    aiConfig: {
+      providerId: 'queued',
+      endpointUrl: '',
+      httpReferer: '',
+      title: '',
+      model: '',
+      apiKey: '',
+      credentialSource: 'server',
+    },
+    optionalExtras: {
+      continueWatching: [],
+      trackedSeries: [],
+      limits: recommendationConfig.payloadLimits,
+    },
+  };
 }
 
 function resolvePollDelayMs(
@@ -395,14 +510,6 @@ function resolveRetryDelayMs(
 ): number {
   const multiplier = Math.max(1, 2 ** Math.max(0, attemptCount - 1));
   return Math.min(config.maxPollDelayMs, config.pollDelayMs * multiplier);
-}
-
-function buildNextRunAt(delayMs: number): string {
-  return new Date(Date.now() + delayMs).toISOString();
-}
-
-function recommendationLeaseSeconds(): number {
-  return 60;
 }
 
 function isTerminalStatus(status: string): boolean {

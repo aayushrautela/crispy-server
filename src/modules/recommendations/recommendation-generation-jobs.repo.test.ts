@@ -9,7 +9,6 @@ const { RecommendationGenerationJobsRepository } = await import('./recommendatio
 test('create aligns recommendation_generation_jobs insert placeholders', async () => {
   const repository = new RecommendationGenerationJobsRepository();
   const queries: Array<{ text: string; values: unknown[] }> = [];
-  const nextRunAt = '2024-01-01T00:05:00.000Z';
   const client = {
     query: async (text: string, values: unknown[] = []) => {
       queries.push({ text, values });
@@ -38,9 +37,9 @@ test('create aligns recommendation_generation_jobs insert placeholders', async (
           last_requested_at: '2024-01-01T00:00:00.000Z',
           last_submitted_at: null,
           last_polled_at: null,
-          next_run_at: values[8] ?? nextRunAt,
-          lease_owner: null,
-          lease_expires_at: null,
+          last_synced_at: null,
+          result_applied_at: null,
+          apply_error_json: {},
           created_at: '2024-01-01T00:00:00.000Z',
           updated_at: '2024-01-01T00:00:00.000Z',
         }],
@@ -57,13 +56,12 @@ test('create aligns recommendation_generation_jobs insert placeholders', async (
     idempotencyKey: 'recommendation:profile:default:v3.2.1:7',
     triggerSource: 'admin_manual',
     requestPayload: { test: true },
-    nextRunAt,
   });
 
   const insert = queries.find((entry) => entry.text.includes('INSERT INTO recommendation_generation_jobs'));
   assert.ok(insert, 'expected recommendation_generation_jobs insert query');
-  assert.match(insert.text, /\$7, \$8::jsonb, \$9::timestamptz, \$10\)/);
-  assert.equal(insert.values.length, 10);
+  assert.match(insert.text, /\$7, \$8::jsonb, \$9\)/);
+  assert.equal(insert.values.length, 9);
 });
 
 test('clearBlockedForRetest deletes only blocked local generation jobs', async () => {

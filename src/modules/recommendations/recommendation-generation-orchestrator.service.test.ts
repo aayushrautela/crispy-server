@@ -74,9 +74,9 @@ function createJob(overrides: Record<string, unknown> = {}) {
     lastRequestedAt: '2026-04-04T00:00:00.000Z',
     lastSubmittedAt: null,
     lastPolledAt: null,
-    nextRunAt: '2026-04-04T00:05:00.000Z',
-    leaseOwner: null,
-    leaseExpiresAt: null,
+    lastSyncedAt: null,
+    resultAppliedAt: null,
+    applyErrorJson: {},
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z',
     ...overrides,
@@ -105,6 +105,7 @@ function createWorkerResult() {
 
 test('ensureGeneration creates and submits async job', async () => {
   const createdJobs: Array<Record<string, unknown>> = [];
+  const enqueuedSubmits: Array<{ jobId: string; delayMs: number | undefined }> = [];
   const buildResult = {
     context: {
       accountId: 'account-1',
@@ -138,6 +139,10 @@ test('ensureGeneration creates and submits async job', async () => {
     } as never,
     NOOP_TRANSACTION,
     { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    {
+      enqueueSubmit: async (jobId: string, delayMs?: number) => { enqueuedSubmits.push({ jobId, delayMs }); },
+      enqueueSync: async () => { throw new Error('not used'); },
+    },
   );
 
   const result = await service.ensureGeneration('profile-1', { triggerSource: 'admin_manual' });
@@ -147,11 +152,11 @@ test('ensureGeneration creates and submits async job', async () => {
   assert.equal(result.created, true);
   assert.equal(createdJobs.length, 1);
   assert.equal(createdJobs[0]?.triggerSource, 'admin_manual');
+  assert.deepEqual(enqueuedSubmits, [{ jobId: 'local-job-1', delayMs: 1500 }]);
 });
 
-test('pollJob resubmits pending jobs without worker job id', async () => {
-  const markSubmitErrors: Array<Record<string, unknown>> = [];
-  const submittedJobs: Array<Record<string, unknown>> = [];
+test('syncQueuedJob submits pending tracked jobs without worker job id', async () => {
+  const enqueuedSubmits: Array<Record<string, unknown>> = [];
   const job = createJob();
 
   const service = new RecommendationGenerationOrchestratorService(
@@ -160,38 +165,26 @@ test('pollJob resubmits pending jobs without worker job id', async () => {
       applyWorkerResponse: async () => ({ profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 }),
     } as never,
     {
-      claimById: async () => job,
       findById: async () => job,
-      markSubmitted: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
-        submittedJobs.push(params);
-      },
-      markSubmitError: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
-        markSubmitErrors.push(params);
-      },
     } as never,
     {
-      submitGeneration: async () => ({
-        jobId: 'worker-job-2',
-        status: 'queued',
-        idempotencyKey: job.idempotencyKey,
-        acceptedAt: '2026-04-04T00:00:02.000Z',
-        pollAfterSeconds: 4,
-      }),
+      submitGeneration: async () => { throw new Error('not used'); },
       getGenerationStatus: async () => { throw new Error('not used'); },
     } as never,
     NOOP_TRANSACTION,
     { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    {
+      enqueueSubmit: async (jobId: string, delayMs?: number) => { enqueuedSubmits.push({ jobId, delayMs }); },
+      enqueueSync: async () => { throw new Error('not used'); },
+    },
   );
 
-  const result = await service.pollJob(job.id);
+  await service.syncQueuedJob(job.id);
 
-  assert.equal(result.status, 'queued');
-  assert.equal(submittedJobs.length, 1);
-  assert.equal(markSubmitErrors.length, 0);
-  assert.ok(typeof submittedJobs[0]?.nextRunAt === 'string');
+  assert.deepEqual(enqueuedSubmits, [{ jobId: job.id, delayMs: undefined }]);
 });
 
-test('pollJob persists worker success using stored request lineage', async () => {
+test('syncQueuedJob persists worker success using stored request lineage', async () => {
   const markTerminalCalls: Array<Record<string, unknown>> = [];
   const appliedContexts: Array<Record<string, unknown>> = [];
   const job = createJob({ workerJobId: 'worker-job-3', status: 'running' });
@@ -199,18 +192,29 @@ test('pollJob persists worker success using stored request lineage', async () =>
 
   const service = new RecommendationGenerationOrchestratorService(
     {
-      buildGenerationRequest: async () => { throw new Error('not used'); },
+      buildGenerationRequest: async () => ({
+        context: {
+          accountId: 'account-1',
+          profileId: 'profile-1',
+          profileName: 'Main',
+          isKids: false,
+          historyGeneration: 12,
+          currentOrigin: 'provider_sync',
+          sourceCursor: 'cursor-1',
+        },
+        payload: createStoredRequest(),
+      }),
       applyWorkerResponse: async (context: Record<string, unknown>, response: Record<string, unknown>) => {
         appliedContexts.push({ ...context, response });
         return { profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 };
       },
     } as never,
     {
-      claimById: async () => job,
       findById: async () => job,
       markTerminal: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
         markTerminalCalls.push(params);
       },
+      markResultApplied: async () => {},
       markPollError: async () => { throw new Error('not used'); },
     } as never,
     {
@@ -226,11 +230,14 @@ test('pollJob persists worker success using stored request lineage', async () =>
     } as never,
     NOOP_TRANSACTION,
     { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    {
+      enqueueSubmit: async () => { throw new Error('not used'); },
+      enqueueSync: async () => { throw new Error('not used'); },
+    },
   );
 
-  const result = await service.pollJob(job.id);
+  await service.syncQueuedJob(job.id);
 
-  assert.equal(result.status, 'succeeded');
   assert.equal(appliedContexts.length, 1);
   assert.equal(appliedContexts[0]?.accountId, 'account-1');
   assert.equal(appliedContexts[0]?.profileId, 'profile-1');
@@ -241,7 +248,7 @@ test('pollJob persists worker success using stored request lineage', async () =>
   assert.equal(markTerminalCalls[0]?.status, 'succeeded');
 });
 
-test('pollJob handles immediate terminal submit without queued null next_run_at state', async () => {
+test('submitQueuedJob handles immediate terminal submit without transient queued state', async () => {
   const submittedJobs: Array<Record<string, unknown>> = [];
   const markTerminalCalls: Array<Record<string, unknown>> = [];
   const appliedContexts: Array<Record<string, unknown>> = [];
@@ -250,14 +257,24 @@ test('pollJob handles immediate terminal submit without queued null next_run_at 
 
   const service = new RecommendationGenerationOrchestratorService(
     {
-      buildGenerationRequest: async () => { throw new Error('not used'); },
+      buildGenerationRequest: async () => ({
+        context: {
+          accountId: 'account-1',
+          profileId: 'profile-1',
+          profileName: 'Main',
+          isKids: false,
+          historyGeneration: 12,
+          currentOrigin: 'provider_sync',
+          sourceCursor: 'cursor-1',
+        },
+        payload: createStoredRequest(),
+      }),
       applyWorkerResponse: async (context: Record<string, unknown>, response: Record<string, unknown>) => {
         appliedContexts.push({ ...context, response });
         return { profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 };
       },
     } as never,
     {
-      claimById: async () => job,
       findById: async () => job,
       markSubmitted: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
         submittedJobs.push(params);
@@ -265,6 +282,7 @@ test('pollJob handles immediate terminal submit without queued null next_run_at 
       markTerminal: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
         markTerminalCalls.push(params);
       },
+      markResultApplied: async () => {},
       markSubmitError: async () => { throw new Error('not used'); },
     } as never,
     {
@@ -286,26 +304,76 @@ test('pollJob handles immediate terminal submit without queued null next_run_at 
     } as never,
     NOOP_TRANSACTION,
     { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    {
+      enqueueSubmit: async () => { throw new Error('not used'); },
+      enqueueSync: async () => { throw new Error('not used'); },
+    },
   );
 
-  const result = await service.pollJob(job.id);
+  await service.submitQueuedJob(job.id);
 
-  assert.equal(result.status, 'succeeded');
   assert.equal(submittedJobs.length, 1);
   assert.equal(submittedJobs[0]?.status, 'succeeded');
-  assert.equal(submittedJobs[0]?.nextRunAt, null);
   assert.equal(markTerminalCalls.length, 1);
   assert.equal(markTerminalCalls[0]?.status, 'succeeded');
   assert.equal(appliedContexts.length, 1);
 });
 
-test('reconcileDueJobs retries pending submissions and reschedules active polls', async () => {
+test('syncQueuedJob reapplies succeeded jobs that are missing local resultAppliedAt', async () => {
+  const appliedContexts: Array<Record<string, unknown>> = [];
+  const markedApplied: Array<Record<string, unknown>> = [];
+  const job = createJob({
+    workerJobId: 'worker-job-5',
+    status: 'succeeded',
+    resultAppliedAt: null,
+    lastStatusPayload: {
+      jobId: 'worker-job-5',
+      status: 'succeeded',
+      result: createWorkerResult(),
+    },
+  });
+
+  const service = new RecommendationGenerationOrchestratorService(
+    {
+      buildGenerationRequest: async () => { throw new Error('not used'); },
+      applyWorkerResponse: async (context: Record<string, unknown>, response: Record<string, unknown>) => {
+        appliedContexts.push({ ...context, response });
+        return { profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 };
+      },
+    } as never,
+    {
+      findById: async () => job,
+      markResultApplied: async (_client: unknown, _jobId: string, params?: Record<string, unknown>) => {
+        markedApplied.push(params ?? {});
+      },
+      markApplyError: async () => { throw new Error('not used'); },
+    } as never,
+    {
+      submitGeneration: async () => { throw new Error('not used'); },
+      getGenerationStatus: async () => { throw new Error('not used'); },
+    } as never,
+    NOOP_TRANSACTION,
+    { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    {
+      enqueueSubmit: async () => { throw new Error('not used'); },
+      enqueueSync: async () => { throw new Error('not used'); },
+    },
+  );
+
+  await service.syncQueuedJob(job.id);
+
+  assert.equal(appliedContexts.length, 1);
+  assert.equal(appliedContexts[0]?.accountId, 'account-1');
+  assert.equal(markedApplied.length, 1);
+});
+
+test('enqueueRecoveryJobs enqueues submit and sync recovery work for tracked jobs', async () => {
   const recoverableJobs = [
     createJob({ id: 'pending-job', status: 'pending' }),
     createJob({ id: 'running-job', status: 'running', workerJobId: 'worker-job-4' }),
   ];
-  const submittedJobs: Array<Record<string, unknown>> = [];
-  const polledJobs: Array<Record<string, unknown>> = [];
+  const enqueuedSubmits: string[] = [];
+  const enqueuedSyncs: string[] = [];
 
   const service = new RecommendationGenerationOrchestratorService(
     {
@@ -313,42 +381,23 @@ test('reconcileDueJobs retries pending submissions and reschedules active polls'
       applyWorkerResponse: async () => ({ profileId: 'profile-1', sourceKey: 'default', algorithmVersion: 'v3.2.1', historyGeneration: 12, sections: 0 }),
     } as never,
     {
-      claimDueJobs: async () => recoverableJobs,
-      markSubmitted: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
-        submittedJobs.push(params);
-      },
-      markStatusPolled: async (_client: unknown, _jobId: string, params: Record<string, unknown>) => {
-        polledJobs.push(params);
-      },
-      markSubmitError: async () => { throw new Error('not used'); },
+      listRecoveryCandidates: async () => recoverableJobs,
     } as never,
     {
-      submitGeneration: async (_payload: unknown, options: { idempotencyKey: string }) => ({
-        jobId: `worker:${options.idempotencyKey}`,
-        status: 'queued',
-        idempotencyKey: options.idempotencyKey,
-        acceptedAt: '2026-04-04T00:00:04.000Z',
-        pollAfterSeconds: 6,
-      }),
-      getGenerationStatus: async () => ({
-        jobId: 'worker-job-4',
-        status: 'running',
-        idempotencyKey: recoverableJobs[1]!.idempotencyKey,
-        pollAfterSeconds: 2,
-      }),
+      submitGeneration: async () => { throw new Error('not used'); },
+      getGenerationStatus: async () => { throw new Error('not used'); },
     } as never,
     NOOP_TRANSACTION,
     { queueDelayMs: 1500, pollDelayMs: 1500, maxPollDelayMs: 10_000 },
+    {
+      enqueueSubmit: async (jobId: string) => { enqueuedSubmits.push(jobId); },
+      enqueueSync: async (jobId: string) => { enqueuedSyncs.push(jobId); },
+    },
   );
 
-  const result = await service.reconcileDueJobs(10);
+  const result = await service.enqueueRecoveryJobs(10);
 
-  assert.equal(result.inspectedCount, 2);
-  assert.equal(result.recoveredCount, 2);
-  assert.equal(submittedJobs.length, 1);
-  assert.equal(submittedJobs[0]?.workerJobId, 'worker:recommendation:profile-1:default:v3.2.1:12');
-  assert.ok(typeof submittedJobs[0]?.nextRunAt === 'string');
-  assert.equal(polledJobs.length, 1);
-  assert.equal(polledJobs[0]?.status, 'running');
-  assert.ok(typeof polledJobs[0]?.nextRunAt === 'string');
+  assert.equal(result.enqueuedCount, 2);
+  assert.deepEqual(enqueuedSubmits, ['pending-job']);
+  assert.deepEqual(enqueuedSyncs, ['running-job']);
 });

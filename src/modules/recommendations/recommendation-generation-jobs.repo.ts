@@ -33,9 +33,9 @@ export type RecommendationGenerationJobRecord = {
   lastRequestedAt: string;
   lastSubmittedAt: string | null;
   lastPolledAt: string | null;
-  nextRunAt: string | null;
-  leaseOwner: string | null;
-  leaseExpiresAt: string | null;
+  lastSyncedAt: string | null;
+  resultAppliedAt: string | null;
+  applyErrorJson: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 };
@@ -48,7 +48,6 @@ export type RecommendationGenerationJobLagSummary = {
   submitFailureCount: number;
   pollFailureCount: number;
   oldestPendingCreatedAt: string | null;
-  oldestNextRunAt: string | null;
 };
 
 function mapJob(row: Record<string, unknown>): RecommendationGenerationJobRecord {
@@ -76,9 +75,9 @@ function mapJob(row: Record<string, unknown>): RecommendationGenerationJobRecord
     lastRequestedAt: requireDbIsoString(row.last_requested_at as Date | string | null | undefined, 'recommendation_generation_jobs.last_requested_at'),
     lastSubmittedAt: toDbIsoString(row.last_submitted_at as Date | string | null | undefined, 'recommendation_generation_jobs.last_submitted_at'),
     lastPolledAt: toDbIsoString(row.last_polled_at as Date | string | null | undefined, 'recommendation_generation_jobs.last_polled_at'),
-    nextRunAt: toDbIsoString(row.next_run_at as Date | string | null | undefined, 'recommendation_generation_jobs.next_run_at'),
-    leaseOwner: typeof row.lease_owner === 'string' ? row.lease_owner : null,
-    leaseExpiresAt: toDbIsoString(row.lease_expires_at as Date | string | null | undefined, 'recommendation_generation_jobs.lease_expires_at'),
+    lastSyncedAt: toDbIsoString(row.last_synced_at as Date | string | null | undefined, 'recommendation_generation_jobs.last_synced_at'),
+    resultAppliedAt: toDbIsoString(row.result_applied_at as Date | string | null | undefined, 'recommendation_generation_jobs.result_applied_at'),
+    applyErrorJson: (row.apply_error_json as Record<string, unknown> | undefined) ?? {},
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'recommendation_generation_jobs.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'recommendation_generation_jobs.updated_at'),
   };
@@ -89,7 +88,8 @@ const JOB_SELECT = `
          idempotency_key, trigger_source, worker_job_id, status, request_payload, last_status_payload,
          failure_json, submit_attempts, poll_attempts, poll_error_count, accepted_at,
          started_at, completed_at, cancelled_at, last_requested_at, last_submitted_at, last_polled_at,
-         next_run_at, lease_owner, lease_expires_at, created_at, updated_at
+         last_synced_at, result_applied_at, apply_error_json,
+         created_at, updated_at
   FROM recommendation_generation_jobs
 `;
 
@@ -103,7 +103,6 @@ export class RecommendationGenerationJobsRepository {
     idempotencyKey: string;
     triggerSource: RecommendationGenerationTriggerSource;
     requestPayload: Record<string, unknown>;
-    nextRunAt?: string;
     status?: RecommendationGenerationJobStatus;
   }): Promise<RecommendationGenerationJobRecord> {
     const result = await client.query(
@@ -117,15 +116,15 @@ export class RecommendationGenerationJobsRepository {
           idempotency_key,
           trigger_source,
           request_payload,
-          next_run_at,
           status
         )
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9::timestamptz, $10)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb, $9)
         RETURNING id, profile_id, account_id, source_key, algorithm_version, history_generation,
                   idempotency_key, trigger_source, worker_job_id, status, request_payload, last_status_payload,
                   failure_json, submit_attempts, poll_attempts, poll_error_count, accepted_at,
                   started_at, completed_at, cancelled_at, last_requested_at, last_submitted_at, last_polled_at,
-                  next_run_at, lease_owner, lease_expires_at, created_at, updated_at
+                  last_synced_at, result_applied_at, apply_error_json,
+                  created_at, updated_at
       `,
       [
         params.profileId,
@@ -136,7 +135,6 @@ export class RecommendationGenerationJobsRepository {
         params.idempotencyKey,
         params.triggerSource,
         JSON.stringify(params.requestPayload),
-        params.nextRunAt ?? new Date().toISOString(),
         params.status ?? 'pending',
       ],
     );
@@ -191,7 +189,6 @@ export class RecommendationGenerationJobsRepository {
   async markRequested(client: DbClient, jobId: string, params: {
     triggerSource: RecommendationGenerationTriggerSource;
     requestPayload: Record<string, unknown>;
-    nextRunAt: string;
   }): Promise<void> {
     await client.query(
       `
@@ -199,14 +196,11 @@ export class RecommendationGenerationJobsRepository {
         SET trigger_source = $2,
             request_payload = $3::jsonb,
             last_requested_at = now(),
-            next_run_at = CASE
-              WHEN next_run_at IS NULL THEN $4::timestamptz
-              ELSE LEAST(next_run_at, $4::timestamptz)
-            END,
+            apply_error_json = '{}'::jsonb,
             updated_at = now()
         WHERE id = $1::uuid
       `,
-      [jobId, params.triggerSource, JSON.stringify(params.requestPayload), params.nextRunAt],
+      [jobId, params.triggerSource, JSON.stringify(params.requestPayload)],
     );
   }
 
@@ -221,9 +215,6 @@ export class RecommendationGenerationJobsRepository {
         UPDATE recommendation_generation_jobs
         SET status = 'cancelled',
             cancelled_at = COALESCE(cancelled_at, now()),
-            next_run_at = NULL,
-            lease_owner = NULL,
-            lease_expires_at = NULL,
             failure_json = jsonb_build_object(
               'code', 'superseded',
               'message', 'Superseded by a newer recommendation generation request.'
@@ -239,74 +230,39 @@ export class RecommendationGenerationJobsRepository {
     );
   }
 
-  async claimDueJobs(client: DbClient, params: {
-    now: string;
-    leaseOwner: string;
-    leaseSeconds: number;
-    limit: number;
-  }): Promise<RecommendationGenerationJobRecord[]> {
-    const result = await client.query(
-      `
-        WITH candidates AS (
-          SELECT id
-          FROM recommendation_generation_jobs
-          WHERE status IN ('pending', 'queued', 'running')
-            AND next_run_at <= $1::timestamptz
-            AND (lease_expires_at IS NULL OR lease_expires_at <= $1::timestamptz)
-          ORDER BY next_run_at ASC, updated_at ASC
-          FOR UPDATE SKIP LOCKED
-          LIMIT $4
-        )
-        UPDATE recommendation_generation_jobs job
-        SET lease_owner = $2,
-            lease_expires_at = now() + ($3 * interval '1 second'),
-            updated_at = now()
-        FROM candidates
-        WHERE job.id = candidates.id
-        RETURNING job.id, job.profile_id, job.account_id, job.source_key, job.algorithm_version, job.history_generation,
-                  job.idempotency_key, job.trigger_source, job.worker_job_id, job.status, job.request_payload,
-                  job.last_status_payload, job.failure_json, job.submit_attempts, job.poll_attempts,
-                  job.poll_error_count, job.accepted_at, job.started_at, job.completed_at, job.cancelled_at,
-                  job.last_requested_at, job.last_submitted_at, job.last_polled_at, job.next_run_at,
-                  job.lease_owner, job.lease_expires_at, job.created_at, job.updated_at
-      `,
-      [params.now, params.leaseOwner, params.leaseSeconds, params.limit],
-    );
-    return result.rows.map((row) => mapJob(row));
-  }
-
-  async claimById(client: DbClient, params: {
-    jobId: string;
-    now: string;
-    leaseOwner: string;
-    leaseSeconds: number;
-  }): Promise<RecommendationGenerationJobRecord | null> {
-    const result = await client.query(
+  async markResultApplied(client: DbClient, jobId: string, params?: {
+    applyErrorJson?: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
       `
         UPDATE recommendation_generation_jobs
-        SET lease_owner = $2,
-            lease_expires_at = now() + ($3 * interval '1 second'),
+        SET result_applied_at = now(),
+            apply_error_json = CASE WHEN $2::jsonb IS NULL THEN '{}'::jsonb ELSE $2::jsonb END,
             updated_at = now()
         WHERE id = $1::uuid
-          AND status IN ('pending', 'queued', 'running')
-          AND (lease_expires_at IS NULL OR lease_expires_at <= $4::timestamptz)
-        RETURNING id, profile_id, account_id, source_key, algorithm_version, history_generation,
-                  idempotency_key, trigger_source, worker_job_id, status, request_payload,
-                  last_status_payload, failure_json, submit_attempts, poll_attempts,
-                  poll_error_count, accepted_at, started_at, completed_at, cancelled_at,
-                  last_requested_at, last_submitted_at, last_polled_at, next_run_at,
-                  lease_owner, lease_expires_at, created_at, updated_at
       `,
-      [params.jobId, params.leaseOwner, params.leaseSeconds, params.now],
+      [jobId, params?.applyErrorJson ? JSON.stringify(params.applyErrorJson) : null],
     );
-    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
+
+  async markApplyError(client: DbClient, jobId: string, params: {
+    applyErrorJson: Record<string, unknown>;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE recommendation_generation_jobs
+        SET apply_error_json = $2::jsonb,
+            updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [jobId, JSON.stringify(params.applyErrorJson)],
+    );
   }
 
   async markSubmitted(client: DbClient, jobId: string, params: {
     workerJobId: string;
     status: RecommendationGenerationRunnableJobStatus | RecommendationGenerationTerminalJobStatus;
     acceptedAt?: string | null;
-    nextRunAt: string | null;
     lastStatusPayload?: Record<string, unknown>;
   }): Promise<void> {
     await client.query(
@@ -317,11 +273,9 @@ export class RecommendationGenerationJobsRepository {
             accepted_at = COALESCE($4::timestamptz, accepted_at),
             last_submitted_at = now(),
             submit_attempts = submit_attempts + 1,
-            next_run_at = $5::timestamptz,
-            last_status_payload = CASE WHEN $6::jsonb IS NULL THEN last_status_payload ELSE $6::jsonb END,
+            last_status_payload = CASE WHEN $5::jsonb IS NULL THEN last_status_payload ELSE $5::jsonb END,
             failure_json = '{}'::jsonb,
-            lease_owner = NULL,
-            lease_expires_at = NULL,
+            apply_error_json = '{}'::jsonb,
             updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -330,7 +284,6 @@ export class RecommendationGenerationJobsRepository {
         params.workerJobId,
         params.status,
         params.acceptedAt ?? null,
-        params.nextRunAt ?? null,
         params.lastStatusPayload ? JSON.stringify(params.lastStatusPayload) : null,
       ],
     );
@@ -338,7 +291,6 @@ export class RecommendationGenerationJobsRepository {
 
   async markSubmitError(client: DbClient, jobId: string, params: {
     failureJson: Record<string, unknown>;
-    nextRunAt?: string | null;
   }): Promise<void> {
     await client.query(
       `
@@ -346,14 +298,11 @@ export class RecommendationGenerationJobsRepository {
         SET status = 'pending',
             last_submitted_at = now(),
             submit_attempts = submit_attempts + 1,
-            next_run_at = COALESCE($2::timestamptz, next_run_at),
-            failure_json = $3::jsonb,
-            lease_owner = NULL,
-            lease_expires_at = NULL,
+            failure_json = $2::jsonb,
             updated_at = now()
         WHERE id = $1::uuid
       `,
-      [jobId, params.nextRunAt ?? null, JSON.stringify(params.failureJson)],
+      [jobId, JSON.stringify(params.failureJson)],
     );
   }
 
@@ -362,7 +311,6 @@ export class RecommendationGenerationJobsRepository {
     startedAt?: string | null;
     completedAt?: string | null;
     cancelledAt?: string | null;
-    nextRunAt: string;
     lastStatusPayload?: Record<string, unknown>;
     failureJson?: Record<string, unknown>;
   }): Promise<void> {
@@ -374,12 +322,10 @@ export class RecommendationGenerationJobsRepository {
             completed_at = COALESCE($4::timestamptz, completed_at),
             cancelled_at = COALESCE($5::timestamptz, cancelled_at),
             last_polled_at = now(),
+            last_synced_at = now(),
             poll_attempts = poll_attempts + 1,
-            next_run_at = $6::timestamptz,
-            last_status_payload = CASE WHEN $7::jsonb IS NULL THEN last_status_payload ELSE $7::jsonb END,
-            failure_json = CASE WHEN $8::jsonb IS NULL THEN failure_json ELSE $8::jsonb END,
-            lease_owner = NULL,
-            lease_expires_at = NULL,
+            last_status_payload = CASE WHEN $6::jsonb IS NULL THEN last_status_payload ELSE $6::jsonb END,
+            failure_json = CASE WHEN $7::jsonb IS NULL THEN failure_json ELSE $7::jsonb END,
             updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -389,7 +335,6 @@ export class RecommendationGenerationJobsRepository {
         params.startedAt ?? null,
         params.completedAt ?? null,
         params.cancelledAt ?? null,
-        params.nextRunAt ?? null,
         params.lastStatusPayload ? JSON.stringify(params.lastStatusPayload) : null,
         params.failureJson ? JSON.stringify(params.failureJson) : null,
       ],
@@ -397,23 +342,20 @@ export class RecommendationGenerationJobsRepository {
   }
 
   async markPollError(client: DbClient, jobId: string, params: {
-    nextRunAt: string;
     failureJson: Record<string, unknown>;
   }): Promise<void> {
     await client.query(
       `
         UPDATE recommendation_generation_jobs
         SET last_polled_at = now(),
+            last_synced_at = now(),
             poll_attempts = poll_attempts + 1,
             poll_error_count = poll_error_count + 1,
-            next_run_at = $2::timestamptz,
-            failure_json = $3::jsonb,
-            lease_owner = NULL,
-            lease_expires_at = NULL,
+            failure_json = $2::jsonb,
             updated_at = now()
         WHERE id = $1::uuid
       `,
-      [jobId, params.nextRunAt, JSON.stringify(params.failureJson)],
+      [jobId, JSON.stringify(params.failureJson)],
     );
   }
 
@@ -432,11 +374,9 @@ export class RecommendationGenerationJobsRepository {
             started_at = COALESCE($3::timestamptz, started_at),
             completed_at = COALESCE($4::timestamptz, completed_at),
             cancelled_at = COALESCE($5::timestamptz, cancelled_at),
-            next_run_at = NULL,
+            last_synced_at = now(),
             last_status_payload = CASE WHEN $6::jsonb IS NULL THEN last_status_payload ELSE $6::jsonb END,
             failure_json = CASE WHEN $7::jsonb IS NULL THEN failure_json ELSE $7::jsonb END,
-            lease_owner = NULL,
-            lease_expires_at = NULL,
             updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -462,8 +402,7 @@ export class RecommendationGenerationJobsRepository {
           COUNT(*) FILTER (WHERE status = 'failed')::integer AS failed_count,
           COUNT(*) FILTER (WHERE submit_attempts > 0 AND worker_job_id IS NULL AND status = 'pending')::integer AS submit_failure_count,
           COUNT(*) FILTER (WHERE poll_error_count > 0)::integer AS poll_failure_count,
-          MIN(created_at) FILTER (WHERE status = 'pending') AS oldest_pending_created_at,
-          MIN(next_run_at) FILTER (WHERE status IN ('pending', 'queued', 'running')) AS oldest_next_run_at
+          MIN(created_at) FILTER (WHERE status = 'pending') AS oldest_pending_created_at
         FROM recommendation_generation_jobs
       `,
     );
@@ -476,7 +415,19 @@ export class RecommendationGenerationJobsRepository {
       submitFailureCount: Number(row.submit_failure_count ?? 0),
       pollFailureCount: Number(row.poll_failure_count ?? 0),
       oldestPendingCreatedAt: toDbIsoString(row.oldest_pending_created_at as Date | string | null | undefined, 'recommendation_generation_jobs.oldest_pending_created_at'),
-      oldestNextRunAt: toDbIsoString(row.oldest_next_run_at as Date | string | null | undefined, 'recommendation_generation_jobs.oldest_next_run_at'),
     };
+  }
+
+  async listRecoveryCandidates(client: DbClient, limit: number): Promise<RecommendationGenerationJobRecord[]> {
+    const result = await client.query(
+      `${JOB_SELECT}
+       WHERE (status = 'pending' AND worker_job_id IS NULL)
+          OR (status IN ('queued', 'running') AND worker_job_id IS NOT NULL)
+          OR (status = 'succeeded' AND result_applied_at IS NULL)
+       ORDER BY updated_at ASC, created_at ASC
+       LIMIT $1`,
+      [limit],
+    );
+    return result.rows.map((row) => mapJob(row));
   }
 }

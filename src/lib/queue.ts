@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { Queue } from 'bullmq';
 import { env } from '../config/env.js';
 import { HEARTBEAT_POLICY } from '../modules/watch/heartbeat-policy.js';
 
 export const projectionQueueName = 'projection-refresh';
+export const recommendationQueueName = 'recommendation-generation';
 
 const redisUrl = new URL(env.redisUrl);
 
@@ -15,6 +17,7 @@ export const bullConnection = {
 };
 
 let projectionQueue: Queue | null = null;
+let recommendationQueue: Queue | null = null;
 
 export type ProjectionRefreshJob = {
   profileId: string;
@@ -23,6 +26,13 @@ export type ProjectionRefreshJob = {
   importJobId?: string;
   provider?: string;
 };
+
+export type RecommendationOrchestrationJob = {
+  jobId: string;
+  reason: 'recommendation-submit' | 'recommendation-sync';
+};
+
+export type RecommendationQueueStrategy = 'dedupe' | 'followup';
 
 function projectionRefreshJobId(reason: string, profileId: string, mediaKey?: string): string {
   return mediaKey ? buildJobId(reason, profileId, mediaKey) : buildJobId(reason, profileId);
@@ -77,6 +87,22 @@ export async function enqueueProviderRefresh(profileId: string, provider: string
   );
 }
 
+export async function enqueueRecommendationSubmit(
+  jobId: string,
+  delayMs?: number,
+  strategy: RecommendationQueueStrategy = 'dedupe',
+): Promise<void> {
+  await enqueueRecommendationJob({ jobId, reason: 'recommendation-submit' }, delayMs, strategy);
+}
+
+export async function enqueueRecommendationSync(
+  jobId: string,
+  delayMs?: number,
+  strategy: RecommendationQueueStrategy = 'dedupe',
+): Promise<void> {
+  await enqueueRecommendationJob({ jobId, reason: 'recommendation-sync' }, delayMs, strategy);
+}
+
 function resolveProjectionJobId(job: ProjectionRefreshJob): string {
   if (job.importJobId) {
     return buildJobId(job.reason, job.profileId, job.importJobId);
@@ -89,6 +115,60 @@ function resolveProjectionJobId(job: ProjectionRefreshJob): string {
   return projectionRefreshJobId(job.reason, job.profileId, job.mediaKey);
 }
 
+async function enqueueRecommendationJob(
+  job: RecommendationOrchestrationJob,
+  delayMs?: number,
+  strategy: RecommendationQueueStrategy = 'dedupe',
+): Promise<void> {
+  if (env.nodeEnv === 'test') {
+    return;
+  }
+
+  const queue = getRecommendationQueue();
+  const requestedDelayMs = Math.max(0, Math.trunc(delayMs ?? 0));
+  const baseJobId = buildJobId(job.reason, job.jobId);
+
+  if (strategy === 'followup') {
+    await addRecommendationQueueJob(queue, job, requestedDelayMs, buildJobId(job.reason, job.jobId, randomUUID()));
+    return;
+  }
+
+  const existing = await queue.getJob(baseJobId);
+  if (!existing) {
+    await addRecommendationQueueJob(queue, job, requestedDelayMs, baseJobId);
+    return;
+  }
+
+  const state = await existing.getState();
+  if (state === 'failed' || state === 'completed') {
+    await existing.remove();
+    await addRecommendationQueueJob(queue, job, requestedDelayMs, baseJobId);
+    return;
+  }
+
+  if (state === 'delayed') {
+    const scheduledAt = Number(existing.timestamp ?? Date.now()) + Number(existing.opts.delay ?? 0);
+    const remainingDelayMs = Math.max(0, scheduledAt - Date.now());
+    if (requestedDelayMs < remainingDelayMs) {
+      await existing.changeDelay(requestedDelayMs);
+    }
+  }
+}
+
+async function addRecommendationQueueJob(
+  queue: Queue,
+  job: RecommendationOrchestrationJob,
+  delayMs: number,
+  jobId: string,
+): Promise<void> {
+  await queue.add(job.reason, job, {
+    jobId,
+    delay: delayMs,
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+}
+
 function buildJobId(...parts: string[]): string {
   return parts.map((part) => Buffer.from(part, 'utf8').toString('base64url')).join('__');
 }
@@ -98,4 +178,11 @@ function getProjectionQueue(): Queue {
     connection: bullConnection,
   });
   return projectionQueue;
+}
+
+function getRecommendationQueue(): Queue {
+  recommendationQueue ??= new Queue(recommendationQueueName, {
+    connection: bullConnection,
+  });
+  return recommendationQueue;
 }
