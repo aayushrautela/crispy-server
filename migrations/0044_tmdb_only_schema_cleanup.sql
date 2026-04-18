@@ -83,23 +83,30 @@ WHERE title_media_key LIKE 'anime:%'
    OR next_episode_media_key LIKE '%:tvdb:%'
    OR next_episode_media_key LIKE '%:kitsu:%';
 
-UPDATE profile_tracked_series
-SET tracked_media_type = 'show'
-WHERE tracked_media_type = 'anime';
+DO $$
+BEGIN
+  -- `profile_tracked_series` was removed in 0028, but some databases may still
+  -- retain it if they drifted before the watch-v2 cutover.
+  IF to_regclass('public.profile_tracked_series') IS NOT NULL THEN
+    UPDATE profile_tracked_series
+    SET tracked_media_type = 'show'
+    WHERE tracked_media_type = 'anime';
 
-ALTER TABLE profile_tracked_series
-  DROP CONSTRAINT IF EXISTS profile_tracked_series_media_type_check;
+    ALTER TABLE profile_tracked_series
+      DROP CONSTRAINT IF EXISTS profile_tracked_series_media_type_check;
 
-ALTER TABLE profile_tracked_series
-  ADD CONSTRAINT profile_tracked_series_media_type_check
-  CHECK (tracked_media_type IN ('show'));
+    ALTER TABLE profile_tracked_series
+      ADD CONSTRAINT profile_tracked_series_media_type_check
+      CHECK (tracked_media_type IN ('show'));
 
-ALTER TABLE profile_tracked_series
-  DROP CONSTRAINT IF EXISTS profile_tracked_series_provider_check;
+    ALTER TABLE profile_tracked_series
+      DROP CONSTRAINT IF EXISTS profile_tracked_series_provider_check;
 
-ALTER TABLE profile_tracked_series
-  ADD CONSTRAINT profile_tracked_series_provider_check
-  CHECK (provider IN ('tmdb'));
+    ALTER TABLE profile_tracked_series
+      ADD CONSTRAINT profile_tracked_series_provider_check
+      CHECK (provider IN ('tmdb'));
+  END IF;
+END $$;
 
 DROP TABLE IF EXISTS tvdb_title_bundles;
 DROP TABLE IF EXISTS kitsu_title_bundles;
