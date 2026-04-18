@@ -96,7 +96,6 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
         all: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:1', provider: 'tmdb', providerId: '1', title: 'Alpha Movie', posterUrl: 'https://img.example/alpha.jpg', releaseYear: 2024, rating: 8.1, genre: null, subtitle: null }],
         movies: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:1', provider: 'tmdb', providerId: '1', title: 'Alpha Movie', posterUrl: 'https://img.example/alpha.jpg', releaseYear: 2024, rating: 8.1, genre: null, subtitle: null }],
         series: [],
-        anime: [],
       }),
     } as never,
     new ShortLivedRequestCoalescer(10_000),
@@ -119,5 +118,4 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
   assert.deepEqual(left.all.map((item) => item.title), ['Alpha Movie']);
   assert.deepEqual(left.movies.map((item) => item.title), ['Alpha Movie']);
   assert.deepEqual(left.series, []);
-  assert.deepEqual(left.anime, []);
 });

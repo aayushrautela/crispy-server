@@ -5,7 +5,7 @@ import { inferMediaIdentity } from '../identity/media-key.js';
 
 seedTestEnv();
 
-test('listWatchV2WatchedEpisodeKeys expands watched title override using source-backed episodes', async () => {
+test('listWatchV2WatchedEpisodeKeys expands watched title override using TMDB episode listings', async () => {
   const { listWatchV2WatchedEpisodeKeys } = await import('./watch-v2-episode-keys.js');
 
   const client = {
@@ -33,77 +33,30 @@ test('listWatchV2WatchedEpisodeKeys expands watched title override using source-
       resolveContentReference: async () => null,
     } as never,
     {
-      loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '100' }),
-        language: null,
-        providerIdentity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '100' }),
-        providerContext: {
-          title: null,
-          currentEpisode: null,
-          nextEpisode: null,
-          seasons: [],
-          episodes: [
-            {
-              mediaType: 'episode',
-              provider: 'tvdb',
-              providerId: '100:1:1',
-              parentMediaType: 'show',
-              parentProvider: 'tvdb',
-              parentProviderId: '100',
-              seasonNumber: 1,
-              episodeNumber: 1,
-              absoluteEpisodeNumber: null,
-              title: 'Episode 1',
-              summary: null,
-              airDate: '2024-01-01',
-              runtimeMinutes: 45,
-              rating: null,
-              stillUrl: null,
-              raw: {},
-            },
-            {
-              mediaType: 'episode',
-              provider: 'tvdb',
-              providerId: '100:1:2',
-              parentMediaType: 'show',
-              parentProvider: 'tvdb',
-              parentProviderId: '100',
-              seasonNumber: 1,
-              episodeNumber: 2,
-              absoluteEpisodeNumber: null,
-              title: 'Episode 2',
-              summary: null,
-              airDate: '2024-02-01',
-              runtimeMinutes: 45,
-              rating: null,
-              stillUrl: null,
-              raw: {},
-            },
-          ],
-          videos: [],
-          cast: [],
-          directors: [],
-          creators: [],
-          reviews: [],
-          production: null,
-          collection: null,
-          collectionItems: [],
-          similar: [],
+      listEpisodesForShow: async () => [
+        {
+          showTmdbId: 100,
+          seasonNumber: 1,
+          episodeNumber: 1,
+          airDate: '2024-01-01',
         },
-        tmdbTitle: null,
-        tmdbCurrentEpisode: null,
-        tmdbNextEpisode: null,
-      }),
+        {
+          showTmdbId: 100,
+          seasonNumber: 1,
+          episodeNumber: 2,
+          airDate: '2024-02-01',
+        },
+      ],
     } as never,
     'profile-1',
-    inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '100' }),
+    inferMediaIdentity({ mediaType: 'show', tmdbId: 100 }),
     '11111111-1111-4111-8111-111111111111',
   );
 
-  assert.deepEqual(keys, ['episode:tvdb:100:1:1']);
+  assert.deepEqual(keys, ['episode:tmdb:100:1:1']);
 });
 
-test('listWatchV2WatchedEpisodeKeys returns exact watched keys when source has no provider episodes', async () => {
+test('listWatchV2WatchedEpisodeKeys returns exact watched keys when TMDB episode listing is empty', async () => {
   const { listWatchV2WatchedEpisodeKeys } = await import('./watch-v2-episode-keys.js');
 
   const client = {
@@ -124,24 +77,16 @@ test('listWatchV2WatchedEpisodeKeys returns exact watched keys when source has n
       ensureEpisodeContentIds: async () => new Map(),
       resolveContentReference: async () => ({
         entityType: 'episode',
-        mediaIdentity: inferMediaIdentity({ mediaType: 'episode', provider: 'tvdb', parentProvider: 'tvdb', parentProviderId: '100', seasonNumber: 1, episodeNumber: 1 }),
+        mediaIdentity: inferMediaIdentity({ mediaType: 'episode', provider: 'tmdb', parentProvider: 'tmdb', parentProviderId: '100', seasonNumber: 1, episodeNumber: 1 }),
       }),
     } as never,
     {
-      loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '100' }),
-        language: null,
-        providerIdentity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '100' }),
-        providerContext: null,
-        tmdbTitle: null,
-        tmdbCurrentEpisode: null,
-        tmdbNextEpisode: null,
-      }),
+      listEpisodesForShow: async () => [],
     } as never,
     'profile-1',
-    inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '100' }),
+    inferMediaIdentity({ mediaType: 'show', tmdbId: 100 }),
     '11111111-1111-4111-8111-111111111111',
   );
 
-  assert.deepEqual(keys, ['episode:tvdb:100:1:1']);
+  assert.deepEqual(keys, ['episode:tmdb:100:1:1']);
 });

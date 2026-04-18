@@ -11,7 +11,7 @@ export function fallbackRegularCard(
 ): RegularCardView | null {
   const parsed = parseMediaKey(mediaKey);
   if (
-    (parsed.mediaType !== 'movie' && parsed.mediaType !== 'show' && parsed.mediaType !== 'anime')
+    (parsed.mediaType !== 'movie' && parsed.mediaType !== 'show')
     || !parsed.provider
     || !parsed.providerId
     || !title

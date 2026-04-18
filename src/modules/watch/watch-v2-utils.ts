@@ -31,7 +31,7 @@ export async function resolveWatchV2Lookup(
   identity: MediaIdentity,
 ): Promise<ResolvedWatchV2Lookup> {
   const contentId = await contentIdentityService.ensureContentId(client, identity);
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return {
       contentId,
       titleContentId: contentId,
@@ -64,7 +64,7 @@ export async function resolveWatchV2Lookup(
 }
 
 export function toEpisodicSeriesIdentity(identity: MediaIdentity): MediaIdentity | null {
-  if (identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'show') {
     return identity;
   }
 

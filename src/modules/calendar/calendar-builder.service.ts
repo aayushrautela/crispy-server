@@ -76,7 +76,7 @@ export class CalendarBuilderService {
 
     for (const row of episodicFollow) {
       const seriesIdentity = parseMediaKey(row.seriesMediaKey);
-      if (seriesIdentity.mediaType !== 'show' && seriesIdentity.mediaType !== 'anime') {
+      if (seriesIdentity.mediaType !== 'show') {
         continue;
       }
 

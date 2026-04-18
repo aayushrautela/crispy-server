@@ -12,9 +12,6 @@ import type {
   MetadataExternalIds,
   MetadataImages,
   MetadataParentMediaType,
-  ProviderEpisodeRecord,
-  ProviderSeasonRecord,
-  ProviderTitleRecord,
 } from './metadata-card.types.js';
 import type {
   TmdbEpisodeRecord,
@@ -450,7 +447,6 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
     tmdb: title?.tmdbId ?? null,
     imdb,
     tvdb,
-    kitsu: null,
   };
 }
 
@@ -460,17 +456,5 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
     backdropUrl: buildImageUrl(title?.backdropPath ?? null, 'w780'),
     stillUrl: buildImageUrl(episode?.stillPath ?? null, 'w500'),
     logoUrl: title ? buildImageUrl(extractBestLogoPath(title.raw), 'w500') : null,
-  };
-}
-
-export function buildProviderMetadataImages(
-  title: ProviderTitleRecord | null,
-  episode: ProviderEpisodeRecord | null,
-): MetadataImages {
-  return {
-    posterUrl: title?.posterUrl ?? null,
-    backdropUrl: title?.backdropUrl ?? null,
-    stillUrl: episode?.stillUrl ?? null,
-    logoUrl: title?.logoUrl ?? null,
   };
 }

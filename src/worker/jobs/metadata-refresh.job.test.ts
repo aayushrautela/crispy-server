@@ -13,7 +13,7 @@ test('runMetadataRefreshJob invalidates title-page cache and calendar cache', as
   const refreshedProjections: string[] = [];
 
   await runMetadataRefreshJob(
-    { profileId: 'profile-1', reason: 'metadata-refresh', mediaKey: 'show:tvdb:100' },
+    { profileId: 'profile-1', reason: 'metadata-refresh', mediaKey: 'show:tmdb:100' },
     {
       withDbClientImpl: async (work) => work({} as never),
       redisClient: {
@@ -31,7 +31,7 @@ test('runMetadataRefreshJob invalidates title-page cache and calendar cache', as
             skipped: 0,
             failures: 0,
           },
-          mediaKeys: ['show:tvdb:100'],
+          mediaKeys: ['show:tmdb:100'],
         }),
         refreshProfileEpisodicFollow: async () => ({
           summary: {
@@ -41,7 +41,7 @@ test('runMetadataRefreshJob invalidates title-page cache and calendar cache', as
             skipped: 0,
             failures: 0,
           },
-          mediaKeys: ['show:tvdb:100'],
+          mediaKeys: ['show:tmdb:100'],
         }),
       },
       metadataTitleCacheService: {
@@ -58,7 +58,7 @@ test('runMetadataRefreshJob invalidates title-page cache and calendar cache', as
     },
   );
 
-  assert.deepEqual(refreshedProjections, ['show:tvdb:100']);
-  assert.deepEqual(invalidatedMediaKeys, ['show:tvdb:100']);
+  assert.deepEqual(refreshedProjections, ['show:tmdb:100']);
+  assert.deepEqual(invalidatedMediaKeys, ['show:tmdb:100']);
   assert.deepEqual(deletedKeys, [[calendarCacheKey('profile-1')]]);
 });

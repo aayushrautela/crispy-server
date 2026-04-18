@@ -1,8 +1,8 @@
 import type { SupportedProvider } from '../identity/media-key.js';
 
-export type MetadataTitleMediaType = 'movie' | 'show' | 'anime';
+export type MetadataTitleMediaType = 'movie' | 'show';
 export type MetadataViewMediaType = MetadataTitleMediaType | 'episode';
-export type MetadataParentMediaType = 'show' | 'anime';
+export type MetadataParentMediaType = 'show';
 
 export type MetadataArtwork = {
   posterUrl: string | null;
@@ -18,64 +18,6 @@ export type MetadataExternalIds = {
   tmdb: number | null;
   imdb: string | null;
   tvdb: number | null;
-  kitsu: string | null;
-};
-
-export type ProviderTitleRecord = {
-  mediaType: MetadataTitleMediaType;
-  provider: SupportedProvider;
-  providerId: string;
-  title: string | null;
-  originalTitle: string | null;
-  summary: string | null;
-  overview: string | null;
-  releaseDate: string | null;
-  status: string | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  logoUrl: string | null;
-  runtimeMinutes: number | null;
-  rating: number | null;
-  certification: string | null;
-  genres: string[];
-  externalIds: MetadataExternalIds;
-  seasonCount: number | null;
-  episodeCount: number | null;
-  raw: Record<string, unknown>;
-};
-
-export type ProviderEpisodeRecord = {
-  mediaType: 'episode';
-  provider: SupportedProvider;
-  providerId: string;
-  parentMediaType: MetadataParentMediaType;
-  parentProvider: SupportedProvider;
-  parentProviderId: string;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  absoluteEpisodeNumber: number | null;
-  title: string | null;
-  summary: string | null;
-  airDate: string | null;
-  runtimeMinutes: number | null;
-  rating: number | null;
-  stillUrl: string | null;
-  raw: Record<string, unknown>;
-};
-
-export type ProviderSeasonRecord = {
-  provider: SupportedProvider;
-  providerId: string;
-  parentMediaType: MetadataParentMediaType;
-  parentProvider: SupportedProvider;
-  parentProviderId: string;
-  seasonNumber: number;
-  title: string | null;
-  summary: string | null;
-  airDate: string | null;
-  episodeCount: number | null;
-  posterUrl: string | null;
-  raw: Record<string, unknown>;
 };
 
 export type MetadataEpisodePreview = {

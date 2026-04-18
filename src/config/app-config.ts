@@ -32,23 +32,11 @@ type AppConfig = {
       showTtlHours: number;
       seasonTtlHours: number;
     };
-    tvdb: {
-      showTtlHours: number;
-    };
-    kitsu: {
-      animeTtlHours: number;
-    };
   };
   metadata: {
     tmdb: {
       baseUrl: string;
       imageBaseUrl: string;
-    };
-    tvdb: {
-      baseUrl: string;
-    };
-    kitsu: {
-      baseUrl: string;
     };
   };
   ai: {
@@ -154,8 +142,6 @@ function parseDefaults(root: Record<string, unknown>): AppConfig['defaults'] {
 function parseCache(root: Record<string, unknown>): AppConfig['cache'] {
   const cache = expectRecord(root.cache, 'cache');
   const tmdb = expectRecord(cache.tmdb, 'cache.tmdb');
-  const tvdb = expectRecord(cache.tvdb, 'cache.tvdb');
-  const kitsu = expectRecord(cache.kitsu, 'cache.kitsu');
 
   return {
     calendarTtlSeconds: expectPositiveNumber(cache.calendarTtlSeconds, 'cache.calendarTtlSeconds'),
@@ -164,31 +150,17 @@ function parseCache(root: Record<string, unknown>): AppConfig['cache'] {
       showTtlHours: expectPositiveNumber(tmdb.showTtlHours, 'cache.tmdb.showTtlHours'),
       seasonTtlHours: expectPositiveNumber(tmdb.seasonTtlHours, 'cache.tmdb.seasonTtlHours'),
     },
-    tvdb: {
-      showTtlHours: expectPositiveNumber(tvdb.showTtlHours, 'cache.tvdb.showTtlHours'),
-    },
-    kitsu: {
-      animeTtlHours: expectPositiveNumber(kitsu.animeTtlHours, 'cache.kitsu.animeTtlHours'),
-    },
   };
 }
 
 function parseMetadata(root: Record<string, unknown>): AppConfig['metadata'] {
   const metadata = expectRecord(root.metadata, 'metadata');
   const tmdb = expectRecord(metadata.tmdb, 'metadata.tmdb');
-  const tvdb = expectRecord(metadata.tvdb, 'metadata.tvdb');
-  const kitsu = expectRecord(metadata.kitsu, 'metadata.kitsu');
 
   return {
     tmdb: {
       baseUrl: expectNonEmptyString(tmdb.baseUrl, 'metadata.tmdb.baseUrl'),
       imageBaseUrl: expectNonEmptyString(tmdb.imageBaseUrl, 'metadata.tmdb.imageBaseUrl'),
-    },
-    tvdb: {
-      baseUrl: expectNonEmptyString(tvdb.baseUrl, 'metadata.tvdb.baseUrl'),
-    },
-    kitsu: {
-      baseUrl: expectNonEmptyString(kitsu.baseUrl, 'metadata.kitsu.baseUrl'),
     },
   };
 }

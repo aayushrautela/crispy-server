@@ -10,9 +10,9 @@ test('CalendarBuilderService emits no_scheduled when canonical next episode is a
   const service = new CalendarBuilderService(
     {
       listEpisodicFollow: async () => [{
-        seriesMediaKey: 'show:tvdb:100',
+        seriesMediaKey: 'show:tmdb:100',
         seriesMediaType: 'show',
-        provider: 'tvdb',
+        provider: 'tmdb',
         providerId: '100',
         reason: 'watch_activity',
         lastInteractedAt: '2026-04-07T12:00:00.000Z',
@@ -29,12 +29,12 @@ test('CalendarBuilderService emits no_scheduled when canonical next episode is a
     } as never,
     {
       buildCardView: async (_client: unknown, identity: { mediaKey: string }) => {
-        if (identity.mediaKey === 'show:tvdb:100') {
+        if (identity.mediaKey === 'show:tmdb:100') {
           return {
             mediaType: 'show',
             kind: 'title',
-            mediaKey: 'show:tvdb:100',
-            provider: 'tvdb',
+            mediaKey: 'show:tmdb:100',
+            provider: 'tmdb',
             providerId: '100',
             parentMediaType: null,
             parentProvider: null,
@@ -75,7 +75,7 @@ test('CalendarBuilderService emits no_scheduled when canonical next episode is a
 
   assert.equal(result.length, 1);
   assert.equal(result[0]?.bucket, 'no_scheduled');
-  assert.equal(result[0]?.media.mediaKey, 'show:tvdb:100');
+  assert.equal(result[0]?.media.mediaKey, 'show:tmdb:100');
   assert.equal(result[0]?.airDate, null);
 });
 
@@ -85,14 +85,14 @@ test('CalendarBuilderService builds item from persisted canonical next episode',
   const service = new CalendarBuilderService(
     {
       listEpisodicFollow: async () => [{
-        seriesMediaKey: 'show:tvdb:100',
+        seriesMediaKey: 'show:tmdb:100',
         seriesMediaType: 'show',
-        provider: 'tvdb',
+        provider: 'tmdb',
         providerId: '100',
         reason: 'watch_activity',
         lastInteractedAt: '2026-04-07T12:00:00.000Z',
         nextEpisodeAirDate: '2099-01-01',
-        nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+        nextEpisodeMediaKey: 'episode:tmdb:100:1:2',
         nextEpisodeSeasonNumber: 1,
         nextEpisodeEpisodeNumber: 2,
         nextEpisodeAbsoluteEpisodeNumber: null,
@@ -100,16 +100,16 @@ test('CalendarBuilderService builds item from persisted canonical next episode',
         metadataRefreshedAt: null,
         payload: {},
       }],
-      listWatchedEpisodeKeysForShow: async () => ['episode:tvdb:100:1:1'],
+      listWatchedEpisodeKeysForShow: async () => ['episode:tmdb:100:1:1'],
     } as never,
     {
       buildCardView: async (_client: unknown, identity: { mediaKey: string }) => {
-        if (identity.mediaKey === 'show:tvdb:100') {
+        if (identity.mediaKey === 'show:tmdb:100') {
           return {
             mediaType: 'show',
             kind: 'title',
-            mediaKey: 'show:tvdb:100',
-            provider: 'tvdb',
+            mediaKey: 'show:tmdb:100',
+            provider: 'tmdb',
             providerId: '100',
             parentMediaType: null,
             parentProvider: null,
@@ -141,15 +141,15 @@ test('CalendarBuilderService builds item from persisted canonical next episode',
             status: null,
           };
         }
-        if (identity.mediaKey === 'episode:tvdb:100:1:2') {
+        if (identity.mediaKey === 'episode:tmdb:100:1:2') {
           return {
             mediaType: 'episode',
             kind: 'episode',
-            mediaKey: 'episode:tvdb:100:1:2',
-            provider: 'tvdb',
+            mediaKey: 'episode:tmdb:100:1:2',
+            provider: 'tmdb',
             providerId: '100:s1:e2',
             parentMediaType: 'show',
-            parentProvider: 'tvdb',
+            parentProvider: 'tmdb',
             parentProviderId: '100',
             tmdbId: null,
             showTmdbId: null,
@@ -187,7 +187,7 @@ test('CalendarBuilderService builds item from persisted canonical next episode',
 
   assert.equal(result.length, 1);
   assert.equal(result[0]?.bucket, 'upcoming');
-  assert.equal(result[0]?.media.mediaKey, 'episode:tvdb:100:1:2');
+  assert.equal(result[0]?.media.mediaKey, 'episode:tmdb:100:1:2');
   assert.equal(result[0]?.airDate, '2099-01-01');
   assert.equal(result[0]?.watched, false);
 });

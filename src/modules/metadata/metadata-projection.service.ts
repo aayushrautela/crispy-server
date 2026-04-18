@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { MetadataCardService } from './metadata-card.service.js';
-import type { MetadataCardView, MetadataTitleMediaType, ProviderEpisodeRecord } from './metadata-card.types.js';
+import type { MetadataCardView, MetadataTitleMediaType } from './metadata-card.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import {
   inferMediaIdentity,
@@ -39,16 +39,6 @@ export class MetadataProjectionService {
 
   async resolveNextEpisode(client: DbClient, identity: MediaIdentity): Promise<CanonicalNextEpisodeRef | null> {
     const source = await this.titleSourceService.loadTitleSource(client, identity);
-
-    const providerNextEpisode = source.providerContext?.nextEpisode
-      ? this.resolveProviderNextEpisodeIdentity(identity, source.providerContext.nextEpisode)
-      : null;
-    if (providerNextEpisode) {
-      return this.toCanonicalNextEpisodeRef(providerNextEpisode, {
-        airDate: source.providerContext?.nextEpisode?.airDate ?? null,
-        title: source.providerContext?.nextEpisode?.title ?? null,
-      });
-    }
 
     const tmdbNextEpisode = source.tmdbNextEpisode
       ? this.resolveTmdbNextEpisodeIdentity(identity, source.tmdbNextEpisode)
@@ -119,43 +109,6 @@ export class MetadataProjectionService {
     return this.metadataCardService.buildCardView(client, identity);
   }
 
-  private resolveProviderNextEpisodeIdentity(
-    seriesIdentity: MediaIdentity,
-    nextEpisode: Pick<ProviderEpisodeRecord, 'seasonNumber' | 'episodeNumber' | 'absoluteEpisodeNumber' | 'title' | 'airDate'>,
-  ): MediaIdentity | null {
-    if (!seriesIdentity.provider || !seriesIdentity.providerId) {
-      return null;
-    }
-
-    const providerMetadata = buildEpisodeProviderMetadata(seriesIdentity);
-
-    if (nextEpisode.seasonNumber !== null && nextEpisode.episodeNumber !== null) {
-      return inferMediaIdentity({
-        mediaType: 'episode',
-        provider: seriesIdentity.provider,
-        parentProvider: seriesIdentity.provider,
-        parentProviderId: seriesIdentity.providerId,
-        seasonNumber: nextEpisode.seasonNumber,
-        episodeNumber: nextEpisode.episodeNumber,
-        absoluteEpisodeNumber: nextEpisode.absoluteEpisodeNumber ?? null,
-        providerMetadata,
-      });
-    }
-
-    if (nextEpisode.absoluteEpisodeNumber !== null) {
-      return inferMediaIdentity({
-        mediaType: 'episode',
-        provider: seriesIdentity.provider,
-        parentProvider: seriesIdentity.provider,
-        parentProviderId: seriesIdentity.providerId,
-        absoluteEpisodeNumber: nextEpisode.absoluteEpisodeNumber,
-        providerMetadata,
-      });
-    }
-
-    return null;
-  }
-
   private resolveTmdbNextEpisodeIdentity(seriesIdentity: MediaIdentity, episode: TmdbEpisodeRecord): MediaIdentity | null {
     if (!seriesIdentity.provider || !seriesIdentity.providerId) {
       return null;
@@ -190,11 +143,6 @@ export class MetadataProjectionService {
       title: params.title,
     };
   }
-}
-
-function buildEpisodeProviderMetadata(seriesIdentity: MediaIdentity): Record<string, unknown> | undefined {
-  const showTmdbId = showTmdbIdForIdentity(seriesIdentity);
-  return showTmdbId ? { tmdbId: showTmdbId, showTmdbId } : undefined;
 }
 
 function emptyProjection(): WatchMediaProjection {
@@ -266,15 +214,15 @@ function resolveParentIdentity(identity: MediaIdentity): MediaIdentity {
 }
 
 function resolveTitleMediaType(mediaType: MediaIdentity['mediaType']): MetadataTitleMediaType {
-  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime') {
+  if (mediaType === 'movie' || mediaType === 'show') {
     return mediaType;
   }
 
-  return mediaType === 'season' || mediaType === 'episode' ? 'show' : 'movie';
+  return 'show';
 }
 
-function resolvePlaybackMediaType(mediaType: MediaIdentity['mediaType']): 'movie' | 'show' | 'episode' | 'anime' | null {
-  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime' || mediaType === 'episode') {
+function resolvePlaybackMediaType(mediaType: MediaIdentity['mediaType']): 'movie' | 'show' | 'episode' | null {
+  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'episode') {
     return mediaType;
   }
 

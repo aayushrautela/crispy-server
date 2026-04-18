@@ -1,12 +1,11 @@
 import { withDbClient } from '../../lib/db.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
-import { buildMetadataCardView, buildProviderMetadataCardView, toCatalogItem } from '../metadata/metadata-card.builders.js';
+import { buildMetadataCardView, toCatalogItem } from '../metadata/metadata-card.builders.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { ProviderMetadataService } from '../metadata/provider-metadata.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import type { CatalogItem } from '../metadata/metadata-card.types.js';
-import type { MetadataSearchFilter, MetadataSearchResponse, ProviderTitleRecord } from '../metadata/metadata-detail.types.js';
+import type { MetadataSearchFilter, MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 import type { TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
 
 type SearchTitlesInput = {
@@ -36,7 +35,6 @@ type SearchBucketEntry = {
 type SearchBuckets = {
   movies: SearchBucketEntry[];
   series: SearchBucketEntry[];
-  anime: SearchBucketEntry[];
 };
 
 type SearchEntryCandidate = SearchBucketEntry & {
@@ -47,7 +45,6 @@ type SearchEntryCandidate = SearchBucketEntry & {
 
 const MOVIES_LIMIT = 20;
 const SERIES_LIMIT = 20;
-const ANIME_LIMIT = 20;
 const ALL_LIMIT = 60;
 const SEARCH_CACHE_TTL_MS = 3_000;
 
@@ -55,7 +52,6 @@ export class TitleSearchService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
-    private readonly providerMetadataService = new ProviderMetadataService(),
     private readonly requestCoalescer = new ShortLivedRequestCoalescer<MetadataSearchResponse>(SEARCH_CACHE_TTL_MS),
   ) {}
 
@@ -91,25 +87,13 @@ export class TitleSearchService {
           : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes, locale)
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
-      const providerMatches = normalizedQuery || normalizedFilter === 'anime' || normalizedFilter === 'series'
-        ? await this.providerMetadataService.searchTitles(client, normalizedQuery, normalizedFilter, limit)
-        : [];
 
       const tmdbIdentities = filteredTmdbMatches.map((match) => inferMediaIdentity({
         mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
         tmdbId: match.tmdbId,
       }));
 
-      const providerIdentities = providerMatches.map((match) => inferMediaIdentity({
-        mediaType: match.mediaType,
-        provider: match.provider,
-        providerId: match.providerId,
-      }));
-
-      const contentIds = await this.contentIdentityService.ensureContentIds(client, [
-        ...tmdbIdentities,
-        ...providerIdentities,
-      ]);
+      const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
 
       const tmdbItems = await Promise.all(filteredTmdbMatches.map(async (match: TmdbTitleRecord) => {
         const identity = inferMediaIdentity({
@@ -128,23 +112,8 @@ export class TitleSearchService {
         return item ? { item, noisy: isNoisyTmdbMatch(match) } : null;
       }));
 
-      const providerItems = providerMatches.flatMap((match: ProviderTitleRecord) => {
-        const identity = inferMediaIdentity({
-          mediaType: match.mediaType,
-          provider: match.provider,
-          providerId: match.providerId,
-        });
-        const contentId = contentIds.get(identity.mediaKey);
-        if (!contentId) {
-          return [];
-        }
-        const item = toCatalogItem(buildProviderMetadataCardView({ identity, title: match }));
-        return item ? [{ item, noisy: isNoisyProviderMatch(match) }] : [];
-      });
-
       return buildBucketedSearchResponse(normalizedQuery, limit, [
         ...tmdbItems.filter((item): item is SearchBucketEntry => item !== null),
-        ...providerItems,
       ]);
     }));
   }
@@ -156,7 +125,6 @@ function emptySearchResponse(query: string): MetadataSearchResponse {
     all: [],
     movies: [],
     series: [],
-    anime: [],
   };
 }
 
@@ -174,8 +142,14 @@ function buildSearchRequestKey(params: {
 }
 
 export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTitleType[] {
-  if (filter === 'movies' || filter === 'all') {
+  if (filter === 'movies') {
     return ['movie'];
+  }
+  if (filter === 'series') {
+    return ['tv'];
+  }
+  if (filter === 'all') {
+    return ['movie', 'tv'];
   }
   return [];
 }
@@ -186,18 +160,21 @@ function normalizeSearchLocale(value: string | null | undefined): string | null 
 }
 
 function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined): MetadataSearchFilter {
-  return filter === 'movies' || filter === 'series' || filter === 'anime' ? filter : 'all';
+  return filter === 'movies' || filter === 'series' ? filter : 'all';
 }
 
 function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilter): boolean {
-  if (filter === 'movies' || filter === 'all') {
+  if (filter === 'movies') {
     return match.mediaType === 'movie';
   }
-  return false;
+  if (filter === 'series') {
+    return match.mediaType === 'tv';
+  }
+  return match.mediaType === 'movie' || match.mediaType === 'tv';
 }
 
 function shouldQueryTmdb(filter: MetadataSearchFilter): boolean {
-  return filter === 'movies' || filter === 'all';
+  return filter === 'movies' || filter === 'series' || filter === 'all';
 }
 
 function normalizeGenreKey(value: string): string {
@@ -229,7 +206,6 @@ function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
   const buckets: SearchBuckets = {
     movies: [],
     series: [],
-    anime: [],
   };
 
   for (const entry of items) {
@@ -250,15 +226,13 @@ function buildBucketedSearchResponse(query: string, limit: number, entries: Sear
   const buckets = buildSearchBuckets(entries);
   const movies = finalizeBucket(query, buckets.movies, Math.min(limit, MOVIES_LIMIT));
   const series = finalizeBucket(query, buckets.series, Math.min(limit, SERIES_LIMIT));
-  const anime = finalizeBucket(query, buckets.anime, Math.min(limit, ANIME_LIMIT));
-  const all = finalizeBucket(query, [...movies, ...series, ...anime], Math.min(limit * 3, ALL_LIMIT));
+  const all = finalizeBucket(query, [...movies, ...series], Math.min(limit * 3, ALL_LIMIT));
 
   return {
     query,
     all: toCatalogItems(all),
     movies: toCatalogItems(movies),
     series: toCatalogItems(series),
-    anime: toCatalogItems(anime),
   };
 }
 
@@ -297,9 +271,6 @@ function bucketForMediaType(mediaType: CatalogItem['mediaType']): keyof SearchBu
   if (mediaType === 'show') {
     return 'series';
   }
-  if (mediaType === 'anime') {
-    return 'anime';
-  }
   return null;
 }
 
@@ -334,14 +305,6 @@ function compareSearchEntries(query: string): (left: SearchEntryCandidate, right
 
 function isNoisyTmdbMatch(match: TmdbTitleRecord): boolean {
   return !hasDate(match.releaseDate ?? match.firstAirDate) && !hasText(match.overview);
-}
-
-function isNoisyProviderMatch(match: ProviderTitleRecord): boolean {
-  if (match.provider === 'kitsu') {
-    return !hasDate(match.releaseDate) && match.rating == null;
-  }
-
-  return !hasDate(match.releaseDate) && !hasText(match.overview) && !hasText(match.summary);
 }
 
 function hasDate(value: string | null | undefined): boolean {

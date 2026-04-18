@@ -1,5 +1,7 @@
 # Metadata Details Replacement Plan
 
+> Archived planning document. This file describes an older multi-provider metadata architecture and is not the current runtime contract. Use `architecture.md`, `plan.md`, and `src/http/contracts/*` for the current TMDB-only model.
+
 ## Status
 
 This document is the working migration plan for replacing the current metadata details architecture.

@@ -46,7 +46,7 @@ export class WatchV2MetadataService {
       payload?: Record<string, unknown>;
     },
   ): Promise<void> {
-    if (!input.seriesIdentity || (input.seriesIdentity.mediaType !== 'show' && input.seriesIdentity.mediaType !== 'anime')) {
+    if (!input.seriesIdentity || input.seriesIdentity.mediaType !== 'show') {
       await this.deleteEpisodicFollowState(client, input.profileId, input.titleContentId);
       return;
     }
@@ -126,7 +126,7 @@ function fallbackProjection(identity: MediaIdentity): WatchMediaProjection {
       ? parentMediaTypeForIdentity(identity)
       : identity.mediaType;
   const playbackMediaType =
-    identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'episode' || identity.mediaType === 'anime'
+    identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'episode'
       ? identity.mediaType
       : null;
 

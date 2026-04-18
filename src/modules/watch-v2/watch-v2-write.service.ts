@@ -456,7 +456,7 @@ export class WatchV2WriteService {
     }
 
     const contentId = await this.contentIdentityService.ensureContentId(client, identity);
-    if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+    if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
       const normalized = inferMediaIdentity({
         ...identity,
         contentId,
@@ -591,7 +591,7 @@ export class WatchV2WriteService {
       titleContentId: resolved.titleContentId,
       titleMediaKey: resolved.title.mediaKey,
       seriesIdentity:
-        resolved.title.mediaType === 'show' || resolved.title.mediaType === 'anime'
+        resolved.title.mediaType === 'show'
           ? inferMediaIdentity({
               mediaKey: resolved.title.mediaKey,
               mediaType: resolved.title.mediaType,
@@ -1296,13 +1296,13 @@ function computeEffectiveWatched(aggregate: ProjectionAggregate): boolean {
 }
 
 function fallbackProjection(identity: MediaIdentity): WatchMediaProjection {
-  const titleMediaType = identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime'
+  const titleMediaType = identity.mediaType === 'movie' || identity.mediaType === 'show'
     ? identity.mediaType
     : parentMediaTypeForIdentity(identity);
 
   return {
     detailsTitleMediaType: titleMediaType,
-    playbackMediaType: identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime' || identity.mediaType === 'episode'
+    playbackMediaType: identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'episode'
       ? identity.mediaType
       : null,
     playbackProvider: identity.provider ?? null,
@@ -1345,9 +1345,9 @@ function isPlayableTarget(mediaType: WatchV2TargetKind): mediaType is Extract<Wa
 }
 
 function isTitleTarget(mediaType: WatchV2TargetKind): mediaType is WatchV2TitleKind {
-  return mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime';
+  return mediaType === 'movie' || mediaType === 'show';
 }
 
 function titleProviderForIdentity(identity: MediaIdentity) {
-  return parentMediaTypeForIdentity(identity) === 'anime' ? 'kitsu' : identity.provider ?? identity.parentProvider ?? 'tvdb';
+  return identity.provider ?? identity.parentProvider ?? 'tmdb';
 }

@@ -213,9 +213,6 @@ test('fetchAndNormalizeTraktImport keeps show tmdb ids on watchlist and ratings'
 
     const identity = inferMediaIdentity({
       mediaType: 'show',
-      provider: 'tvdb',
-      providerId: '121361',
-      tvdbId: 121361,
       tmdbId: 9001,
       providerMetadata: { tmdbId: 9001 },
     });
@@ -301,9 +298,6 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
 
     const identity = inferMediaIdentity({
       mediaType: 'show',
-      provider: 'tvdb',
-      providerId: '121361',
-      tvdbId: 121361,
       tmdbId: 777,
       providerMetadata: { tmdbId: 777 },
     });
@@ -342,12 +336,12 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
     assert.equal(result.importedEvents.length, 1);
     assert.deepEqual(result.importedEvents[0], {
       eventType: 'playback_progress_snapshot',
-      mediaKey: 'episode:tvdb:121361:2:3',
+      mediaKey: 'episode:tmdb:777:2:3',
       mediaType: 'episode',
-      provider: 'tvdb',
-      providerId: '121361:s2:e3',
-      parentProvider: 'tvdb',
-      parentProviderId: '121361',
+      provider: 'tmdb',
+      providerId: '777:s2:e3',
+      parentProvider: 'tmdb',
+      parentProviderId: '777',
       tmdbId: 777,
       tvdbId: 121361,
       kitsuId: null,

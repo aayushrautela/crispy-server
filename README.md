@@ -193,9 +193,9 @@ Public contracts are collection-oriented. The backend does not prescribe Home, L
 - `GET /v1/metadata/resolve` - resolve metadata identity
 - `GET /v1/metadata/titles/:mediaKey` - title detail by title `mediaKey`
 - `GET /v1/metadata/titles/:mediaKey/content` - title content enriched with MDBList data by title `mediaKey`
-- `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber` - season detail by show/anime `mediaKey`
+- `GET /v1/metadata/titles/:mediaKey/seasons/:seasonNumber` - season detail by show `mediaKey`
 - `GET /v1/playback/resolve` - resolve playback context for a title, season, or episode lookup
-- `GET /v1/search/titles` - provider-routed title search
+- `GET /v1/search/titles` - TMDB-backed title search
 - `POST /v1/profiles/:profileId/ai/search` - AI-assisted search for a profile
 - `POST /v1/profiles/:profileId/ai/insights` - AI insights for a title and profile
 
@@ -290,8 +290,7 @@ Example response shape:
     "externalIds": {
       "tmdb": 329865,
       "imdb": "tt2543164",
-      "tvdb": null,
-      "kitsu": null
+      "tvdb": null
     },
     "seasonCount": null,
     "episodeCount": null,
@@ -352,7 +351,7 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `GET /v1/profiles/:profileId/recommendations` - read one recommendation snapshot, defaulting to the canonical source and algorithm version when `sourceKey` or `algorithmVersion` is omitted
 - `PUT /v1/profiles/:profileId/recommendations` - upsert recommendation snapshot
 
-Recommendation generation is now server-orchestrated. The API server decides when a profile needs regeneration, loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists the resulting taste profile and recommendation snapshot. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB/TVDB/Kitsu catalog fetches for enrichment, and must return final canonical recommendation identities for every item.
+Recommendation generation is now server-orchestrated. The API server decides when a profile needs regeneration, loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists the resulting taste profile and recommendation snapshot. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB catalog fetches for enrichment, and must return final canonical recommendation identities for every item.
 
 ### Internal service routes
 
@@ -397,7 +396,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
 - `GET /internal/v1/admin/imports/connections` - import connection diagnostics
 - `GET /internal/v1/admin/imports/jobs` - import job diagnostics
 
-The recommendation worker no longer polls the API server for claim/renew/complete leases. It is a stateless compute service invoked by the API server. It must not fetch user/business data or write storage, but it may perform read-only TMDB/TVDB/Kitsu catalog or discovery fetches needed to enrich recommendation outputs.
+The recommendation worker no longer polls the API server for claim/renew/complete leases. It is a stateless compute service invoked by the API server. It must not fetch user/business data or write storage, but it may perform read-only TMDB catalog or discovery fetches needed to enrich recommendation outputs.
 
 ## Current product-scoping rules
 

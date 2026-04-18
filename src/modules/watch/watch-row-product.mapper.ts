@@ -166,7 +166,7 @@ function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | nul
 }
 
 function resolveTitleProvider(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): SupportedProvider | null {
-  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
+  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show') {
     return parsed.provider ?? null;
   }
 
@@ -174,7 +174,7 @@ function resolveTitleProvider(row: ContinueWatchingStoredRow, parsed: ReturnType
 }
 
 function resolveTitleProviderId(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): string | null {
-  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
+  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show') {
     return parsed.providerId ?? null;
   }
 
@@ -182,21 +182,21 @@ function resolveTitleProviderId(row: ContinueWatchingStoredRow, parsed: ReturnTy
 }
 
 function resolveTitleMediaType(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): MetadataTitleMediaType | null {
-  if (row.detailsTitleMediaType === 'movie' || row.detailsTitleMediaType === 'show' || row.detailsTitleMediaType === 'anime') {
+  if (row.detailsTitleMediaType === 'movie' || row.detailsTitleMediaType === 'show') {
     return row.detailsTitleMediaType;
   }
 
-  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show' || parsed.mediaType === 'anime') {
+  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show') {
     return parsed.mediaType;
   }
 
   if (parsed.mediaType === 'episode') {
-    return parsed.parentProvider === 'kitsu' || row.playbackParentProvider === 'kitsu' ? 'anime' : 'show';
+    return 'show';
   }
 
   return null;
 }
 
 function asSupportedProvider(value: string | null): SupportedProvider | null {
-  return value === 'tmdb' || value === 'tvdb' || value === 'kitsu' ? value : null;
+  return value === 'tmdb' ? value : null;
 }

@@ -22,8 +22,8 @@ test('admin episodic-follow route returns canonical next-episode fields for auth
     return [{
       show: {
         mediaType: 'show',
-        mediaKey: 'show:tvdb:100',
-        provider: 'tvdb',
+        mediaKey: 'show:tmdb:100',
+        provider: 'tmdb',
         providerId: '100',
         title: 'Example Show',
         posterUrl: 'https://img.test/poster.jpg',
@@ -35,7 +35,7 @@ test('admin episodic-follow route returns canonical next-episode fields for auth
       reason: 'watchlist',
       lastInteractedAt: '2026-04-07T12:00:00.000Z',
       nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
-      nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+      nextEpisodeMediaKey: 'episode:tmdb:100:1:2',
       nextEpisodeSeasonNumber: 1,
       nextEpisodeEpisodeNumber: 2,
       nextEpisodeAbsoluteEpisodeNumber: null,
@@ -89,8 +89,8 @@ test('admin episodic-follow route returns canonical next-episode fields for auth
     items: [{
       show: {
         mediaType: 'show',
-        mediaKey: 'show:tvdb:100',
-        provider: 'tvdb',
+        mediaKey: 'show:tmdb:100',
+        provider: 'tmdb',
         providerId: '100',
         title: 'Example Show',
         posterUrl: 'https://img.test/poster.jpg',
@@ -102,7 +102,7 @@ test('admin episodic-follow route returns canonical next-episode fields for auth
       reason: 'watchlist',
       lastInteractedAt: '2026-04-07T12:00:00.000Z',
       nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
-      nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+      nextEpisodeMediaKey: 'episode:tmdb:100:1:2',
       nextEpisodeSeasonNumber: 1,
       nextEpisodeEpisodeNumber: 2,
       nextEpisodeAbsoluteEpisodeNumber: null,

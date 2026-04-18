@@ -25,7 +25,7 @@ test('getWatchHistoryForAccount falls back to synthesized regular cards on cache
     {
       listWatchHistory: async () => [
         {
-          mediaKey: 'show:tvdb:100',
+          mediaKey: 'show:tmdb:100',
           title: 'Example Show',
           subtitle: 'Drama',
           posterUrl: 'https://img.test/poster.jpg',
@@ -44,14 +44,14 @@ test('getWatchHistoryForAccount falls back to synthesized regular cards on cache
   const result = await service.getWatchHistoryForAccount('user-1', 'profile-1', 10);
 
   assert.equal(result.length, 1);
-  assert.deepEqual(result[0], {
-    id: undefined,
-    media: {
-      mediaType: 'show',
-      mediaKey: 'show:tvdb:100',
-      provider: 'tvdb',
-      providerId: '100',
-      title: 'Example Show',
+    assert.deepEqual(result[0], {
+      id: undefined,
+      media: {
+        mediaType: 'show',
+        mediaKey: 'show:tmdb:100',
+        provider: 'tmdb',
+        providerId: '100',
+        title: 'Example Show',
       posterUrl: 'https://img.test/poster.jpg',
       releaseYear: 2024,
       rating: 8.2,
@@ -81,10 +81,10 @@ test('getRatingsForAccount falls back to synthesized regular cards on cache miss
     {
       listRatings: async () => [
         {
-          mediaKey: 'anime:kitsu:200',
-          title: 'Example Anime',
+          mediaKey: 'show:tmdb:200',
+          title: 'Example Show',
           subtitle: null,
-          posterUrl: 'https://img.test/anime.jpg',
+          posterUrl: 'https://img.test/show.jpg',
           releaseYear: 2020,
           titleRating: 9.1,
           rating: 10,
@@ -101,17 +101,17 @@ test('getRatingsForAccount falls back to synthesized regular cards on cache miss
   const result = await service.getRatingsForAccount('user-1', 'profile-1', 10);
 
   assert.equal(result.length, 1);
-  assert.deepEqual(result[0], {
-    id: undefined,
-    media: {
-      mediaType: 'anime',
-      mediaKey: 'anime:kitsu:200',
-      provider: 'kitsu',
-      providerId: '200',
-      title: 'Example Anime',
-      posterUrl: 'https://img.test/anime.jpg',
-      releaseYear: 2020,
-      rating: 9.1,
+    assert.deepEqual(result[0], {
+      id: undefined,
+      media: {
+        mediaType: 'show',
+        mediaKey: 'show:tmdb:200',
+        provider: 'tmdb',
+        providerId: '200',
+        title: 'Example Show',
+        posterUrl: 'https://img.test/show.jpg',
+        releaseYear: 2020,
+        rating: 9.1,
       genre: null,
       subtitle: null,
     },
@@ -140,8 +140,8 @@ test('getEpisodicFollowForAccount returns canonical next-episode fields', async 
     {
       buildCardView: async () => ({
         mediaType: 'show',
-        mediaKey: 'show:tvdb:100',
-        provider: 'tvdb',
+        mediaKey: 'show:tmdb:100',
+        provider: 'tmdb',
         providerId: '100',
         title: 'Example Show',
         posterUrl: 'https://img.test/poster.jpg',
@@ -154,14 +154,14 @@ test('getEpisodicFollowForAccount returns canonical next-episode fields', async 
     {
       listEpisodicFollow: async () => [
         {
-          seriesMediaKey: 'show:tvdb:100',
+          seriesMediaKey: 'show:tmdb:100',
           seriesMediaType: 'show',
-          provider: 'tvdb',
+          provider: 'tmdb',
           providerId: '100',
           reason: 'watchlist',
           lastInteractedAt: '2026-04-07T12:00:00.000Z',
           nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
-          nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+          nextEpisodeMediaKey: 'episode:tmdb:100:1:2',
           nextEpisodeSeasonNumber: 1,
           nextEpisodeEpisodeNumber: 2,
           nextEpisodeAbsoluteEpisodeNumber: null,
@@ -180,8 +180,8 @@ test('getEpisodicFollowForAccount returns canonical next-episode fields', async 
   assert.deepEqual(result[0], {
     show: {
       mediaType: 'show',
-      mediaKey: 'show:tvdb:100',
-      provider: 'tvdb',
+      mediaKey: 'show:tmdb:100',
+      provider: 'tmdb',
       providerId: '100',
       title: 'Example Show',
       posterUrl: 'https://img.test/poster.jpg',
@@ -193,7 +193,7 @@ test('getEpisodicFollowForAccount returns canonical next-episode fields', async 
     reason: 'watchlist',
     lastInteractedAt: '2026-04-07T12:00:00.000Z',
     nextEpisodeAirDate: '2026-04-10T00:00:00.000Z',
-    nextEpisodeMediaKey: 'episode:tvdb:100:1:2',
+    nextEpisodeMediaKey: 'episode:tmdb:100:1:2',
     nextEpisodeSeasonNumber: 1,
     nextEpisodeEpisodeNumber: 2,
     nextEpisodeAbsoluteEpisodeNumber: null,
@@ -220,8 +220,8 @@ test('getEpisodicFollowForAccount preserves unresolved next episode rows', async
     {
       buildCardView: async () => ({
         mediaType: 'show',
-        mediaKey: 'show:tvdb:100',
-        provider: 'tvdb',
+        mediaKey: 'show:tmdb:100',
+        provider: 'tmdb',
         providerId: '100',
         title: 'Example Show',
         posterUrl: 'https://img.test/poster.jpg',
@@ -234,9 +234,9 @@ test('getEpisodicFollowForAccount preserves unresolved next episode rows', async
     {
       listEpisodicFollow: async () => [
         {
-          seriesMediaKey: 'show:tvdb:100',
+          seriesMediaKey: 'show:tmdb:100',
           seriesMediaType: 'show',
-          provider: 'tvdb',
+          provider: 'tmdb',
           providerId: '100',
           reason: 'watchlist',
           lastInteractedAt: '2026-04-07T12:00:00.000Z',

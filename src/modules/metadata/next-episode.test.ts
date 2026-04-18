@@ -127,7 +127,7 @@ test('episodeViewToLookup extracts episode-like fields', () => {
     images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
     showId: 'uuid-show',
     showTitle: 'Test Show',
-    showExternalIds: { tmdb: 42, imdb: 'tt123', tvdb: null, kitsu: null },
+    showExternalIds: { tmdb: 42, imdb: 'tt123', tvdb: null },
   };
 
   const lookup = episodeViewToLookup(episode);

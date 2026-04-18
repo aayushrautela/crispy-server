@@ -2,7 +2,6 @@ import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import {
   authorityProviderForEntityType,
-  buildAbsoluteEpisodeProviderId,
   buildEpisodeProviderId,
   buildSeasonProviderId,
   inferMediaIdentity,
@@ -17,8 +16,8 @@ import {
   type ContentProviderRefRecord,
 } from './content-identity.repo.js';
 
-type TitleMediaType = 'movie' | 'show' | 'anime';
-type ParentMediaType = 'show' | 'anime';
+type TitleMediaType = 'movie' | 'show';
+type ParentMediaType = 'show';
 
 export type CanonicalContentReference =
   | {
@@ -54,7 +53,6 @@ export type EpisodeIdentityInput = {
   parentProviderId: string | number;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
-  absoluteEpisodeNumber?: number | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -76,7 +74,7 @@ export class ContentIdentityService {
       return normalizeContentId(identity.contentId);
     }
 
-    if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+    if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
       return this.ensureTitleContentId(client, {
         mediaType: identity.mediaType,
         provider: identity.provider ?? authorityProviderForEntityType(identity.mediaType),
@@ -99,7 +97,7 @@ export class ContentIdentityService {
       });
     }
 
-    if (!identity.parentProviderId) {
+    if (!identity.parentProviderId || identity.seasonNumber === null || identity.episodeNumber === null) {
       throw new HttpError(400, 'Unable to resolve canonical content id.');
     }
 
@@ -109,7 +107,6 @@ export class ContentIdentityService {
       parentProviderId: identity.parentProviderId,
       seasonNumber: identity.seasonNumber,
       episodeNumber: identity.episodeNumber,
-      absoluteEpisodeNumber: identity.absoluteEpisodeNumber,
       metadata: identity.providerMetadata,
     });
   }
@@ -181,7 +178,7 @@ export class ContentIdentityService {
 
     return new Map(
       records.map((record) => {
-        const { seasonNumber } = parseSeasonExternalId(record.provider as SupportedProvider, record.externalId, record.metadata);
+        const { seasonNumber } = parseSeasonExternalId(record.externalId, record.metadata);
         return [seasonNumber, record.contentId] as const;
       }),
     );
@@ -282,14 +279,14 @@ export class ContentIdentityService {
       throw new HttpError(404, 'Metadata not found.');
     }
 
-    if (authorityRef.entityType === 'movie' || authorityRef.entityType === 'show' || authorityRef.entityType === 'anime') {
+    if (authorityRef.entityType === 'movie' || authorityRef.entityType === 'show') {
       return {
         contentId: normalized,
         entityType: authorityRef.entityType,
         mediaIdentity: inferMediaIdentity({
           contentId: normalized,
           mediaType: authorityRef.entityType,
-          provider: authorityRef.provider as SupportedProvider,
+          provider: 'tmdb',
           providerId: authorityRef.externalId,
           providerMetadata: authorityRef.metadata,
         }),
@@ -297,31 +294,30 @@ export class ContentIdentityService {
     }
 
     if (authorityRef.entityType === 'episode') {
-      const parsed = parseEpisodeExternalId(authorityRef.provider as SupportedProvider, authorityRef.externalId, authorityRef.metadata);
+      const parsed = parseEpisodeExternalId(authorityRef.externalId, authorityRef.metadata);
       return {
         contentId: normalized,
         entityType: 'episode',
         mediaIdentity: inferMediaIdentity({
           contentId: normalized,
           mediaType: 'episode',
-          provider: authorityRef.provider as SupportedProvider,
-          parentProvider: authorityRef.provider as SupportedProvider,
+          provider: 'tmdb',
+          parentProvider: 'tmdb',
           parentProviderId: parsed.parentProviderId,
           seasonNumber: parsed.seasonNumber,
           episodeNumber: parsed.episodeNumber,
-          absoluteEpisodeNumber: parsed.absoluteEpisodeNumber,
           providerMetadata: authorityRef.metadata,
         }),
       };
     }
 
     if (authorityRef.entityType === 'season') {
-      const parsed = parseSeasonExternalId(authorityRef.provider as SupportedProvider, authorityRef.externalId, authorityRef.metadata);
+      const parsed = parseSeasonExternalId(authorityRef.externalId, authorityRef.metadata);
       return {
         contentId: normalized,
         entityType: 'season',
         parentMediaType: parsed.parentMediaType,
-        provider: authorityRef.provider as SupportedProvider,
+        provider: 'tmdb',
         providerId: authorityRef.externalId,
         parentProviderId: parsed.parentProviderId,
         seasonNumber: parsed.seasonNumber,
@@ -352,7 +348,7 @@ export function episodeRefMapKey(
   }
 
   if (absoluteEpisodeNumber !== null && absoluteEpisodeNumber !== undefined) {
-    return buildAbsoluteEpisodeProviderId(normalizedParentProviderId, absoluteEpisodeNumber);
+    throw new HttpError(400, 'Absolute episode ids are no longer supported.');
   }
 
   throw new HttpError(400, 'Invalid episode id.');
@@ -367,7 +363,7 @@ function normalizeContentId(contentId: string): string {
 }
 
 function toProviderRef(identity: MediaIdentity): ContentProviderRefInput {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return toTitleRef({
       mediaType: identity.mediaType,
       provider: identity.provider ?? authorityProviderForEntityType(identity.mediaType),
@@ -390,7 +386,7 @@ function toProviderRef(identity: MediaIdentity): ContentProviderRefInput {
     });
   }
 
-  if (!identity.parentProviderId) {
+  if (!identity.parentProviderId || identity.seasonNumber === null || identity.episodeNumber === null) {
     throw new HttpError(400, 'Unable to resolve canonical content id.');
   }
 
@@ -400,7 +396,6 @@ function toProviderRef(identity: MediaIdentity): ContentProviderRefInput {
     parentProviderId: identity.parentProviderId,
     seasonNumber: identity.seasonNumber,
     episodeNumber: identity.episodeNumber,
-    absoluteEpisodeNumber: identity.absoluteEpisodeNumber,
     metadata: identity.providerMetadata,
   });
 }
@@ -415,6 +410,7 @@ function toTitleRef(input: TitleIdentityInput): ContentProviderRefInput {
     metadata: {
       ...(input.metadata ?? {}),
       providerId,
+      tmdbId: Number(providerId),
     },
   };
 }
@@ -426,7 +422,6 @@ function toEpisodeRef(input: EpisodeIdentityInput): ContentProviderRefInput {
     parentProviderId,
     input.seasonNumber ?? null,
     input.episodeNumber ?? null,
-    input.absoluteEpisodeNumber ?? null,
   );
 
   return {
@@ -439,7 +434,7 @@ function toEpisodeRef(input: EpisodeIdentityInput): ContentProviderRefInput {
       parentProviderId,
       seasonNumber: input.seasonNumber ?? null,
       episodeNumber: input.episodeNumber ?? null,
-      absoluteEpisodeNumber: input.absoluteEpisodeNumber ?? null,
+      showTmdbId: parsePositiveInteger(parentProviderId, 'Invalid provider id.'),
     },
   };
 }
@@ -456,6 +451,7 @@ function toSeasonRef(input: SeasonIdentityInput): ContentProviderRefInput {
       parentMediaType: input.parentMediaType,
       parentProviderId,
       seasonNumber: input.seasonNumber,
+      showTmdbId: parsePositiveInteger(parentProviderId, 'Invalid provider id.'),
     },
   };
 }
@@ -486,26 +482,9 @@ function parseNonNegativeInteger(value: string, message: string): number {
 }
 
 function parseEpisodeExternalId(
-  provider: SupportedProvider,
   externalId: string,
   metadata: Record<string, unknown>,
-): { parentMediaType: ParentMediaType; parentProviderId: string; seasonNumber: number | null; episodeNumber: number | null; absoluteEpisodeNumber: number | null } {
-  if (externalId.includes(':a')) {
-    const [parentProviderId, absoluteMarker] = externalId.split(':');
-    if (!parentProviderId || !absoluteMarker?.startsWith('a')) {
-      throw new HttpError(400, 'Invalid metadata id.');
-    }
-
-    const absoluteEpisodeNumber = parsePositiveInteger(absoluteMarker.slice(1), 'Invalid metadata id.');
-    return {
-      parentMediaType: inferParentMediaType(provider, metadata),
-      parentProviderId,
-      seasonNumber: asNullableInteger(metadata.seasonNumber),
-      episodeNumber: asNullableInteger(metadata.episodeNumber) ?? absoluteEpisodeNumber,
-      absoluteEpisodeNumber,
-    };
-  }
-
+): { parentMediaType: ParentMediaType; parentProviderId: string; seasonNumber: number; episodeNumber: number } {
   const parts = externalId.split(':');
   if (parts.length !== 3) {
     throw new HttpError(400, 'Invalid metadata id.');
@@ -518,16 +497,14 @@ function parseEpisodeExternalId(
   }
 
   return {
-    parentMediaType: inferParentMediaType(provider, metadata),
+    parentMediaType: inferParentMediaType(metadata),
     parentProviderId: parts[0] ?? '',
     seasonNumber: parseNonNegativeInteger(seasonPart.slice(1), 'Invalid metadata id.'),
     episodeNumber: parsePositiveInteger(episodePart.slice(1), 'Invalid metadata id.'),
-    absoluteEpisodeNumber: asNullableInteger(metadata.absoluteEpisodeNumber),
   };
 }
 
 function parseSeasonExternalId(
-  provider: SupportedProvider,
   externalId: string,
   metadata: Record<string, unknown>,
 ): { parentMediaType: ParentMediaType; parentProviderId: string; seasonNumber: number } {
@@ -537,7 +514,7 @@ function parseSeasonExternalId(
   }
 
   return {
-    parentMediaType: inferParentMediaType(provider, metadata),
+    parentMediaType: inferParentMediaType(metadata),
     parentProviderId: parts[0] ?? '',
     seasonNumber: parseNonNegativeInteger(parts[1].slice(1), 'Invalid season id.'),
   };
@@ -567,7 +544,7 @@ function dedupeProviderRefs(refs: ContentProviderRefInput[]): ContentProviderRef
 }
 
 function canMaterializeIdentity(identity: MediaIdentity): boolean {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return Boolean(identity.providerId);
   }
 
@@ -575,10 +552,7 @@ function canMaterializeIdentity(identity: MediaIdentity): boolean {
     return Boolean(identity.parentProviderId && identity.seasonNumber !== null);
   }
 
-  return Boolean(
-    identity.parentProviderId
-    && ((identity.seasonNumber !== null && identity.episodeNumber !== null) || identity.absoluteEpisodeNumber !== null),
-  );
+  return Boolean(identity.parentProviderId && identity.seasonNumber !== null && identity.episodeNumber !== null);
 }
 
 function normalizeIdentifier(value: string | number, message: string): string {
@@ -595,50 +569,25 @@ function normalizeIdentifier(value: string | number, message: string): string {
 
 function resolveParentMediaType(identity: MediaIdentity): ParentMediaType {
   const parentMediaType = parentMediaTypeForIdentity(identity);
-  if (parentMediaType !== 'show' && parentMediaType !== 'anime') {
+  if (parentMediaType !== 'show') {
     throw new HttpError(400, 'Unable to resolve canonical content id.');
   }
   return parentMediaType;
 }
 
-function inferParentMediaType(provider: SupportedProvider, metadata: Record<string, unknown>): ParentMediaType {
-  if (metadata.parentMediaType === 'show' || metadata.parentMediaType === 'anime') {
-    return metadata.parentMediaType;
+function inferParentMediaType(metadata: Record<string, unknown>): ParentMediaType {
+  if (metadata.parentMediaType === 'show') {
+    return 'show';
   }
 
-  return provider === 'kitsu' ? 'anime' : 'show';
+  return 'show';
 }
 
 function selectAuthorityRef(entityType: ContentEntityType, refs: ContentProviderRefRecord[]): ContentProviderRefRecord | null {
   const matchingRefs = refs.filter((record) => record.entityType === entityType);
-  const firstRef = matchingRefs[0];
-  if (!firstRef) {
+  if (!matchingRefs.length) {
     return null;
   }
 
-  if (entityType === 'person') {
-    return matchingRefs.find((record) => record.provider === 'tmdb') ?? null;
-  }
-
-  if (entityType === 'movie' || entityType === 'show' || entityType === 'anime') {
-    const provider = authorityProviderForEntityType(entityType);
-    return matchingRefs.find((record) => record.provider === provider) ?? null;
-  }
-
-  const parentMediaType = inferParentMediaType(firstRef.provider as SupportedProvider, firstRef.metadata);
-  const provider = authorityProviderForEntityType(entityType, parentMediaType);
-  return matchingRefs.find((record) => record.provider === provider) ?? null;
-}
-
-function asNullableInteger(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    return Number.isInteger(parsed) ? parsed : null;
-  }
-
-  return null;
+  return matchingRefs.find((record) => record.provider === 'tmdb') ?? null;
 }

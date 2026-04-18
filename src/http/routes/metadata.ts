@@ -21,7 +21,6 @@ import { MetadataRatingsService } from '../../modules/metadata/metadata-ratings.
 import { MetadataReviewsService } from '../../modules/metadata/metadata-reviews.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
-import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
@@ -35,14 +34,11 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
-    const resolvedProviderInput = mapProviderResolveQuery(query);
 
     return metadataDetailService.resolve({
       mediaKey: asUndefinedString(query.mediaKey),
-      tmdbId: resolvedProviderInput.tmdbId,
+      tmdbId: parseOptionalPositiveNumber(query.tmdbId, 'tmdbId'),
       imdbId: asOptionalString(query.imdbId),
-      tvdbId: resolvedProviderInput.tvdbId,
-      kitsuId: resolvedProviderInput.kitsuId,
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalNumber(query.seasonNumber),
       episodeNumber: parseOptionalNumber(query.episodeNumber),
@@ -82,13 +78,10 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
-    const resolvedProviderInput = mapProviderResolveQuery(query);
     return playbackResolveService.resolvePlayback({
       mediaKey: asUndefinedString(query.mediaKey),
-      tmdbId: resolvedProviderInput.tmdbId,
+      tmdbId: parseOptionalPositiveNumber(query.tmdbId, 'tmdbId'),
       imdbId: asOptionalString(query.imdbId),
-      tvdbId: resolvedProviderInput.tvdbId,
-      kitsuId: resolvedProviderInput.kitsuId,
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
       episodeNumber: parseOptionalPositiveNumber(query.episodeNumber, 'episodeNumber'),
@@ -140,100 +133,20 @@ function parseOptionalPositiveNumber(value: unknown, field: string): number | nu
 }
 
 function parseSupportedMediaType(value: unknown): SupportedMediaType | null {
-  if (value === 'movie' || value === 'show' || value === 'anime' || value === 'episode') {
+  if (value === 'movie' || value === 'show' || value === 'episode') {
     return value;
   }
   return null;
 }
 
 function parseSearchFilter(value: unknown): MetadataSearchFilter {
-  if (value === 'movies' || value === 'series' || value === 'anime') {
+  if (value === 'movies' || value === 'series') {
     return value;
   }
   if (value === undefined || value === null || value === '' || value === 'all') {
     return 'all';
   }
   throw new HttpError(400, 'Invalid search filter.');
-}
-
-function parseOptionalStringOrNumber(value: unknown): string | number | null {
-  if (typeof value === 'string' && value.trim()) {
-    return value.trim();
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  return null;
-}
-
-function parseOptionalProvider(value: unknown) {
-  if (typeof value !== 'string' || !value.trim()) {
-    return null;
-  }
-  return ensureSupportedProvider(value.trim());
-}
-
-function mapProviderResolveQuery(query: MetadataResolveQuery): {
-  tmdbId: number | null;
-  tvdbId: number | null;
-  kitsuId: string | number | null;
-} {
-  const mediaType = parseSupportedMediaType(query.mediaType);
-  const provider = parseOptionalProvider(query.provider);
-  const providerId = parseOptionalStringOrNumber(query.providerId);
-  const parentProvider = parseOptionalProvider(query.parentProvider);
-  const parentProviderId = parseOptionalStringOrNumber(query.parentProviderId);
-
-  if ((mediaType === 'show' && provider === 'tmdb') || (mediaType === 'episode' && parentProvider === 'tmdb')) {
-    throw new HttpError(400, 'Show resolution requires a TVDB or IMDB id.');
-  }
-
-  if (mediaType === 'episode') {
-    return mapProviderReference(parentProvider, parentProviderId);
-  }
-
-  return mapProviderReference(provider, providerId);
-}
-
-function mapProviderReference(
-  provider: ReturnType<typeof parseOptionalProvider>,
-  providerId: string | number | null,
-): {
-  tmdbId: number | null;
-  tvdbId: number | null;
-  kitsuId: string | number | null;
-} {
-  if (provider === 'tmdb') {
-    return {
-      tmdbId: parseOptionalNumber(providerId),
-      tvdbId: null,
-      kitsuId: null,
-    };
-  }
-
-  if (provider === 'tvdb') {
-    return {
-      tmdbId: null,
-      tvdbId: parseOptionalNumber(providerId),
-      kitsuId: null,
-    };
-  }
-
-  if (provider === 'kitsu') {
-    return {
-      tmdbId: null,
-      tvdbId: null,
-      kitsuId: providerId,
-    };
-  }
-
-  return {
-    tmdbId: null,
-    tvdbId: null,
-    kitsuId: null,
-  };
 }
 
 function clampLimit(value: number, min: number, max: number): number {

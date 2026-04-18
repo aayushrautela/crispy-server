@@ -5,7 +5,7 @@ export type WatchV2SourceKind = 'local' | 'provider_import' | 'system';
 
 export type WatchV2PlayableStatus = 'idle' | 'in_progress' | 'completed' | 'dismissed';
 
-export type WatchV2TitleKind = 'movie' | 'show' | 'anime';
+export type WatchV2TitleKind = 'movie' | 'show';
 
 export type WatchV2TargetKind = WatchV2TitleKind | 'episode';
 

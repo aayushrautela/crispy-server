@@ -6,16 +6,16 @@ import { canonicalContinueWatchingMediaKey, parseMediaKey } from './media-key.js
 test('canonicalContinueWatchingMediaKey collapses episodes to the parent show key', () => {
   assert.equal(
     canonicalContinueWatchingMediaKey({
-      mediaKey: 'episode:tvdb:55:2:4',
+      mediaKey: 'episode:tmdb:55:2:4',
       mediaType: 'episode',
       tmdbId: null,
       showTmdbId: 55,
       seasonNumber: 2,
       episodeNumber: 4,
-      parentProvider: 'tvdb',
+      parentProvider: 'tmdb',
       parentProviderId: '55',
     }),
-    'show:tvdb:55',
+    'show:tmdb:55',
   );
 });
 
@@ -34,16 +34,16 @@ test('canonicalContinueWatchingMediaKey preserves movie and show identities', ()
 
   assert.equal(
     canonicalContinueWatchingMediaKey({
-      mediaKey: 'show:tvdb:88',
+      mediaKey: 'show:tmdb:88',
       mediaType: 'show',
-      provider: 'tvdb',
+      provider: 'tmdb',
       providerId: '88',
-      tmdbId: 188,
+      tmdbId: 88,
       showTmdbId: 88,
       seasonNumber: null,
       episodeNumber: null,
     }),
-    'show:tvdb:88',
+    'show:tmdb:88',
   );
 });
 
@@ -66,14 +66,19 @@ test('canonicalContinueWatchingMediaKey rejects unsupported incomplete identitie
   );
 });
 
-test('parseMediaKey rejects TMDB show media keys', () => {
-  assert.throws(
-    () => parseMediaKey('show:tmdb:88'),
-    (error: unknown) => {
-      assert.ok(error instanceof HttpError);
-      assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Unsupported media key format.');
-      return true;
-    },
-  );
+test('parseMediaKey accepts TMDB show media keys', () => {
+  assert.deepEqual(parseMediaKey('show:tmdb:88'), {
+    mediaKey: 'show:tmdb:88',
+    mediaType: 'show',
+    provider: 'tmdb',
+    providerId: '88',
+    tmdbId: 88,
+    showTmdbId: 88,
+    seasonNumber: null,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+    parentProvider: null,
+    parentProviderId: null,
+    providerMetadata: null,
+  });
 });

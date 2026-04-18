@@ -1,15 +1,8 @@
 import { buildSeasonProviderId, type MediaIdentity } from '../identity/media-key.js';
 import {
   buildMetadataCardView,
-  buildProviderEpisodePreview,
-  buildProviderMetadataCardView,
   buildEpisodePreview,
 } from './metadata-card.builders.js';
-import type {
-  ProviderEpisodeRecord,
-  ProviderSeasonRecord,
-  ProviderTitleRecord,
-} from './metadata-card.types.js';
 import type {
   MetadataEpisodeView,
   MetadataSeasonView,
@@ -17,7 +10,6 @@ import type {
 } from './metadata-detail.types.js';
 import {
   buildMetadataImages,
-  buildProviderMetadataImages,
   deriveRuntimeMinutes,
   extractCertification,
   extractExternalIds,
@@ -50,28 +42,6 @@ export function buildMetadataView(params: {
     episodeCount: title?.numberOfEpisodes ?? null,
     nextEpisode: title && params.nextEpisode
       ? buildEpisodePreview(title, params.nextEpisode)
-      : null,
-  };
-}
-
-export function buildProviderMetadataView(params: {
-  identity: MediaIdentity;
-  title: ProviderTitleRecord;
-  currentEpisode?: ProviderEpisodeRecord | null;
-  nextEpisode?: ProviderEpisodeRecord | null;
-}): MetadataView {
-  const card = buildProviderMetadataCardView(params);
-
-  return {
-    ...card,
-    runtimeMinutes: params.currentEpisode?.runtimeMinutes ?? params.title.runtimeMinutes,
-    certification: params.title.certification,
-    genres: params.title.genres,
-    externalIds: params.title.externalIds,
-    seasonCount: params.title.seasonCount,
-    episodeCount: params.title.episodeCount,
-    nextEpisode: params.nextEpisode
-      ? buildProviderEpisodePreview(params.title, params.nextEpisode)
       : null,
   };
 }
@@ -163,52 +133,6 @@ export function buildSeasonViewFromRecord(
   };
 }
 
-export function buildProviderSeasonViewFromRecord(
-  season: ProviderSeasonRecord,
-  _seasonId: string,
-  _showId: string,
-  showTmdbId: number | null = null,
-): MetadataSeasonView {
-  return {
-    mediaKey: `season:${season.provider}:${season.parentProviderId}:${season.seasonNumber}`,
-    provider: season.provider,
-    providerId: season.providerId,
-    parentMediaType: season.parentMediaType,
-    parentProvider: season.parentProvider,
-    parentProviderId: season.parentProviderId,
-    showTmdbId,
-    seasonNumber: season.seasonNumber,
-    title: season.title,
-    summary: season.summary,
-    airDate: season.airDate,
-    episodeCount: season.episodeCount,
-    images: {
-      posterUrl: buildProviderMetadataImages({
-        mediaType: season.parentMediaType,
-        provider: season.provider,
-        providerId: season.parentProviderId,
-        title: season.title ?? `Season ${season.seasonNumber}`,
-        originalTitle: season.title,
-        summary: season.summary,
-        overview: season.summary,
-        releaseDate: season.airDate,
-        status: null,
-        posterUrl: season.posterUrl,
-        backdropUrl: null,
-        logoUrl: null,
-        runtimeMinutes: null,
-        rating: null,
-        certification: null,
-        genres: [],
-        externalIds: { tmdb: showTmdbId, imdb: null, tvdb: null, kitsu: null },
-        seasonCount: null,
-        episodeCount: season.episodeCount,
-        raw: {},
-      }, null).posterUrl,
-    },
-  };
-}
-
 export function buildEpisodeView(
   title: TmdbTitleRecord,
   episode: TmdbEpisodeRecord,
@@ -219,18 +143,5 @@ export function buildEpisodeView(
     ...buildEpisodePreview(title, episode),
     showTitle: title.name ?? title.originalName,
     showExternalIds: extractExternalIds(title),
-  };
-}
-
-export function buildProviderEpisodeView(
-  title: ProviderTitleRecord,
-  episode: ProviderEpisodeRecord,
-  _contentId: string,
-  _showId: string,
-): MetadataEpisodeView {
-  return {
-    ...buildProviderEpisodePreview(title, episode),
-    showTitle: title.title,
-    showExternalIds: title.externalIds,
   };
 }

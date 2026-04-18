@@ -10,7 +10,7 @@ export async function resolveTitleRouteIdentity(
   mediaKey: string,
 ): Promise<MediaIdentity> {
   const identity = parseMediaKey(mediaKey.trim());
-  if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+  if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
     throw new HttpError(400, 'Title routes require a title mediaKey.');
   }
 
@@ -23,8 +23,8 @@ export async function resolveShowRouteIdentity(
   mediaKey: string,
 ): Promise<MediaIdentity> {
   const identity = await resolveTitleRouteIdentity(client, contentIdentityService, mediaKey);
-  if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
-    throw new HttpError(400, 'Season routes require a show or anime mediaKey.');
+  if (identity.mediaType !== 'show') {
+    throw new HttpError(400, 'Season routes require a show mediaKey.');
   }
 
   return identity;

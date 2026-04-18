@@ -2,10 +2,10 @@ import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { type MediaIdentity, parseMediaKey } from '../identity/media-key.js';
-import { MetadataTitleSourceService } from '../metadata/metadata-title-source.service.js';
 import type { WatchStateLookupInput, WatchStateResponse } from './watch-read.types.js';
 import { encodeWatchV2ContinueWatchingId, resolveWatchV2Lookup } from './watch-v2-utils.js';
 import { listWatchV2WatchedEpisodeKeys } from './watch-v2-episode-keys.js';
@@ -15,7 +15,7 @@ export class WatchStateService {
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly metadataCardService = new MetadataCardService(),
     private readonly contentIdentityService = new ContentIdentityService(),
-    private readonly metadataTitleSourceService = new MetadataTitleSourceService(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async getState(userId: string, profileId: string, input: WatchStateLookupInput): Promise<WatchStateResponse> {
@@ -245,7 +245,7 @@ export class WatchStateService {
     return listWatchV2WatchedEpisodeKeys(
       client,
       this.contentIdentityService,
-      this.metadataTitleSourceService,
+      this.tmdbCacheService,
       profileId,
       identity,
       titleContentId,

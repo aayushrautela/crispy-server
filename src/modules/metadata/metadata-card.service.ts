@@ -6,7 +6,7 @@ import {
   type MediaIdentity,
 } from '../identity/media-key.js';
 import type { MetadataCardView } from './metadata-card.types.js';
-import { buildMetadataCardView, buildProviderMetadataCardView } from './metadata-card.builders.js';
+import { buildMetadataCardView } from './metadata-card.builders.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 
 export class MetadataCardService {
@@ -16,14 +16,6 @@ export class MetadataCardService {
 
   async buildCardView(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
     const source = await this.titleSourceService.loadTitleSource(client, identity);
-    if (source.providerContext?.title) {
-      return buildProviderMetadataCardView({
-        identity: source.providerIdentity ?? identity,
-        title: source.providerContext.title,
-        currentEpisode: source.providerContext.currentEpisode,
-      });
-    }
-
     return buildMetadataCardView({
       identity,
       title: source.tmdbTitle,
@@ -43,14 +35,6 @@ export class MetadataCardService {
       && (identity.mediaType !== 'episode' || rowSubtitle)
       && (rowPosterUrl || rowBackdropUrl),
     );
-
-    if (source?.providerContext?.title) {
-      return buildProviderMetadataCardView({
-        identity: source.providerIdentity ?? identity,
-        title: source.providerContext.title,
-        currentEpisode: source.providerContext.currentEpisode,
-      });
-    }
 
     const context = canUseProjectionOnly
       ? { title: null, currentEpisode: null }

@@ -11,10 +11,6 @@ const REQUIRED_ENV: Record<string, string> = {
   SUPABASE_URL: 'https://example.supabase.co',
   AUTH_JWT_AUDIENCE: 'authenticated',
   TMDB_API_KEY: 'tmdb-test-key',
-  TVDB_API_KEY: 'tvdb-test-key',
-  TVDB_PIN: '',
-  TVDB_BASE_URL: 'https://api4.thetvdb.com/v4',
-  KITSU_BASE_URL: 'https://kitsu.io/api/edge',
   SERVICE_CLIENTS_JSON: '[]',
 };
 
@@ -104,7 +100,7 @@ export function createMockMetadataView(overrides: Record<string, unknown> = {}) 
     certification: null,
     status: null,
     genres: [],
-    externalIds: { tmdb: 1, imdb: 'tt1234567', tvdb: null, kitsu: null },
+    externalIds: { tmdb: 1, imdb: 'tt1234567', tvdb: null },
     seasonCount: null,
     episodeCount: null,
     nextEpisode: null,

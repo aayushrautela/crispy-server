@@ -241,8 +241,8 @@ export class RecommendationDataService {
     return Promise.all(rows.map(async (row) => {
       const identity = inferMediaIdentity({
         mediaKey: row.seriesMediaKey,
-        mediaType: row.seriesMediaType as 'show' | 'anime' | 'movie' | 'season' | 'episode',
-        provider: row.provider as 'tmdb' | 'tvdb' | 'kitsu' | undefined,
+        mediaType: 'show',
+        provider: 'tmdb',
         providerId: row.providerId ? Number(row.providerId) : null,
       });
       return {

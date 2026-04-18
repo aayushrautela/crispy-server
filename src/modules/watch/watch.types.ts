@@ -32,8 +32,8 @@ export type WatchIngestResult = {
 };
 
 export type WatchMediaProjection = {
-  detailsTitleMediaType: 'movie' | 'show' | 'anime' | null;
-  playbackMediaType: 'movie' | 'show' | 'episode' | 'anime' | null;
+  detailsTitleMediaType: 'movie' | 'show' | null;
+  playbackMediaType: 'movie' | 'show' | 'episode' | null;
   playbackProvider: SupportedProvider | null;
   playbackProviderId: string | null;
   playbackParentProvider: SupportedProvider | null;

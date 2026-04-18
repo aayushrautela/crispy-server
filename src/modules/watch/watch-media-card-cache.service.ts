@@ -69,7 +69,7 @@ function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
 }
 
 function resolveTitleProvider(identity: MediaIdentity, playbackParentProvider: SupportedProvider | null): SupportedProvider | null {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return identity.provider ?? null;
   }
 
@@ -77,7 +77,7 @@ function resolveTitleProvider(identity: MediaIdentity, playbackParentProvider: S
 }
 
 function resolveTitleProviderId(identity: MediaIdentity, playbackParentProviderId: string | null): string | null {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return identity.providerId ?? null;
   }
 
@@ -87,18 +87,18 @@ function resolveTitleProviderId(identity: MediaIdentity, playbackParentProviderI
 function resolveTitleMediaType(
   identity: MediaIdentity,
   projectionMediaType: MetadataTitleMediaType | null,
-  titleProvider: SupportedProvider | null,
+  _titleProvider: SupportedProvider | null,
 ): MetadataTitleMediaType | null {
-  if (projectionMediaType === 'movie' || projectionMediaType === 'show' || projectionMediaType === 'anime') {
+  if (projectionMediaType === 'movie' || projectionMediaType === 'show') {
     return projectionMediaType;
   }
 
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return identity.mediaType;
   }
 
   if (identity.mediaType === 'episode' || identity.mediaType === 'season') {
-    return titleProvider === 'kitsu' ? 'anime' : 'show';
+    return 'show';
   }
 
   return null;

@@ -6,7 +6,7 @@ import { inferMediaIdentity, parseMediaKey, showTmdbIdForIdentity, type MediaIde
 export type EpisodicFollowRow = {
   titleContentId: string;
   seriesMediaKey: string;
-  seriesMediaType: 'show' | 'anime';
+  seriesMediaType: 'show';
   provider: string;
   providerId: string;
   reason: string;
@@ -58,7 +58,7 @@ export class WatchV2EpisodicFollowQueryService {
           ON metadata.profile_id = projection.profile_id
          AND metadata.title_content_id = projection.title_content_id
         WHERE projection.profile_id = $1::uuid
-          AND projection.title_media_type IN ('show', 'anime')
+          AND projection.title_media_type = 'show'
           AND (
             projection.has_in_progress = true
             OR projection.effective_watched = true
@@ -89,7 +89,7 @@ export class WatchV2EpisodicFollowQueryService {
 
   async getEpisodicFollowByMediaKey(client: DbClient, profileId: string, mediaKey: string): Promise<EpisodicFollowRow | null> {
     const identity = parseMediaKey(mediaKey);
-    if (identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+    if (identity.mediaType !== 'show') {
       return null;
     }
 
@@ -131,7 +131,7 @@ export class WatchV2EpisodicFollowQueryService {
          AND metadata.title_content_id = projection.title_content_id
         WHERE projection.profile_id = $1::uuid
           AND projection.title_content_id = $2::uuid
-          AND projection.title_media_type IN ('show', 'anime')
+          AND projection.title_media_type = 'show'
           AND (
             projection.has_in_progress = true
             OR projection.effective_watched = true
@@ -171,7 +171,7 @@ export class WatchV2EpisodicFollowQueryService {
     return {
       titleContentId,
       seriesMediaKey,
-      seriesMediaType: parsed.mediaType === 'anime' ? 'anime' : 'show',
+      seriesMediaType: 'show',
       provider: identity.provider ?? String(row.title_provider),
       providerId: identity.providerId ?? String(row.title_provider_id),
       reason: typeof row.reason === 'string' ? row.reason : 'watch_activity',

@@ -7,7 +7,6 @@ import type {
   MetadataParentMediaType,
   MetadataTitleMediaType,
   MetadataViewMediaType,
-  ProviderTitleRecord,
 } from './metadata-card.types.js';
 
 export type MetadataView = {
@@ -160,7 +159,6 @@ export type MetadataTitleRatingsResponse = {
     audience: number | null;
     letterboxd: number | null;
     rogerEbert: number | null;
-    myAnimeList: number | null;
   };
 };
 
@@ -219,7 +217,7 @@ export type MetadataPersonDetail = {
   knownFor: MetadataPersonKnownForItem[];
 };
 
-export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'anime';
+export type MetadataSearchFilter = 'all' | 'movies' | 'series';
 export type MetadataSearchResult = CatalogItem;
 
 export type MetadataSearchResponse = {
@@ -227,11 +225,8 @@ export type MetadataSearchResponse = {
   all: MetadataSearchResult[];
   movies: MetadataSearchResult[];
   series: MetadataSearchResult[];
-  anime: MetadataSearchResult[];
 };
 
 export type MetadataResolveResponse = {
   item: MetadataView;
 };
-
-export type { ProviderTitleRecord };

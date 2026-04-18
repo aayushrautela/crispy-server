@@ -82,7 +82,7 @@ export class HeartbeatFlushService {
 
     if (outcome.action === 'persisted') {
       const identity = inferMediaIdentity({ mediaKey, mediaType: ensureSupportedMediaType(snapshot.mediaType) });
-      if (identity.mediaType === 'show' || identity.mediaType === 'anime' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
+      if (identity.mediaType === 'show' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
         await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
         await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
       }

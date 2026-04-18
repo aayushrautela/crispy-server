@@ -1,4 +1,4 @@
-export type AiSuggestedMediaType = 'movie' | 'show' | 'anime';
+export type AiSuggestedMediaType = 'movie' | 'show';
 
 export type AiSearchCandidate = {
   title: string;
@@ -27,7 +27,7 @@ export function parseSearchCandidates(items: unknown[]): AiSearchCandidate[] {
   return candidates;
 }
 
-export function resolveCandidateFilter(mediaType: AiSuggestedMediaType | null): Array<'movies' | 'series' | 'anime' | 'all'> {
+export function resolveCandidateFilter(mediaType: AiSuggestedMediaType | null): Array<'movies' | 'series' | 'all'> {
   const hintedFilter = mapSuggestedMediaTypeToSearchFilter(mediaType);
   return hintedFilter ? [hintedFilter, 'all'] : ['all'];
 }
@@ -78,21 +78,18 @@ function normalizeSuggestedMediaType(value: unknown): AiSuggestedMediaType | nul
     return 'show';
   }
   if (normalized === 'anime') {
-    return 'anime';
+    return 'show';
   }
 
   return null;
 }
 
-function mapSuggestedMediaTypeToSearchFilter(mediaType: AiSuggestedMediaType | null): 'movies' | 'series' | 'anime' | null {
+function mapSuggestedMediaTypeToSearchFilter(mediaType: AiSuggestedMediaType | null): 'movies' | 'series' | null {
   if (mediaType === 'movie') {
     return 'movies';
   }
   if (mediaType === 'show') {
     return 'series';
-  }
-  if (mediaType === 'anime') {
-    return 'anime';
   }
   return null;
 }

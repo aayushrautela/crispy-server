@@ -9,7 +9,7 @@ type TitleRow = {
   profileId: string;
   titleContentId: string;
   titleMediaKey: string;
-  titleMediaType: 'movie' | 'show' | 'anime';
+  titleMediaType: 'movie' | 'show';
   titleProvider: SupportedProvider;
   titleProviderId: string;
 };
@@ -72,7 +72,7 @@ export class WatchV2ProjectionRebuildService {
       }
 
       const seriesIdentity =
-        title.titleMediaType === 'show' || title.titleMediaType === 'anime'
+        title.titleMediaType === 'show'
           ? inferMediaIdentity({
               contentId: title.titleContentId,
               mediaKey: title.titleMediaKey,
@@ -155,7 +155,7 @@ export class WatchV2ProjectionRebuildService {
         continue;
       }
       const identity = reference.mediaIdentity;
-      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
         continue;
       }
       rows.push({

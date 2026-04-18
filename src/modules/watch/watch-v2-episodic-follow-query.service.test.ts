@@ -15,14 +15,14 @@ test('WatchV2EpisodicFollowQueryService resolves mediaKey to contentId before qu
       return {
         rows: [{
           title_content_id: '11111111-1111-4111-8111-111111111111',
-          title_media_key: 'show:tvdb:100',
+          title_media_key: 'show:tmdb:100',
           title_media_type: 'show',
-          title_provider: 'tvdb',
+          title_provider: 'tmdb',
           title_provider_id: '100',
           reason: 'watch_activity',
           last_interacted_at: '2026-04-07T12:00:00.000Z',
           next_episode_air_date: '2026-04-10',
-          next_episode_media_key: 'episode:tvdb:100:1:2',
+          next_episode_media_key: 'episode:tmdb:100:1:2',
           next_episode_season_number: 1,
           next_episode_episode_number: 2,
           next_episode_absolute_episode_number: null,
@@ -44,16 +44,16 @@ test('WatchV2EpisodicFollowQueryService resolves mediaKey to contentId before qu
     },
   } as never);
 
-  const result = await service.getEpisodicFollowByMediaKey(client as never, 'profile-1', 'show:tvdb:100');
+  const result = await service.getEpisodicFollowByMediaKey(client as never, 'profile-1', 'show:tmdb:100');
 
-  assert.equal(ensuredMediaKey, 'show:tvdb:100');
+  assert.equal(ensuredMediaKey, 'show:tmdb:100');
   assert.match(capturedSql, /projection\.title_content_id = \$2::uuid/);
   assert.doesNotMatch(capturedSql, /projection\.title_media_key = \$2/);
   assert.deepEqual(capturedParams, ['profile-1', '11111111-1111-4111-8111-111111111111']);
   assert.equal(result?.titleContentId, '11111111-1111-4111-8111-111111111111');
-  assert.equal(result?.seriesMediaKey, 'show:tvdb:100');
+  assert.equal(result?.seriesMediaKey, 'show:tmdb:100');
   assert.equal(result?.nextEpisodeAirDate, '2026-04-10T00:00:00.000Z');
-  assert.equal(result?.nextEpisodeMediaKey, 'episode:tvdb:100:1:2');
+  assert.equal(result?.nextEpisodeMediaKey, 'episode:tmdb:100:1:2');
   assert.equal(result?.nextEpisodeSeasonNumber, 1);
   assert.equal(result?.nextEpisodeEpisodeNumber, 2);
   assert.equal(result?.nextEpisodeAbsoluteEpisodeNumber, null);

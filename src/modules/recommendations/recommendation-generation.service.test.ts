@@ -12,8 +12,8 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
     id: 'cw_1',
     media: {
       mediaType: 'show',
-      mediaKey: 'show:tvdb:1396',
-      provider: 'tvdb',
+      mediaKey: 'show:tmdb:1396',
+      provider: 'tmdb',
       providerId: '1396',
       title: 'Breaking Bad',
       posterUrl: 'poster',
@@ -44,8 +44,8 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
     id: 'cw_1',
     media: {
       mediaType: 'show',
-      mediaKey: 'show:tvdb:1396',
-      provider: 'tvdb',
+      mediaKey: 'show:tmdb:1396',
+      provider: 'tmdb',
       providerId: '1396',
       title: 'Breaking Bad',
     },

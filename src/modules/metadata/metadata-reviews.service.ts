@@ -38,7 +38,7 @@ export class MetadataReviewsService {
     identity: MediaIdentity,
     language?: string | null,
   ): Promise<MetadataReviewView[]> {
-    if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+    if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
       throw new HttpError(400, 'Title reviews require a title mediaKey.');
     }
 
@@ -72,30 +72,21 @@ export class MetadataReviewsService {
     identity: MediaIdentity,
     language?: string | null,
   ): Promise<{
-    mediaType: 'movie' | 'show' | 'anime';
+    mediaType: 'movie' | 'show';
     externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null };
     primaryReviews: MetadataReviewView[];
   }> {
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
-    if (source.providerContext?.title) {
-      const title = source.providerContext.title;
-
-      return {
-        mediaType: title.mediaType,
-        externalIds: {
-          imdb: title.externalIds.imdb,
-          tmdb: title.externalIds.tmdb,
-          tvdb: title.externalIds.tvdb,
-        },
-        primaryReviews: source.providerContext.reviews ?? [],
-      };
-    }
-
     const title = assertPresent(source.tmdbTitle, 'Metadata title not found.');
+    const externalIds = extractExternalIds(title);
 
     return {
       mediaType: identity.mediaType === 'movie' ? 'movie' : 'show',
-      externalIds: extractExternalIds(title),
+      externalIds: {
+        imdb: externalIds.imdb,
+        tmdb: externalIds.tmdb,
+        tvdb: externalIds.tvdb,
+      },
       primaryReviews: extractReviews(title),
     };
   }

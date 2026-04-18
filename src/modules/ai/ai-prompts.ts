@@ -5,12 +5,12 @@ export type SearchQueryAnalysis = {
 
 export type SearchPromptCandidateShape = {
   title: string;
-  mediaType?: 'movie' | 'show' | 'anime';
+  mediaType?: 'movie' | 'show';
 };
 
 export type TitleInsightsContext = {
   mediaKey: string;
-  mediaType: 'movie' | 'show' | 'anime';
+  mediaType: 'movie' | 'show';
   title: string;
   year: string | null;
   description: string | null;
@@ -29,8 +29,8 @@ export function buildSearchPrompt(query: string, locale: string, analysis: Searc
   const lines = [
     'You help a streaming app answer what-to-watch questions like a smart friend.',
     `User query: ${query}`,
-    'Catalog scope: You may suggest movies, TV shows, or anime.',
-    'Mixed results can come from the movie, TV series, or anime catalogs.',
+    'Catalog scope: You may suggest movies or TV shows.',
+    'Mixed results can come from the movie and TV catalogs.',
     `Preferred locale: ${locale}`,
     'Suggest real released titles only.',
     'Prefer the commonly used catalog title for each result so it can be matched reliably.',
@@ -54,7 +54,7 @@ export function buildSearchPrompt(query: string, locale: string, analysis: Searc
 
   lines.push('Use short JSON objects so the app can validate each suggestion against the right catalog.');
   lines.push('Every item must include `title` and should include `mediaType` when you know it.');
-  lines.push('Allowed mediaType values: `movie`, `show`, `anime`.');
+  lines.push('Allowed mediaType values: `movie`, `show`.');
   lines.push('Do not include years, numbering, commentary, or markdown.');
   lines.push('Return ONLY a JSON object with this shape:');
   lines.push('{"items":[{"title":"Title One","mediaType":"movie"},{"title":"Title Two","mediaType":"show"}]}');
@@ -104,7 +104,6 @@ export function buildInsightsPrompt(context: TitleInsightsContext): string {
     '  - type: one of ["consensus","performance","theme","vibe","style","controversy","character"]',
     'Use a varied mix of insight types. Prefer theme, vibe, character, or style when they fit the title better than consensus.',
     'For shows, you may talk about momentum, episode hooks, character arcs, ensemble chemistry, or worldbuilding.',
-    'For anime, you may talk about tone shifts, character dynamics, emotional payoff, powers, lore, or visual identity.',
     'For movies, you may talk about pacing, performances, craft, tension, spectacle, or emotional payoff.',
     '- trivia: one "Did you know?" fact (1-2 sentences)',
     'If you are not confident about a hard production fact, keep the trivia broad and safe instead of inventing details.',
@@ -113,9 +112,6 @@ export function buildInsightsPrompt(context: TitleInsightsContext): string {
 }
 
 function mediaTypeVoiceInstruction(mediaType: TitleInsightsContext['mediaType']): string {
-  if (mediaType === 'anime') {
-    return 'Treat anime as its own storytelling lane, not just "TV". Sound natural when talking about anime tone, arcs, lore, and visual identity.';
-  }
   if (mediaType === 'show') {
     return 'Treat shows as ongoing stories. It is good to mention momentum, episode-to-episode pull, long-form arcs, and ensemble chemistry when relevant.';
   }

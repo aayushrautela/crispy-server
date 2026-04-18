@@ -1,19 +1,11 @@
 import type { DbClient } from '../../lib/db.js';
-import { parseMediaKey, parentMediaTypeForIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
-import { KitsuRefreshService } from './providers/kitsu-refresh.service.js';
+import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { TmdbRefreshService, type MetadataRefreshSummary } from './providers/tmdb-refresh.service.js';
-import { TvdbRefreshService } from './providers/tvdb-refresh.service.js';
 import { MetadataRefreshQueryService } from './metadata-refresh-query.service.js';
 
 export type MetadataRefreshResult = {
   summary: MetadataRefreshSummary;
   mediaKeys: string[];
-};
-
-type EpisodicSeriesIdentity = MediaIdentity & {
-  mediaType: 'show' | 'anime';
-  provider: NonNullable<MediaIdentity['provider']>;
-  providerId: NonNullable<MediaIdentity['providerId']>;
 };
 
 function emptySummary(): MetadataRefreshSummary {
@@ -26,15 +18,6 @@ function emptySummary(): MetadataRefreshSummary {
   };
 }
 
-function mergeSummary(target: MetadataRefreshSummary, incoming: MetadataRefreshSummary): MetadataRefreshSummary {
-  target.refreshedTitles += incoming.refreshedTitles;
-  target.refreshedSeasons += incoming.refreshedSeasons;
-  target.refreshedTrackedShows += incoming.refreshedTrackedShows;
-  target.skipped += incoming.skipped;
-  target.failures += incoming.failures;
-  return target;
-}
-
 function emptyResult(): MetadataRefreshResult {
   return {
     summary: emptySummary(),
@@ -43,7 +26,11 @@ function emptyResult(): MetadataRefreshResult {
 }
 
 function mergeResult(target: MetadataRefreshResult, incoming: MetadataRefreshResult): MetadataRefreshResult {
-  mergeSummary(target.summary, incoming.summary);
+  target.summary.refreshedTitles += incoming.summary.refreshedTitles;
+  target.summary.refreshedSeasons += incoming.summary.refreshedSeasons;
+  target.summary.refreshedTrackedShows += incoming.summary.refreshedTrackedShows;
+  target.summary.skipped += incoming.summary.skipped;
+  target.summary.failures += incoming.summary.failures;
   for (const mediaKey of incoming.mediaKeys) {
     if (!target.mediaKeys.includes(mediaKey)) {
       target.mediaKeys.push(mediaKey);
@@ -56,8 +43,6 @@ export class MetadataRefreshService {
   constructor(
     private readonly tmdbRefreshService = new TmdbRefreshService(),
     private readonly metadataRefreshQueryService = new MetadataRefreshQueryService(),
-    private readonly tvdbRefreshService = new TvdbRefreshService(),
-    private readonly kitsuRefreshService = new KitsuRefreshService(),
   ) {}
 
   async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshResult> {
@@ -92,37 +77,37 @@ export class MetadataRefreshService {
       };
     }
 
-    const seriesIdentity = toEpisodicSeriesIdentity(identity);
-    if (!seriesIdentity) {
+    const showTmdbId = identity.mediaType === 'show'
+      ? identity.tmdbId
+      : showTmdbIdForIdentity(identity);
+
+    if (!showTmdbId) {
       const result = emptyResult();
       result.summary.skipped += 1;
       return result;
     }
 
-    const showTmdbId = seriesIdentity.tmdbId ?? showTmdbIdForIdentity(seriesIdentity);
-    if (showTmdbId) {
-      const episodicFollow = seriesIdentity.contentId
-        ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, seriesIdentity.contentId)
-        : await this.metadataRefreshQueryService.getEpisodicFollowByMediaKey(client, profileId, seriesIdentity.mediaKey);
-      return {
-        summary: await this.tmdbRefreshService.refreshShow(
-          client,
-          profileId,
-          showTmdbId,
-          identity.seasonNumber,
-          episodicFollow
-            ? {
-                titleContentId: episodicFollow.titleContentId,
-                seriesMediaKey: episodicFollow.seriesMediaKey,
-                payload: episodicFollow.payload,
-              }
-            : undefined,
-        ),
-        mediaKeys: [seriesIdentity.mediaKey],
-      };
-    }
+    const titleMediaKey = `show:tmdb:${showTmdbId}`;
+    const episodicFollow = identity.contentId
+      ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, identity.contentId)
+      : await this.metadataRefreshQueryService.getEpisodicFollowByMediaKey(client, profileId, titleMediaKey);
 
-    return this.refreshProviderSeriesIdentity(client, profileId, seriesIdentity);
+    return {
+      summary: await this.tmdbRefreshService.refreshShow(
+        client,
+        profileId,
+        showTmdbId,
+        identity.mediaType === 'season' || identity.mediaType === 'episode' ? identity.seasonNumber : null,
+        episodicFollow
+          ? {
+              titleContentId: episodicFollow.titleContentId,
+              seriesMediaKey: episodicFollow.seriesMediaKey,
+              payload: episodicFollow.payload,
+            }
+          : undefined,
+      ),
+      mediaKeys: [titleMediaKey],
+    };
   }
 
   private async refreshEpisodicFollowRecord(
@@ -130,83 +115,23 @@ export class MetadataRefreshService {
     profileId: string,
     row: Awaited<ReturnType<MetadataRefreshQueryService['listEpisodicFollow']>>[number],
   ): Promise<MetadataRefreshResult> {
-    if (row.showTmdbId) {
-      return {
-        summary: await this.tmdbRefreshService.refreshShow(
-          client,
-          profileId,
-          row.showTmdbId,
-          null,
-          {
-            titleContentId: row.titleContentId,
-            seriesMediaKey: row.seriesMediaKey,
-            payload: row.payload,
-          },
-        ),
-        mediaKeys: [row.seriesMediaKey],
-      };
-    }
-
-    return this.refreshMediaKey(client, profileId, row.seriesMediaKey);
-  }
-
-  private async refreshProviderSeriesIdentity(
-    client: DbClient,
-    profileId: string,
-    seriesIdentity: EpisodicSeriesIdentity,
-  ): Promise<MetadataRefreshResult> {
-    if (seriesIdentity.provider === 'tvdb') {
-      return {
-        summary: await this.tvdbRefreshService.refreshIdentity(client, profileId, seriesIdentity),
-        mediaKeys: [seriesIdentity.mediaKey],
-      };
-    }
-    if (seriesIdentity.provider === 'kitsu') {
-      return {
-        summary: await this.kitsuRefreshService.refreshIdentity(client, profileId, seriesIdentity),
-        mediaKeys: [seriesIdentity.mediaKey],
-      };
-    }
-
-    const result = emptyResult();
-    result.summary.skipped += 1;
-    return result;
-  }
-}
-
-function toEpisodicSeriesIdentity(identity: MediaIdentity): EpisodicSeriesIdentity | null {
-  if ((identity.mediaType === 'show' || identity.mediaType === 'anime') && identity.provider && identity.providerId) {
-    return {
-      ...identity,
-      mediaType: identity.mediaType,
-      provider: identity.provider,
-      providerId: identity.providerId,
-    };
-  }
-
-  if ((identity.mediaType === 'season' || identity.mediaType === 'episode') && identity.parentProvider && identity.parentProviderId) {
-    const mediaType = parentMediaTypeForIdentity(identity);
-    if (mediaType !== 'show' && mediaType !== 'anime') {
-      return null;
+    if (!row.showTmdbId) {
+      return this.refreshMediaKey(client, profileId, row.seriesMediaKey);
     }
 
     return {
-      contentId: identity.parentContentId ?? null,
-      mediaKey: `${mediaType}:${identity.parentProvider}:${identity.parentProviderId}`,
-      mediaType,
-      provider: identity.parentProvider,
-      providerId: identity.parentProviderId,
-      parentContentId: null,
-      parentProvider: null,
-      parentProviderId: null,
-      tmdbId: showTmdbIdForIdentity(identity),
-      showTmdbId: showTmdbIdForIdentity(identity),
-      seasonNumber: null,
-      episodeNumber: null,
-      absoluteEpisodeNumber: null,
-      providerMetadata: identity.providerMetadata,
+      summary: await this.tmdbRefreshService.refreshShow(
+        client,
+        profileId,
+        row.showTmdbId,
+        null,
+        {
+          titleContentId: row.titleContentId,
+          seriesMediaKey: row.seriesMediaKey,
+          payload: row.payload,
+        },
+      ),
+      mediaKeys: [row.seriesMediaKey],
     };
   }
-
-  return null;
 }

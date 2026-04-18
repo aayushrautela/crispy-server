@@ -1,14 +1,14 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { episodeRefMapKey, type ContentIdentityService } from '../identity/content-identity.service.js';
-import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
-import type { MetadataTitleSourceService } from '../metadata/metadata-title-source.service.js';
+import { inferMediaIdentity, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { toEpisodicSeriesIdentity } from './watch-v2-utils.js';
 
 export async function listWatchV2WatchedEpisodeKeys(
   client: DbClient,
   contentIdentityService: ContentIdentityService,
-  metadataTitleSourceService: MetadataTitleSourceService,
+  tmdbCacheService: TmdbCacheService,
   profileId: string,
   identity: MediaIdentity,
   titleContentId: string,
@@ -53,19 +53,20 @@ export async function listWatchV2WatchedEpisodeKeys(
     return Array.from(watchedKeys).sort();
   }
 
-  const source = await metadataTitleSourceService.loadTitleSource(client, seriesIdentity).catch(() => null);
-  const episodes = source?.providerContext?.episodes ?? [];
+  const showTmdbId = showTmdbIdForIdentity(seriesIdentity);
+  const episodes = showTmdbId
+    ? await tmdbCacheService.listEpisodesForShow(client, showTmdbId).catch(() => [])
+    : [];
   if (!episodes.length) {
     return Array.from(watchedKeys).sort();
   }
 
   const episodeInputs = episodes.map((episode) => ({
-    parentMediaType: seriesIdentity.mediaType as 'show' | 'anime',
-    provider: episode.provider,
-    parentProviderId: episode.parentProviderId,
+    parentMediaType: 'show' as const,
+    provider: 'tmdb' as const,
+    parentProviderId: String(episode.showTmdbId),
     seasonNumber: episode.seasonNumber,
     episodeNumber: episode.episodeNumber,
-    absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
   }));
   const episodeContentIds = await contentIdentityService.ensureEpisodeContentIds(client, episodeInputs);
   const allEpisodeContentIds = Array.from(episodeContentIds.values());
@@ -88,10 +89,10 @@ export async function listWatchV2WatchedEpisodeKeys(
   const cutoff = requireOptionalIsoString(titleOverride.applies_through_release_at as Date | string | null | undefined);
   for (const episode of episodes) {
     const contentId = episodeContentIds.get(episodeRefMapKey(
-      episode.parentProviderId,
+      String(episode.showTmdbId),
       episode.seasonNumber,
       episode.episodeNumber,
-      episode.absoluteEpisodeNumber,
+      null,
     ));
     if (!contentId || exactUnwatchedIds.has(contentId) || !isReleasedByCutoff(episode.airDate, cutoff)) {
       continue;
@@ -100,12 +101,11 @@ export async function listWatchV2WatchedEpisodeKeys(
     watchedKeys.add(inferMediaIdentity({
       contentId,
       mediaType: 'episode',
-      provider: episode.provider,
-      parentProvider: episode.parentProvider,
-      parentProviderId: episode.parentProviderId,
+      provider: 'tmdb',
+      parentProvider: 'tmdb',
+      parentProviderId: String(episode.showTmdbId),
       seasonNumber: episode.seasonNumber,
       episodeNumber: episode.episodeNumber,
-      absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
     }).mediaKey);
   }
 

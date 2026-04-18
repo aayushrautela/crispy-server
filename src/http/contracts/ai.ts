@@ -60,7 +60,7 @@ export const aiSearchRouteSchema = withDefaultErrorResponses({
     200: {
       type: 'object',
       additionalProperties: false,
-      required: ['query', 'all', 'movies', 'series', 'anime'],
+      required: ['query', 'all', 'movies', 'series'],
       properties: {
         query: stringSchema,
         all: {
@@ -72,10 +72,6 @@ export const aiSearchRouteSchema = withDefaultErrorResponses({
           items: aiSearchItemSchema,
         },
         series: {
-          type: 'array',
-          items: aiSearchItemSchema,
-        },
-        anime: {
           type: 'array',
           items: aiSearchItemSchema,
         },

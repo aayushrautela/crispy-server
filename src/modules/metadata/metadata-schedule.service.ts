@@ -19,18 +19,6 @@ export class MetadataScheduleService {
 
   async getScheduleInfo(client: DbClient, identity: MediaIdentity): Promise<ScheduleInfo> {
     const source = await this.titleSourceService.loadTitleSource(client, identity);
-    if (source.providerContext?.nextEpisode) {
-      return {
-        nextEpisodeAirDate: source.providerContext.nextEpisode.airDate,
-        nextEpisode: {
-          seasonNumber: source.providerContext.nextEpisode.seasonNumber,
-          episodeNumber: source.providerContext.nextEpisode.episodeNumber,
-          title: source.providerContext.nextEpisode.title,
-          airDate: source.providerContext.nextEpisode.airDate,
-        },
-      };
-    }
-
     if (!source.tmdbNextEpisode) {
       return { nextEpisodeAirDate: null, nextEpisode: null };
     }

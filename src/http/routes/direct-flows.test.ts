@@ -101,7 +101,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
         certification: null,
         status: null,
         genres: [],
-        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null },
+        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null },
         seasonCount: null,
         episodeCount: null,
         nextEpisode: null,
@@ -170,7 +170,7 @@ test('metadata direct routes parse inputs and return service payloads', async (t
         certification: null,
         status: null,
         genres: [],
-        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null, kitsu: null },
+        externalIds: { tmdb: 222, imdb: 'tt1234567', tvdb: null },
         seasonCount: null,
         episodeCount: null,
         nextEpisode: null,
@@ -589,7 +589,7 @@ test('watch routes expose continue-watching ids and forward dismiss params', asy
     method: 'POST',
     url: '/v1/profiles/profile-1/watch/states',
     headers: auth,
-    payload: { items: [{ mediaKey: 'movie:tmdb:1' }, { mediaKey: 'show:tvdb:2' }] },
+    payload: { items: [{ mediaKey: 'movie:tmdb:1' }, { mediaKey: 'show:tmdb:2' }] },
   });
   assert.equal(statesResponse.statusCode, 200);
   assert.equal(statesResponse.json().profileId, 'profile-1');
@@ -670,27 +670,27 @@ test('metadata resolve route accepts provider-shaped query input', async (t) => 
     MetadataDetailService.prototype.resolve = originalResolve;
   });
 
-  type ResolveInputCapture = { mediaType?: string; kitsuId?: number | string | null };
+  type ResolveInputCapture = { mediaType?: string; tmdbId?: number | string | null };
   let receivedResolveInput: ResolveInputCapture | null = null;
 
   MetadataDetailService.prototype.resolve = async function (input) {
     receivedResolveInput = input as ResolveInputCapture;
     return {
       item: {
-        mediaType: 'anime',
+        mediaType: 'show',
         kind: 'title',
-        mediaKey: 'anime:kitsu:123',
-        provider: 'kitsu',
+        mediaKey: 'show:tmdb:123',
+        provider: 'tmdb',
         providerId: '123',
         parentMediaType: null,
         parentProvider: null,
         parentProviderId: null,
-        tmdbId: null,
-        showTmdbId: null,
+        tmdbId: 123,
+        showTmdbId: 123,
         seasonNumber: null,
         episodeNumber: null,
         absoluteEpisodeNumber: null,
-        title: 'Anime',
+        title: 'Show',
         subtitle: null,
         summary: null,
         overview: null,
@@ -703,7 +703,7 @@ test('metadata resolve route accepts provider-shaped query input', async (t) => 
         certification: null,
         status: null,
         genres: [],
-        externalIds: { tmdb: null, imdb: null, tvdb: null, kitsu: '123' },
+        externalIds: { tmdb: 123, imdb: null, tvdb: null },
         seasonCount: null,
         episodeCount: null,
         nextEpisode: null,
@@ -717,18 +717,18 @@ test('metadata resolve route accepts provider-shaped query input', async (t) => 
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/resolve?mediaType=anime&provider=kitsu&providerId=123',
+    url: '/v1/metadata/resolve?mediaType=show&tmdbId=123',
     headers: { authorization: 'Bearer test' },
   });
-  const resolvedJson = response.json() as { item: { mediaType: string; provider: string; providerId: string; externalIds: { kitsu: string | null } } };
+  const resolvedJson = response.json() as { item: { mediaType: string; provider: string; providerId: string; externalIds: { tmdb: number | null } } };
 
   assert.equal(response.statusCode, 200);
-  assert.equal(resolvedJson.item.mediaType, 'anime');
-  assert.equal(resolvedJson.item.provider, 'kitsu');
+  assert.equal(resolvedJson.item.mediaType, 'show');
+  assert.equal(resolvedJson.item.provider, 'tmdb');
   assert.equal(resolvedJson.item.providerId, '123');
-  assert.equal(resolvedJson.item.externalIds.kitsu, '123');
+  assert.equal(resolvedJson.item.externalIds.tmdb, 123);
   assert.ok(receivedResolveInput);
   const resolveInput = receivedResolveInput as ResolveInputCapture;
-  assert.equal(resolveInput.mediaType, 'anime');
-  assert.equal(resolveInput.kitsuId, 123);
+  assert.equal(resolveInput.mediaType, 'show');
+  assert.equal(resolveInput.tmdbId, 123);
 });

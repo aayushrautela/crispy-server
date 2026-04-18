@@ -8,18 +8,18 @@ seedTestEnv();
 
 const { resolveShowRouteIdentity, resolveTitleRouteIdentity } = await import('./metadata-route-identity.js');
 
-test('resolveTitleRouteIdentity accepts provider-backed show media keys directly', async () => {
+test('resolveTitleRouteIdentity accepts TMDB show media keys directly', async () => {
   const contentIdentityService = {
     resolveMediaIdentity: async () => {
       throw new Error('should not resolve content ids for title routes');
     },
   };
 
-  const identity = await resolveTitleRouteIdentity({} as never, contentIdentityService as never, 'show:tvdb:121361');
+  const identity = await resolveTitleRouteIdentity({} as never, contentIdentityService as never, 'show:tmdb:1396');
 
   assert.equal(identity.mediaType, 'show');
-  assert.equal(identity.provider, 'tvdb');
-  assert.equal(identity.providerId, '121361');
+  assert.equal(identity.provider, 'tmdb');
+  assert.equal(identity.providerId, '1396');
 });
 
 test('resolveTitleRouteIdentity accepts title media keys directly', async () => {
@@ -43,7 +43,7 @@ test('resolveTitleRouteIdentity rejects non-title media keys', async () => {
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Unsupported media key format.');
+      assert.equal(error.message, 'Title routes require a title mediaKey.');
       return true;
     },
   );
@@ -55,7 +55,7 @@ test('resolveShowRouteIdentity rejects movie media keys', async () => {
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
-      assert.equal(error.message, 'Season routes require a show or anime mediaKey.');
+      assert.equal(error.message, 'Season routes require a show mediaKey.');
       return true;
     },
   );

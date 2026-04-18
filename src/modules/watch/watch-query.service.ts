@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { parseMediaKey } from '../identity/media-key.js';
 import type { RegularCardView } from '../metadata/metadata-card.types.js';
-import { MetadataTitleSourceService } from '../metadata/metadata-title-source.service.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { decodeWatchPageCursor, encodeWatchPageCursor } from './watch-pagination.js';
 import type { PaginatedWatchCollection } from './watch-read.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
@@ -11,8 +11,8 @@ import { listWatchV2WatchedEpisodeKeys } from './watch-v2-episode-keys.js';
 import { WatchV2EpisodicFollowQueryService } from './watch-v2-episodic-follow-query.service.js';
 
 type RawWatchProjectionSnapshot = {
-  detailsTitleMediaType: 'movie' | 'show' | 'anime' | null;
-  playbackMediaType: 'movie' | 'show' | 'episode' | 'anime' | null;
+  detailsTitleMediaType: 'movie' | 'show' | null;
+  playbackMediaType: 'movie' | 'show' | 'episode' | null;
   playbackProvider: string | null;
   playbackProviderId: string | null;
   playbackParentProvider: string | null;
@@ -111,7 +111,7 @@ export type RawProgressRow = {
 
 export type RawEpisodicFollowRow = {
   seriesMediaKey: string;
-  seriesMediaType: 'show' | 'anime';
+  seriesMediaType: 'show';
   provider: string;
   providerId: string;
   reason: string | null;
@@ -133,10 +133,10 @@ type WatchPageParams = {
 
 function mapProjectionSnapshot(row: Record<string, unknown>): RawWatchProjectionSnapshot {
   return {
-    detailsTitleMediaType: row.details_title_media_type === 'movie' || row.details_title_media_type === 'show' || row.details_title_media_type === 'anime'
+    detailsTitleMediaType: row.details_title_media_type === 'movie' || row.details_title_media_type === 'show'
       ? row.details_title_media_type
       : null,
-    playbackMediaType: row.playback_media_type === 'movie' || row.playback_media_type === 'show' || row.playback_media_type === 'episode' || row.playback_media_type === 'anime'
+    playbackMediaType: row.playback_media_type === 'movie' || row.playback_media_type === 'show' || row.playback_media_type === 'episode'
       ? row.playback_media_type
       : null,
     playbackProvider: typeof row.playback_provider === 'string' ? row.playback_provider : null,
@@ -265,7 +265,7 @@ function emptyProjectionSnapshot(): RawWatchProjectionSnapshot {
 export class WatchQueryService {
   constructor(
     private readonly contentIdentityService = new ContentIdentityService(),
-    private readonly metadataTitleSourceService = new MetadataTitleSourceService(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly episodicFollowQueryService = new WatchV2EpisodicFollowQueryService(),
   ) {}
 
@@ -615,14 +615,14 @@ export class WatchQueryService {
 
   async listWatchedEpisodeKeysForShow(client: DbClient, profileId: string, seriesMediaKey: string): Promise<string[]> {
     const seriesIdentity = parseMediaKey(seriesMediaKey);
-    if (seriesIdentity.mediaType !== 'show' && seriesIdentity.mediaType !== 'anime') {
+    if (seriesIdentity.mediaType !== 'show') {
       return [];
     }
     const lookup = await resolveWatchV2Lookup(client, this.contentIdentityService, seriesIdentity);
     return listWatchV2WatchedEpisodeKeys(
       client,
       this.contentIdentityService,
-      this.metadataTitleSourceService,
+      this.tmdbCacheService,
       profileId,
       seriesIdentity,
       lookup.titleContentId,
@@ -655,7 +655,7 @@ function mapContinueWatchingProjectionRow(row: Record<string, unknown>): RawCont
 
 function mapProjectionSnapshotFromTitleRow(row: Record<string, unknown>): RawWatchProjectionSnapshot {
   return {
-    detailsTitleMediaType: row.title_media_type === 'movie' || row.title_media_type === 'show' || row.title_media_type === 'anime'
+    detailsTitleMediaType: row.title_media_type === 'movie' || row.title_media_type === 'show'
       ? row.title_media_type
       : null,
     playbackMediaType: row.active_media_type === 'movie' || row.active_media_type === 'episode'

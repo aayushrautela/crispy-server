@@ -43,10 +43,10 @@ test('refreshProfileEpisodicFollow refreshes episodic follow rows', async () => 
     {
       listEpisodicFollow: async () => [{
         titleContentId: 'content-show-42',
-        seriesMediaKey: 'show:tvdb:500',
+        seriesMediaKey: 'show:tmdb:42',
         seriesMediaType: 'show',
-        provider: 'tvdb',
-        providerId: '500',
+        provider: 'tmdb',
+        providerId: '42',
         reason: 'watch_activity',
         lastInteractedAt: new Date().toISOString(),
         nextEpisodeAirDate: null,
@@ -56,10 +56,10 @@ test('refreshProfileEpisodicFollow refreshes episodic follow rows', async () => 
       }],
       getEpisodicFollowByContentId: async () => ({
         titleContentId: 'content-show-42',
-        seriesMediaKey: 'show:tvdb:500',
+        seriesMediaKey: 'show:tmdb:42',
         seriesMediaType: 'show',
-        provider: 'tvdb',
-        providerId: '500',
+        provider: 'tmdb',
+        providerId: '42',
         reason: 'watch_activity',
         lastInteractedAt: new Date().toISOString(),
         nextEpisodeAirDate: null,
@@ -81,7 +81,7 @@ test('refreshProfileEpisodicFollow refreshes episodic follow rows', async () => 
   assert.equal(result.refreshedSeasons, 1);
   assert.equal(episodicFollowWrites.length, 1);
   assert.equal(episodicFollowWrites[0]?.titleContentId, 'content-show-42');
-  assert.equal(episodicFollowWrites[0]?.titleMediaKey, 'show:tvdb:500');
-  assert.equal((episodicFollowWrites[0]?.seriesIdentity as { mediaKey?: string } | undefined)?.mediaKey, 'show:tvdb:500');
+  assert.equal(episodicFollowWrites[0]?.titleMediaKey, 'show:tmdb:42');
+  assert.equal((episodicFollowWrites[0]?.seriesIdentity as { mediaKey?: string } | undefined)?.mediaKey, 'show:tmdb:42');
   assert.deepEqual(episodicFollowWrites[0]?.payload, { source: 'test' });
 });

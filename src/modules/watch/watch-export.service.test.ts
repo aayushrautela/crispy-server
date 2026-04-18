@@ -9,9 +9,9 @@ const { WatchExportService } = await import('./watch-export.service.js');
 test('listEpisodicFollow returns episodic follow rows from watch query service', async () => {
   const rows = [
     {
-      seriesMediaKey: 'show:tvdb:100',
+      seriesMediaKey: 'show:tmdb:100',
       seriesMediaType: 'show',
-      provider: 'tvdb',
+      provider: 'tmdb',
       providerId: '100',
       reason: 'watchlist',
       lastInteractedAt: '2024-01-03T00:00:00.000Z',

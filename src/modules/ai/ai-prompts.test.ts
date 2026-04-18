@@ -8,8 +8,8 @@ test('search prompt uses mixed catalog guidance without hard category filters', 
     anchorHint: 'harry potter',
   });
 
-  assert.match(prompt, /Catalog scope: You may suggest movies, TV shows, or anime\./);
-  assert.match(prompt, /Mixed results can come from the movie, TV series, or anime catalogs\./);
+  assert.match(prompt, /Catalog scope: You may suggest movies or TV shows\./);
+  assert.match(prompt, /Mixed results can come from the movie and TV catalogs\./);
   assert.match(prompt, /The anchor can come from any franchise or medium\./);
   assert.match(prompt, /Every item must include `title` and should include `mediaType` when you know it\./);
   assert.match(prompt, /\{"items":\[\{"title":"Title One","mediaType":"movie"\}/);
@@ -25,10 +25,10 @@ test('search prompt prefers reliable catalog titles for mixed results', () => {
   assert.match(prompt, /Prefer the commonly used catalog title for each result so it can be matched reliably\./);
 });
 
-test('insights prompt adds anime-specific guidance', () => {
+test('insights prompt treats anime-origin titles as shows in TMDB-only mode', () => {
   const prompt = buildInsightsPrompt({
-    mediaKey: 'anime:kitsu:1',
-    mediaType: 'anime',
+    mediaKey: 'show:tmdb:5114',
+    mediaType: 'show',
     title: 'Fullmetal Alchemist: Brotherhood',
     year: '2009',
     description: 'Two brothers chase the philosopher\'s stone.',
@@ -37,14 +37,14 @@ test('insights prompt adds anime-specific guidance', () => {
     reviews: [{ author: 'A', rating: 10, content: 'Great pacing and emotional payoff.' }],
   });
 
-  assert.match(prompt, /Media type: anime/);
-  assert.match(prompt, /Treat anime as its own storytelling lane/);
-  assert.match(prompt, /tone shifts, character dynamics, emotional payoff, powers, lore, or visual identity/);
+  assert.match(prompt, /Media type: show/);
+  assert.match(prompt, /Treat shows as ongoing stories/);
+  assert.match(prompt, /momentum, episode hooks, character arcs, ensemble chemistry, or worldbuilding/);
 });
 
 test('insights prompt adds show-specific guidance', () => {
   const prompt = buildInsightsPrompt({
-    mediaKey: 'show:tvdb:1',
+    mediaKey: 'show:tmdb:1',
     mediaType: 'show',
     title: 'His Dark Materials',
     year: '2019',

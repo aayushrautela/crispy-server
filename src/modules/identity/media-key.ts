@@ -1,8 +1,8 @@
 import { HttpError } from '../../lib/errors.js';
 
-export type SupportedProvider = 'tmdb' | 'tvdb' | 'kitsu';
+export type SupportedProvider = 'tmdb';
 
-export type SupportedMediaType = 'movie' | 'show' | 'anime' | 'season' | 'episode';
+export type SupportedMediaType = 'movie' | 'show' | 'season' | 'episode';
 
 export type CanonicalContentEntityType = SupportedMediaType | 'person';
 
@@ -24,7 +24,7 @@ export type MediaIdentity = {
 };
 
 export function ensureSupportedMediaType(value: string): SupportedMediaType {
-  if (value === 'movie' || value === 'show' || value === 'anime' || value === 'season' || value === 'episode') {
+  if (value === 'movie' || value === 'show' || value === 'season' || value === 'episode') {
     return value;
   }
 
@@ -32,7 +32,7 @@ export function ensureSupportedMediaType(value: string): SupportedMediaType {
 }
 
 export function ensureSupportedProvider(value: string): SupportedProvider {
-  if (value === 'tmdb' || value === 'tvdb' || value === 'kitsu') {
+  if (value === 'tmdb') {
     return value;
   }
 
@@ -41,26 +41,16 @@ export function ensureSupportedProvider(value: string): SupportedProvider {
 
 export function authorityProviderForEntityType(
   entityType: CanonicalContentEntityType,
-  parentMediaType: 'show' | 'anime' | null = null,
+  _parentMediaType: 'show' | null = null,
 ): SupportedProvider {
-  if (entityType === 'movie' || entityType === 'person') {
+  if (
+    entityType === 'movie'
+    || entityType === 'show'
+    || entityType === 'season'
+    || entityType === 'episode'
+    || entityType === 'person'
+  ) {
     return 'tmdb';
-  }
-
-  if (entityType === 'show') {
-    return 'tvdb';
-  }
-
-  if (entityType === 'anime') {
-    return 'kitsu';
-  }
-
-  if (parentMediaType === 'anime') {
-    return 'kitsu';
-  }
-
-  if (parentMediaType === 'show') {
-    return 'tvdb';
   }
 
   throw new HttpError(400, 'Unable to infer authority provider.');
@@ -68,7 +58,7 @@ export function authorityProviderForEntityType(
 
 export function authorityProviderForMediaType(
   mediaType: SupportedMediaType,
-  parentMediaType: 'show' | 'anime' | null = null,
+  parentMediaType: 'show' | null = null,
 ): SupportedProvider {
   return authorityProviderForEntityType(mediaType, parentMediaType);
 }
@@ -82,28 +72,19 @@ export function showTmdbIdForIdentity(identity: MediaIdentity): number | null {
     return identity.tmdbId;
   }
 
-  return null;
+  const parentTmdbId = parseOptionalPositiveInteger(identity.parentProviderId ?? null);
+  return parentTmdbId;
 }
 
 export function canonicalContinueWatchingMediaKey(identity: MediaIdentity): string {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show' || identity.mediaType === 'anime') {
+  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return identity.mediaKey;
   }
 
-  if ((!identity.parentProviderId || !identity.parentProvider) && identity.mediaKey) {
-    const parsed = parseMediaKey(identity.mediaKey);
-    return canonicalContinueWatchingMediaKey({
-      ...parsed,
-      ...identity,
-      parentProvider: identity.parentProvider ?? parsed.parentProvider,
-      parentProviderId: identity.parentProviderId ?? parsed.parentProviderId,
-    });
-  }
-
-  const parentProvider = identity.parentProvider ?? identity.provider;
-  const parentProviderId = identity.parentProviderId;
-  if (parentProviderId) {
-    return `${parentMediaTypeForIdentity(identity)}:${parentProvider}:${parentProviderId}`;
+  const canonicalShowTmdbId = showTmdbIdForIdentity(identity)
+    ?? (identity.mediaKey ? showTmdbIdForIdentity(parseMediaKey(identity.mediaKey)) : null);
+  if (canonicalShowTmdbId) {
+    return `show:tmdb:${canonicalShowTmdbId}`;
   }
 
   throw new HttpError(400, 'Unable to infer canonical continue watching media key.');
@@ -118,7 +99,7 @@ export function parseMediaKey(mediaKey: string): MediaIdentity {
   const mediaType = ensureSupportedMediaType(parts[0] ?? '');
   const provider = ensureSupportedProvider(parts[1] ?? '');
   assertProviderSupportsMediaType(mediaType, provider);
-  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime') {
+  if (mediaType === 'movie' || mediaType === 'show') {
     const providerId = parseProviderId(parts[2], 'Invalid provider id in media key.');
     return createMediaIdentity({
       mediaKey,
@@ -155,23 +136,6 @@ export function parseMediaKey(mediaKey: string): MediaIdentity {
       parentProviderId,
       seasonNumber,
       episodeNumber,
-      absoluteEpisodeNumber: provider === 'kitsu' ? episodeNumber : null,
-    });
-  }
-
-  if (mediaType === 'episode' && parts.length === 4) {
-    const parentProviderId = parseProviderId(parts[2], 'Invalid parent provider id in media key.');
-    const absoluteEpisodeNumber = parsePositiveInteger(parts[3], 'Invalid episode media key.');
-    return createMediaIdentity({
-      mediaKey,
-      mediaType,
-      provider,
-      providerId: buildAbsoluteEpisodeProviderId(parentProviderId, absoluteEpisodeNumber),
-      parentProvider: provider,
-      parentProviderId,
-      seasonNumber: null,
-      episodeNumber: absoluteEpisodeNumber,
-      absoluteEpisodeNumber,
     });
   }
 
@@ -217,9 +181,9 @@ export function inferMediaIdentity(input: {
 
   const mediaType = ensureSupportedMediaType(input.mediaType);
   const normalizedProviderId = resolveProviderId(input, mediaType);
-  const normalizedProvider = resolveProvider(input, mediaType, normalizedProviderId.providerSource);
+  const normalizedProvider = resolveProvider(input, normalizedProviderId.providerSource);
 
-  if (mediaType === 'movie' || mediaType === 'show' || mediaType === 'anime') {
+  if (mediaType === 'movie' || mediaType === 'show') {
     return createMediaIdentity({
       contentId: normalizeNullableString(input.contentId),
       mediaType,
@@ -230,10 +194,10 @@ export function inferMediaIdentity(input: {
   }
 
   if (
-    mediaType === 'season' &&
-    normalizedProviderId.parentProviderId &&
-    input.seasonNumber !== undefined &&
-    input.seasonNumber !== null
+    mediaType === 'season'
+    && normalizedProviderId.parentProviderId
+    && input.seasonNumber !== undefined
+    && input.seasonNumber !== null
   ) {
     return createMediaIdentity({
       contentId: normalizeNullableString(input.contentId),
@@ -249,12 +213,12 @@ export function inferMediaIdentity(input: {
   }
 
   if (
-    mediaType === 'episode' &&
-    normalizedProviderId.parentProviderId &&
-    input.seasonNumber !== undefined &&
-    input.seasonNumber !== null &&
-    input.episodeNumber !== undefined &&
-    input.episodeNumber !== null
+    mediaType === 'episode'
+    && normalizedProviderId.parentProviderId
+    && input.seasonNumber !== undefined
+    && input.seasonNumber !== null
+    && input.episodeNumber !== undefined
+    && input.episodeNumber !== null
   ) {
     return createMediaIdentity({
       contentId: normalizeNullableString(input.contentId),
@@ -271,40 +235,15 @@ export function inferMediaIdentity(input: {
     });
   }
 
-  if (
-    mediaType === 'episode' &&
-    normalizedProviderId.parentProviderId &&
-    (input.absoluteEpisodeNumber !== undefined && input.absoluteEpisodeNumber !== null)
-  ) {
-    return createMediaIdentity({
-      contentId: normalizeNullableString(input.contentId),
-      parentContentId: normalizeNullableString(input.parentContentId),
-      mediaType,
-      provider: normalizedProvider,
-      providerId: buildAbsoluteEpisodeProviderId(normalizedProviderId.parentProviderId, input.absoluteEpisodeNumber),
-      parentProvider: input.parentProvider ?? normalizedProvider,
-      parentProviderId: normalizedProviderId.parentProviderId,
-      seasonNumber: input.seasonNumber ?? null,
-      episodeNumber: input.episodeNumber ?? input.absoluteEpisodeNumber,
-      absoluteEpisodeNumber: input.absoluteEpisodeNumber,
-      providerMetadata: input.providerMetadata,
-    });
-  }
-
   throw new HttpError(400, 'Unable to infer media identity.');
 }
 
-export function parentMediaTypeForIdentity(identity: Pick<MediaIdentity, 'mediaType' | 'provider' | 'parentProvider'>): 'movie' | 'show' | 'anime' {
+export function parentMediaTypeForIdentity(identity: Pick<MediaIdentity, 'mediaType'>): 'movie' | 'show' {
   if (identity.mediaType === 'movie') {
     return 'movie';
   }
 
-  if (identity.mediaType === 'show' || identity.mediaType === 'anime') {
-    return identity.mediaType;
-  }
-
-  const provider = identity.parentProvider ?? identity.provider;
-  return provider === 'kitsu' ? 'anime' : 'show';
+  return 'show';
 }
 
 export function buildSeasonProviderId(parentProviderId: string, seasonNumber: number): string {
@@ -336,12 +275,10 @@ function createMediaIdentity(input: {
   const mediaKey = input.mediaKey ?? buildMediaKey(input);
   const providerMetadata = input.providerMetadata ?? {};
   assertProviderSupportsMediaType(input.mediaType, input.provider);
-  const tmdbId = deriveTmdbId(input.provider, input.providerId, providerMetadata);
+  const tmdbId = deriveTmdbId(input.mediaType, input.providerId, providerMetadata);
   const showTmdbId = deriveShowTmdbId(
-    input.parentProvider ?? null,
     input.parentProviderId ?? null,
     input.mediaType,
-    input.provider,
     input.providerId,
     providerMetadata,
   );
@@ -371,9 +308,8 @@ function buildMediaKey(input: {
   parentProviderId?: string | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
-  absoluteEpisodeNumber?: number | null;
 }): string {
-  if (input.mediaType === 'movie' || input.mediaType === 'show' || input.mediaType === 'anime') {
+  if (input.mediaType === 'movie' || input.mediaType === 'show') {
     return `${input.mediaType}:${input.provider}:${input.providerId}`;
   }
 
@@ -392,10 +328,6 @@ function buildMediaKey(input: {
     return `episode:${input.provider}:${input.parentProviderId}:${input.seasonNumber}:${input.episodeNumber}`;
   }
 
-  if (input.mediaType === 'episode' && input.parentProviderId && input.absoluteEpisodeNumber) {
-    return `episode:${input.provider}:${input.parentProviderId}:${input.absoluteEpisodeNumber}`;
-  }
-
   throw new HttpError(400, 'Unable to infer media key.');
 }
 
@@ -404,50 +336,39 @@ function resolveProvider(
     provider?: SupportedProvider | null;
     parentProvider?: SupportedProvider | null;
   },
-  mediaType: SupportedMediaType,
-  providerSource: 'direct' | 'tmdb' | 'tvdb' | 'kitsu' | 'parent',
+  providerSource: 'direct' | 'tmdb' | 'parent',
 ): SupportedProvider {
   if (providerSource === 'direct' && input.provider) {
     return input.provider;
-  }
-
-  if (providerSource === 'tmdb') {
-    return 'tmdb';
-  }
-
-  if (providerSource === 'tvdb') {
-    return 'tvdb';
-  }
-
-  if (providerSource === 'kitsu') {
-    return 'kitsu';
   }
 
   if (providerSource === 'parent' && input.parentProvider) {
     return input.parentProvider;
   }
 
-  if (mediaType === 'episode' || mediaType === 'season') {
-    return authorityProviderForMediaType(mediaType, input.parentProvider === 'kitsu' ? 'anime' : 'show');
-  }
-
-  return authorityProviderForMediaType(mediaType);
+  return 'tmdb';
 }
 
-function resolveProviderId(input: {
-  providerId?: string | number | null;
-  parentProviderId?: string | number | null;
-  tmdbId?: number | null;
-  tvdbId?: number | string | null;
-  kitsuId?: number | string | null;
-  showTmdbId?: number | null;
-}, mediaType: SupportedMediaType): {
+function resolveProviderId(
+  input: {
+    providerId?: string | number | null;
+    parentProviderId?: string | number | null;
+    tmdbId?: number | null;
+    tvdbId?: number | string | null;
+    kitsuId?: number | string | null;
+    showTmdbId?: number | null;
+  },
+  mediaType: SupportedMediaType,
+): {
   providerId: string;
   parentProviderId: string | null;
-  providerSource: 'direct' | 'tmdb' | 'tvdb' | 'kitsu' | 'parent';
+  providerSource: 'direct' | 'tmdb' | 'parent';
 } {
   const providerId = normalizeProviderId(input.providerId);
-  const parentProviderId = normalizeProviderId(input.parentProviderId);
+  const parentProviderId = normalizeProviderId(input.parentProviderId)
+    ?? normalizeProviderId(input.showTmdbId)
+    ?? ((mediaType === 'season' || mediaType === 'episode') ? normalizeProviderId(input.tmdbId) : null);
+
   if (providerId && mediaType !== 'season' && mediaType !== 'episode') {
     return { providerId, parentProviderId, providerSource: 'direct' };
   }
@@ -456,18 +377,12 @@ function resolveProviderId(input: {
     return { providerId, parentProviderId, providerSource: 'direct' };
   }
 
-  if (mediaType === 'movie' && typeof input.tmdbId === 'number' && Number.isInteger(input.tmdbId) && input.tmdbId > 0) {
-    return { providerId: String(input.tmdbId), parentProviderId, providerSource: 'tmdb' };
-  }
-
-  const tvdbId = normalizeProviderId(input.tvdbId);
-  if (tvdbId) {
-    return { providerId: tvdbId, parentProviderId, providerSource: 'tvdb' };
-  }
-
-  const kitsuId = normalizeProviderId(input.kitsuId);
-  if (kitsuId) {
-    return { providerId: kitsuId, parentProviderId, providerSource: 'kitsu' };
+  if (typeof input.tmdbId === 'number' && Number.isInteger(input.tmdbId) && input.tmdbId > 0) {
+    return {
+      providerId: String(input.tmdbId),
+      parentProviderId: mediaType === 'season' || mediaType === 'episode' ? String(input.tmdbId) : parentProviderId,
+      providerSource: 'tmdb',
+    };
   }
 
   if (parentProviderId) {
@@ -516,14 +431,25 @@ function parseNonNegativeInteger(value: string | undefined, message: string): nu
   return parsed;
 }
 
+function parseOptionalPositiveInteger(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function deriveTmdbId(
-  provider: SupportedProvider,
+  mediaType: SupportedMediaType,
   providerId: string,
   providerMetadata: Record<string, unknown>,
 ): number | null {
-  if (provider === 'tmdb') {
+  if (mediaType === 'movie' || mediaType === 'show') {
     const parsed = Number(providerId);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
   }
 
   const metadataTmdbId = Number(providerMetadata.tmdbId);
@@ -531,10 +457,8 @@ function deriveTmdbId(
 }
 
 function deriveShowTmdbId(
-  parentProvider: SupportedProvider | null,
   parentProviderId: string | null,
   mediaType: SupportedMediaType,
-  provider: SupportedProvider,
   providerId: string,
   providerMetadata: Record<string, unknown>,
 ): number | null {
@@ -543,12 +467,12 @@ function deriveShowTmdbId(
     return metadataShowTmdbId;
   }
 
-  if (mediaType === 'show' && provider === 'tmdb') {
+  if (mediaType === 'show') {
     const parsed = Number(providerId);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }
 
-  if ((mediaType === 'season' || mediaType === 'episode') && parentProvider === 'tmdb' && parentProviderId) {
+  if ((mediaType === 'season' || mediaType === 'episode') && parentProviderId) {
     const parsed = Number(parentProviderId);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }
@@ -557,21 +481,9 @@ function deriveShowTmdbId(
 }
 
 function assertProviderSupportsMediaType(mediaType: SupportedMediaType, provider: SupportedProvider): void {
-  if (mediaType === 'movie' && provider === 'tmdb') {
+  if (provider === 'tmdb') {
     return;
   }
 
-  if (mediaType === 'show' && provider === 'tvdb') {
-    return;
-  }
-
-  if (mediaType === 'anime' && provider === 'kitsu') {
-    return;
-  }
-
-  if ((mediaType === 'season' || mediaType === 'episode') && (provider === 'tvdb' || provider === 'kitsu')) {
-    return;
-  }
-
-  throw new HttpError(400, 'Unsupported media key format.');
+  throw new HttpError(400, `Unsupported ${mediaType} provider.`);
 }

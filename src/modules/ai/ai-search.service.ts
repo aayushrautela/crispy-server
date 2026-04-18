@@ -229,7 +229,6 @@ function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: Sea
 function bucketResolvedItems(query: string, items: CatalogItem[]): MetadataSearchResponse {
   const movies: CatalogItem[] = [];
   const series: CatalogItem[] = [];
-  const anime: CatalogItem[] = [];
 
   for (const item of items) {
     if (item.mediaType === 'movie') {
@@ -240,9 +239,6 @@ function bucketResolvedItems(query: string, items: CatalogItem[]): MetadataSearc
       series.push(item);
       continue;
     }
-    if (item.mediaType === 'anime') {
-      anime.push(item);
-    }
   }
 
   return {
@@ -250,7 +246,6 @@ function bucketResolvedItems(query: string, items: CatalogItem[]): MetadataSearc
     all: items,
     movies,
     series,
-    anime,
   };
 }
 
@@ -480,8 +475,8 @@ function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function mapFilterToMetadataFilter(filter: 'movies' | 'series' | 'anime' | 'all'): MetadataSearchFilter | null {
-  if (filter === 'movies' || filter === 'series' || filter === 'anime') {
+function mapFilterToMetadataFilter(filter: 'movies' | 'series' | 'all'): MetadataSearchFilter | null {
+  if (filter === 'movies' || filter === 'series') {
     return filter;
   }
   return null;

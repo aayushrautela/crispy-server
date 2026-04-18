@@ -464,17 +464,17 @@ function recommendationIdentityFromRow(row: Record<string, unknown>) {
   const mediaKey = typeof row.mediaKey === 'string' ? row.mediaKey : typeof row.media_key === 'string' ? row.media_key : null;
   const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : 'movie';
   return mediaKey
-    ? parseMediaKey(mediaKey)
-    : inferMediaIdentity({
-        mediaType,
-        provider: readSupportedProvider(row.provider),
-        providerId: readOptionalIdentityString(row.providerId) ?? readOptionalIdentityString(row.provider_id),
-        parentProvider: readSupportedProvider(row.parentProvider) ?? readSupportedProvider(row.parent_provider),
-        parentProviderId: readOptionalIdentityString(row.parentProviderId) ?? readOptionalIdentityString(row.parent_provider_id),
-        tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
-        tvdbId: readOptionalIdentityString(row.tvdbId) ?? readOptionalIdentityString(row.tvdb_id),
-        kitsuId: readOptionalIdentityString(row.kitsuId) ?? readOptionalIdentityString(row.kitsu_id),
-        showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
+      ? parseMediaKey(mediaKey)
+      : inferMediaIdentity({
+          mediaType,
+          provider: readSupportedProvider(row.provider),
+          providerId: readOptionalIdentityString(row.providerId) ?? readOptionalIdentityString(row.provider_id),
+          parentProvider: readSupportedProvider(row.parentProvider) ?? readSupportedProvider(row.parent_provider),
+          parentProviderId: readOptionalIdentityString(row.parentProviderId) ?? readOptionalIdentityString(row.parent_provider_id),
+          tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
+          tvdbId: null,
+          kitsuId: null,
+          showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
         seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
         episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
         absoluteEpisodeNumber:
@@ -528,8 +528,8 @@ function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown
     parentProvider: parsed.parentProvider ?? null,
     parentProviderId: parsed.parentProviderId ?? null,
     tmdbId: parsed.tmdbId,
-    tvdbId: parsed.provider === 'tvdb' ? parsed.providerId : null,
-    kitsuId: parsed.provider === 'kitsu' ? parsed.providerId : null,
+    tvdbId: null,
+    kitsuId: null,
     showTmdbId: parsed.showTmdbId,
     seasonNumber: parsed.seasonNumber,
     episodeNumber: parsed.episodeNumber,
@@ -602,8 +602,8 @@ function readOptionalIdentityString(value: unknown): string | null {
   return null;
 }
 
-function readSupportedProvider(value: unknown): 'tmdb' | 'tvdb' | 'kitsu' | null {
-  return value === 'tmdb' || value === 'tvdb' || value === 'kitsu' ? value : null;
+function readSupportedProvider(value: unknown): 'tmdb' | null {
+  return value === 'tmdb' ? value : null;
 }
 
 function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {

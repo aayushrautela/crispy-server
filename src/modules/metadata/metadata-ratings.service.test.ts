@@ -13,8 +13,6 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
       loadTitleSource: async () => ({
         identity: {} as never,
         language: null,
-        providerIdentity: null,
-        providerContext: null,
         tmdbTitle: {
           tmdbId: 222,
           externalIds: { imdb_id: 'tt1234567' },
@@ -38,7 +36,6 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
             audience: 82,
             letterboxd: 3.9,
             rogerEbert: 4,
-            myAnimeList: null,
           },
         };
       },

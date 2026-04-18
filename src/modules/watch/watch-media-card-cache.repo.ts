@@ -96,11 +96,11 @@ export class WatchMediaCardCacheRepository {
           return [];
         }
 
-        if (row.title_provider !== 'tmdb' && row.title_provider !== 'tvdb' && row.title_provider !== 'kitsu') {
+        if (row.title_provider !== 'tmdb') {
           return [];
         }
 
-        if (row.title_media_type !== 'movie' && row.title_media_type !== 'show' && row.title_media_type !== 'anime') {
+        if (row.title_media_type !== 'movie' && row.title_media_type !== 'show') {
           return [];
         }
 

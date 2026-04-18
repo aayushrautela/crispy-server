@@ -187,7 +187,7 @@ export class WatchEventIngestService {
         durationSeconds: input.durationSeconds,
       });
     });
-    if (identity.mediaType === 'show' || identity.mediaType === 'anime' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
+    if (identity.mediaType === 'show' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
       await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
       await this.projectionRefreshDispatcher.refreshMetadata(profileId, identity.mediaKey);
     }

@@ -135,10 +135,10 @@ test('replaceProfileWatchData writes imported events and history directly into v
       importedAt: '2024-01-01T00:00:00.000Z',
         importedEvents: [{
           eventType: 'mark_watched',
-          mediaKey: 'episode:tvdb:100:1:2',
+          mediaKey: 'episode:tmdb:100:1:2',
           mediaType: 'episode',
-        provider: 'tvdb',
-        providerId: '100',
+        provider: 'tmdb',
+        providerId: '100:s1:e2',
         tmdbId: 100,
         showTmdbId: 100,
         seasonNumber: 1,
@@ -148,10 +148,10 @@ test('replaceProfileWatchData writes imported events and history directly into v
         payload: { source: 'test' },
       }],
       importedHistoryEntries: [{
-        mediaKey: 'episode:tvdb:100:1:2',
+        mediaKey: 'episode:tmdb:100:1:2',
         mediaType: 'episode',
-        provider: 'tvdb',
-        providerId: '100',
+        provider: 'tmdb',
+        providerId: '100:s1:e2',
         tmdbId: 100,
         showTmdbId: 100,
         seasonNumber: 1,
@@ -183,20 +183,21 @@ test('replaceProfileWatchData collapses episode refresh keys to tracked show key
     payload: {
       importedAt: '2024-01-01T00:00:00.000Z',
       mediaKeysToRefresh: [
-        'episode:tvdb:100:1:1',
-        'episode:tvdb:100:1:2',
-        'season:tvdb:100:1',
+        'episode:tmdb:100:1:1',
+        'episode:tmdb:100:1:2',
+        'season:tmdb:100:1',
         'movie:tmdb:99',
       ],
       importedEvents: [{
         eventType: 'mark_watched',
-        mediaKey: 'episode:tvdb:100:1:3',
+        mediaKey: 'episode:tmdb:100:1:3',
         mediaType: 'episode',
-        provider: 'tvdb',
+        provider: 'tmdb',
         providerId: '100:s1:e3',
-        parentProvider: 'tvdb',
+        parentProvider: 'tmdb',
         parentProviderId: '100',
-        tvdbId: 100,
+        tmdbId: 100,
+        showTmdbId: 100,
         seasonNumber: 1,
         episodeNumber: 3,
         occurredAt: '2024-01-01T00:00:00.000Z',
@@ -206,7 +207,7 @@ test('replaceProfileWatchData collapses episode refresh keys to tracked show key
     },
   });
 
-  assert.deepEqual(result.mediaKeysToRefresh, ['show:tvdb:100', 'movie:tmdb:99']);
+  assert.deepEqual(result.mediaKeysToRefresh, ['show:tmdb:100', 'movie:tmdb:99']);
 });
 
 function createWatchV2Repository(calls: string[] = []) {

@@ -19,9 +19,9 @@ test('WatchV2MetadataService upsertEpisodicFollowState writes canonical next-epi
   await service.upsertEpisodicFollowState(client as never, {
     profileId: 'profile-1',
     titleContentId: 'content-show-1',
-    titleMediaKey: 'show:tvdb:100',
+    titleMediaKey: 'show:tmdb:100',
     nextEpisode: {
-      mediaKey: 'episode:tvdb:100:1:2',
+      mediaKey: 'episode:tmdb:100:1:2',
       airDate: '2026-04-10',
       seasonNumber: 1,
       episodeNumber: 2,
@@ -41,9 +41,9 @@ test('WatchV2MetadataService upsertEpisodicFollowState writes canonical next-epi
   assert.deepEqual(queries[0]?.params, [
     'profile-1',
     'content-show-1',
-    'show:tvdb:100',
+    'show:tmdb:100',
     '2026-04-10',
-    'episode:tvdb:100:1:2',
+    'episode:tmdb:100:1:2',
     1,
     2,
     null,
@@ -60,7 +60,7 @@ test('WatchV2MetadataService syncEpisodicFollowState resolves canonical next epi
   const service = new WatchV2MetadataService(
     {
       resolveNextEpisode: async () => ({
-        mediaKey: 'episode:tvdb:100:1:2',
+        mediaKey: 'episode:tmdb:100:1:2',
         airDate: '2026-04-10',
         seasonNumber: 1,
         episodeNumber: 2,
@@ -78,14 +78,14 @@ test('WatchV2MetadataService syncEpisodicFollowState resolves canonical next epi
   await service.syncEpisodicFollowState({} as never, {
     profileId: 'profile-1',
     titleContentId: 'content-show-1',
-    titleMediaKey: 'show:tvdb:100',
+    titleMediaKey: 'show:tmdb:100',
     seriesIdentity: {
-      mediaKey: 'show:tvdb:100',
+      mediaKey: 'show:tmdb:100',
       mediaType: 'show',
-      provider: 'tvdb',
+      provider: 'tmdb',
       providerId: '100',
-      tmdbId: null,
-      showTmdbId: null,
+      tmdbId: 100,
+      showTmdbId: 100,
       seasonNumber: null,
       episodeNumber: null,
       absoluteEpisodeNumber: null,
@@ -95,9 +95,9 @@ test('WatchV2MetadataService syncEpisodicFollowState resolves canonical next epi
 
   assert.equal(upserts.length, 1);
   assert.equal(upserts[0]?.titleContentId, 'content-show-1');
-  assert.equal(upserts[0]?.titleMediaKey, 'show:tvdb:100');
+  assert.equal(upserts[0]?.titleMediaKey, 'show:tmdb:100');
   assert.deepEqual(upserts[0]?.nextEpisode, {
-    mediaKey: 'episode:tvdb:100:1:2',
+    mediaKey: 'episode:tmdb:100:1:2',
     airDate: '2026-04-10',
     seasonNumber: 1,
     episodeNumber: 2,

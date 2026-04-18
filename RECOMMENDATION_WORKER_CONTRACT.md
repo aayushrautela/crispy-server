@@ -229,9 +229,9 @@ The request body reuses the current server-built `RecommendationWorkerGenerateRe
     {
       "media": {
         "mediaType": "show",
-        "mediaKey": "show:tvdb:81189",
-        "provider": "tvdb",
-        "providerId": "81189",
+        "mediaKey": "show:tmdb:1396",
+        "provider": "tmdb",
+        "providerId": "1396",
         "title": "Breaking Bad",
         "posterUrl": "https://...",
         "releaseYear": 2008,
@@ -263,9 +263,9 @@ The request body reuses the current server-built `RecommendationWorkerGenerateRe
         "id": "cw_1",
         "media": {
           "mediaType": "episode",
-          "mediaKey": "episode:tvdb:3492321",
-          "provider": "tvdb",
-          "providerId": "3492321",
+          "mediaKey": "episode:tmdb:1396:5:14",
+          "provider": "tmdb",
+          "providerId": "1396:s5:e14",
           "title": "Ozymandias",
           "posterUrl": "https://...",
           "backdropUrl": "https://...",
@@ -293,9 +293,9 @@ The request body reuses the current server-built `RecommendationWorkerGenerateRe
         "series": {
           "mediaType": "show",
           "kind": "title",
-          "mediaKey": "show:tvdb:81189",
-          "provider": "tvdb",
-          "providerId": "81189",
+          "mediaKey": "show:tmdb:1396",
+          "provider": "tmdb",
+          "providerId": "1396",
           "parentMediaType": null,
           "parentProvider": null,
           "parentProviderId": null,
@@ -588,10 +588,10 @@ For v1, `result` reuses the current synchronous `RecommendationWorkerGenerateRes
           "layout": "regular",
           "items": [
             {
-              "mediaKey": "show:tvdb:121361",
+              "mediaKey": "show:tmdb:60059",
               "mediaType": "show",
-              "provider": "tvdb",
-              "providerId": "121361",
+              "provider": "tmdb",
+              "providerId": "60059",
               "title": "Better Call Saul",
               "posterUrl": "https://...",
               "releaseYear": 2015,
@@ -671,8 +671,8 @@ Canonical recommendation identities are constrained to:
 | Shape | Meaning |
 |---|---|
 | `movie:tmdb:*` | Movie recommendations |
-| `show:tvdb:*` | Show recommendations |
-| `anime:kitsu:*` | Anime recommendations |
+| `show:tmdb:*` | Show recommendations |
+| `episode:tmdb:*:*:*` | Episode recommendations when needed |
 
 #### Allowed section layouts
 

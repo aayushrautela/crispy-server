@@ -12,7 +12,7 @@ test('parseSearchCandidates keeps title and normalized media type hints', () => 
   assert.deepEqual(candidates, [
     { title: 'Fantastic Beasts and Where to Find Them', mediaType: 'movie' },
     { title: 'The Owl House', mediaType: 'show' },
-    { title: 'Fullmetal Alchemist: Brotherhood', mediaType: 'anime' },
+    { title: 'Fullmetal Alchemist: Brotherhood', mediaType: 'show' },
   ]);
 });
 
@@ -26,13 +26,12 @@ test('parseSearchCandidates dedupes by title and media type while preserving pla
 
   assert.deepEqual(candidates, [
     { title: 'Spirited Away', mediaType: null },
-    { title: 'Spirited Away', mediaType: 'anime' },
+    { title: 'Spirited Away', mediaType: 'show' },
   ]);
 });
 
 test('resolveCandidateFilter uses media type hints before falling back to mixed search', () => {
   assert.deepEqual(resolveCandidateFilter('movie'), ['movies', 'all']);
   assert.deepEqual(resolveCandidateFilter('show'), ['series', 'all']);
-  assert.deepEqual(resolveCandidateFilter('anime'), ['anime', 'all']);
   assert.deepEqual(resolveCandidateFilter(null), ['all']);
 });

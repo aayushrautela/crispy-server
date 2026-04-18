@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { setTestEnv } from '../../test-helpers.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
 import type { MetadataReviewView } from './metadata-detail.types.js';
-import type { ProviderTitleRecord } from './metadata-card.types.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
 setTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-test-id' });
@@ -76,8 +75,6 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
       loadTitleSource: async () => ({
         identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
         language: null,
-        providerIdentity: null,
-        providerContext: null,
         tmdbTitle,
         tmdbNextEpisode: null,
       }),
@@ -114,86 +111,68 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
   assert.equal(reviews[0]?.id, 'tmdb-1');
   assert.equal(reviews[1]?.id, 'trakt-1');
   assert.equal(reviews[2]?.id, 'trakt-2');
-  assert.deepEqual(traktCalls, [{ mediaType: 'movie', accessToken: 'user-trakt-token', externalIds: { imdb: 'tt0372784', tmdb: 42, tvdb: null, kitsu: null } }]);
+  assert.deepEqual(traktCalls, [{ mediaType: 'movie', accessToken: 'user-trakt-token', externalIds: { imdb: 'tt0372784', tmdb: 42, tvdb: null } }]);
 });
 
-test('MetadataReviewsService tops up anime reviews from Trakt through provider detail flow', async () => {
+test('MetadataReviewsService tops up TMDB show reviews from Trakt when under threshold', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
 
-  const providerTitle: ProviderTitleRecord = {
-    mediaType: 'anime',
-    provider: 'kitsu',
-    providerId: '12',
-    title: 'One Piece',
-    originalTitle: 'One Piece',
-    summary: 'Pirates.',
+  const tmdbTitle: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 555,
+    name: 'One Piece',
+    originalName: 'One Piece',
     overview: 'Pirates.',
-    releaseDate: '1999-10-20',
-    status: 'current',
-    posterUrl: 'https://cdn.example/poster.jpg',
-    backdropUrl: 'https://cdn.example/backdrop.jpg',
-    logoUrl: null,
-    runtimeMinutes: 24,
-    rating: 8.4,
-    certification: 'Teens 13 or older',
-    genres: [],
-    externalIds: { imdb: null, tmdb: 555, tvdb: null, kitsu: '12' },
-    seasonCount: null,
-    episodeCount: 1000,
-    raw: { data: { attributes: {} } },
+    releaseDate: null,
+    firstAirDate: '1999-10-20',
+    status: 'Returning Series',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: null,
+    episodeRunTime: [24],
+    numberOfSeasons: 20,
+    numberOfEpisodes: 1000,
+    externalIds: { imdb_id: null, tvdb_id: null },
+    raw: {
+      genres: [],
+      videos: { results: [] },
+      credits: { cast: [], crew: [] },
+      created_by: [],
+      reviews: { results: [buildTmdbReview('tmdb-1', 'TMDB review')] },
+      production_companies: [],
+      networks: [],
+      production_countries: [],
+      spoken_languages: [],
+      similar: { results: [] },
+    },
+    fetchedAt: '2026-03-22T00:00:00.000Z',
+    expiresAt: '2026-03-23T00:00:00.000Z',
   };
 
   let traktMediaType: 'movie' | 'show' | null = null;
   const service = new MetadataReviewsService(
     {
       loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }),
+        identity: inferMediaIdentity({ mediaType: 'show', tmdbId: 555 }),
         language: null,
-        providerIdentity: inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }),
-        providerContext: {
-          title: providerTitle,
-          currentEpisode: null,
-          nextEpisode: null,
-          seasons: [],
-          episodes: [],
-          videos: [],
-          cast: [],
-          directors: [],
-          creators: [],
-          reviews: [{
-            id: 'kitsu-1',
-            provider: 'kitsu',
-            author: 'Kitsu',
-            username: 'kitsu',
-            content: 'Kitsu review',
-            createdAt: '2024-01-01T00:00:00.000Z',
-            updatedAt: '2024-01-01T00:00:00.000Z',
-            url: null,
-            rating: 8,
-            avatarUrl: null,
-          }],
-          production: null,
-          collection: null,
-          collectionItems: [],
-          similar: [],
-        },
-        tmdbTitle: null,
+        tmdbTitle,
         tmdbNextEpisode: null,
       }),
     } as never,
     {} as never,
     {
       isConfigured: () => true,
-      fetchTitleReviews: async (mediaType: 'movie' | 'show') => {
+      fetchTitleReviews: async (mediaType: 'movie' | 'show', externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }) => {
         traktMediaType = mediaType;
+        assert.deepEqual(externalIds, { imdb: null, tmdb: 555, tvdb: null });
         return [
-          buildFallbackReview('trakt-a', 'Trakt anime review 1'),
-          buildFallbackReview('trakt-b', 'Trakt anime review 2'),
+          buildFallbackReview('trakt-a', 'Trakt show review 1'),
+          buildFallbackReview('trakt-b', 'Trakt show review 2'),
         ];
       },
     } as never,
     {
-      getAccessTokenForAccountProfile: async () => ({ accessToken: 'anime-token' }),
+      getAccessTokenForAccountProfile: async () => ({ accessToken: 'show-token' }),
     } as never,
   );
 
@@ -201,68 +180,62 @@ test('MetadataReviewsService tops up anime reviews from Trakt through provider d
     {} as never,
     'user-1',
     'profile-1',
-    inferMediaIdentity({ mediaType: 'anime', provider: 'kitsu', providerId: '12' }),
+    inferMediaIdentity({ mediaType: 'show', tmdbId: 555 }),
   );
 
   assert.equal(reviews.length, 3);
-  assert.equal(reviews[0]?.id, 'kitsu-1');
+  assert.equal(reviews[0]?.id, 'tmdb-1');
   assert.equal(traktMediaType, 'show');
 });
 
 test('MetadataReviewsService skips Trakt fallback when three primary reviews already exist', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
 
-  const providerTitle: ProviderTitleRecord = {
-    mediaType: 'show',
-    provider: 'tvdb',
-    providerId: '81189',
-    title: 'Breaking Bad',
-    originalTitle: 'Breaking Bad',
-    summary: 'Chemistry.',
+  const tmdbTitle: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 1396,
+    name: 'Breaking Bad',
+    originalName: 'Breaking Bad',
     overview: 'Chemistry.',
-    releaseDate: '2008-01-20',
+    releaseDate: null,
+    firstAirDate: '2008-01-20',
     status: 'Ended',
-    posterUrl: 'https://cdn.example/poster.jpg',
-    backdropUrl: 'https://cdn.example/backdrop.jpg',
-    logoUrl: null,
-    runtimeMinutes: 45,
-    rating: 9.5,
-    certification: 'TV-MA',
-    genres: ['Drama'],
-    externalIds: { imdb: 'tt0903747', tmdb: 1396, tvdb: 81189, kitsu: null },
-    seasonCount: 5,
-    episodeCount: 62,
-    raw: {},
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: null,
+    episodeRunTime: [45],
+    numberOfSeasons: 5,
+    numberOfEpisodes: 62,
+    externalIds: { imdb_id: 'tt0903747', tvdb_id: 81189 },
+    raw: {
+      genres: [],
+      videos: { results: [] },
+      credits: { cast: [], crew: [] },
+      created_by: [],
+      reviews: {
+        results: [
+          buildTmdbReview('provider-1', 'Provider review 1'),
+          buildTmdbReview('provider-2', 'Provider review 2'),
+          buildTmdbReview('provider-3', 'Provider review 3'),
+        ],
+      },
+      production_companies: [],
+      networks: [],
+      production_countries: [],
+      spoken_languages: [],
+      similar: { results: [] },
+    },
+    fetchedAt: '2026-03-22T00:00:00.000Z',
+    expiresAt: '2026-03-23T00:00:00.000Z',
   };
 
   let traktCalled = false;
   const service = new MetadataReviewsService(
     {
       loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }),
+        identity: inferMediaIdentity({ mediaType: 'show', tmdbId: 1396 }),
         language: null,
-        providerIdentity: inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }),
-        providerContext: {
-          title: providerTitle,
-          currentEpisode: null,
-          nextEpisode: null,
-          seasons: [],
-          episodes: [],
-          videos: [],
-          cast: [],
-          directors: [],
-          creators: [],
-          reviews: [
-            buildFallbackReview('provider-1', 'Provider review 1'),
-            buildFallbackReview('provider-2', 'Provider review 2'),
-            buildFallbackReview('provider-3', 'Provider review 3'),
-          ],
-          production: null,
-          collection: null,
-          collectionItems: [],
-          similar: [],
-        },
-        tmdbTitle: null,
+        tmdbTitle,
         tmdbNextEpisode: null,
       }),
     } as never,
@@ -281,7 +254,7 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
     {} as never,
     'user-1',
     'profile-1',
-    inferMediaIdentity({ mediaType: 'show', provider: 'tvdb', providerId: '81189' }),
+    inferMediaIdentity({ mediaType: 'show', tmdbId: 1396 }),
   );
 
   assert.equal(reviews.length, 3);
@@ -329,8 +302,6 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
       loadTitleSource: async () => ({
         identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 7 }),
         language: null,
-        providerIdentity: null,
-        providerContext: null,
         tmdbTitle,
         tmdbNextEpisode: null,
       }),

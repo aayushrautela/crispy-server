@@ -51,17 +51,17 @@ test('invalidateByMediaKey removes all cached language variants', async (t) => {
   });
 
   const service = new MetadataTitleCacheService();
-  await service.set('meta:v2:title-page:en:show:tvdb:100', { ok: true }, 'show:tvdb:100');
-  await service.set('meta:v2:title-page:fr:show:tvdb:100', { ok: true }, 'show:tvdb:100');
+  await service.set('meta:v2:title-page:en:show:tmdb:100', { ok: true }, 'show:tmdb:100');
+  await service.set('meta:v2:title-page:fr:show:tmdb:100', { ok: true }, 'show:tmdb:100');
 
-  assert.equal(sets.get(metadataTitlePageCacheIndexKey('show:tvdb:100'))?.size, 2);
+  assert.equal(sets.get(metadataTitlePageCacheIndexKey('show:tmdb:100'))?.size, 2);
 
-  await service.invalidateByMediaKey('show:tvdb:100');
+  await service.invalidateByMediaKey('show:tmdb:100');
 
   assert.deepEqual(deleted, [[
-    'meta:v2:title-page:en:show:tvdb:100',
-    'meta:v2:title-page:fr:show:tvdb:100',
-    metadataTitlePageCacheIndexKey('show:tvdb:100'),
+    'meta:v2:title-page:en:show:tmdb:100',
+    'meta:v2:title-page:fr:show:tmdb:100',
+    metadataTitlePageCacheIndexKey('show:tmdb:100'),
   ]]);
-  assert.equal(sets.has(metadataTitlePageCacheIndexKey('show:tvdb:100')), false);
+  assert.equal(sets.has(metadataTitlePageCacheIndexKey('show:tmdb:100')), false);
 });

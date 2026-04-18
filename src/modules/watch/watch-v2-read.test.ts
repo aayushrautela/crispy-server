@@ -17,7 +17,7 @@ test('listContinueWatchingPage emits synthetic cw2 ids from title projection row
       rows: [
         {
           title_content_id: '11111111-1111-4111-8111-111111111111',
-          title_media_key: 'show:tvdb:100',
+          title_media_key: 'show:tmdb:100',
           title_media_type: 'show',
           title_text: 'Example Show',
           title_subtitle: null,
@@ -26,11 +26,11 @@ test('listContinueWatchingPage emits synthetic cw2 ids from title projection row
           title_release_year: 2024,
           title_runtime_minutes: 45,
           title_rating: 8.2,
-          active_media_key: 'episode:tvdb:100:1:2',
+          active_media_key: 'episode:tmdb:100:1:2',
           active_media_type: 'episode',
-          active_provider: 'tvdb',
-          active_provider_id: '100:1:2',
-          active_parent_provider: 'tvdb',
+          active_provider: 'tmdb',
+          active_provider_id: '100:s1:e2',
+          active_parent_provider: 'tmdb',
           active_parent_provider_id: '100',
           active_season_number: 1,
           active_episode_number: 2,
@@ -49,7 +49,7 @@ test('listContinueWatchingPage emits synthetic cw2 ids from title projection row
 
   assert.equal(page.items.length, 1);
   assert.equal(page.items[0]?.id, 'cw2:11111111-1111-4111-8111-111111111111');
-  assert.equal(page.items[0]?.mediaKey, 'episode:tvdb:100:1:2');
+  assert.equal(page.items[0]?.mediaKey, 'episode:tmdb:100:1:2');
   assert.equal(page.items[0]?.title, 'Example Show');
   assert.equal(page.pageInfo.hasMore, false);
   assert.equal(page.pageInfo.nextCursor, null);
@@ -91,7 +91,7 @@ test('listContinueWatchingPage filters invalid projection rows before filling th
           },
           {
             title_content_id: '11111111-1111-4111-8111-111111111111',
-            title_media_key: 'show:tvdb:100',
+            title_media_key: 'show:tmdb:100',
             title_media_type: 'show',
             title_text: 'Example Show',
             title_subtitle: null,
@@ -100,11 +100,11 @@ test('listContinueWatchingPage filters invalid projection rows before filling th
             title_release_year: 2024,
             title_runtime_minutes: 45,
             title_rating: 8.2,
-            active_media_key: 'episode:tvdb:100:1:2',
+            active_media_key: 'episode:tmdb:100:1:2',
             active_media_type: 'episode',
-            active_provider: 'tvdb',
-            active_provider_id: '100:1:2',
-            active_parent_provider: 'tvdb',
+            active_provider: 'tmdb',
+            active_provider_id: '100:s1:e2',
+            active_parent_provider: 'tmdb',
             active_parent_provider_id: '100',
             active_season_number: 1,
             active_episode_number: 2,
@@ -279,8 +279,8 @@ test('listRatingsPage uses title state ids in the cursor tie-breaker', { concurr
 
 test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projection rows', { concurrency: false }, async (t) => {
   const originalConnect = db.connect;
-  const notifications: Array<Record<string, unknown>> = [];
   const v2DismissCalls: Array<Record<string, unknown>> = [];
+  const recommendationCalls: Array<Record<string, unknown>> = [];
 
   (db as { connect: typeof db.connect }).connect = async () => ({
     query: async (sql: string, params?: unknown[]) => {
@@ -292,8 +292,8 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
         return {
           rows: [
             {
-              active_media_key: 'episode:tvdb:100:1:2',
-              title_media_key: 'show:tvdb:100',
+              active_media_key: 'episode:tmdb:100:1:2',
+              title_media_key: 'show:tmdb:100',
             },
           ],
         } as never;
@@ -318,9 +318,10 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
       },
     } as never,
     {} as never,
+    {} as never,
     {
-      notifyProfileChanged: async (_profileId: string, payload: Record<string, unknown>) => {
-        notifications.push(payload);
+      scheduleProfileGeneration: async (profileId: string, accountId: unknown, reason: string) => {
+        recommendationCalls.push({ profileId, accountId, reason });
       },
     } as never,
   );
@@ -335,8 +336,8 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
   assert.equal(v2DismissCalls.length, 1);
   assert.equal(v2DismissCalls[0]?.profileId, 'profile-1');
   assert.equal(typeof v2DismissCalls[0]?.occurredAt, 'string');
-  assert.equal((v2DismissCalls[0]?.identity as { mediaKey?: string } | undefined)?.mediaKey, 'episode:tvdb:100:1:2');
-  assert.deepEqual(notifications, [{ mediaKey: 'episode:tvdb:100:1:2', refreshMetadata: false }]);
+  assert.equal((v2DismissCalls[0]?.identity as { mediaKey?: string } | undefined)?.mediaKey, 'episode:tmdb:100:1:2');
+  assert.deepEqual(recommendationCalls, [{ profileId: 'profile-1', accountId: undefined, reason: 'watch_event' }]);
 });
 
 test('getState returns v2 title state and expands watched episode keys from title override', { concurrency: false }, async (t) => {
@@ -404,16 +405,16 @@ test('getState returns v2 title state and expands watched episode keys from titl
     } as never,
     {
       buildCardView: async () => ({
-        mediaKey: 'show:tvdb:100',
+        mediaKey: 'show:tmdb:100',
         mediaType: 'show',
         kind: 'title',
-        provider: 'tvdb',
+        provider: 'tmdb',
         providerId: '100',
         parentMediaType: null,
         parentProvider: null,
         parentProviderId: null,
-        tmdbId: 1399,
-        showTmdbId: null,
+        tmdbId: 100,
+        showTmdbId: 100,
         seasonNumber: null,
         episodeNumber: null,
         absoluteEpisodeNumber: null,
@@ -453,73 +454,26 @@ test('getState returns v2 title state and expands watched episode keys from titl
       resolveContentReference: async () => null,
     } as never,
     {
-      loadTitleSource: async () => ({
-        identity: parseMediaKey('show:tvdb:100'),
-        language: null,
-        providerIdentity: parseMediaKey('show:tvdb:100'),
-        providerContext: {
-          title: null,
-          currentEpisode: null,
-          nextEpisode: null,
-          seasons: [],
-          episodes: [
-            {
-              mediaType: 'episode',
-              provider: 'tvdb',
-              providerId: '100:1:1',
-              parentMediaType: 'show',
-              parentProvider: 'tvdb',
-              parentProviderId: '100',
-              seasonNumber: 1,
-              episodeNumber: 1,
-              absoluteEpisodeNumber: null,
-              title: 'Episode 1',
-              summary: null,
-              airDate: '2024-01-01',
-              runtimeMinutes: 45,
-              rating: null,
-              stillUrl: null,
-              raw: {},
-            },
-            {
-              mediaType: 'episode',
-              provider: 'tvdb',
-              providerId: '100:1:2',
-              parentMediaType: 'show',
-              parentProvider: 'tvdb',
-              parentProviderId: '100',
-              seasonNumber: 1,
-              episodeNumber: 2,
-              absoluteEpisodeNumber: null,
-              title: 'Episode 2',
-              summary: null,
-              airDate: '2024-01-02',
-              runtimeMinutes: 45,
-              rating: null,
-              stillUrl: null,
-              raw: {},
-            },
-          ],
-          videos: [],
-          cast: [],
-          directors: [],
-          creators: [],
-          reviews: [],
-          production: null,
-          collection: null,
-          collectionItems: [],
-          similar: [],
+      listEpisodesForShow: async () => [
+        {
+          showTmdbId: 100,
+          seasonNumber: 1,
+          episodeNumber: 1,
+          airDate: '2024-01-01',
         },
-        tmdbTitle: null,
-        tmdbCurrentEpisode: null,
-        tmdbNextEpisode: null,
-      }),
+        {
+          showTmdbId: 100,
+          seasonNumber: 1,
+          episodeNumber: 2,
+          airDate: '2024-01-02',
+        },
+      ],
     } as never,
   );
 
-  const state = await service.getState('user-1', 'profile-1', { mediaKey: 'show:tvdb:100' });
+  const state = await service.getState('user-1', 'profile-1', { mediaKey: 'show:tmdb:100' });
 
-  assert.equal(state.media.provider, 'tvdb');
+  assert.equal(state.media.provider, 'tmdb');
   assert.equal(state.media.providerId, '100');
   assert.equal(state.media.mediaType, 'show');
   assert.equal(state.progress, null);
@@ -533,16 +487,16 @@ test('getState returns v2 title state and expands watched episode keys from titl
   assert.deepEqual(state.watched, { watchedAt: '2024-01-10T00:00:00.000Z' });
   assert.deepEqual(state.watchlist, { addedAt: '2024-01-01T00:00:00.000Z' });
   assert.deepEqual(state.rating, { value: 8, ratedAt: '2024-01-02T00:00:00.000Z' });
-  assert.deepEqual(state.watchedEpisodeKeys, ['episode:tvdb:100:1:1']);
+  assert.deepEqual(state.watchedEpisodeKeys, ['episode:tmdb:100:1:1']);
 });
 
 function createProjection() {
   return {
     detailsTitleMediaType: 'show',
     playbackMediaType: 'episode',
-    playbackProvider: 'tvdb',
+    playbackProvider: 'tmdb',
     playbackProviderId: '100:1:2',
-    playbackParentProvider: 'tvdb',
+    playbackParentProvider: 'tmdb',
     playbackParentProviderId: '100',
     playbackSeasonNumber: 1,
     playbackEpisodeNumber: 2,

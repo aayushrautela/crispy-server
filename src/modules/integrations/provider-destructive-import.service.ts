@@ -210,10 +210,10 @@ export class ProviderDestructiveImportService {
         await this.watchV2Repository.upsertWatchOverride(client, {
           profileId: params.profileId,
           targetContentId: lookup.contentId,
-          targetKind: identity.mediaType === 'show' || identity.mediaType === 'anime' ? identity.mediaType : (identity.mediaType === 'movie' ? 'movie' : 'episode'),
+          targetKind: identity.mediaType === 'show' ? 'show' : (identity.mediaType === 'movie' ? 'movie' : 'episode'),
           overrideState: 'watched',
-          scope: identity.mediaType === 'show' || identity.mediaType === 'anime' ? 'released_descendants' : 'self',
-          appliesThroughReleaseAt: identity.mediaType === 'show' || identity.mediaType === 'anime' ? event.occurredAt : null,
+          scope: identity.mediaType === 'show' ? 'released_descendants' : 'self',
+          appliesThroughReleaseAt: identity.mediaType === 'show' ? event.occurredAt : null,
           lastMutationSeq: mutationSeq,
           sourceKind: providerToSourceKind(params.provider),
           sourceProvider: params.provider,
@@ -252,7 +252,7 @@ export class ProviderDestructiveImportService {
         await this.watchV2Repository.upsertWatchlistState(client, {
           profileId: params.profileId,
           targetContentId: lookup.titleContentId,
-          targetKind: lookup.titleIdentity.mediaType as 'movie' | 'show' | 'anime',
+          targetKind: lookup.titleIdentity.mediaType as 'movie' | 'show',
           present: true,
           addedAt: event.occurredAt,
           removedAt: null,
@@ -265,7 +265,7 @@ export class ProviderDestructiveImportService {
         await this.watchV2Repository.upsertRatingState(client, {
           profileId: params.profileId,
           targetContentId: lookup.titleContentId,
-          targetKind: lookup.titleIdentity.mediaType as 'movie' | 'show' | 'anime',
+          targetKind: lookup.titleIdentity.mediaType as 'movie' | 'show',
           rating: event.rating ?? null,
           ratedAt: event.occurredAt,
           removedAt: null,

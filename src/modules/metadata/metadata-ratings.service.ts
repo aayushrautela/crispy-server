@@ -16,17 +16,12 @@ function resolveRatingsLookup(snapshot: MetadataTitleSourceSnapshot): { provider
   const tmdbImdbId = typeof snapshot.tmdbTitle?.externalIds.imdb_id === 'string'
     ? snapshot.tmdbTitle.externalIds.imdb_id
     : null;
-  const externalIds = snapshot.providerContext?.title?.externalIds
+  const externalIds = snapshot.tmdbTitle
     ? {
-        tmdb: snapshot.providerContext.title.externalIds.tmdb,
-        imdb: snapshot.providerContext.title.externalIds.imdb,
+        tmdb: snapshot.tmdbTitle.tmdbId,
+        imdb: tmdbImdbId,
       }
-    : snapshot.tmdbTitle
-      ? {
-          tmdb: snapshot.tmdbTitle.tmdbId,
-          imdb: tmdbImdbId,
-        }
-      : null;
+    : null;
 
   if (externalIds?.tmdb) {
     return { provider: 'tmdb', id: externalIds.tmdb };
@@ -54,7 +49,7 @@ export class MetadataRatingsService {
 
     return this.runWithDb(async (client) => {
       const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, mediaKey);
-      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show' && identity.mediaType !== 'anime') {
+      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
         throw new HttpError(400, 'Title ratings require a title mediaKey.');
       }
 

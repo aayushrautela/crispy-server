@@ -75,7 +75,7 @@ type ProviderProfileResult = {
 
 type ResolvedImportIdentity = {
   identity: MediaIdentity;
-  mediaType: 'movie' | 'show' | 'anime';
+  mediaType: 'movie' | 'show';
   tmdbId: number | null;
   tvdbId: number | null;
   kitsuId: string | null;
@@ -1431,25 +1431,23 @@ export class ProviderImportService {
     const directKitsuId = normalizeProviderId(params.kitsuId);
     const imdbId = params.imdbId?.trim();
 
-    if (params.mediaFamily === 'movie' && directTmdbId && !imdbId) {
-      const resolved = buildResolvedImportIdentity('movie', {
-        provider: 'tmdb',
-        providerId: String(directTmdbId),
-        tmdbId: directTmdbId,
-      });
-      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
-    }
+if (params.mediaFamily === 'movie' && directTmdbId && !imdbId) {
+    const resolved = buildResolvedImportIdentity('movie', {
+      providerId: String(directTmdbId),
+      tmdbId: directTmdbId,
+    });
+    return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
+  }
 
     if (params.mediaFamily === 'movie' && directTmdbId && imdbId) {
       const client = await db.connect();
       try {
         try {
-          await this.tmdbCacheService.getTitle(client, 'movie', directTmdbId);
-          const resolved = buildResolvedImportIdentity('movie', {
-            provider: 'tmdb',
-            providerId: String(directTmdbId),
-            tmdbId: directTmdbId,
-          });
+await this.tmdbCacheService.getTitle(client, 'movie', directTmdbId);
+    const resolved = buildResolvedImportIdentity('movie', {
+      providerId: String(directTmdbId),
+      tmdbId: directTmdbId,
+    });
           return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
         } catch (error) {
           if (!(error instanceof HttpError) || error.statusCode !== 404) {
@@ -1462,133 +1460,100 @@ export class ProviderImportService {
           externalId: imdbId,
           mediaType: 'movie',
         });
-        const resolved = resolvedTmdbId
-          ? buildResolvedImportIdentity('movie', {
-              provider: 'tmdb',
-              providerId: String(resolvedTmdbId),
-              tmdbId: resolvedTmdbId,
-            })
-          : null;
-        if (!resolved) {
-          cache.set(cacheKey, null);
-          return null;
-        }
-        return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
-      } finally {
-        client.release();
-      }
-    }
-
-    if (
-      params.mediaFamily === 'show'
-      && Number.isInteger(directTvdbId)
-      && (directTvdbId ?? 0) > 0
-      && (directTmdbId !== null || !imdbId)
-    ) {
-      const resolved = buildResolvedImportIdentity('show', {
-        provider: 'tvdb',
-        providerId: String(directTvdbId),
-        tmdbId: directTmdbId,
-        tvdbId: directTvdbId,
-      });
-      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
-    }
-
-    if (params.mediaFamily === 'anime' && directKitsuId) {
-      const resolved = buildResolvedImportIdentity('anime', {
-        provider: 'kitsu',
-        providerId: directKitsuId,
-        tmdbId: directTmdbId,
-        kitsuId: directKitsuId,
-      });
-      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
-    }
-
-    if (imdbId) {
-      const client = await db.connect();
-      try {
-        const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
-          source: 'imdb_id',
-          externalId: imdbId,
-          mediaType: params.mediaFamily === 'anime' ? 'show' : params.mediaFamily,
-        });
-        const resolved = resolvedTmdbId
-          ? params.mediaFamily === 'movie'
-            ? buildResolvedImportIdentity('movie', {
-                provider: 'tmdb',
-                providerId: String(resolvedTmdbId),
-                tmdbId: resolvedTmdbId,
-              })
-            : params.mediaFamily === 'show' && Number.isInteger(directTvdbId) && (directTvdbId ?? 0) > 0
-              ? buildResolvedImportIdentity('show', {
-                  provider: 'tvdb',
-                  providerId: String(directTvdbId),
-                  tmdbId: resolvedTmdbId,
-                  tvdbId: directTvdbId,
-                })
-              : params.mediaFamily === 'anime' && directKitsuId
-                ? buildResolvedImportIdentity('anime', {
-                    provider: 'kitsu',
-                    providerId: directKitsuId,
-                    tmdbId: resolvedTmdbId,
-                    kitsuId: directKitsuId,
-                  })
-                : null
-          : params.mediaFamily === 'show' && Number.isInteger(directTvdbId) && (directTvdbId ?? 0) > 0
-            ? buildResolvedImportIdentity('show', {
-                provider: 'tvdb',
-                providerId: String(directTvdbId),
-                tmdbId: directTmdbId,
-                tvdbId: directTvdbId,
-              })
-            : params.mediaFamily === 'anime' && directKitsuId
-              ? buildResolvedImportIdentity('anime', {
-                  provider: 'kitsu',
-                  providerId: directKitsuId,
-                  tmdbId: directTmdbId,
-                  kitsuId: directKitsuId,
-                })
-              : null;
-        if (!resolved) {
-          cache.set(cacheKey, null);
-          return null;
-        }
-        return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
-      } finally {
-        client.release();
-      }
-    }
-
-    const tvdbId = params.tvdbId?.trim();
-    if (tvdbId && params.mediaFamily === 'show') {
-      const client = await db.connect();
-      try {
-        const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
-          source: 'tvdb_id',
-          externalId: tvdbId,
-          mediaType: 'show',
-        });
-        const resolved = buildResolvedImportIdentity('show', {
-          provider: 'tvdb',
-          providerId: tvdbId,
+const resolved = resolvedTmdbId
+      ? buildResolvedImportIdentity('movie', {
+          providerId: String(resolvedTmdbId),
           tmdbId: resolvedTmdbId,
-          tvdbId: Number(tvdbId),
-        });
+        })
+      : null;
+        if (!resolved) {
+          cache.set(cacheKey, null);
+          return null;
+        }
         return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
     }
 
-    if (directKitsuId && params.mediaFamily === 'anime') {
-      const resolved = buildResolvedImportIdentity('anime', {
-        provider: 'kitsu',
-        providerId: directKitsuId,
-        tmdbId: directTmdbId,
+if (
+    params.mediaFamily === 'show'
+    && Number.isInteger(directTvdbId)
+    && (directTvdbId ?? 0) > 0
+    && (directTmdbId !== null || !imdbId)
+  ) {
+    const resolved = buildResolvedImportIdentity('show', {
+      providerId: String(directTvdbId),
+      tmdbId: directTmdbId,
+    });
+    return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
+  }
+
+if (params.mediaFamily === 'anime' && directKitsuId) {
+    const resolved = buildResolvedImportIdentity('show', {
+      providerId: directKitsuId,
+      tmdbId: directTmdbId,
+    });
+    return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
+  }
+
+if (imdbId) {
+    const client = await db.connect();
+    try {
+      const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
+        source: 'imdb_id',
+        externalId: imdbId,
+        mediaType: params.mediaFamily === 'anime' ? 'show' : params.mediaFamily,
+      });
+      if (!resolvedTmdbId) {
+        cache.set(cacheKey, null);
+        return null;
+      }
+      const resolvedMediaType = params.mediaFamily === 'anime' ? 'show' : params.mediaFamily;
+      const resolved = buildResolvedImportIdentity(resolvedMediaType, {
+        providerId: String(resolvedTmdbId),
+        tmdbId: resolvedTmdbId,
+        tvdbId: directTvdbId,
         kitsuId: directKitsuId,
       });
-      return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
+      return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
+    } finally {
+      client.release();
     }
+  }
+
+const tvdbId = params.tvdbId?.trim();
+  if (tvdbId && params.mediaFamily === 'show') {
+    const client = await db.connect();
+    try {
+      const resolvedTmdbId = await this.externalIdResolver.resolve(client, {
+        source: 'tvdb_id',
+        externalId: tvdbId,
+        mediaType: 'show',
+      });
+      if (!resolvedTmdbId) {
+        cache.set(cacheKey, null);
+        return null;
+      }
+      const resolved = buildResolvedImportIdentity('show', {
+        providerId: String(resolvedTmdbId),
+        tmdbId: resolvedTmdbId,
+        tvdbId: Number(tvdbId),
+      });
+      return this.validateResolvedImportIdentity(cache, cacheKey, resolved, client);
+    } finally {
+      client.release();
+    }
+  }
+
+  if (directKitsuId && params.mediaFamily === 'anime') {
+    const resolved = buildResolvedImportIdentity('show', {
+      providerId: directKitsuId,
+      tmdbId: directTmdbId,
+      kitsuId: directKitsuId,
+    });
+    return this.validateResolvedImportIdentity(cache, cacheKey, resolved);
+  }
 
     cache.set(cacheKey, null);
     return null;
@@ -1617,31 +1582,37 @@ export class ProviderImportService {
 }
 
 function buildResolvedImportIdentity(
-  mediaType: 'movie' | 'show' | 'anime',
+  mediaType: 'movie' | 'show',
   params: {
-    provider: 'tmdb' | 'tvdb' | 'kitsu';
     providerId: string;
     tmdbId?: number | null;
     tvdbId?: number | null;
     kitsuId?: string | null;
   },
 ): ResolvedImportIdentity {
+  const canonicalTmdbId = params.tmdbId ?? Number(params.providerId);
+  const canonicalProviderId = canonicalTmdbId !== null && Number.isFinite(canonicalTmdbId)
+    ? String(canonicalTmdbId)
+    : params.providerId;
   const identity = inferMediaIdentity({
     mediaType,
-    provider: params.provider,
-    providerId: params.providerId,
-    tmdbId: params.tmdbId ?? null,
-    tvdbId: params.tvdbId ?? null,
-    kitsuId: params.kitsuId ?? null,
-    providerMetadata: params.tmdbId ? { tmdbId: params.tmdbId } : undefined,
+    provider: 'tmdb',
+    providerId: canonicalProviderId,
+    tmdbId: canonicalTmdbId,
+    providerMetadata: canonicalTmdbId
+      ? {
+          tmdbId: canonicalTmdbId,
+          showTmdbId: mediaType === 'show' ? canonicalTmdbId : undefined,
+        }
+      : undefined,
   });
 
   return {
     identity,
     mediaType,
     tmdbId: identity.tmdbId,
-    tvdbId: params.tvdbId ?? (params.provider === 'tvdb' ? Number(params.providerId) : null),
-    kitsuId: params.kitsuId ?? (params.provider === 'kitsu' ? params.providerId : null),
+    tvdbId: params.tvdbId ?? null,
+    kitsuId: params.kitsuId ?? null,
   };
 }
 

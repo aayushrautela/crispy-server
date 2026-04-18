@@ -17,12 +17,9 @@ import {
 
 export type MetadataResolveQuery = {
   mediaKey?: string;
+  tmdbId?: number | string;
   imdbId?: string;
   mediaType?: string;
-  provider?: string;
-  providerId?: number | string;
-  parentProvider?: string;
-  parentProviderId?: number | string;
   seasonNumber?: number | string;
   episodeNumber?: number | string;
   language?: string;
@@ -71,12 +68,9 @@ const metadataResolveQuerystringSchema = {
   additionalProperties: false,
   properties: {
     mediaKey: stringSchema,
+    tmdbId: positiveIntegerLikeSchema,
     imdbId: stringSchema,
     mediaType: stringSchema,
-    provider: stringSchema,
-    providerId: positiveIntegerLikeSchema,
-    parentProvider: stringSchema,
-    parentProviderId: positiveIntegerLikeSchema,
     seasonNumber: positiveIntegerLikeSchema,
     episodeNumber: positiveIntegerLikeSchema,
     language: stringSchema,
@@ -113,12 +107,11 @@ const metadataSeasonParamsSchema = {
 const metadataExternalIdsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['tmdb', 'imdb', 'tvdb', 'kitsu'],
+  required: ['tmdb', 'imdb', 'tvdb'],
   properties: {
     tmdb: nullableIntegerSchema,
     imdb: nullableStringSchema,
     tvdb: nullableIntegerSchema,
-    kitsu: nullableStringSchema,
   },
 } as const;
 
@@ -405,7 +398,7 @@ const metadataTitleRatingsResponseSchema = {
     ratings: {
       type: 'object',
       additionalProperties: false,
-      required: ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'audience', 'letterboxd', 'rogerEbert', 'myAnimeList'],
+      required: ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'audience', 'letterboxd', 'rogerEbert'],
       properties: {
         imdb: nullableNumberSchema,
         tmdb: nullableNumberSchema,
@@ -415,7 +408,6 @@ const metadataTitleRatingsResponseSchema = {
         audience: nullableNumberSchema,
         letterboxd: nullableNumberSchema,
         rogerEbert: nullableNumberSchema,
-        myAnimeList: nullableNumberSchema,
       },
     },
   },
@@ -493,7 +485,7 @@ const playbackResolveResponseSchema = {
 const metadataSearchResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'all', 'movies', 'series', 'anime'],
+  required: ['query', 'all', 'movies', 'series'],
   properties: {
     query: stringSchema,
     all: {
@@ -505,10 +497,6 @@ const metadataSearchResponseSchema = {
       items: regularCardViewSchema,
     },
     series: {
-      type: 'array',
-      items: regularCardViewSchema,
-    },
-    anime: {
       type: 'array',
       items: regularCardViewSchema,
     },

@@ -26,8 +26,6 @@ test('refreshMediaKey returns mediaKeys for movie identities', async () => {
       }),
     } as never,
     {} as never,
-    {} as never,
-    {} as never,
   );
 
   const result = await service.refreshIdentity(
@@ -73,19 +71,17 @@ test('refreshProfileEpisodicFollow merges and dedupes mediaKeys', async () => {
         {
           showTmdbId: 100,
           titleContentId: 'content-1',
-          seriesMediaKey: 'show:tvdb:100',
+          seriesMediaKey: 'show:tmdb:100',
           payload: {},
         },
         {
           showTmdbId: 100,
           titleContentId: 'content-2',
-          seriesMediaKey: 'show:tvdb:100',
+          seriesMediaKey: 'show:tmdb:100',
           payload: {},
         },
       ],
     } as never,
-    {} as never,
-    {} as never,
   );
 
   const result = await service.refreshProfileEpisodicFollow({} as never, 'profile-1');
@@ -98,6 +94,6 @@ test('refreshProfileEpisodicFollow merges and dedupes mediaKeys', async () => {
       skipped: 0,
       failures: 0,
     },
-    mediaKeys: ['show:tvdb:100'],
+    mediaKeys: ['show:tmdb:100'],
   });
 });

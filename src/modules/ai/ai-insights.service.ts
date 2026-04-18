@@ -103,7 +103,7 @@ export class AiInsightsService {
 
 function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: MetadataReviewView[]): TitleInsightsContext | null {
   const mediaType = detail.item.mediaType;
-  if (mediaType !== 'movie' && mediaType !== 'show' && mediaType !== 'anime') {
+  if (mediaType !== 'movie' && mediaType !== 'show') {
     return null;
   }
 
