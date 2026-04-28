@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { buildMetadataCardView, toCatalogItem } from './metadata-card.builders.js';
 import type { CatalogItem } from './metadata-card.types.js';
 import {
@@ -111,8 +111,12 @@ export class MetadataTitleAggregateBuilder {
     );
 
     return episodes.flatMap((episode) => {
-      const providerId = `tmdb:${title.tmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`;
-      const contentId = episodeIds.get(providerId);
+      const contentId = episodeIds.get(episodeRefMapKey(
+        String(title.tmdbId),
+        episode.seasonNumber,
+        episode.episodeNumber,
+        null,
+      ));
       return contentId ? [buildEpisodeView(title, episode, contentId, '')] : [];
     });
   }
