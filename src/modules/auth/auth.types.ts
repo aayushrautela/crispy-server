@@ -11,6 +11,7 @@ export const AUTH_SCOPES = [
   'provider-connections:read',
   'provider-tokens:read',
   'provider-tokens:refresh',
+  'confidential-config:ai-config:read',
   'admin:diagnostics:read',
 ] as const;
 

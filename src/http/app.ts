@@ -16,11 +16,13 @@ import { registerInternalAdminImportRoutes } from './routes/internal-admin-impor
 import { registerIntegrationRoutes } from './routes/integrations.routes.js';
 import { registerInternalAccountRoutes } from './routes/internal-accounts.js';
 import { registerInternalAdminRecommendationRoutes } from './routes/internal-admin-recommendations.js';
+import { registerInternalConfidentialRoutes } from './routes/internal-confidential.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
 import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
 import { registerWatchRoutes } from './routes/watch.js';
+import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
 import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
 
 declare module 'fastify' {
@@ -69,8 +71,10 @@ export async function buildApp() {
   await registerInternalAccountRoutes(app);
   await registerInternalAdminRecommendationRoutes(app);
   await registerInternalAdminImportRoutes(app);
+  await registerInternalConfidentialRoutes(app);
   await registerIntegrationRoutes(app);
   await registerCalendarRoutes(app);
+  await registerAccountPublicRoutes(app);
 
   return app;
 }

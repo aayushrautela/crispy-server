@@ -802,6 +802,33 @@ export const ADMIN_UI_CLIENT = String.raw`
       };
     }
 
+    const batchButtons = Array.from(container.querySelectorAll('[data-dry-run-profile-batch]'));
+    for (const button of batchButtons) {
+      button.onclick = async () => {
+        button.disabled = true;
+        setMessage(messageEl, 'info', 'Creating recommendation-engine batch dry run...');
+        try {
+          const payload = await fetchJson(apiPath('/recommendation-batches/dry-run'), {
+            method: 'POST',
+            body: JSON.stringify({
+              scope: { type: 'profiles', profiles: [{ accountId: accountId, profileId: profileId }] },
+              action: 'refresh_all',
+              reason: 'main-admin-profile-regenerate',
+              limits: { maxItems: 1 },
+            }),
+          });
+          setMessage(messageEl, 'success', 'Dry run created: ' + payload.dryRunId + '. Confirm phrase: ' + payload.confirmationPhrase);
+          pushNotification('success', 'RECO dry run created', 'Dry run ' + payload.dryRunId + ' estimates ' + payload.estimatedCount + ' item(s).', true);
+        } catch (error) {
+          const description = describeApiError(error, 'Unable to create recommendation-engine dry run.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'RECO dry run failed', description, true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
+
     const importButtons = Array.from(container.querySelectorAll('[data-start-import]'));
     for (const button of importButtons) {
       button.onclick = async () => {
@@ -1376,11 +1403,12 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     const recommendations = result && result.recommendations ? result.recommendations : result;
     if (!recommendations || recommendations === null) {
-      return sectionCard('Recommendations', emptyState('No recommendation snapshot stored yet.'));
+      return sectionCard('Recommendations', '<div class="jobs-toolbar"><button type="button" data-start-recommendations>Regenerate in Main</button><button type="button" class="secondary" data-dry-run-profile-batch>Dry-run RECO batch for this profile</button></div>' + emptyState('No recommendation snapshot stored yet.'));
     }
     const sections = Array.isArray(recommendations.sections) ? recommendations.sections : [];
     return sectionCard('Recommendations',
-      '<div class="kv-grid">'
+      '<div class="jobs-toolbar"><button type="button" data-start-recommendations>Regenerate in Main</button><button type="button" class="secondary" data-dry-run-profile-batch>Dry-run RECO batch for this profile</button></div>'
+      + '<div class="kv-grid">'
         + kvPair('Source key', recommendations.sourceKey || 'default')
         + kvPair('Algorithm', recommendations.algorithmVersion || 'v3.2.1')
         + kvPair('Generated', recommendations.generatedAt ? formatDate(recommendations.generatedAt) : 'n/a')

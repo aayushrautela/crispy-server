@@ -117,6 +117,27 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     return recommendationAdminService.clearBlockedGenerationJobs();
   });
 
+
+  app.post('/admin/api/recommendation-batches/dry-run', async (request, reply) => {
+    await requireAdminMutation(request);
+    return proxyRecommendationEngineAdmin('/admin/api/recommendation-batches/dry-run', 'POST', request.body);
+  });
+
+  app.post('/admin/api/recommendation-batches/:dryRunId/confirm', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    const dryRunId = readRequiredString(params.dryRunId, 'dryRunId');
+    reply.code(202);
+    return proxyRecommendationEngineAdmin(`/admin/api/recommendation-batches/${encodeURIComponent(dryRunId)}/confirm`, 'POST', request.body);
+  });
+
+  app.get('/admin/api/recommendation-batches', async (request, reply) => {
+    await requireAdmin(request);
+    const query = asRecord(request.query);
+    const limit = parseLimit(query.limit);
+    return proxyRecommendationEngineAdmin(`/admin/api/recommendation-batches?limit=${encodeURIComponent(String(limit))}`, 'GET');
+  });
+
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
     await requireAdmin(request);
     const query = asRecord(request.query);
@@ -442,6 +463,40 @@ function parseOptionalNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+
+async function proxyRecommendationEngineAdmin(path: string, method: 'GET' | 'POST', body?: unknown): Promise<unknown> {
+  const baseUrl = process.env.RECOMMENDATION_ENGINE_ADMIN_URL?.trim()?.replace(/\/+$/, '');
+  const token = process.env.RECOMMENDATION_ENGINE_ADMIN_TOKEN?.trim();
+  if (!baseUrl) {
+    throw new HttpError(503, 'RECOMMENDATION_ENGINE_ADMIN_URL is not configured');
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  let payload: unknown = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      payload = { message: text };
+    }
+  }
+  if (!response.ok) {
+    const message = typeof payload === 'object' && payload !== null && 'message' in payload
+      ? String((payload as { message?: unknown }).message)
+      : `Recommendation engine admin request failed: ${response.status}`;
+    throw new HttpError(response.status, message);
+  }
+  return payload;
 }
 
 function parseLimit(value: unknown): number {
