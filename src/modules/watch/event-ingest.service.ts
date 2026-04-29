@@ -5,7 +5,7 @@ import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { isBufferedHeartbeatEvent } from './heartbeat-policy.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
-import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
+import { IntegrationOutboxService } from '../integrations/changes/integration-outbox.service.js';
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { decodeWatchV2ContinueWatchingId } from './watch-v2-utils.js';
 import {
@@ -22,7 +22,7 @@ export class WatchEventIngestService {
     private readonly watchV2WriteService = new WatchV2WriteService(),
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
-    private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
+    private readonly integrationOutboxService = new IntegrationOutboxService(),
   ) {}
 
   async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
@@ -55,7 +55,6 @@ export class WatchEventIngestService {
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -68,7 +67,6 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -83,7 +81,6 @@ export class WatchEventIngestService {
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -96,7 +93,6 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -115,7 +111,6 @@ export class WatchEventIngestService {
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -128,7 +123,6 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -169,17 +163,33 @@ export class WatchEventIngestService {
         identity,
         occurredAt,
       });
+      await this.appendWatchProgressOutboxEvent(client, {
+        accountId: userId,
+        profileId,
+        identity,
+        eventType: 'continue_watching_dismiss',
+        occurredAt,
+      });
     });
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
   private async ingestPlaybackEventSynchronously(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
     const identity = inferMediaIdentity(input);
     await withTransaction(async (client) => {
-      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       await this.watchV2WriteService.applyPlaybackEvent(client, {
         profileId,
+        identity,
+        eventType: input.eventType,
+        occurredAt: normalizeWatchOccurredAt(input.occurredAt),
+        positionSeconds: input.positionSeconds,
+        durationSeconds: input.durationSeconds,
+      });
+      await this.appendWatchProgressOutboxEvent(client, {
+        accountId: userId,
+        profileId,
+        profileGroupId: profile.profileGroupId,
         identity,
         eventType: input.eventType,
         occurredAt: normalizeWatchOccurredAt(input.occurredAt),
@@ -191,7 +201,6 @@ export class WatchEventIngestService {
       await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
       await this.projectionRefreshDispatcher.refreshMetadata(profileId, identity.mediaKey);
     }
-    await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'watch_event');
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -223,7 +232,7 @@ export class WatchEventIngestService {
       }) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
-      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
       const occurredAt = normalizeWatchOccurredAt(input.occurredAt);
       const identity = inferMediaIdentity(input);
 
@@ -233,6 +242,14 @@ export class WatchEventIngestService {
         occurredAt,
         rating: typeof input.rating === 'number' ? input.rating : undefined,
         payload: input.payload,
+      });
+      await this.appendWatchHistoryOutboxEvent(client, {
+        accountId: userId,
+        profileId,
+        profileGroupId: profile.profileGroupId,
+        identity,
+        eventType: _eventType,
+        occurredAt,
       });
     });
   }
@@ -249,11 +266,92 @@ export class WatchEventIngestService {
     ) => Promise<void>,
   ): Promise<void> {
     await withTransaction(async (client) => {
-      await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
+      const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, userId);
 
       const identity = parseMediaKey(mediaKey);
       const occurredAt = new Date().toISOString();
       await apply(client, identity, occurredAt);
+      await this.appendWatchHistoryOutboxEvent(client, {
+        accountId: userId,
+        profileId,
+        profileGroupId: profile.profileGroupId,
+        identity,
+        eventType,
+        occurredAt,
+      });
     });
+  }
+
+  private async appendWatchHistoryOutboxEvent(
+    client: import('../../lib/db.js').DbClient,
+    input: {
+      accountId: string;
+      profileId: string;
+      profileGroupId?: string;
+      identity: ReturnType<typeof inferMediaIdentity> | ReturnType<typeof parseMediaKey>;
+      eventType: string;
+      occurredAt: string;
+    },
+  ): Promise<void> {
+    await this.integrationOutboxService.appendChange(client, {
+      accountId: input.accountId,
+      profileId: input.profileId,
+      eventType: 'watch_history.upserted',
+      aggregateType: 'watch_history',
+      aggregateId: `${input.profileId}:${input.identity.mediaKey}`,
+      occurredAt: input.occurredAt,
+      payload: this.buildWatchOutboxPayload(input),
+      idempotencyKey: `watch_history:${input.profileId}:${input.identity.mediaKey}:${input.eventType}:${input.occurredAt}`,
+    });
+  }
+
+  private async appendWatchProgressOutboxEvent(
+    client: import('../../lib/db.js').DbClient,
+    input: {
+      accountId: string;
+      profileId: string;
+      profileGroupId?: string;
+      identity: ReturnType<typeof inferMediaIdentity> | ReturnType<typeof parseMediaKey>;
+      eventType: string;
+      occurredAt: string;
+      positionSeconds?: number | null;
+      durationSeconds?: number | null;
+    },
+  ): Promise<void> {
+    await this.integrationOutboxService.appendChange(client, {
+      accountId: input.accountId,
+      profileId: input.profileId,
+      eventType: 'watch_progress.updated',
+      aggregateType: 'watch_progress',
+      aggregateId: `${input.profileId}:${input.identity.mediaKey}`,
+      occurredAt: input.occurredAt,
+      payload: this.buildWatchOutboxPayload(input),
+      idempotencyKey: `watch_progress:${input.profileId}:${input.identity.mediaKey}:${input.eventType}:${input.occurredAt}`,
+    });
+  }
+
+  private buildWatchOutboxPayload(input: {
+    profileId: string;
+    profileGroupId?: string;
+    identity: ReturnType<typeof inferMediaIdentity> | ReturnType<typeof parseMediaKey>;
+    eventType: string;
+    occurredAt: string;
+    positionSeconds?: number | null;
+    durationSeconds?: number | null;
+  }): Record<string, unknown> {
+    return {
+      profileId: input.profileId,
+      profileGroupId: input.profileGroupId,
+      mediaKey: input.identity.mediaKey,
+      mediaType: input.identity.mediaType,
+      provider: input.identity.provider,
+      providerId: input.identity.providerId,
+      parentProvider: input.identity.parentProvider,
+      parentProviderId: input.identity.parentProviderId,
+      eventType: input.eventType,
+      occurredAt: input.occurredAt,
+      positionSeconds: input.positionSeconds,
+      durationSeconds: input.durationSeconds,
+    };
   }
 }

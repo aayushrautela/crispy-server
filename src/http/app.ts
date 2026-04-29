@@ -13,6 +13,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerInternalAdminImportRoutes } from './routes/internal-admin-imports.js';
+import { registerIntegrationRoutes } from './routes/integrations.routes.js';
 import { registerInternalAccountRoutes } from './routes/internal-accounts.js';
 import { registerInternalAdminRecommendationRoutes } from './routes/internal-admin-recommendations.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
@@ -68,6 +69,7 @@ export async function buildApp() {
   await registerInternalAccountRoutes(app);
   await registerInternalAdminRecommendationRoutes(app);
   await registerInternalAdminImportRoutes(app);
+  await registerIntegrationRoutes(app);
   await registerCalendarRoutes(app);
 
   return app;

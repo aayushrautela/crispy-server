@@ -5,7 +5,8 @@ import { evaluateHeartbeatSnapshot, HEARTBEAT_POLICY } from './heartbeat-policy.
 import { HeartbeatBufferService } from './heartbeat-buffer.service.js';
 import { ensureSupportedMediaType, inferMediaIdentity } from '../identity/media-key.js';
 import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js';
-import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
+import { IntegrationOutboxService } from '../integrations/changes/integration-outbox.service.js';
+import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { normalizeWatchOccurredAt } from './watch.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
@@ -17,7 +18,8 @@ export class HeartbeatFlushService {
     private readonly watchV2WriteService = new WatchV2WriteService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
-    private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
+    private readonly integrationOutboxService = new IntegrationOutboxService(),
+    private readonly profileAccessService = new ProfileAccessService(),
   ) {}
 
   async flush(profileId: string, mediaKey: string): Promise<{ action: 'persisted' | 'deferred' | 'cleared' | 'missing'; reason: string }> {
@@ -63,6 +65,32 @@ export class HeartbeatFlushService {
         positionSeconds: snapshot.positionSeconds,
         durationSeconds: snapshot.durationSeconds,
       });
+      const accountId = await this.profileAccessService.findOwnerUserId(client, profileId);
+      if (accountId) {
+        await this.integrationOutboxService.appendChange(client, {
+          accountId,
+          profileId,
+          eventType: 'watch_progress.updated',
+          aggregateType: 'watch_progress',
+          aggregateId: `${profileId}:${identity.mediaKey}`,
+          occurredAt: normalizedOccurredAt,
+          payload: {
+            profileId,
+            profileGroupId: snapshot.profileGroupId,
+            mediaKey: identity.mediaKey,
+            mediaType: identity.mediaType,
+            provider: identity.provider,
+            providerId: identity.providerId,
+            parentProvider: identity.parentProvider,
+            parentProviderId: identity.parentProviderId,
+            eventType: 'playback_progress_snapshot',
+            occurredAt: normalizedOccurredAt,
+            positionSeconds: snapshot.positionSeconds,
+            durationSeconds: snapshot.durationSeconds,
+          },
+          idempotencyKey: `watch_progress:${profileId}:${identity.mediaKey}:playback_progress_snapshot:${normalizedOccurredAt}`,
+        });
+      }
 
       return { action: 'persisted' as const, reason: decision.reason };
     });
@@ -86,7 +114,6 @@ export class HeartbeatFlushService {
         await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
         await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
       }
-      await this.recommendationGenerationDispatcher.scheduleProfileGeneration(profileId, undefined, 'heartbeat_flush');
     }
 
     return outcome;
