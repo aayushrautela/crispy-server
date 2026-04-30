@@ -127,7 +127,7 @@ test('GET /internal/apps/v1/profiles/eligible/changes is registered', async (t) 
   assert.deepEqual(response.json(), { items: [], cursor: { hasMore: false, next: null } });
 });
 
-test('retired integration RECO endpoints are not registered', async (t) => {
+test('legacy integrations v1 RECO endpoints are absent', async (t) => {
   const app = await buildServer(buildPrincipal(['apps:self:read', 'profiles:eligible:read']));
   t.after(async () => { await app.close(); });
 

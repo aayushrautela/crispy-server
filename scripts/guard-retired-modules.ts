@@ -32,7 +32,7 @@ const rules: Rule[] = [
   {
     pattern: '/api/integrations/v1/(profiles|recommendation|config-bundle|eligible|signals)',
     message: 'Retired RECO routes under /api/integrations/v1 must not be reintroduced. Use /internal/apps/v1 and /internal/confidential/v1 instead.',
-    filter: (line) => !line.includes('docs/integration-api.md') && !line.includes('openapi/integrations-v1.yaml') && !line.includes('PRIVILEGED_APP_ARCHITECTURE_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_API_PLAN.md') && !line.includes('PRIVATE_CONFIDENTIAL_API_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_WRITE_API_PLAN.md'),
+    filter: (line) => !line.includes('PRIVILEGED_APP_ARCHITECTURE_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_API_PLAN.md') && !line.includes('PRIVATE_CONFIDENTIAL_API_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_WRITE_API_PLAN.md'),
   },
 ];
 
