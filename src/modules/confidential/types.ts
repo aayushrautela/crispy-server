@@ -1,5 +1,6 @@
 import type { AuthScope } from '../auth/auth.types.js';
 import type { AiCredentialSource } from '../ai/ai.types.js';
+import type { AppPrincipal, AppScope } from '../apps/app-principal.types.js';
 
 export type ConfidentialResourceKind = 'aiConfig';
 export type ConfidentialResourcePurpose = 'recommendation-generation';
@@ -21,21 +22,68 @@ export type ConfidentialBundleRequest = {
   resources: ConfidentialResourceSelector[];
 };
 
-export type ConfidentialBundleContext = {
-  accountId: string;
-  profileId: string;
-  serviceId: string;
-  scopes: AuthScope[];
-};
+export type ConfidentialBundleContext =
+  | {
+      authType: 'service';
+      accountId: string;
+      profileId: string;
+      scopes: AuthScope[];
+      actor: { type: 'service'; serviceId: string };
+    }
+  | {
+      authType: 'app';
+      accountId: string;
+      profileId: string;
+      scopes: AppScope[];
+      actor: { type: 'app'; principal: AppPrincipal };
+    };
 
-export type ConfidentialAiConfig = {
+export type ConfidentialSecretDeliveryMode = 'direct' | 'proxy' | 'reference';
+
+export type ConfidentialAiConfigProvider = {
   providerId: string;
   providerType: string;
   endpointUrl: string;
-  model: string;
   httpReferer: string;
   title: string;
-  apiKey: string;
+};
+
+export type ConfidentialAiConfigModel = {
+  model: string;
+  contextWindow?: number;
+  maxTokens?: number;
+};
+
+export type ConfidentialAiConfigRouting = {
+  routeGroup: string;
+  fallbackEnabled: boolean;
+};
+
+export type ConfidentialAiConfigGeneration = {
+  temperature?: number;
+  topP?: number;
+  maxOutputTokens?: number;
+};
+
+export type ConfidentialAiConfigSafety = {
+  contentFiltering: boolean;
+  piiRedaction: boolean;
+};
+
+export type ConfidentialAiConfigSecretDelivery = {
+  mode: ConfidentialSecretDeliveryMode;
+  apiKey?: string;
+  proxyEndpoint?: string;
+  credentialReference?: string;
+};
+
+export type ConfidentialAiConfig = {
+  provider: ConfidentialAiConfigProvider;
+  model: ConfidentialAiConfigModel;
+  routing: ConfidentialAiConfigRouting;
+  generation: ConfidentialAiConfigGeneration;
+  safety: ConfidentialAiConfigSafety;
+  secretDelivery: ConfidentialAiConfigSecretDelivery;
   credentialSource: AiCredentialSource;
 };
 

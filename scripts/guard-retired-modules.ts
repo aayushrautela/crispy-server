@@ -29,6 +29,11 @@ const rules: Rule[] = [
     message: 'Route tests should not rely on debug-only response.input payloads. Assert against real contract fields or captured call args.',
     filter: (line) => line.includes('src/http/routes/') && line.includes('.test.ts') && line.includes('.input'),
   },
+  {
+    pattern: '/api/integrations/v1/(profiles|recommendation|config-bundle|eligible|signals)',
+    message: 'Retired RECO routes under /api/integrations/v1 must not be reintroduced. Use /internal/apps/v1 and /internal/confidential/v1 instead.',
+    filter: (line) => !line.includes('docs/integration-api.md') && !line.includes('openapi/integrations-v1.yaml') && !line.includes('PRIVILEGED_APP_ARCHITECTURE_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_API_PLAN.md') && !line.includes('PRIVATE_CONFIDENTIAL_API_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_WRITE_API_PLAN.md'),
+  },
 ];
 
 function runGrep(rule: Rule) {

@@ -353,6 +353,30 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 
 Recommendation generation is now server-orchestrated. The API server decides when a profile needs regeneration, loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists the resulting taste profile and recommendation snapshot. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB catalog fetches for enrichment, and must return final canonical recommendation identities for every item.
 
+### Internal privileged app routes
+
+These are the only supported privileged routes for recommendation engines and other app principals. Do not use `/api/integrations/v1` for recommendation generation or privileged RECO workflows.
+
+- `GET /internal/apps/v1/me` - authenticated app principal self-description
+- `GET /internal/apps/v1/profiles/eligible/changes` - eligible profile change feed
+- `POST /internal/apps/v1/profiles/eligible/snapshots` - create an eligible profile snapshot
+- `GET /internal/apps/v1/profiles/eligible/snapshots/:snapshotId/items` - read snapshot assignments
+- `GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility` - check recommendation-generation eligibility
+- `GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle` - read profile signal bundle for recommendation generation
+- `GET /internal/apps/v1/recommendations/service-lists` - list writable service recommendation lists
+- `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey` - write one service-owned recommendation list
+- `POST /internal/apps/v1/recommendations/batch-upsert` - batch write service-owned recommendation lists
+- `POST /internal/apps/v1/recommendations/runs` - create recommendation run audit record
+- `PATCH /internal/apps/v1/recommendations/runs/:runId` - update recommendation run audit record
+- `POST /internal/apps/v1/recommendations/runs/:runId/batches` - create recommendation batch audit record
+- `PATCH /internal/apps/v1/recommendations/runs/:runId/batches/:batchId` - update recommendation batch audit record
+- `GET /internal/apps/v1/recommendations/backfills/assignments` - get recommendation backfill assignments
+- `GET /internal/apps/v1/audit/events` - app-scoped audit events
+
+### Internal confidential routes
+
+- `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/config-bundle` - read confidential recommendation config bundle, including final `aiConfig` policy for an eligible app/profile pair
+
 ### Internal service routes
 
 #### Account-rooted internal routes

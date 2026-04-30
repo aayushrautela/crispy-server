@@ -1,11 +1,18 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync } from 'fastify';
 import { HttpError, inferHttpErrorCode } from '../../lib/errors.js';
+import { AppAuthError } from '../../modules/apps/app-auth.errors.js';
 import type { ApiErrorResponse } from '../contracts/shared.js';
 
 const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, 'request failed');
+    
+    if (error instanceof AppAuthError) {
+      void reply.status(error.statusCode).send(toErrorResponse(error.statusCode, error.code, error.message));
+      return;
+    }
+
     if (error instanceof HttpError) {
       void reply.status(error.statusCode).send(toErrorResponse(error.statusCode, error.code, error.message, error.details));
       return;
