@@ -11,7 +11,7 @@ test('resolver delegates to deterministic lite BYOK task resolution', async () =
     getPricingTierForUser: () => 'lite',
     getAiProviderIdForUser: async () => 'openrouter',
     getAiApiKeyForUser: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'user-openrouter-key' }),
-  } as never, [{ providerId: 'openrouter', apiKey: 'server-openrouter-key' }]);
+  } as never, '');
 
   const result = await resolver.resolveForUser('user-1', 'search');
   assert.equal(result.providerId, 'openrouter');
@@ -30,7 +30,7 @@ test('resolver does not fall back to server or pooled keys for lite without BYOK
     getAiApiKeyForUser: async () => {
       throw new HttpError(404, 'Account secret not found.');
     },
-  } as never, [{ providerId: 'openrouter', apiKey: 'server-openrouter-key' }]);
+  } as never, 'server-ai-key');
 
   await assert.rejects(
     () => resolver.resolveForUser('user-1', 'search'),
@@ -44,7 +44,7 @@ test('resolver uses server env key for pro', async () => {
   const resolver = new AiProviderResolver({
     getPricingTierForUser: () => 'pro',
     getAiProviderIdForUser: async () => 'openrouter',
-  } as never, [{ apiKey: 'server-ai-key' }]);
+  } as never, 'server-ai-key');
 
   const result = await resolver.resolveForUser('user-1', 'insights');
   assert.equal(result.providerId, 'server-ai');

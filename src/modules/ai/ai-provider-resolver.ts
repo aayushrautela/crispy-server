@@ -4,9 +4,9 @@ import type { AiCredentialSource, AiFeatureId, ResolvedAiRequest } from './ai.ty
 export class AiProviderResolver {
   constructor(
     accountSettingsService?: ConstructorParameters<typeof AiCredentialResolver>[0],
-    serverKeys?: ConstructorParameters<typeof AiCredentialResolver>[1],
+    serverApiKey?: ConstructorParameters<typeof AiCredentialResolver>[1],
   ) {
-    this.credentialResolver = new AiCredentialResolver(accountSettingsService, serverKeys);
+    this.credentialResolver = new AiCredentialResolver(accountSettingsService, serverApiKey);
   }
 
   private readonly credentialResolver: AiCredentialResolver;

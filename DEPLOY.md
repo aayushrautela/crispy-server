@@ -24,12 +24,12 @@
    ```
    The actual `config/app-config.json` is gitignored so it won't conflict on pulls. Keep `.env` focused on secrets and deployment-specific wiring.
 
-   AI credential fallback is configured in two places:
+   AI credentials are configured in two places:
 
-   - per-account secret value: `GET/PUT/DELETE /v1/account/secrets/ai-api-key`
-   - optional server fallback credentials: `AI_SERVER_KEYS_JSON`, for example `[{"providerId":"openai","apiKey":"sk-..."}]`
+   - per-account BYOK OpenRouter secret value: `GET/PUT/DELETE /v1/account/secrets/ai-api-key`
+   - optional single server-funded credential: `AI_SERVER_API_KEY`
 
-   If `AI_SERVER_KEYS_JSON` is empty, AI requests fall back from the account's own key straight to the shared pool of other stored account keys for the selected provider.
+   Pro and Ultra tier AI features use `AI_SERVER_API_KEY`; Lite tier users must provide their own OpenRouter key.
 
    Ownership contract for hosted and internal consumers:
 

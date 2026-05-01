@@ -53,46 +53,6 @@ function parseStringEnumEnv<T extends string>(name: string, allowed: readonly T[
   throw new Error(`Invalid value for ${name}: ${raw}`);
 }
 
-function parseAiServerKeysEnv(name: string): Array<{ apiKey: string; providerId?: string }> {
-  const raw = optionalEnv(name);
-  if (!raw) {
-    return [];
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`Invalid JSON environment variable: ${name}`);
-  }
-
-  if (!Array.isArray(parsed)) {
-    throw new Error(`Invalid AI server key configuration: ${name}`);
-  }
-
-  return parsed.map((entry, index) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw new Error(`Invalid AI server key entry at index ${index} in ${name}`);
-    }
-
-    const record = entry as Record<string, unknown>;
-    const apiKey = typeof record.apiKey === 'string'
-      ? record.apiKey.trim()
-      : '';
-
-    if (!apiKey) {
-      throw new Error(`Invalid AI server key entry at index ${index} in ${name}: missing apiKey`);
-    }
-
-    // Legacy format support: accept providerId but don't require it
-    const providerId = typeof record.providerId === 'string'
-      ? record.providerId.trim()
-      : undefined;
-
-    return providerId ? { apiKey, providerId } : { apiKey };
-  });
-}
-
 function requireBaseUrl(name: string): string {
   return requireEnv(name).replace(/\/+$/, '');
 }
@@ -125,7 +85,7 @@ export const env = {
   authAdminUrl: supabaseAuthBaseUrl,
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
   mdblistApiKey: optionalEnv('MDBLIST_API_KEY') ?? '',
-  aiServerKeys: parseAiServerKeysEnv('AI_SERVER_KEYS_JSON'),
+  aiServerApiKey: optionalEnv('AI_SERVER_API_KEY') ?? '',
   traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
   traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',
   traktImportRedirectUri: process.env.TRAKT_IMPORT_REDIRECT_URI?.trim() || '',

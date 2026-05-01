@@ -3,7 +3,7 @@ import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app
 import { HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 import type { PricingTier } from '../users/account-settings.service.js';
-import type { AiFeatureId, ResolvedAiRequest, AiApiKeyCandidate, ServerAiTier } from './ai.types.js';
+import type { AiFeatureId, ResolvedAiRequest, ServerAiTier } from './ai.types.js';
 
 export type AiTaskId = 'recommendations' | 'search' | 'insights';
 
@@ -34,7 +34,7 @@ const TIER_POLICIES: Record<PricingTier, TierCredentialPolicy> = {
 export class AiCredentialResolver {
   constructor(
     private readonly accountSettingsService = new AccountSettingsService(),
-    private readonly serverKeys: AiApiKeyCandidate[] = env.aiServerKeys,
+    private readonly serverApiKey: string = env.aiServerApiKey,
   ) {}
 
   async resolveForTask(
@@ -118,16 +118,12 @@ export class AiCredentialResolver {
   }
 
   private getServerApiKey(tier: ServerAiTier, feature: AiFeatureId): ResolvedAiRequest | null {
-    if (this.serverKeys.length === 0) {
+    if (!this.serverApiKey) {
       return null;
     }
 
     const serverProvider = getServerAiProvider();
     const model = serverProvider.models[tier][feature];
-    const candidate = this.serverKeys[0];
-    if (!candidate) {
-      return null;
-    }
 
     return {
       feature,
@@ -140,7 +136,7 @@ export class AiCredentialResolver {
         title: env.appDisplayName,
       },
       model,
-      apiKey: candidate.apiKey,
+      apiKey: this.serverApiKey,
       credentialSource: 'server',
     };
   }

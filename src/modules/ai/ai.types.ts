@@ -38,11 +38,6 @@ export type AiClientSettings = {
   providers: AiProviderView[];
 };
 
-export type AiApiKeyCandidate = {
-  apiKey: string;
-  providerId?: string;
-};
-
 export type ResolvedAiRequest = {
   feature: AiFeatureId;
   providerId: string;

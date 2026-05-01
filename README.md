@@ -469,7 +469,7 @@ The engine is separate from the internal BullMQ worker started by this repositor
      - `APP_PUBLIC_URL` and `APP_DISPLAY_NAME` define the API server's canonical outbound app identity. They are used for OpenAI-compatible `HTTP-Referer` and `X-Title` headers.
      - `AUTH_*` values are only used for external auth.
       - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
-     - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
+      - `AI_SERVER_API_KEY` is an optional single server-managed AI credential used for Pro and Ultra tier AI features. Lite tier users provide their own OpenRouter key.
      - `RECOMMENDATION_ALGORITHM_VERSION` sets the canonical recommendation snapshot version. It defaults to `v3.2.1`.
      - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
      - Runtime defaults live in `config/app-config.json.example`. The loader checks `config/app-config.json` first (gitignored, for local overrides), then falls back to the example template. Override the path with `APP_CONFIG_PATH` if needed.
