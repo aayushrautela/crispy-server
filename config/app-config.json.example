@@ -8,8 +8,8 @@
     "calendarTtlSeconds": 300,
     "tmdb": {
       "movieTtlHours": 168,
-      "showTtlHours": 24,
-      "seasonTtlHours": 24
+      "showTtlHours": 12,
+      "seasonTtlHours": 12
     }
   },
   "metadata": {
@@ -21,25 +21,25 @@
   "ai": {
     "byokOpenRouter": {
       "models": {
-        "recommendations": "openai/gpt-4o-mini",
-        "search": "openai/gpt-4o-mini",
-        "insights": "openai/gpt-4o-mini"
+        "recommendations": "minimax/minimax-m2.5:free",
+        "search": "google/gemma-4-31b-it:free",
+        "insights": "google/gemma-4-31b-it:free"
       }
     },
     "server": {
       "id": "server-ai",
       "label": "Server AI",
-      "endpointUrl": "https://your-server-ai-provider.example.com/v1/chat/completions",
+      "endpointUrl": "https://omnirouter.aayushcodes.eu/v1/chat/completions",
       "models": {
         "pro": {
-          "recommendations": "provider/pro-model",
-          "search": "provider/pro-model",
-          "insights": "provider/pro-model"
+          "recommendations": "gpt5mini",
+          "search": "gpt5mini",
+          "insights": "gpt5mini"
         },
         "ultra": {
-          "recommendations": "provider/ultra-model",
-          "search": "provider/ultra-model",
-          "insights": "provider/ultra-model"
+          "recommendations": "gpt5mini",
+          "search": "gpt5mini",
+          "insights": "gpt5mini"
         }
       }
     }
