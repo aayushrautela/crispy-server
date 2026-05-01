@@ -74,7 +74,7 @@ test('getAiProviderIdForUser falls back to default provider', async () => {
   );
 
   const result = await service.getAiProviderIdForUser('user-1');
-  assert.equal(result, 'openai');
+  assert.equal(result, 'openrouter');
 });
 
 test('getAiClientSettingsForUser returns provider metadata and selected provider', async () => {
@@ -90,7 +90,7 @@ test('getAiClientSettingsForUser returns provider metadata and selected provider
   const result = await service.getAiClientSettingsForUser('user-1');
   assert.equal(result.hasAiApiKey, true);
   assert.equal(result.providerId, 'openrouter');
-  assert.equal(result.defaultProviderId, 'openai');
+  assert.equal(result.defaultProviderId, 'openrouter');
   assert.equal(result.providers.some((provider) => provider.id === 'openrouter'), true);
 });
 
@@ -165,7 +165,7 @@ test('listAiApiKeysForLookup separates own and pooled keys with providers', asyn
 
   const result = await service.listAiApiKeysForLookup('user-1');
   assert.deepEqual(result.ownKeys, [{ providerId: 'openrouter', apiKey: 'own-key' }]);
-  assert.deepEqual(result.pooledKeys, [{ providerId: 'openai', apiKey: 'pooled-key-1' }]);
+  assert.deepEqual(result.pooledKeys, [{ providerId: 'openrouter', apiKey: 'pooled-key-1' }]);
 });
 
 test('listAiApiKeysForLookup falls back to default provider id', async () => {
@@ -181,7 +181,7 @@ test('listAiApiKeysForLookup falls back to default provider id', async () => {
   );
 
   const result = await service.listAiApiKeysForLookup('user-1');
-  assert.deepEqual(result.ownKeys, [{ providerId: 'openai', apiKey: 'own-key' }]);
+  assert.deepEqual(result.ownKeys, [{ providerId: 'openrouter', apiKey: 'own-key' }]);
   assert.deepEqual(result.pooledKeys, [{ providerId: 'openrouter', apiKey: 'pooled-key-1' }]);
 });
 

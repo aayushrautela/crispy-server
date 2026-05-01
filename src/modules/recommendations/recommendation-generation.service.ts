@@ -54,7 +54,7 @@ export class RecommendationGenerationService {
 
   async buildGenerationRequest(profileId: string): Promise<RecommendationGenerationBuildResult> {
     const context = await this.loadGenerationContext(profileId);
-    const aiRequest = await this.featureEntitlementService.resolveAiRequestForUser(context.accountId, 'insights');
+    const aiRequest = await this.featureEntitlementService.resolveAiRequestForTask(context.accountId, 'recommendations');
     const payload = await this.buildRequest(context, aiRequest);
     return { context, payload };
   }

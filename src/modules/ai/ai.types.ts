@@ -1,16 +1,19 @@
 import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 
-export type AiFeatureId = 'search' | 'insights';
-
+export type AiFeatureId = 'recommendations' | 'search' | 'insights';
 export type AiCredentialSource = 'user' | 'server' | 'shared_pool';
 
 export type AiProviderView = {
   id: string;
   label: string;
   endpointUrl: string;
+  models?: Record<AiFeatureId, string>;
 };
 
-export type AiResolvedProviderConfig = AiProviderView & {
+export type AiResolvedProviderConfig = {
+  id: string;
+  label: string;
+  endpointUrl: string;
   httpReferer: string;
   title: string;
 };

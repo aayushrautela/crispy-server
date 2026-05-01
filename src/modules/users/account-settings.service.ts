@@ -14,7 +14,7 @@ export type AccountSecretValue = {
   value: string;
 };
 
-export type PricingTier = 'free';
+export type PricingTier = 'free' | 'lite' | 'pro' | 'ultra';
 
 const DEFAULT_PRICING_TIER: PricingTier = 'free';
 

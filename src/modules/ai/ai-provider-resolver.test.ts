@@ -4,38 +4,14 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('resolver skips blocked server model and picks next configured model', async () => {
-  const { AiProviderResolver } = await import('./ai-provider-resolver.js');
-  const state = await import('./ai-server-fallback-state.js');
-
-  state.resetServerFallbackState();
-  state.recordServerModelRateLimit('openai', 'gpt-4o-mini', 120, Date.now());
-
-  const resolver = new AiProviderResolver({
-    getAiProviderIdForUser: async () => 'openrouter',
-    listAiApiKeysForLookup: async () => ({
-      ownKeys: [],
-      pooledKeys: [{ providerId: 'openrouter', apiKey: 'pool-openrouter-key' }],
-    }),
-  } as never, [{ providerId: 'openai', apiKey: 'server-openai-key' }]);
-
-  const result = await resolver.resolveForUser('user-1', 'search');
-  assert.equal(result.providerId, 'openai');
-  assert.equal(result.apiKey, 'server-openai-key');
-  assert.equal(result.credentialSource, 'server');
-  assert.equal(result.model, 'gpt-4.1-mini');
-});
-
-test('resolver prefers user key for selected provider', async () => {
+test('resolver delegates to deterministic lite BYOK task resolution', async () => {
   const { AiProviderResolver } = await import('./ai-provider-resolver.js');
 
   const resolver = new AiProviderResolver({
+    getPricingTierForUser: () => 'lite',
     getAiProviderIdForUser: async () => 'openrouter',
-    listAiApiKeysForLookup: async () => ({
-      ownKeys: [{ providerId: 'openrouter', apiKey: 'user-openrouter-key' }],
-      pooledKeys: [{ providerId: 'openrouter', apiKey: 'pool-openrouter-key' }],
-    }),
-  } as never, [{ providerId: 'openai', apiKey: 'server-openai-key' }]);
+    getAiApiKeyForUser: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'user-openrouter-key' }),
+  } as never, [{ providerId: 'openrouter', apiKey: 'server-openrouter-key' }]);
 
   const result = await resolver.resolveForUser('user-1', 'search');
   assert.equal(result.providerId, 'openrouter');
@@ -44,37 +20,35 @@ test('resolver prefers user key for selected provider', async () => {
   assert.equal(result.model, 'openai/gpt-4o-mini');
 });
 
-test('resolver falls back to server key when user key is missing', async () => {
+test('resolver does not fall back to server or pooled keys for lite without BYOK', async () => {
   const { AiProviderResolver } = await import('./ai-provider-resolver.js');
+  const { HttpError } = await import('../../lib/errors.js');
 
   const resolver = new AiProviderResolver({
+    getPricingTierForUser: () => 'lite',
     getAiProviderIdForUser: async () => 'openrouter',
-    listAiApiKeysForLookup: async () => ({
-      ownKeys: [],
-      pooledKeys: [{ providerId: 'openrouter', apiKey: 'pool-openrouter-key' }],
-    }),
-  } as never, [{ providerId: 'openai', apiKey: 'server-openai-key' }]);
+    getAiApiKeyForUser: async () => {
+      throw new HttpError(404, 'Account secret not found.');
+    },
+  } as never, [{ providerId: 'openrouter', apiKey: 'server-openrouter-key' }]);
 
-  const result = await resolver.resolveForUser('user-1', 'insights');
-  assert.equal(result.providerId, 'openai');
-  assert.equal(result.apiKey, 'server-openai-key');
-  assert.equal(result.credentialSource, 'server');
-  assert.equal(result.model, 'gpt-4.1-mini');
+  await assert.rejects(
+    () => resolver.resolveForUser('user-1', 'search'),
+    /requires an API key/,
+  );
 });
 
-test('resolver falls back to pooled key when server key is unavailable', async () => {
+test('resolver uses server env key for pro', async () => {
   const { AiProviderResolver } = await import('./ai-provider-resolver.js');
 
   const resolver = new AiProviderResolver({
+    getPricingTierForUser: () => 'pro',
     getAiProviderIdForUser: async () => 'openrouter',
-    listAiApiKeysForLookup: async () => ({
-      ownKeys: [],
-      pooledKeys: [{ providerId: 'openrouter', apiKey: 'pool-openrouter-key' }],
-    }),
-  } as never, []);
+  } as never, [{ providerId: 'openrouter', apiKey: 'server-openrouter-key' }]);
 
-  const result = await resolver.resolveForUser('user-1', 'search');
+  const result = await resolver.resolveForUser('user-1', 'insights');
   assert.equal(result.providerId, 'openrouter');
-  assert.equal(result.apiKey, 'pool-openrouter-key');
-  assert.equal(result.credentialSource, 'shared_pool');
+  assert.equal(result.apiKey, 'server-openrouter-key');
+  assert.equal(result.credentialSource, 'server');
+  assert.equal(result.model, 'openai/gpt-4o-mini');
 });

@@ -14,6 +14,16 @@ export const aiProviderViewSchema = {
     id: nonEmptyStringSchema,
     label: nonEmptyStringSchema,
     endpointUrl: nonEmptyStringSchema,
+    models: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['recommendations', 'search', 'insights'],
+      properties: {
+        recommendations: nonEmptyStringSchema,
+        search: nonEmptyStringSchema,
+        insights: nonEmptyStringSchema,
+      },
+    },
   },
 } as const;
 
@@ -46,7 +56,7 @@ export const accountScopedSettingsSchema = {
   properties: {
     pricingTier: {
       type: 'string',
-      enum: ['free'],
+      enum: ['free', 'lite', 'pro', 'ultra'],
     },
     ai: aiClientSettingsSchema,
     metadata: metadataClientSettingsSchema,

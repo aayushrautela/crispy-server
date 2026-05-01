@@ -1,6 +1,8 @@
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import { AiProviderResolver } from '../ai/ai-provider-resolver.js';
+import { AiCredentialResolver } from '../ai/ai-credential-resolver.service.js';
+import type { AiTaskId } from '../ai/ai-credential-resolver.service.js';
 import type { AiFeatureId, ResolvedAiRequest } from '../ai/ai.types.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 
@@ -9,6 +11,7 @@ const MDB_NOT_CONFIGURED_MESSAGE = 'MDBList is not configured. Add your MDBList 
 export class FeatureEntitlementService {
   constructor(
     private readonly aiProviderResolver = new AiProviderResolver(),
+    private readonly aiCredentialResolver = new AiCredentialResolver(),
     private readonly accountSettingsService = new AccountSettingsService(),
     private readonly mdblistApiKey = env.mdblistApiKey,
   ) {}
@@ -19,6 +22,13 @@ export class FeatureEntitlementService {
     options?: { excludeRequestKeys?: Set<string> },
   ): Promise<ResolvedAiRequest> {
     return this.aiProviderResolver.resolveForUser(userId, feature, options);
+  }
+
+  async resolveAiRequestForTask(
+    userId: string,
+    task: AiTaskId,
+  ): Promise<ResolvedAiRequest> {
+    return this.aiCredentialResolver.resolveForTask(userId, task);
   }
 
   async getMetadataClientSettingsForUser(userId: string): Promise<{ hasMdbListAccess: boolean }> {

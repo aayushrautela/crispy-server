@@ -16,7 +16,10 @@ type AiFeaturePolicy = {
   fallback: AiFeaturePolicyStep[];
 };
 
-export type AppAiProviderConfig = AiProviderView & {
+export type AppAiProviderConfig = {
+  id: string;
+  label: string;
+  endpointUrl: string;
   models: Record<AiFeatureId, string>;
 };
 
@@ -69,6 +72,7 @@ export function listPublicAiProviders(): AiProviderView[] {
     id: provider.id,
     label: provider.label,
     endpointUrl: provider.endpointUrl,
+    models: provider.models,
   }));
 }
 
@@ -183,6 +187,7 @@ function parseAiProviders(root: Record<string, unknown>): Record<string, AppAiPr
       label: expectNonEmptyString(provider.label, `ai.providers[${index}].label`),
       endpointUrl: expectNonEmptyString(provider.endpointUrl, `ai.providers[${index}].endpointUrl`),
       models: {
+        recommendations: expectNonEmptyString(models.recommendations, `ai.providers[${index}].models.recommendations`),
         search: expectNonEmptyString(models.search, `ai.providers[${index}].models.search`),
         insights: expectNonEmptyString(models.insights, `ai.providers[${index}].models.insights`),
       },
@@ -214,6 +219,7 @@ function parseAiConfig(
     providers,
     providerOrder: Object.keys(providers),
     features: {
+      recommendations: parseAiFeaturePolicy('recommendations', features, providers),
       search: parseAiFeaturePolicy('search', features, providers),
       insights: parseAiFeaturePolicy('insights', features, providers),
     },
