@@ -1,6 +1,6 @@
 # Metadata Details Replacement Plan
 
-> Archived planning document. This file describes an older multi-provider metadata architecture and is not the current runtime contract. Use `architecture.md`, `plan.md`, and `src/http/contracts/*` for the current TMDB-only model.
+> Archived/historical plan. This document describes an older multi-provider metadata architecture, may mention provider-authority assumptions, and is not the current runtime contract. Do not implement new code from those assumptions; use `architecture.md`, `RECOMMENDATION_ENGINE_CONTRACT.md`, and `src/http/contracts/*` for the current TMDB-only model.
 
 ## Status
 

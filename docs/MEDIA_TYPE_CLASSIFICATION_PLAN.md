@@ -1,6 +1,6 @@
 # Media Type Classification and Provider Routing Plan
 
-> Archived planning document. This file describes the removed provider-authority design (`show -> tvdb`, `anime -> kitsu`) and is preserved only as historical context. Use `architecture.md` and `plan.md` for the current TMDB-only model.
+> Archived/historical plan. This document predates the current TMDB-only canonical identity architecture and may mention TVDB/Kitsu provider authority or first-class anime identity. Do not implement new code from those assumptions; use `architecture.md` and `RECOMMENDATION_ENGINE_CONTRACT.md` instead.
 
 ## Why This Plan Exists
 

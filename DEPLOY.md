@@ -50,7 +50,9 @@
 
    The API requires `SERVICE_CLIENTS_JSON` for inbound service-to-service authentication. Any privileged caller that sends `x-service-id` and `x-api-key` to this API must match an active entry in `SERVICE_CLIENTS_JSON`.
 
-Recommendation generation is now server-orchestrated. The API server loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists outputs itself. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB/TVDB/Kitsu catalog fetches for enrichment, does not poll the API server for work leases, does not need `recommendation-work:*` scopes, and must return final canonical recommendation identities for every item.
+   Recommendation generation is handled by an external pull-based recommendation engine. The engine authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for profile data, canonical TMDB-backed media identity, and stored recommendation snapshots.
+
+   Do not deploy a separate recommendation worker from this repository. The `worker` container/process in this repo is the internal BullMQ worker for backend queue jobs; scaling it affects internal async work only and does not scale recommendation generation.
 
    When integrating a privileged internal caller, model ownership as:
 
@@ -58,12 +60,12 @@ Recommendation generation is now server-orchestrated. The API server loads all u
    - profile identifies the personal experience being targeted inside that account
    - account-shared secret routes are account-owned even when a current helper route accepts `:profileId`
 
-   Example inbound service auth config:
+   Example inbound service auth config for the external recommendation engine:
    ```env
-    SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-internal-tool","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","admin:diagnostics:read"],"status":"active"}]
+    SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-recommendation-engine","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","confidential-config:ai-config:read","admin:diagnostics:read"],"status":"active"}]
     ```
 
-   Recommendation generation is pull-based. RECO authenticates as an internal app principal, reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1`, then writes service-owned recommendation outputs through the internal app API. MAIN does not call RECO.
+   The external recommendation engine reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1` when authorized, then writes service-owned recommendation outputs through the internal app API. MAIN does not call the engine or poll it for generation status.
 
    Privileged inbound data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 

@@ -44,10 +44,10 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Do not guess route shapes from old discussions; verify them against `src/http/app.ts` and `src/http/routes/*.ts`.
 - The README contains a maintained endpoint map and should stay in sync with the route files.
 - Do not reintroduce legacy profile-only internal compatibility routes; privileged integrations should use `/internal/v1/accounts/...`.
-- Human admin and orchestration UI belongs on the API server control plane, not on the recommendation worker.
-- Recommendation generation is server-orchestrated: the API server owns user-data loading, AI credential resolution, orchestration, and persistence; the recommendation worker owns recommendation generation and taste-profile computation.
-- The recommendation worker may perform read-only TMDB/TVDB/Kitsu catalog or discovery fetches for enrichment, but it must not fetch user/business data or write application storage.
-- Recommendation outputs should use final canonical identities: `movie:tmdb:*`, `show:tvdb:*`, and `anime:kitsu:*`, with `mediaKey`, `mediaType`, `provider`, and `providerId` present on every recommendation item.
+- Human admin and diagnostics UI belongs on the API server control plane, not on the external recommendation engine.
+- Recommendation generation is pull-based and external: the engine calls authenticated Crispy API endpoints to fetch bounded source data and configuration. Do not describe MAIN as submitting generation jobs to it or polling it for status.
+- The external recommendation engine is not this repository's BullMQ worker. `src/bin/worker.ts`, `npm run dev:worker`, and the `worker` container refer only to the internal BullMQ worker for backend queue jobs.
+- Recommendation outputs should use final canonical TMDB-backed identities: `movie:tmdb:*`, `show:tmdb:*`, `season:tmdb:*`, `episode:tmdb:*`, and `person:tmdb:*`. TVDB and Kitsu IDs may appear only as non-canonical import-source bookkeeping, external IDs, or compatibility crosswalk fields.
 - Profile-targeted user routes use explicit `:profileId` path params.
 - Do not reintroduce header-based or body-based profile targeting fallbacks.
 
@@ -65,7 +65,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - home and calendar surfaces
 - TMDB-backed metadata lookups and refreshes
 - provider imports and token refresh flows for Trakt and Simkl
-- recommendation data, outputs, and work leasing
+- recommendation data, external engine integration surfaces, and stored outputs
 - AI search and AI insights
 
 ## Source-of-truth files

@@ -16,13 +16,14 @@ If implementation, README examples, or older planning docs disagree, this file w
 Crispy Server owns application logic and application data.
 
 - API runtime: Fastify
-- Worker runtime: BullMQ worker
+- Worker runtime: internal BullMQ worker for backend queue jobs
 - primary database: Postgres
 - queue and cache: Redis
 - external auth provider: Supabase auth only
 - canonical metadata provider: TMDB
 - import providers: Trakt, Simkl
 - AI providers: OpenAI-compatible endpoints
+- external recommendation engine: pull-based service that calls Crispy API
 
 Boundary rules:
 
@@ -30,6 +31,7 @@ Boundary rules:
 - Supabase is not the application database.
 - Application state, watch data, metadata state, imports, and recommendations live on our server.
 - Trakt and Simkl are import sources, not canonical metadata authorities.
+- The external recommendation engine calls authenticated Crispy API endpoints for source data; it is not the internal BullMQ worker and does not read the application database directly.
 
 ## Module Layout
 
@@ -40,7 +42,7 @@ Boundary rules:
 - `metadata` - TMDB metadata, detail assembly, scheduling, card/detail projections
 - `watch` - profile watch state, read models, and event ingestion
 - `calendar` - derived calendar surfaces
-- `recommendations` - recommendation data and snapshots
+- `recommendations` - stored recommendation snapshots, read models, and API integration surfaces for the external engine
 - `integrations` - Trakt/Simkl imports and connections
 - `ai` - AI search and insights
 
@@ -135,6 +137,12 @@ Rules:
 - imports normalize source data into TMDB-backed `movie` and `show` identities
 - unresolved imports should be surfaced rather than forced into bad canonical mappings
 - legacy provider/source bookkeeping may still appear in import history objects, but canonical runtime identity remains TMDB-only
+
+## Recommendation Model
+
+Recommendation generation is delegated to an external pull-based recommendation engine. The engine calls authenticated Crispy API endpoints to retrieve authorized source data and configuration. It is not this repository's internal BullMQ worker and does not read the application database directly.
+
+Crispy Server owns account/profile authorization, watch and rating data, canonical TMDB-backed media identity, and stored recommendation snapshots served to clients. The external engine owns recommendation-generation strategy and model behavior.
 
 ## AI Model
 

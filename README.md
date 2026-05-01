@@ -420,7 +420,7 @@ The internal AI secret route now returns provider metadata alongside the secret 
 - `GET /internal/v1/admin/imports/connections` - import connection diagnostics
 - `GET /internal/v1/admin/imports/jobs` - import job diagnostics
 
-The recommendation worker no longer polls the API server for claim/renew/complete leases. It is a stateless compute service invoked by the API server. It must not fetch user/business data or write storage, but it may perform read-only TMDB catalog or discovery fetches needed to enrich recommendation outputs.
+The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve bounded profile, watch, rating, watchlist, episodic follow, metadata, and configuration context for generation. It is not this repository's internal BullMQ worker, MAIN does not push generation jobs to it, and MAIN does not poll it for job status.
 
 ## Current product-scoping rules
 
@@ -435,7 +435,9 @@ The recommendation worker no longer polls the API server for claim/renew/complet
 
 ## Recommendation architecture
 
-Recommendation generation is pull-based. The recommendation engine (RECO) calls MAIN's `/internal/apps/v1` and `/internal/confidential/v1` endpoints to fetch profile data and config. MAIN does not push work to RECO or poll RECO for status.
+Recommendation generation is pull-based. The external recommendation engine calls MAIN's authenticated API endpoints, including `/internal/apps/v1` and `/internal/confidential/v1` where authorized, to fetch profile data and configuration. MAIN does not push work to the engine or poll the engine for status. Stored recommendation snapshots remain in Crispy Server and are served to clients by MAIN.
+
+The engine is separate from the internal BullMQ worker started by this repository. Running or scaling `npm run dev:worker` affects only backend queue jobs owned by Crispy Server; it does not run or scale recommendation generation.
 
 ## Admin control plane
 
@@ -450,7 +452,7 @@ Recommendation generation is pull-based. The recommendation engine (RECO) calls 
 - provider-routed metadata search and detail views
 - home and calendar surfaces
 - provider imports from Trakt and Simkl
-- recommendation data, orchestration, and outputs
+- recommendation data, external engine integration surfaces, and stored outputs
 - AI search and AI insights
 
 ## Local development
