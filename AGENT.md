@@ -25,7 +25,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 
 - User auth: bearer JWTs are verified against a remote JWKS, then the backend upserts a local app user from the auth subject.
 - Personal access tokens: local `cp_pat_...` tokens issued and validated by this server.
-- Service-to-service auth: internal callers send `x-service-id` and `x-api-key`; permissions come from `SERVICE_CLIENTS_JSON`.
+- Official recommender auth: callers send a bearer token whose SHA-256 hash matches `CRISPY_RECOMMENDER_API_TOKEN_HASH`.
 - The signed-in account is the only auth actor and the ownership root.
 - Email is an account lookup attribute at the product boundary; the durable internal ownership key remains the local app-user id.
 - Profiles are child personas under one account, not standalone users.
@@ -78,7 +78,6 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/http/app.ts` - registered route surface
 - `src/http/routes/` - actual endpoint definitions
 - `src/http/plugins/auth.ts` - user JWT and PAT auth flow
-- `src/http/plugins/service-auth.ts` - internal scoped service auth
 - `src/modules/auth/external-auth-admin.service.ts` - optional upstream auth user deletion
 - `src/modules/users/user.service.ts` - local app-user bootstrap from auth subject
 - `src/modules/users/account-settings.service.ts` - account-shared settings and secrets

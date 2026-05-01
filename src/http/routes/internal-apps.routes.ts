@@ -31,14 +31,14 @@ export interface InternalAppsRoutesDeps {
 
 export async function registerInternalAppsRoutes(app: FastifyInstance, deps: InternalAppsRoutesDeps): Promise<void> {
   app.get('/internal/apps/v1/me', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     deps.appAuthorizationService.requireScope({ principal, scope: 'apps:self:read' });
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'apps.self' });
     return deps.appSelfService.getAppSelf(principal);
   });
 
   app.get('/internal/apps/v1/profiles/eligible/changes', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.changes' });
     const query = request.query as { cursor?: string; limit?: string; reason?: string; accountId?: string; profileId?: string };
     return deps.eligibleProfileChangeFeedService.listChanges({
@@ -52,7 +52,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.post('/internal/apps/v1/profiles/eligible/snapshots', async (request, reply) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.snapshots' });
     const result = await deps.eligibleProfileSnapshotService.createSnapshot({
       principal,
@@ -62,7 +62,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.get('/internal/apps/v1/profiles/eligible/snapshots/:snapshotId/items', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.snapshots' });
     const params = request.params as { snapshotId: string };
     const query = request.query as { cursor?: string; limit?: string; leaseSeconds?: string };
@@ -76,7 +76,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.changes', accountId: params.accountId, profileId: params.profileId });
     return deps.profileEligibilityService.check({
@@ -88,7 +88,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
     const query = request.query as { include?: string; historyLimit?: string; ratingsLimit?: string; watchlistLimit?: string; continueLimit?: string; since?: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
@@ -109,13 +109,13 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.get('/internal/apps/v1/recommendations/service-lists', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.service-lists' });
     return deps.serviceRecommendationListService.listWritableLists({ principal });
   });
 
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', async (request, reply) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string; listKey: string };
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId, listKey: params.listKey });
@@ -131,7 +131,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.post('/internal/apps/v1/recommendations/batch-upsert', async (request, reply) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batch-write' });
     const result = await deps.serviceRecommendationListService.batchUpsert({
@@ -143,7 +143,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.post('/internal/apps/v1/recommendations/runs', async (request, reply) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.runs' });
     const result = await deps.recommendationRunService.createRun({
       principal,
@@ -153,7 +153,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.patch('/internal/apps/v1/recommendations/runs/:runId', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { runId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.runs', runId: params.runId });
     return deps.recommendationRunService.updateRun({
@@ -164,7 +164,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.post('/internal/apps/v1/recommendations/runs/:runId/batches', async (request, reply) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { runId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batches', runId: params.runId });
     const result = await deps.recommendationBatchService.createBatch({
@@ -176,7 +176,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.patch('/internal/apps/v1/recommendations/runs/:runId/batches/:batchId', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { runId: string; batchId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batches', runId: params.runId });
     return deps.recommendationBatchService.updateBatch({
@@ -188,7 +188,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.get('/internal/apps/v1/recommendations/backfills/assignments', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const query = request.query as { status?: Parameters<RecommendationBackfillService['getAssignments']>[0]['query']['status']; limit?: string; cursor?: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.backfills' });
     return deps.recommendationBackfillService.getAssignments({
@@ -202,7 +202,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.get('/internal/apps/v1/audit/events', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     const query = request.query as { accountId?: string; profileId?: string; runId?: string; batchId?: string; cursor?: string; limit?: string };
     deps.appAuthorizationService.requireScope({ principal, scope: 'apps:audit:read' });
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'apps.audit' });

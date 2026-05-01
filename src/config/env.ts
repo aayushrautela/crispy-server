@@ -1,6 +1,4 @@
 import dotenv from 'dotenv';
-import { parseServiceClientRegistryConfig } from '../modules/auth/service-client-registry.js';
-
 dotenv.config();
 
 function requireEnv(name: string): string {
@@ -94,7 +92,7 @@ export const env = {
   simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
   recommendationAlgorithmVersion: optionalEnv('RECOMMENDATION_ALGORITHM_VERSION') ?? 'v3.2.1',
   recommendationGenerationTtlSeconds: parseNumber('RECOMMENDATION_GENERATION_TTL_SECONDS', 86400),
-  serviceClients: parseServiceClientRegistryConfig(requireEnv('SERVICE_CLIENTS_JSON')),
+  crispyRecommenderApiTokenHash: optionalEnv('CRISPY_RECOMMENDER_API_TOKEN_HASH') ?? '',
 };
 
 export type Env = typeof env;

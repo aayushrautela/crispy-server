@@ -14,37 +14,14 @@ export async function registerInternalConfidentialRoutes(
 
   app.post('/internal/confidential/v1/accounts/:accountId/profiles/:profileId/config-bundle', async (request) => {
     const params = request.params as { accountId: string; profileId: string };
-    
-    // Try app auth first, fall back to service auth for backwards compatibility
-    let context: ConfidentialBundleContext;
-    
-    try {
-      const principal = await app.requireAppAuth(request);
-      context = {
-        authType: 'app',
-        accountId: params.accountId,
-        profileId: params.profileId,
-        scopes: principal.scopes,
-        actor: { type: 'app', principal },
-      };
-    } catch (appAuthError) {
-      // Fall back to service auth
-      await app.requireServiceAuth(request);
-      app.requireScopes(request, ['confidential-config:ai-config:read']);
-      
-      const auth = request.auth;
-      if (auth?.type !== 'service' || !auth.serviceId) {
-        throw confidentialConfigService.toPublicError(new Error('Service or app authentication is required.'));
-      }
-      
-      context = {
-        authType: 'service',
-        accountId: params.accountId,
-        profileId: params.profileId,
-        scopes: auth.scopes,
-        actor: { type: 'service', serviceId: auth.serviceId },
-      };
-    }
+    const principal = await app.requireRecommenderAuth(request);
+    const context: ConfidentialBundleContext = {
+      authType: 'app',
+      accountId: params.accountId,
+      profileId: params.profileId,
+      scopes: principal.scopes,
+      actor: { type: 'app', principal },
+    };
 
     try {
       return await confidentialConfigService.resolveBundle(

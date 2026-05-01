@@ -50,7 +50,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.get('/v1/account/secrets/ai-api-key', { schema: aiAccountSecretGetRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     return {
       secret: await accountSettingsService.getAiApiKeyForUser(actor.appUserId),
     };
@@ -58,7 +58,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.put('/v1/account/secrets/ai-api-key', { schema: aiAccountSecretPutRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
     return {
       secret: await accountSettingsService.setAiApiKeyForUser(actor.appUserId, String(body.value ?? '')),
@@ -67,7 +67,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.delete('/v1/account/secrets/ai-api-key', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     return {
       deleted: await accountSettingsService.clearAiApiKeyForUser(actor.appUserId),
     };
@@ -75,7 +75,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.get('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretGetRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     return {
       secret: await accountSettingsService.getMdbListApiKeyForUser(actor.appUserId),
     };
@@ -83,7 +83,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.put('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretPutRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
     return {
       secret: await accountSettingsService.setMdbListApiKeyForUser(actor.appUserId, String(body.value ?? '')),
@@ -92,7 +92,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.delete('/v1/account/secrets/mdblist-api-key', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     return {
       deleted: await accountSettingsService.clearMdbListApiKeyForUser(actor.appUserId),
     };
@@ -100,7 +100,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
 
   app.delete('/v1/account', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     return {
       deleted: await accountDeletionService.deleteAccount({
         appUserId: actor.appUserId,

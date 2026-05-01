@@ -4,7 +4,6 @@ import { db } from '../lib/db.js';
 import adminUiAuthPlugin from './plugins/admin-ui-auth.js';
 import authPlugin from './plugins/auth.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
-import serviceAuthPlugin from './plugins/service-auth.js';
 import appAuthPlugin from './plugins/app-auth.plugin.js';
 import { SqlAppRegistryRepo } from '../modules/apps/app-registry.repo.js';
 import { SqlAppKeyRepo } from '../modules/apps/app-key.repo.js';
@@ -23,9 +22,6 @@ import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
-import { registerInternalAdminImportRoutes } from './routes/internal-admin-imports.js';
-import { registerInternalAccountRoutes } from './routes/internal-accounts.js';
-import { registerInternalAdminRecommendationRoutes } from './routes/internal-admin-recommendations.js';
 import { registerInternalConfidentialRoutes } from './routes/internal-confidential.js';
 import { ConfidentialConfigService } from '../modules/confidential/service.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
@@ -63,7 +59,6 @@ import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
 declare module 'fastify' {
   interface FastifyInstance {
     requireAuth(request: import('fastify').FastifyRequest): Promise<void>;
-    requireServiceAuth(request: import('fastify').FastifyRequest): Promise<void>;
     requireUserActor(request: import('fastify').FastifyRequest): UserAuthActor;
     requireScopes(request: import('fastify').FastifyRequest, scopes: AuthScope[]): void;
   }
@@ -220,7 +215,6 @@ export async function buildApp() {
   await app.register(errorHandlerPlugin);
   await app.register(adminUiAuthPlugin);
   await app.register(authPlugin);
-  await app.register(serviceAuthPlugin);
   const appAuthDeps = buildAppAuthDependencies();
   await app.register(appAuthPlugin, appAuthDeps);
 
@@ -248,9 +242,6 @@ export async function buildApp() {
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
   await registerRecommendationOutputRoutes(app);
-  await registerInternalAccountRoutes(app);
-  await registerInternalAdminRecommendationRoutes(app);
-  await registerInternalAdminImportRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
   await registerInternalConfidentialRoutes(app, {
     confidentialConfigService: buildConfidentialConfigService(internalAppsDeps),

@@ -91,12 +91,6 @@ Redis backs BullMQ and cached API surfaces such as calendar.
 - Local PATs start with `cp_pat_`.
 - They are issued, stored, and verified by this backend.
 
-### Internal service auth
-
-- Internal callers use `x-service-id` and `x-api-key`.
-- Credentials come from `SERVICE_CLIENTS_JSON`.
-- This is for privileged internal services that call this API.
-
 ## Auth envs
 
 When Supabase is the external auth provider, configure the backend with the project base URL and a server-only secret key:
@@ -114,7 +108,7 @@ SUPABASE_SECRET_KEY=<sb_secret key>
 
 - `GET /healthz` is public.
 - Most `/v1/...` routes require user auth through bearer JWT or local PAT.
-- Most `/internal/v1/...` routes require service auth through `x-service-id` and `x-api-key`.
+- `/internal/v1/apps/...` routes use app authentication; account management uses Supabase JWT-backed user auth.
 - Profile-targeted user routes now use explicit `:profileId` path params.
 - Profiles are targets under an authenticated account, not separately authenticated actors.
 - `GET /v1/imports/:provider/callback` is the provider OAuth callback and does not require prior API auth.
@@ -468,7 +462,6 @@ The engine is separate from the internal BullMQ worker started by this repositor
      - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
      - `APP_PUBLIC_URL` and `APP_DISPLAY_NAME` define the API server's canonical outbound app identity. They are used for OpenAI-compatible `HTTP-Referer` and `X-Title` headers.
      - `AUTH_*` values are only used for external auth.
-      - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
       - `AI_SERVER_API_KEY` is an optional single server-managed AI credential used for Pro and Ultra tier AI features. Lite tier users provide their own OpenRouter key.
      - `RECOMMENDATION_ALGORITHM_VERSION` sets the canonical recommendation snapshot version. It defaults to `v3.2.1`.
      - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
@@ -503,7 +496,7 @@ npm run test
 
 ## Deployment
 
-See `DEPLOY.md` for the VPS flow and the expected service-to-service auth setup for hosted internal consumers.
+See `DEPLOY.md` for the VPS flow and hosted deployment setup.
 
 ## Source of truth for architecture questions
 
@@ -517,7 +510,6 @@ When in doubt, verify against these files:
 - `src/http/app.ts`
 - `src/http/routes/`
 - `src/http/plugins/auth.ts`
-- `src/http/plugins/service-auth.ts`
 - `src/bin/api.ts`
 - `src/bin/worker.ts`
 - `docker-compose.yml`

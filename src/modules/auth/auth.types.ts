@@ -1,4 +1,4 @@
-export type AuthActorType = 'user' | 'pat' | 'service';
+export type AuthActorType = 'user' | 'pat' | 'service' | 'recommender';
 
 export const AUTH_SCOPES = [
   'profiles:read',

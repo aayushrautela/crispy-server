@@ -14,8 +14,8 @@ declare module 'fastify' {
 
   interface FastifyInstance {
     requireAuth(request: import('fastify').FastifyRequest): Promise<void>;
-    requireServiceAuth(request: import('fastify').FastifyRequest): Promise<void>;
     requireUserActor(request: import('fastify').FastifyRequest): UserAuthActor;
+    requireUserSessionActor(request: import('fastify').FastifyRequest): UserAuthActor;
     requireScopes(request: import('fastify').FastifyRequest, scopes: AuthScope[]): void;
   }
 }
@@ -70,6 +70,14 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const auth = request.auth;
     if (!auth?.appUserId || (auth.type !== 'user' && auth.type !== 'pat')) {
       throw new HttpError(403, 'User authentication required.');
+    }
+    return auth as UserAuthActor;
+  });
+
+  fastify.decorate('requireUserSessionActor', (request: import('fastify').FastifyRequest) => {
+    const auth = request.auth;
+    if (!auth?.appUserId || auth.type !== 'user') {
+      throw new HttpError(403, 'User session authentication required.');
     }
     return auth as UserAuthActor;
   });

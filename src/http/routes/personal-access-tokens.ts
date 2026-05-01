@@ -8,7 +8,7 @@ export async function registerPersonalAccessTokenRoutes(app: FastifyInstance): P
 
   app.get('/v1/auth/personal-access-tokens', async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     return {
       items: await patService.listForUser(actor.appUserId),
     };
@@ -16,7 +16,7 @@ export async function registerPersonalAccessTokenRoutes(app: FastifyInstance): P
 
   app.post('/v1/auth/personal-access-tokens', async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
     const created = await patService.createForUser(actor.appUserId, {
       name: String(body.name ?? '').trim(),
@@ -29,7 +29,7 @@ export async function registerPersonalAccessTokenRoutes(app: FastifyInstance): P
 
   app.delete('/v1/auth/personal-access-tokens/:tokenId', async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserSessionActor(request);
     const params = request.params as { tokenId: string };
     return {
       token: await patService.revokeForUser(actor.appUserId, params.tokenId),

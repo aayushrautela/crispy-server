@@ -26,10 +26,10 @@ The engine authenticates to Crispy API as a service principal using the existing
 
 ```text
 x-service-id: crispy-recommendation-engine
-x-api-key: <secret configured in SERVICE_CLIENTS_JSON>
+Authorization: Bearer <raw token whose SHA-256 hash matches CRISPY_RECOMMENDER_API_TOKEN_HASH>
 ```
 
-`SERVICE_CLIENTS_JSON` controls the active service id, API key, status, and scopes. Grant only the scopes required by the engine deployment, such as profile/watch reads, recommendation reads/writes, taste-profile reads/writes, provider-token reads where explicitly needed, and confidential AI config reads where authorized.
+`CRISPY_RECOMMENDER_API_TOKEN_HASH` controls access for the official recommender API token. Configure it to the SHA-256 hash of the raw bearer token used by the recommender deployment.
 
 ## Source Data Retrieval
 

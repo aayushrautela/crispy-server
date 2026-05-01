@@ -6,7 +6,6 @@ setTestEnv({
   ADMIN_UI_USER: 'admin-user',
   ADMIN_UI_PASSWORD: 'admin-pass',
   ADMIN_UI_SESSION_SECRET: 'admin-session-secret-for-tests',
-  SERVICE_CLIENTS_JSON: '[]',
 });
 
 test('admin episodic-follow route returns canonical next-episode fields for authenticated admin session', async (t) => {
