@@ -33,8 +33,10 @@ services:
       - .:/app
       - /app/node_modules
     networks:
-      - default
-      - crispy-shared
+      default:
+      crispy-shared:
+        aliases:
+          - crispy-server-api
 
   worker:
     build:
