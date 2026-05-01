@@ -1,9 +1,9 @@
 import { env } from '../../config/env.js';
-import { appConfig, requireAiProvider } from '../../config/app-config.js';
+import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
 import { AccountSettingsService } from '../users/account-settings.service.js';
 import type { PricingTier } from '../users/account-settings.service.js';
-import type { AiFeatureId, ResolvedAiRequest, AiApiKeyCandidate } from './ai.types.js';
+import type { AiFeatureId, ResolvedAiRequest, AiApiKeyCandidate, ServerAiTier } from './ai.types.js';
 
 export type AiTaskId = 'recommendations' | 'search' | 'insights';
 
@@ -21,13 +21,14 @@ const AI_TASK_CONFIGS: Record<AiTaskId, AiTaskConfig> = {
 type TierCredentialPolicy = {
   allowUserKey: boolean;
   allowServerKey: boolean;
+  serverTier?: ServerAiTier;
 };
 
 const TIER_POLICIES: Record<PricingTier, TierCredentialPolicy> = {
   free: { allowUserKey: false, allowServerKey: false },
   lite: { allowUserKey: true, allowServerKey: false },
-  pro: { allowUserKey: false, allowServerKey: true },
-  ultra: { allowUserKey: false, allowServerKey: true },
+  pro: { allowUserKey: false, allowServerKey: true, serverTier: 'pro' },
+  ultra: { allowUserKey: false, allowServerKey: true, serverTier: 'ultra' },
 };
 
 export class AiCredentialResolver {
@@ -60,30 +61,25 @@ export class AiCredentialResolver {
     }
 
     if (policy.allowUserKey && !policy.allowServerKey) {
-      // Lite tier: configured BYOK provider only.
-      const liteProvider = requireAiProvider(appConfig.ai.liteProviderId);
-      const selectedProviderId = await this.accountSettingsService.getAiProviderIdForUser(userId);
-      if (selectedProviderId !== liteProvider.id) {
-        throw new HttpError(412, `AI ${task} requires ${liteProvider.label} BYOK on the ${tier} tier.`);
-      }
-
+      // Lite tier: BYOK OpenRouter only.
+      const byokProvider = getByokOpenRouterProvider();
       const userKey = await this.getUserApiKey(userId);
       if (!userKey) {
         throw new HttpError(
           412,
-          `AI ${task} requires an API key. Add your ${liteProvider.label} API key in Account Settings.`,
+          `AI ${task} requires an API key. Add your ${byokProvider.label} API key in Account Settings.`,
         );
       }
 
-      const model = liteProvider.models[taskConfig.feature];
+      const model = byokProvider.models[taskConfig.feature];
 
       return {
         feature: taskConfig.feature,
-        providerId: liteProvider.id,
+        providerId: byokProvider.id,
         provider: {
-          id: liteProvider.id,
-          label: liteProvider.label,
-          endpointUrl: liteProvider.endpointUrl,
+          id: byokProvider.id,
+          label: byokProvider.label,
+          endpointUrl: byokProvider.endpointUrl,
           httpReferer: env.appPublicUrl,
           title: env.appDisplayName,
         },
@@ -94,8 +90,8 @@ export class AiCredentialResolver {
     }
 
     if (policy.allowServerKey && !policy.allowUserKey) {
-      // Pro/Ultra tier: configured server provider only.
-      const serverKey = this.getServerApiKey(appConfig.ai.serverProviderId, taskConfig.feature);
+      // Pro/Ultra tier: server-funded AI.
+      const serverKey = this.getServerApiKey(policy.serverTier!, taskConfig.feature);
       if (!serverKey) {
         throw new HttpError(
           503,
@@ -121,26 +117,25 @@ export class AiCredentialResolver {
     }
   }
 
-  private getServerApiKey(providerId: string, feature: AiFeatureId): ResolvedAiRequest | null {
-    const candidates = this.serverKeys.filter((entry) => entry.providerId === providerId);
-    if (candidates.length === 0) {
+  private getServerApiKey(tier: ServerAiTier, feature: AiFeatureId): ResolvedAiRequest | null {
+    if (this.serverKeys.length === 0) {
       return null;
     }
 
-    const provider = requireAiProvider(providerId);
-    const model = provider.models[feature];
-    const candidate = candidates[0];
+    const serverProvider = getServerAiProvider();
+    const model = serverProvider.models[tier][feature];
+    const candidate = this.serverKeys[0];
     if (!candidate) {
       return null;
     }
 
     return {
       feature,
-      providerId: provider.id,
+      providerId: serverProvider.id,
       provider: {
-        id: provider.id,
-        label: provider.label,
-        endpointUrl: provider.endpointUrl,
+        id: serverProvider.id,
+        label: serverProvider.label,
+        endpointUrl: serverProvider.endpointUrl,
         httpReferer: env.appPublicUrl,
         title: env.appDisplayName,
       },

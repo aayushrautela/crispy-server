@@ -1,5 +1,4 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
-import { appConfig, isAiProviderId } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AiClientSettings } from '../ai/ai.types.js';
 import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-account-settings.js';
@@ -246,15 +245,7 @@ function normalizeEditableAiSettings(value: unknown): Record<string, unknown> {
   delete aiSettings.endpointUrl;
 
   if (Object.hasOwn(aiSettings, 'providerId')) {
-    const rawProviderId = typeof aiSettings.providerId === 'string'
-      ? aiSettings.providerId.trim()
-      : '';
-
-    if (rawProviderId && !isAiProviderId(rawProviderId)) {
-      throw new HttpError(400, 'AI provider is not supported.');
-    }
-
-    aiSettings.providerId = rawProviderId || appConfig.ai.defaultProviderId;
+    delete aiSettings.providerId;
   }
 
   return aiSettings;

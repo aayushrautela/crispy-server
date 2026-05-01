@@ -2,11 +2,11 @@ import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.j
 
 export type AiFeatureId = 'recommendations' | 'search' | 'insights';
 export type AiCredentialSource = 'user' | 'server';
+export type ServerAiTier = 'pro' | 'ultra';
 
 export type AiProviderView = {
   id: string;
   label: string;
-  endpointUrl: string;
   models?: Record<AiFeatureId, string>;
 };
 
@@ -39,8 +39,8 @@ export type AiClientSettings = {
 };
 
 export type AiApiKeyCandidate = {
-  providerId: string;
   apiKey: string;
+  providerId?: string;
 };
 
 export type ResolvedAiRequest = {

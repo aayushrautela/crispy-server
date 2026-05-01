@@ -19,20 +19,29 @@
     }
   },
   "ai": {
-    "defaultProviderId": "openrouter",
-    "liteProviderId": "openrouter",
-    "serverProviderId": "openrouter",
-    "providers": [
-      {
-        "id": "openrouter",
-        "label": "OpenRouter",
-        "endpointUrl": "https://openrouter.ai/api/v1/chat/completions",
-        "models": {
-          "recommendations": "openai/gpt-4o-mini",
-          "search": "openai/gpt-4o-mini",
-          "insights": "openai/gpt-4o-mini"
+    "byokOpenRouter": {
+      "models": {
+        "recommendations": "openai/gpt-4o-mini",
+        "search": "openai/gpt-4o-mini",
+        "insights": "openai/gpt-4o-mini"
+      }
+    },
+    "server": {
+      "id": "server-ai",
+      "label": "Server AI",
+      "endpointUrl": "https://your-server-ai-provider.example.com/v1/chat/completions",
+      "models": {
+        "pro": {
+          "recommendations": "provider/pro-model",
+          "search": "provider/pro-model",
+          "insights": "provider/pro-model"
+        },
+        "ultra": {
+          "recommendations": "provider/ultra-model",
+          "search": "provider/ultra-model",
+          "insights": "provider/ultra-model"
         }
       }
-    ]
+    }
   }
 }

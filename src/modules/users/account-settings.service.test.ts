@@ -167,24 +167,14 @@ test('normalizeAccountSettingsPatch keeps editable AI settings and strips derive
   });
 
   assert.deepEqual(result, {
-    ai: {
-      providerId: 'openrouter',
-    },
     metadata: {
       language: 'en-US',
     },
   });
 });
 
-test('normalizeAccountSettingsPatch rejects unsupported AI provider ids', async () => {
-  assert.throws(
-    () => normalizeAccountSettingsPatch({ ai: { providerId: 'bad-provider' } }),
-    (error: unknown) => {
-      assert.ok(error instanceof HttpError);
-      assert.equal(error.statusCode, 400);
-      return true;
-    },
-  );
+test('normalizeAccountSettingsPatch ignores AI provider ids', async () => {
+  assert.deepEqual(normalizeAccountSettingsPatch({ ai: { providerId: 'bad-provider' } }), {});
 });
 
 test('normalizeProfileSettingsPatch rejects account-scoped ai settings', async () => {

@@ -1,12 +1,23 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AiFeatureId, AiProviderView } from '../modules/ai/ai.types.js';
+import type { AiFeatureId, AiProviderView, ServerAiTier } from '../modules/ai/ai.types.js';
+
+export const BYOK_OPENROUTER_PROVIDER_ID = 'openrouter';
+export const BYOK_OPENROUTER_LABEL = 'OpenRouter';
+export const BYOK_OPENROUTER_CHAT_COMPLETIONS_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
 export type AppAiProviderConfig = {
   id: string;
   label: string;
   endpointUrl: string;
   models: Record<AiFeatureId, string>;
+};
+
+export type AppServerAiConfig = {
+  id: string;
+  label: string;
+  endpointUrl: string;
+  models: Record<ServerAiTier, Record<AiFeatureId, string>>;
 };
 
 type AppConfig = {
@@ -29,48 +40,41 @@ type AppConfig = {
     };
   };
   ai: {
-    defaultProviderId: string;
-    liteProviderId: string;
-    serverProviderId: string;
-    providers: Record<string, AppAiProviderConfig>;
-    providerOrder: string[];
+    byokOpenRouter: AppAiProviderConfig;
+    server: AppServerAiConfig;
   };
 };
 
 export const appConfigPath = resolveAppConfigPath();
 export const appConfig = loadAppConfig(appConfigPath);
 
-export function listAiProviders(): AppAiProviderConfig[] {
-  return appConfig.ai.providerOrder.flatMap((providerId) => {
-    const provider = appConfig.ai.providers[providerId];
-    return provider ? [provider] : [];
-  });
+export function getByokOpenRouterProvider(): AppAiProviderConfig {
+  return appConfig.ai.byokOpenRouter;
+}
+
+export function getServerAiProvider(): AppServerAiConfig {
+  return appConfig.ai.server;
 }
 
 export function listPublicAiProviders(): AiProviderView[] {
-  return listAiProviders().map((provider) => ({
+  const provider = getByokOpenRouterProvider();
+  return [{
     id: provider.id,
     label: provider.label,
-    endpointUrl: provider.endpointUrl,
     models: provider.models,
-  }));
+  }];
+}
+
+export function normalizeAiProviderId(_value: string | null | undefined): string {
+  return BYOK_OPENROUTER_PROVIDER_ID;
 }
 
 export function isAiProviderId(value: string): boolean {
-  return Object.hasOwn(appConfig.ai.providers, value);
+  return value.trim() === BYOK_OPENROUTER_PROVIDER_ID;
 }
 
-export function normalizeAiProviderId(value: string | null | undefined): string {
-  const normalized = typeof value === 'string' ? value.trim() : '';
-  return isAiProviderId(normalized) ? normalized : appConfig.ai.defaultProviderId;
-}
-
-export function requireAiProvider(providerId: string): AppAiProviderConfig {
-  const provider = appConfig.ai.providers[normalizeAiProviderId(providerId)];
-  if (!provider) {
-    throw new Error(`Unknown AI provider: ${providerId}`);
-  }
-  return provider;
+export function requireAiProvider(_providerId: string): AppAiProviderConfig {
+  return getByokOpenRouterProvider();
 }
 
 function resolveAppConfigPath(): string {
@@ -101,13 +105,12 @@ function loadAppConfig(filePath: string): AppConfig {
   }
 
   const root = expectRecord(parsed, 'app config');
-  const providers = parseAiProviders(root);
 
   return {
     defaults: parseDefaults(root),
     cache: parseCache(root),
     metadata: parseMetadata(root),
-    ai: parseAiConfig(root, providers),
+    ai: parseAiConfig(root),
   };
 }
 
@@ -145,80 +148,105 @@ function parseMetadata(root: Record<string, unknown>): AppConfig['metadata'] {
   };
 }
 
-function parseAiProviders(root: Record<string, unknown>): Record<string, AppAiProviderConfig> {
+function parseAiConfig(root: Record<string, unknown>): AppConfig['ai'] {
   const ai = expectRecord(root.ai, 'ai');
-  const providers = expectArray(ai.providers, 'ai.providers');
-  const parsed: Record<string, AppAiProviderConfig> = {};
+  const legacyProviders = parseLegacyAiProviders(ai);
+  const legacyOpenRouter = legacyProviders[BYOK_OPENROUTER_PROVIDER_ID] ?? Object.values(legacyProviders)[0];
 
-  for (const [index, value] of providers.entries()) {
-    const provider = expectRecord(value, `ai.providers[${index}]`);
-    const id = expectNonEmptyString(provider.id, `ai.providers[${index}].id`);
-    if (Object.hasOwn(parsed, id)) {
-      throw new Error(`Duplicate AI provider id in app config: ${id}`);
-    }
+  return {
+    byokOpenRouter: parseByokOpenRouter(ai, legacyOpenRouter),
+    server: parseServerAi(ai, legacyOpenRouter),
+  };
+}
 
-    const models = expectRecord(provider.models, `ai.providers[${index}].models`);
-    parsed[id] = {
-      id,
-      label: expectNonEmptyString(provider.label, `ai.providers[${index}].label`),
-      endpointUrl: expectNonEmptyString(provider.endpointUrl, `ai.providers[${index}].endpointUrl`),
+function parseByokOpenRouter(ai: Record<string, unknown>, legacyProvider?: AppAiProviderConfig): AppAiProviderConfig {
+  const configured = isRecord(ai.byokOpenRouter) ? ai.byokOpenRouter : null;
+  const modelsSource = configured && Object.hasOwn(configured, 'models')
+    ? expectRecord(configured.models, 'ai.byokOpenRouter.models')
+    : legacyProvider?.models;
+
+  return {
+    id: BYOK_OPENROUTER_PROVIDER_ID,
+    label: BYOK_OPENROUTER_LABEL,
+    endpointUrl: BYOK_OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+    models: parseFeatureModels(modelsSource, 'ai.byokOpenRouter.models'),
+  };
+}
+
+function parseServerAi(ai: Record<string, unknown>, legacyProvider?: AppAiProviderConfig): AppServerAiConfig {
+  const server = isRecord(ai.server) ? ai.server : null;
+  if (!server && legacyProvider) {
+    return {
+      id: legacyProvider.id,
+      label: legacyProvider.label,
+      endpointUrl: legacyProvider.endpointUrl,
       models: {
-        recommendations: expectNonEmptyString(models.recommendations, `ai.providers[${index}].models.recommendations`),
-        search: expectNonEmptyString(models.search, `ai.providers[${index}].models.search`),
-        insights: expectNonEmptyString(models.insights, `ai.providers[${index}].models.insights`),
+        pro: legacyProvider.models,
+        ultra: legacyProvider.models,
       },
     };
   }
 
-  if (Object.keys(parsed).length === 0) {
-    throw new Error('App config must define at least one AI provider.');
+  if (!server) {
+    throw new Error('App config must define ai.server.');
   }
 
-  return parsed;
-}
-
-function parseAiConfig(
-  root: Record<string, unknown>,
-  providers: Record<string, AppAiProviderConfig>,
-): AppConfig['ai'] {
-  const ai = expectRecord(root.ai, 'ai');
-  const defaultProviderId = expectConfiguredAiProviderId(ai.defaultProviderId, 'ai.defaultProviderId', providers);
-  const liteProviderId = expectConfiguredAiProviderId(ai.liteProviderId, 'ai.liteProviderId', providers);
-  const serverProviderId = expectConfiguredAiProviderId(ai.serverProviderId, 'ai.serverProviderId', providers);
-
+  const modelTiers = expectRecord(server.models, 'ai.server.models');
   return {
-    defaultProviderId,
-    liteProviderId,
-    serverProviderId,
-    providers,
-    providerOrder: Object.keys(providers),
+    id: optionalNonEmptyString(server.id, 'ai.server.id') ?? 'server-ai',
+    label: optionalNonEmptyString(server.label, 'ai.server.label') ?? 'Server AI',
+    endpointUrl: expectNonEmptyString(server.endpointUrl, 'ai.server.endpointUrl'),
+    models: {
+      pro: parseFeatureModels(modelTiers.pro, 'ai.server.models.pro'),
+      ultra: parseFeatureModels(modelTiers.ultra, 'ai.server.models.ultra'),
+    },
   };
 }
 
-function expectConfiguredAiProviderId(
-  value: unknown,
-  label: string,
-  providers: Record<string, AppAiProviderConfig>,
-): string {
-  const providerId = expectNonEmptyString(value, label);
-  if (!Object.hasOwn(providers, providerId)) {
-    throw new Error(`${label} must reference a configured provider: ${providerId}`);
+function parseLegacyAiProviders(ai: Record<string, unknown>): Record<string, AppAiProviderConfig> {
+  if (!Array.isArray(ai.providers)) {
+    return {};
   }
-  return providerId;
+
+  const parsed: Record<string, AppAiProviderConfig> = {};
+  for (const [index, value] of ai.providers.entries()) {
+    const provider = expectRecord(value, `ai.providers[${index}]`);
+    const id = expectNonEmptyString(provider.id, `ai.providers[${index}].id`);
+    parsed[id] = {
+      id,
+      label: expectNonEmptyString(provider.label, `ai.providers[${index}].label`),
+      endpointUrl: expectNonEmptyString(provider.endpointUrl, `ai.providers[${index}].endpointUrl`),
+      models: parseFeatureModels(provider.models, `ai.providers[${index}].models`),
+    };
+  }
+  return parsed;
+}
+
+function parseFeatureModels(value: unknown, label: string): Record<AiFeatureId, string> {
+  const models = expectRecord(value, label);
+  return {
+    recommendations: expectNonEmptyString(models.recommendations, `${label}.recommendations`),
+    search: expectNonEmptyString(models.search, `${label}.search`),
+    insights: expectNonEmptyString(models.insights, `${label}.insights`),
+  };
+}
+
+function optionalNonEmptyString(value: unknown, label: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  return expectNonEmptyString(value, label);
 }
 
 function expectRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     throw new Error(`Invalid ${label}: expected an object.`);
   }
-  return value as Record<string, unknown>;
+  return value;
 }
 
-function expectArray(value: unknown, label: string): unknown[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid ${label}: expected an array.`);
-  }
-  return value;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function expectString(value: unknown, label: string): string {

@@ -9,11 +9,10 @@ import {
 export const aiProviderViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'label', 'endpointUrl'],
+  required: ['id', 'label'],
   properties: {
     id: nonEmptyStringSchema,
     label: nonEmptyStringSchema,
-    endpointUrl: nonEmptyStringSchema,
     models: {
       type: 'object',
       additionalProperties: false,
@@ -30,7 +29,7 @@ export const aiProviderViewSchema = {
 export const aiClientSettingsSchema = {
   type: 'object',
   additionalProperties: true,
-  required: ['providerId', 'hasAiApiKey', 'defaultProviderId', 'providers'],
+  required: ['hasAiApiKey', 'providerId', 'defaultProviderId', 'providers'],
   properties: {
     providerId: nonEmptyStringSchema,
     hasAiApiKey: booleanSchema,

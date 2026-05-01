@@ -53,7 +53,7 @@ function parseStringEnumEnv<T extends string>(name: string, allowed: readonly T[
   throw new Error(`Invalid value for ${name}: ${raw}`);
 }
 
-function parseAiServerKeysEnv(name: string): Array<{ providerId: string; apiKey: string }> {
+function parseAiServerKeysEnv(name: string): Array<{ apiKey: string; providerId?: string }> {
   const raw = optionalEnv(name);
   if (!raw) {
     return [];
@@ -76,18 +76,20 @@ function parseAiServerKeysEnv(name: string): Array<{ providerId: string; apiKey:
     }
 
     const record = entry as Record<string, unknown>;
-    const providerId = typeof record.providerId === 'string'
-      ? record.providerId.trim()
-      : '';
     const apiKey = typeof record.apiKey === 'string'
       ? record.apiKey.trim()
       : '';
 
-    if (!providerId || !apiKey) {
-      throw new Error(`Invalid AI server key entry at index ${index} in ${name}`);
+    if (!apiKey) {
+      throw new Error(`Invalid AI server key entry at index ${index} in ${name}: missing apiKey`);
     }
 
-    return { providerId, apiKey };
+    // Legacy format support: accept providerId but don't require it
+    const providerId = typeof record.providerId === 'string'
+      ? record.providerId.trim()
+      : undefined;
+
+    return providerId ? { apiKey, providerId } : { apiKey };
   });
 }
 

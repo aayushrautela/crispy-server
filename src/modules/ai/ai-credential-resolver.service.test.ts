@@ -35,20 +35,20 @@ test('credential resolver uses lite user OpenRouter BYOK', async () => {
   assert.equal(result.model, 'openai/gpt-4o-mini');
 });
 
-test('credential resolver uses pro server OpenRouter key', async () => {
+test('credential resolver uses pro server key and pro model', async () => {
   const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
 
   const resolver = new AiCredentialResolver({
     getPricingTierForUser: () => 'pro',
     getAiProviderIdForUser: async () => 'openrouter',
-  } as never, [{ providerId: 'openrouter', apiKey: 'server-openrouter-key' }]);
+  } as never, [{ apiKey: 'server-ai-key' }]);
 
   const result = await resolver.resolveForTask('user-1', 'insights');
   assert.equal(result.feature, 'insights');
-  assert.equal(result.providerId, 'openrouter');
-  assert.equal(result.apiKey, 'server-openrouter-key');
+  assert.equal(result.providerId, 'server-ai');
+  assert.equal(result.apiKey, 'server-ai-key');
   assert.equal(result.credentialSource, 'server');
-  assert.equal(result.model, 'openai/gpt-4o-mini');
+  assert.equal(result.model, 'provider/pro-model');
 });
 
 test('credential resolver does not fall back to pooled keys', async () => {
