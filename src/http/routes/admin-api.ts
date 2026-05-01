@@ -42,6 +42,18 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const calendarService = new CalendarService();
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
+    const header = request.headers.authorization?.trim();
+    if (header?.startsWith('Bearer ')) {
+      try {
+        await app.requireRecommenderAuth(request);
+        return;
+      } catch (error) {
+        if (!(error instanceof HttpError) || error.statusCode !== 401) {
+          throw error;
+        }
+      }
+    }
+
     await app.requireAdminUi(request);
   }
 
