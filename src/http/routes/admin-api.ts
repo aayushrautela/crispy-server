@@ -1,9 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
-import { WorkerControlClient } from '../../modules/admin/worker-control-client.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
 import {
-  recommendationConfig,
   resolveRecommendationAlgorithmVersion,
   resolveRecommendationSourceKey,
 } from '../../modules/recommendations/recommendation-config.js';
@@ -18,7 +16,6 @@ import type {
 import { isProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
-import { RecommendationGenerationDispatcher } from '../../modules/recommendations/recommendation-generation-dispatcher.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
@@ -34,14 +31,12 @@ const JOB_STATUSES = new Set<ProviderImportJobStatus>([
 ]);
 
 export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void> {
-  const workerControlClient = new WorkerControlClient();
   const recommendationAdminService = new RecommendationAdminService();
   const providerAdminService = new ProviderAdminService();
   const providerImportService = new ProviderImportService();
   const providerTokenAccessService = new ProviderTokenAccessService();
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
-  const recommendationGenerationDispatcher = new RecommendationGenerationDispatcher();
   const recommendationOutputService = new RecommendationOutputService();
   const personalMediaService = new PersonalMediaService();
   const calendarService = new CalendarService();
@@ -54,67 +49,10 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await app.requireAdminUiMutation(request);
   }
 
-  app.get('/admin/api/worker/control-status', async (request, reply) => {
-    await requireAdmin(request);
-    const configured = workerControlClient.isConfigured();
-    if (!configured) {
-      return {
-        workerControl: {
-          configured: false,
-          reachable: false,
-          error: null,
-        },
-      };
-    }
-
-    try {
-      const status = await workerControlClient.getBridgeStatus();
-      return {
-        workerControl: {
-          configured: true,
-          reachable: true,
-          serverTime: status.serverTime,
-          error: null,
-        },
-      };
-    } catch (error) {
-      return {
-        workerControl: {
-          configured: true,
-          reachable: false,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      };
-    }
-
-  });
-
-  app.get('/admin/api/worker/jobs/status', async (request, reply) => {
-    await requireAdmin(request);
-    return recommendationAdminService.getGenerationJobs(parseLimit(asRecord(request.query).limit));
-  });
-
   app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
     await requireAdmin(request);
     const query = asRecord(request.query);
     return recommendationAdminService.getOutbox(parseLimit(query.limit));
-  });
-
-  app.get('/admin/api/diagnostics/recommendations/generation-jobs', async (request, reply) => {
-    await requireAdmin(request);
-    const query = asRecord(request.query);
-    return recommendationAdminService.getGenerationJobs(parseLimit(query.limit));
-  });
-
-  app.get('/admin/api/diagnostics/recommendations/generation-jobs/:jobId', async (request, reply) => {
-    await requireAdmin(request);
-    const params = asRecord(request.params);
-    return recommendationAdminService.getGenerationJob(readRequiredString(params.jobId, 'jobId'));
-  });
-
-  app.post('/admin/api/diagnostics/recommendations/generation-jobs/clear-blocked', async (request, reply) => {
-    await requireAdminMutation(request);
-    return recommendationAdminService.clearBlockedGenerationJobs();
   });
 
 
@@ -319,21 +257,6 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
       watchDataState: started.watchDataState,
       providerState: started.providerState,
       job: started.job ? mapProviderImportJobView(started.job) : null,
-    };
-  });
-
-  app.post('/admin/api/accounts/:accountId/profiles/:profileId/recommendations/start', async (request, reply) => {
-    await requireAdminMutation(request);
-    const params = parseAccountProfileParams(request.params);
-    const result = await recommendationGenerationDispatcher.scheduleProfileGeneration(params.profileId, 0, 'admin_manual');
-    reply.code(result.created ? 202 : (result.status === 'succeeded' || result.status === 'failed' || result.status === 'cancelled' ? 200 : 202));
-    return {
-      jobId: result.jobId,
-      created: result.created,
-      status: result.status,
-      profileId: params.profileId,
-      sourceKey: recommendationConfig.sourceKey,
-      algorithmVersion: recommendationConfig.algorithmVersion,
     };
   });
 

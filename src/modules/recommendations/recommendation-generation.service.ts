@@ -10,10 +10,10 @@ import { RecommendationSnapshotsRepository } from './recommendation-snapshots.re
 import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
 import { PersonalMediaService } from '../watch/personal-media.service.js';
 import type {
-  RecommendationWorkerContinueWatchingItem,
-  RecommendationWorkerGenerateRequest,
-  RecommendationWorkerGenerateResponse,
-} from './recommendation-worker.types.js';
+  RecommendationSignalBundle,
+  RecommendationSignalContinueWatchingItem,
+  RecommendationSignalGenerationResponse,
+} from './recommendation-signal.types.js';
 import type { ContinueWatchingProductItem } from '../watch/watch-derived-item.types.js';
 
 type GenerationContext = {
@@ -28,7 +28,7 @@ type GenerationContext = {
 
 export type RecommendationGenerationBuildResult = {
   context: GenerationContext;
-  payload: RecommendationWorkerGenerateRequest;
+  payload: RecommendationSignalBundle;
 };
 
 export type RecommendationGenerationApplyResult = {
@@ -63,9 +63,9 @@ export class RecommendationGenerationService {
     return this.loadGenerationContext(profileId);
   }
 
-  async applyWorkerResponse(
+  async applyGenerationResponse(
     context: GenerationExpectationContext,
-    response: RecommendationWorkerGenerateResponse,
+    response: RecommendationSignalGenerationResponse,
   ): Promise<RecommendationGenerationApplyResult> {
     const normalizedTasteProfile = normalizeTasteProfile(response, context);
     const normalizedSnapshot = normalizeRecommendationSnapshot(response, context);
@@ -129,7 +129,7 @@ export class RecommendationGenerationService {
   private async buildRequest(
     context: GenerationContext,
     aiRequest: Awaited<ReturnType<FeatureEntitlementService['resolveAiRequestForUser']>>,
-  ): Promise<RecommendationWorkerGenerateRequest> {
+  ): Promise<RecommendationSignalBundle> {
     const limits = recommendationConfig.payloadLimits;
     const [watchHistory, ratings, watchlist, continueWatching, trackedSeries] = await Promise.all([
       this.recommendationDataService.getWatchHistoryForAccount(context.accountId, context.profileId, limits.watchHistory),
@@ -146,7 +146,7 @@ export class RecommendationGenerationService {
       },
       generationMeta: {
         sourceKey: recommendationConfig.sourceKey,
-        algorithmVersion: recommendationConfig.algorithmVersion as RecommendationWorkerGenerateRequest['generationMeta']['algorithmVersion'],
+        algorithmVersion: recommendationConfig.algorithmVersion as RecommendationSignalBundle['generationMeta']['algorithmVersion'],
         historyGeneration: context.historyGeneration,
         sourceCursor: context.sourceCursor,
         ttlSeconds: recommendationConfig.generationTtlSeconds,
@@ -177,7 +177,7 @@ export class RecommendationGenerationService {
   }
 }
 
-export function mapContinueWatchingItem(item: ContinueWatchingProductItem): RecommendationWorkerContinueWatchingItem {
+export function mapContinueWatchingItem(item: ContinueWatchingProductItem): RecommendationSignalContinueWatchingItem {
   return {
     id: item.id,
     media: {
@@ -198,11 +198,11 @@ export function mapContinueWatchingItem(item: ContinueWatchingProductItem): Reco
   };
 }
 
-function normalizeTasteProfile(response: RecommendationWorkerGenerateResponse, context: GenerationExpectationContext) {
+function normalizeTasteProfile(response: RecommendationSignalGenerationResponse, context: GenerationExpectationContext) {
   const tasteProfile = asRecord(response.tasteProfile);
-  const sourceKey = readRequiredString(tasteProfile.sourceKey, 'Recommendation worker returned a taste profile without a source key.');
+  const sourceKey = readRequiredString(tasteProfile.sourceKey, 'Recommendation generation returned a taste profile without a source key.');
   if (sourceKey !== recommendationConfig.sourceKey) {
-    throw new HttpError(502, 'Recommendation worker returned an unexpected taste profile source key.');
+    throw new HttpError(502, 'Recommendation generation returned an unexpected taste profile source key.');
   }
 
   return {
@@ -215,25 +215,25 @@ function normalizeTasteProfile(response: RecommendationWorkerGenerateResponse, c
     decadePreferences: Array.isArray(tasteProfile.decadePreferences) ? tasteProfile.decadePreferences : [],
     watchingPace: readOptionalString(tasteProfile.watchingPace),
     aiSummary: readOptionalString(tasteProfile.aiSummary),
-    source: readOptionalString(tasteProfile.source) ?? 'recommendation_worker',
+    source: readOptionalString(tasteProfile.source) ?? 'ai_generation',
     updatedById: context.accountId,
   };
 }
 
-function normalizeRecommendationSnapshot(response: RecommendationWorkerGenerateResponse, context: GenerationExpectationContext) {
+function normalizeRecommendationSnapshot(response: RecommendationSignalGenerationResponse, context: GenerationExpectationContext) {
   const snapshot = asRecord(response.recommendationSnapshot);
-  const sourceKey = readRequiredString(snapshot.sourceKey, 'Recommendation worker returned a snapshot without a source key.');
-  const algorithmVersion = readRequiredString(snapshot.algorithmVersion, 'Recommendation worker returned a snapshot without an algorithm version.');
-  const historyGeneration = readRequiredNumber(snapshot.historyGeneration, 'Recommendation worker returned a snapshot without a history generation.');
+  const sourceKey = readRequiredString(snapshot.sourceKey, 'Recommendation generation returned a snapshot without a source key.');
+  const algorithmVersion = readRequiredString(snapshot.algorithmVersion, 'Recommendation generation returned a snapshot without an algorithm version.');
+  const historyGeneration = readRequiredNumber(snapshot.historyGeneration, 'Recommendation generation returned a snapshot without a history generation.');
 
   if (sourceKey !== recommendationConfig.sourceKey) {
-    throw new HttpError(502, 'Recommendation worker returned an unexpected snapshot source key.');
+    throw new HttpError(502, 'Recommendation generation returned an unexpected snapshot source key.');
   }
   if (algorithmVersion !== recommendationConfig.algorithmVersion) {
-    throw new HttpError(502, 'Recommendation worker returned an unexpected algorithm version.');
+    throw new HttpError(502, 'Recommendation generation returned an unexpected algorithm version.');
   }
   if (historyGeneration !== context.historyGeneration) {
-    throw new HttpError(502, 'Recommendation worker returned an unexpected history generation.');
+    throw new HttpError(502, 'Recommendation generation returned an unexpected history generation.');
   }
 
   const generatedAt = readOptionalString(snapshot.generatedAt)
@@ -250,7 +250,7 @@ function normalizeRecommendationSnapshot(response: RecommendationWorkerGenerateR
     sourceCursor: readOptionalString(snapshot.sourceCursor),
     generatedAt,
     expiresAt,
-    source: readOptionalString(snapshot.source) ?? 'recommendation_worker',
+    source: readOptionalString(snapshot.source) ?? 'ai_generation',
     updatedById: context.accountId,
     sections: normalizedSections,
   };

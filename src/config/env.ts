@@ -130,16 +130,8 @@ export const env = {
   simklImportClientId: process.env.SIMKL_IMPORT_CLIENT_ID?.trim() || '',
   simklImportClientSecret: process.env.SIMKL_IMPORT_CLIENT_SECRET?.trim() || '',
   simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
-  recommendationEngineWorkerBaseUrl: optionalEnv('RECOMMENDATION_ENGINE_WORKER_BASE_URL') ?? '',
-  recommendationEngineWorkerApiKey: optionalEnv('RECOMMENDATION_ENGINE_WORKER_API_KEY') ?? '',
-  recommendationEngineWorkerServiceId: optionalEnv('RECOMMENDATION_ENGINE_WORKER_SERVICE_ID') ?? '',
   recommendationAlgorithmVersion: optionalEnv('RECOMMENDATION_ALGORITHM_VERSION') ?? 'v3.2.1',
   recommendationGenerationTtlSeconds: parseNumber('RECOMMENDATION_GENERATION_TTL_SECONDS', 86400),
-  recommendationGenerationQueueDelayMs: parseNumber('RECOMMENDATION_GENERATION_QUEUE_DELAY_MS', 5000),
-  recommendationEngineWorkerSubmitTimeoutMs: parseNumber('RECOMMENDATION_ENGINE_WORKER_SUBMIT_TIMEOUT_MS', 15000),
-  recommendationEngineWorkerStatusTimeoutMs: parseNumber('RECOMMENDATION_ENGINE_WORKER_STATUS_TIMEOUT_MS', 15000),
-  recommendationGenerationPollDelayMs: parseNumber('RECOMMENDATION_GENERATION_POLL_DELAY_MS', 15000),
-  recommendationGenerationMaxPollDelayMs: parseNumber('RECOMMENDATION_GENERATION_MAX_POLL_DELAY_MS', 120000),
   serviceClients: parseServiceClientRegistryConfig(requireEnv('SERVICE_CLIENTS_JSON')),
 };
 

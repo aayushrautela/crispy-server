@@ -1,7 +1,6 @@
 import { Worker } from 'bullmq';
 import { logger } from '../config/logger.js';
-import { bullConnection, projectionQueueName, recommendationQueueName } from '../lib/queue.js';
-import { RecommendationGenerationOrchestratorService } from '../modules/recommendations/recommendation-generation-orchestrator.service.js';
+import { bullConnection, projectionQueueName } from '../lib/queue.js';
 import { HeartbeatFlushService } from '../modules/watch/heartbeat-flush.service.js';
 import { runMetadataRefreshJob } from './jobs/metadata-refresh.job.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
@@ -44,28 +43,6 @@ export function startWorker(): Worker {
         default:
           await runRebuildProfileProjectionsJob(payload);
       }
-    },
-    { connection: bullConnection },
-  );
-}
-
-export function startRecommendationWorker(): Worker {
-  const orchestrator = new RecommendationGenerationOrchestratorService();
-
-  return new Worker(
-    recommendationQueueName,
-    async (job) => {
-      const payload = job.data as {
-        jobId: string;
-        reason: 'recommendation-submit' | 'recommendation-sync';
-      };
-
-      if (payload.reason === 'recommendation-submit') {
-        await orchestrator.submitQueuedJob(payload.jobId);
-        return;
-      }
-
-      await orchestrator.syncQueuedJob(payload.jobId);
     },
     { connection: bullConnection },
   );

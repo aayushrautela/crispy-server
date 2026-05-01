@@ -4,18 +4,12 @@ import {
   type RecommendationEventOutboxAdminRecord,
   type RecommendationEventOutboxLagSummary,
 } from './recommendation-event-outbox.repo.js';
-import {
-  RecommendationGenerationJobsRepository,
-  type RecommendationGenerationJobLagSummary,
-  type RecommendationGenerationJobRecord,
-} from './recommendation-generation-jobs.repo.js';
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export class RecommendationAdminService {
   constructor(
     private readonly eventOutboxRepository = new RecommendationEventOutboxRepository(),
-    private readonly generationJobsRepository = new RecommendationGenerationJobsRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
@@ -31,29 +25,5 @@ export class RecommendationAdminService {
 
       return { lag, undelivered };
     });
-  }
-
-  async getGenerationJobs(limit = 100): Promise<{
-    lag: RecommendationGenerationJobLagSummary;
-    jobs: RecommendationGenerationJobRecord[];
-  }> {
-    return this.runInTransaction(async (client) => {
-      const [lag, jobs] = await Promise.all([
-        this.generationJobsRepository.getLagSummary(client),
-        this.generationJobsRepository.listRecent(client, limit),
-      ]);
-
-      return { lag, jobs };
-    });
-  }
-
-  async getGenerationJob(jobId: string): Promise<{ job: RecommendationGenerationJobRecord | null }> {
-    return this.runInTransaction(async (client) => ({
-      job: await this.generationJobsRepository.findById(client, jobId),
-    }));
-  }
-
-  async clearBlockedGenerationJobs(): Promise<{ deletedCount: number }> {
-    return this.runInTransaction(async (client) => this.generationJobsRepository.clearBlockedForRetest(client));
   }
 }

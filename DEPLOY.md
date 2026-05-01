@@ -60,22 +60,10 @@ Recommendation generation is now server-orchestrated. The API server loads all u
 
    Example inbound service auth config:
    ```env
-   SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-internal-tool","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","admin:diagnostics:read"],"status":"active"}]
-   ```
-
-    The API server should use these outbound worker settings for recommendation generation:
-    ```env
-    RECOMMENDATION_ENGINE_WORKER_BASE_URL=https://your-recommendation-worker-domain.com
-    RECOMMENDATION_ENGINE_WORKER_SERVICE_ID=crispy-server
-    RECOMMENDATION_ENGINE_WORKER_API_KEY=replace_with_long_random_secret
-    RECOMMENDATION_ENGINE_WORKER_SUBMIT_TIMEOUT_MS=15000
-    RECOMMENDATION_ENGINE_WORKER_STATUS_TIMEOUT_MS=15000
-    RECOMMENDATION_GENERATION_POLL_DELAY_MS=15000
-    RECOMMENDATION_GENERATION_MAX_POLL_DELAY_MS=120000
-    RECOMMENDATION_ALGORITHM_VERSION=v3.2.1
+    SERVICE_CLIENTS_JSON=[{"serviceId":"crispy-internal-tool","apiKey":"replace_with_long_random_secret","scopes":["profiles:read","watch:read","taste-profile:read","taste-profile:write","recommendations:read","recommendations:write","profile-secrets:read","provider-connections:read","provider-tokens:read","provider-tokens:refresh","admin:diagnostics:read"],"status":"active"}]
     ```
 
-    The admin UI uses the same worker settings for read-only bridge checks against `/ready` and `/v1/stats`.
+   Recommendation generation is pull-based. RECO authenticates as an internal app principal, reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1`, then writes service-owned recommendation outputs through the internal app API. MAIN does not call RECO.
 
    Privileged inbound data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 

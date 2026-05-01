@@ -17,10 +17,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'Account Inspector',
       description: 'Resolve accounts, choose profiles, and keep profile operations in a dedicated workspace.',
     },
-    'worker-control': {
-      title: 'Worker Bridge',
-      description: 'Bridge health and the raw worker status payload seen by the API server.',
-    },
   };
 
   const apiBase = String((document.body && document.body.getAttribute('data-admin-api-base')) || '/admin/api').replace(/\/$/, '');
@@ -31,14 +27,12 @@ export const ADMIN_UI_CLIENT = String.raw`
     jobsBusy: false,
     diagnosticsBusy: false,
     lookupBusy: false,
-    bridgeBusy: false,
     generationDetailBusy: false,
     notificationsOpen: false,
     lastUpdatedAt: null,
     jobsPayload: null,
     diagnosticsPayload: null,
     generationDetailPayload: null,
-    bridgePayload: null,
     notifications: [],
     unreadCount: 0,
     toasts: [],
@@ -48,12 +42,10 @@ export const ADMIN_UI_CLIENT = String.raw`
     selectedGenerationJobId: null,
     jobsSnapshot: new Map(),
     jobsLoadedOnce: false,
-    bridgeSignature: null,
     pollersStarted: false,
     intervals: {
       jobs: 8000,
       diagnostics: 30000,
-      bridge: 15000,
       generationDetail: 4000,
     },
     generationDetailTimer: null,
@@ -77,16 +69,12 @@ export const ADMIN_UI_CLIENT = String.raw`
     currentViewDescription: document.getElementById('current-view-description'),
     topbarRunningCount: document.getElementById('topbar-running-count'),
     topbarLastUpdate: document.getElementById('topbar-last-update'),
-    bridgePill: document.getElementById('worker-control-pill'),
     sidebarRunningStatus: document.getElementById('sidebar-running-status'),
-    sidebarBridgeStatus: document.getElementById('sidebar-bridge-status'),
     navJobsBadge: document.getElementById('nav-jobs-badge'),
     navDiagnosticsBadge: document.getElementById('nav-diagnostics-badge'),
     navAccountsBadge: document.getElementById('nav-accounts-badge'),
-    navBridgeBadge: document.getElementById('nav-bridge-badge'),
     overviewSummary: document.getElementById('overview-summary'),
     overviewRunningJobs: document.getElementById('overview-running-jobs'),
-    overviewBridge: document.getElementById('overview-bridge'),
     overviewDiagnostics: document.getElementById('overview-diagnostics'),
     overviewNotifications: document.getElementById('overview-notifications'),
     refreshJobs: document.getElementById('refresh-jobs'),
@@ -121,8 +109,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     profileDetailMessage: document.getElementById('profile-detail-message'),
     profileDetailBody: document.getElementById('profile-detail-body'),
     refreshProfileDetail: document.getElementById('refresh-profile-detail'),
-    bridgeText: document.getElementById('bridge-text'),
-    bridgeJson: document.getElementById('bridge-json'),
   };
 
   bindNavigation();
@@ -137,7 +123,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   void initialize();
 
   async function initialize() {
-    await Promise.all([loadBridgeStatus({ silent: true }), loadJobs({ silent: true }), loadDiagnostics({ silent: true })]);
+    await Promise.all([loadJobs({ silent: true }), loadDiagnostics({ silent: true })]);
     startPolling();
   }
 
@@ -171,7 +157,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       button.addEventListener('click', () => {
         const target = button.getAttribute('data-refresh-target');
         if (target === 'overview') {
-          void Promise.all([loadBridgeStatus(), loadJobs(), loadDiagnostics()]);
+          void Promise.all([loadJobs(), loadDiagnostics()]);
         }
       });
     }
@@ -196,7 +182,6 @@ export const ADMIN_UI_CLIENT = String.raw`
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        void loadBridgeStatus({ silent: true });
         void loadJobs({ silent: true });
         void loadDiagnostics({ silent: true });
       }
@@ -308,10 +293,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       if (document.visibilityState === 'hidden') return;
       void loadDiagnostics({ silent: true });
     }, state.intervals.diagnostics);
-    window.setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
-      void loadBridgeStatus({ silent: true });
-    }, state.intervals.bridge);
   }
 
   async function fetchJson(url, options) {
@@ -358,69 +339,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  async function loadBridgeStatus(options) {
-    state.bridgeBusy = true;
-    try {
-      const payload = await fetchJson(apiPath('/worker/control-status'));
-      state.bridgePayload = payload;
-      renderBridgeStatus(payload);
-      maybeNotifyBridge(payload, options && options.silent === true);
-      stampUpdated();
-      return payload;
-    } catch (error) {
-      const fallback = { workerControl: { configured: true, reachable: false, error: error.message || 'Unable to read worker status.' } };
-      state.bridgePayload = fallback;
-      renderBridgeStatus(fallback, error);
-      if (!(options && options.silent)) {
-        pushNotification('error', 'Worker bridge unavailable', error.message || 'Unable to read worker bridge status.', true);
-      }
-      return fallback;
-    } finally {
-      state.bridgeBusy = false;
-      renderOverview();
-    }
-  }
-
-  function renderBridgeStatus(payload, error) {
-    const workerControl = payload && payload.workerControl ? payload.workerControl : {};
-    const configured = workerControl.configured === true;
-    const reachable = workerControl.reachable === true;
-    if (!configured) {
-      updateBridgeTexts('Worker status: not configured', 'Set RECOMMENDATION_ENGINE_WORKER_BASE_URL, RECOMMENDATION_ENGINE_WORKER_SERVICE_ID, and RECOMMENDATION_ENGINE_WORKER_API_KEY to enable the worker bridge.', 'setup');
-    } else if (reachable) {
-      updateBridgeTexts(
-        'Worker status: reachable',
-        'API server can reach the recommendation engine worker.' + (workerControl.serverTime ? ' Estimated worker time: ' + formatDate(workerControl.serverTime) + '.' : ''),
-        'live'
-      );
-    } else {
-      updateBridgeTexts(
-        'Worker status: unreachable',
-        workerControl.error || 'Worker bridge is configured, but the API server cannot reach the worker right now.',
-        'down'
-      );
-    }
-    if (elements.bridgeJson) {
-      elements.bridgeJson.textContent = JSON.stringify(error && error.payload ? error.payload : payload, null, 2);
-    }
-  }
-
-  function updateBridgeTexts(pillText, detailText, navText) {
-    if (elements.bridgePill) {
-      const parts = pillText.split(': ');
-      elements.bridgePill.innerHTML = '<strong>' + escapeHtml(parts[1] || pillText) + '</strong><span>worker status</span>';
-    }
-    if (elements.bridgeText) {
-      elements.bridgeText.textContent = detailText;
-    }
-    if (elements.sidebarBridgeStatus) {
-      elements.sidebarBridgeStatus.textContent = detailText;
-    }
-    if (elements.navBridgeBadge) {
-      elements.navBridgeBadge.textContent = navText;
-    }
-  }
-
   async function loadJobs(options) {
     setBusy('jobsBusy', true);
     try {
@@ -453,7 +371,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       if (!(options && options.silent)) {
         pushNotification('error', 'Recommendation jobs unavailable', error.message || 'Failed to load recommendation jobs.', true);
       }
-      void loadBridgeStatus({ silent: true });
       return null;
     } finally {
       setBusy('jobsBusy', false);

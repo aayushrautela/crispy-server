@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { HttpError } from '../../lib/errors.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
 
 export async function registerInternalAdminRecommendationRoutes(app: FastifyInstance): Promise<void> {
@@ -10,20 +9,6 @@ export async function registerInternalAdminRecommendationRoutes(app: FastifyInst
     app.requireScopes(request, ['admin:diagnostics:read']);
     const query = asRecord(request.query);
     return adminService.getOutbox(parseLimit(query.limit));
-  });
-
-  app.get('/internal/v1/admin/recommendations/generation-jobs', async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['admin:diagnostics:read']);
-    const query = asRecord(request.query);
-    return adminService.getGenerationJobs(parseLimit(query.limit));
-  });
-
-  app.get('/internal/v1/admin/recommendations/generation-jobs/:jobId', async (request) => {
-    await app.requireServiceAuth(request);
-    app.requireScopes(request, ['admin:diagnostics:read']);
-    const params = asRecord(request.params);
-    return adminService.getGenerationJob(readRequiredString(params.jobId, 'jobId'));
   });
 }
 
@@ -48,11 +33,4 @@ function clampLimit(value: number): number {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function readRequiredString(value: unknown, field: string): string {
-  if (typeof value === 'string' && value.trim()) {
-    return value.trim();
-  }
-  throw new HttpError(400, `Missing ${field}`);
 }

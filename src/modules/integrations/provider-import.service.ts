@@ -26,7 +26,6 @@ import {
   type ProviderSessionRecord,
 } from './provider-sessions.repo.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
-import { RecommendationGenerationDispatcher } from '../recommendations/recommendation-generation-dispatcher.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 
@@ -123,7 +122,6 @@ export class ProviderImportService {
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly metadataRefreshService = new MetadataRefreshService(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
-    private readonly recommendationGenerationDispatcher = new RecommendationGenerationDispatcher(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly metadataCardService = new MetadataCardService(),
@@ -592,12 +590,6 @@ export class ProviderImportService {
         await redis.del(calendarCacheKey(runningJob.profileId));
       } catch (error) {
         warnings.push(`failed to invalidate caches: ${error instanceof Error ? error.message : 'unknown error'}`);
-      }
-
-      try {
-        await this.recommendationGenerationDispatcher.scheduleProfileGeneration(runningJob.profileId, 0, 'provider_import');
-      } catch (error) {
-        warnings.push(`failed to schedule recommendation generation: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
 
       await this.runInTransaction(async (client) => {

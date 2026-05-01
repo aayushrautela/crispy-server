@@ -351,7 +351,7 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `GET /v1/profiles/:profileId/recommendations` - read one recommendation snapshot, defaulting to the canonical source and algorithm version when `sourceKey` or `algorithmVersion` is omitted
 - `PUT /v1/profiles/:profileId/recommendations` - upsert recommendation snapshot
 
-Recommendation generation is now server-orchestrated. The API server decides when a profile needs regeneration, loads all user-related data, resolves AI credentials, builds the payload internally, calls the stateless recommendation worker, validates the response, and persists the resulting taste profile and recommendation snapshot. The recommendation worker owns recommendation generation and taste-profile computation, may perform read-only TMDB catalog fetches for enrichment, and must return final canonical recommendation identities for every item.
+Recommendation generation is pull-based. RECO authenticates as an internal app principal, reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1`, then writes service-owned recommendation outputs through the internal app API. MAIN does not call RECO.
 
 ### Internal privileged app routes
 
@@ -433,13 +433,15 @@ The recommendation worker no longer polls the API server for claim/renew/complet
 - Internal services should resolve an account first, then target a profile that belongs to that account.
 - End users can only access profiles that belong to their account.
 
+## Recommendation architecture
+
+Recommendation generation is pull-based. The recommendation engine (RECO) calls MAIN's `/internal/apps/v1` and `/internal/confidential/v1` endpoints to fetch profile data and config. MAIN does not push work to RECO or poll RECO for status.
+
 ## Admin control plane
 
-- `GET /admin` is the API-server-hosted admin UI for recommendation and import diagnostics plus worker bridge health.
+- `GET /admin` is the API-server-hosted admin UI for recommendation and import diagnostics.
 - Admin UI access uses HTTP Basic Auth configured by `ADMIN_UI_USER` and `ADMIN_UI_PASSWORD`.
-- The worker bridge is read-only. It checks worker reachability through the recommendation worker's supported `/ready` and `/v1/stats` endpoints.
-- Recommendation generation uses the same worker contract everywhere: `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY`.
-- The API server hosts the operator UI and human-readable admin backend. The recommendation engine should be treated as a worker compute node with a narrow business API, not the primary admin surface.
+- The API server hosts the operator UI and human-readable admin backend. Recommendation engines should use pull-based internal app APIs instead of being controlled from the admin surface.
 
 ## Major feature areas
 
@@ -462,12 +464,10 @@ The recommendation worker no longer polls the API server for claim/renew/complet
 2. Fill the required values in `.env`.
 
      - `DATABASE_URL` and `REDIS_URL` point to our own infrastructure.
-     - `APP_PUBLIC_URL` and `APP_DISPLAY_NAME` define the API server's canonical outbound app identity. They are used for OpenAI-compatible `HTTP-Referer` and `X-Title` headers, including recommendation-worker AI calls.
+     - `APP_PUBLIC_URL` and `APP_DISPLAY_NAME` define the API server's canonical outbound app identity. They are used for OpenAI-compatible `HTTP-Referer` and `X-Title` headers.
      - `AUTH_*` values are only used for external auth.
       - `SERVICE_CLIENTS_JSON` configures internal service-to-service callers.
      - `AI_SERVER_KEYS_JSON` is an optional JSON array of server-managed AI credentials used as the middle fallback step before the shared account-key pool. Example: `[{"providerId":"openai","apiKey":"sk-..."}]`.
-     - `RECOMMENDATION_ENGINE_WORKER_BASE_URL`, `RECOMMENDATION_ENGINE_WORKER_SERVICE_ID`, and `RECOMMENDATION_ENGINE_WORKER_API_KEY` configure outbound recommendation-generation calls and read-only worker bridge checks from the API server to the recommendation worker.
-     - `RECOMMENDATION_ENGINE_WORKER_SUBMIT_TIMEOUT_MS`, `RECOMMENDATION_ENGINE_WORKER_STATUS_TIMEOUT_MS`, `RECOMMENDATION_GENERATION_POLL_DELAY_MS`, and `RECOMMENDATION_GENERATION_MAX_POLL_DELAY_MS` tune async submit-plus-poll orchestration with the recommendation worker.
      - `RECOMMENDATION_ALGORITHM_VERSION` sets the canonical recommendation snapshot version. It defaults to `v3.2.1`.
      - `MDBLIST_API_KEY` enables the rich metadata-enrichment route `GET /v1/metadata/titles/:mediaKey/content`.
      - Runtime defaults live in `config/app-config.json.example`. The loader checks `config/app-config.json` first (gitignored, for local overrides), then falls back to the example template. Override the path with `APP_CONFIG_PATH` if needed.

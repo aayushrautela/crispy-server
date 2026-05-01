@@ -480,7 +480,6 @@ test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb look
     } as never,
     {} as never,
     {} as never,
-    {} as never,
     async <T>(work: (client: never) => Promise<T>) => work({} as never),
     {
       getTitle: async () => ({ tmdbId: 328443 }),
@@ -527,7 +526,6 @@ test('resolveImportIdentity falls back to imdb canonicalization when direct trak
         return 272;
       },
     } as never,
-    {} as never,
     {} as never,
     {} as never,
     async <T>(work: (client: never) => Promise<T>) => work({} as never),
@@ -581,7 +579,6 @@ test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and i
     } as never,
     {} as never,
     {} as never,
-    {} as never,
     async <T>(work: (client: never) => Promise<T>) => work({} as never),
     {
       getTitle: async () => {
@@ -622,7 +619,6 @@ test('resolveImportIdentity skips movie when metadata card build fails after id 
     {
       resolve: async () => 272,
     } as never,
-    {} as never,
     {} as never,
     {} as never,
     noopTransaction as never,

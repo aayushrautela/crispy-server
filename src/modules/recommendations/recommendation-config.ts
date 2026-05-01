@@ -4,11 +4,6 @@ export const recommendationConfig = {
   sourceKey: 'default',
   algorithmVersion: env.recommendationAlgorithmVersion,
   generationTtlSeconds: env.recommendationGenerationTtlSeconds,
-  queueDelayMs: env.recommendationGenerationQueueDelayMs,
-  workerSubmitTimeoutMs: env.recommendationEngineWorkerSubmitTimeoutMs,
-  workerStatusTimeoutMs: env.recommendationEngineWorkerStatusTimeoutMs,
-  pollDelayMs: env.recommendationGenerationPollDelayMs,
-  maxPollDelayMs: env.recommendationGenerationMaxPollDelayMs,
   payloadLimits: {
     watchHistory: 100,
     ratings: 100,

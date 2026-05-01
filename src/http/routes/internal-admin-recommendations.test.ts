@@ -37,38 +37,22 @@ test('internal recommendation admin routes require service auth', async (t) => {
   const app = await buildInternalApp();
   t.after(async () => { await app.close(); });
 
-  const response = await app.inject({ method: 'GET', url: '/internal/v1/admin/recommendations/generation-jobs/job-123' });
+  const response = await app.inject({ method: 'GET', url: '/internal/v1/admin/recommendations/outbox' });
   assert.equal(response.statusCode, 401);
 });
 
-test('internal recommendation admin detail route rejects blank job id', async (t) => {
-  const app = await buildInternalApp();
-  t.after(async () => { await app.close(); });
-
-  const response = await app.inject({
-    method: 'GET',
-    url: '/internal/v1/admin/recommendations/generation-jobs/%20',
-    headers: { 'x-service-id': 'test-service', 'x-api-key': 'test-key' },
-  });
-
-  assert.equal(response.statusCode, 400);
-  assert.match(response.body, /Missing jobId/);
-});
-
-test('internal recommendation admin detail route returns local generation job', async (t) => {
+test('internal recommendation admin outbox route returns diagnostics', async (t) => {
   const { RecommendationAdminService } = await import('../../modules/recommendations/recommendation-admin.service.js');
-  const original = RecommendationAdminService.prototype.getGenerationJob;
-  RecommendationAdminService.prototype.getGenerationJob = async function (jobId: string) {
+  const original = RecommendationAdminService.prototype.getOutbox;
+  RecommendationAdminService.prototype.getOutbox = async function () {
     return {
-      job: {
-        id: jobId,
-        status: 'queued',
-      } as never,
+      lag: { undeliveredCount: 0, oldestOccurredAt: null, oldestCreatedAt: null, newestCreatedAt: null },
+      undelivered: [],
     };
   };
 
   t.after(() => {
-    RecommendationAdminService.prototype.getGenerationJob = original;
+    RecommendationAdminService.prototype.getOutbox = original;
   });
 
   const app = await buildInternalApp();
@@ -76,15 +60,13 @@ test('internal recommendation admin detail route returns local generation job', 
 
   const response = await app.inject({
     method: 'GET',
-    url: '/internal/v1/admin/recommendations/generation-jobs/job-123',
+    url: '/internal/v1/admin/recommendations/outbox',
     headers: { 'x-service-id': 'test-service', 'x-api-key': 'test-key' },
   });
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
-    job: {
-      id: 'job-123',
-      status: 'queued',
-    },
+    lag: { undeliveredCount: 0, oldestUndeliveredAt: null },
+    undelivered: [],
   });
 });
