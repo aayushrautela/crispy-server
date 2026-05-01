@@ -59,32 +59,31 @@ export class AiCredentialResolver {
       );
     }
 
-    const selectedProviderId = await this.accountSettingsService.getAiProviderIdForUser(userId);
-
     if (policy.allowUserKey && !policy.allowServerKey) {
-      // Lite tier: user BYOK only (OpenRouter)
-      if (selectedProviderId !== 'openrouter') {
-        throw new HttpError(412, `AI ${task} requires OpenRouter BYOK on the ${tier} tier.`);
+      // Lite tier: configured BYOK provider only.
+      const liteProvider = requireAiProvider(appConfig.ai.liteProviderId);
+      const selectedProviderId = await this.accountSettingsService.getAiProviderIdForUser(userId);
+      if (selectedProviderId !== liteProvider.id) {
+        throw new HttpError(412, `AI ${task} requires ${liteProvider.label} BYOK on the ${tier} tier.`);
       }
 
-      const userKey = await this.getUserApiKey(userId, selectedProviderId);
+      const userKey = await this.getUserApiKey(userId);
       if (!userKey) {
         throw new HttpError(
           412,
-          `AI ${task} requires an API key. Add your OpenRouter API key in Account Settings.`,
+          `AI ${task} requires an API key. Add your ${liteProvider.label} API key in Account Settings.`,
         );
       }
 
-      const provider = requireAiProvider(selectedProviderId);
-      const model = provider.models[taskConfig.feature];
+      const model = liteProvider.models[taskConfig.feature];
 
       return {
         feature: taskConfig.feature,
-        providerId: provider.id,
+        providerId: liteProvider.id,
         provider: {
-          id: provider.id,
-          label: provider.label,
-          endpointUrl: provider.endpointUrl,
+          id: liteProvider.id,
+          label: liteProvider.label,
+          endpointUrl: liteProvider.endpointUrl,
           httpReferer: env.appPublicUrl,
           title: env.appDisplayName,
         },
@@ -95,8 +94,8 @@ export class AiCredentialResolver {
     }
 
     if (policy.allowServerKey && !policy.allowUserKey) {
-      // Pro/Ultra tier: server key only
-      const serverKey = this.getServerApiKey(selectedProviderId, taskConfig.feature);
+      // Pro/Ultra tier: configured server provider only.
+      const serverKey = this.getServerApiKey(appConfig.ai.serverProviderId, taskConfig.feature);
       if (!serverKey) {
         throw new HttpError(
           503,
@@ -110,7 +109,7 @@ export class AiCredentialResolver {
     throw new HttpError(503, `AI ${task} is not configured for this account tier.`);
   }
 
-  private async getUserApiKey(userId: string, providerId: string): Promise<string | null> {
+  private async getUserApiKey(userId: string): Promise<string | null> {
     try {
       const secret = await this.accountSettingsService.getAiApiKeyForUser(userId);
       return secret.value;

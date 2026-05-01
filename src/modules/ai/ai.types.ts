@@ -1,7 +1,7 @@
 import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 
 export type AiFeatureId = 'recommendations' | 'search' | 'insights';
-export type AiCredentialSource = 'user' | 'server' | 'shared_pool';
+export type AiCredentialSource = 'user' | 'server';
 
 export type AiProviderView = {
   id: string;
@@ -41,11 +41,6 @@ export type AiClientSettings = {
 export type AiApiKeyCandidate = {
   providerId: string;
   apiKey: string;
-};
-
-export type AiApiKeyLookup = {
-  ownKeys: AiApiKeyCandidate[];
-  pooledKeys: AiApiKeyCandidate[];
 };
 
 export type ResolvedAiRequest = {

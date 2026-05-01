@@ -1,7 +1,3 @@
-import { appConfig } from '../../config/app-config.js';
-
-type CooldownBucket = 'transient' | 'rate_limit';
-
 type ModelState = {
   blockedUntil: number;
   transientFailures: number;
@@ -11,6 +7,18 @@ type ModelState = {
 
 type ProviderState = {
   blockedUntil: number;
+};
+
+type ServerHealthConfig = {
+  transientCooldownSeconds: number[];
+  rateLimitCooldownSeconds: number[];
+  providerBlockSeconds: number;
+};
+
+const SERVER_HEALTH_CONFIG: ServerHealthConfig = {
+  transientCooldownSeconds: [30, 60, 120],
+  rateLimitCooldownSeconds: [120, 900, 3600, 21600, 86400],
+  providerBlockSeconds: 86400,
 };
 
 const modelStates = new Map<string, ModelState>();
@@ -34,7 +42,7 @@ export function recordServerModelTransientFailure(providerId: string, model: str
   const key = toModelKey(providerId, model);
   const current = modelStates.get(key);
   const failureCount = (current?.transientFailures ?? 0) + 1;
-  const cooldownSeconds = selectCooldown(appConfig.ai.serverFallback.transientCooldownSeconds, failureCount);
+  const cooldownSeconds = selectCooldown(SERVER_HEALTH_CONFIG.transientCooldownSeconds, failureCount);
 
   modelStates.set(key, {
     blockedUntil: now + (cooldownSeconds * 1000),
@@ -55,7 +63,7 @@ export function recordServerModelRateLimit(
   const failureCount = (current?.rateLimitFailures ?? 0) + 1;
   const cooldownSeconds = retryAfterSeconds && retryAfterSeconds > 0
     ? retryAfterSeconds
-    : selectCooldown(appConfig.ai.serverFallback.rateLimitCooldownSeconds, failureCount);
+    : selectCooldown(SERVER_HEALTH_CONFIG.rateLimitCooldownSeconds, failureCount);
 
   modelStates.set(key, {
     blockedUntil: now + (cooldownSeconds * 1000),
@@ -71,7 +79,7 @@ export function clearServerModelFailure(providerId: string, model: string): void
 
 export function blockServerProvider(providerId: string, now = Date.now()): void {
   providerStates.set(providerId, {
-    blockedUntil: now + (appConfig.ai.serverFallback.providerBlockSeconds * 1000),
+    blockedUntil: now + (SERVER_HEALTH_CONFIG.providerBlockSeconds * 1000),
   });
 }
 

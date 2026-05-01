@@ -1,7 +1,7 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
-import { appConfig, isAiProviderId, normalizeAiProviderId } from '../../config/app-config.js';
+import { appConfig, isAiProviderId } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
-import type { AiApiKeyLookup, AiClientSettings } from '../ai/ai.types.js';
+import type { AiClientSettings } from '../ai/ai.types.js';
 import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-account-settings.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
@@ -71,26 +71,6 @@ export class AccountSettingsService {
 
   getPricingTierForUser(_userId: string): PricingTier {
     return DEFAULT_PRICING_TIER;
-  }
-
-  async listAiApiKeysForLookup(userId: string): Promise<AiApiKeyLookup> {
-    return this.runInTransaction(async (client) => {
-      const entries = await this.accountSettingsRepository.listAiSecretsForLookup(client, appConfig.ai.defaultProviderId);
-      const normalized = dedupeAiApiKeyCandidates(entries.map((entry) => ({
-        appUserId: entry.appUserId,
-        providerId: normalizeAiProviderId(entry.providerId),
-        apiKey: entry.apiKey,
-      })));
-
-      return {
-        ownKeys: normalized
-          .filter((entry) => entry.appUserId === userId)
-          .map(({ providerId, apiKey }) => ({ providerId, apiKey })),
-        pooledKeys: normalized
-          .filter((entry) => entry.appUserId !== userId)
-          .map(({ providerId, apiKey }) => ({ providerId, apiKey })),
-      } satisfies AiApiKeyLookup;
-    });
   }
 
   async clearAiApiKeyForUser(userId: string): Promise<boolean> {
@@ -252,36 +232,6 @@ function normalizeSecretValue(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function dedupeStrings(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-}
-
-function dedupeAiApiKeyCandidates(values: Array<{ appUserId: string; providerId: string; apiKey: string }>): Array<{ appUserId: string; providerId: string; apiKey: string }> {
-  const seen = new Set<string>();
-  const deduped: Array<{ appUserId: string; providerId: string; apiKey: string }> = [];
-
-  for (const value of values) {
-    const providerId = value.providerId.trim();
-    const apiKey = value.apiKey.trim();
-    if (!providerId || !apiKey) {
-      continue;
-    }
-
-    const key = `${value.appUserId}:${providerId}:${apiKey}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    deduped.push({
-      appUserId: value.appUserId,
-      providerId,
-      apiKey,
-    });
-  }
-
-  return deduped;
 }
 
 function normalizeEditableAiSettings(value: unknown): Record<string, unknown> {

@@ -150,41 +150,6 @@ test('clearMdbListApiKeyForUser returns true when secret existed', async () => {
   assert.equal(result, true);
 });
 
-test('listAiApiKeysForLookup separates own and pooled keys with providers', async () => {
-  const service = new AccountSettingsService(
-    {
-      listAiSecretsForLookup: async () => [
-        { appUserId: 'user-1', providerId: 'openrouter', apiKey: 'own-key' },
-        { appUserId: 'user-2', providerId: 'openai', apiKey: 'pooled-key-1' },
-        { appUserId: 'user-1', providerId: 'openrouter', apiKey: 'own-key' },
-      ],
-    } as never,
-    {} as never,
-    async (work) => work({} as never),
-  );
-
-  const result = await service.listAiApiKeysForLookup('user-1');
-  assert.deepEqual(result.ownKeys, [{ providerId: 'openrouter', apiKey: 'own-key' }]);
-  assert.deepEqual(result.pooledKeys, [{ providerId: 'openrouter', apiKey: 'pooled-key-1' }]);
-});
-
-test('listAiApiKeysForLookup falls back to default provider id', async () => {
-  const service = new AccountSettingsService(
-    {
-      listAiSecretsForLookup: async () => [
-        { appUserId: 'user-1', providerId: '  ', apiKey: 'own-key' },
-        { appUserId: 'user-2', providerId: 'openrouter', apiKey: 'pooled-key-1' },
-      ],
-    } as never,
-    {} as never,
-    async (work) => work({} as never),
-  );
-
-  const result = await service.listAiApiKeysForLookup('user-1');
-  assert.deepEqual(result.ownKeys, [{ providerId: 'openrouter', apiKey: 'own-key' }]);
-  assert.deepEqual(result.pooledKeys, [{ providerId: 'openrouter', apiKey: 'pooled-key-1' }]);
-});
-
 test('normalizeAccountSettingsPatch keeps editable AI settings and strips derived fields', async () => {
   const result = normalizeAccountSettingsPatch({
     pricingTier: 'pro',

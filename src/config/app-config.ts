@@ -1,20 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AiCredentialSource, AiFeatureId, AiProviderView } from '../modules/ai/ai.types.js';
-
-type AiProviderSelection =
-  | { type: 'account' }
-  | { type: 'fixed'; providerId: string };
-
-type AiFeaturePolicyStep = {
-  source: AiCredentialSource;
-  provider: AiProviderSelection;
-  models?: string[];
-};
-
-type AiFeaturePolicy = {
-  fallback: AiFeaturePolicyStep[];
-};
+import type { AiFeatureId, AiProviderView } from '../modules/ai/ai.types.js';
 
 export type AppAiProviderConfig = {
   id: string;
@@ -44,18 +30,12 @@ type AppConfig = {
   };
   ai: {
     defaultProviderId: string;
+    liteProviderId: string;
+    serverProviderId: string;
     providers: Record<string, AppAiProviderConfig>;
     providerOrder: string[];
-    features: Record<AiFeatureId, AiFeaturePolicy>;
-    serverFallback: {
-      transientCooldownSeconds: number[];
-      rateLimitCooldownSeconds: number[];
-      providerBlockSeconds: number;
-    };
   };
 };
-
-const CREDENTIAL_SOURCES: AiCredentialSource[] = ['user', 'server', 'shared_pool'];
 
 export const appConfigPath = resolveAppConfigPath();
 export const appConfig = loadAppConfig(appConfigPath);
@@ -91,10 +71,6 @@ export function requireAiProvider(providerId: string): AppAiProviderConfig {
     throw new Error(`Unknown AI provider: ${providerId}`);
   }
   return provider;
-}
-
-export function getAiFeaturePolicy(feature: AiFeatureId): AiFeaturePolicy {
-  return appConfig.ai.features[feature];
 }
 
 function resolveAppConfigPath(): string {
@@ -206,76 +182,29 @@ function parseAiConfig(
   providers: Record<string, AppAiProviderConfig>,
 ): AppConfig['ai'] {
   const ai = expectRecord(root.ai, 'ai');
-  const defaultProviderId = expectNonEmptyString(ai.defaultProviderId, 'ai.defaultProviderId');
-  if (!Object.hasOwn(providers, defaultProviderId)) {
-    throw new Error(`ai.defaultProviderId must reference a configured provider: ${defaultProviderId}`);
-  }
-
-  const serverFallback = expectRecord(ai.serverFallback, 'ai.serverFallback');
-  const features = expectRecord(ai.features, 'ai.features');
+  const defaultProviderId = expectConfiguredAiProviderId(ai.defaultProviderId, 'ai.defaultProviderId', providers);
+  const liteProviderId = expectConfiguredAiProviderId(ai.liteProviderId, 'ai.liteProviderId', providers);
+  const serverProviderId = expectConfiguredAiProviderId(ai.serverProviderId, 'ai.serverProviderId', providers);
 
   return {
     defaultProviderId,
+    liteProviderId,
+    serverProviderId,
     providers,
     providerOrder: Object.keys(providers),
-    features: {
-      recommendations: parseAiFeaturePolicy('recommendations', features, providers),
-      search: parseAiFeaturePolicy('search', features, providers),
-      insights: parseAiFeaturePolicy('insights', features, providers),
-    },
-    serverFallback: {
-      transientCooldownSeconds: expectPositiveNumberArray(
-        serverFallback.transientCooldownSeconds,
-        'ai.serverFallback.transientCooldownSeconds',
-      ),
-      rateLimitCooldownSeconds: expectPositiveNumberArray(
-        serverFallback.rateLimitCooldownSeconds,
-        'ai.serverFallback.rateLimitCooldownSeconds',
-      ),
-      providerBlockSeconds: expectPositiveNumber(serverFallback.providerBlockSeconds, 'ai.serverFallback.providerBlockSeconds'),
-    },
   };
 }
 
-function parseAiFeaturePolicy(
-  feature: AiFeatureId,
-  features: Record<string, unknown>,
-  providers: Record<string, AppAiProviderConfig>,
-): AiFeaturePolicy {
-  const entry = expectRecord(features[feature], `ai.features.${feature}`);
-  const fallback = expectArray(entry.fallback, `ai.features.${feature}.fallback`);
-
-  return {
-    fallback: fallback.map((value, index) => parseAiFeaturePolicyStep(feature, value, index, providers)),
-  };
-}
-
-function parseAiFeaturePolicyStep(
-  feature: AiFeatureId,
+function expectConfiguredAiProviderId(
   value: unknown,
-  index: number,
+  label: string,
   providers: Record<string, AppAiProviderConfig>,
-): AiFeaturePolicyStep {
-  const step = expectRecord(value, `ai.features.${feature}.fallback[${index}]`);
-  const source = expectEnumValue(step.source, `ai.features.${feature}.fallback[${index}].source`, CREDENTIAL_SOURCES);
-  const providerValue = expectNonEmptyString(step.provider, `ai.features.${feature}.fallback[${index}].provider`);
-  const models = step.models === undefined
-    ? undefined
-    : expectNonEmptyStringArray(step.models, `ai.features.${feature}.fallback[${index}].models`);
-
-  if (providerValue === 'account') {
-    return { source, provider: { type: 'account' }, models };
+): string {
+  const providerId = expectNonEmptyString(value, label);
+  if (!Object.hasOwn(providers, providerId)) {
+    throw new Error(`${label} must reference a configured provider: ${providerId}`);
   }
-
-  if (!Object.hasOwn(providers, providerValue)) {
-    throw new Error(`Unknown provider '${providerValue}' in ai.features.${feature}.fallback[${index}]`);
-  }
-
-  return {
-    source,
-    provider: { type: 'fixed', providerId: providerValue },
-    models,
-  };
+  return providerId;
 }
 
 function expectRecord(value: unknown, label: string): Record<string, unknown> {
@@ -312,35 +241,4 @@ function expectPositiveNumber(value: unknown, label: string): number {
     throw new Error(`Invalid ${label}: expected a positive number.`);
   }
   return value;
-}
-
-function expectPositiveNumberArray(value: unknown, label: string): number[] {
-  const values = expectArray(value, label).map((entry, index) =>
-    expectPositiveNumber(entry, `${label}[${index}]`),
-  );
-
-  if (values.length === 0) {
-    throw new Error(`Invalid ${label}: expected at least one value.`);
-  }
-
-  return values;
-}
-
-function expectNonEmptyStringArray(value: unknown, label: string): string[] {
-  const values = expectArray(value, label)
-    .map((entry, index) => expectNonEmptyString(entry, `${label}[${index}]`));
-
-  if (values.length === 0) {
-    throw new Error(`Invalid ${label}: expected at least one value.`);
-  }
-
-  return [...new Set(values)];
-}
-
-function expectEnumValue<T extends string>(value: unknown, label: string, allowed: T[]): T {
-  const normalized = expectNonEmptyString(value, label) as T;
-  if (!allowed.includes(normalized)) {
-    throw new Error(`Invalid ${label}: expected one of ${allowed.join(', ')}.`);
-  }
-  return normalized;
 }
