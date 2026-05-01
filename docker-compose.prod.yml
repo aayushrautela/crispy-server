@@ -32,6 +32,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgres://crispy:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/crispy
+      REDIS_URL: redis://redis:6379
     command: npm run start:api
     depends_on:
       postgres:
@@ -52,6 +55,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgres://crispy:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/crispy
+      REDIS_URL: redis://redis:6379
     command: npm run start:worker
     depends_on:
       postgres:
