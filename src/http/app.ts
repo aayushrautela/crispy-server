@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { loggerOptions } from '../config/logger.js';
+import { logger, loggerOptions } from '../config/logger.js';
 import { db } from '../lib/db.js';
 import adminUiAuthPlugin from './plugins/admin-ui-auth.js';
 import authPlugin from './plugins/auth.js';
@@ -40,7 +40,10 @@ import { SqlEligibleProfileChangeFeedRepo } from '../modules/apps/eligible-profi
 import { DefaultEligibleProfileSnapshotService } from '../modules/apps/eligible-profile-snapshot.service.js';
 import { SqlEligibleProfileSnapshotRepo } from '../modules/apps/eligible-profile-snapshot.repo.js';
 import { DefaultProfileSignalBundleService } from '../modules/apps/profile-signal-bundle.service.js';
-import { SqlProfileSignalBundleRepo } from '../modules/apps/profile-signal-bundle.repo.js';
+import { ProfileInputSignalFacade } from '../modules/recommendations/profile-input-signal.facade.js';
+import { SqlProfileInputSignalCacheRepo } from '../modules/recommendations/profile-input-signal-cache.repo.js';
+import { ProfileInputSignalCacheService } from '../modules/recommendations/profile-input-signal-cache.service.js';
+import { PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION } from '../modules/recommendations/profile-input-signal-cache.types.js';
 import { SignedAppCursorCodec } from '../modules/apps/app-cursor-codec.js';
 import { SqlServiceRecommendationListRepo } from '../modules/apps/service-recommendation-list.repo.js';
 import { DefaultServiceRecommendationListService } from '../modules/apps/service-recommendation-list.service.js';
@@ -117,9 +120,48 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     maxSnapshotCreateLimit: 100000,
     maxSnapshotReadLimit: 500,
   });
-  const profileSignalBundleRepo = new SqlProfileSignalBundleRepo({ db });
+  const profileInputSignalCacheRepo = new SqlProfileInputSignalCacheRepo({ db });
+  const profileInputSignalCacheService = new ProfileInputSignalCacheService({
+    repo: profileInputSignalCacheRepo,
+    policy: {
+      forceLive: true,
+      readEnabled: false,
+      writeEnabled: false,
+      observeOnly: false,
+      schemaVersion: PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION,
+      readRolloutPercent: 0,
+      ttlSecondsByFamily: {
+        history: 10 * 60,
+        ratings: 10 * 60,
+        watchlist: 10 * 60,
+        continueWatching: 2 * 60,
+        trackedSeries: 10 * 60,
+      },
+    },
+    logger: {
+      logCacheDecision: (event) => logger.debug({ event: 'profile_input_signal_cache_decision', ...event }),
+      logCacheRead: (event) => logger.info({ event: 'profile_input_signal_cache_read', ...event }),
+      logCacheWrite: (event) => logger.info({ event: 'profile_input_signal_cache_write', ...event }),
+      logCacheError: (event) => logger.warn({ event: 'profile_input_signal_cache_error', ...event }),
+    },
+  });
+  const profileInputSignalFacade = new ProfileInputSignalFacade({
+    cacheService: profileInputSignalCacheService,
+    defaults: {
+      historyDefault: 100,
+      historyMax: 500,
+      ratingsDefault: 100,
+      ratingsMax: 500,
+      watchlistDefault: 50,
+      watchlistMax: 200,
+      continueDefault: 20,
+      continueMax: 50,
+      trackedSeriesDefault: 20,
+      trackedSeriesMax: 100,
+    },
+  });
   const profileSignalBundleService = new DefaultProfileSignalBundleService({
-    repo: profileSignalBundleRepo,
+    facade: profileInputSignalFacade,
     profileEligibilityService,
     appAuthorizationService,
     appAuditRepo: authDeps.appAuditRepo,
@@ -191,6 +233,7 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     eligibleProfileChangeFeedService,
     eligibleProfileSnapshotService,
     profileSignalBundleService,
+    profileInputSignalFacade,
     serviceRecommendationListService,
     recommendationRunService,
     recommendationBatchService,
@@ -232,7 +275,6 @@ export async function buildApp() {
 
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
-  await registerAdminApiRoutes(app);
   await registerAccountRoutes(app);
   await registerAiRoutes(app);
   await registerMeRoutes(app);
@@ -243,6 +285,9 @@ export async function buildApp() {
   await registerWatchRoutes(app);
   await registerRecommendationOutputRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
+  await registerAdminApiRoutes(app, {
+    profileInputSignalFacade: internalAppsDeps.profileInputSignalFacade,
+  });
   await registerInternalConfidentialRoutes(app, {
     confidentialConfigService: buildConfidentialConfigService(internalAppsDeps),
   });

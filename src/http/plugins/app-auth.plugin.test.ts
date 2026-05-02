@@ -6,6 +6,14 @@ import type { AppAuthService, AppCredential } from '../../modules/apps/app-auth.
 import type { AppAuditRepo, CreateAppAuditEventInput, AppAuditEventRecord, PaginatedAppAuditEvents } from '../../modules/apps/app-audit.repo.js';
 import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
 import type { AppRateLimitService, AppRateLimitDecision } from '../../modules/apps/app-rate-limit.service.js';
+import { setTestEnv } from '../../test-helpers.js';
+
+setTestEnv({
+  SUPABASE_URL: 'http://localhost:54321',
+  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  JWT_SECRET: 'test-jwt-secret',
+  CRISPY_RECOMMENDER_API_TOKEN_HASH: 'unused-token-hash',
+});
 
 function buildPrincipal(): AppPrincipal {
   return {
@@ -112,6 +120,11 @@ async function buildApp(authService: AppAuthService, auditRepo = new FakeAuditRe
     return { appId: principal.appId, keyId: principal.keyId, requestPrincipalAppId: request.appPrincipal?.appId };
   });
 
+  app.get('/admin/api/test', async (request) => {
+    await app.requireRecommenderAuth(request);
+    throw new Error('recommender auth should not grant admin access');
+  });
+
   return { app, auditRepo };
 }
 
@@ -145,3 +158,17 @@ test('app auth plugin returns app auth error response', async (t) => {
   assert.deepEqual(response.json(), { code: 'missing_app_credentials', message: 'Missing app credentials.' });
   assert.equal(auditRepo.inserted[0]?.action, 'app_auth_failed');
 });
+
+test('app bearer token does not grant admin api access', async (t) => {
+  const { app } = await buildApp(new FakeAppAuthService(buildPrincipal()));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/admin/api/test',
+    headers: { authorization: 'Bearer app-token' },
+  });
+
+  assert.equal(response.statusCode, 401);
+});
+

@@ -5,10 +5,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'Overview',
       description: 'System health, live worker activity, and quick access to the main control surfaces.',
     },
-    jobs: {
-      title: 'Recommendation Jobs',
-      description: 'Read-only view of recommendation generation activity tracked by the API server.',
-    },
     diagnostics: {
       title: 'Diagnostics',
       description: 'Backlog, lag, and import health in a workspace that stays readable.',
@@ -24,31 +20,21 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   const state = {
     activeView: 'overview',
-    jobsBusy: false,
     diagnosticsBusy: false,
     lookupBusy: false,
-    generationDetailBusy: false,
     notificationsOpen: false,
     lastUpdatedAt: null,
-    jobsPayload: null,
     diagnosticsPayload: null,
-    generationDetailPayload: null,
     notifications: [],
     unreadCount: 0,
     toasts: [],
     toastCounter: 0,
     selectedAccount: null,
     selectedProfile: null,
-    selectedGenerationJobId: null,
-    jobsSnapshot: new Map(),
-    jobsLoadedOnce: false,
     pollersStarted: false,
     intervals: {
-      jobs: 8000,
       diagnostics: 30000,
-      generationDetail: 4000,
     },
-    generationDetailTimer: null,
   };
 
   const elements = {
@@ -70,32 +56,18 @@ export const ADMIN_UI_CLIENT = String.raw`
     topbarRunningCount: document.getElementById('topbar-running-count'),
     topbarLastUpdate: document.getElementById('topbar-last-update'),
     sidebarRunningStatus: document.getElementById('sidebar-running-status'),
-    navJobsBadge: document.getElementById('nav-jobs-badge'),
     navDiagnosticsBadge: document.getElementById('nav-diagnostics-badge'),
     navAccountsBadge: document.getElementById('nav-accounts-badge'),
     overviewSummary: document.getElementById('overview-summary'),
     overviewRunningJobs: document.getElementById('overview-running-jobs'),
     overviewDiagnostics: document.getElementById('overview-diagnostics'),
     overviewNotifications: document.getElementById('overview-notifications'),
-    refreshJobs: document.getElementById('refresh-jobs'),
     refreshDiagnostics: document.getElementById('refresh-diagnostics'),
-    clearBlockedGenerationJobs: document.getElementById('clear-blocked-generation-jobs'),
-    jobStats: document.getElementById('job-stats'),
     diagStats: document.getElementById('diag-stats'),
-    activeJobs: document.getElementById('job-list-active'),
-    recentJobs: document.getElementById('job-list-recent'),
-    jobMessage: document.getElementById('job-message'),
     backlogSummary: document.getElementById('backlog-summary'),
-    generationSummary: document.getElementById('generation-summary'),
     outboxSummary: document.getElementById('outbox-summary'),
     importSummary: document.getElementById('import-summary'),
-    generationFailureSummary: document.getElementById('generation-failure-summary'),
     backlogRows: document.getElementById('backlog-rows'),
-    generationRows: document.getElementById('generation-rows'),
-    generationDetailEmpty: document.getElementById('generation-detail-empty'),
-    generationDetailShell: document.getElementById('generation-detail-shell'),
-    generationDetailSummary: document.getElementById('generation-detail-summary'),
-    generationDetailJson: document.getElementById('generation-detail-json'),
     importRows: document.getElementById('import-rows'),
     lookupForm: document.getElementById('account-lookup-form'),
     lookupEmail: document.getElementById('lookup-email'),
@@ -123,7 +95,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   void initialize();
 
   async function initialize() {
-    await Promise.all([loadJobs({ silent: true }), loadDiagnostics({ silent: true })]);
+    await loadDiagnostics({ silent: true });
     startPolling();
   }
 
@@ -157,21 +129,13 @@ export const ADMIN_UI_CLIENT = String.raw`
       button.addEventListener('click', () => {
         const target = button.getAttribute('data-refresh-target');
         if (target === 'overview') {
-          void Promise.all([loadJobs(), loadDiagnostics()]);
+          void loadDiagnostics();
         }
       });
     }
 
-    if (elements.refreshJobs) {
-      elements.refreshJobs.addEventListener('click', () => { void loadJobs(); });
-    }
     if (elements.refreshDiagnostics) {
       elements.refreshDiagnostics.addEventListener('click', () => { void loadDiagnostics(); });
-    }
-    if (elements.clearBlockedGenerationJobs) {
-      elements.clearBlockedGenerationJobs.addEventListener('click', () => {
-        void clearBlockedGenerationJobs();
-      });
     }
     if (elements.refreshProfileDetail) {
       elements.refreshProfileDetail.addEventListener('click', () => {
@@ -182,7 +146,6 @@ export const ADMIN_UI_CLIENT = String.raw`
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        void loadJobs({ silent: true });
         void loadDiagnostics({ silent: true });
       }
     });
@@ -287,10 +250,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     state.pollersStarted = true;
     window.setInterval(() => {
       if (document.visibilityState === 'hidden') return;
-      void loadJobs({ silent: true });
-    }, state.intervals.jobs);
-    window.setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
       void loadDiagnostics({ silent: true });
     }, state.intervals.diagnostics);
   }
@@ -339,77 +298,19 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  async function loadJobs(options) {
-    setBusy('jobsBusy', true);
-    try {
-      const payload = await fetchJson(apiPath('/worker/jobs/status'));
-      const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-      const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
-      const recentJobs = jobs.filter((job) => job.status !== 'pending' && job.status !== 'queued' && job.status !== 'running');
-      state.jobsPayload = payload;
-      renderJobStats(payload);
-      renderJobs(activeJobs, elements.activeJobs, true);
-      renderJobs(recentJobs, elements.recentJobs, false);
-      updateJobChrome(payload);
-      detectJobTransitions(payload, options && options.silent === true);
-      if (!(options && options.silent)) {
-        setMessage(elements.jobMessage, 'info', 'Recommendation job state refreshed.');
-      }
-      stampUpdated();
-      return payload;
-    } catch (error) {
-      state.jobsPayload = null;
-      renderJobStats(null);
-      if (elements.activeJobs) {
-        elements.activeJobs.innerHTML = emptyState('Recommendation job status is unavailable.');
-      }
-      if (elements.recentJobs) {
-        elements.recentJobs.innerHTML = emptyState('No recent recommendation job data available.');
-      }
-      updateJobChrome(null);
-      setMessage(elements.jobMessage, 'error', error.message || 'Failed to load recommendation jobs.');
-      if (!(options && options.silent)) {
-        pushNotification('error', 'Recommendation jobs unavailable', error.message || 'Failed to load recommendation jobs.', true);
-      }
-      return null;
-    } finally {
-      setBusy('jobsBusy', false);
-      renderOverview();
-    }
-  }
-
-  function updateJobChrome(payload) {
-    const jobs = payload && Array.isArray(payload.jobs) ? payload.jobs : [];
-    const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
-    const count = activeJobs.length;
-    if (elements.topbarRunningCount) {
-      elements.topbarRunningCount.textContent = String(count);
-    }
-    if (elements.navJobsBadge) {
-      elements.navJobsBadge.textContent = String(count);
-    }
-    if (elements.sidebarRunningStatus) {
-      elements.sidebarRunningStatus.textContent = count
-        ? count + ' recommendation jobs in flight. Next up: ' + String((activeJobs[0] && activeJobs[0].profileId) || 'unknown-profile')
-        : 'No running or queued recommendation jobs.';
-    }
-  }
-
   async function loadDiagnostics(options) {
     setBusy('diagnosticsBusy', true);
     try {
       const result = await Promise.all([
         fetchJson(apiPath('/diagnostics/recommendations/outbox?limit=8')),
-        fetchJson(apiPath('/diagnostics/recommendations/generation-jobs?limit=8')),
         fetchJson(apiPath('/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false')),
       ]);
       const payload = {
         outbox: result[0],
-        generationJobs: result[1],
-        imports: result[2],
+        imports: result[1],
       };
       state.diagnosticsPayload = payload;
-      renderDiagnostics(payload.outbox, payload.generationJobs, payload.imports);
+      renderDiagnostics(payload.outbox, payload.imports);
       updateDiagnosticsChrome(payload);
       stampUpdated();
       return payload;
@@ -419,12 +320,9 @@ export const ADMIN_UI_CLIENT = String.raw`
         elements.diagStats.innerHTML = '';
       }
       if (elements.backlogSummary) elements.backlogSummary.textContent = error.message || 'Failed to load diagnostics.';
-      if (elements.generationSummary) elements.generationSummary.textContent = 'Unavailable';
-      if (elements.generationFailureSummary) elements.generationFailureSummary.textContent = 'Unavailable';
       if (elements.outboxSummary) elements.outboxSummary.textContent = 'Unavailable';
       if (elements.importSummary) elements.importSummary.textContent = 'Unavailable';
       if (elements.backlogRows) elements.backlogRows.innerHTML = emptyTableRow('Diagnostics unavailable.', 4);
-      if (elements.generationRows) elements.generationRows.innerHTML = emptyTableRow('Generation diagnostics unavailable.', 6);
       if (elements.importRows) elements.importRows.innerHTML = emptyTableRow('Import diagnostics unavailable.', 5);
       if (elements.navDiagnosticsBadge) elements.navDiagnosticsBadge.textContent = '!';
       if (!(options && options.silent)) {
@@ -437,86 +335,22 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  async function clearBlockedGenerationJobs() {
-    if (state.diagnosticsBusy || state.jobsBusy) return;
-    setMessage(elements.jobMessage, 'info', 'Clearing resettable recommendation tracking jobs...');
-    if (elements.clearBlockedGenerationJobs) {
-      elements.clearBlockedGenerationJobs.disabled = true;
-    }
-
-    try {
-      const payload = await fetchJson(apiPath('/diagnostics/recommendations/generation-jobs/clear-blocked'), {
-        method: 'POST',
-      });
-      const deletedCount = Number(payload && payload.deletedCount || 0);
-      const description = deletedCount
-        ? 'Removed ' + deletedCount + ' resettable local tracking jobs.'
-        : 'No resettable local tracking jobs needed clearing.';
-      setMessage(elements.jobMessage, 'success', description);
-      pushNotification('success', 'Generation tracking reset', description, true);
-      await Promise.all([loadJobs({ silent: true }), loadDiagnostics({ silent: true })]);
-    } catch (error) {
-      const message = error && error.message ? error.message : 'Unable to clear resettable recommendation jobs.';
-      setMessage(elements.jobMessage, 'error', message);
-      pushNotification('error', 'Generation tracking reset failed', message, true);
-    } finally {
-      if (elements.clearBlockedGenerationJobs) {
-        elements.clearBlockedGenerationJobs.disabled = false;
-      }
-    }
-  }
-
   function updateDiagnosticsChrome(payload) {
     const undelivered = payload && payload.outbox && Array.isArray(payload.outbox.undelivered) ? payload.outbox.undelivered : [];
-    const generationJobsPayload = payload && payload.generationJobs ? payload.generationJobs : { lag: null, jobs: [] };
-    const generationJobs = Array.isArray(generationJobsPayload.jobs) ? generationJobsPayload.jobs : [];
-    const generationLag = generationJobsPayload.lag || null;
     const providerDiagnostics = payload && payload.imports && Array.isArray(payload.imports.providerDiagnostics) ? payload.imports.providerDiagnostics : [];
     const warningCount = providerDiagnostics.filter((row) => !!row.lastRefreshError).length
-      + generationJobs.filter((row) => String(row.status || '') === 'failed').length
-      + Number(generationLag && generationLag.submitFailureCount || 0)
-      + Number(generationLag && generationLag.pollFailureCount || 0)
       + (undelivered.length > 0 ? 1 : 0);
     if (elements.navDiagnosticsBadge) {
       elements.navDiagnosticsBadge.textContent = String(warningCount);
     }
-  }
-
-  async function loadGenerationJobDetail(jobId) {
-    if (!jobId) return null;
-    state.selectedGenerationJobId = jobId;
-    state.generationDetailBusy = true;
-    try {
-      const payload = await fetchJson(apiPath('/diagnostics/recommendations/generation-jobs/' + encodeURIComponent(jobId)));
-      state.generationDetailPayload = payload;
-      renderGenerationJobDetail(payload && payload.job ? payload.job : null);
-      return payload;
-    } catch (error) {
-      state.generationDetailPayload = null;
-      renderGenerationJobDetail(null, error);
-      pushNotification('warn', 'Generation job detail unavailable', error.message || 'Unable to load recommendation generation job detail.', true);
-      return null;
-    } finally {
-      state.generationDetailBusy = false;
+    if (elements.topbarRunningCount) {
+      elements.topbarRunningCount.textContent = String(warningCount);
     }
-  }
-
-  function scheduleGenerationDetailRefresh(jobId) {
-    if (state.generationDetailTimer) {
-      clearTimeout(state.generationDetailTimer);
-      state.generationDetailTimer = null;
+    if (elements.sidebarRunningStatus) {
+      elements.sidebarRunningStatus.textContent = warningCount
+        ? String(warningCount) + ' diagnostics need attention.'
+        : 'Recommendation outbox and import diagnostics are clear.';
     }
-
-    const payload = state.generationDetailPayload && state.generationDetailPayload.job ? state.generationDetailPayload.job : null;
-    const active = payload && (payload.status === 'pending' || payload.status === 'queued' || payload.status === 'running');
-    const waitingForApply = payload && payload.status === 'succeeded' && !payload.resultAppliedAt;
-    if (!jobId || (!active && !waitingForApply)) {
-      return;
-    }
-
-    state.generationDetailTimer = setTimeout(() => {
-      void loadGenerationJobDetail(jobId);
-    }, state.intervals.generationDetail);
   }
 
   async function lookupAccount() {
@@ -680,64 +514,6 @@ export const ADMIN_UI_CLIENT = String.raw`
   function bindProfileActionButtons(accountId, profileId, container) {
     const messageEl = elements.profileDetailMessage;
 
-    const recommendationButtons = Array.from(container.querySelectorAll('[data-start-recommendations]'));
-    for (const button of recommendationButtons) {
-      button.onclick = async () => {
-        button.disabled = true;
-        setMessage(messageEl, 'info', 'Requesting recommendation generation...');
-        try {
-          const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations/start'), {
-            method: 'POST',
-          });
-          const created = payload && payload.created === true;
-          const status = payload && payload.status ? String(payload.status) : 'pending';
-          const jobId = payload && payload.jobId ? String(payload.jobId) : '';
-          const successText = created
-            ? 'Created recommendation job for this profile.'
-            : 'Reused existing recommendation job for this profile.';
-          setMessage(messageEl, 'success', successText);
-          pushNotification('success', 'Recommendation job scheduled', (created ? 'Created' : 'Reused') + ' job ' + (jobId || '(pending id)') + ' with status ' + status + '.', true);
-          if (jobId) {
-            await loadGenerationJobDetail(jobId);
-          }
-          await inspectProfile(accountId, profileId);
-        } catch (error) {
-          const description = describeApiError(error, 'Unable to start recommendation generation.');
-          setMessage(messageEl, 'error', description);
-          pushNotification('error', 'Recommendation job failed', description, true);
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
-
-    const batchButtons = Array.from(container.querySelectorAll('[data-dry-run-profile-batch]'));
-    for (const button of batchButtons) {
-      button.onclick = async () => {
-        button.disabled = true;
-        setMessage(messageEl, 'info', 'Creating recommendation-engine batch dry run...');
-        try {
-          const payload = await fetchJson(apiPath('/recommendation-batches/dry-run'), {
-            method: 'POST',
-            body: JSON.stringify({
-              scope: { type: 'profiles', profiles: [{ accountId: accountId, profileId: profileId }] },
-              action: 'refresh_all',
-              reason: 'main-admin-profile-regenerate',
-              limits: { maxItems: 1 },
-            }),
-          });
-          setMessage(messageEl, 'success', 'Dry run created: ' + payload.dryRunId + '. Confirm phrase: ' + payload.confirmationPhrase);
-          pushNotification('success', 'RECO dry run created', 'Dry run ' + payload.dryRunId + ' estimates ' + payload.estimatedCount + ' item(s).', true);
-        } catch (error) {
-          const description = describeApiError(error, 'Unable to create recommendation-engine dry run.');
-          setMessage(messageEl, 'error', description);
-          pushNotification('error', 'RECO dry run failed', description, true);
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
-
     const importButtons = Array.from(container.querySelectorAll('[data-start-import]'));
     for (const button of importButtons) {
       button.onclick = async () => {
@@ -830,23 +606,15 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  function renderDiagnostics(outbox, generationJobsPayload, imports) {
+  function renderDiagnostics(outbox, imports) {
     const undelivered = Array.isArray(outbox.undelivered) ? outbox.undelivered : [];
-    const generationJobs = Array.isArray(generationJobsPayload && generationJobsPayload.jobs) ? generationJobsPayload.jobs : [];
-    const generationLag = generationJobsPayload && generationJobsPayload.lag ? generationJobsPayload.lag : null;
     const providerDiagnostics = Array.isArray(imports.providerDiagnostics) ? imports.providerDiagnostics : [];
     const refreshFailures = providerDiagnostics.filter((row) => !!row.lastRefreshError).length;
     const expiringSoon = providerDiagnostics.filter((row) => row.accessTokenExpiresAt).length;
-    const activeGenerations = generationJobs.filter((row) => String(row.status || '') === 'queued' || String(row.status || '') === 'running').length;
-    const failedGenerations = generationJobs.filter((row) => String(row.status || '') === 'failed').length;
-    const submitFailures = Number(generationLag && generationLag.submitFailureCount || 0);
-    const syncFailures = Number(generationLag && generationLag.pollFailureCount || 0);
 
     if (elements.diagStats) {
       elements.diagStats.innerHTML = [
         statCard('Undelivered events', undelivered.length, undelivered.length ? 'needs orchestration attention' : 'delivery is caught up'),
-        statCard('Generation jobs', generationJobs.length, generationLagText(generationLag)),
-        statCard('Generation failures', submitFailures + syncFailures, submitFailures + ' submit / ' + syncFailures + ' sync'),
         statCard('Outbox undelivered', countArray(outbox.undelivered), lagText(outbox.lag)),
         statCard('Import refresh failures', refreshFailures, expiringSoon + ' with expiry timestamps'),
       ].join('');
@@ -856,16 +624,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.backlogSummary.textContent = undelivered.length
         ? String(undelivered.length) + ' recommendation events are still undelivered.'
         : 'Recommendation delivery is caught up.';
-    }
-    if (elements.generationSummary) {
-      elements.generationSummary.textContent = generationJobs.length
-        ? activeGenerations + ' active, ' + failedGenerations + ' failed, ' + String(generationLag && generationLag.pendingCount || 0) + ' pending submits.'
-        : 'No recent recommendation generation jobs.';
-    }
-    if (elements.generationFailureSummary) {
-      elements.generationFailureSummary.textContent = (submitFailures || syncFailures)
-        ? submitFailures + ' jobs still need submit retry; ' + syncFailures + ' have seen at least one sync failure.'
-        : 'No current recommendation generation failure backlog.';
     }
     if (elements.outboxSummary) {
       elements.outboxSummary.textContent = lagText(outbox.lag);
@@ -880,19 +638,6 @@ export const ADMIN_UI_CLIENT = String.raw`
         ? undelivered.map((row) => '<tr><td><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong></td><td>' + escapeHtml(String(row.eventType || 'unknown')) + '</td><td>' + escapeHtml(String(row.occurredAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.historyGeneration || 'n/a')) + '</td></tr>').join('')
         : emptyTableRow('No undelivered recommendation events.', 4);
     }
-    if (elements.generationRows) {
-      elements.generationRows.innerHTML = generationJobs.length
-        ? generationJobs.map((row) => '<tr>'
-          + '<td><button type="button" class="ghost" data-generation-job-id="' + escapeHtml(String(row.id || '')) + '"><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong></button></td>'
-          + '<td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td>'
-          + '<td>' + escapeHtml(String(row.workerJobId || 'pending submit')) + '</td>'
-          + '<td>' + escapeHtml(String(row.algorithmVersion || 'n/a')) + ' / ' + escapeHtml(String(row.historyGeneration || 'n/a')) + '</td>'
-          + '<td>' + escapeHtml(String(Number(row.submitAttempts || 0))) + ' / ' + escapeHtml(String(Number(row.pollErrorCount || 0))) + '</td>'
-          + '<td>' + escapeHtml(String(row.updatedAt || row.createdAt || 'n/a')) + '</td>'
-          + '</tr>').join('')
-        : emptyTableRow('No recent recommendation generation jobs.', 6);
-      bindGenerationJobDetailButtons();
-    }
     if (elements.importRows) {
       elements.importRows.innerHTML = providerDiagnostics.length
         ? providerDiagnostics.map((row) => '<tr><td>'
@@ -903,88 +648,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  function renderJobStats(payload) {
-    if (!elements.jobStats) return;
-    if (!payload) {
-      elements.jobStats.innerHTML = [
-        statCard('Pending jobs', '0', 'status unavailable'),
-        statCard('Running jobs', '0', 'status unavailable'),
-        statCard('Failed jobs', '0', 'status unavailable'),
-        statCard('Latest update', '--', 'no job data'),
-      ].join('');
-      return;
-    }
-
-    const lag = payload.lag || {};
-    const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-    const failedCount = jobs.filter((job) => job.status === 'failed').length;
-    const latestUpdatedAt = jobs.length ? jobs[0].updatedAt || jobs[0].createdAt : null;
-
-    elements.jobStats.innerHTML = [
-      statCard('Pending jobs', Number(lag.pendingCount || 0), Number(lag.submitFailureCount || 0) + ' submit failures'),
-      statCard('Running jobs', Number(lag.runningCount || 0), Number(lag.queuedCount || 0) + ' queued'),
-      statCard('Failed jobs', failedCount, Number(lag.pollFailureCount || 0) + ' sync failures'),
-      statCard('Latest update', latestUpdatedAt ? formatDate(latestUpdatedAt) : '--', latestUpdatedAt || 'n/a'),
-    ].join('');
-  }
-
-  function renderJobs(jobs, target, includeQueueContext) {
-    if (!target) return;
-    if (!jobs || jobs.length === 0) {
-      target.innerHTML = emptyState(includeQueueContext ? 'No pending or running recommendation jobs.' : 'No recent recommendation jobs.');
-      return;
-    }
-
-    target.innerHTML = jobs.map((job) => renderJobCard(job, includeQueueContext)).join('');
-  }
-
-  function renderJobCard(job, includeQueueContext) {
-    const statusPayload = job && job.lastStatusPayload && typeof job.lastStatusPayload === 'object' ? job.lastStatusPayload : {};
-    const failureJson = job && job.failureJson && typeof job.failureJson === 'object' ? job.failureJson : {};
-    const result = statusPayload && statusPayload.result && typeof statusPayload.result === 'object' ? statusPayload.result : null;
-    const failure = statusPayload && statusPayload.failure && typeof statusPayload.failure === 'object' ? statusPayload.failure : failureJson;
-    const meta = [
-      'id ' + job.id,
-      job.workerJobId ? 'worker ' + job.workerJobId : 'worker pending',
-      'profile ' + job.profileId,
-      'source ' + job.sourceKey,
-      job.startedAt ? 'started ' + formatDate(job.startedAt) : 'created ' + formatDate(job.createdAt),
-    ].filter(Boolean).map((item) => '<span>' + escapeHtml(item) + '</span>').join('');
-
-    const detailLines = [
-      'algorithm: ' + String(job.algorithmVersion || 'n/a'),
-      'history generation: ' + String(job.historyGeneration || 'n/a'),
-      'submit attempts: ' + String(Number(job.submitAttempts || 0)),
-      'sync attempts: ' + String(Number(job.pollAttempts || 0)),
-      'sync errors: ' + String(Number(job.pollErrorCount || 0)),
-      'accepted: ' + String(job.acceptedAt || 'n/a'),
-      'completed: ' + String(job.completedAt || 'n/a'),
-      result ? 'result: available' : 'result: pending',
-      failure && Object.keys(failure).length ? 'failure: ' + JSON.stringify(failure) : 'failure: none',
-    ];
-
-    return '<article class="job-card">'
-      + '<div class="job-head">'
-      + '  <div class="job-title">'
-      + '    <div class="badge ' + escapeHtml(job.status) + '">' + escapeHtml(job.status) + '</div>'
-      + '    <h3>' + escapeHtml(String(job.profileId || 'unknown-profile')) + '</h3>'
-      + '    <div class="job-meta">' + meta + '</div>'
-      + '  </div>'
-      + '</div>'
-      + '<div class="job-meta">'
-      + '  <span>account ' + escapeHtml(String(job.accountId || 'unknown-account')) + '</span>'
-      + '  <span>worker ' + escapeHtml(String(job.workerJobId || 'pending')) + '</span>'
-      + '  <span>updated ' + escapeHtml(String(job.updatedAt || 'n/a')) + '</span>'
-      + '</div>'
-      + '<div class="code">' + escapeHtml(detailLines.join('\n')) + '</div>'
-      + '</article>';
-  }
-
   function setBusy(key, value) {
     state[key] = value;
-    if (key === 'jobsBusy' && elements.refreshJobs) {
-      elements.refreshJobs.disabled = value;
-    }
     if (key === 'diagnosticsBusy' && elements.refreshDiagnostics) {
       elements.refreshDiagnostics.disabled = value;
     }
@@ -1076,7 +741,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard('Provider + import state',
       '<div class="inline-actions">'
         + '<button type="button" class="secondary" data-refresh-profile-view="true">Refresh profile panel</button>'
-        + '<button type="button" class="secondary" data-start-recommendations="true">Generate recommendations</button>'
         + '<button type="button" data-start-import="trakt">Import Trakt watch data</button>'
         + '<button type="button" data-start-import="simkl">Import Simkl watch data</button>'
       + '</div>'
@@ -1312,12 +976,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     const recommendations = result && result.recommendations ? result.recommendations : result;
     if (!recommendations || recommendations === null) {
-      return sectionCard('Recommendations', '<div class="jobs-toolbar"><button type="button" data-start-recommendations>Regenerate in Main</button><button type="button" class="secondary" data-dry-run-profile-batch>Dry-run RECO batch for this profile</button></div>' + emptyState('No recommendation snapshot stored yet.'));
+      return sectionCard('Recommendations', emptyState('No recommendation snapshot stored yet.'));
     }
     const sections = Array.isArray(recommendations.sections) ? recommendations.sections : [];
     return sectionCard('Recommendations',
-      '<div class="jobs-toolbar"><button type="button" data-start-recommendations>Regenerate in Main</button><button type="button" class="secondary" data-dry-run-profile-batch>Dry-run RECO batch for this profile</button></div>'
-      + '<div class="kv-grid">'
+      '<div class="kv-grid">'
         + kvPair('Source key', recommendations.sourceKey || 'default')
         + kvPair('Algorithm', recommendations.algorithmVersion || 'v3.2.1')
         + kvPair('Generated', recommendations.generatedAt ? formatDate(recommendations.generatedAt) : 'n/a')
@@ -1478,14 +1141,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     return 'undelivered=' + String(lag.undeliveredCount || 0) + ', oldest=' + String(lag.oldestUndeliveredAt || 'n/a');
   }
 
-  function generationLagText(lag) {
-    if (!lag || typeof lag !== 'object') return 'No generation lag summary.';
-    return 'pending=' + String(lag.pendingCount || 0)
-      + ', queued=' + String(lag.queuedCount || 0)
-      + ', running=' + String(lag.runningCount || 0)
-      + ', failed=' + String(lag.failedCount || 0);
-  }
-
   function formatDate(value) {
     if (!value) return 'n/a';
     const date = new Date(value);
@@ -1540,30 +1195,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
-  }
-
-  function detectJobTransitions(payload, silent) {
-    const current = new Map();
-    const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-
-    for (const job of jobs) {
-      current.set(job.id, job.status);
-      if (!state.jobsLoadedOnce) continue;
-      const previous = state.jobsSnapshot.get(job.id);
-      if (!previous) {
-        if (!silent) {
-          pushNotification('info', 'New recommendation job', String(job.profileId || job.id) + ' entered as ' + job.status + '.', job.status === 'running' || job.status === 'queued' || job.status === 'pending');
-        }
-        continue;
-      }
-      if (previous !== job.status) {
-        const tone = job.status === 'succeeded' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'cancelled' ? 'warn' : 'info';
-        pushNotification(tone, 'Job ' + job.status, String(job.profileId || job.id) + ' changed from ' + previous + ' to ' + job.status + '.', job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled');
-      }
-    }
-
-    state.jobsSnapshot = current;
-    state.jobsLoadedOnce = true;
   }
 
   function maybeNotifyBridge(payload, silent) {
@@ -1632,7 +1263,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   function renderNotificationFeed() {
     if (elements.notificationFeed) {
       if (!state.notifications.length) {
-        elements.notificationFeed.innerHTML = emptyState('No notifications yet. Live worker and control-plane events will land here.');
+        elements.notificationFeed.innerHTML = emptyState('No notifications yet. Diagnostics and control-plane events will land here.');
       } else {
         elements.notificationFeed.innerHTML = state.notifications.map((item) => {
           return '<article class="notification-item ' + (item.read ? '' : 'unread') + '">'
@@ -1688,36 +1319,34 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function renderOverviewSummary() {
     if (!elements.overviewSummary) return;
-    const jobsPayload = state.jobsPayload;
     const diagnostics = state.diagnosticsPayload;
-    const jobs = jobsPayload && Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
-    const activeJobs = jobs.filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running');
-    const generationJobs = diagnostics && diagnostics.generationJobs ? diagnostics.generationJobs : { lag: null, jobs: [] };
     const imports = diagnostics && diagnostics.imports ? diagnostics.imports : { providerDiagnostics: [] };
-    const bridge = state.bridgePayload && state.bridgePayload.workerControl ? state.bridgePayload.workerControl : null;
     const refreshFailures = imports && Array.isArray(imports.providerDiagnostics)
       ? imports.providerDiagnostics.filter((row) => !!row.lastRefreshError).length
       : 0;
 
     elements.overviewSummary.innerHTML = [
-      statCard('Running now', activeJobs.length, 'recommendation jobs in flight'),
-      statCard('Recommendation jobs', countArray(generationJobs.jobs), generationLagText(generationJobs.lag)),
+      statCard('Outbox undelivered', diagnostics && diagnostics.outbox ? countArray(diagnostics.outbox.undelivered) : 0, diagnostics && diagnostics.outbox ? lagText(diagnostics.outbox.lag) : 'waiting'),
       statCard('Import warnings', refreshFailures, countArray(imports.providerDiagnostics) + ' providers tracked'),
-      statCard('Worker bridge', bridge ? (bridge.reachable ? 'live' : bridge.configured ? 'down' : 'setup') : 'check', state.lastUpdatedAt ? 'updated ' + formatTimeAgo(state.lastUpdatedAt) : 'waiting'),
+      statCard('Diagnostics', refreshFailures + (diagnostics && diagnostics.outbox && countArray(diagnostics.outbox.undelivered) > 0 ? 1 : 0), 'items needing attention'),
     ].join('');
   }
 
   function renderOverviewRunningJobs() {
     if (!elements.overviewRunningJobs) return;
-    const jobsPayload = state.jobsPayload;
-    const jobs = (jobsPayload && Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [])
-      .filter((job) => job.status === 'pending' || job.status === 'queued' || job.status === 'running')
-      .slice(0, 3);
-    if (!jobs.length) {
-      elements.overviewRunningJobs.innerHTML = emptyState('No running or queued recommendation jobs right now.');
+    const diagnostics = state.diagnosticsPayload;
+    if (!diagnostics) {
+      elements.overviewRunningJobs.innerHTML = emptyState('Diagnostics have not loaded yet.');
       return;
     }
-    elements.overviewRunningJobs.innerHTML = jobs.map((job) => renderJobCard(job, true)).join('');
+    const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
+    const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerDiagnostics) ? diagnostics.imports.providerDiagnostics : [];
+    const refreshFailures = imports.filter((row) => !!row.lastRefreshError).length;
+    elements.overviewRunningJobs.innerHTML = '<div class="kv-grid">'
+      + kvPair('Outbox lag', lagText(outbox))
+      + kvPair('Import refresh failures', String(refreshFailures))
+      + kvPair('Provider diagnostics', String(imports.length))
+      + '</div>';
   }
 
   function renderOverviewBridge() {
@@ -1747,80 +1376,19 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerDiagnostics) ? diagnostics.imports.providerDiagnostics : [];
     const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
-    const generationJobs = diagnostics.generationJobs && diagnostics.generationJobs.lag ? diagnostics.generationJobs.lag : null;
     const refreshFailures = imports.filter((row) => !!row.lastRefreshError).length;
     elements.overviewDiagnostics.innerHTML =
       '<div class="kv-grid">'
-      + kvPair('Generation pending', String(generationJobs && generationJobs.pendingCount || 0))
-      + kvPair('Generation running', String(generationJobs && generationJobs.runningCount || 0))
-      + kvPair('Submit failures', String(generationJobs && generationJobs.submitFailureCount || 0))
-      + kvPair('Sync failures', String(generationJobs && generationJobs.pollFailureCount || 0))
       + kvPair('Refresh failures', String(refreshFailures))
       + kvPair('Outbox lag', lagText(outbox))
       + '</div>';
-  }
-
-  function bindGenerationJobDetailButtons() {
-    const buttons = Array.from(document.querySelectorAll('[data-generation-job-id]'));
-    for (const button of buttons) {
-      button.addEventListener('click', () => {
-        const jobId = button.getAttribute('data-generation-job-id');
-        if (!jobId) return;
-        void loadGenerationJobDetail(jobId);
-      });
-    }
-  }
-
-  function renderGenerationJobDetail(job, error) {
-    if (elements.generationDetailEmpty) {
-      elements.generationDetailEmpty.hidden = !!job;
-      if (!job && error) {
-        elements.generationDetailEmpty.textContent = error.message || 'Unable to load recommendation generation job detail.';
-      }
-    }
-    if (elements.generationDetailShell) {
-      elements.generationDetailShell.hidden = !job;
-    }
-    if (!job) {
-      if (elements.generationDetailSummary) {
-        elements.generationDetailSummary.innerHTML = '';
-      }
-      if (elements.generationDetailJson) {
-        elements.generationDetailJson.textContent = '';
-      }
-      return;
-    }
-
-    if (elements.generationDetailSummary) {
-      elements.generationDetailSummary.innerHTML = '<div class="kv-grid">'
-        + kvPair('Local job id', job.id || 'n/a')
-        + kvPair('Profile', job.profileId || 'n/a')
-        + kvPair('Worker job id', job.workerJobId || 'pending submit')
-        + kvPair('Status', job.status || 'unknown')
-        + kvPair('Trigger source', job.triggerSource || 'n/a')
-        + kvPair('Submit attempts', String(job.submitAttempts || 0))
-        + kvPair('Sync attempts', String(job.pollAttempts || 0))
-        + kvPair('Sync failures', String(job.pollErrorCount || 0))
-        + kvPair('Last synced', job.lastSyncedAt ? formatDate(job.lastSyncedAt) : 'n/a')
-        + kvPair('Result applied', job.resultAppliedAt ? formatDate(job.resultAppliedAt) : 'pending')
-        + '</div>';
-    }
-    if (elements.generationDetailJson) {
-      elements.generationDetailJson.textContent = JSON.stringify({
-        requestPayload: job.requestPayload || {},
-        lastStatusPayload: job.lastStatusPayload || {},
-        failureJson: job.failureJson || {},
-        applyErrorJson: job.applyErrorJson || {},
-      }, null, 2);
-    }
-    scheduleGenerationDetailRefresh(job.id || state.selectedGenerationJobId);
   }
 
   function renderOverviewNotifications() {
     if (!elements.overviewNotifications) return;
     const items = state.notifications.slice(0, 3);
     if (!items.length) {
-      elements.overviewNotifications.innerHTML = emptyState('Notifications will appear here as jobs and bridge states change.');
+      elements.overviewNotifications.innerHTML = emptyState('Notifications will appear here as diagnostics and profile actions change.');
       return;
     }
     elements.overviewNotifications.innerHTML = '<div class="notification-feed notification-feed-inline">'

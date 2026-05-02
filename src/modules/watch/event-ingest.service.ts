@@ -8,6 +8,7 @@ import { ProjectionRefreshDispatcher } from './projection-refresh-dispatcher.js'
 import { IntegrationOutboxService } from '../integrations/changes/integration-outbox.service.js';
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { decodeWatchV2ContinueWatchingId } from './watch-v2-utils.js';
+import { ProfileInputSignalCacheInvalidator } from '../recommendations/profile-input-signal-cache.invalidator.js';
 import {
   normalizeWatchOccurredAt,
   sanitizeWatchEventInput,
@@ -23,6 +24,7 @@ export class WatchEventIngestService {
     private readonly heartbeatBufferService = new HeartbeatBufferService(),
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
     private readonly integrationOutboxService = new IntegrationOutboxService(),
+    private readonly profileInputSignalCacheInvalidator = new ProfileInputSignalCacheInvalidator(),
   ) {}
 
   async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
@@ -54,6 +56,12 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['history'],
+      reason: 'watch_history_mutated',
+    });
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -67,6 +75,12 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['history'],
+      reason: 'watch_history_mutated',
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -80,6 +94,12 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['watchlist'],
+      reason: 'watchlist_mutated',
+    });
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -93,6 +113,12 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['watchlist'],
+      reason: 'watchlist_mutated',
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -110,6 +136,12 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['ratings'],
+      reason: 'rating_mutated',
+    });
     await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
     return { accepted: true, mode: 'synchronous' };
   }
@@ -123,6 +155,12 @@ export class WatchEventIngestService {
       });
     });
     await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['ratings'],
+      reason: 'rating_mutated',
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -171,6 +209,12 @@ export class WatchEventIngestService {
         occurredAt,
       });
     });
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['continueWatching'],
+      reason: 'playback_progress_mutated',
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 
@@ -201,6 +245,12 @@ export class WatchEventIngestService {
       await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
       await this.projectionRefreshDispatcher.refreshMetadata(profileId, identity.mediaKey);
     }
+    await this.profileInputSignalCacheInvalidator.invalidate({
+      accountId: userId,
+      profileId,
+      families: ['continueWatching'],
+      reason: 'playback_progress_mutated',
+    });
     return { accepted: true, mode: 'synchronous' };
   }
 

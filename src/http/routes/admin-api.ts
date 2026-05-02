@@ -8,7 +8,6 @@ import {
 import { ProviderAdminService } from '../../modules/integrations/provider-admin.service.js';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
-import { PersonalMediaService } from '../../modules/watch/personal-media.service.js';
 import type {
   ProviderImportJobStatus,
   ProviderImportProvider,
@@ -17,6 +16,7 @@ import { isProviderImportProvider } from '../../modules/integrations/provider-im
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { ProfileInputSignalFacade } from '../../modules/recommendations/profile-input-signal.facade.js';
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
@@ -31,7 +31,10 @@ const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'cancelled',
 ]);
 
-export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void> {
+export async function registerAdminApiRoutes(
+  app: FastifyInstance,
+  deps?: { profileInputSignalFacade?: ProfileInputSignalFacade },
+): Promise<void> {
   const recommendationAdminService = new RecommendationAdminService();
   const providerAdminService = new ProviderAdminService();
   const providerImportService = new ProviderImportService();
@@ -39,9 +42,22 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
   const recommendationOutputService = new RecommendationOutputService();
-  const personalMediaService = new PersonalMediaService();
   const calendarService = new CalendarService();
   const accountSettingsService = new AccountSettingsService();
+  const profileInputSignalFacade = deps?.profileInputSignalFacade ?? new ProfileInputSignalFacade({
+    defaults: {
+      historyDefault: 25,
+      historyMax: 100,
+      ratingsDefault: 25,
+      ratingsMax: 100,
+      watchlistDefault: 25,
+      watchlistMax: 100,
+      continueDefault: 25,
+      continueMax: 100,
+      trackedSeriesDefault: 25,
+      trackedSeriesMax: 100,
+    },
+  });
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
     const header = request.headers.authorization?.trim();
@@ -67,27 +83,6 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const query = asRecord(request.query);
     return recommendationAdminService.getOutbox(parseLimit(query.limit));
-  });
-
-
-  app.post('/admin/api/recommendation-batches/dry-run', async (request, reply) => {
-    await requireAdminMutation(request);
-    return proxyRecommendationEngineAdmin('/admin/api/recommendation-batches/dry-run', 'POST', request.body);
-  });
-
-  app.post('/admin/api/recommendation-batches/:dryRunId/confirm', async (request, reply) => {
-    await requireAdminMutation(request);
-    const params = asRecord(request.params);
-    const dryRunId = readRequiredString(params.dryRunId, 'dryRunId');
-    reply.code(202);
-    return proxyRecommendationEngineAdmin(`/admin/api/recommendation-batches/${encodeURIComponent(dryRunId)}/confirm`, 'POST', request.body);
-  });
-
-  app.get('/admin/api/recommendation-batches', async (request, reply) => {
-    await requireAdmin(request);
-    const query = asRecord(request.query);
-    const limit = parseLimit(query.limit);
-    return proxyRecommendationEngineAdmin(`/admin/api/recommendation-batches?limit=${encodeURIComponent(String(limit))}`, 'GET');
   });
 
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
@@ -150,12 +145,14 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
+    const bundle = await profileInputSignalFacade.getBundle({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      include: ['history'],
+      limits: { historyLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
+    });
     return {
-      items: await recommendationDataService.getWatchHistoryForAccountService(
-        params.accountId,
-        params.profileId,
-        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
-      ),
+      items: bundle.history ?? [],
     };
   });
 
@@ -163,11 +160,14 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
-    const page = await personalMediaService.listContinueWatchingPage(params.accountId, params.profileId, {
-      limit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
+    const bundle = await profileInputSignalFacade.getBundle({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      include: ['continue'],
+      limits: { continueLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
     });
     return {
-      items: page.items,
+      items: bundle.continueWatching ?? [],
     };
   });
 
@@ -175,12 +175,14 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
+    const bundle = await profileInputSignalFacade.getBundle({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      include: ['watchlist'],
+      limits: { watchlistLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
+    });
     return {
-      items: await recommendationDataService.getWatchlistForAccountService(
-        params.accountId,
-        params.profileId,
-        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
-      ),
+      items: bundle.watchlist ?? [],
     };
   });
 
@@ -188,12 +190,14 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
+    const bundle = await profileInputSignalFacade.getBundle({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      include: ['ratings'],
+      limits: { ratingsLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
+    });
     return {
-      items: await recommendationDataService.getRatingsForAccountService(
-        params.accountId,
-        params.profileId,
-        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
-      ),
+      items: bundle.ratings ?? [],
     };
   });
 
@@ -415,40 +419,6 @@ function parseOptionalNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
-}
-
-
-async function proxyRecommendationEngineAdmin(path: string, method: 'GET' | 'POST', body?: unknown): Promise<unknown> {
-  const baseUrl = process.env.RECOMMENDATION_ENGINE_ADMIN_URL?.trim()?.replace(/\/+$/, '');
-  const token = process.env.RECOMMENDATION_ENGINE_ADMIN_TOKEN?.trim();
-  if (!baseUrl) {
-    throw new HttpError(503, 'RECOMMENDATION_ENGINE_ADMIN_URL is not configured');
-  }
-
-  const response = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  let payload: unknown = {};
-  if (text) {
-    try {
-      payload = JSON.parse(text) as unknown;
-    } catch {
-      payload = { message: text };
-    }
-  }
-  if (!response.ok) {
-    const message = typeof payload === 'object' && payload !== null && 'message' in payload
-      ? String((payload as { message?: unknown }).message)
-      : `Recommendation engine admin request failed: ${response.status}`;
-    throw new HttpError(response.status, message);
-  }
-  return payload;
 }
 
 function parseLimit(value: unknown): number {

@@ -28,6 +28,8 @@ export interface AppAuthPluginOptions {
 
 const OFFICIAL_RECOMMENDER_SCOPES: AppScope[] = [
   'apps:self:read',
+  'accounts:all:read',
+  'accounts:all:write',
   'profiles:eligible:read',
   'profiles:eligible:snapshot:create',
   'profiles:eligible:snapshot:read',
@@ -171,34 +173,34 @@ const appAuthPlugin: FastifyPluginAsync<AppAuthPluginOptions> = async (fastify, 
   fastify.decorateRequest('appPrincipal');
 
   fastify.decorate('requireRecommenderAuth', async (request: FastifyRequest): Promise<AppPrincipal> => {
-    if (request.appPrincipal?.appId === 'official-recommender') {
+    if (request.appPrincipal) {
       return request.appPrincipal;
     }
 
     const header = request.headers.authorization?.trim();
-    if (!header?.startsWith('Bearer ')) {
-      throw new HttpError(401, 'Missing recommender bearer token.');
+    if (header?.startsWith('Bearer ')) {
+      const token = header.slice('Bearer '.length).trim();
+      const expectedHash = env.crispyRecommenderApiTokenHash;
+      if (!expectedHash || !token || hashAccessToken(token) !== expectedHash) {
+        throw new HttpError(401, 'Invalid recommender bearer token.');
+      }
+
+      const principal = buildOfficialRecommenderPrincipal();
+      request.appPrincipal = principal;
+      request.auth = {
+        type: 'recommender',
+        appUserId: null,
+        serviceId: 'official-recommender',
+        scopes: ['confidential-config:ai-config:read'],
+        authSubject: null,
+        email: null,
+        tokenId: null,
+        consumerId: null,
+      };
+      return principal;
     }
 
-    const token = header.slice('Bearer '.length).trim();
-    const expectedHash = env.crispyRecommenderApiTokenHash;
-    if (!expectedHash || !token || hashAccessToken(token) !== expectedHash) {
-      throw new HttpError(401, 'Invalid recommender bearer token.');
-    }
-
-    const principal = buildOfficialRecommenderPrincipal();
-    request.appPrincipal = principal;
-    request.auth = {
-      type: 'recommender',
-      appUserId: null,
-      serviceId: 'official-recommender',
-      scopes: ['confidential-config:ai-config:read'],
-      authSubject: null,
-      email: null,
-      tokenId: null,
-      consumerId: null,
-    };
-    return principal;
+    return fastify.requireAppAuth(request);
   });
 
   fastify.decorate('requireAppAuth', async (request: FastifyRequest): Promise<AppPrincipal> => {

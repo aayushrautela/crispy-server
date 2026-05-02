@@ -3,9 +3,6 @@ export function renderOverviewView(): string {
     <section class="view" data-view="overview">
       <header class="view-header">
         <h2>Overview</h2>
-        <div class="view-header-actions">
-          <button type="button" data-open-view="jobs">Open recommendation jobs</button>
-        </div>
       </header>
 
       <div class="stats-grid" id="overview-summary"></div>
@@ -14,7 +11,6 @@ export function renderOverviewView(): string {
         <section class="panel">
           <div class="panel-head">
             <h3>Live activity</h3>
-            <button type="button" class="secondary" data-open-view="jobs">Detailed jobs</button>
           </div>
           <div class="panel-body" id="overview-running-jobs"></div>
         </section>

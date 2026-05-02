@@ -28,10 +28,6 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
           <button type="button" class="nav-item" data-nav-target="overview" aria-current="page">
             <span>Overview</span>
           </button>
-          <button type="button" class="nav-item" data-nav-target="jobs">
-            <span>Recommendation Jobs</span>
-            <span class="nav-meta" id="nav-jobs-badge">0</span>
-          </button>
           <button type="button" class="nav-item" data-nav-target="diagnostics">
             <span>Diagnostics</span>
             <span class="nav-meta" id="nav-diagnostics-badge">0</span>
@@ -44,7 +40,7 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
       </div>
 
       <div class="sidebar-status">
-        <div id="sidebar-running-status">Checking recommendation jobs...</div>
+        <div id="sidebar-running-status">Checking diagnostics...</div>
       </div>
     </aside>
 

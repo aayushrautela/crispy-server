@@ -3,7 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { logger } from '../../config/logger.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
-import { RecommendationDataService } from './recommendation-data.service.js';
+import { ProfileInputSignalFacade } from './profile-input-signal.facade.js';
 import { recommendationConfig } from './recommendation-config.js';
 import { RecommendationOutputService } from './recommendation-output.service.js';
 import { RecommendationSnapshotsRepository } from './recommendation-snapshots.repo.js';
@@ -46,8 +46,20 @@ export class RecommendationGenerationService {
     private readonly profileRepository = new ProfileRepository(),
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
-    private readonly recommendationDataService = new RecommendationDataService(),
-    private readonly personalMediaService = new PersonalMediaService(),
+    private readonly profileInputSignalFacade = new ProfileInputSignalFacade({
+      defaults: {
+        historyDefault: 100,
+        historyMax: 500,
+        ratingsDefault: 100,
+        ratingsMax: 500,
+        watchlistDefault: 50,
+        watchlistMax: 200,
+        continueDefault: 20,
+        continueMax: 50,
+        trackedSeriesDefault: 20,
+        trackedSeriesMax: 100,
+      },
+    }),
     private readonly featureEntitlementService = new FeatureEntitlementService(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
   ) {}
@@ -131,13 +143,18 @@ export class RecommendationGenerationService {
     aiRequest: Awaited<ReturnType<FeatureEntitlementService['resolveAiRequestForUser']>>,
   ): Promise<RecommendationSignalBundle> {
     const limits = recommendationConfig.payloadLimits;
-    const [watchHistory, ratings, watchlist, continueWatching, trackedSeries] = await Promise.all([
-      this.recommendationDataService.getWatchHistoryForAccount(context.accountId, context.profileId, limits.watchHistory),
-      this.recommendationDataService.getRatingsForAccount(context.accountId, context.profileId, limits.ratings),
-      this.recommendationDataService.getWatchlistForAccount(context.accountId, context.profileId, limits.watchlist),
-      this.personalMediaService.listContinueWatchingProducts(context.accountId, context.profileId, limits.continueWatching),
-      this.recommendationDataService.getEpisodicFollowForAccount(context.accountId, context.profileId, limits.trackedSeries),
-    ]);
+    const signals = await this.profileInputSignalFacade.getBundle({
+      accountId: context.accountId,
+      profileId: context.profileId,
+      include: ['history', 'ratings', 'watchlist', 'continue', 'trackedSeries'],
+      limits: {
+        historyLimit: limits.watchHistory,
+        ratingsLimit: limits.ratings,
+        watchlistLimit: limits.watchlist,
+        continueLimit: limits.continueWatching,
+        trackedSeriesLimit: limits.trackedSeries,
+      },
+    });
 
     return {
       identity: {
@@ -151,9 +168,9 @@ export class RecommendationGenerationService {
         sourceCursor: context.sourceCursor,
         ttlSeconds: recommendationConfig.generationTtlSeconds,
       },
-      watchHistory,
-      ratings,
-      watchlist,
+      watchHistory: signals.history ?? [],
+      ratings: signals.ratings ?? [],
+      watchlist: signals.watchlist ?? [],
       profileContext: {
         profileName: context.profileName,
         isKids: context.isKids,
@@ -169,8 +186,8 @@ export class RecommendationGenerationService {
         credentialSource: aiRequest.credentialSource,
       },
       optionalExtras: {
-        continueWatching: continueWatching.map(mapContinueWatchingItem),
-        trackedSeries,
+        continueWatching: (signals.continueWatching ?? []).map(mapContinueWatchingItem),
+        trackedSeries: signals.trackedSeries ?? [],
         limits,
       },
     };

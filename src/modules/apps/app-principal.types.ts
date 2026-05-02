@@ -18,6 +18,8 @@ export type AppPurpose = 'recommendation-generation';
 
 export type AppScope =
   | 'apps:self:read'
+  | 'accounts:all:read'
+  | 'accounts:all:write'
   | 'profiles:eligible:read'
   | 'profiles:eligible:snapshot:create'
   | 'profiles:eligible:snapshot:read'

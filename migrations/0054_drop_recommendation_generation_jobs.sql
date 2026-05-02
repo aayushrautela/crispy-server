@@ -1,0 +1,7 @@
+DROP INDEX IF EXISTS idx_recommendation_generation_jobs_terminal_unapplied;
+DROP INDEX IF EXISTS idx_recommendation_generation_jobs_lease;
+DROP INDEX IF EXISTS idx_recommendation_generation_jobs_status_run;
+DROP INDEX IF EXISTS idx_recommendation_generation_jobs_worker_job_id;
+DROP INDEX IF EXISTS idx_recommendation_generation_jobs_profile_created;
+
+DROP TABLE IF EXISTS recommendation_generation_jobs;
