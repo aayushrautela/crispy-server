@@ -91,6 +91,11 @@ export class PersonalAccessTokenService {
         return null;
       }
 
+      // Enforce expiry at service layer
+      if (token.expiresAt && new Date(token.expiresAt) <= new Date()) {
+        return null;
+      }
+
       const user = await this.userRepository.findById(client, token.userId);
       if (!user) {
         return null;

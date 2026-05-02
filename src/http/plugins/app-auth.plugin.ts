@@ -62,7 +62,7 @@ const OFFICIAL_RECOMMENDER_GRANTS: AppGrant[] = [
     resourceId: '*',
     purpose: 'recommendation-generation',
     actions: ['read'],
-    constraints: { secretDeliveryModes: ['direct', 'proxy', 'reference'], allowServerFallback: true },
+    constraints: { secretDeliveryModes: ['proxy', 'reference'], allowServerFallback: true },
     status: 'active',
     createdAt: new Date(0),
     expiresAt: null,

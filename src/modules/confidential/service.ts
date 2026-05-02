@@ -149,7 +149,10 @@ export class ConfidentialConfigService {
       accountId: context.accountId,
       profileId: context.profileId,
       resources: await Promise.all(resources.map(async (resource) => {
-        const data = await this.aiConfigResolver.resolve(context.accountId, resource, { appPrincipal });
+        const data = await this.aiConfigResolver.resolve(context.accountId, resource, { 
+          appPrincipal,
+          profileId: context.profileId 
+        });
         return {
           ...resource,
           data,

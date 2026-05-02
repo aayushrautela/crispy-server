@@ -18,6 +18,7 @@ import type { ServiceRecommendationListService } from '../../modules/apps/servic
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
+import type { ProfileRecord } from '../../modules/profiles/profile.repo.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPurpose, AppScope } from '../../modules/apps/app-principal.types.js';
 
 function buildPrincipal(scopes: AppScope[] = ['apps:self:read']): AppPrincipal {
@@ -82,11 +83,21 @@ class FakeAuthorizationService implements AppAuthorizationService {
   requireOwnedListKey(): void {}
 }
 
-async function buildServer(principal = buildPrincipal()) {
+async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = []) {
   const app = Fastify();
   const authService = new FakeAuthService(principal);
   const rateLimitService = new FakeRateLimitService();
   const auditRepo = new FakeAuditRepo();
+  const profileService = {
+    async requireOwnedProfile(accountId: string, profileId: string): Promise<ProfileRecord> {
+      const owned = ownedProfiles.some((profile) => profile.accountId === accountId && profile.profileId === profileId);
+      if (!owned) {
+        const { HttpError } = await import('../../lib/errors.js');
+        throw new HttpError(404, 'Profile not found.');
+      }
+      return { id: profileId, profileGroupId: 'group-1', name: 'Test Profile', avatarKey: null, isKids: false, sortOrder: 0, createdByUserId: accountId, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    },
+  };
   await app.register(appAuthPlugin, { appAuthService: authService, appRateLimitService: rateLimitService, appAuditRepo: auditRepo });
   await registerInternalAppsRoutes(app, {
     appAuthService: authService,
@@ -102,6 +113,7 @@ async function buildServer(principal = buildPrincipal()) {
     recommendationBatchService: { async createBatch() { throw new Error('not used'); }, async updateBatch() { throw new Error('not used'); } } satisfies RecommendationBatchService,
     recommendationBackfillService: { async getAssignments() { return { assignments: [], cursor: { hasMore: false, next: null } }; } } satisfies RecommendationBackfillService,
     appAuditRepo: auditRepo,
+    profileService,
   });
   return app;
 }
@@ -147,4 +159,45 @@ test('legacy integrations v1 RECO endpoints are absent', async (t) => {
 
   const routes = app.printRoutes();
   assert.equal(routes.includes('/api/integrations/v1'), false);
+});
+
+test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility validates ownership', async (t) => {
+  const app = await buildServer(buildPrincipal(['apps:self:read', 'profiles:eligible:read']));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/eligibility',
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().message, 'Profile not found.');
+});
+
+test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle validates ownership', async (t) => {
+  const app = await buildServer(buildPrincipal(['apps:self:read', 'profiles:eligible:read']));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/signals/recommendation-bundle',
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().message, 'Profile not found.');
+});
+
+test('PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey validates ownership', async (t) => {
+  const app = await buildServer(buildPrincipal(['apps:self:read', 'recommendations:service-lists:write']));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'PUT',
+    url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/recommendations/lists/for-you',
+    headers: { 'idempotency-key': 'test-key-123' },
+    payload: { purpose: 'recommendation-generation', writeMode: 'replace', items: [] },
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().message, 'Profile not found.');
 });

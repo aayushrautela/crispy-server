@@ -60,9 +60,10 @@
 
    Example inbound service auth config for the external recommendation engine:
    ```env
-    ```
+   CRISPY_RECOMMENDER_API_TOKEN_HASH=<sha256 hash of the raw bearer token>
+   ```
 
-   The external recommendation engine reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1` when authorized, then writes service-owned recommendation outputs through the internal app API. MAIN does not call the engine or poll it for generation status.
+   The external recommendation engine reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1` when authorized. For AI-assisted generation, the engine fetches a config bundle, receives a scoped proxy endpoint, and calls `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/ai-proxy/chat/completions`. Crispy validates eligibility, selects the allowed provider/credential, injects the API key server-side, and forwards the request. The engine never receives raw OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys. The engine writes service-owned recommendation outputs through the internal app API. MAIN does not call the engine or poll it for generation status.
 
    Privileged inbound data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 

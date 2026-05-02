@@ -12,6 +12,11 @@ import type { ServiceRecommendationListService } from '../../modules/apps/servic
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
+import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
+import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
+import { ProfileService } from '../../modules/profiles/profile.service.js';
+
+type ProfileOwnershipValidator = Pick<ProfileService, 'requireOwnedProfile'>;
 
 export interface InternalAppsRoutesDeps {
   appAuthService: AppAuthService;
@@ -27,9 +32,14 @@ export interface InternalAppsRoutesDeps {
   recommendationBatchService: RecommendationBatchService;
   recommendationBackfillService: RecommendationBackfillService;
   appAuditRepo: AppAuditRepo;
+  profileService?: ProfileOwnershipValidator;
 }
 
 export async function registerInternalAppsRoutes(app: FastifyInstance, deps: InternalAppsRoutesDeps): Promise<void> {
+  const accountLookupService = new AccountLookupService();
+  const recommendationDataService = new RecommendationDataService();
+  const profileService = deps.profileService ?? new ProfileService();
+
   app.get('/internal/apps/v1/me', async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     deps.appAuthorizationService.requireScope({ principal, scope: 'apps:self:read' });
@@ -78,6 +88,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility', async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
+    await profileService.requireOwnedProfile(params.accountId, params.profileId);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.changes', accountId: params.accountId, profileId: params.profileId });
     return deps.profileEligibilityService.check({
       principal,
@@ -91,6 +102,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
     const query = request.query as { include?: string; historyLimit?: string; ratingsLimit?: string; watchlistLimit?: string; continueLimit?: string; since?: string };
+    await profileService.requireOwnedProfile(params.accountId, params.profileId);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
     return deps.profileSignalBundleService.getBundle({
       principal,
@@ -108,6 +120,19 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     });
   });
 
+  app.get('/internal/apps/v1/accounts/lookup-by-email/:email/profiles', async (request) => {
+    await app.requireRecommenderAuth(request);
+    const params = request.params as { email: string };
+    const account = await accountLookupService.getByEmail(params.email);
+    return {
+      account: {
+        accountId: account.accountId,
+        email: account.email,
+      },
+      profiles: await recommendationDataService.listAccountProfilesForService(account.accountId),
+    };
+  });
+
   app.get('/internal/apps/v1/recommendations/service-lists', async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.service-lists' });
@@ -118,6 +143,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string; listKey: string };
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
+    await profileService.requireOwnedProfile(params.accountId, params.profileId);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId, listKey: params.listKey });
     const result = await deps.serviceRecommendationListService.upsertList({
       principal,

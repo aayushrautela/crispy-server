@@ -370,6 +370,7 @@ These are the only supported privileged routes for recommendation engines and ot
 ### Internal confidential routes
 
 - `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/config-bundle` - read confidential recommendation config bundle, including final `aiConfig` policy for an eligible app/profile pair
+- `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/ai-proxy/chat/completions` - scoped AI proxy for recommendation generation; Crispy injects the selected API key server-side and forwards to the configured provider
 
 ### Internal service routes
 
@@ -387,26 +388,12 @@ These are the only supported privileged routes for recommendation engines and ot
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/taste-profile` - write taste profile under the owning account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - read recommendations under the owning account; defaults to the canonical source and algorithm version when omitted
 - `PUT /internal/v1/accounts/:accountId/profiles/:profileId/recommendations` - write recommendations under the owning account
-- `GET /internal/v1/accounts/:accountId/profiles/:profileId/secrets/ai-api-key` - read account-shared AI API key after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/connection` - provider connection summary after confirming the profile belongs to the account
 - `GET /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/token-status` - provider token status after confirming the profile belongs to the account
 - `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/access-token` - fetch provider access token after confirming the profile belongs to the account
 - `POST /internal/v1/accounts/:accountId/profiles/:profileId/providers/:provider/refresh` - refresh provider token after confirming the profile belongs to the account
 
 Internal and admin continue-watching responses expose the same item `id` field as the user-facing route so downstream consumers can dismiss or correlate items without extra lookups.
-
-The internal AI secret route now returns provider metadata alongside the secret value so downstream services can choose the correct OpenAI-compatible endpoint and model family for that key:
-
-```json
-{
-  "secret": {
-    "appUserId": "user-123",
-    "key": "ai.api_key",
-    "value": "sk-...",
-    "providerId": "openrouter"
-  }
-}
-```
 
 #### Recommendation diagnostics
 

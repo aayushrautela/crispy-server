@@ -71,7 +71,7 @@ export interface AppKeyRecord {
   metadata?: Record<string, unknown> | null;
 }
 
-export type ConfidentialSecretDeliveryMode = 'direct' | 'proxy' | 'reference';
+export type ConfidentialSecretDeliveryMode = 'proxy' | 'reference';
 
 export interface AppGrantConstraintSet {
   source?: string;

@@ -35,6 +35,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Profile-scoped personal data includes profile settings, watch state/history, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl are per-profile, not account-scoped.
 - Older ownership plumbing in code is an implementation detail slated for cleanup, not the intended product contract.
+- For AI-assisted recommendation generation, the engine fetches a confidential config bundle, receives a scoped proxy endpoint, and calls the Crispy AI proxy. Crispy injects the selected API key server-side. The engine never receives raw OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys.
 
 ## Endpoint model
 
@@ -45,7 +46,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - The README contains a maintained endpoint map and should stay in sync with the route files.
 - Do not reintroduce legacy profile-only internal compatibility routes; privileged integrations should use `/internal/v1/accounts/...`.
 - Human admin and diagnostics UI belongs on the API server control plane, not on the external recommendation engine.
-- Recommendation generation is pull-based and external: the engine calls authenticated Crispy API endpoints to fetch bounded source data and configuration. Do not describe MAIN as submitting generation jobs to it or polling it for status.
+- Recommendation generation is pull-based and external: the engine calls authenticated Crispy API endpoints to fetch bounded source data and configuration. For AI calls it uses `/internal/confidential/v1/accounts/:accountId/profiles/:profileId/ai-proxy/chat/completions`; do not document raw AI key delivery to RECO. Do not describe MAIN as submitting generation jobs to it or polling it for status.
 - The external recommendation engine is not this repository's BullMQ worker. `src/bin/worker.ts`, `npm run dev:worker`, and the `worker` container refer only to the internal BullMQ worker for backend queue jobs.
 - Recommendation outputs should use final canonical TMDB-backed identities: `movie:tmdb:*`, `show:tmdb:*`, `season:tmdb:*`, `episode:tmdb:*`, and `person:tmdb:*`. TVDB and Kitsu IDs may appear only as non-canonical import-source bookkeeping, external IDs, or compatibility crosswalk fields.
 - Profile-targeted user routes use explicit `:profileId` path params.

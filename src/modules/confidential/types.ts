@@ -38,7 +38,7 @@ export type ConfidentialBundleContext =
       actor: { type: 'app'; principal: AppPrincipal };
     };
 
-export type ConfidentialSecretDeliveryMode = 'direct' | 'proxy' | 'reference';
+export type ConfidentialSecretDeliveryMode = 'proxy' | 'reference';
 
 export type ConfidentialAiConfigProvider = {
   providerId: string;
@@ -72,7 +72,6 @@ export type ConfidentialAiConfigSafety = {
 
 export type ConfidentialAiConfigSecretDelivery = {
   mode: ConfidentialSecretDeliveryMode;
-  apiKey?: string;
   proxyEndpoint?: string;
   credentialReference?: string;
 };

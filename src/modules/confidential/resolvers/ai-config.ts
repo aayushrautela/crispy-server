@@ -17,14 +17,14 @@ export class ConfidentialAiConfigResolver {
   async resolve(
     accountId: string, 
     resource: ConfidentialResourceSelector,
-    opts?: { appPrincipal?: AppPrincipal }
+    opts?: { appPrincipal?: AppPrincipal; profileId?: string }
   ): Promise<ConfidentialAiConfig> {
     const resolved = await this.aiProviderResolver.resolveForUser(accountId, PURPOSE_TO_AI_FEATURE[resource.purpose]);
-    return toConfidentialAiConfig(resolved, opts?.appPrincipal);
+    return toConfidentialAiConfig(resolved, opts?.appPrincipal, accountId, opts?.profileId);
   }
 }
 
-function toConfidentialAiConfig(resolved: ResolvedAiRequest, appPrincipal?: AppPrincipal): ConfidentialAiConfig {
+function toConfidentialAiConfig(resolved: ResolvedAiRequest, appPrincipal?: AppPrincipal, accountId?: string, profileId?: string): ConfidentialAiConfig {
   const deliveryMode = determineSecretDeliveryMode(appPrincipal);
   
   return {
@@ -53,35 +53,44 @@ function toConfidentialAiConfig(resolved: ResolvedAiRequest, appPrincipal?: AppP
       contentFiltering: true,
       piiRedaction: true,
     },
-    secretDelivery: buildSecretDelivery(resolved, deliveryMode),
+    secretDelivery: buildSecretDelivery(resolved, deliveryMode, accountId, profileId),
     credentialSource: resolved.credentialSource,
   };
 }
 
 function determineSecretDeliveryMode(appPrincipal?: AppPrincipal): ConfidentialSecretDeliveryMode {
   if (!appPrincipal) {
-    return 'direct';
+    return 'proxy';
   }
   
   const grant = appPrincipal.grants.find(
     (g) => g.resourceType === 'aiConfig' && g.purpose === 'recommendation-generation'
   );
   
-  const allowedModes = grant?.constraints.secretDeliveryModes || ['direct'];
-  return allowedModes[0] || 'direct';
+  const allowedModes = grant?.constraints.secretDeliveryModes || ['proxy'];
+  if (allowedModes.includes('proxy')) {
+    return 'proxy';
+  }
+  if (allowedModes.includes('reference')) {
+    return 'reference';
+  }
+  return 'proxy';
 }
 
 function buildSecretDelivery(
   resolved: ResolvedAiRequest, 
-  mode: ConfidentialSecretDeliveryMode
+  mode: ConfidentialSecretDeliveryMode,
+  accountId?: string,
+  profileId?: string
 ): ConfidentialAiConfig['secretDelivery'] {
   switch (mode) {
-    case 'direct':
-      return {
-        mode: 'direct',
-        apiKey: resolved.apiKey,
-      };
     case 'proxy':
+      if (accountId && profileId) {
+        return {
+          mode: 'proxy',
+          proxyEndpoint: `/internal/confidential/v1/accounts/${accountId}/profiles/${profileId}/ai-proxy/chat/completions`,
+        };
+      }
       return {
         mode: 'proxy',
         proxyEndpoint: '/internal/confidential/v1/ai-proxy',
@@ -93,8 +102,10 @@ function buildSecretDelivery(
       };
     default:
       return {
-        mode: 'direct',
-        apiKey: resolved.apiKey,
+        mode: 'proxy',
+        proxyEndpoint: accountId && profileId 
+          ? `/internal/confidential/v1/accounts/${accountId}/profiles/${profileId}/ai-proxy/chat/completions`
+          : '/internal/confidential/v1/ai-proxy',
       };
   }
 }
