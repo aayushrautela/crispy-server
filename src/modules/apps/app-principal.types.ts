@@ -29,6 +29,7 @@ export type AppScope =
   | 'recommendations:batches:write'
   | 'recommendations:backfills:read'
   | 'apps:audit:read'
+  | 'apps:audit:write'
   | 'confidential-config:ai-config:read';
 
 export type AppRateLimitRouteGroup =

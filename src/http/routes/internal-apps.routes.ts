@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { AppAuditAction } from '../../modules/apps/app-audit.repo.js';
 import type { AppAuditRepo } from '../../modules/apps/app-audit.repo.js';
 import type { AppAuthService } from '../../modules/apps/app-auth.service.js';
 import type { AppAuthorizationService } from '../../modules/apps/app-authorization.service.js';
@@ -241,5 +242,36 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor,
       limit: query.limit ? Number(query.limit) : 50,
     });
+  });
+
+  app.post('/internal/apps/v1/audit/events', async (request, reply) => {
+    const principal = await app.requireRecommenderAuth(request);
+    deps.appAuthorizationService.requireScope({ principal, scope: 'apps:audit:write' });
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'apps.audit' });
+    const body = request.body as {
+      eventType: string;
+      accountId?: string;
+      profileId?: string;
+      resourceType?: string;
+      resourceId?: string;
+      action: string;
+      outcome: 'success' | 'failure';
+      metadata?: Record<string, unknown>;
+    };
+    await deps.appAuditRepo.insert({
+      appId: principal.appId,
+      keyId: principal.keyId,
+      action: body.action as AppAuditAction,
+      accountId: body.accountId ?? null,
+      profileId: body.profileId ?? null,
+      resourceType: body.resourceType ?? null,
+      resourceId: body.resourceId ?? null,
+      metadata: {
+        eventType: body.eventType,
+        outcome: body.outcome,
+        ...body.metadata,
+      },
+    });
+    return reply.code(201).send({ success: true });
   });
 }
