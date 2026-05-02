@@ -1,5 +1,6 @@
 import type { QueryResult } from 'pg';
 import type { BatchUpsertServiceRecommendationListsResult, ServiceRecommendationListDescriptor } from './service-recommendation-list.types.js';
+import { OFFICIAL_RECOMMENDER_APP_ID, getOfficialRecommenderListDescriptors, isOfficialRecommenderListKey } from './official-recommender-lists.js';
 
 type Queryable = { query: (text: string, params?: unknown[]) => Promise<QueryResult> };
 
@@ -14,6 +15,7 @@ export class SqlServiceRecommendationListRepo implements ServiceRecommendationLi
   constructor(private readonly deps: { db: Queryable }) {}
 
   async listWritableServiceLists(input: { appId: string }): Promise<ServiceRecommendationListDescriptor[]> {
+    if (input.appId === OFFICIAL_RECOMMENDER_APP_ID) return getOfficialRecommenderListDescriptors();
     const result = await this.deps.db.query(
       `SELECT so.owner_app_id, so.source, list_key
        FROM app_source_ownership so
@@ -26,6 +28,11 @@ export class SqlServiceRecommendationListRepo implements ServiceRecommendationLi
   }
 
   async findWritableServiceList(input: { appId: string; listKey: string }): Promise<ServiceRecommendationListDescriptor | null> {
+    if (input.appId === OFFICIAL_RECOMMENDER_APP_ID) {
+      return isOfficialRecommenderListKey(input.listKey)
+        ? getOfficialRecommenderListDescriptors().find((descriptor) => descriptor.listKey === input.listKey) ?? null
+        : null;
+    }
     const result = await this.deps.db.query(
       `SELECT so.owner_app_id, so.source, list_key
        FROM app_source_ownership so

@@ -7,6 +7,7 @@ import type { ProfileEligibilityService } from './profile-eligibility.service.js
 import type { RecommendationListWriteService } from '../recommendations/recommendation-list-write.service.js';
 import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, ServiceRecommendationListsResponse, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
+import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, isOfficialRecommenderListKey } from './official-recommender-lists.js';
 
 export interface ServiceRecommendationListService {
   listWritableLists(input: { principal: AppPrincipal }): Promise<ServiceRecommendationListsResponse>;
@@ -113,6 +114,10 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
   }
 
   private async requireWritableList(principal: AppPrincipal, listKey: string, source: string, accountId: string, profileId: string): Promise<void> {
+    if (principal.appId === OFFICIAL_RECOMMENDER_APP_ID) {
+      if (source !== OFFICIAL_RECOMMENDER_SOURCE) throw new HttpError(403, 'official-recommender must use official-recommender source.', undefined, 'INVALID_SOURCE');
+      if (!isOfficialRecommenderListKey(listKey)) throw new HttpError(403, 'List key not in official-recommender contract.', undefined, 'LIST_KEY_NOT_ALLOWED');
+    }
     this.deps.appAuthorizationService.requireOwnedListKey({ principal, source, listKey });
     this.deps.appAuthorizationService.requireGrant({ principal, resourceType: 'recommendationList', resourceId: listKey, purpose: 'recommendation-generation', action: 'write', accountId, profileId, listKey, source });
     const descriptor = await this.deps.serviceListRepo.findWritableServiceList({ appId: principal.appId, listKey });
