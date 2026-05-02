@@ -94,14 +94,59 @@ test('getAiClientSettingsForUser returns provider metadata and selected provider
   assert.equal(result.providers.some((provider) => provider.id === 'openrouter'), true);
 });
 
-test('getPricingTierForUser defaults to free', () => {
+test('getPricingTierForUser defaults to free', async () => {
+  const service = new AccountSettingsService(
+    { getSettingsForUser: async () => ({}) } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  assert.equal(await service.getPricingTierForUser('user-1'), 'free');
+});
+
+test('getPricingTierForUser returns stored pricing tier', async () => {
+  const service = new AccountSettingsService(
+    { getSettingsForUser: async () => ({ pricingTier: 'pro' }) } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  assert.equal(await service.getPricingTierForUser('user-1'), 'pro');
+});
+
+test('setPricingTierForUser validates and stores pricing tier', async () => {
+  let patch: Record<string, unknown> | null = null;
+  const service = new AccountSettingsService(
+    {
+      patchSettingsForUser: async (_client: unknown, _userId: string, nextPatch: Record<string, unknown>) => {
+        patch = nextPatch;
+        return nextPatch;
+      },
+    } as never,
+    {} as never,
+    async (work) => work({} as never),
+  );
+
+  const result = await service.setPricingTierForUser('user-1', 'ultra');
+  assert.equal(result, 'ultra');
+  assert.deepEqual(patch, { pricingTier: 'ultra' });
+});
+
+test('setPricingTierForUser rejects invalid pricing tier', async () => {
   const service = new AccountSettingsService(
     {} as never,
     {} as never,
     async (work) => work({} as never),
   );
 
-  assert.equal(service.getPricingTierForUser('user-1'), 'free');
+  await assert.rejects(
+    () => service.setPricingTierForUser('user-1', 'enterprise'),
+    (error: unknown) => {
+      assert.ok(error instanceof HttpError);
+      assert.equal(error.statusCode, 400);
+      return true;
+    },
+  );
 });
 
 test('setAiApiKeyForUser delegates to repository', async () => {

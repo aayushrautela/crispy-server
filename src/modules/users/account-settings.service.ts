@@ -16,6 +16,7 @@ export type AccountSecretValue = {
 export type PricingTier = 'free' | 'lite' | 'pro' | 'ultra';
 
 const DEFAULT_PRICING_TIER: PricingTier = 'free';
+const PRICING_TIERS = new Set<PricingTier>(['free', 'lite', 'pro', 'ultra']);
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
@@ -68,8 +69,17 @@ export class AccountSettingsService {
     return buildAiClientSettings(settings, hasAiApiKey);
   }
 
-  getPricingTierForUser(_userId: string): PricingTier {
-    return DEFAULT_PRICING_TIER;
+  async getPricingTierForUser(userId: string): Promise<PricingTier> {
+    const settings = await this.getSettings(userId);
+    return normalizePricingTier(settings.pricingTier ?? DEFAULT_PRICING_TIER);
+  }
+
+  async setPricingTierForUser(userId: string, pricingTier: unknown): Promise<PricingTier> {
+    const normalizedPricingTier = normalizePricingTier(pricingTier);
+    await this.runInTransaction((client) => this.accountSettingsRepository.patchSettingsForUser(client, userId, {
+      pricingTier: normalizedPricingTier,
+    }));
+    return normalizedPricingTier;
   }
 
   async clearAiApiKeyForUser(userId: string): Promise<boolean> {
@@ -227,6 +237,13 @@ function normalizeSecretValue(value: string): string {
     throw new HttpError(400, 'Secret value is required.');
   }
   return normalized;
+}
+
+function normalizePricingTier(value: unknown): PricingTier {
+  if (typeof value !== 'string' || !PRICING_TIERS.has(value as PricingTier)) {
+    throw new HttpError(400, 'Pricing tier must be one of free, lite, pro, ultra.');
+  }
+  return value as PricingTier;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

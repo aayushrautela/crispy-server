@@ -8,7 +8,7 @@ test('credential resolver blocks free tier AI without requiring a key', async ()
   const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
 
   const resolver = new AiCredentialResolver({
-    getPricingTierForUser: () => 'free',
+    getPricingTierForUser: async () => 'free',
     getAiProviderIdForUser: async () => 'openrouter',
   } as never, '');
 
@@ -22,7 +22,7 @@ test('credential resolver uses lite user OpenRouter BYOK', async () => {
   const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
 
   const resolver = new AiCredentialResolver({
-    getPricingTierForUser: () => 'lite',
+    getPricingTierForUser: async () => 'lite',
     getAiProviderIdForUser: async () => 'openrouter',
     getAiApiKeyForUser: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'user-openrouter-key' }),
   } as never, '');
@@ -39,7 +39,7 @@ test('credential resolver uses pro server key and pro model', async () => {
   const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
 
   const resolver = new AiCredentialResolver({
-    getPricingTierForUser: () => 'pro',
+    getPricingTierForUser: async () => 'pro',
     getAiProviderIdForUser: async () => 'openrouter',
   } as never, 'server-ai-key');
 
@@ -55,7 +55,7 @@ test('credential resolver does not fall back to pooled keys', async () => {
   const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
 
   const resolver = new AiCredentialResolver({
-    getPricingTierForUser: () => 'lite',
+    getPricingTierForUser: async () => 'lite',
     getAiProviderIdForUser: async () => 'openrouter',
     getAiApiKeyForUser: async () => {
       const { HttpError } = await import('../../lib/errors.js');

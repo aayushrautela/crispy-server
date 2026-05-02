@@ -19,6 +19,7 @@ import { RecommendationDataService } from '../../modules/recommendations/recomme
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
+import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -40,6 +41,7 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   const recommendationOutputService = new RecommendationOutputService();
   const personalMediaService = new PersonalMediaService();
   const calendarService = new CalendarService();
+  const accountSettingsService = new AccountSettingsService();
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
     const header = request.headers.authorization?.trim();
@@ -116,9 +118,24 @@ export async function registerAdminApiRoutes(app: FastifyInstance): Promise<void
   app.get('/admin/api/accounts/lookup-by-email/:email', async (request, reply) => {
     await requireAdmin(request);
     const params = asRecord(request.params);
+    const account = await accountLookupService.getByEmail(readRequiredString(params.email, 'email'));
     return {
-      account: await accountLookupService.getByEmail(readRequiredString(params.email, 'email')),
+      account: {
+        ...account,
+        pricingTier: await accountSettingsService.getPricingTierForUser(account.accountId),
+      },
     };
+  });
+
+  app.patch('/admin/api/accounts/:accountId/pricing-tier', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    const body = asRecord(request.body);
+    const pricingTier = await accountSettingsService.setPricingTierForUser(
+      readRequiredString(params.accountId, 'accountId'),
+      body.pricingTier,
+    );
+    return { pricingTier };
   });
 
   app.get('/admin/api/accounts/:accountId/profiles', async (request, reply) => {

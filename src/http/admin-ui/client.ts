@@ -549,15 +549,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       const profiles = Array.isArray(profilesResponse.profiles) ? profilesResponse.profiles : [];
       state.selectedAccount = account;
       state.selectedProfile = null;
-      if (elements.accountSummary) {
-        elements.accountSummary.hidden = false;
-        elements.accountSummary.innerHTML = '<h4>Account</h4>'
-          + '<div class="kv-grid">'
-          + kvPair('Account id', account.accountId)
-          + kvPair('Email', account.email || email)
-          + kvPair('Profiles', String(profiles.length))
-          + '</div>';
-      }
+      renderAccountSummary(account, profiles.length, email);
 
       if (elements.profileList) {
         if (profiles.length === 0) {
@@ -1390,6 +1382,63 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function sectionCard(title, body) {
     return '<div class="mini-panel"><h4>' + escapeHtml(title) + '</h4><div class="section-body">' + body + '</div></div>';
+  }
+
+  function renderAccountSummary(account, profileCount, lookupEmail) {
+    if (!elements.accountSummary) return;
+    const pricingTier = String(account.pricingTier || 'free');
+    elements.accountSummary.hidden = false;
+    elements.accountSummary.innerHTML = '<h4>Account</h4>'
+      + '<div class="kv-grid">'
+      + kvPair('Account id', account.accountId)
+      + kvPair('Email', account.email || lookupEmail)
+      + kvPair('Profiles', String(profileCount))
+      + kvPair('Pricing tier', pricingTier)
+      + '</div>'
+      + '<form id="account-pricing-tier-form" class="section-stack">'
+      + '<label>Pricing tier'
+      + '<select id="account-pricing-tier">'
+      + pricingTierOption('free', pricingTier)
+      + pricingTierOption('lite', pricingTier)
+      + pricingTierOption('pro', pricingTier)
+      + pricingTierOption('ultra', pricingTier)
+      + '</select>'
+      + '</label>'
+      + '<div class="jobs-toolbar"><button type="submit">Save pricing tier</button></div>'
+      + '</form>';
+    bindPricingTierForm(account, profileCount, lookupEmail);
+  }
+
+  function pricingTierOption(value, selectedValue) {
+    return '<option value="' + escapeHtml(value) + '"' + (value === selectedValue ? ' selected' : '') + '>' + escapeHtml(value) + '</option>';
+  }
+
+  function bindPricingTierForm(account, profileCount, lookupEmail) {
+    const form = document.getElementById('account-pricing-tier-form');
+    const select = document.getElementById('account-pricing-tier');
+    if (!form || !select) return;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      if (button) button.disabled = true;
+      setMessage(elements.lookupMessage, 'info', 'Saving pricing tier...');
+      try {
+        const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(account.accountId) + '/pricing-tier'), {
+          method: 'PATCH',
+          body: JSON.stringify({ pricingTier: select.value }),
+        });
+        const pricingTier = payload && payload.pricingTier ? payload.pricingTier : select.value;
+        state.selectedAccount = { ...account, pricingTier };
+        renderAccountSummary(state.selectedAccount, profileCount, lookupEmail);
+        setMessage(elements.lookupMessage, 'success', 'Pricing tier updated.');
+        pushNotification('success', 'Pricing tier updated', 'Set ' + (account.email || lookupEmail || account.accountId) + ' to ' + pricingTier + '.', false);
+      } catch (error) {
+        setMessage(elements.lookupMessage, 'error', error.message || 'Unable to update pricing tier.');
+        pushNotification('error', 'Pricing tier update failed', error.message || 'Unable to update pricing tier.', true);
+      } finally {
+        if (button) button.disabled = false;
+      }
+    });
   }
 
   function kvPair(label, value) {

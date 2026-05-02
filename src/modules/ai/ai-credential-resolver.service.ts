@@ -50,7 +50,7 @@ export class AiCredentialResolver {
       throw new HttpError(503, `AI ${task} is not configured.`);
     }
 
-    const tier = this.accountSettingsService.getPricingTierForUser(userId);
+    const tier = await this.accountSettingsService.getPricingTierForUser(userId);
     const policy = TIER_POLICIES[tier];
 
     if (!policy.allowUserKey && !policy.allowServerKey) {
