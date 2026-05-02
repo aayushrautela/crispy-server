@@ -292,7 +292,7 @@ async function enforcePublicAccountRateLimit(
 }
 
 function getPublicAccountRateLimit(method: string): number {
-  return method.toUpperCase() === 'GET' ? 120 : 30;
+  return method.toUpperCase() === 'GET' ? 6 : 2;
 }
 
 function getHeader(request: FastifyRequest, name: string): string | undefined {
