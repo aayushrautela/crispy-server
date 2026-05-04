@@ -181,7 +181,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       idempotencyKey: idempotencyKey ?? '',
       request: request.body as Parameters<ServiceRecommendationListService['batchUpsert']>[0]['request'],
     });
-    return reply.code(result.idempotency.replayed ? 200 : 207).send(result);
+    return reply.code(200).send(result);
   });
 
   app.post('/internal/apps/v1/recommendations/runs', async (request, reply) => {

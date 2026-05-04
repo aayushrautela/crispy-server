@@ -278,12 +278,14 @@ Rules:
 
 ## Recommendation Payload Rule
 
-Recommendation items follow the same canonical media identity.
+Recommendation read payloads follow canonical media identity.
 
 - `mediaKey` is required where the layout guarantees navigability
 - `mediaType` is derived convenience only
 - `provider` and `providerId` are deprecated/removable from canonical recommendation cards
 - recommendation collection items may still omit `mediaKey` where the payload is display-only
+
+Recommendation write payloads for service-owned internal app lists are simpler: writers submit ordered TMDB refs only, for example `{ "type": "movie", "tmdbId": 550 }`. The server derives `mediaKey` and rank from those refs. Clients and writers must not send `contentId`, `mediaKey`, `rank`, provider fragments, or enriched card metadata to those write endpoints.
 
 ## Provider Connections
 

@@ -205,7 +205,7 @@ test('PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendati
     method: 'PUT',
     url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/recommendations/lists/for-you',
     headers: { 'idempotency-key': 'test-key-123' },
-    payload: { purpose: 'recommendation-generation', writeMode: 'replace', items: [] },
+    payload: { items: [{ type: 'movie', tmdbId: 101 }] },
   });
 
   assert.equal(response.statusCode, 404);
@@ -253,7 +253,7 @@ test('official recommender with accounts:all:write can write recommendations acr
     method: 'PUT',
     url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/for-you',
     headers: { 'idempotency-key': 'test-key-123' },
-    payload: { purpose: 'recommendation-generation', writeMode: 'replace', items: [] },
+    payload: { items: [{ type: 'movie', tmdbId: 101 }] },
   });
 
   assert.equal(response.statusCode, 201);
@@ -296,7 +296,7 @@ test('normal app without accounts:all:write is denied cross-account recommendati
     method: 'PUT',
     url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/for-you',
     headers: { 'idempotency-key': 'test-key-123' },
-    payload: { purpose: 'recommendation-generation', writeMode: 'replace', items: [] },
+    payload: { items: [{ type: 'movie', tmdbId: 101 }] },
   });
 
   assert.equal(response.statusCode, 404);

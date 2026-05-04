@@ -1,7 +1,6 @@
 import { HttpError } from '../../lib/errors.js';
 import type { AppAuthorizationService } from '../apps/app-authorization.service.js';
 import type { AppSourceOwnershipRepo } from '../apps/app-source-ownership.repo.js';
-import type { ProfileEligibilityService } from '../apps/profile-eligibility.service.js';
 import type { RecommendationListItemInput, RecommendationListPolicyDecision, RecommendationListWriteInput, RecommendationWriteActor } from './recommendation-list.types.js';
 
 export interface RecommendationListWritePolicy {
@@ -38,7 +37,6 @@ export class AppRecommendationWritePolicy implements RecommendationListWritePoli
   constructor(private readonly deps: {
     appAuthorizationService: AppAuthorizationService;
     sourceOwnershipRepo: AppSourceOwnershipRepo;
-    profileEligibilityService: ProfileEligibilityService;
     maxItemsDefault: number;
   }) {}
 

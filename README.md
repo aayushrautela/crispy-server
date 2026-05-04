@@ -358,8 +358,8 @@ These are the only supported privileged routes for recommendation engines and ot
 - `GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility` - check recommendation-generation eligibility
 - `GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle` - read profile signal bundle for recommendation generation
 - `GET /internal/apps/v1/recommendations/service-lists` - list writable service recommendation lists
-- `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey` - write one service-owned recommendation list
-- `POST /internal/apps/v1/recommendations/batch-upsert` - batch write service-owned recommendation lists
+- `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey` - write one service-owned recommendation list with `Idempotency-Key` and ordered `items` of `{ type: "movie" | "tv", tmdbId }`; source, rank, media key, write mode, and eligibility are server-derived
+- `POST /internal/apps/v1/recommendations/batch-upsert` - batch write service-owned recommendation lists with the same simplified item refs; processed batches return `200 OK` with per-profile result status
 - `POST /internal/apps/v1/recommendations/runs` - create recommendation run audit record
 - `PATCH /internal/apps/v1/recommendations/runs/:runId` - update recommendation run audit record
 - `POST /internal/apps/v1/recommendations/runs/:runId/batches` - create recommendation batch audit record

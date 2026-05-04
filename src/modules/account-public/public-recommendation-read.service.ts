@@ -35,25 +35,28 @@ export class PublicRecommendationReadService {
 
 function mapPublicRecommendationItem(raw: unknown, index: number): { rank: number; media: PublicMediaItemDto; reason: string | null } {
   const item = typeof raw === 'object' && raw !== null ? raw as Record<string, unknown> : {};
+  const type = item.type === 'movie' || item.type === 'tv' ? item.type : 'unknown';
+  const tmdbId = typeof item.tmdbId === 'number' && Number.isSafeInteger(item.tmdbId) ? item.tmdbId : index;
+  const mediaKey = typeof item.mediaKey === 'string' ? item.mediaKey : `${type}:tmdb:${tmdbId}`;
   return {
     rank: typeof item.rank === 'number' ? item.rank : index + 1,
     media: {
-      mediaKey: `${String(item.provider ?? 'custom')}:${String(item.providerItemId ?? index)}`,
-      mediaType: normalizeMediaType(String(item.mediaType ?? 'unknown')),
-      title: typeof item.title === 'string' ? item.title : String(item.providerItemId ?? 'Untitled'),
+      mediaKey,
+      mediaType: normalizeMediaType(type),
+      title: mediaKey,
       subtitle: null,
       year: null,
-      posterUrl: typeof item.imageUrl === 'string' ? item.imageUrl : null,
+      posterUrl: null,
       backdropUrl: null,
-      runtimeMinutes: typeof item.durationMs === 'number' ? Math.round(item.durationMs / 60000) : null,
-      rating: typeof item.score === 'number' ? item.score : null,
+      runtimeMinutes: null,
+      rating: null,
     },
-    reason: typeof item.reason === 'string' ? item.reason : null,
+    reason: null,
   };
 }
 
 function normalizeMediaType(value: string): 'movie' | 'show' | 'season' | 'episode' | 'unknown' {
-  if (value === 'episode') return 'episode';
-  if (value === 'video') return 'movie';
+  if (value === 'movie') return 'movie';
+  if (value === 'tv') return 'show';
   return 'unknown';
 }

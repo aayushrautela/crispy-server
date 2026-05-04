@@ -247,11 +247,11 @@ Field behavior:
 }
 ```
 
-### Get recommendation snapshot
+### Get recommendations
 
 `GET /v1/profiles/:profileId/recommendations?sourceKey=default&algorithmVersion=v3.2.1`
 
-Returns the latest stored recommendation snapshot for the profile/source/algorithm version.
+Returns the latest stored recommendation list for the profile/source/algorithm version.
 
 #### Example request
 
@@ -260,36 +260,22 @@ curl -X GET "https://your-api-domain.com/v1/profiles/profile_123/recommendations
   -H "Authorization: Bearer <your_token>"
 ```
 
-#### Response `200` with snapshot
+#### Response `200` with recommendations
 
 ```json
 {
   "recommendations": {
     "profileId": "profile_123",
     "sourceKey": "default",
-    "historyGeneration": 4,
     "algorithmVersion": "v3.2.1",
-    "sourceCursor": null,
-    "generatedAt": "2026-05-02T10:00:00.000Z",
-    "expiresAt": "2026-05-03T10:00:00.000Z",
-    "source": "generator",
-    "updatedByKind": "service",
-    "updatedById": null,
-    "sections": [
+    "items": [
       {
-        "id": "because-you-watched",
-        "title": "Because you watched",
-        "layout": "regular",
-        "items": [
-          {
-            "media": {},
-            "reason": "Similar mood and genre",
-            "score": 0.92,
-            "rank": 1,
-            "payload": {}
-          }
-        ],
-        "meta": {}
+        "type": "movie",
+        "tmdbId": 550
+      },
+      {
+        "type": "tv",
+        "tmdbId": 1399
       }
     ],
     "updatedAt": "2026-05-02T10:00:00.000Z"
@@ -297,7 +283,7 @@ curl -X GET "https://your-api-domain.com/v1/profiles/profile_123/recommendations
 }
 ```
 
-`sections` may be empty. For any section, `items` may be empty.
+`items` may be empty.
 
 #### Response `200` with no snapshot
 
@@ -307,13 +293,15 @@ curl -X GET "https://your-api-domain.com/v1/profiles/profile_123/recommendations
 }
 ```
 
-This means no snapshot has been generated or stored for the requested profile/source/algorithm version. It is distinct from an empty snapshot, which has a non-null `recommendations` object with empty `sections` or section `items`.
+This means no recommendations have been generated or stored for the requested profile/source/algorithm version. It is distinct from an empty recommendation list, which has a non-null `recommendations` object with an empty `items` array.
 
-### Upsert recommendation snapshot
+### Upsert recommendations
 
 `PUT /v1/profiles/:profileId/recommendations`
 
-Creates or replaces the stored recommendation snapshot for the resolved `sourceKey` and `algorithmVersion`.
+Creates or replaces the stored recommendation list for the resolved `sourceKey` and `algorithmVersion`. Write requests use the simplified item-reference contract: each item contains only `{ type, tmdbId }`. The server derives stored card data, ranking, scoring metadata, provider identifiers, content identifiers, media keys, schema versioning, and other enriched snapshot fields.
+
+Do not send enriched recommendation payloads in active write requests. Fields such as `rank`, `score`, `reason`, `media`, `mediaKey`, `contentId`, `provider`, `schemaVersion`, or arbitrary item `payload` data are legacy snapshot internals and are not part of the current write contract.
 
 #### Example request
 
@@ -323,28 +311,15 @@ curl -X PUT "https://your-api-domain.com/v1/profiles/profile_123/recommendations
   -H "Content-Type: application/json" \
   -d '{
     "sourceKey": "default",
-    "historyGeneration": 4,
     "algorithmVersion": "v3.2.1",
-    "sourceCursor": null,
-    "generatedAt": "2026-05-02T10:00:00.000Z",
-    "expiresAt": "2026-05-03T10:00:00.000Z",
-    "source": "generator",
-    "updatedById": null,
-    "sections": [
+    "items": [
       {
-        "id": "because-you-watched",
-        "title": "Because you watched",
-        "layout": "regular",
-        "items": [
-          {
-            "media": {},
-            "reason": "Similar mood and genre",
-            "score": 0.92,
-            "rank": 1,
-            "payload": {}
-          }
-        ],
-        "meta": {}
+        "type": "movie",
+        "tmdbId": 550
+      },
+      {
+        "type": "tv",
+        "tmdbId": 1399
       }
     ]
   }'
@@ -355,14 +330,13 @@ curl -X PUT "https://your-api-domain.com/v1/profiles/profile_123/recommendations
 ```json
 {
   "sourceKey": "default",
-  "historyGeneration": 4,
   "algorithmVersion": "v3.2.1",
-  "sourceCursor": null,
-  "generatedAt": "2026-05-02T10:00:00.000Z",
-  "expiresAt": "2026-05-03T10:00:00.000Z",
-  "source": "generator",
-  "updatedById": null,
-  "sections": []
+  "items": [
+    {
+      "type": "movie",
+      "tmdbId": 550
+    }
+  ]
 }
 ```
 
@@ -370,8 +344,9 @@ Required fields:
 
 | Field | Type | Required | Validation |
 | --- | --- | --- | --- |
-| `historyGeneration` | number | yes | Must be a non-negative integer. |
-| `generatedAt` | string | yes | Must be a non-empty string. |
+| `items` | array | yes | Must contain ordered recommendation item references. |
+| `items[].type` | string | yes | Media type used to resolve the TMDB title. |
+| `items[].tmdbId` | number | yes | TMDB identifier used to derive stored recommendation data. |
 
 Field behavior:
 
@@ -379,60 +354,15 @@ Field behavior:
 | --- | --- | --- | --- |
 | `sourceKey` | string | no | Defaults through server configuration when missing or invalid. |
 | `algorithmVersion` | string | no | Defaults through server configuration when missing or invalid. |
-| `historyGeneration` | number | yes | Converted with `Number(...)`; must be an integer >= `0`. |
-| `sourceCursor` | string \| null | no | String values are stored; non-strings become `null`. |
-| `generatedAt` | string | yes | Stored as provided after non-empty string validation. |
-| `expiresAt` | string \| null | no | String values are stored; non-strings become `null`. |
-| `source` | string | no | Defaults to `manual` when omitted or blank. |
-| `updatedById` | string \| null | no | Parsed when provided, but this account route writes the authenticated account id instead. |
-| `sections` | array | no | Defaults to `[]` when omitted or not an array. |
+| `items` | array | yes | Stored in the provided order; the server derives all enriched recommendation fields. |
 
-#### Section shapes
-
-Recommendation snapshots can contain these section layouts:
+#### Item shape
 
 ```ts
-type RecommendationSection =
-  | {
-      id: string;
-      title: string;
-      layout: "regular";
-      items: Array<{
-        media: RegularCardView;
-        reason: string | null;
-        score: number | null;
-        rank: number | null;
-        payload: Record<string, unknown>;
-      }>;
-      meta: Record<string, unknown>;
-    }
-  | {
-      id: string;
-      title: string;
-      layout: "landscape";
-      items: Array<{
-        media: LandscapeCardView;
-        reason: string | null;
-        score: number | null;
-        rank: number | null;
-        payload: Record<string, unknown>;
-      }>;
-      meta: Record<string, unknown>;
-    }
-  | {
-      id: string;
-      title: string;
-      layout: "collection";
-      items: CollectionCardView[];
-      meta: Record<string, unknown>;
-    }
-  | {
-      id: string;
-      title: string;
-      layout: "hero";
-      items: HeroCardView[];
-      meta: Record<string, unknown>;
-    };
+type RecommendationWriteItem = {
+  type: string;
+  tmdbId: number;
+};
 ```
 
 #### Response `200`
@@ -442,15 +372,17 @@ type RecommendationSection =
   "recommendations": {
     "profileId": "profile_123",
     "sourceKey": "default",
-    "historyGeneration": 4,
     "algorithmVersion": "v3.2.1",
-    "sourceCursor": null,
-    "generatedAt": "2026-05-02T10:00:00.000Z",
-    "expiresAt": "2026-05-03T10:00:00.000Z",
-    "source": "generator",
-    "updatedByKind": "user",
-    "updatedById": "user_123",
-    "sections": [],
+    "items": [
+      {
+        "type": "movie",
+        "tmdbId": 550
+      },
+      {
+        "type": "tv",
+        "tmdbId": 1399
+      }
+    ],
     "updatedAt": "2026-05-02T10:00:00.000Z"
   }
 }
@@ -470,9 +402,7 @@ A typical client flow is:
 ## Status and error responses
 
 - `200 OK`: request succeeded.
-- `400 Bad Request`: validation failed. Current explicit validation includes:
-  - `historyGeneration must be a non-negative integer.`
-  - `generatedAt is required.`
+- `400 Bad Request`: validation failed. Common validation failures include malformed request bodies, missing required recommendation items, or invalid item references.
 - `401 Unauthorized`: missing or invalid authentication.
 - `403 Forbidden`: authenticated principal lacks the required scope or is not a user/PAT actor.
 - `404 Not Found`: profile does not exist or is not accessible to the authenticated account.
@@ -506,14 +436,7 @@ Examples:
 
 ```json
 {
-  "code": "historygeneration_must_be_a_non_negative_integer",
-  "message": "historyGeneration must be a non-negative integer."
-}
-```
-
-```json
-{
-  "code": "generatedat_is_required",
-  "message": "generatedAt is required."
+  "code": "invalid_recommendation_items",
+  "message": "Recommendation items must contain type and tmdbId."
 }
 ```

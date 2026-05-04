@@ -65,25 +65,23 @@ The engine must not request, receive, cache, log, or forward raw account BYOK ke
 
 ## Result Publication
 
-Generated outputs are published back through the agreed internal API surface for service-owned recommendation outputs. Result delivery is not an API Server-submitted worker job lifecycle.
+Generated outputs are published back through the internal app recommendation write endpoints. The engine writes ordered arrays of `{ type: "movie" | "tv", tmdbId: number }` references only. The server derives source, rank from array order, canonical media keys, write mode, eligibility version, and all other storage/policy metadata.
 
-Result ingestion should be idempotent by profile, source/algorithm version, and snapshot identity. Retries must be safe to repeat without duplicating active snapshots. If a future callback or alternate result-delivery mechanism is introduced, document it as result ingestion/publication rather than API Server polling a worker job.
+Writers must not send enriched fields such as `contentId`, `mediaKey`, `rank`, `score`, `reasonCodes`, `metadata`, `media` payloads, `purpose`, `writeMode`, `eligibilityVersion`, or `signalsVersion`. These are server-derived or rejected.
+
+Result ingestion is idempotent by profile, list key, and idempotency key. Retries must be safe to repeat without duplicating active list versions.
 
 ## Identity Requirements
 
-Recommendation result items must use canonical TMDB-backed `mediaKey` values:
+Recommendation write items use TMDB references:
 
-```text
-movie:tmdb:{tmdbId}
-show:tmdb:{tmdbId}
-season:tmdb:{showTmdbId}:{seasonNumber}
-episode:tmdb:{showTmdbId}:{seasonNumber}:{episodeNumber}
-person:tmdb:{tmdbId}
+```json
+{ "type": "movie", "tmdbId": 550 }
 ```
 
-TVDB and Kitsu identifiers are not canonical runtime identities. They may appear only as non-canonical import-source identifiers, external-id metadata, or compatibility crosswalk fields when Crispy API explicitly returns them.
+Allowed `type` values are `movie` and `tv`. Crispy derives canonical media keys such as `movie:tmdb:550` and `tv:tmdb:1399` when storing service-owned recommendation lists. Array order is the recommendation rank.
 
-Anime-origin titles are represented as ordinary TMDB `movie` or `show` content. There is no first-class backend `anime` media type in the current architecture.
+Read/source signal payloads continue to expose canonical `mediaKey` values for navigation and metadata joins.
 
 ## Source Signal Identity
 

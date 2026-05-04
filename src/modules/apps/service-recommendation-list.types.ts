@@ -1,4 +1,4 @@
-import type { RecommendationListItemInput, RecommendationListWriteResult } from '../recommendations/recommendation-list.types.js';
+import type { RecommendationListWriteResult } from '../recommendations/recommendation-list.types.js';
 
 export interface ServiceRecommendationListDescriptor {
   listKey: string;
@@ -17,36 +17,26 @@ export interface ServiceRecommendationListsResponse {
   lists: ServiceRecommendationListDescriptor[];
 }
 
+export type ServiceRecommendationItemType = 'movie' | 'tv';
+
+export interface ServiceRecommendationItemRef {
+  type: ServiceRecommendationItemType;
+  tmdbId: number;
+}
+
 export interface UpsertServiceRecommendationListRequest {
-  purpose: 'recommendation-generation';
-  runId?: string;
-  input: {
-    eligibilityVersion: number;
-    signalsVersion: number;
-    modelVersion?: string;
-    algorithm?: string;
-  };
-  writeMode: 'replace';
-  items: RecommendationListItemInput[];
+  items: ServiceRecommendationItemRef[];
 }
 
 export interface BatchUpsertServiceRecommendationListsRequest {
-  purpose: 'recommendation-generation';
-  runId?: string;
-  batchId?: string;
-  writeMode: 'replace';
   profiles: Array<{
     accountId: string;
     profileId: string;
-    eligibilityVersion: number;
-    signalsVersion: number;
-    lists: Array<{ listKey: string; items: RecommendationListItemInput[] }>;
+    lists: Array<{ listKey: string; items: ServiceRecommendationItemRef[] }>;
   }>;
 }
 
 export interface BatchUpsertServiceRecommendationListsResult {
-  runId?: string;
-  batchId?: string;
   status: 'completed' | 'completed_with_errors' | 'failed';
   summary: {
     profilesReceived: number;
@@ -56,6 +46,7 @@ export interface BatchUpsertServiceRecommendationListsResult {
     itemsWritten: number;
   };
   results: Array<ServiceRecommendationProfileWriteResult>;
+  requestHash: string;
   idempotency: { key: string; replayed: boolean };
 }
 
@@ -64,7 +55,7 @@ export interface ServiceRecommendationProfileWriteResult {
   profileId: string;
   status: 'written' | 'rejected';
   lists?: Array<{ listKey: string; source: string; version: number; itemCount: number }>;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; details?: unknown };
 }
 
 export interface UpsertServiceRecommendationListResult extends RecommendationListWriteResult {

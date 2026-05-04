@@ -188,7 +188,6 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     policy: new AppRecommendationWritePolicy({
       appAuthorizationService,
       sourceOwnershipRepo: authDeps.sourceOwnershipRepo,
-      profileEligibilityService,
       maxItemsDefault: 100,
     }),
     appAuditRepo: authDeps.appAuditRepo,
