@@ -4,6 +4,8 @@ import type { Clock } from './clock.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { ProfileInputSignalFacade } from '../recommendations/profile-input-signal.facade.js';
 import type { ProfileInputSignalBundle } from '../recommendations/profile-input-signal.types.js';
+import type { ProfileAccessService } from '../profiles/profile-access.service.js';
+import { withDbClient } from '../../lib/db.js';
 import type {
   AppliedProfileSignalLimits,
   GetProfileSignalBundleInput,
@@ -13,7 +15,7 @@ import type {
   ProfileSignalInclude,
 } from './profile-signal-bundle.types.js';
 
-const DEFAULT_INCLUDES: ProfileSignalInclude[] = ['history', 'ratings', 'watchlist', 'continue', 'language', 'taste'];
+const DEFAULT_INCLUDES: ProfileSignalInclude[] = ['profileContext', 'history', 'ratings', 'watchlist', 'continue', 'language', 'taste'];
 
 export class DefaultProfileSignalBundleService implements ProfileSignalBundleService {
   constructor(
@@ -21,6 +23,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
       facade: ProfileInputSignalFacade;
       profileEligibilityService: ProfileEligibilityService;
       appAuthorizationService: AppAuthorizationService;
+      profileAccessService: ProfileAccessService;
       appAuditRepo: AppAuditRepo;
       clock: Clock;
       defaults: ProfileSignalBundleLimitDefaults;
@@ -50,6 +53,10 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     const include = this.normalizeIncludes(input.include);
     const limits = this.applyGrantAndServerLimits({ requested: input.limits });
 
+    const profile = await withDbClient((client) =>
+      this.deps.profileAccessService.assertOwnedProfile(client, input.profileId, input.accountId)
+    );
+
     const liveSignals = await this.deps.facade.getBundle({
       accountId: input.accountId,
       profileId: input.profileId,
@@ -65,6 +72,11 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     const bundle: ProfileSignalBundle['bundle'] = {
       signalsVersion: liveSignals.signalsVersion,
       generatedAt: liveSignals.generatedAt,
+      profileContext: {
+        profileName: profile.name,
+        isKids: profile.isKids,
+        watchDataOrigin: 'server_sync',
+      },
     };
 
     if (include.includes('history') && liveSignals.history) {

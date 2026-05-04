@@ -1,7 +1,6 @@
 import type { AppPrincipal } from './app-principal.types.js';
 
-export type ProfileSignalInclude = 'history' | 'ratings' | 'watchlist' | 'continue' | 'language' | 'taste' | 'negativeSignals' | 'recentImpressions';
-
+export type ProfileSignalInclude = 'profileContext' | 'history' | 'ratings' | 'watchlist' | 'continue' | 'language' | 'taste' | 'negativeSignals' | 'recentImpressions';
 export interface ProfileSignalBundleQuery {
   include?: string;
   historyLimit?: number;
@@ -34,6 +33,7 @@ export interface ProfileSignalBundle {
   bundle: {
     signalsVersion: number;
     generatedAt: Date;
+    profileContext: ProfileContextSignal;
     language?: ProfileLanguageSignals;
     taste?: ProfileTasteSignals;
     history?: ProfileHistorySignal[];
@@ -51,6 +51,7 @@ export interface ProfileSignalBundle {
   };
 }
 
+export interface ProfileContextSignal { profileName: string; isKids: boolean; watchDataOrigin: 'server_sync'; language?: string; region?: string; }
 export interface ProfileLanguageSignals { primary?: string | null; secondary: string[]; audioPreferences: string[]; subtitlePreferences: string[]; }
 export interface ProfileTasteSignals { genres: Array<{ id: string; score: number }>; people: Array<{ id: string; score: number }>; keywords: Array<{ id: string; score: number }>; maturity?: { maxAllowedRating?: string | null }; }
 export interface ProfileHistorySignal { mediaKey: string; contentType: string; watchedAt: Date; progressPercent: number; completionState: string; durationSeconds?: number | null; }

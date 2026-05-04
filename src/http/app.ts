@@ -40,6 +40,7 @@ import { SqlEligibleProfileChangeFeedRepo } from '../modules/apps/eligible-profi
 import { DefaultEligibleProfileSnapshotService } from '../modules/apps/eligible-profile-snapshot.service.js';
 import { SqlEligibleProfileSnapshotRepo } from '../modules/apps/eligible-profile-snapshot.repo.js';
 import { DefaultProfileSignalBundleService } from '../modules/apps/profile-signal-bundle.service.js';
+import { ProfileAccessService } from '../modules/profiles/profile-access.service.js';
 import { ProfileInputSignalFacade } from '../modules/recommendations/profile-input-signal.facade.js';
 import { SqlProfileInputSignalCacheRepo } from '../modules/recommendations/profile-input-signal-cache.repo.js';
 import { ProfileInputSignalCacheService } from '../modules/recommendations/profile-input-signal-cache.service.js';
@@ -164,6 +165,7 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     facade: profileInputSignalFacade,
     profileEligibilityService,
     appAuthorizationService,
+    profileAccessService: new ProfileAccessService(),
     appAuditRepo: authDeps.appAuditRepo,
     clock: authDeps.clock,
     defaults: {
