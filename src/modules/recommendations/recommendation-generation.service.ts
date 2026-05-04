@@ -200,8 +200,6 @@ export function mapContinueWatchingItem(item: ContinueWatchingProductItem): Reco
     media: {
       mediaType: item.media.mediaType,
       mediaKey: item.media.mediaKey,
-      provider: item.media.provider,
-      providerId: item.media.providerId,
       title: item.media.title,
     },
     progress: {
@@ -376,19 +374,15 @@ function normalizeCollectionCard(value: unknown): Record<string, unknown> | null
 function normalizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
   const mediaType = readOptionalString(row.mediaType) ?? readOptionalString(row.media_type);
-  const provider = readOptionalString(row.provider);
-  const providerId = readOptionalString(row.providerId) ?? readOptionalString(row.provider_id);
   const title = readOptionalString(row.title);
   const posterUrl = readOptionalString(row.posterUrl) ?? readOptionalString(row.poster_url);
-  if (!mediaType || !provider || !providerId || !title || !posterUrl) {
+  if (!mediaType || !title || !posterUrl) {
     return null;
   }
 
   return {
     ...row,
     mediaType,
-    provider,
-    providerId,
     title,
     posterUrl,
     releaseYear: readOptionalNumber(row.releaseYear) ?? readOptionalNumber(row.release_year),

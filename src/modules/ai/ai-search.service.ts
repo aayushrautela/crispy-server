@@ -84,7 +84,7 @@ export class AiSearchService {
         finalCount: response.all.length,
         candidateSamples: candidates.slice(0, 8),
         unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: response.all.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.provider}:${item.providerId}`),
+        resultTitles: response.all.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.mediaKey}`),
         generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
@@ -253,7 +253,7 @@ function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggest
   const seen = new Set<string>();
   const result: ResolvedSuggestion[] = [];
   for (const suggestion of items) {
-    const key = `${suggestion.item.mediaType}:${suggestion.item.provider}:${suggestion.item.providerId}`;
+    const key = suggestion.item.mediaKey;
     if (seen.has(key)) {
       continue;
     }

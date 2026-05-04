@@ -57,8 +57,6 @@ function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
   return {
     mediaType: record.titleMediaType,
     mediaKey: record.mediaKey,
-    provider: record.titleProvider,
-    providerId: record.titleProviderId,
     title: record.title,
     posterUrl: record.posterUrl,
     releaseYear: record.releaseYear,

@@ -121,7 +121,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
 
   private mapHistory(history: NonNullable<ProfileInputSignalBundle['history']>) {
     return history.map((item) => ({
-      contentId: contentIdFor(item),
+      mediaKey: mediaKeyFor(item),
       contentType: item.media.mediaType,
       watchedAt: new Date(item.watchedAt),
       progressPercent: 100,
@@ -132,7 +132,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
 
   private mapRatings(ratings: NonNullable<ProfileInputSignalBundle['ratings']>) {
     return ratings.map((item) => ({
-      contentId: contentIdFor(item),
+      mediaKey: mediaKeyFor(item),
       rating: item.rating.value,
       ratedAt: new Date(item.rating.ratedAt),
       ratingSource: null,
@@ -141,14 +141,14 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
 
   private mapWatchlist(watchlist: NonNullable<ProfileInputSignalBundle['watchlist']>) {
     return watchlist.map((item) => ({
-      contentId: contentIdFor(item),
+      mediaKey: mediaKeyFor(item),
       addedAt: new Date(item.addedAt),
     }));
   }
 
   private mapContinueWatching(continueWatching: NonNullable<ProfileInputSignalBundle['continueWatching']>) {
     return continueWatching.map((item) => ({
-      contentId: contentIdFor(item),
+      mediaKey: mediaKeyFor(item),
       seasonNumber: null,
       episodeNumber: null,
       progressPercent: item.progress.progressPercent,
@@ -166,7 +166,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
   }
 }
 
-function contentIdFor(item: { id: string; media: { mediaKey?: string | null } }): string {
+function mediaKeyFor(item: { id: string; media: { mediaKey?: string | null } }): string {
   return item.media.mediaKey ?? item.id;
 }
 

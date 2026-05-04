@@ -13,8 +13,6 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
     media: {
       mediaType: 'show',
       mediaKey: 'show:tmdb:1396',
-      provider: 'tmdb',
-      providerId: '1396',
       title: 'Breaking Bad',
       posterUrl: 'poster',
       backdropUrl: 'backdrop',
@@ -45,8 +43,6 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
     media: {
       mediaType: 'show',
       mediaKey: 'show:tmdb:1396',
-      provider: 'tmdb',
-      providerId: '1396',
       title: 'Breaking Bad',
     },
     progress: {

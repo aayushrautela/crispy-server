@@ -49,8 +49,6 @@ test('getWatchHistoryForAccount falls back to synthesized regular cards on cache
       media: {
         mediaType: 'show',
         mediaKey: 'show:tmdb:100',
-        provider: 'tmdb',
-        providerId: '100',
         title: 'Example Show',
       posterUrl: 'https://img.test/poster.jpg',
       releaseYear: 2024,
@@ -106,8 +104,6 @@ test('getRatingsForAccount falls back to synthesized regular cards on cache miss
       media: {
         mediaType: 'show',
         mediaKey: 'show:tmdb:200',
-        provider: 'tmdb',
-        providerId: '200',
         title: 'Example Show',
         posterUrl: 'https://img.test/show.jpg',
         releaseYear: 2020,

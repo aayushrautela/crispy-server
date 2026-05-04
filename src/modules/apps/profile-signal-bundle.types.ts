@@ -53,12 +53,12 @@ export interface ProfileSignalBundle {
 
 export interface ProfileLanguageSignals { primary?: string | null; secondary: string[]; audioPreferences: string[]; subtitlePreferences: string[]; }
 export interface ProfileTasteSignals { genres: Array<{ id: string; score: number }>; people: Array<{ id: string; score: number }>; keywords: Array<{ id: string; score: number }>; maturity?: { maxAllowedRating?: string | null }; }
-export interface ProfileHistorySignal { contentId: string; contentType: string; watchedAt: Date; progressPercent: number; completionState: string; durationSeconds?: number | null; }
-export interface ProfileRatingSignal { contentId: string; rating: number; ratedAt: Date; ratingSource?: string | null; }
-export interface ProfileWatchlistSignal { contentId: string; addedAt: Date; }
-export interface ProfileContinueWatchingSignal { contentId: string; seasonNumber?: number | null; episodeNumber?: number | null; progressPercent: number; updatedAt: Date; }
-export interface ProfileNegativeSignal { contentId: string; reason: string; createdAt: Date; }
-export interface ProfileRecentImpressionSignal { listKey: string; contentId: string; shownAt: Date; }
+export interface ProfileHistorySignal { mediaKey: string; contentType: string; watchedAt: Date; progressPercent: number; completionState: string; durationSeconds?: number | null; }
+export interface ProfileRatingSignal { mediaKey: string; rating: number; ratedAt: Date; ratingSource?: string | null; }
+export interface ProfileWatchlistSignal { mediaKey: string; addedAt: Date; }
+export interface ProfileContinueWatchingSignal { mediaKey: string; seasonNumber?: number | null; episodeNumber?: number | null; progressPercent: number; updatedAt: Date; }
+export interface ProfileNegativeSignal { mediaKey: string; reason: string; createdAt: Date; }
+export interface ProfileRecentImpressionSignal { listKey: string; mediaKey: string; shownAt: Date; }
 
 export interface SignalBaseInput { accountId: string; profileId: string; }
 export interface SignalListInput extends SignalBaseInput { limit: number; since?: Date; }

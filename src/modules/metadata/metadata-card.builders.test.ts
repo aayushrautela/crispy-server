@@ -26,8 +26,6 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
   });
 
   assert.equal(view.mediaType, 'episode');
-  assert.equal(view.provider, 'tmdb');
-  assert.equal(view.providerId, '42');
   assert.equal(view.kind, 'episode');
   assert.equal(view.title, 'Breaking Point');
   assert.equal(view.subtitle, 'Previous Episode');
@@ -54,8 +52,6 @@ test('buildEpisodePreview produces provider-based payload', async () => {
   );
 
   assert.equal(preview.mediaType, 'episode');
-  assert.equal(preview.provider, 'tmdb');
-  assert.equal(preview.providerId, '42:s1:e3');
   assert.equal(preview.showTmdbId, 42);
   assert.equal(preview.seasonNumber, 1);
   assert.equal(preview.episodeNumber, 3);

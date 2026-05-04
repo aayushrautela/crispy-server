@@ -85,6 +85,12 @@ TVDB and Kitsu identifiers are not canonical runtime identities. They may appear
 
 Anime-origin titles are represented as ordinary TMDB `movie` or `show` content. There is no first-class backend `anime` media type in the current architecture.
 
+## Source Signal Identity
+
+Recommender source signals identify media by canonical `mediaKey`. `contentId` is accepted only as a legacy alias during migration and must be normalized to `mediaKey` before generation logic treats the signal as canonical.
+
+When source signals include media metadata, the recommender hydrates and joins metadata by `mediaKey`. It must not require duplicated `provider` or `providerId` fields as identity fragments.
+
 ## Pagination, Freshness, and Rate Limits
 
 The engine must follow API pagination, cursor, and filtering rules for every source-data endpoint. It should request only the profiles and windows of data needed for generation.

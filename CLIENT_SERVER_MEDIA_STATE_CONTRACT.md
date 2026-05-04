@@ -14,7 +14,7 @@ If this document conflicts with route schemas or runtime handlers, the route sch
 
 ### Public navigation identity
 
-The main client navigation key is `mediaKey`.
+The canonical public navigation and media identity key is `mediaKey`.
 
 When a payload includes `mediaKey`, clients should use it for:
 
@@ -23,13 +23,13 @@ When a payload includes `mediaKey`, clients should use it for:
 - watch state lookup
 - watchlist and rating mutations
 
-Supporting identity fields may also be present:
+Supporting identity fields are deprecated or derived:
 
-- `mediaType`
-- `provider`
-- `providerId`
+- `mediaType` is a derived convenience field from `mediaKey`; clients must not treat it as a separate identity.
+- `provider` and `providerId` are deprecated canonical-shape fields and are removable from client-facing payloads.
+- `contentId` is a legacy alias accepted during migration only; new payloads and clients should use `mediaKey`.
 
-Those are descriptive fields. `mediaKey` is the stable public contract.
+`mediaKey` is the stable public contract and source of truth.
 
 ### Current media types
 
@@ -43,11 +43,11 @@ There is no first-class backend `anime` media type anymore.
 
 ### Provider fields
 
-Canonical metadata and watch payloads are now TMDB-backed.
+Canonical metadata, watch payloads, and recommendation signal bundles identify media by `mediaKey`.
 
-- `provider` is effectively `tmdb` for canonical media payloads
-- `providerId` is the TMDB-backed identity fragment for that payload
-- provider connection endpoints still refer to Trakt and Simkl as import providers
+- `provider` and `providerId` are deprecated on canonical media shapes and may be removed.
+- provider connection endpoints still refer to Trakt and Simkl as import providers.
+- recommender signal bundles use `mediaKey`; `contentId` is a legacy alias accepted during migration only.
 
 ## Shared Shapes
 
@@ -57,8 +57,6 @@ Canonical metadata and watch payloads are now TMDB-backed.
 {
   "mediaType": "movie | show | episode",
   "mediaKey": "string",
-  "provider": "tmdb",
-  "providerId": "string",
   "title": "string",
   "posterUrl": "string",
   "releaseYear": "integer | null",
@@ -74,8 +72,6 @@ Canonical metadata and watch payloads are now TMDB-backed.
 {
   "mediaType": "movie | show | episode",
   "mediaKey": "string",
-  "provider": "tmdb",
-  "providerId": "string",
   "title": "string",
   "posterUrl": "string",
   "backdropUrl": "string",
@@ -282,10 +278,11 @@ Rules:
 
 ## Recommendation Payload Rule
 
-Recommendation items follow the same canonical TMDB-era card identity.
+Recommendation items follow the same canonical media identity.
 
 - `mediaKey` is required where the layout guarantees navigability
-- `provider` is TMDB for canonical items
+- `mediaType` is derived convenience only
+- `provider` and `providerId` are deprecated/removable from canonical recommendation cards
 - recommendation collection items may still omit `mediaKey` where the payload is display-only
 
 ## Provider Connections

@@ -367,18 +367,14 @@ export class RecommendationOutputService {
   private mapCollectionCardItem(value: unknown): CollectionCardItemView | null {
     const row = asRecord(value);
     const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : null;
-    const provider = typeof row.provider === 'string' ? row.provider : null;
-    const providerId = typeof row.providerId === 'string' ? row.providerId : typeof row.provider_id === 'string' ? row.provider_id : null;
     const title = typeof row.title === 'string' ? row.title : null;
     const posterUrl = typeof row.posterUrl === 'string' ? row.posterUrl : typeof row.poster_url === 'string' ? row.poster_url : null;
-    if (!mediaType || !provider || !providerId || !title || !posterUrl) {
+    if (!mediaType || !title || !posterUrl) {
       return null;
     }
 
     return {
       mediaType: mediaType as CollectionCardItemView['mediaType'],
-      provider: provider as CollectionCardItemView['provider'],
-      providerId,
       title,
       posterUrl,
       releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : typeof row.release_year === 'number' ? row.release_year : null,
@@ -398,8 +394,6 @@ function toRegularCard(card: MetadataCardView): RegularCardView {
   return {
     mediaType: card.mediaType,
     mediaKey: card.mediaKey,
-    provider: card.provider,
-    providerId: card.providerId,
     title: card.title ?? 'Untitled',
     posterUrl: card.images.posterUrl ?? card.artwork.posterUrl ?? '',
     releaseYear: card.releaseYear,
@@ -419,8 +413,6 @@ function toLandscapeCard(card: MetadataCardView): LandscapeCardView | null {
   return {
     mediaType: card.mediaType,
     mediaKey: card.mediaKey,
-    provider: card.provider,
-    providerId: card.providerId,
     title: card.title,
     posterUrl,
     backdropUrl,
@@ -447,8 +439,6 @@ function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroC
   return {
     mediaKey: card.mediaKey,
     mediaType: card.mediaType,
-    provider: card.provider,
-    providerId: card.providerId,
     title: card.title,
     description,
     backdropUrl,
@@ -568,23 +558,19 @@ function sanitizeCollectionCard(value: unknown): Record<string, unknown> | null 
 function sanitizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
   const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : null;
-  const provider = readSupportedProvider(row.provider);
-  const providerId = readOptionalIdentityString(row.providerId) ?? readOptionalIdentityString(row.provider_id);
   const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
   const posterUrl = typeof row.posterUrl === 'string' && row.posterUrl.trim()
     ? row.posterUrl.trim()
     : typeof row.poster_url === 'string' && row.poster_url.trim()
       ? row.poster_url.trim()
       : null;
-  if (!mediaType || !provider || !providerId || !title || !posterUrl) {
+  if (!mediaType || !title || !posterUrl) {
     return null;
   }
 
   return {
     ...row,
     mediaType,
-    provider,
-    providerId,
     title,
     posterUrl,
     releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : typeof row.release_year === 'number' ? row.release_year : null,

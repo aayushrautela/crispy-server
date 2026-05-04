@@ -37,8 +37,6 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
   return {
     mediaType: card.mediaType,
     mediaKey: card.mediaKey,
-    provider: card.provider,
-    providerId: card.providerId,
     title: card.title,
     posterUrl,
     releaseYear: card.releaseYear,

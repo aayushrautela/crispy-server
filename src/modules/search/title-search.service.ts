@@ -185,7 +185,7 @@ function rankSearchEntries(query: string, entries: SearchBucketEntry[]): SearchB
   const seen = new Set<string>();
   return entries
     .filter(({ item }) => {
-      const key = `${item.mediaType}:${item.provider}:${item.providerId}`;
+      const key = item.mediaKey;
       if (seen.has(key)) {
         return false;
       }

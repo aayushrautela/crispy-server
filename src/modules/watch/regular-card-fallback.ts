@@ -12,8 +12,6 @@ export function fallbackRegularCard(
   const parsed = parseMediaKey(mediaKey);
   if (
     (parsed.mediaType !== 'movie' && parsed.mediaType !== 'show')
-    || !parsed.provider
-    || !parsed.providerId
     || !title
     || !posterUrl
   ) {
@@ -23,8 +21,6 @@ export function fallbackRegularCard(
   return {
     mediaType: parsed.mediaType,
     mediaKey,
-    provider: parsed.provider,
-    providerId: parsed.providerId,
     title,
     posterUrl,
     releaseYear,

@@ -149,8 +149,6 @@ function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | nul
   return {
     mediaType: titleMediaType,
     mediaKey: row.mediaKey,
-    provider,
-    providerId,
     title: row.title,
     posterUrl: row.posterUrl,
     backdropUrl,

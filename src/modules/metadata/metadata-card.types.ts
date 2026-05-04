@@ -71,8 +71,6 @@ export type MetadataCardView = {
 export type RegularCardView = {
   mediaType: MetadataViewMediaType;
   mediaKey: string;
-  provider: SupportedProvider;
-  providerId: string;
   title: string;
   posterUrl: string;
   releaseYear: number | null;
@@ -86,8 +84,6 @@ export type CatalogItem = RegularCardView;
 export type LandscapeCardView = {
   mediaType: MetadataViewMediaType;
   mediaKey: string;
-  provider: SupportedProvider;
-  providerId: string;
   title: string;
   posterUrl: string;
   backdropUrl: string;
@@ -103,8 +99,6 @@ export type LandscapeCardView = {
 
 export type CollectionCardItemView = {
   mediaType: MetadataViewMediaType;
-  provider: SupportedProvider;
-  providerId: string;
   title: string;
   posterUrl: string;
   releaseYear: number | null;
@@ -120,8 +114,6 @@ export type CollectionCardView = {
 export type HeroCardView = {
   mediaKey: string;
   mediaType: MetadataViewMediaType;
-  provider: SupportedProvider;
-  providerId: string;
   title: string;
   description: string;
   backdropUrl: string;

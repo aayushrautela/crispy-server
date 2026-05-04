@@ -39,7 +39,7 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
 
   async listHistory(input: SignalListInput): Promise<ProfileHistorySignal[]> {
     const result = await this.deps.db.query(
-      `SELECT content_id, content_type, watched_at, progress_percent, completion_state, duration_seconds
+      `SELECT media_key, content_type, watched_at, progress_percent, completion_state, duration_seconds
        FROM app_profile_history_signals
        WHERE account_id = $1::uuid AND profile_id = $2::uuid
          AND ($3::timestamptz IS NULL OR watched_at >= $3)
@@ -48,7 +48,7 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
       [input.accountId, input.profileId, input.since ?? null, input.limit],
     );
     return result.rows.map((row) => ({
-      contentId: row.content_id,
+      mediaKey: row.media_key,
       contentType: row.content_type,
       watchedAt: row.watched_at,
       progressPercent: row.progress_percent,
@@ -59,7 +59,7 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
 
   async listRatings(input: SignalListInput): Promise<ProfileRatingSignal[]> {
     const result = await this.deps.db.query(
-      `SELECT content_id, rating, rated_at, rating_source
+      `SELECT media_key, rating, rated_at, rating_source
        FROM app_profile_rating_signals
        WHERE account_id = $1::uuid AND profile_id = $2::uuid
          AND ($3::timestamptz IS NULL OR rated_at >= $3)
@@ -68,7 +68,7 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
       [input.accountId, input.profileId, input.since ?? null, input.limit],
     );
     return result.rows.map((row) => ({
-      contentId: row.content_id,
+      mediaKey: row.media_key,
       rating: row.rating,
       ratedAt: row.rated_at,
       ratingSource: row.rating_source,
@@ -77,7 +77,7 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
 
   async listWatchlist(input: SignalListInput): Promise<ProfileWatchlistSignal[]> {
     const result = await this.deps.db.query(
-      `SELECT content_id, added_at
+      `SELECT media_key, added_at
        FROM app_profile_watchlist_signals
        WHERE account_id = $1::uuid AND profile_id = $2::uuid
          AND ($3::timestamptz IS NULL OR added_at >= $3)
@@ -85,12 +85,12 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
        LIMIT $4`,
       [input.accountId, input.profileId, input.since ?? null, input.limit],
     );
-    return result.rows.map((row) => ({ contentId: row.content_id, addedAt: row.added_at }));
+    return result.rows.map((row) => ({ mediaKey: row.media_key, addedAt: row.added_at }));
   }
 
   async listContinueWatching(input: SignalListInput): Promise<ProfileContinueWatchingSignal[]> {
     const result = await this.deps.db.query(
-      `SELECT content_id, season_number, episode_number, progress_percent, updated_at
+      `SELECT media_key, season_number, episode_number, progress_percent, updated_at
        FROM app_profile_continue_watching_signals
        WHERE account_id = $1::uuid AND profile_id = $2::uuid
          AND ($3::timestamptz IS NULL OR updated_at >= $3)
@@ -99,7 +99,7 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
       [input.accountId, input.profileId, input.since ?? null, input.limit],
     );
     return result.rows.map((row) => ({
-      contentId: row.content_id,
+      mediaKey: row.media_key,
       seasonNumber: row.season_number,
       episodeNumber: row.episode_number,
       progressPercent: row.progress_percent,

@@ -473,8 +473,6 @@ test('getState returns v2 title state and expands watched episode keys from titl
 
   const state = await service.getState('user-1', 'profile-1', { mediaKey: 'show:tmdb:100' });
 
-  assert.equal(state.media.provider, 'tmdb');
-  assert.equal(state.media.providerId, '100');
   assert.equal(state.media.mediaType, 'show');
   assert.equal(state.progress, null);
   assert.deepEqual(state.continueWatching, {

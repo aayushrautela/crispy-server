@@ -3,8 +3,6 @@ import type { AiCredentialSource } from '../ai/ai.types.js';
 export type RecommendationSignalDisplayMedia = {
   mediaType: string;
   mediaKey: string;
-  provider: string;
-  providerId: string;
   title: string;
 };
 
