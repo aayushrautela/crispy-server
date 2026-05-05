@@ -1,5 +1,4 @@
 import {
-  buildEpisodeProviderId,
   parentMediaTypeForIdentity,
   type MediaIdentity,
 } from '../identity/media-key.js';
@@ -50,11 +49,7 @@ export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisode
   return {
     mediaType: 'episode',
     mediaKey: `episode:tmdb:${episode.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`,
-    provider: 'tmdb',
-    providerId: buildEpisodeProviderId(String(episode.showTmdbId), episode.seasonNumber, episode.episodeNumber),
     parentMediaType: 'show',
-    parentProvider: 'tmdb',
-    parentProviderId: String(episode.showTmdbId),
     tmdbId: episode.tmdbId,
     showTmdbId: episode.showTmdbId,
     seasonNumber: episode.seasonNumber,
@@ -105,11 +100,7 @@ export function buildMetadataCardView(params: {
     mediaType: resolvedMediaType,
     kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
     mediaKey: identity.mediaKey,
-    provider: identity.provider ?? 'tmdb',
-    providerId: identity.providerId ?? String(identity.tmdbId ?? identity.showTmdbId ?? ''),
     parentMediaType: resolveProviderParentMediaType(identity),
-    parentProvider: identity.parentProvider ?? null,
-    parentProviderId: identity.parentProviderId ?? null,
     tmdbId: identity.tmdbId ?? null,
     showTmdbId: identity.showTmdbId ?? null,
     seasonNumber: identity.seasonNumber ?? null,

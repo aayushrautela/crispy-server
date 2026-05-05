@@ -57,8 +57,6 @@ export class WatchReadService {
           continueWatchingId: row.id,
           mediaKey: row.mediaKey,
           missing: diagnostics.missing,
-          provider: diagnostics.provider,
-          providerId: diagnostics.providerId,
           titleMediaType: diagnostics.titleMediaType,
           title: row.title,
           posterUrl: row.posterUrl,

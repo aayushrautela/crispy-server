@@ -41,10 +41,6 @@ export type WatchEventBody = {
   eventType?: string;
   mediaKey?: string;
   mediaType?: string;
-  provider?: string;
-  providerId?: string;
-  parentProvider?: string;
-  parentProviderId?: string;
   seasonNumber?: number | string | null;
   episodeNumber?: number | string | null;
   absoluteEpisodeNumber?: number | string | null;
@@ -58,10 +54,6 @@ export type WatchEventBody = {
 export type WatchMutationBody = {
   mediaKey?: string;
   mediaType?: string;
-  provider?: string;
-  providerId?: string;
-  parentProvider?: string;
-  parentProviderId?: string;
   seasonNumber?: number | string | null;
   episodeNumber?: number | string | null;
   absoluteEpisodeNumber?: number | string | null;
@@ -333,10 +325,6 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
       eventType: stringSchema,
       mediaKey: stringSchema,
       mediaType: stringSchema,
-      provider: stringSchema,
-      providerId: stringSchema,
-      parentProvider: stringSchema,
-      parentProviderId: stringSchema,
       seasonNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
@@ -469,10 +457,6 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
     properties: {
       mediaKey: stringSchema,
       mediaType: stringSchema,
-      provider: stringSchema,
-      providerId: stringSchema,
-      parentProvider: stringSchema,
-      parentProviderId: stringSchema,
       seasonNumber: {
         anyOf: [
           positiveIntegerLikeSchema,
@@ -511,10 +495,6 @@ export const watchMediaKeyMutationRouteSchema = withDefaultErrorResponses({
     properties: {
       mediaKey: stringSchema,
       mediaType: stringSchema,
-      provider: stringSchema,
-      providerId: stringSchema,
-      parentProvider: stringSchema,
-      parentProviderId: stringSchema,
       seasonNumber: {
         anyOf: [
           positiveIntegerLikeSchema,

@@ -25,7 +25,6 @@ import { PersonalMediaService } from '../../modules/watch/personal-media.service
 import { WatchStateService } from '../../modules/watch/watch-state.service.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
-import { ensureSupportedProvider } from '../../modules/identity/media-key.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const ingestService = new WatchEventIngestService();
@@ -42,10 +41,6 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       eventType: String(body.eventType ?? ''),
       mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
       mediaType: String(body.mediaType ?? ''),
-      provider: parseOptionalProvider(body.provider),
-      providerId: parseOptionalString(body.providerId),
-      parentProvider: parseOptionalProvider(body.parentProvider),
-      parentProviderId: parseOptionalString(body.parentProviderId),
       seasonNumber: parseNullableNumber(body.seasonNumber),
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
@@ -245,10 +240,6 @@ function mapMutationBody(body: WatchMutationBody) {
   return {
     mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
     mediaType: String(body.mediaType ?? ''),
-    provider: parseOptionalProvider(body.provider),
-    providerId: parseOptionalString(body.providerId),
-    parentProvider: parseOptionalProvider(body.parentProvider),
-    parentProviderId: parseOptionalString(body.parentProviderId),
     seasonNumber: parseNullableNumber(body.seasonNumber),
     episodeNumber: parseNullableNumber(body.episodeNumber),
     absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
@@ -292,11 +283,4 @@ function parseNullableString(value: unknown): string | null {
     return null;
   }
   return parseOptionalString(value);
-}
-
-function parseOptionalProvider(value: unknown) {
-  if (typeof value !== 'string' || !value.trim()) {
-    return null;
-  }
-  return ensureSupportedProvider(value.trim());
 }

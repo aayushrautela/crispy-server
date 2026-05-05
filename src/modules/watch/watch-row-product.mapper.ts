@@ -1,4 +1,4 @@
-import { parseMediaKey, type SupportedProvider } from '../identity/media-key.js';
+import { parseMediaKey } from '../identity/media-key.js';
 import type { LandscapeCardView, MetadataTitleMediaType, RegularCardView } from '../metadata/metadata-card.types.js';
 import type {
   ContinueWatchingProductItem,
@@ -17,8 +17,6 @@ import type {
 type ContinueWatchingStoredRow = RawContinueWatchingRow;
 
 export type ContinueWatchingRowDiagnostics = {
-  provider: SupportedProvider | null;
-  providerId: string | null;
   titleMediaType: MetadataTitleMediaType | null;
   backdropUrl: string | null;
   missing: string[];
@@ -100,19 +98,11 @@ export function mapRegularStateToProductMedia(media: RegularCardView | null | un
 
 export function diagnoseContinueWatchingRow(row: RawContinueWatchingRow): ContinueWatchingRowDiagnostics {
   const parsed = parseMediaKey(row.mediaKey);
-  const provider = resolveTitleProvider(row, parsed);
-  const providerId = resolveTitleProviderId(row, parsed);
   const titleMediaType = resolveTitleMediaType(row, parsed);
   const episodeBackdrop = row.episodeStillUrl ?? row.detailsStillUrl;
   const backdropUrl = episodeBackdrop ?? row.backdropUrl ?? row.posterUrl;
   const missing: string[] = [];
 
-  if (!provider) {
-    missing.push('provider');
-  }
-  if (!providerId) {
-    missing.push('providerId');
-  }
   if (!titleMediaType) {
     missing.push('titleMediaType');
   }
@@ -127,8 +117,6 @@ export function diagnoseContinueWatchingRow(row: RawContinueWatchingRow): Contin
   }
 
   return {
-    provider,
-    providerId,
     titleMediaType,
     backdropUrl,
     missing,
@@ -137,12 +125,10 @@ export function diagnoseContinueWatchingRow(row: RawContinueWatchingRow): Contin
 
 function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | null {
   const parsed = parseMediaKey(row.mediaKey);
-  const provider = resolveTitleProvider(row, parsed);
-  const providerId = resolveTitleProviderId(row, parsed);
   const titleMediaType = resolveTitleMediaType(row, parsed);
   const episodeBackdrop = row.episodeStillUrl ?? row.detailsStillUrl;
   const backdropUrl = episodeBackdrop ?? row.backdropUrl ?? row.posterUrl;
-  if (!provider || !providerId || !titleMediaType || !row.title || !row.posterUrl || !backdropUrl) {
+  if (!titleMediaType || !row.title || !row.posterUrl || !backdropUrl) {
     return null;
   }
 
@@ -163,22 +149,6 @@ function mapLandscapeMedia(row: RawContinueWatchingRow): LandscapeCardView | nul
   };
 }
 
-function resolveTitleProvider(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): SupportedProvider | null {
-  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show') {
-    return parsed.provider ?? null;
-  }
-
-  return asSupportedProvider(parsed.parentProvider ?? null) ?? asSupportedProvider(row.playbackParentProvider);
-}
-
-function resolveTitleProviderId(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): string | null {
-  if (parsed.mediaType === 'movie' || parsed.mediaType === 'show') {
-    return parsed.providerId ?? null;
-  }
-
-  return parsed.parentProviderId ?? row.playbackParentProviderId;
-}
-
 function resolveTitleMediaType(row: ContinueWatchingStoredRow, parsed: ReturnType<typeof parseMediaKey>): MetadataTitleMediaType | null {
   if (row.detailsTitleMediaType === 'movie' || row.detailsTitleMediaType === 'show') {
     return row.detailsTitleMediaType;
@@ -193,8 +163,4 @@ function resolveTitleMediaType(row: ContinueWatchingStoredRow, parsed: ReturnTyp
   }
 
   return null;
-}
-
-function asSupportedProvider(value: string | null): SupportedProvider | null {
-  return value === 'tmdb' ? value : null;
 }

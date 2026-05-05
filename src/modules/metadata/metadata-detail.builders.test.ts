@@ -37,8 +37,7 @@ test('buildMetadataView for show extracts provider-based detail fields', async (
   });
 
   assert.equal(view.mediaType, 'show');
-  assert.equal(view.provider, 'tmdb');
-  assert.equal(view.providerId, '42');
+  assert.equal(view.mediaKey, 'show:tmdb:42');
   assert.equal(view.kind, 'title');
   assert.equal(view.title, 'Breaking Point');
   assert.equal(view.overview, 'A thrilling drama.');
@@ -75,8 +74,8 @@ test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
   );
 
   assert.equal(seasons.length, 2);
-  assert.equal(seasons[0]?.providerId, '42:s0');
-  assert.equal(seasons[1]?.providerId, '42:s1');
+  assert.equal(seasons[0]?.mediaKey, 'season:tmdb:42:0');
+  assert.equal(seasons[1]?.mediaKey, 'season:tmdb:42:1');
   assert.equal(seasons[1]?.images.posterUrl, 'https://image.tmdb.org/t/p/w500/season1.jpg');
 });
 
@@ -90,8 +89,7 @@ test('buildSeasonViewFromRecord produces clean payload', async () => {
     fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
   }, 'uuid-season-42-2', 'uuid-show-42');
 
-  assert.equal(view.providerId, '42:s2');
-  assert.equal(view.parentProviderId, '42');
+  assert.equal(view.mediaKey, 'season:tmdb:42:2');
   assert.equal(view.title, 'Season 2');
   assert.equal(view.episodeCount, 8);
   assert.equal(view.images.posterUrl, 'https://image.tmdb.org/t/p/w500/season2.jpg');
@@ -116,8 +114,8 @@ test('buildEpisodeView includes provider-based show context', async () => {
     'uuid-episode-42-1-3', 'uuid-show-42',
   );
 
-  assert.equal(view.providerId, '42:s1:e3');
-  assert.equal(view.parentProviderId, '42');
+  assert.equal(view.mediaKey, 'episode:tmdb:42:1:3');
+  assert.equal(view.showTmdbId, 42);
   assert.equal(view.showTitle, 'Breaking Point');
   assert.equal(view.showExternalIds.imdb, 'tt1234567');
 });

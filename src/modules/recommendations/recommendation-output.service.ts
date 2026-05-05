@@ -457,10 +457,6 @@ function recommendationIdentityFromRow(row: Record<string, unknown>) {
       ? parseMediaKey(mediaKey)
       : inferMediaIdentity({
           mediaType,
-          provider: readSupportedProvider(row.provider),
-          providerId: readOptionalIdentityString(row.providerId) ?? readOptionalIdentityString(row.provider_id),
-          parentProvider: readSupportedProvider(row.parentProvider) ?? readSupportedProvider(row.parent_provider),
-          parentProviderId: readOptionalIdentityString(row.parentProviderId) ?? readOptionalIdentityString(row.parent_provider_id),
           tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
           tvdbId: null,
           kitsuId: null,
@@ -513,10 +509,6 @@ function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown
     ...row,
     mediaKey,
     mediaType: parsed.mediaType,
-    provider: parsed.provider ?? null,
-    providerId: parsed.providerId ?? null,
-    parentProvider: parsed.parentProvider ?? null,
-    parentProviderId: parsed.parentProviderId ?? null,
     tmdbId: parsed.tmdbId,
     tvdbId: null,
     kitsuId: null,
@@ -588,9 +580,7 @@ function readOptionalIdentityString(value: unknown): string | null {
   return null;
 }
 
-function readSupportedProvider(value: unknown): 'tmdb' | null {
-  return value === 'tmdb' ? value : null;
-}
+
 
 function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {
   return {

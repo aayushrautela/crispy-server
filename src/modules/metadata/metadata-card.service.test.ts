@@ -67,8 +67,7 @@ test('buildCardViewFromRow preserves tmdb linkage for tmdb-backed rows', async (
     backdrop_url: null,
   });
 
-  assert.equal(view.provider, 'tmdb');
-  assert.equal(view.providerId, '1399');
+  assert.equal(view.mediaKey, 'show:tmdb:1399');
   assert.equal(view.tmdbId, 1399);
   assert.equal(view.title, 'TMDB Show');
 });

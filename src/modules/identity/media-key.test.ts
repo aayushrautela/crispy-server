@@ -79,6 +79,8 @@ test('parseMediaKey accepts TMDB show media keys', () => {
     absoluteEpisodeNumber: null,
     parentProvider: null,
     parentProviderId: null,
-    providerMetadata: null,
+    contentId: null,
+    parentContentId: null,
+    providerMetadata: {},
   });
 });

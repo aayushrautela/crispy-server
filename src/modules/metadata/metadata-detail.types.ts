@@ -13,11 +13,7 @@ export type MetadataView = {
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
   mediaKey: string;
-  provider: SupportedProvider;
-  providerId: string;
   parentMediaType: MetadataParentMediaType | null;
-  parentProvider: SupportedProvider | null;
-  parentProviderId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
@@ -44,11 +40,7 @@ export type MetadataView = {
 
 export type MetadataSeasonView = {
   mediaKey: string;
-  provider: SupportedProvider;
-  providerId: string;
   parentMediaType: MetadataParentMediaType;
-  parentProvider: SupportedProvider;
-  parentProviderId: string;
   showTmdbId: number | null;
   seasonNumber: number;
   title: string | null;

@@ -37,12 +37,10 @@ export class WatchStateService {
       ]);
 
       return {
-        media: {
-          mediaType: media.mediaType,
-          mediaKey: media.mediaKey,
-          provider: media.provider,
-          providerId: media.providerId,
-          title: media.title ?? 'Unknown title',
+          media: {
+            mediaType: media.mediaType,
+            mediaKey: media.mediaKey,
+            title: media.title ?? 'Unknown title',
           posterUrl: media.images.posterUrl ?? media.artwork.posterUrl ?? '',
           releaseYear: media.releaseYear,
           rating: media.rating,

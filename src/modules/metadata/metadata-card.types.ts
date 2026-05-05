@@ -1,5 +1,3 @@
-import type { SupportedProvider } from '../identity/media-key.js';
-
 export type MetadataTitleMediaType = 'movie' | 'show';
 export type MetadataViewMediaType = MetadataTitleMediaType | 'episode';
 export type MetadataParentMediaType = 'show';
@@ -23,11 +21,7 @@ export type MetadataExternalIds = {
 export type MetadataEpisodePreview = {
   mediaType: 'episode';
   mediaKey: string;
-  provider: SupportedProvider;
-  providerId: string;
   parentMediaType: MetadataParentMediaType;
-  parentProvider: SupportedProvider;
-  parentProviderId: string;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number;
@@ -45,11 +39,7 @@ export type MetadataCardView = {
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
   mediaKey: string;
-  provider: SupportedProvider;
-  providerId: string;
   parentMediaType: MetadataParentMediaType | null;
-  parentProvider: SupportedProvider | null;
-  parentProviderId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;

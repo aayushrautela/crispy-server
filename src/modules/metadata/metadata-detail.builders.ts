@@ -1,4 +1,4 @@
-import { buildSeasonProviderId, type MediaIdentity } from '../identity/media-key.js';
+import type { MediaIdentity } from '../identity/media-key.js';
 import {
   buildMetadataCardView,
   buildEpisodePreview,
@@ -66,11 +66,7 @@ export function buildSeasonViewFromTitleRaw(
 
     items.push({
       mediaKey: `season:tmdb:${title.tmdbId}:${seasonNumber}`,
-      provider: 'tmdb',
-      providerId: buildSeasonProviderId(String(title.tmdbId), seasonNumber),
       parentMediaType: 'show',
-      parentProvider: 'tmdb',
-      parentProviderId: String(title.tmdbId),
       showTmdbId: title.tmdbId,
       seasonNumber,
       title: typeof season.name === 'string' ? season.name : null,
@@ -97,11 +93,7 @@ export function buildSeasonViewFromRecord(
 ): MetadataSeasonView {
   return {
     mediaKey: `season:tmdb:${showTmdbId}:${season.seasonNumber}`,
-    provider: 'tmdb',
-    providerId: buildSeasonProviderId(String(showTmdbId), season.seasonNumber),
     parentMediaType: 'show',
-    parentProvider: 'tmdb',
-    parentProviderId: String(showTmdbId),
     showTmdbId,
     seasonNumber: season.seasonNumber,
     title: season.name,

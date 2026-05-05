@@ -113,7 +113,7 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: Metadat
   }
 
   return {
-    mediaKey: `${detail.item.mediaType}:${detail.item.provider}:${detail.item.providerId}`,
+    mediaKey: detail.item.mediaKey,
     mediaType,
     title,
     year: detail.item.releaseYear ? String(detail.item.releaseYear) : null,
