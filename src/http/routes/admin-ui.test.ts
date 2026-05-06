@@ -78,6 +78,16 @@ test('admin ui signs in, serves the dashboard, and logs out safely', async (t) =
   assert.match(String(authorized.headers['content-type']), /text\/html/);
   assert.match(authorized.body, /Crispy Control Plane/);
   assert.match(authorized.body, /AI test bench/);
+  assert.match(authorized.body, /id="ai-test-mode"/);
+  assert.match(authorized.body, /Server AI/);
+  assert.match(authorized.body, /OpenRouter BYOK/);
+  assert.match(authorized.body, /<datalist id="ai-test-model-options"><\/datalist>/);
+  assert.match(authorized.body, /Run selected test/);
+  assert.match(authorized.body, /Run all server models/);
+  assert.match(authorized.body, /Run all BYOK models/);
+  assert.match(authorized.body, /Run all configured models/);
+  assert.doesNotMatch(authorized.body, /id="ai-test-credential-source"/);
+  assert.doesNotMatch(authorized.body, /Server key/);
   assert.match(authorized.body, /data-nav-target="ai-lab"/);
   assert.doesNotMatch(authorized.body, /Reset recommendation tracking jobs/);
 

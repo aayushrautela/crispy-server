@@ -15,7 +15,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     },
     'ai-lab': {
       title: 'AI Lab',
-      description: 'Test configured AI providers, models, prompts, and credential sources.',
+      description: 'Test configured AI targets, models, prompts, and one-time BYOK credentials.',
     },
   };
 
@@ -86,14 +86,24 @@ export const ADMIN_UI_CLIENT = String.raw`
     profileDetailBody: document.getElementById('profile-detail-body'),
     refreshProfileDetail: document.getElementById('refresh-profile-detail'),
     aiTestForm: document.getElementById('ai-test-form'),
-    aiTestProvider: document.getElementById('ai-test-provider'),
-    aiTestCredentialSource: document.getElementById('ai-test-credential-source'),
+    aiTestMode: document.getElementById('ai-test-mode'),
     aiTestModel: document.getElementById('ai-test-model'),
+    aiTestModelOptions: document.getElementById('ai-test-model-options'),
     aiTestApiKey: document.getElementById('ai-test-api-key'),
+    aiTestApiKeyRow: document.getElementById('ai-test-api-key-row'),
     aiTestPrompt: document.getElementById('ai-test-prompt'),
     aiTestSubmit: document.getElementById('ai-test-submit'),
+    aiTestRunServer: document.getElementById('ai-test-run-server'),
+    aiTestRunByok: document.getElementById('ai-test-run-byok'),
+    aiTestRunAll: document.getElementById('ai-test-run-all'),
+    aiTestConfigSummary: document.getElementById('ai-test-config-summary'),
     aiTestMessage: document.getElementById('ai-test-message'),
     aiTestResult: document.getElementById('ai-test-result'),
+  };
+
+  const aiLabState = {
+    config: null,
+    configLoaded: false,
   };
 
   bindNavigation();
@@ -109,6 +119,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   async function initialize() {
     await loadDiagnostics({ silent: true });
+    await loadAiConfig();
     startPolling();
   }
 
@@ -185,8 +196,20 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (elements.aiTestForm) {
       elements.aiTestForm.addEventListener('submit', (event) => {
         event.preventDefault();
-        void runAiTest();
+        void runAiTest('selected');
       });
+    }
+    if (elements.aiTestMode) {
+      elements.aiTestMode.addEventListener('change', syncAiModeControls);
+    }
+    if (elements.aiTestRunServer) {
+      elements.aiTestRunServer.addEventListener('click', () => { void runAiTest('server'); });
+    }
+    if (elements.aiTestRunByok) {
+      elements.aiTestRunByok.addEventListener('click', () => { void runAiTest('byok'); });
+    }
+    if (elements.aiTestRunAll) {
+      elements.aiTestRunAll.addEventListener('click', () => { void runAiTest('all'); });
     }
   }
 
@@ -1123,65 +1146,220 @@ export const ADMIN_UI_CLIENT = String.raw`
     });
   }
 
-  async function runAiTest() {
-    const provider = String((elements.aiTestProvider && elements.aiTestProvider.value) || '').trim();
-    const credentialSource = String((elements.aiTestCredentialSource && elements.aiTestCredentialSource.value) || '').trim();
+  async function loadAiConfig() {
+    if (!elements.aiTestForm) return null;
+    try {
+      const payload = await fetchJson(apiPath('/ai/config'));
+      aiLabState.config = payload;
+      aiLabState.configLoaded = true;
+      renderAiConfig(payload);
+      syncAiModeControls();
+      return payload;
+    } catch (error) {
+      aiLabState.config = null;
+      aiLabState.configLoaded = false;
+      if (elements.aiTestConfigSummary) {
+        elements.aiTestConfigSummary.textContent = describeApiError(error, 'Unable to load AI configuration.');
+      }
+      return null;
+    }
+  }
+
+  function renderAiConfig(config) {
+    const targets = configuredAiTargets(config, 'all');
+    if (elements.aiTestModelOptions) {
+      const seen = new Set();
+      elements.aiTestModelOptions.innerHTML = targets
+        .filter((target) => {
+          const key = target.mode + ':' + target.model;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .map((target) => '<option value="' + escapeHtml(target.model) + '">' + escapeHtml(aiTargetLabel(target)) + '</option>')
+        .join('');
+    }
+    if (elements.aiTestConfigSummary) {
+      const serverCount = configuredAiTargets(config, 'server').length;
+      const byokCount = configuredAiTargets(config, 'byok').length;
+      const serverStatus = config && config.server && config.server.available ? 'available' : 'missing AI_SERVER_API_KEY';
+      elements.aiTestConfigSummary.textContent = 'Server AI: ' + serverStatus + ' (' + serverCount + ' configured models). OpenRouter BYOK: ' + byokCount + ' suggested models.';
+    }
+    if (elements.aiTestRunServer && config && config.server) {
+      elements.aiTestRunServer.disabled = config.server.available !== true || configuredAiTargets(config, 'server').length === 0;
+    }
+    if (elements.aiTestRunByok) {
+      elements.aiTestRunByok.disabled = configuredAiTargets(config, 'byok').length === 0;
+    }
+    if (elements.aiTestRunAll) {
+      elements.aiTestRunAll.disabled = targets.length === 0;
+    }
+  }
+
+  function syncAiModeControls() {
+    const mode = String((elements.aiTestMode && elements.aiTestMode.value) || 'server');
+    if (elements.aiTestApiKeyRow) {
+      elements.aiTestApiKeyRow.hidden = mode !== 'byok';
+    }
+    if (elements.aiTestApiKey && mode !== 'byok') {
+      elements.aiTestApiKey.value = '';
+    }
+  }
+
+  function configuredAiTargets(config, scope) {
+    if (!config) return [];
+    const targets = [];
+    if ((scope === 'server' || scope === 'all') && config.server && config.server.available === true && Array.isArray(config.server.models)) {
+      for (const item of config.server.models) {
+        if (!item || !item.model) continue;
+        targets.push({ mode: 'server', tier: item.tier || '', feature: item.feature || '', model: item.model });
+      }
+    }
+    if ((scope === 'byok' || scope === 'all') && config.byok && config.byok.available === true && Array.isArray(config.byok.models)) {
+      for (const item of config.byok.models) {
+        if (!item || !item.model) continue;
+        targets.push({ mode: 'byok', feature: item.feature || '', model: item.model });
+      }
+    }
+    return targets;
+  }
+
+  function aiTargetLabel(target) {
+    const parts = [target.mode === 'server' ? 'Server AI' : 'OpenRouter BYOK'];
+    if (target.tier) parts.push(target.tier);
+    if (target.feature) parts.push(target.feature);
+    parts.push(target.model);
+    return parts.join(' · ');
+  }
+
+  function selectedAiTarget() {
+    const mode = String((elements.aiTestMode && elements.aiTestMode.value) || 'server');
     const model = String((elements.aiTestModel && elements.aiTestModel.value) || '').trim();
+    if (!model) return null;
+    const matches = configuredAiTargets(aiLabState.config, mode).filter((target) => target.model === model);
+    if (matches.length > 0) return matches[0];
+    return { mode, model };
+  }
+
+  function uniqueAiTargets(targets) {
+    const seen = new Set();
+    return targets.filter((target) => {
+      const key = target.mode + ':' + String(target.tier || '') + ':' + String(target.feature || '') + ':' + target.model;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async function runAiTest(scope) {
     const prompt = String((elements.aiTestPrompt && elements.aiTestPrompt.value) || '').trim();
     const apiKey = String((elements.aiTestApiKey && elements.aiTestApiKey.value) || '');
+    const requestedScope = scope || 'selected';
 
-    if (!model) {
-      setMessage(elements.aiTestMessage, 'error', 'Enter a model first.');
-      return;
-    }
     if (!prompt) {
       setMessage(elements.aiTestMessage, 'error', 'Enter a prompt first.');
       return;
     }
-    if (credentialSource === 'custom' && !apiKey.trim()) {
-      setMessage(elements.aiTestMessage, 'error', 'Enter a one-time API key for custom credentials.');
+
+    if (!aiLabState.configLoaded) {
+      await loadAiConfig();
+    }
+
+    let targets = [];
+    if (requestedScope === 'selected') {
+      const target = selectedAiTarget();
+      if (!target) {
+        setMessage(elements.aiTestMessage, 'error', 'Enter or select a model first.');
+        return;
+      }
+      targets = [target];
+    } else {
+      targets = configuredAiTargets(aiLabState.config, requestedScope);
+    }
+    targets = uniqueAiTargets(targets).slice(0, 20);
+
+    if (targets.length === 0) {
+      setMessage(elements.aiTestMessage, 'error', 'No configured targets are available for this run.');
+      return;
+    }
+    if (targets.some((target) => target.mode === 'byok') && !apiKey.trim()) {
+      setMessage(elements.aiTestMessage, 'error', 'Enter a one-time OpenRouter API key for BYOK targets.');
       return;
     }
 
-    if (elements.aiTestSubmit) elements.aiTestSubmit.disabled = true;
-    setMessage(elements.aiTestMessage, 'info', 'Sending AI test request...');
-    if (elements.aiTestResult) elements.aiTestResult.innerHTML = '<div class="muted">Waiting for provider response...</div>';
+    setAiBusy(true);
+    setMessage(elements.aiTestMessage, 'info', 'Running ' + targets.length + ' AI test' + (targets.length === 1 ? '' : 's') + '...');
+    if (elements.aiTestResult) elements.aiTestResult.innerHTML = '<div class="muted">Waiting for provider responses...</div>';
 
     try {
       const payload = await fetchJson(apiPath('/ai/test'), {
         method: 'POST',
         body: JSON.stringify({
-          provider: provider,
-          credentialSource: credentialSource,
-          model: model,
           prompt: prompt,
-          apiKey: credentialSource === 'custom' ? apiKey : undefined,
+          targets: targets,
+          apiKey: targets.some((target) => target.mode === 'byok') ? apiKey : undefined,
         }),
       });
       if (elements.aiTestApiKey) elements.aiTestApiKey.value = '';
       renderAiTestResult(payload);
-      setMessage(elements.aiTestMessage, 'success', 'AI test completed.');
-      pushNotification('success', 'AI test completed', 'Received a response from ' + String(payload.providerLabel || payload.providerId || provider) + '.', false);
+      const summary = payload && payload.summary ? payload.summary : {};
+      setMessage(elements.aiTestMessage, 'success', 'AI run completed: ' + String(summary.success || 0) + ' succeeded, ' + String(summary.error || 0) + ' failed.');
+      pushNotification('success', 'AI run completed', 'Ran ' + String(summary.total || targets.length) + ' configured target(s).', false);
     } catch (error) {
       const description = describeApiError(error, 'Unable to run AI test.');
+      if (elements.aiTestApiKey) elements.aiTestApiKey.value = '';
       setMessage(elements.aiTestMessage, 'error', description);
       if (elements.aiTestResult) elements.aiTestResult.innerHTML = '<div class="message error">' + escapeHtml(description) + '</div>';
       pushNotification('error', 'AI test failed', description, true);
     } finally {
-      if (elements.aiTestSubmit) elements.aiTestSubmit.disabled = false;
+      setAiBusy(false);
     }
+  }
+
+  function setAiBusy(busy) {
+    const controls = [elements.aiTestSubmit, elements.aiTestRunServer, elements.aiTestRunByok, elements.aiTestRunAll];
+    for (const control of controls) {
+      if (control) control.disabled = busy;
+    }
+    if (!busy && aiLabState.config) renderAiConfig(aiLabState.config);
   }
 
   function renderAiTestResult(payload) {
     if (!elements.aiTestResult) return;
-    const result = payload && payload.result && typeof payload.result === 'object' ? payload.result : {};
+    const summary = payload && payload.summary ? payload.summary : {};
+    const results = payload && Array.isArray(payload.results) ? payload.results : [];
     elements.aiTestResult.innerHTML = '<div class="kv-grid">'
-      + kvPair('Provider', payload && payload.providerLabel ? payload.providerLabel : (payload && payload.providerId ? payload.providerId : 'n/a'))
-      + kvPair('Credential source', payload && payload.credentialSource ? payload.credentialSource : 'n/a')
-      + kvPair('Model', payload && payload.model ? payload.model : 'n/a')
+      + kvPair('Run ID', payload && payload.runId ? payload.runId : 'n/a')
+      + kvPair('Started', payload && payload.startedAt ? formatDate(payload.startedAt) : 'n/a')
       + kvPair('Completed', payload && payload.completedAt ? formatDate(payload.completedAt) : 'n/a')
+      + kvPair('Summary', String(summary.success || 0) + ' succeeded · ' + String(summary.error || 0) + ' failed · ' + String(summary.total || results.length) + ' total')
       + '</div>'
-      + '<pre class="code-block">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
+      + '<div class="section-stack">'
+      + results.map(renderAiTargetResult).join('')
+      + '</div>';
+  }
+
+  function renderAiTargetResult(item) {
+    const status = item && item.status ? item.status : 'unknown';
+    const body = item && item.status === 'success'
+      ? '<pre class="code-block">' + escapeHtml(JSON.stringify(item.result == null ? null : item.result, null, 2)) + '</pre>'
+      : '<div class="message error">' + escapeHtml(item && item.error ? item.error : 'No result returned.') + '</div>';
+    const logs = item && Array.isArray(item.logs) && item.logs.length > 0
+      ? '<pre class="code-block">' + escapeHtml(item.logs.join('\n')) + '</pre>'
+      : '<div class="muted">No logs.</div>';
+    return '<article class="panel-card">'
+      + '<div class="panel-head"><div><p class="eyebrow">' + escapeHtml(item && item.mode === 'server' ? 'Server AI' : 'OpenRouter BYOK') + '</p>'
+      + '<h3>' + escapeHtml(item && item.model ? item.model : 'Unknown model') + '</h3>'
+      + '<p class="panel-note">' + escapeHtml(aiTargetLabel(item || {})) + '</p></div>'
+      + '<span class="status-pill ' + escapeHtml(statusTone(status)) + '">' + escapeHtml(status) + '</span></div>'
+      + '<div class="kv-grid">'
+      + kvPair('Duration', String(item && item.durationMs != null ? item.durationMs : 0) + ' ms')
+      + kvPair('Feature', item && item.feature ? item.feature : 'custom')
+      + kvPair('Tier', item && item.tier ? item.tier : 'n/a')
+      + '</div>'
+      + '<h4>Logs</h4>' + logs
+      + '<h4>Result</h4>' + body
+      + '</article>';
   }
 
   function kvPair(label, value) {

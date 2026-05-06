@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
 import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app-config.js';
@@ -334,84 +335,180 @@ export async function registerAdminApiRoutes(
     );
   });
 
+  app.get('/admin/api/ai/config', async (request, reply) => {
+    await requireAdmin(request);
+    const serverProvider = getServerAiProvider();
+    const byokProvider = getByokOpenRouterProvider();
+    const serverAvailable = !!env.aiServerApiKey;
+
+    const serverModels: Array<{ tier: string; feature: string; model: string }> = [];
+    if (serverAvailable) {
+      for (const [tier, features] of Object.entries(serverProvider.models)) {
+        for (const [feature, model] of Object.entries(features)) {
+          serverModels.push({ tier, feature, model });
+        }
+      }
+    }
+
+    const byokModels: Array<{ feature: string; model: string }> = [];
+    for (const [feature, model] of Object.entries(byokProvider.models)) {
+      byokModels.push({ feature, model });
+    }
+
+    return {
+      server: {
+        available: serverAvailable,
+        label: serverProvider.label,
+        models: serverModels,
+      },
+      byok: {
+        available: true,
+        label: byokProvider.label,
+        models: byokModels,
+      },
+    };
+  });
+
   app.post('/admin/api/ai/test', async (request, reply) => {
     await requireAdminMutation(request);
     const body = asRecord(request.body);
-    const provider = readRequiredString(body.provider, 'provider');
-    const credentialSource = readRequiredString(body.credentialSource, 'credentialSource');
-    const model = readRequiredString(body.model, 'model');
     const prompt = readRequiredString(body.prompt, 'prompt');
+    const targets = Array.isArray(body.targets) ? body.targets : [];
 
-    let resolvedProvider: AiResolvedProviderConfig;
-    let apiKey: string;
-
-    if (credentialSource === 'server') {
-      if (!env.aiServerApiKey) {
-        throw new HttpError(503, 'Server AI credentials are not configured.');
-      }
-      if (provider === 'openrouter') {
-        const byokProvider = getByokOpenRouterProvider();
-        resolvedProvider = {
-          id: byokProvider.id,
-          label: byokProvider.label,
-          endpointUrl: byokProvider.endpointUrl,
-          httpReferer: env.appPublicUrl,
-          title: env.appDisplayName,
-        };
-      } else {
-        const serverProvider = getServerAiProvider();
-        resolvedProvider = {
-          id: serverProvider.id,
-          label: serverProvider.label,
-          endpointUrl: serverProvider.endpointUrl,
-          httpReferer: env.appPublicUrl,
-          title: env.appDisplayName,
-        };
-      }
-      apiKey = env.aiServerApiKey;
-    } else if (credentialSource === 'custom') {
-      const customApiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
-      if (!customApiKey) {
-        throw new HttpError(400, 'apiKey is required for custom credential source.');
-      }
-      if (provider === 'openrouter') {
-        const byokProvider = getByokOpenRouterProvider();
-        resolvedProvider = {
-          id: byokProvider.id,
-          label: byokProvider.label,
-          endpointUrl: byokProvider.endpointUrl,
-          httpReferer: env.appPublicUrl,
-          title: env.appDisplayName,
-        };
-      } else {
-        const serverProvider = getServerAiProvider();
-        resolvedProvider = {
-          id: serverProvider.id,
-          label: serverProvider.label,
-          endpointUrl: serverProvider.endpointUrl,
-          httpReferer: env.appPublicUrl,
-          title: env.appDisplayName,
-        };
-      }
-      apiKey = customApiKey;
-    } else {
-      throw new HttpError(400, 'Invalid credentialSource. Must be "server" or "custom".');
+    if (targets.length === 0) {
+      throw new HttpError(400, 'At least one target is required.');
+    }
+    if (targets.length > 20) {
+      throw new HttpError(400, 'Maximum 20 targets allowed per request.');
     }
 
-    const result = await aiClient.generateJson({
-      provider: resolvedProvider,
-      apiKey,
-      model,
-      userPrompt: prompt,
+    const runId = crypto.randomUUID();
+    const startedAt = new Date().toISOString();
+    const results: Array<{
+      mode: string;
+      tier?: string;
+      feature?: string;
+      model: string;
+      status: string;
+      durationMs: number;
+      result?: unknown;
+      error?: string;
+      logs?: string[];
+    }> = [];
+
+    let byokApiKey: string | null = null;
+    const hasByokTarget = targets.some((t) => {
+      const targetRecord = asRecord(t);
+      return targetRecord.mode === 'byok';
     });
+    if (hasByokTarget) {
+      byokApiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+      if (!byokApiKey) {
+        throw new HttpError(400, 'apiKey is required for BYOK targets.');
+      }
+    }
+
+    const serverProvider = getServerAiProvider();
+    const byokProvider = getByokOpenRouterProvider();
+
+    for (const target of targets) {
+      const targetRecord = asRecord(target);
+      const mode = readRequiredString(targetRecord.mode, 'target.mode');
+      const model = readRequiredString(targetRecord.model, 'target.model');
+      const tier = typeof targetRecord.tier === 'string' ? targetRecord.tier.trim() : undefined;
+      const feature = typeof targetRecord.feature === 'string' ? targetRecord.feature.trim() : undefined;
+
+      const startMs = Date.now();
+      const logs: string[] = [];
+
+      try {
+        let resolvedProvider: AiResolvedProviderConfig;
+        let apiKey: string;
+
+        if (mode === 'server') {
+          if (!env.aiServerApiKey) {
+            throw new Error('Server AI credentials are not configured.');
+          }
+          resolvedProvider = {
+            id: serverProvider.id,
+            label: serverProvider.label,
+            endpointUrl: serverProvider.endpointUrl,
+            httpReferer: env.appPublicUrl,
+            title: env.appDisplayName,
+          };
+          apiKey = env.aiServerApiKey;
+          logs.push(`Using server AI: ${serverProvider.label}`);
+          if (tier) logs.push(`Tier: ${tier}`);
+          if (feature) logs.push(`Feature: ${feature}`);
+        } else if (mode === 'byok') {
+          if (!byokApiKey) {
+            throw new Error('BYOK API key is required.');
+          }
+          resolvedProvider = {
+            id: byokProvider.id,
+            label: byokProvider.label,
+            endpointUrl: byokProvider.endpointUrl,
+            httpReferer: env.appPublicUrl,
+            title: env.appDisplayName,
+          };
+          apiKey = byokApiKey;
+          logs.push(`Using BYOK: ${byokProvider.label}`);
+          if (feature) logs.push(`Feature: ${feature}`);
+        } else {
+          throw new Error(`Invalid mode: ${mode}. Must be "server" or "byok".`);
+        }
+
+        logs.push(`Model: ${model}`);
+        const result = await aiClient.generateJson({
+          provider: resolvedProvider,
+          apiKey,
+          model,
+          userPrompt: prompt,
+        });
+
+        results.push({
+          mode,
+          tier,
+          feature,
+          model,
+          status: 'success',
+          durationMs: Date.now() - startMs,
+          result,
+          logs,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const sanitizedError = errorMessage.replace(/sk-[a-zA-Z0-9_-]+/g, '[REDACTED]')
+          .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]')
+          .replace(/Authorization:\s*[^\s]+/gi, 'Authorization: [REDACTED]');
+
+        results.push({
+          mode,
+          tier,
+          feature,
+          model,
+          status: 'error',
+          durationMs: Date.now() - startMs,
+          error: sanitizedError,
+          logs,
+        });
+      }
+    }
+
+    const completedAt = new Date().toISOString();
+    const successCount = results.filter((r) => r.status === 'success').length;
+    const errorCount = results.filter((r) => r.status === 'error').length;
 
     return {
-      providerId: resolvedProvider.id,
-      providerLabel: resolvedProvider.label,
-      credentialSource,
-      model,
-      completedAt: new Date().toISOString(),
-      result,
+      runId,
+      startedAt,
+      completedAt,
+      summary: {
+        total: results.length,
+        success: successCount,
+        error: errorCount,
+      },
+      results,
     };
   });
 }

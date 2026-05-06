@@ -6,35 +6,34 @@ export function renderAiLabView(): string {
         <div>
           <p class="eyebrow">AI diagnostics</p>
           <h2>AI test bench</h2>
-          <p class="panel-note">Send a prompt through configured AI credentials without exposing secrets in the browser response.</p>
+          <p class="panel-note">Test configured server models or a one-time OpenRouter BYOK key without exposing secrets in browser responses.</p>
         </div>
       </div>
       <form id="ai-test-form" class="section-stack">
         <div class="form-grid">
-          <label>Provider
-            <select id="ai-test-provider">
-              <option value="openrouter">OpenRouter BYOK</option>
+          <label>Test target
+            <select id="ai-test-mode">
               <option value="server">Server AI</option>
+              <option value="byok">OpenRouter BYOK</option>
             </select>
           </label>
-          <label>Credential source
-            <select id="ai-test-credential-source">
-              <option value="server">Server key</option>
-              <option value="custom">One-time API key</option>
-            </select>
+          <label>Configured model or custom model
+            <input id="ai-test-model" type="text" list="ai-test-model-options" autocomplete="off" spellcheck="false" placeholder="Select or type a model" required>
+            <datalist id="ai-test-model-options"></datalist>
           </label>
-          <label>Model
-            <input id="ai-test-model" type="text" autocomplete="off" spellcheck="false" placeholder="openai/gpt-4o-mini" required>
-          </label>
-          <label>One-time API key
+          <label id="ai-test-api-key-row">OpenRouter one-time API key
             <input id="ai-test-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Only sent for this request">
           </label>
         </div>
+        <div id="ai-test-config-summary" class="muted">Loading configured AI models...</div>
         <label>Prompt
           <textarea id="ai-test-prompt" rows="8" spellcheck="true" required>Return a JSON object with a short hello message and the current model name.</textarea>
         </label>
         <div class="jobs-toolbar">
-          <button type="submit" id="ai-test-submit">Run AI test</button>
+          <button type="submit" id="ai-test-submit">Run selected test</button>
+          <button type="button" id="ai-test-run-server">Run all server models</button>
+          <button type="button" id="ai-test-run-byok">Run all BYOK models</button>
+          <button type="button" id="ai-test-run-all">Run all configured models</button>
         </div>
         <div id="ai-test-message" class="message" hidden></div>
       </form>
@@ -44,7 +43,7 @@ export function renderAiLabView(): string {
         <div>
           <p class="eyebrow">Response</p>
           <h2>Latest result</h2>
-          <p class="panel-note">Provider metadata and returned JSON payload.</p>
+          <p class="panel-note">Run summary, safe logs, model output, and sanitized errors.</p>
         </div>
       </div>
       <div id="ai-test-result" class="empty">No AI test has run yet.</div>
