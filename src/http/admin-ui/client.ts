@@ -13,6 +13,10 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'Account Inspector',
       description: 'Resolve accounts, choose profiles, and keep profile operations in a dedicated workspace.',
     },
+    'ai-lab': {
+      title: 'AI Lab',
+      description: 'Test configured AI providers, models, prompts, and credential sources.',
+    },
   };
 
   const apiBase = String((document.body && document.body.getAttribute('data-admin-api-base')) || '/admin/api').replace(/\/$/, '');
@@ -81,6 +85,15 @@ export const ADMIN_UI_CLIENT = String.raw`
     profileDetailMessage: document.getElementById('profile-detail-message'),
     profileDetailBody: document.getElementById('profile-detail-body'),
     refreshProfileDetail: document.getElementById('refresh-profile-detail'),
+    aiTestForm: document.getElementById('ai-test-form'),
+    aiTestProvider: document.getElementById('ai-test-provider'),
+    aiTestCredentialSource: document.getElementById('ai-test-credential-source'),
+    aiTestModel: document.getElementById('ai-test-model'),
+    aiTestApiKey: document.getElementById('ai-test-api-key'),
+    aiTestPrompt: document.getElementById('ai-test-prompt'),
+    aiTestSubmit: document.getElementById('ai-test-submit'),
+    aiTestMessage: document.getElementById('ai-test-message'),
+    aiTestResult: document.getElementById('ai-test-result'),
   };
 
   bindNavigation();
@@ -167,6 +180,12 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.lookupForm.addEventListener('submit', (event) => {
         event.preventDefault();
         void lookupAccount();
+      });
+    }
+    if (elements.aiTestForm) {
+      elements.aiTestForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void runAiTest();
       });
     }
   }
@@ -1102,6 +1121,67 @@ export const ADMIN_UI_CLIENT = String.raw`
         if (button) button.disabled = false;
       }
     });
+  }
+
+  async function runAiTest() {
+    const provider = String((elements.aiTestProvider && elements.aiTestProvider.value) || '').trim();
+    const credentialSource = String((elements.aiTestCredentialSource && elements.aiTestCredentialSource.value) || '').trim();
+    const model = String((elements.aiTestModel && elements.aiTestModel.value) || '').trim();
+    const prompt = String((elements.aiTestPrompt && elements.aiTestPrompt.value) || '').trim();
+    const apiKey = String((elements.aiTestApiKey && elements.aiTestApiKey.value) || '');
+
+    if (!model) {
+      setMessage(elements.aiTestMessage, 'error', 'Enter a model first.');
+      return;
+    }
+    if (!prompt) {
+      setMessage(elements.aiTestMessage, 'error', 'Enter a prompt first.');
+      return;
+    }
+    if (credentialSource === 'custom' && !apiKey.trim()) {
+      setMessage(elements.aiTestMessage, 'error', 'Enter a one-time API key for custom credentials.');
+      return;
+    }
+
+    if (elements.aiTestSubmit) elements.aiTestSubmit.disabled = true;
+    setMessage(elements.aiTestMessage, 'info', 'Sending AI test request...');
+    if (elements.aiTestResult) elements.aiTestResult.innerHTML = '<div class="muted">Waiting for provider response...</div>';
+
+    try {
+      const payload = await fetchJson(apiPath('/ai/test'), {
+        method: 'POST',
+        body: JSON.stringify({
+          provider: provider,
+          credentialSource: credentialSource,
+          model: model,
+          prompt: prompt,
+          apiKey: credentialSource === 'custom' ? apiKey : undefined,
+        }),
+      });
+      if (elements.aiTestApiKey) elements.aiTestApiKey.value = '';
+      renderAiTestResult(payload);
+      setMessage(elements.aiTestMessage, 'success', 'AI test completed.');
+      pushNotification('success', 'AI test completed', 'Received a response from ' + String(payload.providerLabel || payload.providerId || provider) + '.', false);
+    } catch (error) {
+      const description = describeApiError(error, 'Unable to run AI test.');
+      setMessage(elements.aiTestMessage, 'error', description);
+      if (elements.aiTestResult) elements.aiTestResult.innerHTML = '<div class="message error">' + escapeHtml(description) + '</div>';
+      pushNotification('error', 'AI test failed', description, true);
+    } finally {
+      if (elements.aiTestSubmit) elements.aiTestSubmit.disabled = false;
+    }
+  }
+
+  function renderAiTestResult(payload) {
+    if (!elements.aiTestResult) return;
+    const result = payload && payload.result && typeof payload.result === 'object' ? payload.result : {};
+    elements.aiTestResult.innerHTML = '<div class="kv-grid">'
+      + kvPair('Provider', payload && payload.providerLabel ? payload.providerLabel : (payload && payload.providerId ? payload.providerId : 'n/a'))
+      + kvPair('Credential source', payload && payload.credentialSource ? payload.credentialSource : 'n/a')
+      + kvPair('Model', payload && payload.model ? payload.model : 'n/a')
+      + kvPair('Completed', payload && payload.completedAt ? formatDate(payload.completedAt) : 'n/a')
+      + '</div>'
+      + '<pre class="code-block">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
   }
 
   function kvPair(label, value) {

@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import { env } from '../../config/env.js';
+import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
+import { OpenAiCompatibleClient } from '../../modules/ai/openai-compatible.client.js';
+import type { AiResolvedProviderConfig } from '../../modules/ai/ai.types.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
 import {
   resolveRecommendationAlgorithmVersion,
@@ -44,6 +48,7 @@ export async function registerAdminApiRoutes(
   const recommendationOutputService = new RecommendationOutputService();
   const calendarService = new CalendarService();
   const accountSettingsService = new AccountSettingsService();
+  const aiClient = new OpenAiCompatibleClient();
   const profileInputSignalFacade = deps?.profileInputSignalFacade ?? new ProfileInputSignalFacade({
     defaults: {
       historyDefault: 25,
@@ -327,6 +332,87 @@ export async function registerAdminApiRoutes(
       params.profileId,
       params.provider,
     );
+  });
+
+  app.post('/admin/api/ai/test', async (request, reply) => {
+    await requireAdminMutation(request);
+    const body = asRecord(request.body);
+    const provider = readRequiredString(body.provider, 'provider');
+    const credentialSource = readRequiredString(body.credentialSource, 'credentialSource');
+    const model = readRequiredString(body.model, 'model');
+    const prompt = readRequiredString(body.prompt, 'prompt');
+
+    let resolvedProvider: AiResolvedProviderConfig;
+    let apiKey: string;
+
+    if (credentialSource === 'server') {
+      if (!env.aiServerApiKey) {
+        throw new HttpError(503, 'Server AI credentials are not configured.');
+      }
+      if (provider === 'openrouter') {
+        const byokProvider = getByokOpenRouterProvider();
+        resolvedProvider = {
+          id: byokProvider.id,
+          label: byokProvider.label,
+          endpointUrl: byokProvider.endpointUrl,
+          httpReferer: env.appPublicUrl,
+          title: env.appDisplayName,
+        };
+      } else {
+        const serverProvider = getServerAiProvider();
+        resolvedProvider = {
+          id: serverProvider.id,
+          label: serverProvider.label,
+          endpointUrl: serverProvider.endpointUrl,
+          httpReferer: env.appPublicUrl,
+          title: env.appDisplayName,
+        };
+      }
+      apiKey = env.aiServerApiKey;
+    } else if (credentialSource === 'custom') {
+      const customApiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+      if (!customApiKey) {
+        throw new HttpError(400, 'apiKey is required for custom credential source.');
+      }
+      if (provider === 'openrouter') {
+        const byokProvider = getByokOpenRouterProvider();
+        resolvedProvider = {
+          id: byokProvider.id,
+          label: byokProvider.label,
+          endpointUrl: byokProvider.endpointUrl,
+          httpReferer: env.appPublicUrl,
+          title: env.appDisplayName,
+        };
+      } else {
+        const serverProvider = getServerAiProvider();
+        resolvedProvider = {
+          id: serverProvider.id,
+          label: serverProvider.label,
+          endpointUrl: serverProvider.endpointUrl,
+          httpReferer: env.appPublicUrl,
+          title: env.appDisplayName,
+        };
+      }
+      apiKey = customApiKey;
+    } else {
+      throw new HttpError(400, 'Invalid credentialSource. Must be "server" or "custom".');
+    }
+
+    const result = await aiClient.generateJson({
+      provider: resolvedProvider,
+      apiKey,
+      model,
+      userPrompt: prompt,
+    });
+
+    return {
+      providerId: resolvedProvider.id,
+      providerLabel: resolvedProvider.label,
+      credentialSource,
+      model,
+      completedAt: new Date().toISOString(),
+      result,
+    };
   });
 }
 

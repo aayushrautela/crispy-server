@@ -36,6 +36,9 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
             <span>Accounts</span>
             <span class="nav-meta" id="nav-accounts-badge">0</span>
           </button>
+          <button type="button" class="nav-item" data-nav-target="ai-lab">
+            <span>AI Lab</span>
+          </button>
         </nav>
       </div>
 
