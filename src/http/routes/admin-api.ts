@@ -4,7 +4,7 @@ import { env } from '../../config/env.js';
 import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
 import { OpenAiCompatibleClient } from '../../modules/ai/openai-compatible.client.js';
-import type { AiResolvedProviderConfig } from '../../modules/ai/ai.types.js';
+import type { AiProviderFailureDetails, AiResolvedProviderConfig } from '../../modules/ai/ai.types.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
 import {
   resolveRecommendationAlgorithmVersion,
@@ -393,6 +393,7 @@ export async function registerAdminApiRoutes(
       durationMs: number;
       result?: unknown;
       error?: string;
+      providerError?: AiProviderFailureDetails;
       logs?: string[];
     }> = [];
 
@@ -478,9 +479,17 @@ export async function registerAdminApiRoutes(
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const sanitizedError = errorMessage.replace(/sk-[a-zA-Z0-9_-]+/g, '[REDACTED]')
-          .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]')
-          .replace(/Authorization:\s*[^\s]+/gi, 'Authorization: [REDACTED]');
+        const providerErrorDetails = error instanceof HttpError
+          ? sanitizeProviderFailureDetails(error.details)
+          : undefined;
+        const sanitizedError = providerErrorDetails
+          ? `Provider rejected this model: ${sanitizeAiErrorText(errorMessage)}`
+          : sanitizeAiErrorText(errorMessage);
+        if (providerErrorDetails) {
+          logs.push(providerErrorDetails.providerStatus === undefined
+            ? 'Provider error returned by upstream AI provider.'
+            : `Provider error returned by upstream AI provider with status ${providerErrorDetails.providerStatus}.`);
+        }
 
         results.push({
           mode,
@@ -490,6 +499,7 @@ export async function registerAdminApiRoutes(
           status: 'error',
           durationMs: Date.now() - startMs,
           error: sanitizedError,
+          providerError: providerErrorDetails,
           logs,
         });
       }
@@ -616,6 +626,37 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function sanitizeAiErrorText(value: string): string {
+  return value.replace(/sk-[a-zA-Z0-9_-]+/g, '[REDACTED]')
+    .replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]')
+    .replace(/Authorization:\s*[^\s]+/gi, 'Authorization: [REDACTED]');
+}
+
+function sanitizeProviderFailureDetails(value: unknown): AiProviderFailureDetails | undefined {
+  const details = asRecord(value);
+  const provider = typeof details.provider === 'string' && details.provider.trim()
+    ? details.provider.trim()
+    : undefined;
+  if (!provider) {
+    return undefined;
+  }
+
+  return {
+    provider,
+    providerStatus: typeof details.providerStatus === 'number' ? details.providerStatus : undefined,
+    responseBody: typeof details.responseBody === 'string' ? sanitizeAiErrorText(details.responseBody).slice(0, 500) : undefined,
+    providerErrorCode: typeof details.providerErrorCode === 'string' ? details.providerErrorCode : undefined,
+    providerErrorParam: typeof details.providerErrorParam === 'string' ? details.providerErrorParam : undefined,
+    retryAfterSeconds: typeof details.retryAfterSeconds === 'number' ? details.retryAfterSeconds : undefined,
+    failureKind: isAiProviderFailureKind(details.failureKind) ? details.failureKind : undefined,
+    errorMessage: typeof details.errorMessage === 'string' ? sanitizeAiErrorText(details.errorMessage) : undefined,
+  };
+}
+
+function isAiProviderFailureKind(value: unknown): value is AiProviderFailureDetails['failureKind'] {
+  return value === 'network' || value === 'provider_response' || value === 'invalid_response';
 }
 
 function readRequiredString(value: unknown, field: string): string {

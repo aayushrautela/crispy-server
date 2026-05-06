@@ -1341,9 +1341,10 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function renderAiTargetResult(item) {
     const status = item && item.status ? item.status : 'unknown';
+    const providerDetails = renderAiProviderErrorDetails(item && item.providerError);
     const body = item && item.status === 'success'
       ? '<pre class="code-block">' + escapeHtml(JSON.stringify(item.result == null ? null : item.result, null, 2)) + '</pre>'
-      : '<div class="message error">' + escapeHtml(item && item.error ? item.error : 'No result returned.') + '</div>';
+      : '<div class="message error">' + escapeHtml(item && item.error ? item.error : 'No result returned.') + '</div>' + providerDetails;
     const logs = item && Array.isArray(item.logs) && item.logs.length > 0
       ? '<pre class="code-block">' + escapeHtml(item.logs.join('\n')) + '</pre>'
       : '<div class="muted">No logs.</div>';
@@ -1360,6 +1361,21 @@ export const ADMIN_UI_CLIENT = String.raw`
       + '<h4>Logs</h4>' + logs
       + '<h4>Result</h4>' + body
       + '</article>';
+  }
+
+  function renderAiProviderErrorDetails(details) {
+    if (!details || typeof details !== 'object') return '';
+    const parts = [];
+    if (details.provider) parts.push(kvPair('Provider', details.provider));
+    if (details.providerStatus !== undefined) parts.push(kvPair('Provider status', details.providerStatus));
+    if (details.failureKind) parts.push(kvPair('Failure kind', details.failureKind));
+    if (details.providerErrorCode) parts.push(kvPair('Provider code', details.providerErrorCode));
+    if (details.providerErrorParam) parts.push(kvPair('Provider param', details.providerErrorParam));
+    if (details.retryAfterSeconds !== undefined) parts.push(kvPair('Retry after', String(details.retryAfterSeconds) + 's'));
+    if (details.errorMessage) parts.push(kvPair('Provider message', details.errorMessage));
+    if (details.responseBody) parts.push(kvPair('Provider response', summarizeErrorText(details.responseBody)));
+    if (parts.length === 0) return '';
+    return '<h4>Provider error details</h4><div class="kv-grid">' + parts.join('') + '</div>';
   }
 
   function kvPair(label, value) {
