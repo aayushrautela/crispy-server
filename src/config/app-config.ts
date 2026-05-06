@@ -150,46 +150,26 @@ function parseMetadata(root: Record<string, unknown>): AppConfig['metadata'] {
 
 function parseAiConfig(root: Record<string, unknown>): AppConfig['ai'] {
   const ai = expectRecord(root.ai, 'ai');
-  const legacyProviders = parseLegacyAiProviders(ai);
-  const legacyOpenRouter = legacyProviders[BYOK_OPENROUTER_PROVIDER_ID] ?? Object.values(legacyProviders)[0];
 
   return {
-    byokOpenRouter: parseByokOpenRouter(ai, legacyOpenRouter),
-    server: parseServerAi(ai, legacyOpenRouter),
+    byokOpenRouter: parseByokOpenRouter(ai),
+    server: parseServerAi(ai),
   };
 }
 
-function parseByokOpenRouter(ai: Record<string, unknown>, legacyProvider?: AppAiProviderConfig): AppAiProviderConfig {
-  const configured = isRecord(ai.byokOpenRouter) ? ai.byokOpenRouter : null;
-  const modelsSource = configured && Object.hasOwn(configured, 'models')
-    ? expectRecord(configured.models, 'ai.byokOpenRouter.models')
-    : legacyProvider?.models;
+function parseByokOpenRouter(ai: Record<string, unknown>): AppAiProviderConfig {
+  const configured = expectRecord(ai.byokOpenRouter, 'ai.byokOpenRouter');
 
   return {
     id: BYOK_OPENROUTER_PROVIDER_ID,
     label: BYOK_OPENROUTER_LABEL,
     endpointUrl: BYOK_OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
-    models: parseFeatureModels(modelsSource, 'ai.byokOpenRouter.models'),
+    models: parseFeatureModels(configured.models, 'ai.byokOpenRouter.models'),
   };
 }
 
-function parseServerAi(ai: Record<string, unknown>, legacyProvider?: AppAiProviderConfig): AppServerAiConfig {
-  const server = isRecord(ai.server) ? ai.server : null;
-  if (!server && legacyProvider) {
-    return {
-      id: legacyProvider.id,
-      label: legacyProvider.label,
-      endpointUrl: legacyProvider.endpointUrl,
-      models: {
-        pro: legacyProvider.models,
-        ultra: legacyProvider.models,
-      },
-    };
-  }
-
-  if (!server) {
-    throw new Error('App config must define ai.server.');
-  }
+function parseServerAi(ai: Record<string, unknown>): AppServerAiConfig {
+  const server = expectRecord(ai.server, 'ai.server');
 
   const modelTiers = expectRecord(server.models, 'ai.server.models');
   return {
@@ -201,25 +181,6 @@ function parseServerAi(ai: Record<string, unknown>, legacyProvider?: AppAiProvid
       ultra: parseFeatureModels(modelTiers.ultra, 'ai.server.models.ultra'),
     },
   };
-}
-
-function parseLegacyAiProviders(ai: Record<string, unknown>): Record<string, AppAiProviderConfig> {
-  if (!Array.isArray(ai.providers)) {
-    return {};
-  }
-
-  const parsed: Record<string, AppAiProviderConfig> = {};
-  for (const [index, value] of ai.providers.entries()) {
-    const provider = expectRecord(value, `ai.providers[${index}]`);
-    const id = expectNonEmptyString(provider.id, `ai.providers[${index}].id`);
-    parsed[id] = {
-      id,
-      label: expectNonEmptyString(provider.label, `ai.providers[${index}].label`),
-      endpointUrl: expectNonEmptyString(provider.endpointUrl, `ai.providers[${index}].endpointUrl`),
-      models: parseFeatureModels(provider.models, `ai.providers[${index}].models`),
-    };
-  }
-  return parsed;
 }
 
 function parseFeatureModels(value: unknown, label: string): Record<AiFeatureId, string> {

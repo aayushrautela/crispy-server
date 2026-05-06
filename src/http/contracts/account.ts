@@ -74,11 +74,12 @@ const accountSettingsEnvelopeSchema = {
 const accountSecretValueSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['appUserId', 'key', 'value'],
+  required: ['appUserId', 'key', 'present', 'fingerprint'],
   properties: {
     appUserId: nonEmptyStringSchema,
     key: nonEmptyStringSchema,
-    value: nonEmptyStringSchema,
+    present: booleanSchema,
+    fingerprint: nonEmptyStringSchema,
   },
 } as const;
 

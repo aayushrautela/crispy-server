@@ -19,9 +19,8 @@ export class FeatureEntitlementService {
   async resolveAiRequestForUser(
     userId: string,
     feature: AiFeatureId,
-    options?: { excludeRequestKeys?: Set<string> },
   ): Promise<ResolvedAiRequest> {
-    return this.aiProviderResolver.resolveForUser(userId, feature, options);
+    return this.aiProviderResolver.resolveForUser(userId, feature);
   }
 
   async resolveAiRequestForTask(

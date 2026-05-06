@@ -158,7 +158,8 @@ test('setAiApiKeyForUser delegates to repository', async () => {
 
   const result = await service.setAiApiKeyForUser('user-1', 'new-key');
   assert.equal(result.key, 'ai.api_key');
-  assert.equal(result.value, 'new-key');
+  assert.equal(result.present, true);
+  assert.equal(typeof result.fingerprint, 'string');
 });
 
 test('clearAiApiKeyForUser returns true when secret existed', async () => {
@@ -181,7 +182,8 @@ test('setMdbListApiKeyForUser delegates to repository', async () => {
 
   const result = await service.setMdbListApiKeyForUser('user-1', 'new-mdb-key');
   assert.equal(result.key, 'mdblist.api_key');
-  assert.equal(result.value, 'new-mdb-key');
+  assert.equal(result.present, true);
+  assert.equal(typeof result.fingerprint, 'string');
 });
 
 test('clearMdbListApiKeyForUser returns true when secret existed', async () => {

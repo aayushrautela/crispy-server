@@ -11,11 +11,15 @@ test('account settings route returns AI client configuration envelope', async (t
   const originals = {
     getSettings: AccountSettingsService.prototype.getSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
+    getPricingTierForUser: AccountSettingsService.prototype.getPricingTierForUser,
     getMetadataClientSettingsForUser: FeatureEntitlementService.prototype.getMetadataClientSettingsForUser,
   };
 
   t.after(() => {
-    Object.assign(AccountSettingsService.prototype, originals);
+    AccountSettingsService.prototype.getSettings = originals.getSettings;
+    AccountSettingsService.prototype.getAiClientSettingsForUser = originals.getAiClientSettingsForUser;
+    AccountSettingsService.prototype.getPricingTierForUser = originals.getPricingTierForUser;
+    FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = originals.getMetadataClientSettingsForUser;
   });
 
   AccountSettingsService.prototype.getSettings = async function () {
@@ -25,9 +29,12 @@ test('account settings route returns AI client configuration envelope', async (t
     return {
       providerId: 'openrouter',
       hasAiApiKey: true,
-      defaultProviderId: 'openai',
-      providers: [{ id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions' }],
+      defaultProviderId: 'openrouter',
+      providers: [{ id: 'openrouter', label: 'OpenRouter' }],
     } as never;
+  };
+  AccountSettingsService.prototype.getPricingTierForUser = async function () {
+    return 'free' as never;
   };
   FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = async function () {
     return { hasMdbListAccess: true };
@@ -43,7 +50,7 @@ test('account settings route returns AI client configuration envelope', async (t
   const payload = response.json() as { settings: Record<string, any> };
   assert.equal(payload.settings.ai.providerId, 'openrouter');
   assert.equal(payload.settings.ai.hasAiApiKey, true);
-  assert.equal(payload.settings.ai.defaultProviderId, 'openai');
+  assert.equal(payload.settings.ai.defaultProviderId, 'openrouter');
   assert.equal(Array.isArray(payload.settings.ai.providers), true);
   assert.equal(payload.settings.metadata.hasMdbListAccess, true);
   assert.equal(payload.settings.pricingTier, 'free');
@@ -55,11 +62,15 @@ test('account settings patch route returns merged AI client configuration envelo
   const originals = {
     patchSettings: AccountSettingsService.prototype.patchSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
+    getPricingTierForUser: AccountSettingsService.prototype.getPricingTierForUser,
     getMetadataClientSettingsForUser: FeatureEntitlementService.prototype.getMetadataClientSettingsForUser,
   };
 
   t.after(() => {
-    Object.assign(AccountSettingsService.prototype, originals);
+    AccountSettingsService.prototype.patchSettings = originals.patchSettings;
+    AccountSettingsService.prototype.getAiClientSettingsForUser = originals.getAiClientSettingsForUser;
+    AccountSettingsService.prototype.getPricingTierForUser = originals.getPricingTierForUser;
+    FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = originals.getMetadataClientSettingsForUser;
   });
 
   AccountSettingsService.prototype.patchSettings = async function (_userId, patch) {
@@ -69,9 +80,12 @@ test('account settings patch route returns merged AI client configuration envelo
     return {
       providerId: 'openrouter',
       hasAiApiKey: false,
-      defaultProviderId: 'openai',
-      providers: [{ id: 'openrouter', label: 'OpenRouter', endpointUrl: 'https://openrouter.ai/api/v1/chat/completions' }],
+      defaultProviderId: 'openrouter',
+      providers: [{ id: 'openrouter', label: 'OpenRouter' }],
     } as never;
+  };
+  AccountSettingsService.prototype.getPricingTierForUser = async function () {
+    return 'pro' as never;
   };
   FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = async function () {
     return { hasMdbListAccess: false };
@@ -93,7 +107,7 @@ test('account settings patch route returns merged AI client configuration envelo
   assert.equal(payload.settings.ai.providerId, 'openrouter');
   assert.equal(payload.settings.ai.hasAiApiKey, false);
   assert.equal(payload.settings.metadata.hasMdbListAccess, false);
-  assert.equal(payload.settings.pricingTier, 'free');
+  assert.equal(payload.settings.pricingTier, 'pro');
 });
 
 test('account settings patch route returns API error contract for unsupported AI provider', async (t) => {
@@ -103,7 +117,7 @@ test('account settings patch route returns API error contract for unsupported AI
   };
 
   t.after(() => {
-    Object.assign(AccountSettingsService.prototype, originals);
+    AccountSettingsService.prototype.patchSettings = originals.patchSettings;
   });
 
   AccountSettingsService.prototype.patchSettings = async function () {
@@ -128,23 +142,25 @@ test('account settings patch route returns API error contract for unsupported AI
   });
 });
 
-test('account MDBList secret routes delegate to account settings service', async (t) => {
+test('account MDBList secret routes return metadata and delegate to account settings service', async (t) => {
   const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
   const originals = {
-    getMdbListApiKeyForUser: AccountSettingsService.prototype.getMdbListApiKeyForUser,
+    getMdbListApiKeyMetadataForUser: AccountSettingsService.prototype.getMdbListApiKeyMetadataForUser,
     setMdbListApiKeyForUser: AccountSettingsService.prototype.setMdbListApiKeyForUser,
     clearMdbListApiKeyForUser: AccountSettingsService.prototype.clearMdbListApiKeyForUser,
   };
 
   t.after(() => {
-    Object.assign(AccountSettingsService.prototype, originals);
+    AccountSettingsService.prototype.getMdbListApiKeyMetadataForUser = originals.getMdbListApiKeyMetadataForUser;
+    AccountSettingsService.prototype.setMdbListApiKeyForUser = originals.setMdbListApiKeyForUser;
+    AccountSettingsService.prototype.clearMdbListApiKeyForUser = originals.clearMdbListApiKeyForUser;
   });
 
-  AccountSettingsService.prototype.getMdbListApiKeyForUser = async function () {
-    return { appUserId: 'user-1', key: 'mdblist.api_key', value: 'mdb-user-key' } as never;
+  AccountSettingsService.prototype.getMdbListApiKeyMetadataForUser = async function () {
+    return { appUserId: 'user-1', key: 'mdblist.api_key', present: true, fingerprint: 'mdb123abc456' } as never;
   };
-  AccountSettingsService.prototype.setMdbListApiKeyForUser = async function (_userId, value) {
-    return { appUserId: 'user-1', key: 'mdblist.api_key', value } as never;
+  AccountSettingsService.prototype.setMdbListApiKeyForUser = async function () {
+    return { appUserId: 'user-1', key: 'mdblist.api_key', present: true, fingerprint: 'new123abc456' } as never;
   };
   AccountSettingsService.prototype.clearMdbListApiKeyForUser = async function () {
     return true;
@@ -158,9 +174,11 @@ test('account MDBList secret routes delegate to account settings service', async
 
   const getResponse = await app.inject({ method: 'GET', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
   assert.equal(getResponse.statusCode, 200);
-  assert.deepEqual(getResponse.json(), {
-    secret: { appUserId: 'user-1', key: 'mdblist.api_key', value: 'mdb-user-key' },
-  });
+  const getBody = getResponse.json() as { secret: { key: string; present: boolean; fingerprint: string; value?: string } };
+  assert.equal(getBody.secret.key, 'mdblist.api_key');
+  assert.equal(getBody.secret.present, true);
+  assert.equal(getBody.secret.fingerprint, 'mdb123abc456');
+  assert.equal(getBody.secret.value, undefined);
 
   const putResponse = await app.inject({
     method: 'PUT',
@@ -169,9 +187,11 @@ test('account MDBList secret routes delegate to account settings service', async
     payload: { value: 'new-mdb-key' },
   });
   assert.equal(putResponse.statusCode, 200);
-  assert.deepEqual(putResponse.json(), {
-    secret: { appUserId: 'user-1', key: 'mdblist.api_key', value: 'new-mdb-key' },
-  });
+  const putBody = putResponse.json() as { secret: { key: string; present: boolean; fingerprint: string; value?: string } };
+  assert.equal(putBody.secret.key, 'mdblist.api_key');
+  assert.equal(putBody.secret.present, true);
+  assert.equal(putBody.secret.fingerprint, 'new123abc456');
+  assert.equal(putBody.secret.value, undefined);
 
   const deleteResponse = await app.inject({ method: 'DELETE', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
   assert.equal(deleteResponse.statusCode, 200);
@@ -185,6 +205,7 @@ test('me route returns AI client configuration in account settings', async (t) =
   const accountOriginals = {
     getSettings: AccountSettingsService.prototype.getSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
+    getPricingTierForUser: AccountSettingsService.prototype.getPricingTierForUser,
     getMetadataClientSettingsForUser: FeatureEntitlementService.prototype.getMetadataClientSettingsForUser,
   };
   const profileOriginals = {
@@ -192,8 +213,11 @@ test('me route returns AI client configuration in account settings', async (t) =
   };
 
   t.after(() => {
-    Object.assign(AccountSettingsService.prototype, accountOriginals);
-    Object.assign(ProfileService.prototype, profileOriginals);
+    AccountSettingsService.prototype.getSettings = accountOriginals.getSettings;
+    AccountSettingsService.prototype.getAiClientSettingsForUser = accountOriginals.getAiClientSettingsForUser;
+    AccountSettingsService.prototype.getPricingTierForUser = accountOriginals.getPricingTierForUser;
+    FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = accountOriginals.getMetadataClientSettingsForUser;
+    ProfileService.prototype.listForAccount = profileOriginals.listForAccount;
   });
 
   AccountSettingsService.prototype.getSettings = async function () {
@@ -203,9 +227,12 @@ test('me route returns AI client configuration in account settings', async (t) =
     return {
       providerId: 'openrouter',
       hasAiApiKey: true,
-      defaultProviderId: 'openai',
-      providers: [{ id: 'openrouter', label: 'OpenRouter', endpointUrl: 'https://openrouter.ai/api/v1/chat/completions' }],
+      defaultProviderId: 'openrouter',
+      providers: [{ id: 'openrouter', label: 'OpenRouter' }],
     } as never;
+  };
+  AccountSettingsService.prototype.getPricingTierForUser = async function () {
+    return 'free' as never;
   };
   FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = async function () {
     return { hasMdbListAccess: false };

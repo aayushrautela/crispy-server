@@ -52,7 +52,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     return {
-      secret: await accountSettingsService.getAiApiKeyForUser(actor.appUserId),
+      secret: await accountSettingsService.getAiApiKeyMetadataForUser(actor.appUserId),
     };
   });
 
@@ -77,7 +77,7 @@ export async function registerAccountRoutes(app: FastifyInstance): Promise<void>
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     return {
-      secret: await accountSettingsService.getMdbListApiKeyForUser(actor.appUserId),
+      secret: await accountSettingsService.getMdbListApiKeyMetadataForUser(actor.appUserId),
     };
   });
 

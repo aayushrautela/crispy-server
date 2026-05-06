@@ -14,7 +14,6 @@ export class AiProviderResolver {
   async resolveForUser(
     userId: string,
     feature: AiFeatureId,
-    _options?: { excludeRequestKeys?: Set<string> },
   ): Promise<ResolvedAiRequest> {
     return this.credentialResolver.resolveForTask(userId, toTaskId(feature));
   }

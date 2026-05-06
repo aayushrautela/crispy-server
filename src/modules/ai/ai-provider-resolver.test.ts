@@ -38,12 +38,16 @@ test('resolver does not fall back to server or pooled keys for lite without BYOK
   );
 });
 
-test('resolver uses server env key for pro', async () => {
+test('resolver uses server env key for pro by default', async () => {
   const { AiProviderResolver } = await import('./ai-provider-resolver.js');
 
   const resolver = new AiProviderResolver({
     getPricingTierForUser: async () => 'pro',
     getAiProviderIdForUser: async () => 'openrouter',
+    getAiApiKeyForUser: async () => {
+      const { HttpError } = await import('../../lib/errors.js');
+      throw new HttpError(404, 'Account secret not found.');
+    },
   } as never, 'server-ai-key');
 
   const result = await resolver.resolveForUser('user-1', 'insights');

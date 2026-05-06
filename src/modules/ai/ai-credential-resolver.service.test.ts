@@ -35,12 +35,16 @@ test('credential resolver uses lite user OpenRouter BYOK', async () => {
   assert.equal(result.model, 'openai/gpt-4o-mini');
 });
 
-test('credential resolver uses pro server key and pro model', async () => {
+test('credential resolver uses pro server key and pro model by default', async () => {
   const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
 
   const resolver = new AiCredentialResolver({
     getPricingTierForUser: async () => 'pro',
     getAiProviderIdForUser: async () => 'openrouter',
+    getAiApiKeyForUser: async () => {
+      const { HttpError } = await import('../../lib/errors.js');
+      throw new HttpError(404, 'Account secret not found.');
+    },
   } as never, 'server-ai-key');
 
   const result = await resolver.resolveForTask('user-1', 'insights');
@@ -49,6 +53,40 @@ test('credential resolver uses pro server key and pro model', async () => {
   assert.equal(result.apiKey, 'server-ai-key');
   assert.equal(result.credentialSource, 'server');
   assert.equal(result.model, 'provider/pro-model');
+});
+
+test('credential resolver uses pro BYOK override when configured', async () => {
+  const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
+
+  const resolver = new AiCredentialResolver({
+    getPricingTierForUser: async () => 'pro',
+    getAiProviderIdForUser: async () => 'openrouter',
+    getAiApiKeyForUser: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'user-openrouter-key' }),
+  } as never, 'server-ai-key');
+
+  const result = await resolver.resolveForTask('user-1', 'recommendations');
+  assert.equal(result.feature, 'recommendations');
+  assert.equal(result.providerId, 'openrouter');
+  assert.equal(result.apiKey, 'user-openrouter-key');
+  assert.equal(result.credentialSource, 'user');
+  assert.equal(result.model, 'openai/gpt-4o-mini');
+});
+
+test('credential resolver uses ultra BYOK override when configured', async () => {
+  const { AiCredentialResolver } = await import('./ai-credential-resolver.service.js');
+
+  const resolver = new AiCredentialResolver({
+    getPricingTierForUser: async () => 'ultra',
+    getAiProviderIdForUser: async () => 'openrouter',
+    getAiApiKeyForUser: async () => ({ appUserId: 'user-1', key: 'ai.api_key', value: 'user-openrouter-key' }),
+  } as never, 'server-ai-key');
+
+  const result = await resolver.resolveForTask('user-1', 'insights');
+  assert.equal(result.feature, 'insights');
+  assert.equal(result.providerId, 'openrouter');
+  assert.equal(result.apiKey, 'user-openrouter-key');
+  assert.equal(result.credentialSource, 'user');
+  assert.equal(result.model, 'openai/gpt-4o-mini');
 });
 
 test('credential resolver does not fall back to pooled keys', async () => {

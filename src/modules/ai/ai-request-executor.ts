@@ -8,7 +8,6 @@ import {
   recordServerModelTransientFailure,
 } from './ai-server-fallback-state.js';
 import type { AiExecutionResult, AiFeatureId, AiProviderFailureDetails, ResolvedAiRequest } from './ai.types.js';
-import { toResolvedRequestKey } from './ai-provider-resolver.js';
 import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 
 export class AiRequestExecutor {
@@ -24,14 +23,9 @@ export class AiRequestExecutor {
     userPrompt: string;
   }): Promise<AiExecutionResult> {
     let attempts = 0;
-    const attemptedRequests = new Set<string>();
-
     while (attempts < 5) {
       attempts += 1;
-      const request = await this.entitlementService.resolveAiRequestForUser(args.userId, args.feature, {
-        excludeRequestKeys: attemptedRequests,
-      });
-      attemptedRequests.add(toResolvedRequestKey(request.credentialSource, request.providerId, request.model, request.apiKey));
+      const request = await this.entitlementService.resolveAiRequestForUser(args.userId, args.feature);
 
       try {
         const payload = await this.client.generateJson({

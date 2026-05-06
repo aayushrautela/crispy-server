@@ -27,8 +27,8 @@ type TierCredentialPolicy = {
 const TIER_POLICIES: Record<PricingTier, TierCredentialPolicy> = {
   free: { allowUserKey: false, allowServerKey: false },
   lite: { allowUserKey: true, allowServerKey: false },
-  pro: { allowUserKey: false, allowServerKey: true, serverTier: 'pro' },
-  ultra: { allowUserKey: false, allowServerKey: true, serverTier: 'ultra' },
+  pro: { allowUserKey: true, allowServerKey: true, serverTier: 'pro' },
+  ultra: { allowUserKey: true, allowServerKey: true, serverTier: 'ultra' },
 };
 
 export class AiCredentialResolver {
@@ -61,37 +61,27 @@ export class AiCredentialResolver {
     }
 
     if (policy.allowUserKey && !policy.allowServerKey) {
-      // Lite tier: BYOK OpenRouter only.
-      const byokProvider = getByokOpenRouterProvider();
-      const userKey = await this.getUserApiKey(userId);
-      if (!userKey) {
+      const userRequest = await this.getUserAiRequest(userId, taskConfig.feature);
+      if (!userRequest) {
+        const byokProvider = getByokOpenRouterProvider();
         throw new HttpError(
           412,
           `AI ${task} requires an API key. Add your ${byokProvider.label} API key in Account Settings.`,
         );
       }
 
-      const model = byokProvider.models[taskConfig.feature];
-
-      return {
-        feature: taskConfig.feature,
-        providerId: byokProvider.id,
-        provider: {
-          id: byokProvider.id,
-          label: byokProvider.label,
-          endpointUrl: byokProvider.endpointUrl,
-          httpReferer: env.appPublicUrl,
-          title: env.appDisplayName,
-        },
-        model,
-        apiKey: userKey,
-        credentialSource: 'user',
-      };
+      return userRequest;
     }
 
-    if (policy.allowServerKey && !policy.allowUserKey) {
-      // Pro/Ultra tier: server-funded AI.
-      const serverKey = this.getServerApiKey(policy.serverTier!, taskConfig.feature);
+    if (policy.allowServerKey && policy.serverTier) {
+      if (policy.allowUserKey) {
+        const userRequest = await this.getUserAiRequest(userId, taskConfig.feature);
+        if (userRequest) {
+          return userRequest;
+        }
+      }
+
+      const serverKey = this.getServerApiKey(policy.serverTier, taskConfig.feature);
       if (!serverKey) {
         throw new HttpError(
           503,
@@ -103,6 +93,31 @@ export class AiCredentialResolver {
     }
 
     throw new HttpError(503, `AI ${task} is not configured for this account tier.`);
+  }
+
+  private async getUserAiRequest(userId: string, feature: AiFeatureId): Promise<ResolvedAiRequest | null> {
+    const userKey = await this.getUserApiKey(userId);
+    if (!userKey) {
+      return null;
+    }
+
+    const byokProvider = getByokOpenRouterProvider();
+    const model = byokProvider.models[feature];
+
+    return {
+      feature,
+      providerId: byokProvider.id,
+      provider: {
+        id: byokProvider.id,
+        label: byokProvider.label,
+        endpointUrl: byokProvider.endpointUrl,
+        httpReferer: env.appPublicUrl,
+        title: env.appDisplayName,
+      },
+      model,
+      apiKey: userKey,
+      credentialSource: 'user',
+    };
   }
 
   private async getUserApiKey(userId: string): Promise<string | null> {

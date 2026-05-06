@@ -11,6 +11,7 @@ const REQUIRED_ENV: Record<string, string> = {
   SUPABASE_URL: 'https://example.supabase.co',
   AUTH_JWT_AUDIENCE: 'authenticated',
   TMDB_API_KEY: 'tmdb-test-key',
+  SECRETS_ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
 };
 
 export function seedTestEnv(extra?: Record<string, string>): void {
@@ -63,6 +64,7 @@ export async function buildTestApp(
     (request as FastifyRequest & { auth: AuthActor }).auth = { ...TEST_USER_AUTH } as AuthActor;
   });
   app.decorate('requireUserActor', (request: FastifyRequest) => (request as FastifyRequest & { auth: AuthActor }).auth as never);
+  app.decorate('requireUserSessionActor', (request: FastifyRequest) => (request as FastifyRequest & { auth: AuthActor }).auth as never);
   app.decorate('requireScopes', () => {});
   await app.register(errorHandlerPlugin);
   await register(app);

@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { encryptSecret, decryptSecret } from '../../lib/crypto.js';
 
 export type AccountSecretRecord = {
   appUserId: string;
@@ -43,12 +44,19 @@ export class AccountSettingsRepository {
       `,
       [userId, fieldKey],
     );
-    return typeof result.rows[0]?.field_value === 'string' && result.rows[0].field_value.trim()
-      ? result.rows[0].field_value.trim()
-      : null;
+    const encrypted = result.rows[0]?.field_value;
+    if (typeof encrypted !== 'string' || !encrypted.trim()) {
+      return null;
+    }
+    try {
+      return decryptSecret(encrypted.trim());
+    } catch {
+      return null;
+    }
   }
 
   async setSecretForUser(client: DbClient, userId: string, fieldKey: string, value: string): Promise<void> {
+    const encrypted = encryptSecret(value);
     await client.query(
       `
         INSERT INTO account_secrets (app_user_id, secrets_json, updated_at)
@@ -58,7 +66,7 @@ export class AccountSettingsRepository {
           secrets_json = account_secrets.secrets_json || jsonb_build_object($2::text, $3::text),
           updated_at = now()
       `,
-      [userId, fieldKey, value],
+      [userId, fieldKey, encrypted],
     );
   }
 
@@ -91,10 +99,17 @@ export class AccountSettingsRepository {
     );
 
     return result.rows
-      .map((row) => ({
-        appUserId: String(row.app_user_id),
-        value: String(row.field_value),
-      }))
-      .filter((row) => row.value.trim().length > 0);
+      .map((row) => {
+        const encrypted = String(row.field_value);
+        try {
+          return {
+            appUserId: String(row.app_user_id),
+            value: decryptSecret(encrypted),
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((row): row is AccountSecretRecord => row !== null && row.value.trim().length > 0);
   }
 }

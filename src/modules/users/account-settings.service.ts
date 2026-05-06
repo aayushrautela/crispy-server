@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AiClientSettings } from '../ai/ai.types.js';
@@ -13,6 +14,13 @@ export type AccountSecretValue = {
   value: string;
 };
 
+export type AccountSecretMetadata = {
+  appUserId: string;
+  key: AccountSecretField;
+  present: boolean;
+  fingerprint: string;
+};
+
 export type PricingTier = 'free' | 'lite' | 'pro' | 'ultra';
 
 const DEFAULT_PRICING_TIER: PricingTier = 'free';
@@ -20,9 +28,10 @@ const PRICING_TIERS = new Set<PricingTier>(['free', 'lite', 'pro', 'ultra']);
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const ACCOUNT_SECRET_FIELDS = new Set<AccountSecretField>(['ai.api_key', 'mdblist.api_key']);
-const ACCOUNT_SECRET_SETTING_KEYS = new Set(['ai.api_key', 'mdblist.api_key']);
-const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', 'ai.api_key', 'mdblist.api_key', 'addons']);
+const ACCOUNT_SECRET_FIELDS = ['ai.api_key', 'mdblist.api_key'] as const satisfies readonly AccountSecretField[];
+const ACCOUNT_SECRET_FIELD_SET = new Set<AccountSecretField>(ACCOUNT_SECRET_FIELDS);
+const ACCOUNT_SECRET_SETTING_KEYS = new Set<string>(ACCOUNT_SECRET_FIELDS);
+const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', ...ACCOUNT_SECRET_FIELDS, 'addons']);
 
 export class AccountSettingsService {
   constructor(
@@ -44,7 +53,11 @@ export class AccountSettingsService {
     return this.getSecretForUser(userId, 'ai.api_key');
   }
 
-  async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
+  async getAiApiKeyMetadataForUser(userId: string): Promise<AccountSecretMetadata> {
+    return this.getSecretMetadataForUser(userId, 'ai.api_key');
+  }
+
+  async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretMetadata> {
     return this.setSecretForUser(userId, 'ai.api_key', value);
   }
 
@@ -52,7 +65,11 @@ export class AccountSettingsService {
     return this.getSecretForUser(userId, 'mdblist.api_key');
   }
 
-  async setMdbListApiKeyForUser(userId: string, value: string): Promise<AccountSecretValue> {
+  async getMdbListApiKeyMetadataForUser(userId: string): Promise<AccountSecretMetadata> {
+    return this.getSecretMetadataForUser(userId, 'mdblist.api_key');
+  }
+
+  async setMdbListApiKeyForUser(userId: string, value: string): Promise<AccountSecretMetadata> {
     return this.setSecretForUser(userId, 'mdblist.api_key', value);
   }
 
@@ -105,17 +122,18 @@ export class AccountSettingsService {
     });
   }
 
-  async setSecretForUser(userId: string, field: string, value: string): Promise<AccountSecretValue> {
+  async setSecretForUser(userId: string, field: string, value: string): Promise<AccountSecretMetadata> {
     const secretField = normalizeSecretField(field);
     const normalizedValue = normalizeSecretValue(value);
     return this.runInTransaction(async (client) => {
       await this.accountSettingsRepository.setSecretForUser(client, userId, secretField, normalizedValue);
-      return {
-        appUserId: userId,
-        key: secretField,
-        value: normalizedValue,
-      } satisfies AccountSecretValue;
+      return buildSecretMetadata(userId, secretField, normalizedValue);
     });
+  }
+
+  async getSecretMetadataForUser(userId: string, field: string): Promise<AccountSecretMetadata> {
+    const secret = await this.getSecretForUser(userId, field);
+    return buildSecretMetadata(userId, secret.key, secret.value);
   }
 
   async clearSecretForUser(userId: string, field: string): Promise<boolean> {
@@ -225,10 +243,20 @@ export function normalizeProfileSettingsPatch(value: unknown): Record<string, un
 }
 
 function normalizeSecretField(field: string): AccountSecretField {
-  if (!ACCOUNT_SECRET_FIELDS.has(field as AccountSecretField)) {
+  if (!ACCOUNT_SECRET_FIELD_SET.has(field as AccountSecretField)) {
     throw new HttpError(403, 'Secret field not allowed.');
   }
   return field as AccountSecretField;
+}
+
+function buildSecretMetadata(userId: string, key: AccountSecretField, value: string): AccountSecretMetadata {
+  const fingerprint = createHash('sha256').update(value).digest('hex').slice(0, 12);
+  return {
+    appUserId: userId,
+    key,
+    present: true,
+    fingerprint,
+  };
 }
 
 function normalizeSecretValue(value: string): string {

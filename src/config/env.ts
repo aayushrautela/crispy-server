@@ -84,6 +84,7 @@ export const env = {
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
   mdblistApiKey: optionalEnv('MDBLIST_API_KEY') ?? '',
   aiServerApiKey: optionalEnv('AI_SERVER_API_KEY') ?? '',
+  secretsEncryptionKey: requireEnv('SECRETS_ENCRYPTION_KEY'),
   traktImportClientId: process.env.TRAKT_IMPORT_CLIENT_ID?.trim() || '',
   traktImportClientSecret: process.env.TRAKT_IMPORT_CLIENT_SECRET?.trim() || '',
   traktImportRedirectUri: process.env.TRAKT_IMPORT_REDIRECT_URI?.trim() || '',
