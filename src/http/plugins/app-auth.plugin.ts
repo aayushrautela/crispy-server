@@ -40,6 +40,7 @@ const OFFICIAL_RECOMMENDER_SCOPES: AppScope[] = [
   'recommendations:runs:write',
   'recommendations:batches:write',
   'recommendations:backfills:read',
+  'recommendations:ai-plan:generate',
   'apps:audit:read',
   'confidential-config:ai-config:read',
 ];

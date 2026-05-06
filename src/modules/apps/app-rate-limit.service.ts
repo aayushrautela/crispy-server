@@ -106,6 +106,7 @@ function getLimit(principal: AppPrincipal, routeGroup: AppRateLimitRouteGroup): 
       return { capacity: policy.snapshotsPerDay, windowSeconds: 86400 };
     case 'apps.self':
     case 'recommendations.backfills':
+    case 'recommendations.ai-plan':
     case 'apps.audit':
       return null;
   }

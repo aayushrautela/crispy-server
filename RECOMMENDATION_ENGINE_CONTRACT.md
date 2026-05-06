@@ -4,9 +4,9 @@
 
 Current architecture contract for recommendation-engine integration.
 
-The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve profile, watch, rating, watchlist, episodic follow, metadata, AI configuration, and stored recommendation context needed for generation. Crispy Server does not submit generation jobs to the engine and does not poll the engine for job status.
+The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve profile, watch, rating, watchlist, episodic follow, metadata, and stored recommendation context needed for generation. Crispy Server does not submit generation jobs to the engine and does not poll the engine for job status.
 
-For AI-assisted generation, the engine retrieves a confidential config bundle, receives a scoped Crispy AI proxy endpoint, calls that proxy, and publishes recommendations back to Crispy. The engine never receives OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys; Crispy injects the selected credential server-side when proxying the AI request.
+For AI-assisted generation, the engine sends business inputs and a bounded candidate pool to Crispy Server's internal AI-plan endpoint. Crispy Server owns provider selection, model selection, credentials, prompt construction, vendor protocol, response parsing, and typed-plan validation. The engine never receives OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys, provider/model routing config, proxy URLs, or raw vendor request details.
 
 ## Ownership Boundary
 
@@ -46,22 +46,22 @@ Typical source-data categories:
 - continue watching
 - episodic follow state
 - current stored taste profile and recommendation snapshots
-- account/profile AI proxy configuration when authorized
+- candidate-pool and business context for AI-plan requests
 - metadata projections for canonical media keys
 
 Crispy API must return bounded, sanitized, authorized data only. The engine must not scrape admin UI pages, bypass service auth, query Postgres directly, read Redis directly, or access undeclared private fields.
 
-## AI Proxy Flow
+## AI-Plan Flow
 
-When generation requires an OpenAI-compatible model, the engine must use Crispy's confidential proxy flow:
+When generation requires AI-assisted ranking or planning, the engine must use Crispy's internal AI-plan endpoint:
 
-1. Fetch `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/config-bundle` with service auth.
-2. Read the returned AI policy and scoped proxy endpoint.
-3. Call `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/ai-proxy/chat/completions` with the chat-completions payload.
-4. Crispy validates account/profile eligibility, selects the allowed provider/credential, injects the API key server-side, and forwards the request to the configured provider.
+1. Prepare business inputs: profile signals, candidate pool, list key, algorithm version, and generation context.
+2. Call `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan` with service auth.
+3. MAIN validates account/profile eligibility, builds the prompt, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed plan.
+4. The engine uses the plan output to assemble final recommendation lists.
 5. The engine writes generated recommendation outputs back through the internal app recommendation endpoints.
 
-The engine must not request, receive, cache, log, or forward raw account BYOK keys, server-funded keys, OpenRouter keys, or OpenAI-compatible provider keys. Confidential bundle fields are policy and routing metadata only.
+The engine must not request, receive, cache, log, or forward raw account BYOK keys, server-funded keys, OpenRouter keys, OpenAI-compatible provider keys, proxy URLs, model names, provider IDs, endpoint URLs, or raw vendor chat-completions payloads. AI-plan requests contain only business inputs and candidate pools; AI-plan responses contain only typed plan outputs.
 
 ## Result Publication
 
@@ -97,7 +97,7 @@ Freshness decisions belong to the engine's scheduling strategy unless Crispy API
 
 ## Sensitive Data and Logging
 
-The engine must not log API keys, user access tokens, account-shared AI secrets, provider refresh tokens, bearer tokens, service API keys, or raw confidential configuration. Logs should use account/profile identifiers only when operationally necessary and should avoid storing raw watch or rating payloads longer than needed.
+The engine must not log API keys, user access tokens, account-shared AI secrets, provider refresh tokens, bearer tokens, service API keys, AI provider/model/endpoint/proxy configuration, raw vendor request/response payloads, or raw confidential configuration. Logs should use account/profile identifiers only when operationally necessary and should avoid storing raw watch or rating payloads longer than needed.
 
 ## Explicit Non-Goals
 

@@ -58,18 +58,19 @@ Content-Type: application/json
 
 ## Data available to the recommendation engine
 
-When generating recommendations, the engine can receive a signal bundle for the target account/profile containing:
+When generating recommendations, the engine reads bounded business inputs from the internal app API and may ask MAIN for AI-assisted planning. Typical generation inputs include:
 
 - `identity`: `accountId` and `profileId`.
-- `generationMeta`: `sourceKey`, `algorithmVersion`, `historyGeneration`, optional `sourceCursor`, and optional `ttlSeconds`.
+- `generationMeta`: `sourceKey`, `algorithmVersion`, optional cursors, and freshness limits.
 - `watchHistory`: recent watched media entries.
 - `ratings`: profile rating signals.
 - `watchlist`: media saved by the profile.
 - `profileContext`: profile name, kids-profile flag, and watch-data origin.
-- `aiConfig`: configured AI provider, endpoint URL, model, title, referer, API key, and credential source used internally for generation.
 - `optionalExtras.continueWatching`: in-progress playback entries with media identity, progress, last activity, and optional payload.
 - `optionalExtras.trackedSeries`: followed/tracked episodic titles.
 - `optionalExtras.limits`: per-signal limits used while collecting watch history, ratings, watchlist, continue watching, and tracked series.
+
+MAIN owns all AI provider/model/credential/prompt/vendor-protocol details. The recommendation engine no longer calls `/internal/confidential/v1` config-bundle endpoints or an AI proxy, and it must not expect provider IDs, model names, endpoint URLs, API keys, or proxy URLs in source-data responses.
 
 ### Empty-data behavior
 
@@ -82,9 +83,89 @@ Reading recommendations is snapshot-based:
 
 ## Endpoints
 
-### List taste profiles
+### Internal AI-plan for recommendation generation
 
-`GET /v1/profiles/:profileId/taste-profiles`
+`POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan`
+
+This internal endpoint is used by the recommendation engine when it needs AI assistance for ranking or planning. RECO sends business inputs and a candidate pool; MAIN builds the prompt, selects the provider/model/credentials, performs the vendor call, validates/parses the response, and returns a typed plan. RECO does not call an AI proxy or AI vendor directly.
+
+#### Request body
+
+The exact input can evolve with the server-side planner, but the body is intentionally business-oriented:
+
+```json
+{
+  "runId": "run_123",
+  "listKey": "hero",
+  "algorithmVersion": "v3.2.1",
+  "profileContext": {
+    "displayName": "Alex",
+    "isKids": false
+  },
+  "signals": {
+    "watchHistory": [],
+    "ratings": [],
+    "watchlist": [],
+    "continueWatching": [],
+    "trackedSeries": []
+  },
+  "candidatePool": [
+    {
+      "type": "movie",
+      "tmdbId": 550,
+      "title": "Fight Club",
+      "year": 1999,
+      "genres": ["Drama"]
+    }
+  ],
+  "limits": {
+    "maxItems": 20
+  }
+}
+```
+
+Request rules:
+
+- `candidatePool` contains bounded candidate media records that RECO is prepared to rank/select.
+- Candidate identity is TMDB-based (`type` plus `tmdbId`); additional metadata is optional context.
+- Request data must not include AI provider, model, endpoint URL, API key, raw prompt, proxy URL, or vendor chat-completions payload fields.
+
+#### Response `200`
+
+```json
+{
+  "plan": {
+    "items": [
+      {
+        "type": "movie",
+        "tmdbId": 550,
+        "rank": 1,
+        "reason": "Strong match for recent high-rated drama titles."
+      }
+    ],
+    "notes": "Prioritized character-driven dramas from the supplied pool."
+  },
+  "retryable": false
+}
+```
+
+RECO treats the plan as advisory typed output for its generator/list assembly. Final active recommendation writes still use the internal app recommendation write pattern: ordered arrays of `{ type: "movie" | "tv", tmdbId: number }`; MAIN derives source, rank, media key, storage metadata, and eligibility policy.
+
+#### AI-plan status and retry behavior
+
+- `200 OK`: plan generated and parsed successfully.
+- `400 Bad Request`: malformed request or invalid candidate/business input; do not retry without changing the request.
+- `401 Unauthorized`: missing or invalid service authentication; do not retry until credentials are fixed.
+- `403 Forbidden`: service principal is not allowed for the account/profile or operation; do not retry unchanged.
+- `404 Not Found`: account/profile is missing or inaccessible; do not retry unchanged.
+- `409 Conflict`: generation context is stale or conflicts with current server policy; refresh inputs before retrying.
+- `422 Unprocessable Entity`: AI output could not be converted into a valid typed plan or no usable plan could be produced; retry only if response body marks it retryable or after changing candidates/signals.
+- `429 Too Many Requests`: rate-limited; retry with backoff after `Retry-After` when present.
+- `5xx`: transient server, database, or AI vendor failure; retry with bounded exponential backoff.
+
+Error responses use the standard API error shape and may include `retryable: true` for transient failures.
+
+
 
 Returns all stored taste profiles for the profile, across sources.
 

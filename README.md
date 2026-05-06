@@ -345,7 +345,7 @@ Continue-watching items include a Crispy projection `id`; pass that same value t
 - `GET /v1/profiles/:profileId/recommendations` - read one recommendation snapshot, defaulting to the canonical source and algorithm version when `sourceKey` or `algorithmVersion` is omitted
 - `PUT /v1/profiles/:profileId/recommendations` - upsert recommendation snapshot
 
-Recommendation generation is pull-based. RECO authenticates as an internal app principal, reads required data from `/internal/apps/v1` and confidential config from `/internal/confidential/v1`, then writes service-owned recommendation outputs through the internal app API. MAIN does not call RECO.
+Recommendation generation is pull-based. RECO authenticates as an internal app principal, reads bounded business inputs from `/internal/apps/v1`, asks MAIN for AI-assisted planning through the internal AI-plan endpoint, then writes service-owned recommendation outputs through the internal app API. MAIN owns AI provider selection, model choice, credentials, prompts, and vendor protocol; RECO never receives provider/model/proxy configuration and does not call an AI provider or AI proxy directly.
 
 ### Internal privileged app routes
 
@@ -367,10 +367,9 @@ These are the only supported privileged routes for recommendation engines and ot
 - `GET /internal/apps/v1/recommendations/backfills/assignments` - get recommendation backfill assignments
 - `GET /internal/apps/v1/audit/events` - app-scoped audit events
 
-### Internal confidential routes
+### Internal AI-plan routes
 
-- `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/config-bundle` - read confidential recommendation config bundle, including final `aiConfig` policy for an eligible app/profile pair
-- `POST /internal/confidential/v1/accounts/:accountId/profiles/:profileId/ai-proxy/chat/completions` - scoped AI proxy for recommendation generation; Crispy injects the selected API key server-side and forwards to the configured provider
+- `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan` - AI-assisted recommendation planning endpoint; RECO sends business inputs and candidate pool, MAIN selects provider/model/credentials/prompt, calls AI vendor, and returns typed plan response
 
 ### Internal service routes
 
@@ -401,7 +400,7 @@ Internal and admin continue-watching responses expose the same item `id` field a
 - `GET /internal/v1/admin/imports/connections` - import connection diagnostics
 - `GET /internal/v1/admin/imports/jobs` - import job diagnostics
 
-The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve bounded profile, watch, rating, watchlist, episodic follow, metadata, and configuration context for generation. It is not this repository's internal BullMQ worker, MAIN does not push generation jobs to it, and MAIN does not poll it for job status.
+The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve bounded profile, watch, rating, watchlist, episodic follow, metadata, and recommendation context for generation. AI-assisted ranking/planning is requested through MAIN's internal AI-plan endpoint; the engine does not receive AI provider/model/credential/proxy configuration. It is not this repository's internal BullMQ worker, MAIN does not push generation jobs to it, and MAIN does not poll it for job status.
 
 ## Current product-scoping rules
 
@@ -416,7 +415,7 @@ The recommendation engine is an external pull-based service. It calls authentica
 
 ## Recommendation architecture
 
-Recommendation generation is pull-based. The external recommendation engine calls MAIN's authenticated API endpoints, including `/internal/apps/v1` and `/internal/confidential/v1` where authorized, to fetch profile data and configuration. MAIN does not push work to the engine or poll the engine for status. Stored recommendation snapshots remain in Crispy Server and are served to clients by MAIN.
+Recommendation generation is pull-based. The external recommendation engine calls MAIN's authenticated internal app API endpoints to fetch profile data, asks MAIN for AI-assisted planning through `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan`, and writes stored outputs back through internal app recommendation endpoints. MAIN owns AI provider selection, model choice, credentials, prompts, vendor request/response handling, and stored recommendation snapshots; RECO sends business inputs plus a candidate pool and receives a typed plan. MAIN does not push work to the engine or poll the engine for status.
 
 The engine is separate from the internal BullMQ worker started by this repository. Running or scaling `npm run dev:worker` affects only backend queue jobs owned by Crispy Server; it does not run or scale recommendation generation.
 

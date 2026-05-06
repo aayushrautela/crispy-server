@@ -31,6 +31,7 @@ import { registerRecommendationOutputRoutes } from './routes/recommendation-outp
 import { registerWatchRoutes } from './routes/watch.js';
 import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
 import { registerInternalAppsRoutes } from './routes/internal-apps.routes.js';
+import { registerInternalRecommendationsRoutes } from './routes/internal-recommendations.routes.js';
 import { DefaultAppSelfService } from '../modules/apps/app-self.service.js';
 import { DefaultAppAuthorizationService } from '../modules/apps/app-authorization.service.js';
 import { DefaultProfileEligibilityService } from '../modules/apps/profile-eligibility.service.js';
@@ -295,6 +296,10 @@ export async function buildApp() {
   await registerCalendarRoutes(app);
   await registerAccountPublicRoutes(app);
   await registerInternalAppsRoutes(app, internalAppsDeps);
+  await registerInternalRecommendationsRoutes(app, {
+    appAuthorizationService: internalAppsDeps.appAuthorizationService,
+    appRateLimitService: internalAppsDeps.appRateLimitService,
+  });
 
   return app;
 }
