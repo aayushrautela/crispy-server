@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "AI_PLAN_TIMEOUT",
+    "message": "AI provider deadline exceeded",
+    "category": "timeout",
+    "retryable": true,
+    "requestId": "req_example_ai_plan_timeout"
+  }
+}

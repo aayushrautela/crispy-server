@@ -1,5 +1,5 @@
 import fp from 'fastify-plugin';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { HttpError, inferHttpErrorCode } from '../../lib/errors.js';
 import { AppAuthError } from '../../modules/apps/app-auth.errors.js';
 import type { ApiErrorResponse } from '../contracts/shared.js';
@@ -9,32 +9,32 @@ const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
     request.log.error({ err: error }, 'request failed');
     
     if (error instanceof AppAuthError) {
-      void reply.status(error.statusCode).send(toErrorResponse(error.statusCode, error.code, error.message));
+      void reply.status(error.statusCode).send(toErrorResponse(request, error.statusCode, error.code, error.message));
       return;
     }
 
     if (error instanceof HttpError) {
-      void reply.status(error.statusCode).send(toErrorResponse(error.statusCode, error.code, error.message, error.details));
+      void reply.status(error.statusCode).send(toErrorResponse(request, error.statusCode, error.code, error.message, error.details));
       return;
     }
 
     if (isFastifyValidationError(error)) {
       void reply.status(error.statusCode).send(
-        toErrorResponse(error.statusCode, 'invalid_request', 'Request validation failed.', formatValidationDetails(error.validation)),
+        toErrorResponse(request, error.statusCode, 'VALIDATION_FAILED', 'Request validation failed.', formatValidationDetails(error.validation)),
       );
       return;
     }
 
     if (isClientError(error)) {
       void reply.status(error.statusCode).send(
-        toErrorResponse(error.statusCode, inferHttpErrorCode(error.statusCode, error.message), error.message),
+        toErrorResponse(request, error.statusCode, inferHttpErrorCode(error.statusCode, error.message), error.message),
       );
       return;
     }
 
     const message = 'Internal server error';
 
-    void reply.status(500).send(toErrorResponse(500, inferHttpErrorCode(500, message), message));
+    void reply.status(500).send(toErrorResponse(request, 500, inferHttpErrorCode(500, message), message));
   });
 };
 
@@ -55,10 +55,50 @@ type ClientError = {
   message: string;
 };
 
-function toErrorResponse(statusCode: number, code: string, message: string, details?: unknown): ApiErrorResponse {
-  return details === undefined
-    ? { code, message }
-    : { code, message, details };
+function toErrorResponse(request: FastifyRequest, statusCode: number, code: string, message: string, details?: unknown): ApiErrorResponse {
+  const sanitizedDetails = sanitizeDetails(details);
+  return {
+    error: {
+      code,
+      message,
+      category: errorCategory(statusCode, code),
+      retryable: isRetryable(statusCode, code),
+      requestId: getRequestId(request),
+      ...(sanitizedDetails === undefined ? {} : { details: sanitizedDetails }),
+    },
+  };
+}
+
+function getRequestId(request: FastifyRequest): string {
+  const header = request.headers['x-request-id'];
+  if (typeof header === 'string' && header.trim()) return header;
+  return request.id;
+}
+
+function sanitizeDetails(details: unknown): unknown {
+  if (details === undefined) return undefined;
+  if (details && typeof details === 'object' && !Array.isArray(details)) {
+    const { code: _code, ...rest } = details as Record<string, unknown>;
+    return Object.keys(rest).length > 0 ? rest : undefined;
+  }
+  return details;
+}
+
+function errorCategory(statusCode: number, code: string): ApiErrorResponse['error']['category'] {
+  if (statusCode === 401) return 'authentication';
+  if (statusCode === 403) return 'authorization';
+  if (statusCode === 404) return 'not_found';
+  if (statusCode === 409) return 'conflict';
+  if (statusCode === 429) return 'rate_limit';
+  if (statusCode === 504 || code.includes('TIMEOUT')) return 'timeout';
+  if (statusCode === 502 || statusCode === 503 || code.includes('PROVIDER') || code.includes('VENDOR')) return 'upstream_dependency';
+  if (statusCode >= 500) return 'internal';
+  if (code.includes('IDEMPOTENCY')) return 'idempotency';
+  return 'validation';
+}
+
+function isRetryable(statusCode: number, code: string): boolean {
+  return statusCode === 429 || statusCode === 503 || statusCode === 504 || code === 'AI_PLAN_PROVIDER_UNAVAILABLE' || code === 'AI_PLAN_TIMEOUT' || code === 'AI_PLAN_INTERNAL_ERROR' || code === 'AI_PLAN_RATE_LIMITED';
 }
 
 function isFastifyValidationError(error: unknown): error is FastifyValidationError {

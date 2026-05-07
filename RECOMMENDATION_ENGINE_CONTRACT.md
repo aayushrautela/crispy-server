@@ -2,7 +2,7 @@
 
 ## Status
 
-Current architecture contract for recommendation-engine integration.
+Current architecture contract for recommendation-engine integration. The machine-readable source of truth for the provider-owned endpoint shapes, examples, and canonical error envelope is `openapi/internal-recommender.v1.yaml`; this document provides narrative integration context and must not override the OpenAPI contract.
 
 The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve profile, watch, rating, watchlist, episodic follow, metadata, and stored recommendation context needed for generation. Crispy Server does not submit generation jobs to the engine and does not poll the engine for job status.
 
@@ -63,6 +63,19 @@ When generation requires AI-assisted ranking or planning, the engine must use Cr
 
 The engine must not request, receive, cache, log, or forward raw account BYOK keys, server-funded keys, OpenRouter keys, OpenAI-compatible provider keys, proxy URLs, model names, provider IDs, endpoint URLs, or raw vendor chat-completions payloads. AI-plan requests contain only business inputs and candidate pools; AI-plan responses contain only typed plan outputs.
 
+## Error Handling
+
+All non-2xx responses use the canonical error envelope defined in the OpenAPI contract. Error responses include:
+
+- `error.code`: Canonical error code (e.g., `AI_PLAN_PROVIDER_UNAVAILABLE`, `UNSUPPORTED_RECOMMENDATION_WRITE_FIELD`)
+- `error.message`: Human-readable error message
+- `error.category`: Error category for client-side handling
+- `error.retryable`: Boolean indicating if the request can be retried
+- `error.requestId`: Request identifier for tracing
+- `error.details`: Optional structured details (never contains nested `code` field)
+
+The engine must handle retryable errors with exponential backoff and respect rate limit headers.
+
 ## Result Publication
 
 Generated outputs are published back through the internal app recommendation write endpoints. The engine writes ordered arrays of `{ type: "movie" | "tv", tmdbId: number }` references only. The server derives source, rank from array order, canonical media keys, write mode, eligibility version, and all other storage/policy metadata.
@@ -81,13 +94,11 @@ Recommendation write items use TMDB references:
 
 Allowed `type` values are `movie` and `tv`. Crispy derives canonical media keys such as `movie:tmdb:550` and `tv:tmdb:1399` when storing service-owned recommendation lists. Array order is the recommendation rank.
 
-Read/source signal payloads continue to expose canonical `mediaKey` values for navigation and metadata joins.
+Read/source signal payloads expose canonical `mediaKey` values for navigation and metadata joins.
 
 ## Source Signal Identity
 
-Recommender source signals identify media by canonical `mediaKey`. `contentId` is accepted only as a legacy alias during migration and must be normalized to `mediaKey` before generation logic treats the signal as canonical.
-
-When source signals include media metadata, the recommender hydrates and joins metadata by `mediaKey`. It must not require duplicated `provider` or `providerId` fields as identity fragments.
+Recommender source signals identify media by canonical `mediaKey`. The engine must use `mediaKey` for all identity operations and metadata joins.
 
 ## Pagination, Freshness, and Rate Limits
 

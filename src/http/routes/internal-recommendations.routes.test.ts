@@ -190,7 +190,7 @@ test('POST ai-plan rejects request with provider field', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('provider'));
+  assert.ok(response.json().error.message.includes('provider'));
 });
 
 test('POST ai-plan rejects request with model field', async (t) => {
@@ -205,7 +205,7 @@ test('POST ai-plan rejects request with model field', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('model'));
+  assert.ok(response.json().error.message.includes('model'));
 });
 
 test('POST ai-plan rejects request with proxyEndpoint field', async (t) => {
@@ -220,7 +220,7 @@ test('POST ai-plan rejects request with proxyEndpoint field', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('proxyEndpoint'));
+  assert.ok(response.json().error.message.includes('proxyEndpoint'));
 });
 
 test('POST ai-plan rejects request with messages field', async (t) => {
@@ -235,7 +235,7 @@ test('POST ai-plan rejects request with messages field', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('messages'));
+  assert.ok(response.json().error.message.includes('messages'));
 });
 
 test('POST ai-plan rejects request with prompt field', async (t) => {
@@ -250,7 +250,7 @@ test('POST ai-plan rejects request with prompt field', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('prompt'));
+  assert.ok(response.json().error.message.includes('prompt'));
 });
 
 test('POST ai-plan rejects request with aiConfig field', async (t) => {
@@ -265,7 +265,7 @@ test('POST ai-plan rejects request with aiConfig field', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('aiConfig'));
+  assert.ok(response.json().error.message.includes('aiConfig'));
 });
 
 test('POST ai-plan rejects unsupported schema version', async (t) => {
@@ -280,7 +280,7 @@ test('POST ai-plan rejects unsupported schema version', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().code, 'UNSUPPORTED_AI_PLAN_SCHEMA_VERSION');
+  assert.equal(response.json().error.code, 'UNSUPPORTED_AI_PLAN_SCHEMA_VERSION');
 });
 
 test('POST ai-plan rejects empty candidate pool', async (t) => {
@@ -295,8 +295,37 @@ test('POST ai-plan rejects empty candidate pool', async (t) => {
   });
 
   assert.equal(response.statusCode, 422);
-  assert.equal(response.json().code, 'EMPTY_CANDIDATE_POOL');
+  assert.equal(response.json().error.code, 'EMPTY_CANDIDATE_POOL');
 });
+
+for (const errorCase of [
+  { name: 'provider unavailable', statusCode: 503, code: 'AI_PLAN_PROVIDER_UNAVAILABLE' },
+  { name: 'timeout', statusCode: 504, code: 'AI_PLAN_TIMEOUT' },
+  { name: 'rate limited', statusCode: 429, code: 'AI_PLAN_RATE_LIMITED' },
+] as const) {
+  test(`POST ai-plan maps ${errorCase.name} to canonical AI-plan error envelope`, async (t) => {
+    const { HttpError } = await import('../../lib/errors.js');
+    const app = await buildServer(
+      buildPrincipal(),
+      new FakeRecommendationAiPlanService(new HttpError(errorCase.statusCode, errorCase.name, { code: errorCase.code, retryable: true }, errorCase.code)),
+    );
+    t.after(async () => { await app.close(); });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/internal/recommendations/v1/accounts/acc_123/profiles/prof_456/ai-plan',
+      headers: { 'x-request-id': 'req-route-error-test' },
+      payload: validRequest,
+    });
+
+    assert.equal(response.statusCode, errorCase.statusCode);
+    const body = response.json();
+    assert.equal(body.error.code, errorCase.code);
+    assert.equal(body.error.retryable, true);
+    assert.equal(body.error.requestId, 'req-route-error-test');
+    assert.equal(body.error.details?.code, undefined);
+  });
+}
 
 test('POST ai-plan rejects path/body accountId mismatch', async (t) => {
   const app = await buildServer();
@@ -309,7 +338,7 @@ test('POST ai-plan rejects path/body accountId mismatch', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('accountId'));
+  assert.ok(response.json().error.message.includes('accountId'));
 });
 
 test('POST ai-plan rejects path/body profileId mismatch', async (t) => {
@@ -323,7 +352,7 @@ test('POST ai-plan rejects path/body profileId mismatch', async (t) => {
   });
 
   assert.equal(response.statusCode, 400);
-  assert.ok(response.json().message.includes('profileId'));
+  assert.ok(response.json().error.message.includes('profileId'));
 });
 
 test('POST ai-plan response does not expose AI provider/model/proxy', async (t) => {

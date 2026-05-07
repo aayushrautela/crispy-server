@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "UNSUPPORTED_RECOMMENDATION_WRITE_FIELD",
+    "message": "items[0].contentId is server-derived and must not be supplied.",
+    "category": "validation",
+    "retryable": false,
+    "requestId": "req_example_reco_upsert_unsupported_field",
+    "details": {
+      "field": "items[0].contentId"
+    }
+  }
+}

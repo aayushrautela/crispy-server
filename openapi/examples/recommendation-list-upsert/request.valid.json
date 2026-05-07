@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "type": "movie", "tmdbId": 550 },
+    { "type": "tv", "tmdbId": 1399 }
+  ]
+}

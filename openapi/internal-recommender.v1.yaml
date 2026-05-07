@@ -1,0 +1,523 @@
+openapi: 3.1.0
+info:
+  title: Crispy Internal Recommender API
+  version: 1.0.0
+  summary: Provider-owned contract for the internal recommendation-engine integration surface.
+  description: |
+    Crispy Server is the source of truth for these internal APIs. The external
+    recommendation engine consumes this contract and must not rely on legacy
+    fallback shapes or consumer-owned schemas.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: https://api.crispy.example
+    description: Production API origin placeholder
+security:
+  - RecommenderServiceBearer: []
+tags:
+  - name: Recommendation Lists
+    description: Service-owned recommendation result publication.
+  - name: AI Plan
+    description: Server-owned AI-plan generation boundary.
+paths:
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}:
+    put:
+      tags: [Recommendation Lists]
+      operationId: upsertInternalRecommendationList
+      summary: Upsert a service-owned recommendation list
+      description: |
+        Publishes an ordered recommendation list for a profile. The caller sends
+        only TMDB media references. Crispy Server derives content IDs, canonical
+        media keys, rank, source, write mode, policy metadata, and timestamps.
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/ListKey'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationListUpsertRequest'
+            examples:
+              valid:
+                externalValue: ./examples/recommendation-list-upsert/request.valid.json
+      responses:
+        '201':
+          description: A new recommendation-list version was written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationListUpsertResponse'
+        '200':
+          description: An idempotent replay returned the previously written result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationListUpsertResponse'
+        '400':
+          description: Invalid write DTO, including server-derived fields such as items[].contentId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+              examples:
+                unsupportedField:
+                  externalValue: ./examples/recommendation-list-upsert/error.unsupported-field.json
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/recommendations/v1/accounts/{accountId}/profiles/{profileId}/ai-plan:
+    post:
+      tags: [AI Plan]
+      operationId: generateInternalRecommendationAiPlan
+      summary: Generate a bounded AI-assisted recommendation plan
+      description: |
+        Accepts business inputs and a bounded candidate pool. Crispy Server owns
+        AI provider/model selection, credentials, prompts, vendor protocol,
+        parsing, validation, and safe error mapping. Request and response bodies
+        never include provider secrets, provider IDs, model names, prompt text,
+        raw vendor payloads, proxy URLs, or transport overrides.
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationAiPlanRequest'
+            examples:
+              valid:
+                externalValue: ./examples/ai-plan/request.valid.json
+      responses:
+        '200':
+          description: AI-plan generation succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationAiPlanResponse'
+              examples:
+                success:
+                  externalValue: ./examples/ai-plan/response.success.json
+        '400':
+          description: Invalid AI-plan request or unsupported schema version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+        '422':
+          description: Empty or semantically invalid candidate pool.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+        '429': { $ref: '#/components/responses/AiPlanRateLimitedError' }
+        '500':
+          description: Internal AI-plan failure mapped to canonical provider code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+              examples:
+                internalError:
+                  externalValue: ./examples/ai-plan/error.internal-error.json
+        '502':
+          description: AI provider output was invalid or failed provider-side output validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+              examples:
+                invalidVendorOutput:
+                  externalValue: ./examples/ai-plan/error.invalid-vendor-output.json
+                outputValidationFailed:
+                  externalValue: ./examples/ai-plan/error.output-validation-failed.json
+        '503':
+          description: AI provider unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+              examples:
+                providerUnavailable:
+                  externalValue: ./examples/ai-plan/error.provider-unavailable.json
+        '504':
+          description: AI-plan provider or server deadline exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalErrorEnvelope'
+              examples:
+                timeout:
+                  externalValue: ./examples/ai-plan/error.timeout.json
+components:
+  securitySchemes:
+    RecommenderServiceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: service-token
+      description: Raw service token whose SHA-256 hash matches CRISPY_RECOMMENDER_API_TOKEN_HASH.
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+      example: acct_example_reco_001
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+      example: prof_example_reco_001
+    ListKey:
+      name: listKey
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[a-z0-9][a-z0-9_-]*$' }
+      example: because_you_watched
+    Authorization:
+      name: Authorization
+      in: header
+      required: true
+      schema: { type: string, pattern: '^Bearer .+$' }
+      example: Bearer <service-token>
+    ServiceId:
+      name: x-service-id
+      in: header
+      required: true
+      schema: { type: string, const: crispy-recommendation-engine }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[\x20-\x7E]+$' }
+      example: reco-run-example-001:because-you-watched
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema: { type: string, minLength: 1, maxLength: 128 }
+      example: req_example_01HXRECO
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema: { type: string, minLength: 1, maxLength: 128 }
+      example: corr_example_generation_001
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid service authentication.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+    ForbiddenError:
+      description: Service principal is not authorized for the target resource.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+    ConflictError:
+      description: Idempotency or write conflict.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+    RateLimitedError:
+      description: Request was rate limited.
+      headers:
+        Retry-After:
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+    AiPlanRateLimitedError:
+      description: AI-plan generation was rate limited.
+      headers:
+        Retry-After:
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+    InternalServerError:
+      description: Unexpected provider failure.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+  schemas:
+    ErrorCategory:
+      type: string
+      enum: [validation, authentication, authorization, not_found, conflict, idempotency, rate_limit, timeout, upstream_dependency, internal]
+    ErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - INVALID_SERVICE_TOKEN
+        - FORBIDDEN
+        - RESOURCE_NOT_FOUND
+        - VALIDATION_FAILED
+        - IDEMPOTENCY_KEY_REQUIRED
+        - IDEMPOTENCY_CONFLICT
+        - RATE_LIMITED
+        - REQUEST_TIMEOUT
+        - INTERNAL_SERVER_ERROR
+        - UNSUPPORTED_RECOMMENDATION_WRITE_FIELD
+        - INVALID_RECOMMENDATION_LIST_KEY
+        - INVALID_RECOMMENDATION_ITEM
+        - DUPLICATE_RECOMMENDATION_ITEM
+        - RECOMMENDATION_LIST_TOO_LARGE
+        - RECOMMENDATION_PROFILE_NOT_ELIGIBLE
+        - INVALID_AI_PLAN_REQUEST
+        - UNSUPPORTED_AI_PLAN_SCHEMA_VERSION
+        - EMPTY_CANDIDATE_POOL
+        - AI_PLAN_TIMEOUT
+        - AI_PLAN_RATE_LIMITED
+        - AI_PLAN_PROVIDER_UNAVAILABLE
+        - AI_PLAN_INVALID_VENDOR_OUTPUT
+        - AI_PLAN_OUTPUT_VALIDATION_FAILED
+        - AI_PLAN_INTERNAL_ERROR
+    ErrorDetails:
+      type: object
+      description: Safe structured details. Must not contain an authoritative nested code, raw prompt, vendor payload, provider routing, or secrets.
+      propertyNames:
+        not:
+          const: code
+      additionalProperties: true
+    CanonicalErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, category, retryable, requestId]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string, minLength: 1, maxLength: 500 }
+            category: { $ref: '#/components/schemas/ErrorCategory' }
+            retryable: { type: boolean }
+            requestId: { type: string, minLength: 1, maxLength: 128 }
+            details: { $ref: '#/components/schemas/ErrorDetails' }
+    RecommendationListUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/RecommendationListWriteItem'
+    RecommendationListWriteItem:
+      type: object
+      additionalProperties: false
+      required: [type, tmdbId]
+      properties:
+        type:
+          type: string
+          enum: [movie, tv]
+        tmdbId:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      not:
+        anyOf:
+          - required: [contentId]
+          - required: [mediaKey]
+          - required: [rank]
+          - required: [score]
+          - required: [reason]
+          - required: [reasonCodes]
+          - required: [metadata]
+          - required: [media]
+          - required: [payload]
+          - required: [provider]
+          - required: [providerItemId]
+    RecommendationListUpsertResponse:
+      type: object
+      additionalProperties: false
+      required: [accountId, profileId, listKey, source, version, status, itemCount, idempotency, createdAt, eligibility]
+      properties:
+        accountId: { type: string, readOnly: true }
+        profileId: { type: string, readOnly: true }
+        listKey: { type: string, readOnly: true }
+        source: { type: string, readOnly: true }
+        version: { type: integer, minimum: 1, readOnly: true }
+        status: { type: string, enum: [written, cleared, idempotent_replay], readOnly: true }
+        itemCount: { type: integer, minimum: 0, readOnly: true }
+        idempotency:
+          type: object
+          additionalProperties: false
+          required: [key, replayed]
+          properties:
+            key: { type: string, readOnly: true }
+            replayed: { type: boolean, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        eligibility:
+          type: object
+          additionalProperties: false
+          required: [checkedAt, eligible, eligibilityVersion]
+          properties:
+            checkedAt: { type: string, format: date-time, readOnly: true }
+            eligible: { type: boolean, readOnly: true }
+            eligibilityVersion: { type: integer, minimum: 0, readOnly: true }
+    RecommendationAiPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, runId, listKey, intent, locale, generatedAt, constraints, profile, signals, candidatePool]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        requestId: { type: string, minLength: 1, maxLength: 128 }
+        runId: { type: string, minLength: 1, maxLength: 128 }
+        listKey: { type: string, minLength: 1, maxLength: 128 }
+        intent: { type: string, const: generate_recommendation_plan }
+        locale: { type: string, minLength: 2, maxLength: 32 }
+        timezone: { type: string, minLength: 1, maxLength: 128 }
+        generatedAt: { type: string, format: date-time }
+        constraints: { $ref: '#/components/schemas/RecommendationAiPlanConstraints' }
+        profile: { $ref: '#/components/schemas/RecommendationAiPlanProfile' }
+        signals: { $ref: '#/components/schemas/RecommendationAiPlanSignals' }
+        candidatePool:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: '#/components/schemas/RecommendationAiPlanMediaItem' }
+        debug:
+          type: object
+          additionalProperties: false
+          properties:
+            source: { type: string, maxLength: 128 }
+            signalBundleVersion: { type: integer, minimum: 0 }
+      not:
+        anyOf:
+          - required: [provider]
+          - required: [model]
+          - required: [endpointUrl]
+          - required: [proxyEndpoint]
+          - required: [proxyUrl]
+          - required: [apiKey]
+          - required: [token]
+          - required: [messages]
+          - required: [prompt]
+          - required: [systemPrompt]
+          - required: [userPrompt]
+          - required: [openai]
+          - required: [configBundle]
+          - required: [aiConfig]
+          - required: [secretDelivery]
+    RecommendationAiPlanConstraints:
+      type: object
+      additionalProperties: false
+      required: [maxItems, mediaTypes, excludeWatched, excludeWatchlisted, minimumConfidence]
+      properties:
+        maxItems: { type: integer, minimum: 1, maximum: 100 }
+        mediaTypes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: { type: string, enum: [movie, tv] }
+        excludeWatched: { type: boolean }
+        excludeWatchlisted: { type: boolean }
+        minimumConfidence: { type: number, minimum: 0, maximum: 1 }
+    RecommendationAiPlanProfile:
+      type: object
+      additionalProperties: false
+      required: [accountId, profileId, displayName, maturityRating, preferredLanguages, country]
+      properties:
+        accountId: { type: string, minLength: 1, maxLength: 128 }
+        profileId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 128 }
+        maturityRating: { type: string, minLength: 1, maxLength: 32 }
+        preferredLanguages:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 2, maxLength: 32 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+    RecommendationAiPlanSignals:
+      type: object
+      additionalProperties: false
+      required: [watchHistory, ratings, watchlist, negativeSignals]
+      properties:
+        watchHistory: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/RecommendationAiPlanMediaItem' } }
+        ratings: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/RecommendationAiPlanMediaItem' } }
+        watchlist: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/RecommendationAiPlanMediaItem' } }
+        negativeSignals: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/RecommendationAiPlanMediaItem' } }
+    RecommendationAiPlanMediaItem:
+      type: object
+      additionalProperties: false
+      required: [mediaKey, title, mediaType, provider, providerId]
+      properties:
+        mediaKey: { type: string, minLength: 1, maxLength: 256 }
+        title: { type: string, minLength: 1, maxLength: 300 }
+        mediaType: { type: string, enum: [movie, tv] }
+        provider: { type: string, minLength: 1, maxLength: 64, description: Public metadata provider such as tmdb; not an AI provider. }
+        providerId: { type: string, minLength: 1, maxLength: 128 }
+        year: { type: integer, minimum: 1878, maximum: 3000 }
+        overview: { type: string, maxLength: 2000 }
+        genres: { type: array, maxItems: 50, items: { type: string, maxLength: 80 } }
+        popularity: { type: number, minimum: 0 }
+        watchedAt: { type: string, format: date-time }
+        completionPercent: { type: number, minimum: 0, maximum: 100 }
+    RecommendationAiPlanResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, runId, listKey, generatedAt, plan, diagnostics]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        requestId: { type: string }
+        runId: { type: string }
+        listKey: { type: string }
+        generatedAt: { type: string, format: date-time }
+        plan:
+          type: object
+          additionalProperties: false
+          required: [summary, items]
+          properties:
+            summary: { type: string, minLength: 1, maxLength: 1000 }
+            items:
+              type: array
+              maxItems: 100
+              items: { $ref: '#/components/schemas/RecommendationAiPlanItem' }
+        diagnostics:
+          type: object
+          additionalProperties: false
+          required: [aiPlanVersion, latencyMs]
+          properties:
+            aiPlanVersion: { type: string, minLength: 1, maxLength: 128 }
+            latencyMs: { type: integer, minimum: 0 }
+    RecommendationAiPlanItem:
+      type: object
+      additionalProperties: false
+      required: [rank, mediaKey, mediaType, provider, providerId, title, score, confidence, reason, reasonCodes]
+      properties:
+        rank: { type: integer, minimum: 1 }
+        mediaKey: { type: string, minLength: 1, maxLength: 256 }
+        mediaType: { type: string, enum: [movie, tv] }
+        provider: { type: string, minLength: 1, maxLength: 64 }
+        providerId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 300 }
+        score: { type: number, minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        reasonCodes:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 80 }

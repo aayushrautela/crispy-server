@@ -1,17 +1,32 @@
 export type ApiErrorResponse = {
-  code: string;
-  message: string;
-  details?: unknown;
+  error: {
+    code: string;
+    message: string;
+    category: 'validation' | 'authentication' | 'authorization' | 'not_found' | 'conflict' | 'idempotency' | 'rate_limit' | 'timeout' | 'upstream_dependency' | 'internal';
+    retryable: boolean;
+    requestId: string;
+    details?: unknown;
+  };
 };
 
 export const errorResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['code', 'message'],
+  required: ['error'],
   properties: {
-    code: { type: 'string' },
-    message: { type: 'string' },
-    details: {},
+    error: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['code', 'message', 'category', 'retryable', 'requestId'],
+      properties: {
+        code: { type: 'string' },
+        message: { type: 'string' },
+        category: { type: 'string' },
+        retryable: { type: 'boolean' },
+        requestId: { type: 'string' },
+        details: {},
+      },
+    },
   },
 } as const;
 

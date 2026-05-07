@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import { setTestEnv } from '../../test-helpers.js';
 import type { AppPrincipal } from '../../modules/apps/app-principal.types.js';
+import { DefaultServiceRecommendationListService } from '../../modules/apps/service-recommendation-list.service.js';
 import type { AppAuthService, AppCredential } from '../../modules/apps/app-auth.service.js';
 import type { AppRateLimitDecision, AppRateLimitService } from '../../modules/apps/app-rate-limit.service.js';
 import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, PaginatedAppAuditEvents } from '../../modules/apps/app-audit.repo.js';
@@ -88,7 +89,7 @@ class FakeAuthorizationService implements AppAuthorizationService {
   requireOwnedListKey(): void {}
 }
 
-async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = []) {
+async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = [], serviceRecommendationListService?: ServiceRecommendationListService) {
   const app = Fastify();
   const authService = new FakeAuthService(principal);
   const rateLimitService = new FakeRateLimitService();
@@ -104,7 +105,9 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     },
   };
   const { default: appAuthPlugin } = await import('../plugins/app-auth.plugin.js');
+  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
   const { registerInternalAppsRoutes } = await import('./internal-apps.routes.js');
+  await app.register(errorHandlerPlugin);
   await app.register(appAuthPlugin, { appAuthService: authService, appRateLimitService: rateLimitService, appAuditRepo: auditRepo });
   app.addHook('onRequest', async (request) => {
     request.appPrincipal = principal;
@@ -118,7 +121,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     eligibleProfileChangeFeedService: { async listChanges() { return { items: [], cursor: { hasMore: false, next: null } }; }, async recordProfileSignalChange() {}, async recordEligibilityChange() {} } satisfies EligibleProfileChangeFeedService,
     eligibleProfileSnapshotService: { async createSnapshot() { throw new Error('not used'); }, async listItems() { throw new Error('not used'); } } satisfies EligibleProfileSnapshotService,
     profileSignalBundleService: { async getBundle() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligibility: { eligible: true, eligibilityVersion: 1 }, bundle: { signalsVersion: 1, generatedAt: new Date('2024-01-01T00:00:00.000Z'), profileContext: { profileName: 'Test Profile', isKids: false, watchDataOrigin: 'server_sync' }, history: [{ mediaKey: 'movie:tmdb:101', contentType: 'movie', watchedAt: new Date('2024-01-01T00:00:00.000Z'), progressPercent: 100, completionState: 'completed', durationSeconds: null }], ratings: [], watchlist: [], continueWatching: [] }, limits: {} }; } } satisfies ProfileSignalBundleService,
-    serviceRecommendationListService: { async listWritableLists() { return { appId: 'test-app', source: 'reco', lists: [] }; }, async upsertList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'for-you', source: 'official-recommender', version: 1, status: 'written', itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z'), eligibility: { checkedAt: new Date('2024-01-01T00:00:00.000Z'), eligible: true, eligibilityVersion: 1 } }; }, async batchUpsert() { throw new Error('not used'); } } satisfies ServiceRecommendationListService,
+    serviceRecommendationListService: serviceRecommendationListService ?? { async listWritableLists() { return { appId: 'test-app', source: 'reco', lists: [] }; }, async upsertList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'for-you', source: 'official-recommender', version: 1, status: 'written', itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z'), eligibility: { checkedAt: new Date('2024-01-01T00:00:00.000Z'), eligible: true, eligibilityVersion: 1 } }; }, async batchUpsert() { throw new Error('not used'); } } satisfies ServiceRecommendationListService,
     recommendationRunService: { async createRun() { throw new Error('not used'); }, async updateRun() { throw new Error('not used'); } } satisfies RecommendationRunService,
     recommendationBatchService: { async createBatch() { throw new Error('not used'); }, async updateBatch() { throw new Error('not used'); } } satisfies RecommendationBatchService,
     recommendationBackfillService: { async getAssignments() { return { assignments: [], cursor: { hasMore: false, next: null } }; } } satisfies RecommendationBackfillService,
@@ -181,7 +184,7 @@ test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility 
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });
 
 test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle validates ownership', async (t) => {
@@ -194,7 +197,7 @@ test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/reco
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });
 
 test('PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey validates ownership', async (t) => {
@@ -209,7 +212,7 @@ test('PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendati
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });
 
 test('official recommender with accounts:all:read can access profile eligibility across accounts', async (t) => {
@@ -259,6 +262,45 @@ test('official recommender with accounts:all:write can write recommendations acr
   assert.equal(response.statusCode, 201);
 });
 
+test('official recommender with accounts:all:write can access canonical unsupported write-field envelope', async (t) => {
+  const officialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:write', 'recommendations:service-lists:write']);
+  officialPrincipal.appId = 'official-recommender';
+  officialPrincipal.ownedSources = ['official-recommender'];
+  const writeService = new DefaultServiceRecommendationListService({
+    serviceListRepo: {
+      async listWritableServiceLists() { return []; },
+      async findWritableServiceList() { return { listKey: 'for-you', displayName: 'For You', ownerAppId: 'official-recommender', source: 'official-recommender', itemType: 'content', maxItems: 50, writeMode: 'replace_versioned', requiresEligibilityAtWrite: true }; },
+      async findBatchIdempotency() { return null; },
+      async saveBatchIdempotency() {},
+    },
+    recommendationListWriteService: { async writeList() { throw new Error('not used'); }, async clearList() { throw new Error('not used'); } },
+    profileEligibilityService: { async check() { throw new Error('not used'); }, async assertEligible() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async recomputeAndStore() { throw new Error('not used'); } },
+    appAuthorizationService: new FakeAuthorizationService(),
+    appAuditRepo: new FakeAuditRepo(),
+    clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
+    maxProfilesPerBatch: 100,
+    maxListsPerProfile: 10,
+  });
+  const app = await buildServer(officialPrincipal, [], writeService);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'PUT',
+    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/for-you',
+    headers: { 'idempotency-key': 'test-key-123', 'x-request-id': 'req-write-field-test' },
+    payload: { items: [{ type: 'movie', tmdbId: 101, contentId: 'movie:tmdb:101' }] },
+  });
+
+  assert.equal(response.statusCode, 400);
+  const body = response.json();
+  assert.equal(body.error.code, 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD');
+  assert.equal(body.error.category, 'validation');
+  assert.equal(body.error.retryable, false);
+  assert.equal(body.error.requestId, 'req-write-field-test');
+  assert.equal(body.error.details.field, 'items[0].contentId');
+  assert.equal(body.error.details.code, undefined);
+});
+
 test('normal app without accounts:all:read is denied cross-account profile eligibility', async (t) => {
   const normalPrincipal = buildPrincipal(['apps:self:read', 'profiles:eligible:read']);
   const app = await buildServer(normalPrincipal, []);
@@ -270,7 +312,7 @@ test('normal app without accounts:all:read is denied cross-account profile eligi
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });
 
 test('normal app without accounts:all:read is denied cross-account profile signals', async (t) => {
@@ -284,7 +326,7 @@ test('normal app without accounts:all:read is denied cross-account profile signa
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });
 
 test('normal app without accounts:all:write is denied cross-account recommendation writes', async (t) => {
@@ -300,7 +342,7 @@ test('normal app without accounts:all:write is denied cross-account recommendati
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });
 
 test('non-official-recommender app with accounts:all:read scope is still denied cross-account access', async (t) => {
@@ -315,5 +357,5 @@ test('non-official-recommender app with accounts:all:read scope is still denied 
   });
 
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().message, 'Profile not found.');
+  assert.equal(response.json().error.message, 'Profile not found.');
 });

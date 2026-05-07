@@ -9,6 +9,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "guard:retired-modules": "tsx scripts/guard-retired-modules.ts",
+    "contract:lint": "node scripts/validate-openapi-contract.mjs",
+    "contract:types": "openapi-typescript openapi/internal-recommender.v1.yaml --output openapi/generated/internal-recommender.v1.types.ts",
+    "contract:test": "npm run contract:lint && npm run contract:types",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "migrate": "tsx scripts/migrate.ts",
     "backfill:watch-projections": "tsx scripts/backfill-watch-projections.ts",
@@ -31,7 +34,10 @@
   "devDependencies": {
     "@types/node": "^24.5.2",
     "@types/pg": "^8.15.5",
+    "ajv": "^8.20.0",
+    "openapi-typescript": "^7.13.0",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "yaml": "^2.8.4"
   }
 }

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "requestId": "req_example_ai_plan_001",
+  "runId": "run_example_001",
+  "listKey": "because_you_watched",
+  "intent": "generate_recommendation_plan",
+  "locale": "en-US",
+  "timezone": "America/Los_Angeles",
+  "generatedAt": "2026-05-07T12:00:00.000Z",
+  "constraints": {
+    "maxItems": 10,
+    "mediaTypes": ["movie", "tv"],
+    "excludeWatched": true,
+    "excludeWatchlisted": false,
+    "minimumConfidence": 0.55
+  },
+  "profile": {
+    "accountId": "acct_example_reco_001",
+    "profileId": "prof_example_reco_001",
+    "displayName": "Example Profile",
+    "maturityRating": "PG-13",
+    "preferredLanguages": ["en"],
+    "country": "US"
+  },
+  "signals": {
+    "watchHistory": [
+      {
+        "mediaKey": "movie:tmdb:550",
+        "title": "Fight Club",
+        "mediaType": "movie",
+        "provider": "tmdb",
+        "providerId": "550",
+        "year": 1999,
+        "genres": ["Drama"],
+        "watchedAt": "2026-04-28T20:00:00.000Z",
+        "completionPercent": 100
+      }
+    ],
+    "ratings": [],
+    "watchlist": [],
+    "negativeSignals": []
+  },
+  "candidatePool": [
+    {
+      "mediaKey": "movie:tmdb:680",
+      "title": "Pulp Fiction",
+      "mediaType": "movie",
+      "provider": "tmdb",
+      "providerId": "680",
+      "year": 1994,
+      "overview": "Synthetic example candidate description.",
+      "genres": ["Crime", "Drama"],
+      "popularity": 92.5
+    },
+    {
+      "mediaKey": "tv:tmdb:1399",
+      "title": "Game of Thrones",
+      "mediaType": "tv",
+      "provider": "tmdb",
+      "providerId": "1399",
+      "year": 2011,
+      "genres": ["Drama", "Fantasy"],
+      "popularity": 88.1
+    }
+  ],
+  "debug": {
+    "source": "contract-fixture",
+    "signalBundleVersion": 1
+  }
+}

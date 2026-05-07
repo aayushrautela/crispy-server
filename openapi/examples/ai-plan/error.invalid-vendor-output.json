@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "AI_PLAN_INVALID_VENDOR_OUTPUT",
+    "message": "AI provider returned invalid output",
+    "category": "upstream_dependency",
+    "retryable": false,
+    "requestId": "req_example_ai_plan_invalid_vendor"
+  }
+}
