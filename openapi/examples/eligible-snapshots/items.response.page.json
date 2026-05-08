@@ -1,0 +1,32 @@
+{
+  "snapshot": {
+    "snapshotId": "snap_01HXRECO001",
+    "appId": "official-recommender",
+    "purpose": "recommendation-generation",
+    "status": "active",
+    "filters": {},
+    "estimatedProfileCount": 128,
+    "createdAt": "2026-05-07T12:00:00.000Z",
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "items": [
+    {
+      "snapshotItemId": "snap_item_01HXRECO001",
+      "snapshotId": "snap_01HXRECO001",
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001",
+      "eligibilityVersion": 12,
+      "signalsVersion": 44,
+      "status": "leased",
+      "lease": {
+        "leaseId": "lease_01HXRECO001",
+        "expiresAt": "2026-05-07T12:05:00.000Z"
+      }
+    }
+  ],
+  "cursor": {
+    "next": null,
+    "hasMore": false
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "generated": "2026-05-07T15:45:16.987Z",
+  "specs": [
+    {
+      "file": "openapi/public-app.v1.yaml",
+      "class": "Public App API",
+      "types": "openapi/generated/public-app.v1.types.ts"
+    },
+    {
+      "file": "openapi/public-account.v1.yaml",
+      "class": "Public Account API",
+      "types": "openapi/generated/public-account.v1.types.ts"
+    },
+    {
+      "file": "openapi/internal-services.v1.yaml",
+      "class": "Internal Service API",
+      "types": "openapi/generated/internal-services.v1.types.ts"
+    },
+    {
+      "file": "openapi/internal-recommender.v1.yaml",
+      "class": "Internal Service API (Recommender)",
+      "types": "openapi/generated/internal-recommender.v1.types.ts"
+    },
+    {
+      "file": "openapi/internal-confidential.v1.yaml",
+      "class": "Confidential Internal API",
+      "types": "openapi/generated/internal-confidential.v1.types.ts"
+    },
+    {
+      "file": "openapi/admin-ops.v1.yaml",
+      "class": "Admin/Ops API",
+      "types": "openapi/generated/admin-ops.v1.types.ts"
+    },
+    {
+      "file": "openapi/health-infrastructure.yaml",
+      "class": "Health/Infrastructure API",
+      "types": "openapi/generated/health-infrastructure.types.ts"
+    }
+  ],
+  "verification": {
+    "lint": "npm run contract:lint",
+    "types": "npm run contract:types",
+    "drift": "npm run contract:drift",
+    "test": "npm run contract:test",
+    "check": "npm run contract:check"
+  },
+  "documentation": [
+    "docs/api/README.md",
+    "docs/api/PRODUCTION_READINESS.md",
+    "docs/api/route-inventory.md"
+  ]
+}

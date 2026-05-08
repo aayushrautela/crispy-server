@@ -1,0 +1,16 @@
+{
+  "snapshot": {
+    "snapshotId": "snap_01HXRECO001",
+    "appId": "official-recommender",
+    "purpose": "recommendation-generation",
+    "status": "active",
+    "filters": {
+      "accountIds": ["acct_example_reco_001"],
+      "includeProfilesWithNoPriorRecommendations": true
+    },
+    "estimatedProfileCount": 128,
+    "createdAt": "2026-05-07T12:00:00.000Z",
+    "approvedBy": null,
+    "approvedAt": null
+  }
+}

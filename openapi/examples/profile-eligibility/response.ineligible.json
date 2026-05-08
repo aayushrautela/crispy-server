@@ -1,0 +1,21 @@
+{
+  "accountId": "acct_example_reco_001",
+  "profileId": "prof_example_reco_002",
+  "purpose": "recommendation-generation",
+  "eligible": false,
+  "eligibilityVersion": 9,
+  "reasons": ["profile_disabled_recommendations", "consent_denied"],
+  "policy": {
+    "accountActive": true,
+    "profileActive": true,
+    "profileDeleted": false,
+    "profileLocked": false,
+    "recommendationsEnabled": false,
+    "aiPersonalizationEnabled": true,
+    "accountAllowsPersonalization": true,
+    "consentAllowsProcessing": false,
+    "maturityPolicyAllowsReco": true,
+    "appGrantAllowsProfile": true
+  },
+  "checkedAt": "2026-05-07T12:00:00.000Z"
+}

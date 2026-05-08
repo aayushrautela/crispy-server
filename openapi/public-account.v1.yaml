@@ -1,0 +1,779 @@
+openapi: 3.1.0
+info:
+  title: Crispy Public Account API
+  version: 1.0.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+x-api-class: public-account
+x-owner: crispy-server
+x-stability: stable
+servers:
+  - url: https://api.crispy.example
+    description: Production API origin placeholder
+security:
+  - PersonalAccessToken: []
+  - UserBearerAuth: []
+tags:
+  - name: Public Account
+    description: User-owned account integration endpoints.
+paths:
+  /api/account/v1/account:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1Account
+      summary: Return account.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1Profiles
+      summary: List profiles.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileId
+      summary: Get profile.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/continue-watching:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdContinueWatching
+      summary: List continue watching.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/history:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdHistory
+      summary: List history.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/language-profile:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdLanguageProfile
+      summary: Get language profile.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/ratings:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdRatings
+      summary: List ratings.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/recent-watched:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdRecentWatched
+      summary: List recent watched.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/recommendations/current:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdRecommendationsCurrent
+      summary: Get current recommendation.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/recommendations/{listKey}:
+    put:
+      tags:
+        - Public Account
+      operationId: putApiAccountV1ProfilesProfileIdRecommendationsListKey
+      summary: Replace recommendation list.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: listKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Public Account
+      operationId: deleteApiAccountV1ProfilesProfileIdRecommendationsListKey
+      summary: Clear recommendation list.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: listKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/taste/current:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdTasteCurrent
+      summary: Get current taste.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Public Account
+      operationId: putApiAccountV1ProfilesProfileIdTasteCurrent
+      summary: Replace taste profile.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Public Account
+      operationId: deleteApiAccountV1ProfilesProfileIdTasteCurrent
+      summary: Clear taste profile.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/account/v1/profiles/{profileId}/watchlist:
+    get:
+      tags:
+        - Public Account
+      operationId: getApiAccountV1ProfilesProfileIdWatchlist
+      summary: List watchlist.
+      security:
+        - PersonalAccessToken: []
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+components:
+  securitySchemes:
+    PersonalAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: personal-access-token
+    UserBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: user-session-or-jwt
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Authenticated actor is not authorized.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Write conflict or idempotency conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ErrorEnvelope:
+      type: object
+      additionalProperties: true
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: true
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+    GenericObject:
+      type: object
+      additionalProperties: true
+    GenericArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/GenericObject"

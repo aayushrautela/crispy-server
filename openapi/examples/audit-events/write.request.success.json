@@ -1,0 +1,13 @@
+{
+  "eventType": "recommendation_profile_generated",
+  "accountId": "acct_example_reco_001",
+  "profileId": "prof_example_reco_001",
+  "resourceType": "recommendationRun",
+  "resourceId": "run_01HXRECO001",
+  "action": "recommendation_run_updated",
+  "outcome": "success",
+  "metadata": {
+    "listKeys": ["hero", "content-rails"],
+    "durationMs": 1420
+  }
+}

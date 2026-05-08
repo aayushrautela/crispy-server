@@ -1,0 +1,12 @@
+{
+  "purpose": "recommendation-generation",
+  "filters": {
+    "accountIds": ["acct_example_reco_001"],
+    "includeProfilesWithNoPriorRecommendations": true
+  },
+  "reason": "nightly-recommendation-refresh",
+  "requestedBy": {
+    "type": "system",
+    "id": "crispy-recommendation-engine"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "status": "failed",
+  "progress": {
+    "profilesCompleted": 1,
+    "profilesFailed": 1,
+    "listsWritten": 4
+  },
+  "errors": [
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_002",
+      "code": "AI_PLAN_PROVIDER_UNAVAILABLE",
+      "message": "AI provider unavailable."
+    }
+  ]
+}

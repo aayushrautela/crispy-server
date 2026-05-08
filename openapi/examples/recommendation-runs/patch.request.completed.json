@@ -1,0 +1,13 @@
+{
+  "status": "completed",
+  "progress": {
+    "profilesScanned": 250,
+    "profilesGenerated": 230,
+    "profilesSkipped": 20,
+    "profilesFailed": 0,
+    "listsWritten": 920
+  },
+  "output": {
+    "summary": "Incremental recommendation run completed."
+  }
+}

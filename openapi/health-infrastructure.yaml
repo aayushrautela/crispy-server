@@ -1,0 +1,145 @@
+openapi: 3.1.0
+info:
+  title: Crispy Health and Infrastructure API
+  version: 1.0.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+x-api-class: health-infrastructure
+x-owner: crispy-server
+x-stability: stable
+servers:
+  - url: https://api.crispy.example
+    description: Production API origin placeholder
+tags:
+  - name: Health
+    description: Operational health probes.
+paths:
+  /healthz:
+    get:
+      tags:
+        - Health
+      operationId: getHealthz
+      summary: Liveness probe.
+      security: []
+      x-security: public
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+components:
+  securitySchemes: {}
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Authenticated actor is not authorized.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Write conflict or idempotency conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ErrorEnvelope:
+      type: object
+      additionalProperties: true
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: true
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+    GenericObject:
+      type: object
+      additionalProperties: true
+    GenericArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/GenericObject"

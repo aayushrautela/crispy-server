@@ -1,0 +1,2330 @@
+openapi: 3.1.0
+info:
+  title: Crispy Public App API
+  version: 1.0.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+x-api-class: public-app
+x-owner: crispy-server
+x-stability: stable
+servers:
+  - url: https://api.crispy.example
+    description: Production API origin placeholder
+security:
+  - UserBearerAuth: []
+tags:
+  - name: Identity
+    description: Authenticated user identity.
+  - name: Account
+    description: Account settings and lifecycle.
+  - name: Account Secrets
+    description: User-owned secret status and writes.
+  - name: Profiles
+    description: Profile management.
+  - name: Imports
+    description: Watch-data import flows.
+  - name: Watch
+    description: Watch state, history, watchlist, and ratings.
+  - name: Metadata
+    description: Metadata lookup/search/playback.
+  - name: Calendar
+    description: Profile calendar.
+  - name: AI
+    description: User-facing AI features.
+  - name: Tokens
+    description: Personal access token management.
+  - name: Recommendations
+    description: Taste profile and recommendation outputs.
+paths:
+  /v1/account:
+    delete:
+      tags:
+        - Account
+      operationId: deleteV1Account
+      summary: Delete the authenticated account.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/account/secrets/ai-api-key:
+    get:
+      tags:
+        - Account Secrets
+      operationId: getV1AccountSecretsAiApiKey
+      summary: Return AI API key secret status.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Account Secrets
+      operationId: putV1AccountSecretsAiApiKey
+      summary: Store AI API key secret.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Account Secrets
+      operationId: deleteV1AccountSecretsAiApiKey
+      summary: Delete AI API key secret.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/account/secrets/mdblist-api-key:
+    get:
+      tags:
+        - Account Secrets
+      operationId: getV1AccountSecretsMdblistApiKey
+      summary: Return MDBList API key secret status.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Account Secrets
+      operationId: putV1AccountSecretsMdblistApiKey
+      summary: Store MDBList API key secret.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Account Secrets
+      operationId: deleteV1AccountSecretsMdblistApiKey
+      summary: Delete MDBList API key secret.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/account/settings:
+    get:
+      tags:
+        - Account
+      operationId: getV1AccountSettings
+      summary: Return account settings.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    patch:
+      tags:
+        - Account
+      operationId: patchV1AccountSettings
+      summary: Update account settings.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/auth/personal-access-tokens:
+    get:
+      tags:
+        - Tokens
+      operationId: getV1AuthPersonalAccessTokens
+      summary: List personal access tokens.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      tags:
+        - Tokens
+      operationId: postV1AuthPersonalAccessTokens
+      summary: Create personal access token.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/auth/personal-access-tokens/{tokenId}:
+    delete:
+      tags:
+        - Tokens
+      operationId: deleteV1AuthPersonalAccessTokensTokenId
+      summary: Delete personal access token.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/imports/{provider}/callback:
+    get:
+      tags:
+        - Imports
+      operationId: getV1ImportsProviderCallback
+      summary: Complete OAuth import callback.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error_description
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/me:
+    get:
+      tags:
+        - Identity
+      operationId: getV1Me
+      summary: Return current authenticated user.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/metadata/people/{id}:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1MetadataPeopleId
+      summary: Get person details.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/metadata/resolve:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1MetadataResolve
+      summary: Resolve metadata identifier.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: mediaType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tmdbId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: mediaKey
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/metadata/titles/{mediaKey}:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1MetadataTitlesMediaKey
+      summary: Get title details.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/playback/resolve:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1PlaybackResolve
+      summary: Resolve playback metadata.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: mediaType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tmdbId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: mediaKey
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles:
+    get:
+      tags:
+        - Profiles
+      operationId: getV1Profiles
+      summary: List profiles.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      tags:
+        - Profiles
+      operationId: postV1Profiles
+      summary: Create profile.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}:
+    patch:
+      tags:
+        - Profiles
+      operationId: patchV1ProfilesProfileId
+      summary: Update profile.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/ai/insights:
+    post:
+      tags:
+        - AI
+      operationId: postV1ProfilesProfileIdAiInsights
+      summary: Generate AI insights.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/ai/search:
+    post:
+      tags:
+        - AI
+      operationId: postV1ProfilesProfileIdAiSearch
+      summary: Run AI search.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/calendar:
+    get:
+      tags:
+        - Calendar
+      operationId: getV1ProfilesProfileIdCalendar
+      summary: Return profile calendar.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/calendar/this-week:
+    get:
+      tags:
+        - Calendar
+      operationId: getV1ProfilesProfileIdCalendarThisWeek
+      summary: Return this week calendar.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/import-connections:
+    get:
+      tags:
+        - Imports
+      operationId: getV1ProfilesProfileIdImportConnections
+      summary: List import connections.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/import-connections/{provider}:
+    delete:
+      tags:
+        - Imports
+      operationId: deleteV1ProfilesProfileIdImportConnectionsProvider
+      summary: Delete import connection.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/imports:
+    get:
+      tags:
+        - Imports
+      operationId: getV1ProfilesProfileIdImports
+      summary: List provider import jobs.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/imports/start:
+    post:
+      tags:
+        - Imports
+      operationId: postV1ProfilesProfileIdImportsStart
+      summary: Start provider import or connection.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/imports/{jobId}:
+    get:
+      tags:
+        - Imports
+      operationId: getV1ProfilesProfileIdImportsJobId
+      summary: Get import job.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/metadata/titles/{mediaKey}/ratings:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1ProfilesProfileIdMetadataTitlesMediaKeyRatings
+      summary: Get title ratings.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/metadata/titles/{mediaKey}/reviews:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1ProfilesProfileIdMetadataTitlesMediaKeyReviews
+      summary: Get title reviews.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/recommendations:
+    get:
+      tags:
+        - Recommendations
+      operationId: getV1ProfilesProfileIdRecommendations
+      summary: Get recommendations.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Recommendations
+      operationId: putV1ProfilesProfileIdRecommendations
+      summary: Upsert recommendations.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/settings:
+    get:
+      tags:
+        - Profiles
+      operationId: getV1ProfilesProfileIdSettings
+      summary: Return profile settings.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    patch:
+      tags:
+        - Profiles
+      operationId: patchV1ProfilesProfileIdSettings
+      summary: Update profile settings.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/taste-profile:
+    get:
+      tags:
+        - Recommendations
+      operationId: getV1ProfilesProfileIdTasteProfile
+      summary: Get current taste profile.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Recommendations
+      operationId: putV1ProfilesProfileIdTasteProfile
+      summary: Upsert taste profile.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/taste-profiles:
+    get:
+      tags:
+        - Recommendations
+      operationId: getV1ProfilesProfileIdTasteProfiles
+      summary: List taste profiles.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/continue-watching:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchContinueWatching
+      summary: List continue watching.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/continue-watching/{id}:
+    delete:
+      tags:
+        - Watch
+      operationId: deleteV1ProfilesProfileIdWatchContinueWatchingId
+      summary: Dismiss continue watching item.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/events:
+    post:
+      tags:
+        - Watch
+      operationId: postV1ProfilesProfileIdWatchEvents
+      summary: Record watch event.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/history:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchHistory
+      summary: List watch history.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/mark-watched:
+    post:
+      tags:
+        - Watch
+      operationId: postV1ProfilesProfileIdWatchMarkWatched
+      summary: Mark media watched.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/rating/{mediaKey}:
+    put:
+      tags:
+        - Watch
+      operationId: putV1ProfilesProfileIdWatchRatingMediaKey
+      summary: Set media rating.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Watch
+      operationId: deleteV1ProfilesProfileIdWatchRatingMediaKey
+      summary: Clear media rating.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/ratings:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchRatings
+      summary: List ratings.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/state:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchState
+      summary: Return watch state.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/states:
+    post:
+      tags:
+        - Watch
+      operationId: postV1ProfilesProfileIdWatchStates
+      summary: Return multiple watch states.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/unmark-watched:
+    post:
+      tags:
+        - Watch
+      operationId: postV1ProfilesProfileIdWatchUnmarkWatched
+      summary: Unmark media watched.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/watchlist:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchWatchlist
+      summary: List watchlist.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/watchlist/{mediaKey}:
+    put:
+      tags:
+        - Watch
+      operationId: putV1ProfilesProfileIdWatchWatchlistMediaKey
+      summary: Add media to watchlist.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Watch
+      operationId: deleteV1ProfilesProfileIdWatchWatchlistMediaKey
+      summary: Remove media from watchlist.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: mediaKey
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/search/titles:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1SearchTitles
+      summary: Search titles.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+components:
+  securitySchemes:
+    UserBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: user-session-or-jwt
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Authenticated actor is not authorized.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Write conflict or idempotency conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ErrorEnvelope:
+      type: object
+      additionalProperties: true
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: true
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+    GenericObject:
+      type: object
+      additionalProperties: true
+    GenericArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/GenericObject"

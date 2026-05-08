@@ -1,0 +1,26 @@
+{
+  "events": [
+    {
+      "eventId": "evt_01HXRECO001",
+      "appId": "official-recommender",
+      "keyId": "crispy-recommender-api-token",
+      "action": "recommendation_run_updated",
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001",
+      "runId": "run_01HXRECO001",
+      "batchId": "batch_01HXRECO001",
+      "resourceType": "recommendationRun",
+      "resourceId": "run_01HXRECO001",
+      "requestId": "req_example_audit_001",
+      "metadata": {
+        "eventType": "recommendation_profile_generated",
+        "outcome": "success"
+      },
+      "createdAt": "2026-05-07T12:10:00.000Z"
+    }
+  ],
+  "cursor": {
+    "next": null,
+    "hasMore": false
+  }
+}

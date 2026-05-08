@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "changeId": "chg_01HXRECO001",
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001",
+      "eventType": "signals_changed",
+      "eligible": true,
+      "eligibilityVersion": 12,
+      "signalsVersion": 44,
+      "changedAt": "2026-05-07T11:45:00.000Z",
+      "reasons": ["watch_history_updated"],
+      "recommendedActions": ["refresh_profile_recommendations"]
+    },
+    {
+      "changeId": "chg_01HXRECO002",
+      "accountId": "acct_example_reco_002",
+      "profileId": "prof_example_reco_002",
+      "eventType": "eligibility_changed",
+      "eligible": false,
+      "eligibilityVersion": 9,
+      "signalsVersion": 31,
+      "changedAt": "2026-05-07T11:50:00.000Z",
+      "reasons": ["profile_disabled_recommendations"],
+      "recommendedActions": ["remove_service_recommendations"]
+    }
+  ],
+  "cursor": {
+    "next": "eyJraW5kIjoiZWxpZ2libGVfcHJvZmlsZV9jaGFuZ2VzIiwiZXhhbXBsZSI6dHJ1ZX0",
+    "hasMore": true
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "account": {
+    "accountId": "acct_example_reco_001",
+    "email": "viewer@example.com"
+  },
+  "profiles": [
+    {
+      "id": "prof_example_reco_001",
+      "accountId": "acct_example_reco_001",
+      "name": "Example Profile",
+      "isKids": false,
+      "updatedAt": "2026-05-07T12:00:00.000Z"
+    }
+  ]
+}

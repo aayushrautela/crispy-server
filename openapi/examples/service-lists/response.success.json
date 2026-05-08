@@ -1,0 +1,26 @@
+{
+  "appId": "official-recommender",
+  "source": "official-recommender",
+  "lists": [
+    {
+      "listKey": "hero",
+      "displayName": "Hero",
+      "ownerAppId": "official-recommender",
+      "source": "official-recommender",
+      "itemType": "content",
+      "maxItems": 10,
+      "writeMode": "replace_versioned",
+      "requiresEligibilityAtWrite": true
+    },
+    {
+      "listKey": "content-rails",
+      "displayName": "Content Rails",
+      "ownerAppId": "official-recommender",
+      "source": "official-recommender",
+      "itemType": "content",
+      "maxItems": 20,
+      "writeMode": "replace_versioned",
+      "requiresEligibilityAtWrite": true
+    }
+  ]
+}

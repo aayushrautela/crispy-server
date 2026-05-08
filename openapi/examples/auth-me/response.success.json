@@ -1,0 +1,38 @@
+{
+  "appId": "official-recommender",
+  "name": "Official Recommender",
+  "description": "Built-in Crispy recommendation engine token principal.",
+  "status": "active",
+  "principalType": "service_app",
+  "scopes": [
+    "apps:self:read",
+    "accounts:all:read",
+    "accounts:all:write",
+    "profiles:eligible:read",
+    "profiles:eligible:snapshot:create",
+    "profiles:eligible:snapshot:read",
+    "profiles:signals:read",
+    "recommendations:service-lists:read",
+    "recommendations:service-lists:write",
+    "recommendations:service-lists:batch-write",
+    "recommendations:runs:write",
+    "recommendations:batches:write",
+    "recommendations:backfills:read",
+    "recommendations:ai-plan:generate",
+    "apps:audit:read",
+    "apps:audit:write"
+  ],
+  "ownedSources": ["official-recommender"],
+  "ownedListKeys": ["hero", "pills", "folders", "franchise-rails", "content-rails"],
+  "rateLimitPolicy": {
+    "profileChangesReadsPerMinute": 600,
+    "profileSignalReadsPerMinute": 1200,
+    "recommendationWritesPerMinute": 600,
+    "batchWritesPerMinute": 60,
+    "configBundleReadsPerMinute": 120,
+    "runsPerHour": 120,
+    "snapshotsPerDay": 24,
+    "maxProfilesPerBatch": 100,
+    "maxItemsPerList": 50
+  }
+}

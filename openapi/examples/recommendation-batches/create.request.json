@@ -1,0 +1,16 @@
+{
+  "snapshotId": "snap_01HXRECO001",
+  "items": [
+    {
+      "snapshotItemId": "snap_item_01HXRECO001",
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001"
+    },
+    {
+      "snapshotItemId": "snap_item_01HXRECO002",
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_002"
+    }
+  ],
+  "leaseSeconds": 300
+}

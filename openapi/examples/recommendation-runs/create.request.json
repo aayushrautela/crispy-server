@@ -1,0 +1,14 @@
+{
+  "purpose": "recommendation-generation",
+  "runType": "incremental",
+  "modelVersion": "ai-plan-v1",
+  "algorithm": "crispy-reco-v3.2.1",
+  "input": {
+    "trigger": "eligible-profile-change",
+    "cursor": "eyJleGFtcGxlIjp0cnVlfQ"
+  },
+  "metadata": {
+    "worker": "crispy-recommendation-engine",
+    "deployment": "prod"
+  }
+}

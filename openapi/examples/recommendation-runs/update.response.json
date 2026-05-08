@@ -1,0 +1,31 @@
+{
+  "run": {
+    "runId": "run_01HXRECO001",
+    "appId": "official-recommender",
+    "purpose": "recommendation-generation",
+    "runType": "incremental",
+    "status": "completed",
+    "modelVersion": "ai-plan-v1",
+    "algorithm": "crispy-reco-v3.2.1",
+    "input": {
+      "trigger": "eligible-profile-change"
+    },
+    "output": {
+      "summary": "Incremental recommendation run completed."
+    },
+    "metadata": {
+      "worker": "crispy-recommendation-engine"
+    },
+    "error": null,
+    "progress": {
+      "profilesScanned": 250,
+      "profilesGenerated": 230,
+      "profilesSkipped": 20,
+      "profilesFailed": 0,
+      "listsWritten": 920
+    },
+    "createdAt": "2026-05-07T12:00:00.000Z",
+    "updatedAt": "2026-05-07T12:30:00.000Z",
+    "completedAt": "2026-05-07T12:30:00.000Z"
+  }
+}

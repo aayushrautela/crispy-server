@@ -1,0 +1,37 @@
+{
+  "status": "completed_with_errors",
+  "summary": {
+    "profilesReceived": 2,
+    "profilesWritten": 1,
+    "profilesRejected": 1,
+    "listsWritten": 1,
+    "itemsWritten": 2
+  },
+  "results": [
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001",
+      "status": "written",
+      "lists": [
+        { "listKey": "hero", "source": "official-recommender", "version": 101, "itemCount": 2 }
+      ]
+    },
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_002",
+      "status": "rejected",
+      "error": {
+        "code": "PROFILE_WRITE_REJECTED",
+        "message": "Profile is not eligible for recommendations.",
+        "details": {
+          "reason": "profile_disabled_recommendations"
+        }
+      }
+    }
+  ],
+  "requestHash": "6e0d4d4b7e1a74d9c1f774ceab7df51b4af74e7cbb0b052ce49445a8f8d8dabc",
+  "idempotency": {
+    "key": "reco-run-example-001:batch-upsert",
+    "replayed": false
+  }
+}

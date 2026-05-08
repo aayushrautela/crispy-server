@@ -1,0 +1,29 @@
+{
+  "profiles": [
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001",
+      "lists": [
+        {
+          "listKey": "hero",
+          "items": [
+            { "type": "movie", "tmdbId": 550 },
+            { "type": "tv", "tmdbId": 1399 }
+          ]
+        }
+      ]
+    },
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_002",
+      "lists": [
+        {
+          "listKey": "content-rails",
+          "items": [
+            { "type": "movie", "tmdbId": 680 }
+          ]
+        }
+      ]
+    }
+  ]
+}

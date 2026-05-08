@@ -1,0 +1,10 @@
+{
+  "status": "running",
+  "progress": {
+    "profilesScanned": 250,
+    "profilesGenerated": 220,
+    "profilesSkipped": 20,
+    "profilesFailed": 10,
+    "listsWritten": 880
+  }
+}

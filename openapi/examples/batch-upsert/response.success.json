@@ -1,0 +1,33 @@
+{
+  "status": "completed",
+  "summary": {
+    "profilesReceived": 2,
+    "profilesWritten": 2,
+    "profilesRejected": 0,
+    "listsWritten": 2,
+    "itemsWritten": 3
+  },
+  "results": [
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_001",
+      "status": "written",
+      "lists": [
+        { "listKey": "hero", "source": "official-recommender", "version": 101, "itemCount": 2 }
+      ]
+    },
+    {
+      "accountId": "acct_example_reco_001",
+      "profileId": "prof_example_reco_002",
+      "status": "written",
+      "lists": [
+        { "listKey": "content-rails", "source": "official-recommender", "version": 102, "itemCount": 1 }
+      ]
+    }
+  ],
+  "requestHash": "6e0d4d4b7e1a74d9c1f774ceab7df51b4af74e7cbb0b052ce49445a8f8d8dabc",
+  "idempotency": {
+    "key": "reco-run-example-001:batch-upsert",
+    "replayed": false
+  }
+}

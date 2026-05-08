@@ -1,0 +1,18 @@
+{
+  "batch": {
+    "batchId": "batch_01HXRECO001",
+    "runId": "run_01HXRECO001",
+    "appId": "official-recommender",
+    "status": "leased",
+    "snapshotId": "snap_01HXRECO001",
+    "lease": {
+      "leaseId": "lease_01HXRECO002",
+      "expiresAt": "2026-05-07T12:05:00.000Z"
+    },
+    "itemCount": 2,
+    "progress": {},
+    "errors": [],
+    "createdAt": "2026-05-07T12:00:00.000Z",
+    "updatedAt": "2026-05-07T12:00:00.000Z"
+  }
+}

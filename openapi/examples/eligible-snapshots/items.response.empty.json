@@ -1,0 +1,18 @@
+{
+  "snapshot": {
+    "snapshotId": "snap_01HXRECO001",
+    "appId": "official-recommender",
+    "purpose": "recommendation-generation",
+    "status": "completed",
+    "filters": {},
+    "estimatedProfileCount": 0,
+    "createdAt": "2026-05-07T12:00:00.000Z",
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "items": [],
+  "cursor": {
+    "next": null,
+    "hasMore": false
+  }
+}

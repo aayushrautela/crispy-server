@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Crispy Internal Recommender API
+  title: Crispy Internal Services API
   version: 1.0.0
   summary: Provider-owned contract for the internal recommendation-engine integration surface.
   description: |

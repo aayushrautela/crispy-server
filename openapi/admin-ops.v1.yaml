@@ -1,0 +1,1132 @@
+openapi: 3.1.0
+info:
+  title: Crispy Admin/Ops API
+  version: 1.0.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+x-api-class: admin-ops
+x-owner: crispy-server
+x-stability: stable
+servers:
+  - url: https://api.crispy.example
+    description: Production API origin placeholder
+security:
+  - AdminSession: []
+  - AdminBearer: []
+tags:
+  - name: Admin Diagnostics
+    description: Operational diagnostics.
+  - name: Admin Accounts
+    description: Account support and mutation tooling.
+  - name: Admin AI
+    description: AI configuration diagnostics and test calls.
+paths:
+  /admin/api/accounts/lookup-by-email/{email}:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsLookupByEmailEmail
+      summary: accounts lookup-by-email  email
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/pricing-tier:
+    patch:
+      tags:
+        - Admin Accounts
+      operationId: patchAdminApiAccountsAccountIdPricingTier
+      summary: accounts  accountId pricing-tier
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfiles
+      summary: accounts  accountId profiles
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/calendar:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdCalendar
+      summary: accounts  accountId profiles  profileId calendar
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/calendar/this-week:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdCalendarThisWeek
+      summary: accounts  accountId profiles  profileId calendar this-week
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/continue-watching:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdContinueWatching
+      summary: accounts  accountId profiles  profileId continue-watching
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/episodic-follow:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdEpisodicFollow
+      summary: accounts  accountId profiles  profileId episodic-follow
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/imports/overview:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdImportsOverview
+      summary: accounts  accountId profiles  profileId imports overview
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/imports/start:
+    post:
+      tags:
+        - Admin Accounts
+      operationId: postAdminApiAccountsAccountIdProfilesProfileIdImportsStart
+      summary: accounts  accountId profiles  profileId imports start
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/providers/{provider}/connection:
+    delete:
+      tags:
+        - Admin Accounts
+      operationId: deleteAdminApiAccountsAccountIdProfilesProfileIdProvidersProviderConnection
+      summary: accounts  accountId profiles  profileId providers  provider connection
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "204":
+          description: Resource deleted or cleared.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/providers/{provider}/refresh-token:
+    post:
+      tags:
+        - Admin Accounts
+      operationId: postAdminApiAccountsAccountIdProfilesProfileIdProvidersProviderRefreshToken
+      summary: accounts  accountId profiles  profileId providers  provider refresh-token
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/ratings:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdRatings
+      summary: accounts  accountId profiles  profileId ratings
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/recommendations:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdRecommendations
+      summary: accounts  accountId profiles  profileId recommendations
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/taste-profile:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdTasteProfile
+      summary: accounts  accountId profiles  profileId taste-profile
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/watch-history:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdWatchHistory
+      summary: accounts  accountId profiles  profileId watch-history
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/watchlist:
+    get:
+      tags:
+        - Admin Accounts
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdWatchlist
+      summary: accounts  accountId profiles  profileId watchlist
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/ai/config:
+    get:
+      tags:
+        - Admin AI
+      operationId: getAdminApiAiConfig
+      summary: ai config
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/ai/test:
+    post:
+      tags:
+        - Admin AI
+      operationId: postAdminApiAiTest
+      summary: ai test
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "201":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/diagnostics/imports/connections:
+    get:
+      tags:
+        - Admin Diagnostics
+      operationId: getAdminApiDiagnosticsImportsConnections
+      summary: diagnostics imports connections
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expiringWithinHours
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: refreshFailuresOnly
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/diagnostics/imports/jobs:
+    get:
+      tags:
+        - Admin Diagnostics
+      operationId: getAdminApiDiagnosticsImportsJobs
+      summary: diagnostics imports jobs
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: failuresOnly
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/diagnostics/recommendations/outbox:
+    get:
+      tags:
+        - Admin Diagnostics
+      operationId: getAdminApiDiagnosticsRecommendationsOutbox
+      summary: diagnostics recommendations outbox
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: sourceKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: algorithmVersion
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+components:
+  securitySchemes:
+    AdminSession:
+      type: apiKey
+      in: cookie
+      name: crispy_admin_session
+    AdminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: service-token
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Authenticated actor is not authorized.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Write conflict or idempotency conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ErrorEnvelope:
+      type: object
+      additionalProperties: true
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: true
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+    GenericObject:
+      type: object
+      additionalProperties: true
+    GenericArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/GenericObject"
