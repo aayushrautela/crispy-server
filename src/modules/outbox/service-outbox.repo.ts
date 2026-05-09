@@ -234,4 +234,55 @@ export class ServiceOutboxRepository {
 
     return result.rows.map(mapServiceOutboxEvent);
   }
+
+  async queryForDiagnostics(client: DbClient, filters: {
+    correlationId?: string | null;
+    profileId?: string | null;
+    reason?: string | null;
+    status?: ServiceOutboxEventStatus | null;
+    limit: number;
+  }): Promise<ServiceOutboxEventRecord[]> {
+    const conditions: string[] = ['event_type = $1'];
+    const params: unknown[] = ['recommendation.recompute_requested'];
+    let paramIndex = 2;
+
+    if (filters.correlationId) {
+      conditions.push(`correlation_id = $${paramIndex}`);
+      params.push(filters.correlationId);
+      paramIndex++;
+    }
+
+    if (filters.profileId) {
+      conditions.push(`profile_id = $${paramIndex}::uuid`);
+      params.push(filters.profileId);
+      paramIndex++;
+    }
+
+    if (filters.reason) {
+      conditions.push(`payload->>'reason' = $${paramIndex}`);
+      params.push(filters.reason);
+      paramIndex++;
+    }
+
+    if (filters.status) {
+      conditions.push(`status = $${paramIndex}`);
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    params.push(filters.limit);
+
+    const result = await client.query(
+      `
+        SELECT ${serviceOutboxColumns}
+        FROM service_outbox_events
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY created_at DESC, id DESC
+        LIMIT $${paramIndex}
+      `,
+      params,
+    );
+
+    return result.rows.map(mapServiceOutboxEvent);
+  }
 }

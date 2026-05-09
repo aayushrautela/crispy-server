@@ -25,6 +25,9 @@ import { ProfileInputSignalFacade } from '../../modules/recommendations/profile-
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
+import { RecommendationOutboxService } from '../../modules/outbox/recommendation-outbox.service.js';
+import { ServiceOutboxRepository, type ServiceOutboxEventStatus } from '../../modules/outbox/service-outbox.repo.js';
+import { withTransaction } from '../../lib/db.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -50,6 +53,8 @@ export async function registerAdminApiRoutes(
   const calendarService = new CalendarService();
   const accountSettingsService = new AccountSettingsService();
   const aiClient = new OpenAiCompatibleClient();
+  const recommendationOutboxService = new RecommendationOutboxService();
+  const serviceOutboxRepository = new ServiceOutboxRepository();
   const profileInputSignalFacade = deps?.profileInputSignalFacade ?? new ProfileInputSignalFacade({
     defaults: {
       historyDefault: 25,
@@ -89,6 +94,51 @@ export async function registerAdminApiRoutes(
     await requireAdmin(request);
     const query = asRecord(request.query);
     return recommendationAdminService.getOutbox(parseLimit(query.limit));
+  });
+
+  app.get('/admin/api/diagnostics/recommendations/service-outbox', async (request, reply) => {
+    await requireAdmin(request);
+    const query = asRecord(request.query);
+    const correlationId = typeof query.correlationId === 'string' && query.correlationId.trim() ? query.correlationId.trim() : null;
+    const profileId = typeof query.profileId === 'string' && query.profileId.trim() ? query.profileId.trim() : null;
+    const reason = typeof query.reason === 'string' && query.reason.trim() ? query.reason.trim() : null;
+    const status = typeof query.status === 'string' && query.status.trim() ? query.status.trim() as ServiceOutboxEventStatus : null;
+    const limit = parseLimit(query.limit);
+
+    const events = await withTransaction(async (client) => {
+      return serviceOutboxRepository.queryForDiagnostics(client, {
+        correlationId,
+        profileId,
+        reason,
+        status,
+        limit,
+      });
+    });
+
+    const summary = {
+      total: events.length,
+      pending: events.filter((e) => e.status === 'pending').length,
+      processing: events.filter((e) => e.status === 'processing').length,
+      dispatched: events.filter((e) => e.status === 'dispatched').length,
+      failed: events.filter((e) => e.status === 'failed').length,
+    };
+
+    return {
+      events: events.map((e) => ({
+        id: e.id,
+        profileId: e.profileId,
+        userId: e.userId,
+        reason: e.payload.reason,
+        status: e.status,
+        occurredAt: e.occurredAt,
+        availableAt: e.availableAt,
+        attemptCount: e.attemptCount,
+        lastAttemptAt: e.lastAttemptAt,
+        correlationId: e.correlationId,
+        createdAt: e.createdAt,
+      })),
+      summary,
+    };
   });
 
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
@@ -333,6 +383,97 @@ export async function registerAdminApiRoutes(
       params.profileId,
       params.provider,
     );
+  });
+
+  app.post('/admin/api/accounts/:accountId/profiles/:profileId/recommendations/recompute', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = parseAccountProfileParams(request.params);
+    const body = asRecord(request.body);
+    const correlationId = typeof body.correlationId === 'string' && body.correlationId.trim() ? body.correlationId.trim() : crypto.randomUUID();
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
+
+    const profileBelongsToAccount = (await recommendationDataService.listAccountProfilesForService(params.accountId))
+      .some((profile) => profile.id === params.profileId);
+    if (!profileBelongsToAccount) {
+      throw new HttpError(404, 'Profile not found.');
+    }
+
+    await withTransaction(async (client) => {
+      await recommendationOutboxService.appendRecomputeRequested(client, {
+        userId: params.accountId,
+        profileId: params.profileId,
+        reason: 'admin_requested',
+        correlationId,
+      });
+    });
+
+    reply.code(202);
+    return {
+      ok: true,
+      reason: 'admin_requested',
+      accountId: params.accountId,
+      profileId: params.profileId,
+      requested: 1,
+      enqueued: 1,
+      skipped: 0,
+      correlationId,
+      note,
+      diagnosticsUrl: `/admin/api/diagnostics/recommendations/service-outbox?correlationId=${encodeURIComponent(correlationId)}`,
+    };
+  });
+
+  app.post('/admin/api/accounts/:accountId/recommendations/recompute', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    const accountId = readRequiredString(params.accountId, 'accountId');
+    const body = asRecord(request.body);
+    const profileIds = Array.isArray(body.profileIds) ? body.profileIds : [];
+    const correlationId = typeof body.correlationId === 'string' && body.correlationId.trim() ? body.correlationId.trim() : crypto.randomUUID();
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
+
+    if (profileIds.length === 0) {
+      throw new HttpError(400, 'profileIds array is required and must not be empty.');
+    }
+    if (profileIds.length > 50) {
+      throw new HttpError(400, 'Maximum 50 profiles allowed per request.');
+    }
+
+    const validProfileIds = profileIds.filter((id) => typeof id === 'string' && id.trim()).map((id) => String(id).trim());
+    if (validProfileIds.length === 0) {
+      throw new HttpError(400, 'No valid profile IDs provided.');
+    }
+
+    const profiles = await recommendationDataService.listAccountProfilesForService(accountId);
+    const accountProfileIds = new Set(profiles.map((p) => p.id));
+    const validatedProfileIds = validProfileIds.filter((id) => accountProfileIds.has(id));
+    const skipped = validProfileIds.length - validatedProfileIds.length;
+
+    let enqueued = 0;
+    await withTransaction(async (client) => {
+      for (const profileId of validatedProfileIds) {
+        await recommendationOutboxService.appendRecomputeRequested(client, {
+          userId: accountId,
+          profileId,
+          reason: 'admin_requested',
+          correlationId,
+        });
+        enqueued++;
+      }
+    });
+
+    reply.code(202);
+    return {
+      ok: true,
+      reason: 'admin_requested',
+      accountId,
+      profileIds: validatedProfileIds,
+      requested: validProfileIds.length,
+      enqueued,
+      skipped,
+      correlationId,
+      note,
+      diagnosticsUrl: `/admin/api/diagnostics/recommendations/service-outbox?correlationId=${encodeURIComponent(correlationId)}`,
+    };
   });
 
   app.get('/admin/api/ai/config', async (request, reply) => {

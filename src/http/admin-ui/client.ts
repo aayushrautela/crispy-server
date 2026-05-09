@@ -71,6 +71,12 @@ export const ADMIN_UI_CLIENT = String.raw`
     backlogSummary: document.getElementById('backlog-summary'),
     outboxSummary: document.getElementById('outbox-summary'),
     importSummary: document.getElementById('import-summary'),
+    serviceOutboxSummary: document.getElementById('service-outbox-summary'),
+    serviceOutboxRows: document.getElementById('service-outbox-rows'),
+    serviceOutboxFilterForm: document.getElementById('service-outbox-filter-form'),
+    serviceOutboxCorrelationId: document.getElementById('service-outbox-correlation-id'),
+    serviceOutboxProfileId: document.getElementById('service-outbox-profile-id'),
+    serviceOutboxStatus: document.getElementById('service-outbox-status'),
     backlogRows: document.getElementById('backlog-rows'),
     importRows: document.getElementById('import-rows'),
     lookupForm: document.getElementById('account-lookup-form'),
@@ -197,6 +203,12 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.aiTestForm.addEventListener('submit', (event) => {
         event.preventDefault();
         void runAiTest('selected');
+      });
+    }
+    if (elements.serviceOutboxFilterForm) {
+      elements.serviceOutboxFilterForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void loadDiagnostics();
       });
     }
     if (elements.aiTestMode) {
@@ -346,13 +358,15 @@ export const ADMIN_UI_CLIENT = String.raw`
       const result = await Promise.all([
         fetchJson(apiPath('/diagnostics/recommendations/outbox?limit=8')),
         fetchJson(apiPath('/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false')),
+        fetchJson(apiPath('/diagnostics/recommendations/service-outbox' + serviceOutboxQueryString())),
       ]);
       const payload = {
         outbox: result[0],
         imports: result[1],
+        serviceOutbox: result[2],
       };
       state.diagnosticsPayload = payload;
-      renderDiagnostics(payload.outbox, payload.imports);
+      renderDiagnostics(payload.outbox, payload.imports, payload.serviceOutbox);
       updateDiagnosticsChrome(payload);
       stampUpdated();
       return payload;
@@ -366,6 +380,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       if (elements.importSummary) elements.importSummary.textContent = 'Unavailable';
       if (elements.backlogRows) elements.backlogRows.innerHTML = emptyTableRow('Diagnostics unavailable.', 4);
       if (elements.importRows) elements.importRows.innerHTML = emptyTableRow('Import diagnostics unavailable.', 5);
+      if (elements.serviceOutboxSummary) elements.serviceOutboxSummary.textContent = 'Unavailable';
+      if (elements.serviceOutboxRows) elements.serviceOutboxRows.innerHTML = emptyTableRow('Service outbox diagnostics unavailable.', 5);
       if (elements.navDiagnosticsBadge) elements.navDiagnosticsBadge.textContent = '!';
       if (!(options && options.silent)) {
         pushNotification('warn', 'Diagnostics degraded', error.message || 'Unable to refresh diagnostics.', true);
@@ -393,6 +409,18 @@ export const ADMIN_UI_CLIENT = String.raw`
         ? String(warningCount) + ' diagnostics need attention.'
         : 'Recommendation outbox and import diagnostics are clear.';
     }
+  }
+
+  function serviceOutboxQueryString() {
+    const params = new URLSearchParams();
+    params.set('limit', '25');
+    const correlationId = String((elements.serviceOutboxCorrelationId && elements.serviceOutboxCorrelationId.value) || '').trim();
+    const profileId = String((elements.serviceOutboxProfileId && elements.serviceOutboxProfileId.value) || '').trim();
+    const status = String((elements.serviceOutboxStatus && elements.serviceOutboxStatus.value) || '').trim();
+    if (correlationId) params.set('correlationId', correlationId);
+    if (profileId) params.set('profileId', profileId);
+    if (status) params.set('status', status);
+    return '?' + params.toString();
   }
 
   async function lookupAccount() {
@@ -635,6 +663,32 @@ export const ADMIN_UI_CLIENT = String.raw`
       };
     }
 
+    const recomputeButtons = Array.from(container.querySelectorAll('[data-recompute-profile]'));
+    for (const button of recomputeButtons) {
+      button.onclick = async () => {
+        button.disabled = true;
+        setMessage(messageEl, 'info', 'Queueing recommendation recompute...');
+        try {
+          const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations/recompute'), {
+            method: 'POST',
+            body: JSON.stringify({ note: 'admin-ui-profile-workspace' }),
+          });
+          const correlationId = payload && payload.correlationId ? String(payload.correlationId) : 'unknown';
+          const diagnosticsPath = payload && payload.diagnosticsUrl ? String(payload.diagnosticsUrl) : '/admin/api/diagnostics/recommendations/service-outbox?correlationId=' + encodeURIComponent(correlationId);
+          setHtmlMessage(messageEl, 'success', 'Queued recommendation recompute. Correlation ID: <code>' + escapeHtml(correlationId) + '</code>. <a href="' + escapeHtml(diagnosticsPath) + '" target="_blank" rel="noopener noreferrer">Open diagnostics JSON</a>.');
+          if (elements.serviceOutboxCorrelationId) elements.serviceOutboxCorrelationId.value = correlationId;
+          pushNotification('success', 'Recompute queued', 'Queued recommendation recompute for profile ' + profileId + '.', true);
+          await loadDiagnostics({ silent: true });
+        } catch (error) {
+          const description = describeApiError(error, 'Unable to queue recommendation recompute.');
+          setMessage(messageEl, 'error', description);
+          pushNotification('error', 'Recompute failed', description, true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
+
     const refreshViewButtons = Array.from(container.querySelectorAll('[data-refresh-profile-view]'));
     for (const button of refreshViewButtons) {
       button.onclick = async () => {
@@ -648,7 +702,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  function renderDiagnostics(outbox, imports) {
+  function renderDiagnostics(outbox, imports, serviceOutbox) {
     const undelivered = Array.isArray(outbox.undelivered) ? outbox.undelivered : [];
     const providerDiagnostics = Array.isArray(imports.providerDiagnostics) ? imports.providerDiagnostics : [];
     const refreshFailures = providerDiagnostics.filter((row) => !!row.lastRefreshError).length;
@@ -687,6 +741,19 @@ export const ADMIN_UI_CLIENT = String.raw`
           + '<span class="muted">' + escapeHtml(String(row.provider || 'unknown-provider')) + '</span>'
           + '</td><td>' + badge(String(row.state || 'unknown'), statusTone(String(row.state || 'unknown'))) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.lastRefreshError || 'none')) + '</td></tr>').join('')
         : emptyTableRow('No provider diagnostics.', 5);
+    }
+
+    const serviceEvents = serviceOutbox && Array.isArray(serviceOutbox.events) ? serviceOutbox.events : [];
+    const serviceSummary = serviceOutbox && serviceOutbox.summary ? serviceOutbox.summary : null;
+    if (elements.serviceOutboxSummary) {
+      elements.serviceOutboxSummary.textContent = serviceSummary
+        ? String(serviceSummary.total || 0) + ' recompute events returned: ' + String(serviceSummary.pending || 0) + ' pending, ' + String(serviceSummary.processing || 0) + ' processing, ' + String(serviceSummary.dispatched || 0) + ' dispatched, ' + String(serviceSummary.failed || 0) + ' failed.'
+        : 'No service outbox summary returned.';
+    }
+    if (elements.serviceOutboxRows) {
+      elements.serviceOutboxRows.innerHTML = serviceEvents.length
+        ? serviceEvents.map((row) => '<tr><td><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong><br><span class="muted">' + escapeHtml(String(row.userId || 'unknown-account')) + '</span></td><td>' + escapeHtml(String(row.reason || 'n/a')) + '</td><td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td><td>' + escapeHtml(String(row.correlationId || 'none')) + '</td><td>' + escapeHtml(String(row.createdAt || 'n/a')) + '</td></tr>').join('')
+        : emptyTableRow('No recompute service outbox events matched.', 5);
     }
   }
 
@@ -783,6 +850,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard('Provider + import state',
       '<div class="inline-actions">'
         + '<button type="button" class="secondary" data-refresh-profile-view="true">Refresh profile panel</button>'
+        + '<button type="button" data-recompute-profile="true">Queue recommendation recompute</button>'
         + '<button type="button" data-start-import="trakt">Import Trakt watch data</button>'
         + '<button type="button" data-start-import="simkl">Import Simkl watch data</button>'
       + '</div>'

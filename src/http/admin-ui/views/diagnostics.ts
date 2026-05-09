@@ -20,8 +20,8 @@ export function renderDiagnosticsView(): string {
           <p id="outbox-summary">Loading recommendation outbox lag...</p>
         </div>
         <div class="mini-panel">
-          <h4>Import refresh risk</h4>
-          <p id="import-summary">Loading import diagnostics...</p>
+          <h4>Service outbox</h4>
+          <p id="service-outbox-summary">Loading service outbox diagnostics...</p>
         </div>
       </div>
 
@@ -54,6 +54,36 @@ export function renderDiagnosticsView(): string {
             <tbody id="import-rows"></tbody>
           </table>
         </div>
+      </div>
+      <div class="mini-panel">
+        <h4>Service outbox filters</h4>
+        <form class="inline-actions" id="service-outbox-filter-form">
+          <input type="text" id="service-outbox-correlation-id" placeholder="Correlation ID" autocomplete="off" />
+          <input type="text" id="service-outbox-profile-id" placeholder="Profile ID" autocomplete="off" />
+          <select id="service-outbox-status">
+            <option value="">Any status</option>
+            <option value="pending">pending</option>
+            <option value="processing">processing</option>
+            <option value="dispatched">dispatched</option>
+            <option value="failed">failed</option>
+          </select>
+          <button type="submit" class="secondary">Apply filters</button>
+        </form>
+      </div>
+
+      <div class="data-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Profile</th>
+              <th>Reason</th>
+              <th>Status</th>
+              <th>Correlation</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="service-outbox-rows"></tbody>
+        </table>
       </div>
     </section>
   `;

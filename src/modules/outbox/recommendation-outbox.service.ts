@@ -8,7 +8,8 @@ export type RecommendationRecomputeReason =
   | 'watchlist_changed'
   | 'playback_progress_changed'
   | 'profile_created'
-  | 'profile_settings_changed';
+  | 'profile_settings_changed'
+  | 'admin_requested';
 
 export type AppendRecommendationRecomputeRequestedInput = {
   userId: string;
