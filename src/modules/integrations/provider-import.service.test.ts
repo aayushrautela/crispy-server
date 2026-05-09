@@ -89,12 +89,11 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
     updatedAt: '2026-03-26T00:00:00.000Z',
   };
   const providerAccountsRepository = {
-    findLatestConnectedForProfile: async () => providerAccount,
-    revokeProviderAccount: async (_client: unknown, params: { credentialsJson?: Record<string, unknown>; lastUsedAt?: string | null }) => ({
+    findByProfileAndProvider: async () => providerAccount,
+    markDisconnected: async () => ({
       ...providerAccount,
-      status: 'revoked',
-      credentialsJson: params.credentialsJson ?? {},
-      lastUsedAt: params.lastUsedAt ?? null,
+      state: 'disconnected_by_user',
+      credentialsJson: {},
     }),
   };
 
@@ -112,7 +111,6 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
     const service = new ProviderImportService(
       profileRepository as never,
       providerAccountsRepository as never,
-      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -141,7 +139,7 @@ test('disconnectProviderSession surfaces trakt revoke failures', async () => {
     findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
   };
   const providerAccountsRepository = {
-    findLatestConnectedForProfile: async () => ({
+    findByProfileAndProvider: async () => ({
       id: 'acct-1',
       profileId: 'profile-1',
       provider: 'trakt',
@@ -166,7 +164,6 @@ test('disconnectProviderSession surfaces trakt revoke failures', async () => {
     const service = new ProviderImportService(
       profileRepository as never,
       providerAccountsRepository as never,
-      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -263,7 +260,7 @@ test('fetchAndNormalizeTraktImport keeps show tmdb ids on watchlist and ratings'
   try {
     const result = await (service as any).fetchAndNormalizeTraktImport(
       { id: 'job-1' },
-      { credentialsJson: { accessToken: 'token-123' } },
+      { accessToken: 'token-123' },
     );
 
     const watchlistEvent = result.importedEvents.find((entry: any) => entry.eventType === 'watchlist_put');
@@ -330,7 +327,7 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
   try {
     const result = await (service as any).fetchAndNormalizeTraktImport(
       { id: 'job-1' },
-      { credentialsJson: { accessToken: 'token-123' } },
+      { accessToken: 'token-123' },
     );
 
     assert.equal(result.importedEvents.length, 1);
@@ -428,7 +425,7 @@ test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime
   try {
     const result = await (service as any).fetchAndNormalizeTraktImport(
       { id: 'job-1' },
-      { credentialsJson: { accessToken: 'token-123' } },
+      { accessToken: 'token-123' },
     );
 
     assert.equal(result.importedEvents.length, 1);

@@ -32,7 +32,7 @@ test('resolve handles imdb external id', async () => {
   );
 
   const input = { imdbId: 'tt9999', mediaType: 'show' as const };
-  const tmdbId = await (svc as any).resolveTmdbId(null, input, 'show');
+  const tmdbId = await (svc as any).resolveTitleTmdbId(null, input, 'show');
   assert.equal(tmdbId, 88);
   assert.deepEqual(resolverCalledWith, { source: 'imdb_id', externalId: 'tt9999', mediaType: 'show' });
 });
@@ -48,7 +48,7 @@ test('resolve rejects episode without season/episode numbers', async () => {
 
   await assert.rejects(
     async () => (svc as any).resolveIdentity(null, { tmdbId: 42, mediaType: 'episode' }),
-    (error: unknown) => error instanceof Error && /Show resolution requires a TVDB or IMDB id/.test(error.message),
+    (error: unknown) => error instanceof Error && /Episode resolution requires show id, season number, and episode number/.test(error.message),
   );
 });
 
@@ -63,6 +63,6 @@ test('resolve rejects missing tmdb id for movie/show', async () => {
 
   await assert.rejects(
     async () => (svc as any).resolveIdentity(null, { imdbId: 'tt9999', mediaType: 'movie' }),
-    (error: unknown) => error instanceof Error && /Unable to resolve/.test(error.message),
+    (error: unknown) => error instanceof Error && /Metadata title not found/.test(error.message),
   );
 });

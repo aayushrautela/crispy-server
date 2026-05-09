@@ -2,6 +2,7 @@ import { withTransaction } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileGroupService } from '../profile-groups/profile-group.service.js';
 import { normalizeProfileSettingsPatch, stripAccountScopedProfileSettings } from '../users/account-settings.service.js';
+import { RecommendationOutboxService } from '../outbox/recommendation-outbox.service.js';
 import { ProfileRepository, type ProfileRecord } from './profile.repo.js';
 import { ProfileSettingsRepository } from './profile-settings.repo.js';
 
@@ -10,6 +11,7 @@ export class ProfileService {
     private readonly profileGroupService = new ProfileGroupService(),
     private readonly profileRepository = new ProfileRepository(),
     private readonly profileSettingsRepository = new ProfileSettingsRepository(),
+    private readonly recommendationOutboxService = new RecommendationOutboxService(),
   ) {}
 
   async listForAccount(accountId: string): Promise<ProfileRecord[]> {
@@ -32,6 +34,11 @@ export class ProfileService {
         createdByUserId: accountId,
       });
       await this.profileSettingsRepository.patchForProfile(client, profile.id, {});
+      await this.recommendationOutboxService.appendRecomputeRequested(client, {
+        userId: accountId,
+        profileId: profile.id,
+        reason: 'profile_created',
+      });
       return profile;
     });
   }
@@ -72,6 +79,11 @@ export class ProfileService {
       }
       const normalizedPatch = normalizeProfileSettingsPatch(patch);
       const settings = await this.profileSettingsRepository.patchForProfile(client, profileId, normalizedPatch);
+      await this.recommendationOutboxService.appendRecomputeRequested(client, {
+        userId: accountId,
+        profileId,
+        reason: 'profile_settings_changed',
+      });
       return stripAccountScopedProfileSettings(settings);
     });
   }
@@ -83,6 +95,16 @@ export class ProfileService {
         throw new HttpError(404, 'Profile not found.');
       }
       return profile;
+    });
+  }
+
+  async requireProfileOwnerAccountId(profileId: string): Promise<string> {
+    return withTransaction(async (client) => {
+      const accountId = await this.profileRepository.findOwnerUserIdById(client, profileId);
+      if (!accountId) {
+        throw new HttpError(404, 'Profile not found.');
+      }
+      return accountId;
     });
   }
 }

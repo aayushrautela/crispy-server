@@ -23,7 +23,7 @@ Crispy Server owns application logic and application data.
 - canonical metadata provider: TMDB
 - import providers: Trakt, Simkl
 - AI providers: OpenAI-compatible endpoints
-- external recommendation engine: pull-based service that calls Crispy API
+- external recommendation engine: event-driven service that receives recompute events and calls Crispy API
 
 Boundary rules:
 
@@ -31,7 +31,7 @@ Boundary rules:
 - Supabase is not the application database.
 - Application state, watch data, metadata state, imports, and recommendations live on our server.
 - Trakt and Simkl are import sources, not canonical metadata authorities.
-- The external recommendation engine calls authenticated Crispy API endpoints for source data; it is not the internal BullMQ worker and does not read the application database directly.
+- The external recommendation engine receives durable recompute events from MAIN's outbox, then calls authenticated Crispy API endpoints for source data; it is not the internal BullMQ worker and does not read the application database directly.
 
 ## Module Layout
 
@@ -140,7 +140,7 @@ Rules:
 
 ## Recommendation Model
 
-Recommendation generation is delegated to an external pull-based recommendation engine. The engine calls authenticated Crispy API endpoints to retrieve authorized source data and configuration. It is not this repository's internal BullMQ worker and does not read the application database directly.
+Recommendation generation is delegated to an external event-driven recommendation engine. MAIN emits durable recompute events through its outbox; the engine receives those events, calls authenticated Crispy API endpoints to retrieve authorized source data and configuration, and writes generated outputs back through internal app APIs. It is not this repository's internal BullMQ worker and does not read the application database directly.
 
 Crispy Server owns account/profile authorization, watch and rating data, canonical TMDB-backed media identity, and stored recommendation snapshots served to clients. The external engine owns recommendation-generation strategy and model behavior.
 

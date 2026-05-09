@@ -12,7 +12,7 @@ setTestEnv({
   SUPABASE_URL: 'http://localhost:54321',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
   JWT_SECRET: 'test-jwt-secret',
-  CRISPY_RECOMMENDER_API_TOKEN_HASH: 'unused-token-hash',
+  RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: 'unused-token-hash',
 });
 
 function buildPrincipal(): AppPrincipal {
@@ -155,7 +155,13 @@ test('app auth plugin returns app auth error response', async (t) => {
   const response = await app.inject({ method: 'GET', url: '/internal/apps/v1/test' });
 
   assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json(), { code: 'missing_app_credentials', message: 'Missing app credentials.' });
+  assert.deepEqual(response.json().error, {
+    code: 'missing_app_credentials',
+    message: 'Missing app credentials.',
+    category: 'authentication',
+    retryable: false,
+    requestId: 'req-1',
+  });
   assert.equal(auditRepo.inserted[0]?.action, 'app_auth_failed');
 });
 

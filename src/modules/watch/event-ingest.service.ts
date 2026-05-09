@@ -9,6 +9,7 @@ import { IntegrationOutboxService } from '../integrations/changes/integration-ou
 import { WatchV2WriteService } from '../watch-v2/watch-v2-write.service.js';
 import { decodeWatchV2ContinueWatchingId } from './watch-v2-utils.js';
 import { ProfileInputSignalCacheInvalidator } from '../recommendations/profile-input-signal-cache.invalidator.js';
+import { RecommendationOutboxService, type RecommendationRecomputeReason } from '../outbox/recommendation-outbox.service.js';
 import {
   normalizeWatchOccurredAt,
   sanitizeWatchEventInput,
@@ -25,6 +26,7 @@ export class WatchEventIngestService {
     private readonly projectionRefreshDispatcher = new ProjectionRefreshDispatcher(),
     private readonly integrationOutboxService = new IntegrationOutboxService(),
     private readonly profileInputSignalCacheInvalidator = new ProfileInputSignalCacheInvalidator(),
+    private readonly recommendationOutboxService = new RecommendationOutboxService(),
   ) {}
 
   async ingestPlaybackEvent(userId: string, profileId: string, input: WatchEventInput): Promise<WatchIngestResult> {
@@ -240,6 +242,12 @@ export class WatchEventIngestService {
         positionSeconds: input.positionSeconds,
         durationSeconds: input.durationSeconds,
       });
+      await this.appendRecommendationRecomputeEvent(client, {
+        userId,
+        profileId,
+        reason: 'playback_progress_changed',
+        occurredAt: normalizeWatchOccurredAt(input.occurredAt),
+      });
     });
     if (identity.mediaType === 'show' || identity.mediaType === 'season' || identity.mediaType === 'episode') {
       await this.projectionRefreshDispatcher.invalidateCalendar(profileId);
@@ -301,6 +309,12 @@ export class WatchEventIngestService {
         eventType: _eventType,
         occurredAt,
       });
+      await this.appendRecommendationRecomputeEvent(client, {
+        userId,
+        profileId,
+        reason: this.mapEventTypeToRecomputeReason(_eventType),
+        occurredAt,
+      });
     });
   }
 
@@ -327,6 +341,12 @@ export class WatchEventIngestService {
         profileGroupId: profile.profileGroupId,
         identity,
         eventType,
+        occurredAt,
+      });
+      await this.appendRecommendationRecomputeEvent(client, {
+        userId,
+        profileId,
+        reason: this.mapEventTypeToRecomputeReason(eventType),
         occurredAt,
       });
     });
@@ -378,6 +398,28 @@ export class WatchEventIngestService {
       payload: this.buildWatchOutboxPayload(input),
       idempotencyKey: `watch_progress:${input.profileId}:${input.identity.mediaKey}:${input.eventType}:${input.occurredAt}`,
     });
+  }
+
+  private async appendRecommendationRecomputeEvent(
+    client: import('../../lib/db.js').DbClient,
+    input: {
+      userId: string;
+      profileId: string;
+      reason: RecommendationRecomputeReason;
+      occurredAt: string;
+    },
+  ): Promise<void> {
+    await this.recommendationOutboxService.appendRecomputeRequested(client, input);
+  }
+
+  private mapEventTypeToRecomputeReason(eventType: string): RecommendationRecomputeReason {
+    if (eventType === 'rating_put' || eventType === 'rating_remove') {
+      return 'rating_changed';
+    }
+    if (eventType === 'watchlist_put' || eventType === 'watchlist_remove') {
+      return 'watchlist_changed';
+    }
+    return 'watch_history_changed';
   }
 
   private buildWatchOutboxPayload(input: {

@@ -4,7 +4,7 @@
 
 Current architecture contract for recommendation-engine integration. The machine-readable source of truth for the provider-owned endpoint shapes, examples, and canonical error envelope is `openapi/internal-recommender.v1.yaml`; this document provides narrative integration context and must not override the OpenAPI contract.
 
-The recommendation engine is an external pull-based service. It calls authenticated Crispy API endpoints to retrieve profile, watch, rating, watchlist, episodic follow, metadata, and stored recommendation context needed for generation. Crispy Server does not submit generation jobs to the engine and does not poll the engine for job status.
+The recommendation engine is an external event-driven service. Crispy Server emits durable recompute events through its outbox; the engine receives those events, retrieves profile, watch, rating, watchlist, episodic follow, metadata, and stored recommendation context needed for generation, then publishes results back to Crispy Server.
 
 For AI-assisted generation, the engine sends business inputs and a bounded candidate pool to Crispy Server's internal AI-plan endpoint. Crispy Server owns provider selection, model selection, credentials, prompt construction, vendor protocol, response parsing, and typed-plan validation. The engine never receives OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys, provider/model routing config, proxy URLs, or raw vendor request details.
 
@@ -17,21 +17,33 @@ For AI-assisted generation, the engine sends business inputs and a bounded candi
 | Canonical media identity and metadata projections | Crispy API Server |
 | Stored recommendation snapshots served to clients | Crispy API Server |
 | Recommendation model logic and generation strategy | External recommendation engine |
-| Pulling eligible source data for generation | External recommendation engine through Crispy API |
+| Pulling eligible source data for generation after recompute events | External recommendation engine through Crispy API |
 | Internal queue jobs in this repository | Internal BullMQ worker |
 
 The external recommendation engine is not this repository's BullMQ worker and must not read Crispy Server storage directly.
 
 ## Authentication
 
+### Inbound: Engine to Crispy Server
+
 The engine authenticates to Crispy API as a service principal using the existing service-to-service headers:
 
 ```text
 x-service-id: crispy-recommendation-engine
-Authorization: Bearer <raw token whose SHA-256 hash matches CRISPY_RECOMMENDER_API_TOKEN_HASH>
+Authorization: Bearer <raw token whose SHA-256 hash matches RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH>
 ```
 
-`CRISPY_RECOMMENDER_API_TOKEN_HASH` controls access for the official recommender API token. Configure it to the SHA-256 hash of the raw bearer token used by the recommender deployment.
+`RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH` controls access for the official recommender API token. Configure it to the SHA-256 hash of the raw bearer token used by the recommender deployment.
+
+### Outbound: Crispy Server to Engine
+
+Crispy Server's outbox dispatcher authenticates to the engine's event ingestion endpoint using:
+
+```text
+Authorization: Bearer <MAIN_TO_RECOMMENDER_SERVICE_TOKEN>
+```
+
+The engine validates this token by comparing its SHA-256 hash against its configured `MAIN_TO_RECOMMENDER_SERVICE_TOKEN_HASH`.
 
 ## Source Data Retrieval
 

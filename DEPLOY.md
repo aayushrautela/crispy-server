@@ -48,7 +48,7 @@
     SUPABASE_SECRET_KEY=replace_with_supabase_secret_key
     ```
 
-   Recommendation generation is handled by an external pull-based recommendation engine. The engine authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for profile data, canonical TMDB-backed media identity, and stored recommendation snapshots.
+   Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for profile data, canonical TMDB-backed media identity, and stored recommendation snapshots.
 
    Do not deploy a separate recommendation worker from this repository. The `worker` container/process in this repo is the internal BullMQ worker for backend queue jobs; scaling it affects internal async work only and does not scale recommendation generation.
 
@@ -60,10 +60,17 @@
 
    Example inbound service auth config for the external recommendation engine:
    ```env
-   CRISPY_RECOMMENDER_API_TOKEN_HASH=<sha256 hash of the raw bearer token>
+   RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH=<sha256 hash of the recommender-to-main raw bearer token>
    ```
 
-   The external recommendation engine reads required data from `/internal/apps/v1`. For AI-assisted generation, the engine calls `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan` with business inputs and a bounded candidate pool. Crispy validates eligibility, builds the prompt, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed plan. The engine never receives raw OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys, provider/model routing config, proxy URLs, or raw vendor request details. The engine writes service-owned recommendation outputs through the internal app API. MAIN does not call the engine or poll it for generation status.
+   Example outbox dispatcher config for main-to-recommender event delivery:
+   ```env
+   RECOMMENDER_INTERNAL_BASE_URL=https://recommender.example.com
+   MAIN_TO_RECOMMENDER_SERVICE_TOKEN=<raw main-to-recommender bearer token>
+   OUTBOX_DISPATCHER_ENABLED=true
+   ```
+
+   The external recommendation engine reads required data from `/internal/apps/v1`. For AI-assisted generation, the engine calls `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan` with business inputs and a bounded candidate pool. Crispy validates eligibility, builds the prompt, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed plan. The engine never receives raw OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys, provider/model routing config, proxy URLs, or raw vendor request details. The engine writes service-owned recommendation outputs through the internal app API. MAIN dispatches recompute events to the engine through the outbox and does not poll it for generation status.
 
    Privileged inbound data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 

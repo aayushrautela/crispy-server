@@ -25,7 +25,8 @@ This repository is easy to misread if you only scan env vars. Read this first be
 
 - User auth: bearer JWTs are verified against a remote JWKS, then the backend upserts a local app user from the auth subject.
 - Personal access tokens: local `cp_pat_...` tokens issued and validated by this server.
-- Official recommender auth: callers send a bearer token whose SHA-256 hash matches `CRISPY_RECOMMENDER_API_TOKEN_HASH`.
+- Official recommender auth: callers send a bearer token whose SHA-256 hash matches `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`.
+- Main-to-recommender auth: the outbox dispatcher sends `MAIN_TO_RECOMMENDER_SERVICE_TOKEN` to the recommender's internal event endpoint.
 - The signed-in account is the only auth actor and the ownership root.
 - Email is an account lookup attribute at the product boundary; the durable internal ownership key remains the local app-user id.
 - Profiles are child personas under one account, not standalone users.
@@ -46,7 +47,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - The README contains a maintained endpoint map and should stay in sync with the route files.
 - Do not reintroduce legacy profile-only internal compatibility routes; privileged integrations should use `/internal/v1/accounts/...`.
 - Human admin and diagnostics UI belongs on the API server control plane, not on the external recommendation engine.
-- Recommendation generation is pull-based and external: the engine calls authenticated Crispy API endpoints to fetch bounded source data. For AI-assisted planning it uses `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan`; do not document raw AI key delivery, provider/model config delivery, config-bundle delivery, or AI proxy calls to RECO. Do not describe MAIN as submitting generation jobs to it or polling it for status.
+- Recommendation generation is event-driven and external: MAIN emits recompute events through its outbox, and the engine calls authenticated Crispy API endpoints to fetch bounded source data. For AI-assisted planning it uses `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan`; do not document raw AI key delivery, provider/model config delivery, config-bundle delivery, or AI proxy calls to RECO. Do not describe MAIN as submitting generation jobs to it or polling it for status.
 - The external recommendation engine is not this repository's BullMQ worker. `src/bin/worker.ts`, `npm run dev:worker`, and the `worker` container refer only to the internal BullMQ worker for backend queue jobs.
 - Recommendation outputs should use final canonical TMDB-backed identities: `movie:tmdb:*`, `show:tmdb:*`, `season:tmdb:*`, `episode:tmdb:*`, and `person:tmdb:*`. TVDB and Kitsu IDs may appear only as non-canonical import-source bookkeeping, external IDs, or compatibility crosswalk fields.
 - Profile-targeted user routes use explicit `:profileId` path params.

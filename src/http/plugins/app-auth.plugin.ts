@@ -181,7 +181,7 @@ const appAuthPlugin: FastifyPluginAsync<AppAuthPluginOptions> = async (fastify, 
     const header = request.headers.authorization?.trim();
     if (header?.startsWith('Bearer ')) {
       const token = header.slice('Bearer '.length).trim();
-      const expectedHash = env.crispyRecommenderApiTokenHash;
+      const expectedHash = env.recommenderToMainServiceTokenHash;
       if (!expectedHash || !token || hashAccessToken(token) !== expectedHash) {
         throw new HttpError(401, 'Invalid recommender bearer token.');
       }

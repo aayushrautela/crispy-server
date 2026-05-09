@@ -19,7 +19,7 @@ import { ProfileService } from '../../modules/profiles/profile.service.js';
 import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
 
 
-type ProfileOwnershipValidator = Pick<ProfileService, 'requireOwnedProfile'>;
+type ProfileOwnershipValidator = Pick<ProfileService, 'requireOwnedProfile' | 'requireProfileOwnerAccountId'>;
 
 export interface InternalAppsRoutesDeps {
   appAuthService: AppAuthService;
@@ -108,6 +108,32 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     });
   });
 
+  app.get('/internal/apps/v1/profiles/:profileId/recommendation-signal-bundle', async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { profileId: string };
+    const query = request.query as { include?: string; historyLimit?: string; ratingsLimit?: string; watchlistLimit?: string; continueLimit?: string; since?: string };
+    const accountId = await profileService.requireProfileOwnerAccountId(params.profileId);
+    const hasAllAccountRead = hasScopedAllAccountAccess(principal, 'accounts:all:read');
+    if (!hasAllAccountRead) {
+      await profileService.requireOwnedProfile(accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId, profileId: params.profileId });
+    return deps.profileSignalBundleService.getBundle({
+      principal,
+      accountId,
+      profileId: params.profileId,
+      purpose: 'recommendation-generation',
+      include: query.include ? query.include.split(',').map((item) => item.trim()).filter(Boolean) as ProfileSignalInclude[] : undefined,
+      limits: {
+        historyLimit: query.historyLimit ? Number(query.historyLimit) : undefined,
+        ratingsLimit: query.ratingsLimit ? Number(query.ratingsLimit) : undefined,
+        watchlistLimit: query.watchlistLimit ? Number(query.watchlistLimit) : undefined,
+        continueLimit: query.continueLimit ? Number(query.continueLimit) : undefined,
+      },
+      since: query.since ? new Date(query.since) : undefined,
+    });
+  });
+
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle', async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
@@ -150,6 +176,33 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.service-lists' });
     return deps.serviceRecommendationListService.listWritableLists({ principal });
+  });
+
+  app.put('/internal/apps/v1/profiles/:profileId/recommendations', async (request, reply) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { profileId: string };
+    const body = request.body as { listKey?: unknown; requestId?: unknown; jobId?: unknown; generatedAt?: unknown; algorithmVersion?: unknown; modelVersion?: unknown; inputBundleAsOf?: unknown; items?: Parameters<ServiceRecommendationListService['upsertList']>[0]['request']['items'] };
+    const listKey = typeof body.listKey === 'string' && body.listKey.trim() ? body.listKey : 'for-you';
+    const idempotencyKey = typeof request.headers['idempotency-key'] === 'string'
+      ? request.headers['idempotency-key']
+      : typeof body.requestId === 'string'
+        ? body.requestId
+        : '';
+    const accountId = await profileService.requireProfileOwnerAccountId(params.profileId);
+    const hasAllAccountWrite = hasScopedAllAccountAccess(principal, 'accounts:all:write');
+    if (!hasAllAccountWrite) {
+      await profileService.requireOwnedProfile(accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId, profileId: params.profileId, listKey });
+    const result = await deps.serviceRecommendationListService.upsertList({
+      principal,
+      accountId,
+      profileId: params.profileId,
+      listKey,
+      idempotencyKey,
+      request: { items: body.items ?? [] },
+    });
+    return reply.code(result.idempotency.replayed ? 200 : 201).send(result);
   });
 
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', async (request, reply) => {

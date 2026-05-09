@@ -24,7 +24,7 @@ setTestEnv({
   SUPABASE_URL: 'http://localhost:54321',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
   JWT_SECRET: 'test-jwt-secret',
-  CRISPY_RECOMMENDER_API_TOKEN_HASH: 'unused-token-hash',
+  RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: 'unused-token-hash',
 });
 
 function buildPrincipal(scopes: AppScope[] = ['apps:self:read']): AppPrincipal {
@@ -102,6 +102,13 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
         throw new HttpError(404, 'Profile not found.');
       }
       return { id: profileId, profileGroupId: 'group-1', name: 'Test Profile', avatarKey: null, isKids: false, sortOrder: 0, createdByUserId: accountId, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    },
+    async requireProfileOwnerAccountId(profileId: string): Promise<string> {
+      const owned = ownedProfiles.find((profile) => profile.profileId === profileId);
+      if (owned) return owned.accountId;
+      if (profileId === 'prof-888') return 'acc-999';
+      const { HttpError } = await import('../../lib/errors.js');
+      throw new HttpError(404, 'Profile not found.');
     },
   };
   const { default: appAuthPlugin } = await import('../plugins/app-auth.plugin.js');

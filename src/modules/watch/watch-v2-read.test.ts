@@ -320,8 +320,13 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
     {} as never,
     {} as never,
     {
-      scheduleProfileGeneration: async (profileId: string, accountId: unknown, reason: string) => {
-        recommendationCalls.push({ profileId, accountId, reason });
+      appendChange: async (_client: unknown, event: Record<string, unknown>) => {
+        recommendationCalls.push(event);
+      },
+    } as never,
+    {
+      invalidate: async (input: Record<string, unknown>) => {
+        recommendationCalls.push(input);
       },
     } as never,
   );
@@ -337,7 +342,7 @@ test('dismissContinueWatching resolves synthetic cw2 ids through watch-v2 projec
   assert.equal(v2DismissCalls[0]?.profileId, 'profile-1');
   assert.equal(typeof v2DismissCalls[0]?.occurredAt, 'string');
   assert.equal((v2DismissCalls[0]?.identity as { mediaKey?: string } | undefined)?.mediaKey, 'episode:tmdb:100:1:2');
-  assert.deepEqual(recommendationCalls, [{ profileId: 'profile-1', accountId: undefined, reason: 'watch_event' }]);
+  assert.deepEqual(recommendationCalls.filter((call) => call.reason).map((call) => call.reason), ['playback_progress_mutated']);
 });
 
 test('getState returns v2 title state and expands watched episode keys from title override', { concurrency: false }, async (t) => {

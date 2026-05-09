@@ -38,6 +38,23 @@ function parseNumber(name: string, fallback: number): number {
   return parsed;
 }
 
+function parseBoolean(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+
+  if (['1', 'true', 'yes', 'on'].includes(raw)) {
+    return true;
+  }
+
+  if (['0', 'false', 'no', 'off'].includes(raw)) {
+    return false;
+  }
+
+  throw new Error(`Invalid boolean environment variable: ${name}`);
+}
+
 function parseStringEnumEnv<T extends string>(name: string, allowed: readonly T[], fallback: T): T {
   const raw = process.env[name]?.trim();
   if (!raw) {
@@ -93,7 +110,16 @@ export const env = {
   simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
   recommendationAlgorithmVersion: optionalEnv('RECOMMENDATION_ALGORITHM_VERSION') ?? 'v3.2.1',
   recommendationGenerationTtlSeconds: parseNumber('RECOMMENDATION_GENERATION_TTL_SECONDS', 86400),
-  crispyRecommenderApiTokenHash: optionalEnv('CRISPY_RECOMMENDER_API_TOKEN_HASH') ?? '',
+  recommenderToMainServiceTokenHash: optionalEnv('RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH') ?? '',
+  recommenderInternalBaseUrl: optionalBaseUrl('RECOMMENDER_INTERNAL_BASE_URL') ?? '',
+  mainToRecommenderServiceToken: optionalEnv('MAIN_TO_RECOMMENDER_SERVICE_TOKEN') ?? '',
+  outboxDispatcherEnabled: parseBoolean('OUTBOX_DISPATCHER_ENABLED', false),
+  outboxDispatchBatchSize: parseNumber('OUTBOX_DISPATCH_BATCH_SIZE', 10),
+  outboxDispatchIntervalMs: parseNumber('OUTBOX_DISPATCH_INTERVAL_MS', 5000),
+  outboxDispatchLockSeconds: parseNumber('OUTBOX_DISPATCH_LOCK_SECONDS', 60),
+  outboxDispatchMaxAttempts: parseNumber('OUTBOX_DISPATCH_MAX_ATTEMPTS', 10),
+  outboxDispatchRetryBaseMs: parseNumber('OUTBOX_DISPATCH_RETRY_BASE_MS', 1000),
+  outboxDispatchRetryMaxMs: parseNumber('OUTBOX_DISPATCH_RETRY_MAX_MS', 300000),
 };
 
 export type Env = typeof env;
