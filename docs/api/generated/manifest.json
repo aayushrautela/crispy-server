@@ -1,5 +1,5 @@
 {
-  "generated": "2026-05-07T15:45:16.987Z",
+  "generated": "2026-05-09T19:31:58.833Z",
   "specs": [
     {
       "file": "openapi/public-app.v1.yaml",
@@ -46,7 +46,8 @@
   },
   "documentation": [
     "docs/api/README.md",
-    "docs/api/PRODUCTION_READINESS.md",
-    "docs/api/route-inventory.md"
+    "docs/api/recommendations.md",
+    "docs/api/media-state.md",
+    "docs/architecture/recommendation-engine.md"
   ]
 }

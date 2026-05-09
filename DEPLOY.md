@@ -72,7 +72,7 @@
 
    The external recommendation engine reads required data from `/internal/apps/v1`. For AI-assisted generation, the engine calls `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan` with business inputs and a bounded candidate pool. Crispy validates eligibility, builds the prompt, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed plan. The engine never receives raw OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys, provider/model routing config, proxy URLs, or raw vendor request details. The engine writes service-owned recommendation outputs through the internal app API. MAIN dispatches recompute events to the engine through the outbox and does not poll it for generation status.
 
-   Privileged inbound data reads and writes should use the account-rooted internal routes described in `README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
+   Privileged inbound data reads and writes should use the account-rooted internal routes documented in OpenAPI (`openapi/internal-services.v1.yaml`) and indexed from `docs/api/README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 
 4. Start it:
    ```bash

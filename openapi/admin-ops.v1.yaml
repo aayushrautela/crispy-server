@@ -647,6 +647,122 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/recommendations/recompute:
+    post:
+      tags:
+        - Admin Accounts
+      operationId: postAdminApiAccountsAccountIdProfilesProfileIdRecommendationsRecompute
+      summary: Enqueue recommendation recompute for one profile
+      description: |
+        Enqueues one `recommendation.recompute_requested` event in `service_outbox_events`
+        with reason `admin_requested`. The endpoint confirms the profile belongs to the
+        account and returns dispatch-tracking metadata only; it does not wait for
+        downstream recommendation generation to finish and does not return a generation
+        job id or progress.
+
+        This is an admin mutation and follows the existing admin route conventions:
+        callers need an authenticated admin session or authorized admin bearer token,
+        plus the admin mutation/CSRF protection required by the deployed admin stack.
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRecommendationRecomputeRequest"
+      responses:
+        "202":
+          description: Recompute request event accepted for asynchronous dispatch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRecommendationRecomputeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/recommendations/recompute:
+    post:
+      tags:
+        - Admin Accounts
+      operationId: postAdminApiAccountsAccountIdRecommendationsRecompute
+      summary: Enqueue recommendation recompute for selected account profiles
+      description: |
+        Enqueues one `recommendation.recompute_requested` event per selected profile in
+        `service_outbox_events` with reason `admin_requested`. The current MVP accepts
+        selected profiles only and caps one request at 50 profile ids. It returns
+        outbox/dispatch-tracking metadata only, not downstream generation completion.
+
+        This is an admin mutation and follows the existing admin route conventions:
+        callers need an authenticated admin session or authorized admin bearer token,
+        plus the admin mutation/CSRF protection required by the deployed admin stack.
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminAccountRecommendationRecomputeRequest"
+      responses:
+        "202":
+          description: Recompute request events accepted for asynchronous dispatch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccountRecommendationRecomputeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /admin/api/accounts/{accountId}/profiles/{profileId}/taste-profile:
     get:
       tags:
@@ -975,12 +1091,78 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /admin/api/diagnostics/recommendations/service-outbox:
+    get:
+      tags:
+        - Admin Diagnostics
+      operationId: getAdminApiDiagnosticsRecommendationsServiceOutbox
+      summary: Recommendation service outbox diagnostics
+      description: |
+        Lists recommendation recompute events from `service_outbox_events` for
+        dispatch diagnostics. The status values describe MAIN outbox delivery state
+        (`pending`, `processing`, `dispatched`, `failed`) only. A dispatched row means
+        the dispatcher delivered the event to RECO's internal event ingestion endpoint;
+        it does not mean recommendation generation has completed.
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: correlationId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: profileId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: reason
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/RecommendationRecomputeReason"
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ServiceOutboxDispatchStatus"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 250
+      responses:
+        "200":
+          description: Recommendation service-outbox events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRecommendationServiceOutboxResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /admin/api/diagnostics/recommendations/outbox:
     get:
+      deprecated: true
       tags:
         - Admin Diagnostics
       operationId: getAdminApiDiagnosticsRecommendationsOutbox
       summary: diagnostics recommendations outbox
+      description: Deprecated compatibility route. Prefer `GET /admin/api/diagnostics/recommendations/service-outbox`, which exposes service-outbox dispatch state and supports correlationId/profileId/reason/status filters.
       security:
         - AdminSession: []
         - AdminBearer: []
@@ -1032,6 +1214,15 @@ components:
       scheme: bearer
       bearerFormat: service-token
   parameters:
+    AdminMutationCsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
     RequestId:
       name: X-Request-Id
       in: header
@@ -1104,6 +1295,196 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
+    RecommendationRecomputeReason:
+      type: string
+      description: Current runtime recompute reason values. `admin_requested` is used for admin-triggered recompute requests.
+      enum:
+        - watch_history_changed
+        - rating_changed
+        - watchlist_changed
+        - playback_progress_changed
+        - profile_created
+        - profile_settings_changed
+        - admin_requested
+    ServiceOutboxDispatchStatus:
+      type: string
+      enum:
+        - pending
+        - processing
+        - dispatched
+        - failed
+    AdminRecommendationRecomputeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Optional caller-supplied correlation id used to find the outbox event in diagnostics.
+    AdminAccountRecommendationRecomputeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - profileIds
+      properties:
+        profileIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: string
+            minLength: 1
+            maxLength: 512
+          description: Selected profile ids under the account. Tier-wide or unbounded recompute is outside the MVP.
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 128
+    AdminRecommendationRecomputeResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - ok
+        - reason
+        - accountId
+        - profileId
+        - requested
+        - enqueued
+        - skipped
+      properties:
+        ok:
+          type: boolean
+        reason:
+          $ref: "#/components/schemas/RecommendationRecomputeReason"
+        accountId:
+          type: string
+        profileId:
+          type: string
+        requested:
+          type: integer
+          minimum: 1
+          const: 1
+        enqueued:
+          type: integer
+          minimum: 0
+          maximum: 1
+        skipped:
+          type: integer
+          minimum: 0
+          maximum: 1
+        correlationId:
+          type: string
+        note:
+          type: string
+        diagnosticsUrl:
+          type: string
+          description: Admin diagnostics URL filtered by correlation id when available.
+    AdminAccountRecommendationRecomputeResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - ok
+        - reason
+        - accountId
+        - profileIds
+        - requested
+        - enqueued
+        - skipped
+      properties:
+        ok:
+          type: boolean
+        reason:
+          $ref: "#/components/schemas/RecommendationRecomputeReason"
+        accountId:
+          type: string
+        profileIds:
+          type: array
+          items:
+            type: string
+        requested:
+          type: integer
+          minimum: 1
+          maximum: 50
+        enqueued:
+          type: integer
+          minimum: 0
+          maximum: 50
+        skipped:
+          type: integer
+          minimum: 0
+          maximum: 50
+        correlationId:
+          type: string
+        note:
+          type: string
+        diagnosticsUrl:
+          type: string
+    AdminRecommendationServiceOutboxEvent:
+      type: object
+      additionalProperties: true
+      required:
+        - id
+        - profileId
+        - userId
+        - reason
+        - status
+        - occurredAt
+        - availableAt
+        - attemptCount
+        - correlationId
+        - createdAt
+      properties:
+        id:
+          type: string
+        profileId:
+          type: string
+        userId:
+          type: string
+        reason:
+          $ref: "#/components/schemas/RecommendationRecomputeReason"
+        status:
+          $ref: "#/components/schemas/ServiceOutboxDispatchStatus"
+        occurredAt:
+          type: string
+          format: date-time
+        availableAt:
+          type: string
+          format: date-time
+        attemptCount:
+          type: integer
+          minimum: 0
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        correlationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    AdminRecommendationServiceOutboxResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - events
+        - summary
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRecommendationServiceOutboxEvent"
+        summary:
+          type: object
+          additionalProperties: true
+          properties:
+            total:
+              type: integer
+            pending:
+              type: integer
+            dispatched:
+              type: integer
+            failed:
+              type: integer
     ErrorEnvelope:
       type: object
       additionalProperties: true

@@ -31,7 +31,73 @@ tags:
     description: Service audit event logging.
   - name: AI Plan
     description: Server-owned AI-plan generation boundary.
+  - name: Recommender Event Ingestion
+    description: RECO-owned event ingestion endpoint called by MAIN outbox dispatcher.
 paths:
+  /internal/recommender/v1/events:
+    post:
+      tags: [Recommender Event Ingestion]
+      operationId: ingestRecommenderEvent
+      summary: Ingest a MAIN service-outbox event
+      description: |
+        RECO-owned inbound endpoint called by MAIN's service-outbox dispatcher.
+        MAIN dispatches `service_outbox_events` rows here, including
+        `recommendation.recompute_requested` envelopes with reason `admin_requested`
+        for admin-triggered recompute requests.
+
+        A duplicate event response (`409 Conflict`) is treated by MAIN's dispatcher as
+        idempotent success and the service-outbox row may be marked dispatched. `2xx`
+        responses are success. `400`, `401`, and `403` are permanent dispatch failures.
+        `5xx` and network/timeout failures are retried by MAIN according to outbox
+        retry policy.
+
+        The current MVP response acknowledges the event and may return a recommender
+        event id only. It does not return a generation job id, generation status, or
+        progress to MAIN.
+      x-internal: true
+      x-owner: crispy-recommendation-engine
+      x-consumers: [crispy-server-main]
+      parameters:
+        - $ref: '#/components/parameters/RecommenderInboundAuthorization'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommenderEventEnvelope' }
+      responses:
+        '202':
+          description: Event accepted for recommender-side processing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommenderEventAcceptedResponse' }
+        '200':
+          description: Event accepted or already processed idempotently.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommenderEventAcceptedResponse' }
+        '400':
+          description: Invalid event envelope; permanent failure for MAIN dispatcher.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+        '401':
+          description: Missing or invalid bearer token; permanent failure until configuration is fixed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+        '403':
+          description: Authenticated caller is not allowed to ingest events; permanent failure until configuration is fixed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
+        '409':
+          description: Duplicate event receipt. MAIN treats this as idempotent success for dispatch state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommenderEventAcceptedResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /internal/apps/v1/me:
     get:
       tags: [App Identity]
@@ -811,6 +877,13 @@ components:
       required: true
       schema: { type: string, pattern: '^Bearer .+$' }
       example: Bearer <service-token>
+    RecommenderInboundAuthorization:
+      name: Authorization
+      in: header
+      required: true
+      description: Bearer token from MAIN service-outbox dispatcher. RECO validates by comparing SHA-256 hash against MAIN_TO_RECOMMENDER_SERVICE_TOKEN_HASH.
+      schema: { type: string, pattern: '^Bearer .+$' }
+      example: Bearer <main-service-token>
     ServiceId:
       name: x-service-id
       in: header
@@ -882,6 +955,87 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/CanonicalErrorEnvelope' }
   schemas:
+    RecommenderEventType:
+      type: string
+      enum:
+        - recommendation.recompute_requested
+    RecommenderEventReason:
+      type: string
+      description: Current runtime recompute reasons. `admin_requested` is emitted by admin recompute endpoints.
+      enum:
+        - watch_history_changed
+        - rating_changed
+        - watchlist_changed
+        - playback_progress_changed
+        - profile_created
+        - profile_settings_changed
+        - admin_requested
+    RecommenderEventEnvelope:
+      type: object
+      additionalProperties: true
+      required: [eventId, eventType, occurredAt, aggregateType, aggregateId, userId, profileId, source, correlationId, payload]
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        eventType:
+          $ref: '#/components/schemas/RecommenderEventType'
+        eventVersion:
+          type: integer
+          minimum: 1
+          default: 1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateType:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: profile
+        aggregateId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        userId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        profileId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        source:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: crispy-server
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        payload:
+          type: object
+          additionalProperties: true
+          required: [accountId, profileId, reason]
+          properties:
+            accountId: { type: string, minLength: 1, maxLength: 128 }
+            profileId: { type: string, minLength: 1, maxLength: 128 }
+            reason: { $ref: '#/components/schemas/RecommenderEventReason' }
+    RecommenderEventAcceptedResponse:
+      type: object
+      additionalProperties: true
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+          const: true
+        recommenderEventId:
+          type: string
+          description: RECO-side event receipt id when available. This is not a generation job id.
+        duplicate:
+          type: boolean
+          description: True when the event was already received and the response is idempotent.
     ErrorCategory:
       type: string
       enum: [validation, authentication, authorization, not_found, conflict, idempotency, rate_limit, timeout, upstream_dependency, internal]

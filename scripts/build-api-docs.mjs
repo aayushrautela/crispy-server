@@ -1,5 +1,5 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve } from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
@@ -34,8 +34,9 @@ const manifest = {
   },
   documentation: [
     'docs/api/README.md',
-    'docs/api/PRODUCTION_READINESS.md',
-    'docs/api/route-inventory.md',
+    'docs/api/recommendations.md',
+    'docs/api/media-state.md',
+    'docs/architecture/recommendation-engine.md',
   ],
 };
 
@@ -45,4 +46,5 @@ writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 console.log(`API docs manifest generated at ${manifestPath}`);
 console.log(`  ${specs.length} OpenAPI specs`);
 console.log(`  ${specs.length} TypeScript type definitions`);
+console.log(`  ${manifest.documentation.length} documentation references`);
 console.log(`  ${manifest.verification ? Object.keys(manifest.verification).length : 0} verification commands`);

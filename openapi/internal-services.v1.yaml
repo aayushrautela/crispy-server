@@ -206,6 +206,53 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/profiles/{profileId}/recommendation-signal-bundle:
+    get:
+      deprecated: true
+      tags: [Signal Bundles]
+      operationId: getLegacyInternalRecommendationSignalBundle
+      summary: Return recommendation signal bundle for a profile (legacy compatibility)
+      description: Legacy compatibility route for callers that only have profileId. Prefer the account-rooted `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle` endpoint.
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: historyLimit
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 500 }
+        - name: ratingsLimit
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 500 }
+        - name: watchlistLimit
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 500 }
+        - name: continueLimit
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 500 }
+        - name: include
+          in: query
+          description: Comma-separated signal families to include.
+          schema: { type: string, example: history,ratings,watchlist,continue }
+        - name: since
+          in: query
+          description: Optional lower bound for incremental signal reads.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Recommendation signals.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationSignalBundleResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle:
     get:
       tags: [Signal Bundles]
@@ -256,6 +303,45 @@ paths:
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/profiles/{profileId}/recommendations:
+    put:
+      deprecated: true
+      tags: [Recommendation Lists]
+      operationId: upsertLegacyInternalProfileRecommendations
+      summary: Upsert recommendations for a profile (legacy compatibility)
+      description: Legacy compatibility route for profile-rooted recommendation writes. Prefer service-owned list writes at `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}`.
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationListUpsertRequest' }
+      responses:
+        '200':
+          description: Recommendation write accepted or idempotently replayed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationListUpsertResponse' }
+        '201':
+          description: A new recommendation version was written.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationListUpsertResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
         '429': { $ref: '#/components/responses/RateLimitedError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /internal/apps/v1/recommendations/service-lists:

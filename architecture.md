@@ -162,11 +162,14 @@ Rules:
 
 ## Documentation Rules
 
-- `architecture.md` is the architecture source of truth
-- `README.md` is the stack and endpoint summary
-- `src/http/contracts/*` define the concrete HTTP payload contract
-- `migrations/*.sql` define the DB contract
-- old planning docs are historical unless explicitly marked current
+- `architecture.md` is the system architecture source of truth.
+- `README.md` is a concise project overview and quickstart, not an API inventory.
+- `openapi/*.yaml` are the canonical HTTP API contracts.
+- `docs/api/README.md` owns API contract workflow, classification, and quality gates.
+- `docs/architecture/recommendation-engine.md` owns the recommendation-engine boundary/security narrative.
+- `docs/api/media-state.md` owns client media identity guidance.
+- `migrations/*.sql` define the DB contract.
+- old planning docs are historical unless explicitly marked current.
 
 ## Verification
 
