@@ -27,6 +27,8 @@ import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
 import { RecommendationOutboxService } from '../../modules/outbox/recommendation-outbox.service.js';
 import { ServiceOutboxRepository, type ServiceOutboxEventStatus } from '../../modules/outbox/service-outbox.repo.js';
+import { AdminBulkJobService } from '../../modules/admin-bulk-jobs/admin-bulk-job.service.js';
+import type { AdminBulkJobScope, AdminBulkJobStatus, AdminBulkJobTargetInput } from '../../modules/admin-bulk-jobs/admin-bulk-job.types.js';
 import { withTransaction } from '../../lib/db.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
@@ -55,6 +57,7 @@ export async function registerAdminApiRoutes(
   const aiClient = new OpenAiCompatibleClient();
   const recommendationOutboxService = new RecommendationOutboxService();
   const serviceOutboxRepository = new ServiceOutboxRepository();
+  const adminBulkJobService = new AdminBulkJobService();
   const profileInputSignalFacade = deps?.profileInputSignalFacade ?? new ProfileInputSignalFacade({
     defaults: {
       historyDefault: 25,
@@ -89,6 +92,50 @@ export async function registerAdminApiRoutes(
   async function requireAdminMutation(request: import('fastify').FastifyRequest): Promise<void> {
     await app.requireAdminUiMutation(request);
   }
+
+  app.post('/admin/api/recommendations/recompute-jobs/preview', async (request, reply) => {
+    await requireAdmin(request);
+    const body = asRecord(request.body);
+    return adminBulkJobService.previewRecommendationRecomputeJob(parseBulkJobInput(body));
+  });
+
+  app.post('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
+    await requireAdminMutation(request);
+    const body = asRecord(request.body);
+    const result = await adminBulkJobService.createRecommendationRecomputeJob(parseBulkJobInput(body));
+    reply.code(result.created ? 202 : 200);
+    return result;
+  });
+
+  app.get('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
+    await requireAdmin(request);
+    const query = asRecord(request.query);
+    return { jobs: await adminBulkJobService.listJobs({ status: parseBulkJobStatus(query.status), limit: parseLimit(query.limit) }) };
+  });
+
+  app.get('/admin/api/recommendations/recompute-jobs/:jobId', async (request, reply) => {
+    await requireAdmin(request);
+    const params = asRecord(request.params);
+    return adminBulkJobService.getJobDetail(readRequiredString(params.jobId, 'jobId'));
+  });
+
+  app.post('/admin/api/recommendations/recompute-jobs/:jobId/pause', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    return { job: await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'pause') };
+  });
+
+  app.post('/admin/api/recommendations/recompute-jobs/:jobId/resume', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    return { job: await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'resume') };
+  });
+
+  app.post('/admin/api/recommendations/recompute-jobs/:jobId/cancel', async (request, reply) => {
+    await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    return { job: await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'cancel') };
+  });
 
   app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
     await requireAdmin(request);
@@ -128,6 +175,8 @@ export async function registerAdminApiRoutes(
         id: e.id,
         profileId: e.profileId,
         userId: e.userId,
+        bulkJobId: e.bulkJobId,
+        bulkJobTargetId: e.bulkJobTargetId,
         reason: e.payload.reason,
         status: e.status,
         occurredAt: e.occurredAt,
@@ -761,6 +810,41 @@ function parseLimit(value: unknown): number {
 
 function clampLimit(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+function parseBulkJobInput(body: Record<string, unknown>): { scope: AdminBulkJobScope; targets: AdminBulkJobTargetInput[]; reason: string | null; idempotencyKey?: string | null; correlationId?: string | null } {
+  const scopeRecord = asRecord(body.scope);
+  const scopeType = typeof scopeRecord.type === 'string' ? scopeRecord.type : null;
+  const scope = scopeType === 'explicit_targets'
+    ? { type: 'explicit_targets' } as const
+    : scopeType === 'all_users'
+      ? { type: 'all_users' } as const
+      : scopeType === 'tier' && (scopeRecord.tier === 'free' || scopeRecord.tier === 'pro' || scopeRecord.tier === 'ultra')
+        ? { type: 'tier', tier: scopeRecord.tier } as const
+        : null;
+  if (!scope) {
+    throw new HttpError(400, 'Invalid bulk job scope.');
+  }
+  const rawTargets = Array.isArray(body.targets) ? body.targets : [];
+  const targets = rawTargets
+    .map((target) => asRecord(target))
+    .filter((target) => typeof target.accountId === 'string' && typeof target.profileId === 'string')
+    .map((target) => ({ accountId: String(target.accountId), profileId: String(target.profileId) }));
+  return {
+    scope,
+    targets,
+    reason: typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null,
+    idempotencyKey: typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim() ? body.idempotencyKey.trim() : null,
+    correlationId: typeof body.correlationId === 'string' && body.correlationId.trim() ? body.correlationId.trim() : null,
+  };
+}
+
+function parseBulkJobStatus(value: unknown): AdminBulkJobStatus | null {
+  const status = typeof value === 'string' ? value.trim() : null;
+  if (status === 'queued' || status === 'enumerating' || status === 'fanout' || status === 'paused' || status === 'canceling' || status === 'canceled' || status === 'completed' || status === 'failed') {
+    return status;
+  }
+  return null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

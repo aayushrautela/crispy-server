@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { DbClient } from '../../lib/db.js';
-import { ServiceOutboxRepository } from './service-outbox.repo.js';
+import { ServiceOutboxRepository, type ServiceOutboxEventRecord } from './service-outbox.repo.js';
 
 export type RecommendationRecomputeReason =
   | 'watch_history_changed'
@@ -17,13 +17,16 @@ export type AppendRecommendationRecomputeRequestedInput = {
   reason: RecommendationRecomputeReason;
   occurredAt?: string;
   correlationId?: string | null;
+  bulkJobId?: string | null;
+  bulkJobTargetId?: string | null;
+  idempotencyKey?: string | null;
 };
 
 export class RecommendationOutboxService {
   constructor(private readonly serviceOutboxRepository = new ServiceOutboxRepository()) {}
 
-  async appendRecomputeRequested(client: DbClient, input: AppendRecommendationRecomputeRequestedInput): Promise<void> {
-    await this.serviceOutboxRepository.insert(client, {
+  async appendRecomputeRequested(client: DbClient, input: AppendRecommendationRecomputeRequestedInput): Promise<ServiceOutboxEventRecord> {
+    return this.serviceOutboxRepository.insert(client, {
       id: randomUUID(),
       eventType: 'recommendation.recompute_requested',
       eventVersion: 1,
@@ -37,6 +40,9 @@ export class RecommendationOutboxService {
       occurredAt: input.occurredAt,
       destination: 'recommender',
       correlationId: input.correlationId,
+      bulkJobId: input.bulkJobId,
+      bulkJobTargetId: input.bulkJobTargetId,
+      idempotencyKey: input.idempotencyKey,
     });
   }
 }

@@ -21,6 +21,9 @@ export type ServiceOutboxEventRecord = {
   lockedUntil: string | null;
   destination: string;
   correlationId: string | null;
+  bulkJobId: string | null;
+  bulkJobTargetId: string | null;
+  idempotencyKey: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -38,6 +41,9 @@ export type InsertServiceOutboxEventInput = {
   availableAt?: string;
   destination: string;
   correlationId?: string | null;
+  bulkJobId?: string | null;
+  bulkJobTargetId?: string | null;
+  idempotencyKey?: string | null;
 };
 
 const serviceOutboxColumns = `
@@ -58,6 +64,9 @@ const serviceOutboxColumns = `
   locked_until,
   destination,
   correlation_id,
+  bulk_job_id,
+  bulk_job_target_id,
+  idempotency_key,
   created_at,
   updated_at
 `;
@@ -81,6 +90,9 @@ function mapServiceOutboxEvent(row: Record<string, unknown>): ServiceOutboxEvent
     lockedUntil: toDbIsoString(row.locked_until as Date | string | null | undefined, 'service_outbox_events.locked_until'),
     destination: String(row.destination),
     correlationId: typeof row.correlation_id === 'string' ? row.correlation_id : null,
+    bulkJobId: typeof row.bulk_job_id === 'string' ? row.bulk_job_id : null,
+    bulkJobTargetId: typeof row.bulk_job_target_id === 'string' ? row.bulk_job_target_id : null,
+    idempotencyKey: typeof row.idempotency_key === 'string' ? row.idempotency_key : null,
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'service_outbox_events.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'service_outbox_events.updated_at'),
   };
@@ -102,9 +114,12 @@ export class ServiceOutboxRepository {
           occurred_at,
           available_at,
           destination,
-          correlation_id
+          correlation_id,
+          bulk_job_id,
+          bulk_job_target_id,
+          idempotency_key
         )
-        VALUES ($1, $2, $3, $4, $5, $6::uuid, $7::uuid, $8::jsonb, COALESCE($9::timestamptz, now()), COALESCE($10::timestamptz, now()), $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6::uuid, $7::uuid, $8::jsonb, COALESCE($9::timestamptz, now()), COALESCE($10::timestamptz, now()), $11, $12, $13::uuid, $14::uuid, $15)
         RETURNING ${serviceOutboxColumns}
       `,
       [
@@ -120,6 +135,9 @@ export class ServiceOutboxRepository {
         input.availableAt ?? null,
         input.destination,
         input.correlationId ?? null,
+        input.bulkJobId ?? null,
+        input.bulkJobTargetId ?? null,
+        input.idempotencyKey ?? null,
       ],
     );
 
