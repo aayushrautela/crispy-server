@@ -145,7 +145,7 @@ export class ServiceOutboxRepository {
           idempotency_key
         )
         VALUES ($1, $2, $3, $4, $5, $6::uuid, $7::uuid, $8::jsonb, COALESCE($9::timestamptz, now()), COALESCE($10::timestamptz, now()), $11, $12, $13::uuid, $14::uuid, $15)
-        RETURNING ${serviceOutboxEventColumns}
+        RETURNING ${serviceOutboxColumns}
       `,
       [
         input.id,
@@ -207,7 +207,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         WHERE id = $1
           AND status = 'processing'
-        RETURNING ${serviceOutboxEventColumns}
+        RETURNING ${serviceOutboxColumns}
       `,
       [id],
     );
@@ -226,7 +226,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         WHERE id = $1
           AND status = 'processing'
-        RETURNING ${serviceOutboxEventColumns}
+        RETURNING ${serviceOutboxColumns}
       `,
       [params.id, params.nextAttemptAt],
     );
@@ -243,7 +243,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         WHERE id = $1
           AND status = 'processing'
-        RETURNING ${serviceOutboxEventColumns}
+        RETURNING ${serviceOutboxColumns}
       `,
       [id],
     );

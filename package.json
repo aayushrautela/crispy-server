@@ -28,6 +28,7 @@
     "start:admin-bulk-jobs-worker": "node dist/src/bin/admin-bulk-jobs-worker.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.56.1",
     "dotenv": "^16.6.1",

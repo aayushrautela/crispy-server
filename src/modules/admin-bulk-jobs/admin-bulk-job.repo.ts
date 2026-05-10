@@ -45,6 +45,40 @@ const jobColumns = `
   updated_at
 `;
 
+const jobColumnsForJobsAlias = `
+  jobs.id,
+  jobs.operation,
+  jobs.scope_type,
+  jobs.tier,
+  jobs.status,
+  jobs.requested_by_admin_id,
+  jobs.request_correlation_id,
+  jobs.dedupe_key,
+  jobs.idempotency_key,
+  jobs.reason,
+  jobs.target_count_estimate,
+  jobs.targets_total,
+  jobs.targets_queued,
+  jobs.targets_coalesced,
+  jobs.targets_outboxed,
+  jobs.targets_dispatched,
+  jobs.targets_failed,
+  jobs.targets_canceled,
+  jobs.enumeration_cursor,
+  jobs.fanout_cursor,
+  jobs.pause_requested_at,
+  jobs.resume_requested_at,
+  jobs.cancel_requested_at,
+  jobs.started_at,
+  jobs.enumeration_completed_at,
+  jobs.fanout_completed_at,
+  jobs.completed_at,
+  jobs.failed_at,
+  jobs.last_error,
+  jobs.created_at,
+  jobs.updated_at
+`;
+
 const targetColumns = `
   id,
   bulk_job_id,
@@ -303,7 +337,7 @@ export class AdminBulkJobRepository {
            updated_at = now()
        FROM next_job
        WHERE jobs.id = next_job.id
-       RETURNING ${jobColumns}`,
+       RETURNING ${jobColumnsForJobsAlias}`,
       [workerId, Math.max(30, staleAfterSeconds)],
     );
     return result.rows[0] ? mapJob(result.rows[0]) : null;

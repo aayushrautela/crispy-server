@@ -95,6 +95,7 @@ export const env = {
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
   supabaseUrl,
+  supabaseServiceRoleKey: optionalEnv('SUPABASE_SERVICE_ROLE_KEY') ?? optionalEnv('SUPABASE_SECRET_KEY') ?? '',
   supabaseSecretKey: optionalEnv('SUPABASE_SECRET_KEY') ?? '',
   authJwksUrl: `${supabaseAuthBaseUrl}/.well-known/jwks.json`,
   authJwtIssuer: supabaseAuthBaseUrl,

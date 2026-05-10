@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { db, withTransaction, type DbClient } from '../../lib/db.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.js';
@@ -28,6 +29,8 @@ import {
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { UserRepository } from '../users/user.repo.js';
+import { SupabaseProviderHistoryWriter } from './supabase-provider-history-writer.js';
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
@@ -112,6 +115,10 @@ type ProviderWatchDataStateView = {
   lastImportCompletedAt: string | null;
 };
 
+function buildDefaultSupabaseProviderHistoryWriter(): SupabaseProviderHistoryWriter {
+  return new SupabaseProviderHistoryWriter(env.supabaseServiceRoleKey ? getSupabaseServiceRoleClient() : null);
+}
+
 export class ProviderImportService {
   constructor(
     private readonly profileRepository = new ProfileRepository(),
@@ -125,6 +132,8 @@ export class ProviderImportService {
     private readonly runInTransaction: TransactionRunner = withTransaction,
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly metadataCardService = new MetadataCardService(),
+    private readonly userRepository = new UserRepository(),
+    private readonly supabaseProviderHistoryWriter = buildDefaultSupabaseProviderHistoryWriter(),
   ) {}
 
   async connectProvider(
@@ -550,6 +559,16 @@ export class ProviderImportService {
         });
       });
 
+      const supabaseHistorySummary = runningJob.provider === 'trakt'
+        ? await this.syncTraktHistoryToSupabase({
+          job: runningJob,
+          providerSession: activeProviderSession,
+          historyGeneration: replaceResult.watchDataState.historyGeneration,
+          importedAt: importedPayload.importedAt,
+          entries: importedPayload.importedHistoryEntries,
+        })
+        : { inserted: 0, skipped: true };
+
       const warnings: string[] = [];
       let metadataSummary: Record<string, unknown> = {
         refreshedTitles: 0,
@@ -605,6 +624,7 @@ export class ProviderImportService {
             insertedHistoryEntries: replaceResult.insertedHistoryEntries,
             projectionSummary: replaceResult.projectionSummary,
             metadataSummary,
+            supabaseHistorySummary,
             historyGeneration: replaceResult.watchDataState.historyGeneration,
             warnings,
           },
@@ -623,6 +643,7 @@ export class ProviderImportService {
         profileId: runningJob.profileId,
         provider: runningJob.provider,
         metadataSummary,
+        supabaseHistorySummary,
         insertedEvents: replaceResult.insertedEvents,
         insertedHistoryEntries: replaceResult.insertedHistoryEntries,
         warnings,
@@ -644,6 +665,41 @@ export class ProviderImportService {
 
       throw error;
     }
+  }
+
+  private async syncTraktHistoryToSupabase(params: {
+    job: ProviderImportJobRecord;
+    providerSession: ProviderSessionRecord;
+    historyGeneration: number;
+    importedAt: string;
+    entries: ImportedHistoryEntryDraft[];
+  }): Promise<{ inserted: number; skipped: boolean }> {
+    const context = await this.runInTransaction(async (client) => {
+      const [profile, appUser] = await Promise.all([
+        this.profileRepository.findById(client, params.job.profileId),
+        this.userRepository.findById(client, params.job.requestedByUserId),
+      ]);
+
+      return { profile, appUser };
+    });
+
+    if (!context.profile || !context.appUser) {
+      logger.warn({
+        profileId: params.job.profileId,
+        requestedByUserId: params.job.requestedByUserId,
+      }, 'supabase trakt history sync skipped: missing local profile or app user');
+      return { inserted: 0, skipped: true };
+    }
+
+    return this.supabaseProviderHistoryWriter.replaceImportedHistory({
+      appUser: context.appUser,
+      job: params.job,
+      profile: context.profile,
+      providerSession: params.providerSession,
+      historyGeneration: params.historyGeneration,
+      importedAt: params.importedAt,
+      entries: params.entries,
+    });
   }
 
   private buildAuthUrl(
