@@ -15,12 +15,6 @@ import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import { isProviderImportProvider, type ProviderImportProvider } from './provider-import.types.js';
-import {
-  ProviderDestructiveImportService,
-  type ImportedHistoryEntryDraft,
-  type ImportedWatchEventDraft,
-  type ProviderReplaceImportPayload,
-} from './provider-destructive-import.service.js';
 import { mapProviderSessionStateView, type ProviderStateView } from './provider-import.views.js';
 import {
   ProviderSessionsRepository,
@@ -31,6 +25,55 @@ import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { UserRepository } from '../users/user.repo.js';
 import { SupabaseProviderHistoryWriter } from './supabase-provider-history-writer.js';
+
+type ImportedHistoryEntryDraft = {
+  mediaKey: string;
+  mediaType: 'movie' | 'show' | 'episode';
+  provider?: string | null;
+  providerId?: string | null;
+  parentProvider?: string | null;
+  parentProviderId?: string | null;
+  tmdbId?: number | null;
+  tvdbId?: number | string | null;
+  kitsuId?: number | string | null;
+  showTmdbId?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
+  watchedAt: string;
+  sourceKind: 'provider_import';
+  payload?: Record<string, unknown>;
+};
+
+type ImportedWatchEventDraft = {
+  eventType: 'mark_watched' | 'playback_progress_snapshot' | 'playback_completed' | 'watchlist_put' | 'watchlist_remove' | 'rating_put' | 'rating_remove';
+  mediaKey: string;
+  mediaType: 'movie' | 'show' | 'episode';
+  provider?: string | null;
+  providerId?: string | null;
+  parentProvider?: string | null;
+  parentProviderId?: string | null;
+  tmdbId?: number | null;
+  tvdbId?: number | string | null;
+  kitsuId?: number | string | null;
+  showTmdbId?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  absoluteEpisodeNumber?: number | null;
+  rating?: number | null;
+  positionSeconds?: number | null;
+  durationSeconds?: number | null;
+  occurredAt: string;
+  payload?: Record<string, unknown>;
+};
+
+type ProviderReplaceImportPayload = {
+  importedEvents: ImportedWatchEventDraft[];
+  importedHistoryEntries: ImportedHistoryEntryDraft[];
+  importedAt: string;
+  importSummary: Record<string, unknown>;
+  mediaKeysToRefresh?: string[];
+};
 
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
@@ -125,7 +168,6 @@ export class ProviderImportService {
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
-    private readonly destructiveImportService = new ProviderDestructiveImportService(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly metadataRefreshService = new MetadataRefreshService(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
@@ -551,23 +593,15 @@ export class ProviderImportService {
         ? await this.fetchAndNormalizeTraktImport(runningJob, activeProviderSession.credentialsJson)
         : await this.fetchAndNormalizeSimklImport(runningJob, activeProviderSession.credentialsJson);
 
-      const replaceResult = await this.runInTransaction(async (client) => {
-        return this.destructiveImportService.replaceProfileWatchData(client, {
-          job: runningJob,
-          provider: runningJob.provider,
-          payload: importedPayload,
-        });
-      });
+      const historyGeneration = 0;
 
-      const supabaseHistorySummary = runningJob.provider === 'trakt'
-        ? await this.syncTraktHistoryToSupabase({
-          job: runningJob,
-          providerSession: activeProviderSession,
-          historyGeneration: replaceResult.watchDataState.historyGeneration,
-          importedAt: importedPayload.importedAt,
-          entries: importedPayload.importedHistoryEntries,
-        })
-        : { inserted: 0, skipped: true };
+      const supabaseHistorySummary = await this.syncProviderHistoryToSupabase({
+        job: runningJob,
+        providerSession: activeProviderSession,
+        historyGeneration,
+        importedAt: importedPayload.importedAt,
+        entries: importedPayload.importedHistoryEntries,
+      });
 
       const warnings: string[] = [];
       let metadataSummary: Record<string, unknown> = {
@@ -579,13 +613,7 @@ export class ProviderImportService {
       };
 
       try {
-        await this.destructiveImportService.clearBufferedPlayback(runningJob.profileId);
-      } catch (error) {
-        warnings.push(`failed to clear buffered playback: ${error instanceof Error ? error.message : 'unknown error'}`);
-      }
-
-      try {
-        metadataSummary = await this.refreshImportedMetadata(runningJob.profileId, replaceResult.mediaKeysToRefresh);
+        metadataSummary = await this.refreshImportedMetadata(runningJob.profileId, importedPayload.mediaKeysToRefresh ?? []);
         if (Number(metadataSummary.failures ?? 0) > 0) {
           warnings.push(`metadata refresh failures: ${String(metadataSummary.failures)}`);
         }
@@ -620,12 +648,12 @@ export class ProviderImportService {
           },
           summaryJson: {
             ...importedPayload.importSummary,
-            insertedEvents: replaceResult.insertedEvents,
-            insertedHistoryEntries: replaceResult.insertedHistoryEntries,
-            projectionSummary: replaceResult.projectionSummary,
+            insertedEvents: 0,
+            insertedHistoryEntries: 0,
+            projectionSummary: { titleProjections: 0, trackedTitleStates: 0 },
             metadataSummary,
             supabaseHistorySummary,
-            historyGeneration: replaceResult.watchDataState.historyGeneration,
+            historyGeneration,
             warnings,
           },
         };
@@ -644,8 +672,8 @@ export class ProviderImportService {
         provider: runningJob.provider,
         metadataSummary,
         supabaseHistorySummary,
-        insertedEvents: replaceResult.insertedEvents,
-        insertedHistoryEntries: replaceResult.insertedHistoryEntries,
+        insertedEvents: 0,
+        insertedHistoryEntries: 0,
         warnings,
       }, 'provider replace import completed');
     } catch (error) {
@@ -667,7 +695,7 @@ export class ProviderImportService {
     }
   }
 
-  private async syncTraktHistoryToSupabase(params: {
+  private async syncProviderHistoryToSupabase(params: {
     job: ProviderImportJobRecord;
     providerSession: ProviderSessionRecord;
     historyGeneration: number;
@@ -687,7 +715,7 @@ export class ProviderImportService {
       logger.warn({
         profileId: params.job.profileId,
         requestedByUserId: params.job.requestedByUserId,
-      }, 'supabase trakt history sync skipped: missing local profile or app user');
+      }, 'supabase provider history sync skipped: missing local profile or app user');
       return { inserted: 0, skipped: true };
     }
 

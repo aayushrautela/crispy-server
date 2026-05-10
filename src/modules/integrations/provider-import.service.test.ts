@@ -116,7 +116,6 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
       noopTransaction as never,
     );
 
@@ -169,7 +168,6 @@ test('disconnectProviderSession surfaces trakt revoke failures', async () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
       noopTransaction as never,
     );
 
@@ -193,7 +191,6 @@ test('fetchAndNormalizeTraktImport keeps show tmdb ids on watchlist and ratings'
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
   const service = new ProviderImportService(
-    {} as never,
     {} as never,
     {} as never,
     {} as never,
@@ -282,7 +279,6 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
     {
       resolve: async () => 777,
     } as never,
@@ -366,7 +362,6 @@ test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
   const service = new ProviderImportService(
-    {} as never,
     {} as never,
     {} as never,
     {} as never,
@@ -468,7 +463,6 @@ test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb look
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
     {
       resolve: async (_client: unknown, params: Record<string, unknown>) => {
         resolverCalls.push(params);
@@ -512,7 +506,6 @@ test('resolveImportIdentity falls back to imdb canonicalization when direct trak
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
   const service = new ProviderImportService(
-    {} as never,
     {} as never,
     {} as never,
     {} as never,
@@ -570,7 +563,6 @@ test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and i
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
     {
       resolve: async () => null,
     } as never,
@@ -608,7 +600,6 @@ test('resolveImportIdentity skips movie when metadata card build fails after id 
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
   const service = new ProviderImportService(
-    {} as never,
     {} as never,
     {} as never,
     {} as never,

@@ -3,8 +3,14 @@ import { logger } from '../../config/logger.js';
 import type { ProfileRecord } from '../profiles/profile.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderSessionRecord } from './provider-sessions.repo.js';
-import type { ImportedHistoryEntryDraft } from './provider-destructive-import.service.js';
 import type { AppUser } from '../users/user.types.js';
+
+type ImportedHistoryEntryDraft = {
+  mediaKey: string;
+  mediaType: 'movie' | 'show' | 'episode';
+  watchedAt: string;
+  sourceKind: 'provider_import';
+};
 
 export type SupabaseProviderHistorySyncResult = {
   inserted: number;
