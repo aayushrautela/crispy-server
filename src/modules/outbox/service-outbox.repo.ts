@@ -71,6 +71,31 @@ const serviceOutboxColumns = `
   updated_at
 `;
 
+const serviceOutboxEventColumns = `
+  events.id,
+  events.event_type,
+  events.event_version,
+  events.aggregate_type,
+  events.aggregate_id,
+  events.user_id,
+  events.profile_id,
+  events.payload,
+  events.occurred_at,
+  events.available_at,
+  events.status,
+  events.attempt_count,
+  events.last_attempt_at,
+  events.next_attempt_at,
+  events.locked_until,
+  events.destination,
+  events.correlation_id,
+  events.bulk_job_id,
+  events.bulk_job_target_id,
+  events.idempotency_key,
+  events.created_at,
+  events.updated_at
+`;
+
 function mapServiceOutboxEvent(row: Record<string, unknown>): ServiceOutboxEventRecord {
   return {
     id: String(row.id),
@@ -120,7 +145,7 @@ export class ServiceOutboxRepository {
           idempotency_key
         )
         VALUES ($1, $2, $3, $4, $5, $6::uuid, $7::uuid, $8::jsonb, COALESCE($9::timestamptz, now()), COALESCE($10::timestamptz, now()), $11, $12, $13::uuid, $14::uuid, $15)
-        RETURNING ${serviceOutboxColumns}
+        RETURNING ${serviceOutboxEventColumns}
       `,
       [
         input.id,
@@ -165,7 +190,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         FROM due
         WHERE events.id = due.id
-        RETURNING ${serviceOutboxColumns}
+        RETURNING ${serviceOutboxEventColumns}
       `,
       [params.destination ?? null, params.limit, params.lockUntil],
     );
@@ -182,7 +207,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         WHERE id = $1
           AND status = 'processing'
-        RETURNING ${serviceOutboxColumns}
+        RETURNING ${serviceOutboxEventColumns}
       `,
       [id],
     );
@@ -201,7 +226,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         WHERE id = $1
           AND status = 'processing'
-        RETURNING ${serviceOutboxColumns}
+        RETURNING ${serviceOutboxEventColumns}
       `,
       [params.id, params.nextAttemptAt],
     );
@@ -218,7 +243,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         WHERE id = $1
           AND status = 'processing'
-        RETURNING ${serviceOutboxColumns}
+        RETURNING ${serviceOutboxEventColumns}
       `,
       [id],
     );
@@ -245,7 +270,7 @@ export class ServiceOutboxRepository {
             updated_at = now()
         FROM stale
         WHERE events.id = stale.id
-        RETURNING ${serviceOutboxColumns}
+        RETURNING ${serviceOutboxEventColumns}
       `,
       [limit],
     );
