@@ -15,6 +15,34 @@ import type {
   CreateAdminBulkJobInput,
 } from './admin-bulk-job.types.js';
 
+type AdminBulkJobAction = 'pause' | 'resume' | 'cancel';
+type AdminBulkJobProgress = {
+  targetTotal: number | null;
+  queued: number;
+  coalesced: number;
+  outboxed: number;
+  dispatched: number;
+  failed: number;
+  canceled: number;
+  completed: number;
+  percent: number | null;
+};
+type AdminBulkJobDetail = {
+  job: AdminBulkJobRecord;
+  targets: unknown[];
+  events: unknown[];
+  outboxProgress: { pending: number; processing: number; dispatched: number; failed: number; total: number };
+  progress: AdminBulkJobProgress;
+  diagnostics: {
+    lastError: Record<string, unknown> | null;
+    enumerationCursor: string | null;
+    fanoutCursor: string | null;
+    outboxProgress: { pending: number; processing: number; dispatched: number; failed: number; total: number };
+  };
+  availableActions: AdminBulkJobAction[];
+};
+type AdminBulkJobControlResult = AdminBulkJobRecord & { jobId: string; changed: boolean; job: AdminBulkJobRecord; availableActions: AdminBulkJobAction[] };
+
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const MAX_EXPLICIT_TARGETS = 500;
@@ -91,11 +119,13 @@ export class AdminBulkJobService {
     });
   }
 
-  async listJobs(filters: { status?: AdminBulkJobStatus | null; limit?: number }): Promise<AdminBulkJobRecord[]> {
-    return this.runInTransaction((client) => this.repository.listJobs(client, { status: filters.status ?? null, limit: Math.max(1, Math.min(filters.limit ?? 50, 100)) }));
+  async listJobs(filters: { status?: AdminBulkJobStatus | null; scope?: AdminBulkJobScope['type'] | null; limit?: number }): Promise<{ jobs: AdminBulkJobRecord[]; nextCursor: null }> {
+    const limit = Math.max(1, Math.min(Math.trunc(filters.limit ?? 50), 100));
+    const jobs = await this.runInTransaction((client) => this.repository.listJobs(client, { status: filters.status ?? null, scope: filters.scope ?? null, limit }));
+    return { jobs, nextCursor: null };
   }
 
-  async getJobDetail(jobId: string): Promise<{ job: AdminBulkJobRecord; targets: unknown[]; events: unknown[]; outboxProgress: { pending: number; processing: number; dispatched: number; failed: number; total: number } }> {
+  async getJobDetail(jobId: string): Promise<AdminBulkJobDetail> {
     return this.runInTransaction(async (client) => {
       const job = await this.repository.getJob(client, jobId);
       if (!job) {
@@ -108,12 +138,34 @@ export class AdminBulkJobService {
         this.repository.countLinkedOutboxEvents(client, jobId),
         this.repository.getJob(client, jobId),
       ]);
-      return { job: refreshedJob ?? job, targets, events, outboxProgress };
+      const detailJob = refreshedJob ?? job;
+      return {
+        job: detailJob,
+        targets,
+        events,
+        outboxProgress,
+        progress: this.buildProgress(detailJob),
+        diagnostics: {
+          lastError: detailJob.lastError,
+          enumerationCursor: detailJob.enumerationCursor,
+          fanoutCursor: detailJob.fanoutCursor,
+          outboxProgress,
+        },
+        availableActions: this.getAvailableActions(detailJob.status),
+      };
     });
   }
 
-  async controlJob(jobId: string, action: 'pause' | 'resume' | 'cancel'): Promise<AdminBulkJobRecord> {
+  async controlJob(jobId: string, action: AdminBulkJobAction): Promise<AdminBulkJobControlResult> {
     return this.runInTransaction(async (client) => {
+      const existing = await this.repository.getJob(client, jobId);
+      if (!existing) {
+        throw new HttpError(404, 'Bulk job not found.');
+      }
+      if (!this.getAvailableActions(existing.status).includes(action)) {
+        return { ...existing, jobId: existing.id, changed: false, job: existing, availableActions: this.getAvailableActions(existing.status) };
+      }
+
       const job = await this.repository.transitionJob(client, jobId, action);
       if (!job) {
         throw new HttpError(409, `Bulk job cannot be ${action}d from its current state.`);
@@ -122,8 +174,46 @@ export class AdminBulkJobService {
         bulkJobId: job.id,
         eventType: action === 'cancel' ? 'cancel_requested' : action === 'pause' ? 'paused' : 'resumed',
       });
-      return job;
+      return { ...job, jobId: job.id, changed: job.status !== existing.status, job, availableActions: this.getAvailableActions(job.status) };
     });
+  }
+
+  async reconcileJob(jobId: string): Promise<AdminBulkJobDetail> {
+    await this.runInTransaction(async (client) => {
+      const job = await this.repository.getJob(client, jobId);
+      if (!job) {
+        throw new HttpError(404, 'Bulk job not found.');
+      }
+      await this.repository.refreshCounters(client, jobId);
+    });
+    return this.getJobDetail(jobId);
+  }
+
+  getAvailableActions(status: AdminBulkJobStatus): AdminBulkJobAction[] {
+    if (status === 'queued' || status === 'enumerating' || status === 'fanout') {
+      return ['pause', 'cancel'];
+    }
+    if (status === 'paused') {
+      return ['resume', 'cancel'];
+    }
+    return [];
+  }
+
+  private buildProgress(job: AdminBulkJobRecord): AdminBulkJobProgress {
+    const completed = job.targetsCoalesced + job.targetsOutboxed + job.targetsDispatched + job.targetsFailed + job.targetsCanceled;
+    const targetTotal = job.targetsTotal > 0 ? job.targetsTotal : job.targetCountEstimate;
+    const percent = targetTotal && targetTotal > 0 ? Math.min(100, Math.round((completed / targetTotal) * 100)) : null;
+    return {
+      targetTotal,
+      queued: job.targetsQueued,
+      coalesced: job.targetsCoalesced,
+      outboxed: job.targetsOutboxed,
+      dispatched: job.targetsDispatched,
+      failed: job.targetsFailed,
+      canceled: job.targetsCanceled,
+      completed,
+      percent,
+    };
   }
 
   private validateScope(scope: AdminBulkJobScope): AdminBulkJobScope {

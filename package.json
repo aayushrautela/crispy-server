@@ -7,6 +7,7 @@
     "dev:api": "tsx watch src/bin/api.ts",
     "dev:worker": "tsx watch src/bin/worker.ts",
     "dev:outbox-dispatcher": "tsx watch src/bin/outbox-dispatcher.ts",
+    "dev:admin-bulk-jobs-worker": "tsx watch src/bin/admin-bulk-jobs-worker.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "guard:retired-modules": "tsx scripts/guard-retired-modules.ts",
@@ -23,7 +24,8 @@
     "seed:dev": "tsx scripts/seed-dev.ts",
     "start:api": "node dist/src/bin/api.js",
     "start:worker": "node dist/src/bin/worker.js",
-    "start:outbox-dispatcher": "node dist/src/bin/outbox-dispatcher.js"
+    "start:outbox-dispatcher": "node dist/src/bin/outbox-dispatcher.js",
+    "start:admin-bulk-jobs-worker": "node dist/src/bin/admin-bulk-jobs-worker.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

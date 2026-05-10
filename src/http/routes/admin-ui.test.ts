@@ -89,7 +89,9 @@ test('admin ui signs in, serves the dashboard, and logs out safely', async (t) =
   assert.doesNotMatch(authorized.body, /id="ai-test-credential-source"/);
   assert.doesNotMatch(authorized.body, /Server key/);
   assert.match(authorized.body, /data-nav-target="ai-lab"/);
-  assert.doesNotMatch(authorized.body, /Reset recommendation tracking jobs/);
+  assert.match(authorized.body, /data-nav-target="recompute-jobs"/);
+  assert.match(authorized.body, /Recompute Jobs/);
+  assert.match(authorized.body, /id="nav-recompute-jobs-badge"/);
 
   const logoutToken = readHiddenInput(authorized.body, 'csrfToken');
   const logoutResponse = await app.inject({
@@ -202,6 +204,34 @@ test('admin ui rejects wrong credentials and missing same-origin protection', as
 
   assert.equal(missingOrigin.statusCode, 403);
   assert.match(missingOrigin.body, /login form expired/i);
+});
+
+test('admin ui recompute job routes redirect to dashboard hashes', async (t) => {
+  const Fastify = (await import('fastify')).default;
+  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
+  const { default: adminUiAuthPlugin } = await import('../plugins/admin-ui-auth.js');
+  const { registerAdminUiRoutes } = await import('./admin-ui.js');
+
+  const app = Fastify();
+  await app.register(errorHandlerPlugin);
+  await app.register(adminUiAuthPlugin);
+  await registerAdminUiRoutes(app);
+
+  t.after(async () => { await app.close(); });
+
+  const listRedirect = await app.inject({
+    method: 'GET',
+    url: '/admin/recommendations/recompute-jobs',
+  });
+  assert.equal(listRedirect.statusCode, 303);
+  assert.equal(listRedirect.headers.location, '/admin#recompute-jobs');
+
+  const detailRedirect = await app.inject({
+    method: 'GET',
+    url: '/admin/recommendations/recompute-jobs/job 123',
+  });
+  assert.equal(detailRedirect.statusCode, 303);
+  assert.equal(detailRedirect.headers.location, '/admin#recompute-job-detail:job%20123');
 });
 
 function readCookieHeader(value: string | string[] | undefined): string {

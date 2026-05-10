@@ -93,48 +93,99 @@ export async function registerAdminApiRoutes(
     await app.requireAdminUiMutation(request);
   }
 
+  app.get('/admin/api/recommendations/recompute-jobs/capabilities', async (request, reply) => {
+    await requireAdmin(request);
+    return {
+      feature: {
+        enabled: env.adminRecommendationRecomputeJobsEnabled,
+        createEnabled: env.adminRecommendationRecomputeJobsCreateEnabled,
+      },
+      worker: {
+        mode: env.adminBulkJobsWorkerMode,
+        pollIntervalMs: env.adminBulkJobsPollIntervalMs,
+        pollJitterMs: env.adminBulkJobsPollJitterMs,
+        claimTtlMs: env.adminBulkJobsClaimTtlMs,
+        shutdownTimeoutMs: env.adminBulkJobsShutdownTimeoutMs,
+        maxConcurrentJobs: env.adminBulkJobsMaxConcurrentJobs,
+      },
+      allowedScopes: [
+        { type: 'explicit_targets' },
+        { type: 'all_users' },
+        { type: 'tier', tiers: ['free', 'pro', 'ultra'] },
+      ],
+      limits: {
+        enumerationPageSize: env.adminBulkJobsEnumerationPageSize,
+        fanoutBatchSize: env.adminBulkJobsFanoutBatchSize,
+      },
+    };
+  });
+
   app.post('/admin/api/recommendations/recompute-jobs/preview', async (request, reply) => {
     await requireAdmin(request);
+    ensureRecomputeJobsEnabled();
     const body = asRecord(request.body);
     return adminBulkJobService.previewRecommendationRecomputeJob(parseBulkJobInput(body));
   });
 
   app.post('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
     await requireAdminMutation(request);
+    ensureRecomputeJobsEnabled();
+    if (!env.adminRecommendationRecomputeJobsCreateEnabled) {
+      throw new HttpError(403, 'Recommendation recompute job creation is disabled.');
+    }
     const body = asRecord(request.body);
-    const result = await adminBulkJobService.createRecommendationRecomputeJob(parseBulkJobInput(body));
+    const input = parseBulkJobInput(body);
+    if (input.scope.type === 'all_users') {
+      const confirmation = typeof body.confirmation === 'string' ? body.confirmation.trim() : '';
+      if (confirmation !== 'RECOMPUTE_ALL_USERS') {
+        throw new HttpError(400, 'confirmation must be RECOMPUTE_ALL_USERS for all-users recompute jobs.');
+      }
+    }
+    const result = await adminBulkJobService.createRecommendationRecomputeJob(input);
     reply.code(result.created ? 202 : 200);
     return result;
   });
 
   app.get('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
     await requireAdmin(request);
+    ensureRecomputeJobsEnabled();
     const query = asRecord(request.query);
-    return { jobs: await adminBulkJobService.listJobs({ status: parseBulkJobStatus(query.status), limit: parseLimit(query.limit) }) };
+    return adminBulkJobService.listJobs({ status: parseBulkJobStatus(query.status), scope: parseBulkJobScopeFilter(query.scope), limit: parseBulkJobLimit(query.limit) });
   });
 
   app.get('/admin/api/recommendations/recompute-jobs/:jobId', async (request, reply) => {
     await requireAdmin(request);
+    ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
     return adminBulkJobService.getJobDetail(readRequiredString(params.jobId, 'jobId'));
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/pause', async (request, reply) => {
     await requireAdminMutation(request);
+    ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return { job: await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'pause') };
+    return adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'pause');
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/resume', async (request, reply) => {
     await requireAdminMutation(request);
+    ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return { job: await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'resume') };
+    return adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'resume');
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/cancel', async (request, reply) => {
     await requireAdminMutation(request);
+    ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return { job: await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'cancel') };
+    return adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'cancel');
+  });
+
+  app.post('/admin/api/recommendations/recompute-jobs/:jobId/reconcile', async (request, reply) => {
+    await requireAdminMutation(request);
+    ensureRecomputeJobsEnabled();
+    const params = asRecord(request.params);
+    return adminBulkJobService.reconcileJob(readRequiredString(params.jobId, 'jobId'));
   });
 
   app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
@@ -812,6 +863,27 @@ function clampLimit(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.trunc(value), min), max);
 }
 
+function parseBulkJobLimit(value: unknown): number {
+  return clampLimit(parseOptionalNumber(value) ?? 50, 1, 100);
+}
+
+function parseBulkJobScopeFilter(value: unknown): AdminBulkJobScope['type'] | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const scope = typeof value === 'string' ? value.trim() : null;
+  if (scope === 'explicit_targets' || scope === 'all_users' || scope === 'tier') {
+    return scope;
+  }
+  throw new HttpError(400, 'Invalid bulk job scope filter.');
+}
+
+function ensureRecomputeJobsEnabled(): void {
+  if (!env.adminRecommendationRecomputeJobsEnabled) {
+    throw new HttpError(403, 'Recommendation recompute jobs are disabled.');
+  }
+}
+
 function parseBulkJobInput(body: Record<string, unknown>): { scope: AdminBulkJobScope; targets: AdminBulkJobTargetInput[]; reason: string | null; idempotencyKey?: string | null; correlationId?: string | null } {
   const scopeRecord = asRecord(body.scope);
   const scopeType = typeof scopeRecord.type === 'string' ? scopeRecord.type : null;
@@ -840,11 +912,14 @@ function parseBulkJobInput(body: Record<string, unknown>): { scope: AdminBulkJob
 }
 
 function parseBulkJobStatus(value: unknown): AdminBulkJobStatus | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
   const status = typeof value === 'string' ? value.trim() : null;
   if (status === 'queued' || status === 'enumerating' || status === 'fanout' || status === 'paused' || status === 'canceling' || status === 'canceled' || status === 'completed' || status === 'failed') {
     return status;
   }
-  return null;
+  throw new HttpError(400, 'Invalid bulk job status filter.');
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

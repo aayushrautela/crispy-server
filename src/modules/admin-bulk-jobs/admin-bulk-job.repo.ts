@@ -259,12 +259,16 @@ export class AdminBulkJobRepository {
     return mapEvent(result.rows[0]);
   }
 
-  async listJobs(client: DbClient, filters: { status?: AdminBulkJobStatus | null; limit: number }): Promise<AdminBulkJobRecord[]> {
+  async listJobs(client: DbClient, filters: { status?: AdminBulkJobStatus | null; scope?: AdminBulkJobScope['type'] | null; limit: number }): Promise<AdminBulkJobRecord[]> {
     const params: unknown[] = [];
     const conditions: string[] = [];
     if (filters.status) {
       params.push(filters.status);
       conditions.push(`status = $${params.length}`);
+    }
+    if (filters.scope) {
+      params.push(filters.scope);
+      conditions.push(`scope_type = $${params.length}`);
     }
     params.push(filters.limit);
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
