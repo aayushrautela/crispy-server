@@ -746,29 +746,51 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function syncRecomputeCreateForm() {
-    const scope = String((elements.recomputeCreateScope && elements.recomputeCreateScope.value) || 'profiles');
+    const scope = String((elements.recomputeCreateScope && elements.recomputeCreateScope.value) || 'explicit-targets');
     const allUsers = scope === 'all-users';
     if (elements.recomputeCreateTargetsRow) elements.recomputeCreateTargetsRow.hidden = allUsers;
     if (elements.recomputeCreateConfirmRow) elements.recomputeCreateConfirmRow.hidden = !allUsers;
     if (elements.recomputeCreateConfirmHelp) elements.recomputeCreateConfirmHelp.hidden = !allUsers;
   }
 
+  function parseRecomputeTargets(value) {
+    const lines = String(value || '').split(/\r?\n/);
+    const targets = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index].trim();
+      if (!line) continue;
+      const parts = line.split(',').map((part) => part.trim()).filter(Boolean);
+      if (parts.length !== 2) {
+        return { error: 'Line ' + String(index + 1) + ' must contain accountId,profileId.' };
+      }
+      targets.push({ accountId: parts[0], profileId: parts[1] });
+    }
+    return { targets };
+  }
+
   async function createRecomputeJob() {
-    const scope = String((elements.recomputeCreateScope && elements.recomputeCreateScope.value) || 'profiles');
-    const targets = String((elements.recomputeCreateTargets && elements.recomputeCreateTargets.value) || '').split(/\n|,/).map((value) => value.trim()).filter(Boolean);
+    const scope = String((elements.recomputeCreateScope && elements.recomputeCreateScope.value) || 'explicit-targets');
     const reason = String((elements.recomputeCreateReason && elements.recomputeCreateReason.value) || 'admin-ui-bulk-recompute').trim();
     const confirmation = String((elements.recomputeCreateConfirm && elements.recomputeCreateConfirm.value) || '').trim();
-    if (scope !== 'all-users' && targets.length === 0) {
-      setMessage(elements.recomputeCreateMessage, 'error', 'Enter at least one target id.');
+    const allUsers = scope === 'all-users';
+    const parsedTargets = allUsers ? { targets: [] } : parseRecomputeTargets(elements.recomputeCreateTargets && elements.recomputeCreateTargets.value);
+    if (parsedTargets.error) {
+      setMessage(elements.recomputeCreateMessage, 'error', parsedTargets.error);
       return;
     }
-    if (scope === 'all-users' && confirmation !== 'RECOMPUTE_ALL_USERS') {
+    if (!allUsers && parsedTargets.targets.length === 0) {
+      setMessage(elements.recomputeCreateMessage, 'error', 'Enter at least one accountId,profileId target pair.');
+      return;
+    }
+    if (allUsers && confirmation !== 'RECOMPUTE_ALL_USERS') {
       setMessage(elements.recomputeCreateMessage, 'error', 'Type RECOMPUTE_ALL_USERS exactly to create an all-users job.');
       return;
     }
     setMessage(elements.recomputeCreateMessage, 'info', 'Creating recompute job...');
     try {
-      const body = scope === 'all-users' ? { scope, reason, confirmation } : { scope, targets, reason };
+      const body = allUsers
+        ? { scope: { type: 'all_users' }, reason, confirmation }
+        : { scope: { type: 'explicit_targets' }, targets: parsedTargets.targets, reason };
       const payload = await fetchJson(apiPath('/recommendations/recompute-jobs'), { method: 'POST', body: JSON.stringify(body) });
       const job = payload && payload.job ? payload.job : payload;
       const jobId = recomputeJobId(job);
