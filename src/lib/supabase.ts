@@ -4,9 +4,9 @@ import { env } from '../config/env.js';
 let serviceRoleClient: SupabaseClient | null = null;
 
 export function getSupabaseServiceRoleClient(): SupabaseClient {
-  const key = env.supabaseServiceRoleKey;
+  const key = env.supabaseAdminApiKey;
   if (!key) {
-    throw new Error('Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY');
+    throw new Error('Missing required environment variable: SUPABASE_SECRET_KEY');
   }
 
   serviceRoleClient ??= createClient(env.supabaseUrl, key, {

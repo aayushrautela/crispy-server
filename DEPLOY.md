@@ -44,8 +44,9 @@
     APP_PUBLIC_URL=https://api.crispytv.tech
     APP_DISPLAY_NAME=CrispyTV
     SUPABASE_URL=https://your-project.supabase.co
+    SUPABASE_PUBLISHABLE_KEY=replace_with_supabase_publishable_key
     AUTH_JWT_AUDIENCE=authenticated
-    SUPABASE_SECRET_KEY=replace_with_supabase_secret_key
+    SUPABASE_SECRET_KEY=replace_with_supabase_secret_key_optional
     ```
 
    Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for profile data, canonical TMDB-backed media identity, and stored recommendation snapshots.

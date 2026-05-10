@@ -116,7 +116,7 @@ type ProviderWatchDataStateView = {
 };
 
 function buildDefaultSupabaseProviderHistoryWriter(): SupabaseProviderHistoryWriter {
-  return new SupabaseProviderHistoryWriter(env.supabaseServiceRoleKey ? getSupabaseServiceRoleClient() : null);
+  return new SupabaseProviderHistoryWriter(env.supabaseAdminApiKey ? getSupabaseServiceRoleClient() : null);
 }
 
 export class ProviderImportService {

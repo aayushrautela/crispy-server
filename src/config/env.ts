@@ -81,6 +81,9 @@ function optionalBaseUrl(name: string): string | undefined {
 
 const supabaseUrl = requireBaseUrl('SUPABASE_URL');
 const supabaseAuthBaseUrl = `${supabaseUrl}/auth/v1`;
+const supabasePublishableKey = optionalEnv('SUPABASE_PUBLISHABLE_KEY') ?? '';
+const supabaseSecretKey = optionalEnv('SUPABASE_SECRET_KEY') ?? '';
+const supabaseAdminApiKey = supabaseSecretKey || optionalEnv('SUPABASE_SERVICE_ROLE_KEY') || '';
 
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
@@ -95,8 +98,10 @@ export const env = {
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
   supabaseUrl,
-  supabaseServiceRoleKey: optionalEnv('SUPABASE_SERVICE_ROLE_KEY') ?? optionalEnv('SUPABASE_SECRET_KEY') ?? '',
-  supabaseSecretKey: optionalEnv('SUPABASE_SECRET_KEY') ?? '',
+  supabasePublishableKey,
+  supabaseSecretKey,
+  supabaseAdminApiKey,
+  supabaseServiceRoleKey: supabaseAdminApiKey,
   authJwksUrl: `${supabaseAuthBaseUrl}/.well-known/jwks.json`,
   authJwtIssuer: supabaseAuthBaseUrl,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
