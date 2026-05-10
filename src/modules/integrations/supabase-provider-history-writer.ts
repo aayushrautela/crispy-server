@@ -37,20 +37,8 @@ export class SupabaseProviderHistoryWriter {
     const entriesJson = params.entries.map((entry) => ({
       media_key: entry.mediaKey,
       media_type: entry.mediaType,
-      provider: entry.provider ?? null,
-      provider_id: entry.providerId ?? null,
-      parent_provider: entry.parentProvider ?? null,
-      parent_provider_id: entry.parentProviderId ?? null,
-      tmdb_id: entry.tmdbId ?? null,
-      tvdb_id: entry.tvdbId ?? null,
-      kitsu_id: entry.kitsuId ?? null,
-      show_tmdb_id: entry.showTmdbId ?? null,
-      season_number: entry.seasonNumber ?? null,
-      episode_number: entry.episodeNumber ?? null,
-      absolute_episode_number: entry.absoluteEpisodeNumber ?? null,
       watched_at: entry.watchedAt,
       source_kind: entry.sourceKind,
-      payload: entry.payload ?? {},
     }));
 
     try {

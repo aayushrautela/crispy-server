@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  metadataCardsBatchRouteSchema,
   metadataPersonRouteSchema,
   metadataResolveRouteSchema,
   metadataSearchRouteSchema,
@@ -7,6 +8,7 @@ import {
   metadataTitleRatingsRouteSchema,
   metadataTitleReviewsRouteSchema,
   playbackResolveRouteSchema,
+  type MetadataCardsBatchBody,
   type MetadataPersonParams,
   type MetadataPersonQuery,
   type MetadataResolveQuery,
@@ -22,6 +24,7 @@ import { MetadataReviewsService } from '../../modules/metadata/metadata-reviews.
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
+import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-batch.service.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataDetailService = new MetadataDetailService();
@@ -30,6 +33,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const metadataReviewsService = new MetadataReviewsService();
   const personDetailService = new PersonDetailService();
   const playbackResolveService = new PlaybackResolveService();
+  const metadataCardBatchService = new MetadataCardBatchService();
 
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
@@ -97,6 +101,16 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const filter = parseSearchFilter(query.filter);
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 20, 1, 50);
     return titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit });
+  });
+
+  app.post('/v1/metadata/cards/batch', { schema: metadataCardsBatchRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const body = (request.body ?? {}) as MetadataCardsBatchBody;
+
+    return metadataCardBatchService.hydrate({
+      mediaKeys: body.mediaKeys ?? [],
+      language: asOptionalString(body.language),
+    });
   });
 }
 

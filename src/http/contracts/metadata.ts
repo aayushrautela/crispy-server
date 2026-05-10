@@ -63,6 +63,11 @@ export type MetadataSearchQuery = {
   limit?: number | string;
 };
 
+export type MetadataCardsBatchBody = {
+  mediaKeys?: string[];
+  language?: string;
+};
+
 const metadataResolveQuerystringSchema = {
   type: 'object',
   additionalProperties: false,
@@ -485,6 +490,82 @@ const metadataSearchResponseSchema = {
   },
 } as const;
 
+const metadataCardsBatchBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaKeys'],
+  properties: {
+    mediaKeys: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 100,
+      items: nonEmptyStringSchema,
+    },
+    language: stringSchema,
+  },
+} as const;
+
+const metadataHydratedCardSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'mediaKey',
+    'mediaType',
+    'title',
+    'subtitle',
+    'posterUrl',
+    'backdropUrl',
+    'releaseYear',
+    'seasonNumber',
+    'episodeNumber',
+    'episodeTitle',
+    'runtimeMinutes',
+    'rating',
+    'metadataRefreshedAt',
+  ],
+  properties: {
+    mediaKey: stringSchema,
+    mediaType: stringSchema,
+    title: nullableStringSchema,
+    subtitle: nullableStringSchema,
+    posterUrl: nullableStringSchema,
+    backdropUrl: nullableStringSchema,
+    releaseYear: nullableIntegerSchema,
+    seasonNumber: nullableIntegerSchema,
+    episodeNumber: nullableIntegerSchema,
+    episodeTitle: nullableStringSchema,
+    runtimeMinutes: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    metadataRefreshedAt: nullableStringSchema,
+  },
+} as const;
+
+const metadataCardsBatchMissingSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaKey', 'reason'],
+  properties: {
+    mediaKey: stringSchema,
+    reason: stringSchema,
+  },
+} as const;
+
+const metadataCardsBatchResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'missing'],
+  properties: {
+    items: {
+      type: 'array',
+      items: metadataHydratedCardSchema,
+    },
+    missing: {
+      type: 'array',
+      items: metadataCardsBatchMissingSchema,
+    },
+  },
+} as const;
+
 export const metadataResolveRouteSchema = withDefaultErrorResponses({
   querystring: metadataResolveQuerystringSchema,
   response: {
@@ -556,5 +637,12 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
   },
   response: {
     200: metadataSearchResponseSchema,
+  },
+});
+
+export const metadataCardsBatchRouteSchema = withDefaultErrorResponses({
+  body: metadataCardsBatchBodySchema,
+  response: {
+    200: metadataCardsBatchResponseSchema,
   },
 });

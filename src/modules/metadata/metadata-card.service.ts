@@ -14,8 +14,8 @@ export class MetadataCardService {
     private readonly titleSourceService = new MetadataTitleSourceService(),
   ) {}
 
-  async buildCardView(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
-    const source = await this.titleSourceService.loadTitleSource(client, identity);
+  async buildCardView(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataCardView> {
+    const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
     return buildMetadataCardView({
       identity,
       title: source.tmdbTitle,
@@ -56,8 +56,8 @@ export class MetadataCardService {
     });
   }
 
-  async buildCardViews(client: DbClient, identities: MediaIdentity[]): Promise<MetadataCardView[]> {
-    return Promise.all(identities.map((identity) => this.buildCardView(client, identity)));
+  async buildCardViews(client: DbClient, identities: MediaIdentity[], language?: string | null): Promise<MetadataCardView[]> {
+    return Promise.all(identities.map((identity) => this.buildCardView(client, identity, language)));
   }
 
   private identityFromRow(row: Record<string, unknown>): MediaIdentity {
