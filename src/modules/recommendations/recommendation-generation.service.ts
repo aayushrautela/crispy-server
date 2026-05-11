@@ -8,7 +8,6 @@ import { recommendationConfig } from './recommendation-config.js';
 import { RecommendationOutputService } from './recommendation-output.service.js';
 import { RecommendationSnapshotsRepository } from './recommendation-snapshots.repo.js';
 import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
-import { PersonalMediaService } from '../watch/personal-media.service.js';
 import type {
   RecommendationSignalBundle,
   RecommendationSignalContinueWatchingItem,
@@ -186,7 +185,7 @@ export class RecommendationGenerationService {
         credentialSource: aiRequest.credentialSource,
       },
       optionalExtras: {
-        continueWatching: (signals.continueWatching ?? []).map(mapContinueWatchingItem),
+        continueWatching: [],
         trackedSeries: signals.trackedSeries ?? [],
         limits,
       },

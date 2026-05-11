@@ -75,32 +75,4 @@ export class LanguageProfileRepository {
       ],
     );
   }
-
-  async listRecentWatchedLanguages(client: DbClient, profileId: string, limit: number): Promise<Array<{
-    watchId: string;
-    watchedAt: string;
-    language: string | null;
-  }>> {
-    const result = await client.query(
-      `
-        SELECT 
-          ptp.title_content_id::text AS watch_id,
-          ptp.last_watched_at AS watched_at,
-          NULL::text AS language
-        FROM profile_title_projection ptp
-        WHERE ptp.profile_id = $1::uuid
-          AND ptp.effective_watched = true
-          AND ptp.last_watched_at IS NOT NULL
-        ORDER BY ptp.last_watched_at DESC, ptp.title_content_id DESC
-        LIMIT $2
-      `,
-      [profileId, limit],
-    );
-
-    return result.rows.map((row) => ({
-      watchId: String(row.watch_id),
-      watchedAt: requireDbIsoString(row.watched_at as Date | string, 'profile_title_projection.last_watched_at'),
-      language: typeof row.language === 'string' ? row.language : null,
-    }));
-  }
 }

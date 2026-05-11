@@ -287,9 +287,7 @@ export async function buildApp() {
   await registerWatchRoutes(app);
   await registerRecommendationOutputRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
-  await registerAdminApiRoutes(app, {
-    profileInputSignalFacade: internalAppsDeps.profileInputSignalFacade,
-  });
+  await registerAdminApiRoutes(app);
   await registerInternalConfidentialRoutes(app, {
     confidentialConfigService: buildConfidentialConfigService(internalAppsDeps),
   });

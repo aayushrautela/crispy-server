@@ -3,7 +3,6 @@ import type { AppAuthorizationService } from './app-authorization.service.js';
 import type { Clock } from './clock.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { ProfileInputSignalFacade } from '../recommendations/profile-input-signal.facade.js';
-import type { ProfileInputSignalBundle } from '../recommendations/profile-input-signal.types.js';
 import type { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { withDbClient } from '../../lib/db.js';
 import type {
@@ -15,7 +14,7 @@ import type {
   ProfileSignalInclude,
 } from './profile-signal-bundle.types.js';
 
-const DEFAULT_INCLUDES: ProfileSignalInclude[] = ['profileContext', 'history', 'ratings', 'watchlist', 'continue', 'language', 'taste'];
+const DEFAULT_INCLUDES: ProfileSignalInclude[] = ['profileContext', 'language', 'taste'];
 
 export class DefaultProfileSignalBundleService implements ProfileSignalBundleService {
   constructor(
@@ -79,19 +78,6 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
       },
     };
 
-    if (include.includes('history') && liveSignals.history) {
-      bundle.history = this.mapHistory(liveSignals.history);
-    }
-    if (include.includes('ratings') && liveSignals.ratings) {
-      bundle.ratings = this.mapRatings(liveSignals.ratings);
-    }
-    if (include.includes('watchlist') && liveSignals.watchlist) {
-      bundle.watchlist = this.mapWatchlist(liveSignals.watchlist);
-    }
-    if (include.includes('continue') && liveSignals.continueWatching) {
-      bundle.continueWatching = this.mapContinueWatching(liveSignals.continueWatching);
-    }
-
     await this.deps.appAuditRepo.insert({
       appId: input.principal.appId,
       keyId: input.principal.keyId,
@@ -124,48 +110,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
   }
 
   private mapToFacadeIncludes(include: ProfileSignalInclude[]) {
-    return include.flatMap((item) => {
-      if (item === 'continue') return ['continue' as const];
-      if (item === 'history' || item === 'ratings' || item === 'watchlist') return [item];
-      return [];
-    });
-  }
-
-  private mapHistory(history: NonNullable<ProfileInputSignalBundle['history']>) {
-    return history.map((item) => ({
-      mediaKey: mediaKeyFor(item),
-      contentType: item.media.mediaType,
-      watchedAt: new Date(item.watchedAt),
-      progressPercent: 100,
-      completionState: 'completed',
-      durationSeconds: null,
-    }));
-  }
-
-  private mapRatings(ratings: NonNullable<ProfileInputSignalBundle['ratings']>) {
-    return ratings.map((item) => ({
-      mediaKey: mediaKeyFor(item),
-      rating: item.rating.value,
-      ratedAt: new Date(item.rating.ratedAt),
-      ratingSource: null,
-    }));
-  }
-
-  private mapWatchlist(watchlist: NonNullable<ProfileInputSignalBundle['watchlist']>) {
-    return watchlist.map((item) => ({
-      mediaKey: mediaKeyFor(item),
-      addedAt: new Date(item.addedAt),
-    }));
-  }
-
-  private mapContinueWatching(continueWatching: NonNullable<ProfileInputSignalBundle['continueWatching']>) {
-    return continueWatching.map((item) => ({
-      mediaKey: mediaKeyFor(item),
-      seasonNumber: null,
-      episodeNumber: null,
-      progressPercent: item.progress.progressPercent,
-      updatedAt: new Date(item.lastActivityAt),
-    }));
+    return [];
   }
 
   private applyGrantAndServerLimits(input: { requested?: GetProfileSignalBundleInput['limits'] }): AppliedProfileSignalLimits {
@@ -176,10 +121,6 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
       continueLimit: clamp(input.requested?.continueLimit, this.deps.defaults.continueDefault, this.deps.defaults.continueMax),
     };
   }
-}
-
-function mediaKeyFor(item: { id: string; media: { mediaKey?: string | null } }): string {
-  return item.media.mediaKey ?? item.id;
 }
 
 function clamp(value: number | undefined, defaultValue: number, max: number): number {

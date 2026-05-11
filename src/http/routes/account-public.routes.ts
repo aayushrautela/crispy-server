@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { AuthActor } from '../../modules/auth/auth.types.js';
 import { HttpError } from '../../lib/errors.js';
 import { PublicAccountReadService } from '../../modules/account-public/public-account-read.service.js';
-import { PublicWatchReadService } from '../../modules/account-public/public-watch-read.service.js';
 import { PublicTasteReadService } from '../../modules/account-public/public-taste-read.service.js';
 import { PublicRecommendationReadService } from '../../modules/account-public/public-recommendation-read.service.js';
 import { LanguageProfileReadService } from '../../modules/language-profile/language-profile-read.service.js';
@@ -52,7 +51,6 @@ const defaultRateLimitService = new InMemoryPublicAccountRateLimitService();
 
 export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimitService: PublicAccountRateLimitService = defaultRateLimitService): Promise<void> {
   const accountReadService = new PublicAccountReadService();
-  const watchReadService = new PublicWatchReadService();
   const tasteReadService = new PublicTasteReadService();
   const recommendationReadService = new PublicRecommendationReadService();
   const languageProfileReadService = new LanguageProfileReadService();
@@ -81,83 +79,6 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
     const params = request.params as { profileId: string };
     const profile = await accountReadService.getProfile(actor, params.profileId);
     return { profile };
-  });
-
-  app.get('/api/account/v1/profiles/:profileId/recent-watched', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const query = request.query as { limit?: string };
-
-    const limit = Math.min(parseInt(query.limit ?? '50', 10) || 50, 50);
-    const items = await watchReadService.listRecentWatched(actor, params.profileId, limit);
-
-    return { items };
-  });
-
-  app.get('/api/account/v1/profiles/:profileId/history', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
-
-    const limit = Math.min(parseInt(query.limit ?? '50', 10) || 50, 100);
-    const result = await watchReadService.listHistory(actor, params.profileId, {
-      limit,
-      cursor: query.cursor ?? null,
-    });
-
-    return result;
-  });
-
-  app.get('/api/account/v1/profiles/:profileId/watchlist', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
-
-    const limit = Math.min(parseInt(query.limit ?? '50', 10) || 50, 100);
-    const result = await watchReadService.listWatchlist(actor, params.profileId, {
-      limit,
-      cursor: query.cursor ?? null,
-    });
-
-    return result;
-  });
-
-  app.get('/api/account/v1/profiles/:profileId/ratings', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
-
-    const limit = Math.min(parseInt(query.limit ?? '50', 10) || 50, 100);
-    const result = await watchReadService.listRatings(actor, params.profileId, {
-      limit,
-      cursor: query.cursor ?? null,
-    });
-
-    return result;
-  });
-
-  app.get('/api/account/v1/profiles/:profileId/continue-watching', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
-
-    const limit = Math.min(parseInt(query.limit ?? '25', 10) || 25, 100);
-    const result = await watchReadService.listContinueWatching(actor, params.profileId, {
-      limit,
-      cursor: query.cursor ?? null,
-    });
-
-    return result;
   });
 
   app.get('/api/account/v1/profiles/:profileId/recommendations/current', async (request: FastifyRequest, reply: FastifyReply) => {

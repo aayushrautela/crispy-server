@@ -51,6 +51,10 @@ export class WatchMediaCardCacheService {
       Array.from(records.entries()).map(([mediaKey, record]) => [mediaKey, toRegularCard(record)]),
     );
   }
+
+  async listCardCacheRecords(client: DbClient, mediaKeys: string[]): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    return this.repository.getByMediaKeys(client, mediaKeys);
+  }
 }
 
 function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {

@@ -4,8 +4,6 @@ import { extractLastEpisodeToAir, extractNextEpisodeToAir } from './tmdb-episode
 import { TmdbCacheService } from './tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './tmdb.types.js';
 import { showTmdbIdForIdentity, parseMediaKey, type MediaIdentity } from '../../identity/media-key.js';
-import { MetadataRefreshQueryService } from '../metadata-refresh-query.service.js';
-import { WatchV2MetadataService } from '../../watch-v2/watch-v2-metadata.service.js';
 
 export type MetadataRefreshSummary = {
   refreshedTitles: number;
@@ -23,19 +21,6 @@ function emptySummary(): MetadataRefreshSummary {
     skipped: 0,
     failures: 0,
   };
-}
-
-function mergeSummary(target: MetadataRefreshSummary, incoming: MetadataRefreshSummary): MetadataRefreshSummary {
-  target.refreshedTitles += incoming.refreshedTitles;
-  target.refreshedSeasons += incoming.refreshedSeasons;
-  target.refreshedTrackedShows += incoming.refreshedTrackedShows;
-  target.skipped += incoming.skipped;
-  target.failures += incoming.failures;
-  return target;
-}
-
-function isNotFoundError(error: unknown): boolean {
-  return error instanceof HttpError && error.statusCode === 404;
 }
 
 function collectSeasonNumbers(title: TmdbTitleRecord | null, explicitSeasonNumber?: number | null): number[] {
@@ -65,45 +50,11 @@ function collectSeasonNumbers(title: TmdbTitleRecord | null, explicitSeasonNumbe
 export class TmdbRefreshService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
-    private readonly metadataRefreshQueryService = new MetadataRefreshQueryService(),
-    private readonly watchV2MetadataService = new WatchV2MetadataService(),
   ) {}
 
   async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
-    const episodicFollow = await this.metadataRefreshQueryService.listEpisodicFollow(client, profileId, limit);
-
-    if (episodicFollow.length === 0) {
-      summary.skipped += 1;
-      return summary;
-    }
-
-    for (const row of episodicFollow) {
-      if (row.showTmdbId === null) {
-        summary.skipped += 1;
-        continue;
-      }
-      try {
-        mergeSummary(summary, await this.refreshShow(
-          client,
-          profileId,
-          row.showTmdbId,
-          null,
-          {
-            titleContentId: row.titleContentId,
-            seriesMediaKey: row.seriesMediaKey,
-            payload: row.payload,
-          },
-        ));
-      } catch (error) {
-        if (isNotFoundError(error)) {
-          summary.skipped += 1;
-          continue;
-        }
-        summary.failures += 1;
-      }
-    }
-
+    summary.skipped += 1;
     return summary;
   }
 
@@ -130,10 +81,7 @@ export class TmdbRefreshService {
       return summary;
     }
 
-    const episodicFollow = identity.contentId
-      ? await this.metadataRefreshQueryService.getEpisodicFollowByContentId(client, profileId, identity.contentId)
-      : null;
-    return this.refreshShow(client, profileId, showTmdbId, identity.seasonNumber, episodicFollow ?? undefined);
+    return this.refreshShow(client, profileId, showTmdbId, identity.seasonNumber, undefined);
   }
 
   async refreshShow(
@@ -158,15 +106,7 @@ export class TmdbRefreshService {
       summary.refreshedSeasons += 1;
     }
 
-    const followedSeries = episodicFollow;
-    if (followedSeries) {
-      await this.watchV2MetadataService.syncEpisodicFollowState(client, {
-        profileId,
-        titleContentId: followedSeries.titleContentId,
-        titleMediaKey: followedSeries.seriesMediaKey,
-        seriesIdentity: parseMediaKey(followedSeries.seriesMediaKey),
-        payload: followedSeries.payload ?? {},
-      });
+    if (episodicFollow) {
       summary.refreshedTrackedShows += 1;
     } else {
       summary.skipped += 1;

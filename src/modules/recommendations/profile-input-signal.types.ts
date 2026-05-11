@@ -1,6 +1,5 @@
-import type { RecommendationDataService } from './recommendation-data.service.js';
-import type { PersonalMediaService } from '../watch/personal-media.service.js';
 import type { ProfileInputSignalCacheDiagnostics } from './profile-input-signal-cache.types.js';
+import type { RegularCardView } from '../metadata/metadata-card.types.js';
 
 export type ProfileInputSignalInclude = 'history' | 'ratings' | 'watchlist' | 'continue' | 'trackedSeries';
 
@@ -33,11 +32,52 @@ export type AppliedProfileInputSignalLimits = {
   trackedSeriesLimit: number;
 };
 
-export type ProfileInputWatchHistoryItem = Awaited<ReturnType<RecommendationDataService['getWatchHistoryForAccountService']>>[number];
-export type ProfileInputRatingItem = Awaited<ReturnType<RecommendationDataService['getRatingsForAccountService']>>[number];
-export type ProfileInputWatchlistItem = Awaited<ReturnType<RecommendationDataService['getWatchlistForAccountService']>>[number];
-export type ProfileInputContinueWatchingItem = Awaited<ReturnType<PersonalMediaService['listContinueWatchingProducts']>>[number];
-export type ProfileInputTrackedSeriesItem = Awaited<ReturnType<RecommendationDataService['getEpisodicFollowForAccountService']>>[number];
+export type ProfileInputWatchHistoryItem = {
+  id: string;
+  media: RegularCardView;
+  watchedAt: string;
+  payload: Record<string, unknown> | null;
+};
+
+export type ProfileInputRatingItem = {
+  id: string;
+  media: RegularCardView;
+  rating: {
+    value: number;
+    ratedAt: string;
+  };
+  payload: Record<string, unknown> | null;
+};
+
+export type ProfileInputWatchlistItem = {
+  id: string;
+  media: RegularCardView;
+  addedAt: string;
+  payload: Record<string, unknown> | null;
+};
+
+export type ProfileInputContinueWatchingItem = {
+  id: string;
+  media: RegularCardView;
+  progress: {
+    progressPercent: number;
+  };
+  lastActivityAt: string;
+};
+
+export type ProfileInputTrackedSeriesItem = {
+  show: RegularCardView | null;
+  reason: string;
+  lastInteractedAt: string | null;
+  nextEpisodeAirDate: string | null;
+  nextEpisodeMediaKey: string | null;
+  nextEpisodeSeasonNumber: number | null;
+  nextEpisodeEpisodeNumber: number | null;
+  nextEpisodeAbsoluteEpisodeNumber: number | null;
+  nextEpisodeTitle: string | null;
+  metadataRefreshedAt: string | null;
+  payload: Record<string, unknown> | null;
+};
 
 export type ProfileInputSignalBundle = {
   accountId: string;

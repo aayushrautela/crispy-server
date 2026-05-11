@@ -21,7 +21,6 @@ import { isProviderImportProvider } from '../../modules/integrations/provider-im
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
-import { ProfileInputSignalFacade } from '../../modules/recommendations/profile-input-signal.facade.js';
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
@@ -43,7 +42,6 @@ const JOB_STATUSES = new Set<ProviderImportJobStatus>([
 
 export async function registerAdminApiRoutes(
   app: FastifyInstance,
-  deps?: { profileInputSignalFacade?: ProfileInputSignalFacade },
 ): Promise<void> {
   const recommendationAdminService = new RecommendationAdminService();
   const providerAdminService = new ProviderAdminService();
@@ -58,20 +56,7 @@ export async function registerAdminApiRoutes(
   const recommendationOutboxService = new RecommendationOutboxService();
   const serviceOutboxRepository = new ServiceOutboxRepository();
   const adminBulkJobService = new AdminBulkJobService();
-  const profileInputSignalFacade = deps?.profileInputSignalFacade ?? new ProfileInputSignalFacade({
-    defaults: {
-      historyDefault: 25,
-      historyMax: 100,
-      ratingsDefault: 25,
-      ratingsMax: 100,
-      watchlistDefault: 25,
-      watchlistMax: 100,
-      continueDefault: 25,
-      continueMax: 100,
-      trackedSeriesDefault: 25,
-      trackedSeriesMax: 100,
-    },
-  });
+
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
     const header = request.headers.authorization?.trim();
@@ -294,79 +279,6 @@ export async function registerAdminApiRoutes(
     const params = asRecord(request.params);
     return {
       profiles: await recommendationDataService.listAccountProfilesForService(readRequiredString(params.accountId, 'accountId')),
-    };
-  });
-
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/watch-history', async (request, reply) => {
-    await requireAdmin(request);
-    const params = parseAccountProfileParams(request.params);
-    const query = asRecord(request.query);
-    const bundle = await profileInputSignalFacade.getBundle({
-      accountId: params.accountId,
-      profileId: params.profileId,
-      include: ['history'],
-      limits: { historyLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
-    });
-    return {
-      items: bundle.history ?? [],
-    };
-  });
-
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/continue-watching', async (request, reply) => {
-    await requireAdmin(request);
-    const params = parseAccountProfileParams(request.params);
-    const query = asRecord(request.query);
-    const bundle = await profileInputSignalFacade.getBundle({
-      accountId: params.accountId,
-      profileId: params.profileId,
-      include: ['continue'],
-      limits: { continueLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
-    });
-    return {
-      items: bundle.continueWatching ?? [],
-    };
-  });
-
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/watchlist', async (request, reply) => {
-    await requireAdmin(request);
-    const params = parseAccountProfileParams(request.params);
-    const query = asRecord(request.query);
-    const bundle = await profileInputSignalFacade.getBundle({
-      accountId: params.accountId,
-      profileId: params.profileId,
-      include: ['watchlist'],
-      limits: { watchlistLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
-    });
-    return {
-      items: bundle.watchlist ?? [],
-    };
-  });
-
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/ratings', async (request, reply) => {
-    await requireAdmin(request);
-    const params = parseAccountProfileParams(request.params);
-    const query = asRecord(request.query);
-    const bundle = await profileInputSignalFacade.getBundle({
-      accountId: params.accountId,
-      profileId: params.profileId,
-      include: ['ratings'],
-      limits: { ratingsLimit: clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100) },
-    });
-    return {
-      items: bundle.ratings ?? [],
-    };
-  });
-
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/episodic-follow', async (request, reply) => {
-    await requireAdmin(request);
-    const params = parseAccountProfileParams(request.params);
-    const query = asRecord(request.query);
-    return {
-      items: await recommendationDataService.getEpisodicFollowForAccountService(
-        params.accountId,
-        params.profileId,
-        clampLimit(parseOptionalNumber(query.limit) ?? 25, 1, 100),
-      ),
     };
   });
 

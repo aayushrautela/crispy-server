@@ -1,6 +1,5 @@
 import { Queue } from 'bullmq';
 import { env } from '../config/env.js';
-import { HEARTBEAT_POLICY } from '../modules/watch/heartbeat-policy.js';
 
 export const projectionQueueName = 'projection-refresh';
 
@@ -37,33 +36,8 @@ async function enqueueProjectionRefreshJob(job: ProjectionRefreshJob, options?: 
   });
 }
 
-export function heartbeatFlushJobId(profileId: string, mediaKey: string): string {
-  return buildJobId('heartbeat-flush', profileId, mediaKey);
-}
-
-export async function enqueueHeartbeatFlush(profileId: string, mediaKey: string, delayMs?: number): Promise<void> {
-  await enqueueProjectionRefreshJob(
-    {
-      profileId,
-      mediaKey,
-      reason: 'flush-heartbeat',
-    },
-    {
-      delayMs: delayMs ?? HEARTBEAT_POLICY.initialFlushDelayMs,
-    },
-  );
-}
-
 export async function enqueueRefreshCalendarCache(profileId: string): Promise<void> {
   await enqueueProjectionRefreshJob({ profileId, reason: 'refresh-calendar-cache' });
-}
-
-export async function enqueueMetadataRefresh(profileId: string, mediaKey?: string): Promise<void> {
-  await enqueueProjectionRefreshJob({ profileId, mediaKey, reason: 'metadata-refresh' });
-}
-
-export async function enqueueRebuildProfileProjections(profileId: string): Promise<void> {
-  await enqueueProjectionRefreshJob({ profileId, reason: 'rebuild-profile-projections' });
 }
 
 export async function enqueueProviderImport(profileId: string, importJobId: string): Promise<void> {

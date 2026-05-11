@@ -6,16 +6,22 @@ seedTestEnv();
 
 test('watch routes require user session actor with access token', async (t) => {
   const { SupabaseUserWatchService } = await import('../../modules/integrations/supabase-user-watch.service.js');
-  
+  const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
+   
   const originals = {
     listContinueWatchingPage: SupabaseUserWatchService.prototype.listContinueWatchingPage,
     recordPlaybackState: SupabaseUserWatchService.prototype.recordPlaybackState,
     markWatched: SupabaseUserWatchService.prototype.markWatched,
     unmarkWatched: SupabaseUserWatchService.prototype.unmarkWatched,
+    enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
   };
 
   t.after(() => {
-    Object.assign(SupabaseUserWatchService.prototype, originals);
+    SupabaseUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
+    SupabaseUserWatchService.prototype.recordPlaybackState = originals.recordPlaybackState;
+    SupabaseUserWatchService.prototype.markWatched = originals.markWatched;
+    SupabaseUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
+    WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
   });
 
   let receivedAccessToken: string | null = null;
@@ -41,6 +47,10 @@ test('watch routes require user session actor with access token', async (t) => {
   SupabaseUserWatchService.prototype.unmarkWatched = async function (params) {
     receivedAccessToken = params.accessToken;
     watchedCalls.push({ ...params, kind: 'unmark' });
+  };
+
+  WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = async function (_client, items) {
+    return items;
   };
 
   const { registerWatchRoutes } = await import('./watch.js');

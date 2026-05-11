@@ -24,9 +24,12 @@ import { canonicalContinueWatchingMediaKey, inferMediaIdentity, parseMediaKey } 
 import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
+import { withDbClient } from '../../lib/db.js';
+import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const supabaseUserWatchService = new SupabaseUserWatchService();
+  const watchSupabaseEnrichmentService = new WatchSupabaseEnrichmentService();
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
@@ -66,12 +69,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       limit,
       cursor: parseNullableString(query.cursor),
     });
+    const enrichedItems = page.items.length
+      ? await withDbClient((client) =>
+        watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, page.items),
+      )
+      : page.items;
     return {
       profileId,
       kind: 'continue-watching' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: page.items,
+      items: enrichedItems,
       pageInfo: page.pageInfo,
     };
   });
@@ -103,12 +111,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       limit,
       cursor: parseNullableString(query.cursor),
     });
+    const enrichedItems = page.items.length
+      ? await withDbClient((client) =>
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
+      )
+      : page.items;
     return {
       profileId,
       kind: 'history' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: page.items,
+      items: enrichedItems,
       pageInfo: page.pageInfo,
     };
   });
@@ -126,12 +139,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       limit,
       cursor: parseNullableString(query.cursor),
     });
+    const enrichedItems = page.items.length
+      ? await withDbClient((client) =>
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
+      )
+      : page.items;
     return {
       profileId,
       kind: 'watchlist' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: page.items,
+      items: enrichedItems,
       pageInfo: page.pageInfo,
     };
   });
@@ -149,12 +167,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       limit,
       cursor: parseNullableString(query.cursor),
     });
+    const enrichedItems = page.items.length
+      ? await withDbClient((client) =>
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
+      )
+      : page.items;
     return {
       profileId,
       kind: 'ratings' as const,
       source: 'canonical_watch' as const,
       generatedAt,
-      items: page.items,
+      items: enrichedItems,
       pageInfo: page.pageInfo,
     };
   });
@@ -164,15 +187,19 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchStateLookupContract;
+    const item = await supabaseUserWatchService.getState({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKeys: [mapStateLookupInput(query).mediaKey],
+    });
+    const enrichedItem = await withDbClient((client) =>
+      watchSupabaseEnrichmentService.enrichRegularMediaItems(client, [item]),
+    );
     return {
       profileId,
       source: 'canonical_watch' as const,
       generatedAt: nowIso(),
-      item: await supabaseUserWatchService.getState({
-        accessToken: requireSupabaseAccessToken(actor),
-        profileId,
-        mediaKeys: [mapStateLookupInput(query).mediaKey],
-      }),
+      item: enrichedItem[0] ?? item,
     };
   });
 
@@ -183,15 +210,21 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const body = (request.body ?? {}) as WatchStateBatchBody;
     const items = Array.isArray(body.items) ? body.items : [];
 
+    const stateItems = await supabaseUserWatchService.getStates({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKeys: items.map((item) => mapStateLookupInput((item ?? {}) as WatchStateLookupContract).mediaKey),
+    });
+    const enrichedItems = stateItems.length
+      ? await withDbClient((client) =>
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, stateItems),
+      )
+      : stateItems;
     return {
       profileId,
       source: 'canonical_watch' as const,
       generatedAt: nowIso(),
-      items: await supabaseUserWatchService.getStates({
-        accessToken: requireSupabaseAccessToken(actor),
-        profileId,
-        mediaKeys: items.map((item) => mapStateLookupInput((item ?? {}) as WatchStateLookupContract).mediaKey),
-      }),
+      items: enrichedItems,
     };
   });
 

@@ -1,5 +1,3 @@
-import { RecommendationDataService } from './recommendation-data.service.js';
-import { PersonalMediaService } from '../watch/personal-media.service.js';
 import type { ProfileInputSignalCacheService } from './profile-input-signal-cache.service.js';
 import {
   familyLimit,
@@ -20,8 +18,6 @@ const DEFAULT_INCLUDES: ProfileInputSignalInclude[] = ['history', 'ratings', 'wa
 export class ProfileInputSignalFacade {
   constructor(
     private readonly deps: {
-      recommendationDataService?: RecommendationDataService;
-      personalMediaService?: PersonalMediaService;
       defaults: ProfileInputSignalLimitDefaults;
       cacheService?: ProfileInputSignalCacheService;
     },
@@ -47,7 +43,7 @@ export class ProfileInputSignalFacade {
       : undefined;
 
     const liveRequests = cacheRead?.liveRequests ?? requests;
-    const livePayload = await this.fetchLivePayload(input.accountId, input.profileId, liveRequests, limits);
+    const livePayload = await this.fetchLivePayload(liveRequests);
     const cachePayload = cacheRead?.payload ?? {};
     const payload = { ...cachePayload, ...livePayload };
 
@@ -96,41 +92,27 @@ export class ProfileInputSignalFacade {
     };
   }
 
-  private async fetchLivePayload(
-    accountId: string,
-    profileId: string,
-    requests: ProfileInputSignalCacheFamilyRequest[],
-    limits: AppliedProfileInputSignalLimits,
-  ): Promise<ProfileInputSignalCacheSectionPayload> {
-    const recommendationDataService = this.deps.recommendationDataService ?? new RecommendationDataService();
-    const personalMediaService = this.deps.personalMediaService ?? new PersonalMediaService();
-
+  private async fetchLivePayload(requests: ProfileInputSignalCacheFamilyRequest[]): Promise<ProfileInputSignalCacheSectionPayload> {
     const payload: ProfileInputSignalCacheSectionPayload = {};
-    await Promise.all(
-      requests.map(async (request) => {
-        switch (request.family) {
-          case 'history':
-            payload.history = await recommendationDataService.getWatchHistoryForAccountService(accountId, profileId, limits.historyLimit);
-            return;
-          case 'ratings':
-            payload.ratings = await recommendationDataService.getRatingsForAccountService(accountId, profileId, limits.ratingsLimit);
-            return;
-          case 'watchlist':
-            payload.watchlist = await recommendationDataService.getWatchlistForAccountService(accountId, profileId, limits.watchlistLimit);
-            return;
-          case 'continueWatching':
-            payload.continueWatching = await personalMediaService.listContinueWatchingProducts(accountId, profileId, limits.continueLimit);
-            return;
-          case 'trackedSeries':
-            payload.trackedSeries = await recommendationDataService.getEpisodicFollowForAccountService(
-              accountId,
-              profileId,
-              limits.trackedSeriesLimit,
-            );
-            return;
-        }
-      }),
-    );
+    for (const request of requests) {
+      switch (request.family) {
+        case 'history':
+          payload.history = [];
+          break;
+        case 'ratings':
+          payload.ratings = [];
+          break;
+        case 'watchlist':
+          payload.watchlist = [];
+          break;
+        case 'continueWatching':
+          payload.continueWatching = [];
+          break;
+        case 'trackedSeries':
+          payload.trackedSeries = [];
+          break;
+      }
+    }
     return payload;
   }
 

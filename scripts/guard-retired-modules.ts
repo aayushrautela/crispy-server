@@ -34,6 +34,10 @@ const rules: Rule[] = [
     message: 'Retired RECO routes under /api/integrations/v1 must not be reintroduced. Use /internal/apps/v1 and /internal/confidential/v1 instead.',
     filter: (line) => !line.includes('PRIVILEGED_APP_ARCHITECTURE_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_API_PLAN.md') && !line.includes('PRIVATE_CONFIDENTIAL_API_PLAN.md') && !line.includes('PUBLIC_ACCOUNT_WRITE_API_PLAN.md'),
   },
+  {
+    pattern: 'PublicWatchReadService|PersonalMediaService|WatchExportService|WatchQueryService|WatchV2|Heartbeat|enqueueHeartbeatFlush|enqueueMetadataRefresh|enqueueRebuildProfileProjections|runMetadataRefreshJob|runRebuildProfileProjectionsJob|profile_title_projection|profile_playable_state|profile_watchlist_state|profile_rating_state|profile_play_history|profile_watch_override|watch-v2',
+    message: 'Local server watch-state/projection modules were retired after moving watch state to Supabase.',
+  },
 ];
 
 function runGrep(rule: Rule) {
