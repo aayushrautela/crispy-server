@@ -607,7 +607,13 @@ export class ProviderImportService {
         ? await this.fetchAndNormalizeTraktImport(runningJob, activeProviderSession.credentialsJson)
         : await this.fetchAndNormalizeSimklImport(runningJob, activeProviderSession.credentialsJson);
 
-      const historyGeneration = 0;
+      const watchDataState = await this.runInTransaction((client) => this.watchDataStateRepository.markResetForImport(client, {
+        profileId: runningJob.profileId,
+        provider: runningJob.provider,
+        importJobId: runningJob.id,
+        resetAt: importedPayload.importedAt,
+      }));
+      const historyGeneration = watchDataState.historyGeneration;
 
       const supabaseInteractionSummary = await this.syncProviderInteractionsToSupabase({
         job: runningJob,
@@ -639,6 +645,17 @@ export class ProviderImportService {
         await this.markProviderSessionImportComplete(activeProviderSession, runningJob.id, importedPayload.importedAt);
       } catch (error) {
         warnings.push(`failed to update provider connection usage: ${error instanceof Error ? error.message : 'unknown error'}`);
+      }
+
+      try {
+        await this.runInTransaction((client) => this.watchDataStateRepository.markImportCompleted(client, {
+          profileId: runningJob.profileId,
+          provider: runningJob.provider,
+          importJobId: runningJob.id,
+          completedAt: importedPayload.importedAt,
+        }));
+      } catch (error) {
+        warnings.push(`failed to mark watch data state import completed: ${error instanceof Error ? error.message : 'unknown error'}`);
       }
 
       try {

@@ -28,7 +28,8 @@ import { RecommendationOutboxService } from '../../modules/outbox/recommendation
 import { ServiceOutboxRepository, type ServiceOutboxEventStatus } from '../../modules/outbox/service-outbox.repo.js';
 import { AdminBulkJobService } from '../../modules/admin-bulk-jobs/admin-bulk-job.service.js';
 import type { AdminBulkJobScope, AdminBulkJobStatus, AdminBulkJobTargetInput } from '../../modules/admin-bulk-jobs/admin-bulk-job.types.js';
-import { withTransaction } from '../../lib/db.js';
+import { SupabaseAdminWatchReadService } from '../../modules/integrations/supabase-admin-watch-read.service.js';
+import { withDbClient, withTransaction } from '../../lib/db.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -56,6 +57,7 @@ export async function registerAdminApiRoutes(
   const recommendationOutboxService = new RecommendationOutboxService();
   const serviceOutboxRepository = new ServiceOutboxRepository();
   const adminBulkJobService = new AdminBulkJobService();
+  const supabaseAdminWatchReadService = new SupabaseAdminWatchReadService();
 
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
@@ -279,6 +281,99 @@ export async function registerAdminApiRoutes(
     const params = asRecord(request.params);
     return {
       profiles: await recommendationDataService.listAccountProfilesForService(readRequiredString(params.accountId, 'accountId')),
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/watch-history', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    const generatedAt = new Date().toISOString();
+    const page = await withDbClient((client) => supabaseAdminWatchReadService.listHistoryPage(client, {
+      ...params,
+      limit: parseLimit(query.limit),
+      cursor: parseNullableString(query.cursor),
+    }));
+    return {
+      profileId: params.profileId,
+      kind: 'history' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
+      items: page.items,
+      pageInfo: page.pageInfo,
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/continue-watching', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    const generatedAt = new Date().toISOString();
+    const page = await withDbClient((client) => supabaseAdminWatchReadService.listContinueWatchingPage(client, {
+      ...params,
+      limit: parseLimit(query.limit),
+      cursor: parseNullableString(query.cursor),
+    }));
+    return {
+      profileId: params.profileId,
+      kind: 'continue-watching' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
+      items: page.items,
+      pageInfo: page.pageInfo,
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/watchlist', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    const generatedAt = new Date().toISOString();
+    const page = await withDbClient((client) => supabaseAdminWatchReadService.listWatchlistPage(client, {
+      ...params,
+      limit: parseLimit(query.limit),
+      cursor: parseNullableString(query.cursor),
+    }));
+    return {
+      profileId: params.profileId,
+      kind: 'watchlist' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
+      items: page.items,
+      pageInfo: page.pageInfo,
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/ratings', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    const generatedAt = new Date().toISOString();
+    const page = await withDbClient((client) => supabaseAdminWatchReadService.listRatingsPage(client, {
+      ...params,
+      limit: parseLimit(query.limit),
+      cursor: parseNullableString(query.cursor),
+    }));
+    return {
+      profileId: params.profileId,
+      kind: 'ratings' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
+      items: page.items,
+      pageInfo: page.pageInfo,
+    };
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/episodic-follow', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    await withDbClient((client) => supabaseAdminWatchReadService.assertProfileAccess(client, params));
+    return {
+      profileId: params.profileId,
+      source: 'canonical_watch' as const,
+      generatedAt: new Date().toISOString(),
+      items: [],
+      pageInfo: { hasMore: false, nextCursor: null },
     };
   });
 
@@ -769,6 +864,10 @@ function parseOptionalNumber(value: unknown): number | null {
 
 function parseLimit(value: unknown): number {
   return clampLimit(parseOptionalNumber(value) ?? 100, 1, 250);
+}
+
+function parseNullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function clampLimit(value: number, min: number, max: number): number {

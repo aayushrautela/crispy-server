@@ -451,8 +451,8 @@ export class ProviderSessionsRepository {
         UPDATE provider_sessions
         SET last_import_completed_at = $3::timestamptz,
             credentials_json = jsonb_strip_nulls(credentials_json || jsonb_build_object(
-              'lastImportCompletedAt', $3,
-              'lastImportJobId', $4
+              'lastImportCompletedAt', $3::timestamptz,
+              'lastImportJobId', $4::text
             )),
             updated_at = now()
         WHERE profile_id = $1::uuid AND provider = $2
