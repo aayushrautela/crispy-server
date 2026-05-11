@@ -30,7 +30,9 @@ test('enrichContinueWatchingItems replaces media fields from cache while preserv
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService);
+  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCards: async () => {},
+  });
 
   const items: ContinueWatchingProductItem[] = [
     {
@@ -99,7 +101,9 @@ test('enrichContinueWatchingItems uses fallback backdrop when cache has no backd
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService);
+  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCards: async () => {},
+  });
 
   const items: ContinueWatchingProductItem[] = [
     {
@@ -159,7 +163,9 @@ test('enrichRegularMediaItems replaces media fields for history items', async ()
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService);
+  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCards: async () => {},
+  });
 
   const items: HistoryProductItem[] = [
     {
@@ -199,7 +205,9 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService);
+  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCards: async () => {},
+  });
 
   const items: RatingProductItem[] = [
     {
@@ -257,7 +265,9 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
     },
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService);
+  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCards: async () => {},
+  });
 
   const items: HistoryProductItem[] = [
     {
@@ -304,7 +314,9 @@ test('enrichRegularMediaItems handles empty items array', async () => {
     listCardCacheRecords: async () => new Map(),
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService);
+  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCards: async () => {},
+  });
 
   const enriched = await service.enrichRegularMediaItems<WatchStateResponse>({} as never, []);
 

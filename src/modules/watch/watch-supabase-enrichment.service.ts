@@ -3,6 +3,7 @@ import { logger } from '../../config/logger.js';
 import type { RegularCardView } from '../metadata/metadata-card.types.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
+import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
 import type {
   ContinueWatchingProductItem,
   HistoryProductItem,
@@ -13,9 +14,12 @@ import type { WatchStateResponse } from './watch-read.types.js';
 
 type RegularMediaItem = HistoryProductItem | WatchlistProductItem | RatingProductItem | WatchStateResponse;
 
+type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMissingCards'>;
+
 export class WatchSupabaseEnrichmentService {
   constructor(
     private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
+    private readonly cacheMissRefreshService: CacheMissRefreshDependency = new WatchCacheMissRefreshService(),
   ) {}
 
   async enrichContinueWatchingItems(
@@ -46,7 +50,11 @@ export class WatchSupabaseEnrichmentService {
     const records = await this.watchMediaCardCacheService.listCardCacheRecords(client, uniqueMediaKeys);
     const missingCount = uniqueMediaKeys.length - records.size;
     if (missingCount > 0) {
+      const missingKeys = uniqueMediaKeys.filter((key) => !records.has(key));
       logger.debug({ requestedCount: uniqueMediaKeys.length, hitCount: records.size, missingCount }, 'watch supabase metadata cache misses');
+      this.cacheMissRefreshService.refreshMissingCards(client, missingKeys).catch((error) => {
+        logger.warn({ error, missingCount }, 'background cache miss refresh failed');
+      });
     }
     return records;
   }

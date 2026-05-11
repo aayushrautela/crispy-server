@@ -117,7 +117,7 @@ genres
 recommendations
 ```
 
-If existing Supabase RPCs return title/poster snapshot columns, treat them as fallback-only fields until the API enrichment path replaces them.
+Supabase RPCs must return user-state fields only. Do not add title/poster/backdrop/release-year/rating snapshot columns to Supabase read models. If a new watch read RPC is added, it should expose identifiers and user facts only; API enrichment is responsible for all response metadata.
 
 ### API Postgres stores shared metadata/cache
 
@@ -341,43 +341,31 @@ If needed, use existing helpers:
 
 On missing `watch_media_card_cache` rows:
 
-- keep Supabase fallback card values
-- return response without blocking on TMDB
+- keep deterministic fallback card values derived from the media key
+- return the paginated response without waiting for TMDB
 - log miss counts per endpoint
+- trigger API-side background refresh for only the missing keys from the current page
 
 This keeps history fast and avoids accidental TMDB fanout.
 
 ### Phase 2 behavior
 
-Add asynchronous refresh for missing cards:
+The background refresh path should:
 
 ```txt
-missing media keys
-  -> enqueue metadata refresh job
-  -> worker ensures TMDB title cached
-  -> build/upsert watch_media_card_cache
-```
-
-Use existing queue infrastructure:
-
-- `src/lib/queue.ts`
-- `src/worker/index.ts`
-
-Job payload:
-
-```ts
-type WatchMediaCardRefreshJob = {
-  mediaKeys: string[];
-  reason: 'supabase_watch_history' | 'supabase_watchlist' | 'supabase_ratings' | 'supabase_continue_watching';
-}
+missing media keys from current page
+  -> dedupe keys
+  -> build metadata projection from API Postgres/TMDB cache
+  -> call TMDB only when API metadata cache is cold/stale
+  -> upsert watch_media_card_cache
 ```
 
 Batch behavior:
 
-- dedupe media keys before enqueue
-- cap keys per job, e.g. 100
+- never refresh more than the requested page's missing keys
 - skip invalid/non-TMDB keys
-- use Redis lock per media key to prevent stampedes
+- keep user response latency independent from TMDB latency
+- later add Redis locks if miss traffic becomes high
 
 ### Phase 3 behavior for detail pages
 
