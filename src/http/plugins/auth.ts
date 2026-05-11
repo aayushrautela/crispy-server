@@ -40,6 +40,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         throw new HttpError(401, 'Invalid bearer token.');
       }
       request.auth = actor;
+      request.auth.accessToken = null;
       return;
     }
 
@@ -63,6 +64,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       email: auth.email,
       tokenId: null,
       consumerId: null,
+      accessToken: token,
     };
   });
 

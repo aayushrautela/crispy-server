@@ -27,6 +27,7 @@ export type AuthActor = {
   email: string | null;
   tokenId: string | null;
   consumerId: string | null;
+  accessToken: string | null;
 };
 
 export type UserAuthActor = AuthActor & {

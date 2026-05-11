@@ -17,7 +17,6 @@ import {
   type WatchIngestResult,
   type WatchMutationInput,
 } from './watch.types.js';
-
 export class WatchEventIngestService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
@@ -128,7 +127,7 @@ export class WatchEventIngestService {
     if (!input.rating || input.rating < 1 || input.rating > 10) {
       throw new HttpError(400, 'Rating must be between 1 and 10.');
     }
-    const mediaKey = inferMediaIdentity(input).mediaKey;
+    const identity = inferMediaIdentity(input);
     await this.applyMutation(userId, profileId, 'rating_put', input, async (client, params) => {
       await this.watchV2WriteService.setRating(client, {
         profileId,
@@ -144,7 +143,7 @@ export class WatchEventIngestService {
       families: ['ratings'],
       reason: 'rating_mutated',
     });
-    await this.projectionRefreshDispatcher.refreshMetadata(profileId, mediaKey);
+    await this.projectionRefreshDispatcher.refreshMetadata(profileId, identity.mediaKey);
     return { accepted: true, mode: 'synchronous' };
   }
 

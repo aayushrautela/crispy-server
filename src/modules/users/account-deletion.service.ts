@@ -1,4 +1,4 @@
-import { withTransaction } from '../../lib/db.js';
+import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { PersonalAccessTokenService } from '../auth/personal-access-token.service.js';
 import { ExternalAuthAdminService } from '../auth/external-auth-admin.service.js';
@@ -16,6 +16,8 @@ export type DeletedAccountResult = {
   warnings: string[];
 };
 
+type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
+
 export class AccountDeletionService {
   constructor(
     private readonly personalAccessTokenService = new PersonalAccessTokenService(),
@@ -24,13 +26,14 @@ export class AccountDeletionService {
     private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly userRepository = new UserRepository(),
     private readonly externalAuthAdminService = new ExternalAuthAdminService(),
+    private readonly transactionRunner: TransactionRunner = withTransaction,
   ) {}
 
   async deleteAccount(params: { appUserId: string; authSubject: string | null }): Promise<DeletedAccountResult> {
     const revokedPersonalAccessTokens = await this.personalAccessTokenService.revokeAllForUser(params.appUserId);
     const warnings: string[] = [];
 
-    const deletion = await withTransaction(async (client) => {
+    const deletion = await this.transactionRunner(async (client) => {
       const ownedProfileGroupIds = await this.profileGroupRepository.findOwnedProfileGroupIds(client, params.appUserId);
       let deletedOwnedProfileGroups = 0;
       let transferredOwnedProfileGroups = 0;

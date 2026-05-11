@@ -16,54 +16,56 @@ import {
   type WatchMediaKeyParams,
   type WatchMutationBody,
   type WatchPaginationQuery,
-  type WatchProfileParams,
   type WatchStateBatchBody,
   type WatchStateLookupContract,
 } from '../contracts/watch.js';
-import { WatchEventIngestService } from '../../modules/watch/event-ingest.service.js';
-import { PersonalMediaService } from '../../modules/watch/personal-media.service.js';
-import { WatchStateService } from '../../modules/watch/watch-state.service.js';
+import { SupabaseUserWatchService } from '../../modules/integrations/supabase-user-watch.service.js';
+import { canonicalContinueWatchingMediaKey, inferMediaIdentity, parseMediaKey } from '../../modules/identity/media-key.js';
+import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
-  const ingestService = new WatchEventIngestService();
-  const personalMediaService = new PersonalMediaService();
-  const watchStateService = new WatchStateService();
+  const supabaseUserWatchService = new SupabaseUserWatchService();
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const body = (request.body ?? {}) as WatchEventBody;
-    const result = await ingestService.ingestPlaybackEvent(actor.appUserId, profileId, {
-      clientEventId: String(body.clientEventId ?? ''),
-      eventType: String(body.eventType ?? ''),
+    const identity = inferMediaIdentity({
       mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
       mediaType: String(body.mediaType ?? ''),
       seasonNumber: parseNullableNumber(body.seasonNumber),
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
+    });
+    await supabaseUserWatchService.recordPlaybackState({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKey: identity.mediaKey,
+      titleMediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaType: identity.mediaType,
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
-      rating: typeof body.rating === 'number' ? body.rating : null,
-      occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
-      payload: typeof body.payload === 'object' && body.payload !== null ? (body.payload as Record<string, unknown>) : {},
+      eventKind: String(body.eventType ?? '') === 'playback_completed' ? 'playback_completed' : 'playback_progress',
     });
-    if (result.mode === 'buffered') {
-      return reply.code(202).send(result);
-    }
-    return result;
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.get('/v1/profiles/:profileId/watch/continue-watching', { schema: continueWatchingListRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const generatedAt = nowIso();
-    const page = await personalMediaService.listContinueWatchingPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await supabaseUserWatchService.listContinueWatchingPage({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      limit,
+      cursor: parseNullableString(query.cursor),
+    });
     return {
       profileId,
       kind: 'continue-watching' as const,
@@ -76,20 +78,31 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/v1/profiles/:profileId/watch/continue-watching/:id', { schema: watchContinueWatchingDismissRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchContinueWatchingDismissParams> & { id: string };
     const profileId = getProfileIdFromParams(params);
-    return ingestService.dismissContinueWatching(actor.appUserId, profileId, params.id);
+    const titleMediaKey = decodeContinueWatchingRouteId(params.id);
+    await supabaseUserWatchService.dismissContinueWatching({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      titleMediaKey,
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.get('/v1/profiles/:profileId/watch/history', { schema: historyListRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await personalMediaService.listHistoryPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await supabaseUserWatchService.listHistoryPage({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      limit,
+      cursor: parseNullableString(query.cursor),
+    });
     return {
       profileId,
       kind: 'history' as const,
@@ -102,12 +115,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/v1/profiles/:profileId/watch/watchlist', { schema: watchlistListRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await personalMediaService.listWatchlistPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await supabaseUserWatchService.listWatchlistPage({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      limit,
+      cursor: parseNullableString(query.cursor),
+    });
     return {
       profileId,
       kind: 'watchlist' as const,
@@ -120,12 +138,17 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/v1/profiles/:profileId/watch/ratings', { schema: ratingsListRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
-    const page = await personalMediaService.listRatingsPage(actor.appUserId, profileId, { limit, cursor: parseNullableString(query.cursor) });
+    const page = await supabaseUserWatchService.listRatingsPage({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      limit,
+      cursor: parseNullableString(query.cursor),
+    });
     return {
       profileId,
       kind: 'ratings' as const,
@@ -138,20 +161,24 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/v1/profiles/:profileId/watch/state', { schema: watchStateRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchStateLookupContract;
     return {
       profileId,
       source: 'canonical_watch' as const,
       generatedAt: nowIso(),
-      item: await watchStateService.getState(actor.appUserId, profileId, mapStateLookupInput(query)),
+      item: await supabaseUserWatchService.getState({
+        accessToken: requireSupabaseAccessToken(actor),
+        profileId,
+        mediaKeys: [mapStateLookupInput(query).mediaKey],
+      }),
     };
   });
 
   app.post('/v1/profiles/:profileId/watch/states', { schema: watchStatesRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const body = (request.body ?? {}) as WatchStateBatchBody;
     const items = Array.isArray(body.items) ? body.items : [];
@@ -160,69 +187,136 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       profileId,
       source: 'canonical_watch' as const,
       generatedAt: nowIso(),
-      items: await watchStateService.getStates(
-        actor.appUserId,
+      items: await supabaseUserWatchService.getStates({
+        accessToken: requireSupabaseAccessToken(actor),
         profileId,
-        items.map((item) => mapStateLookupInput((item ?? {}) as WatchStateLookupContract)),
-      ),
+        mediaKeys: items.map((item) => mapStateLookupInput((item ?? {}) as WatchStateLookupContract).mediaKey),
+      }),
     };
   });
 
   app.post('/v1/profiles/:profileId/watch/mark-watched', { schema: watchMutationRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const body = (request.body ?? {}) as WatchMutationBody;
-    return ingestService.markWatched(actor.appUserId, profileId, mapMutationBody(body));
+    const identity = inferMediaIdentity({
+      mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
+      mediaType: String(body.mediaType ?? ''),
+      seasonNumber: parseNullableNumber(body.seasonNumber),
+      episodeNumber: parseNullableNumber(body.episodeNumber),
+      absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
+    });
+    await supabaseUserWatchService.markWatched({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKey: identity.mediaKey,
+      titleMediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaType: identity.mediaType,
+      occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.post('/v1/profiles/:profileId/watch/unmark-watched', { schema: watchMutationRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const body = (request.body ?? {}) as WatchMutationBody;
-    return ingestService.unmarkWatched(actor.appUserId, profileId, mapMutationBody(body));
+    const identity = inferMediaIdentity({
+      mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
+      mediaType: String(body.mediaType ?? ''),
+      seasonNumber: parseNullableNumber(body.seasonNumber),
+      episodeNumber: parseNullableNumber(body.episodeNumber),
+      absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
+    });
+    await supabaseUserWatchService.unmarkWatched({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKey: identity.mediaKey,
+      titleMediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaType: identity.mediaType,
+      occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.put('/v1/profiles/:profileId/watch/watchlist/:mediaKey', { schema: watchMediaKeyMutationRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchMediaKeyParams> & { mediaKey: string };
     const profileId = getProfileIdFromParams(params);
     const body = (request.body ?? {}) as WatchMutationBody;
-    return ingestService.setWatchlist(actor.appUserId, profileId, {
-      ...mapMutationBody(body),
+    const identity = inferMediaIdentity({
       mediaKey: params.mediaKey,
+      mediaType: String(body.mediaType ?? ''),
+      seasonNumber: parseNullableNumber(body.seasonNumber),
+      episodeNumber: parseNullableNumber(body.episodeNumber),
+      absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
+    await supabaseUserWatchService.setListItem({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      listKind: 'watchlist',
+      mediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaType: identity.mediaType,
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.delete('/v1/profiles/:profileId/watch/watchlist/:mediaKey', { schema: watchMediaKeyParamsRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchMediaKeyParams> & { mediaKey: string };
     const profileId = getProfileIdFromParams(params);
-    return ingestService.removeWatchlist(actor.appUserId, profileId, params.mediaKey);
+    const identity = parseMediaKey(params.mediaKey);
+    await supabaseUserWatchService.deleteListItem({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      listKind: 'watchlist',
+      mediaKey: canonicalContinueWatchingMediaKey(identity),
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.put('/v1/profiles/:profileId/watch/rating/:mediaKey', { schema: watchMediaKeyMutationRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchMediaKeyParams> & { mediaKey: string };
     const profileId = getProfileIdFromParams(params);
     const body = (request.body ?? {}) as WatchMutationBody;
-    return ingestService.setRating(actor.appUserId, profileId, {
-      ...mapMutationBody(body),
+    if (typeof body.rating !== 'number') {
+      throw new HttpError(400, 'Rating must be between 1 and 10.');
+    }
+    const identity = inferMediaIdentity({
       mediaKey: params.mediaKey,
-      rating: typeof body.rating === 'number' ? body.rating : null,
+      mediaType: String(body.mediaType ?? ''),
+      seasonNumber: parseNullableNumber(body.seasonNumber),
+      episodeNumber: parseNullableNumber(body.episodeNumber),
+      absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
+    await supabaseUserWatchService.setRating({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaType: identity.mediaType,
+      rating: body.rating,
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 
   app.delete('/v1/profiles/:profileId/watch/rating/:mediaKey', { schema: watchMediaKeyParamsRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchMediaKeyParams> & { mediaKey: string };
     const profileId = getProfileIdFromParams(params);
-    return ingestService.removeRating(actor.appUserId, profileId, params.mediaKey);
+    const identity = parseMediaKey(params.mediaKey);
+    await supabaseUserWatchService.deleteRating({
+      accessToken: requireSupabaseAccessToken(actor),
+      profileId,
+      mediaKey: canonicalContinueWatchingMediaKey(identity),
+    });
+    return { accepted: true, mode: 'synchronous' as const };
   });
 }
 
@@ -234,19 +328,6 @@ function getProfileIdFromParams(params: unknown): string {
     throw new Error('Profile route is missing profileId param.');
   }
   return profileId;
-}
-
-function mapMutationBody(body: WatchMutationBody) {
-  return {
-    mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : undefined,
-    mediaType: String(body.mediaType ?? ''),
-    seasonNumber: parseNullableNumber(body.seasonNumber),
-    episodeNumber: parseNullableNumber(body.episodeNumber),
-    absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
-    occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
-    rating: typeof body.rating === 'number' ? body.rating : null,
-    payload: typeof body.payload === 'object' && body.payload !== null ? (body.payload as Record<string, unknown>) : {},
-  };
 }
 
 function parseOptionalNumber(value: unknown): number | null | undefined {
@@ -283,4 +364,19 @@ function parseNullableString(value: unknown): string | null {
     return null;
   }
   return parseOptionalString(value);
+}
+
+function requireSupabaseAccessToken(actor: { accessToken: string | null }): string {
+  if (!actor.accessToken) {
+    throw new HttpError(403, 'Supabase user session required.');
+  }
+  return actor.accessToken;
+}
+
+function decodeContinueWatchingRouteId(id: string): string {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    throw new HttpError(400, 'Continue watching id is required.');
+  }
+  return trimmed.startsWith('cw2:') ? trimmed.slice('cw2:'.length) : trimmed;
 }

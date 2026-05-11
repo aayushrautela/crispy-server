@@ -10,7 +10,7 @@ import { normalizeIsoString } from '../../lib/time.js';
 import { calendarCacheKey } from '../cache/cache-keys.js';
 import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
-import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
+import { inferMediaIdentity, canonicalContinueWatchingMediaKey, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
@@ -24,7 +24,14 @@ import { ProviderTokenRefreshService } from './provider-token-refresh.service.js
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { UserRepository } from '../users/user.repo.js';
-import { SupabaseProviderHistoryWriter } from './supabase-provider-history-writer.js';
+import {
+  SupabaseProviderHistoryWriter,
+  type ImportedProviderHistoryEntry,
+  type ImportedProviderListItem,
+  type ImportedProviderPlaybackState,
+  type ImportedProviderRating,
+  type SupabaseProviderImportSyncResult,
+} from './supabase-provider-history-writer.js';
 
 type ImportedHistoryEntryDraft = {
   mediaKey: string;
@@ -137,6 +144,13 @@ type ImportIdentityLookup = {
 type ResolveImportIdentityFn = (params: ImportIdentityLookup) => Promise<ResolvedImportIdentity | null>;
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
+
+type SupabaseProviderImportFacts = {
+  historyEntries: ImportedProviderHistoryEntry[];
+  watchlistItems: ImportedProviderListItem[];
+  ratings: ImportedProviderRating[];
+  playbackStates: ImportedProviderPlaybackState[];
+};
 
 type ImportAccumulator = {
   importedEvents: ImportedWatchEventDraft[];
@@ -595,15 +609,15 @@ export class ProviderImportService {
 
       const historyGeneration = 0;
 
-      const supabaseHistorySummary = await this.syncProviderHistoryToSupabase({
+      const supabaseInteractionSummary = await this.syncProviderInteractionsToSupabase({
         job: runningJob,
         providerSession: activeProviderSession,
         historyGeneration,
         importedAt: importedPayload.importedAt,
-        entries: importedPayload.importedHistoryEntries,
+        payload: importedPayload,
       });
 
-      const warnings: string[] = [];
+      const warnings: string[] = [...supabaseInteractionSummary.warnings];
       let metadataSummary: Record<string, unknown> = {
         refreshedTitles: 0,
         refreshedSeasons: 0,
@@ -652,7 +666,7 @@ export class ProviderImportService {
             insertedHistoryEntries: 0,
             projectionSummary: { titleProjections: 0, trackedTitleStates: 0 },
             metadataSummary,
-            supabaseHistorySummary,
+            supabaseInteractionSummary,
             historyGeneration,
             warnings,
           },
@@ -671,7 +685,7 @@ export class ProviderImportService {
         profileId: runningJob.profileId,
         provider: runningJob.provider,
         metadataSummary,
-        supabaseHistorySummary,
+        supabaseInteractionSummary,
         insertedEvents: 0,
         insertedHistoryEntries: 0,
         warnings,
@@ -695,13 +709,13 @@ export class ProviderImportService {
     }
   }
 
-  private async syncProviderHistoryToSupabase(params: {
+  private async syncProviderInteractionsToSupabase(params: {
     job: ProviderImportJobRecord;
     providerSession: ProviderSessionRecord;
     historyGeneration: number;
     importedAt: string;
-    entries: ImportedHistoryEntryDraft[];
-  }): Promise<{ inserted: number; skipped: boolean }> {
+    payload: ProviderReplaceImportPayload;
+  }): Promise<SupabaseProviderImportSyncResult> {
     const context = await this.runInTransaction(async (client) => {
       const [profile, appUser] = await Promise.all([
         this.profileRepository.findById(client, params.job.profileId),
@@ -715,19 +729,94 @@ export class ProviderImportService {
       logger.warn({
         profileId: params.job.profileId,
         requestedByUserId: params.job.requestedByUserId,
-      }, 'supabase provider history sync skipped: missing local profile or app user');
-      return { inserted: 0, skipped: true };
+      }, 'supabase provider import sync skipped: missing local profile or app user');
+      return {
+        historyInserted: 0,
+        watchlistInserted: 0,
+        ratingsInserted: 0,
+        playbackInserted: 0,
+        skipped: true,
+        warnings: ['Supabase provider import sync skipped: missing local profile or app user'],
+      };
     }
 
-    return this.supabaseProviderHistoryWriter.replaceImportedHistory({
+    const facts = this.buildSupabaseProviderImportFacts(params.payload);
+
+    return this.supabaseProviderHistoryWriter.replaceImportedInteractions({
       appUser: context.appUser,
       job: params.job,
       profile: context.profile,
       providerSession: params.providerSession,
       historyGeneration: params.historyGeneration,
       importedAt: params.importedAt,
-      entries: params.entries,
+      ...facts,
     });
+  }
+
+  private buildSupabaseProviderImportFacts(payload: ProviderReplaceImportPayload): SupabaseProviderImportFacts {
+    const historyEntries = payload.importedHistoryEntries.map((entry) => ({
+      mediaKey: entry.mediaKey,
+      mediaType: entry.mediaType,
+      watchedAt: entry.watchedAt,
+    }));
+    const watchlistItems: ImportedProviderListItem[] = [];
+    const ratings: ImportedProviderRating[] = [];
+    const playbackStates: ImportedProviderPlaybackState[] = [];
+
+    for (const event of payload.importedEvents) {
+      if (event.eventType === 'watchlist_put') {
+        watchlistItems.push({
+          mediaKey: event.mediaKey,
+          mediaType: event.mediaType,
+          addedAt: event.occurredAt,
+        });
+        continue;
+      }
+
+      if (event.eventType === 'rating_put' && typeof event.rating === 'number' && Number.isFinite(event.rating)) {
+        ratings.push({
+          mediaKey: event.mediaKey,
+          mediaType: event.mediaType,
+          rating: event.rating,
+          ratedAt: event.occurredAt,
+        });
+        continue;
+      }
+
+      if (event.eventType === 'playback_progress_snapshot' || event.eventType === 'playback_completed') {
+        const durationSeconds = Math.max(0, Math.floor(event.durationSeconds ?? 0));
+        const positionSeconds = Math.max(0, Math.floor(event.positionSeconds ?? 0));
+        const progressBps = durationSeconds > 0
+          ? Math.max(0, Math.min(10000, Math.round((positionSeconds / durationSeconds) * 10000)))
+          : 0;
+        playbackStates.push({
+          mediaKey: event.mediaKey,
+          titleMediaKey: this.resolveProviderEventTitleMediaKey(event),
+          mediaType: event.mediaType,
+          positionSeconds,
+          durationSeconds,
+          progressBps,
+          occurredAt: event.occurredAt,
+          completed: event.eventType === 'playback_completed',
+        });
+      }
+    }
+
+    return { historyEntries, watchlistItems, ratings, playbackStates };
+  }
+
+  private resolveProviderEventTitleMediaKey(event: ImportedWatchEventDraft): string {
+    try {
+      return canonicalContinueWatchingMediaKey(inferMediaIdentity({
+        mediaKey: event.mediaKey,
+        mediaType: event.mediaType,
+        seasonNumber: event.seasonNumber ?? null,
+        episodeNumber: event.episodeNumber ?? null,
+        absoluteEpisodeNumber: event.absoluteEpisodeNumber ?? null,
+      }));
+    } catch {
+      return event.mediaKey;
+    }
   }
 
   private buildAuthUrl(

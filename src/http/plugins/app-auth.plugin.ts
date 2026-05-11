@@ -197,6 +197,7 @@ const appAuthPlugin: FastifyPluginAsync<AppAuthPluginOptions> = async (fastify, 
         email: null,
         tokenId: null,
         consumerId: null,
+        accessToken: null,
       };
       return principal;
     }

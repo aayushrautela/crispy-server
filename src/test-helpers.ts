@@ -41,6 +41,7 @@ const TEST_USER_AUTH: {
   email: string;
   tokenId: null;
   consumerId: null;
+  accessToken: string;
 } = {
   type: 'user',
   appUserId: 'user-1',
@@ -50,6 +51,7 @@ const TEST_USER_AUTH: {
   email: 'test@example.com',
   tokenId: null,
   consumerId: null,
+  accessToken: 'test-supabase-jwt-token',
 };
 
 export async function buildTestApp(
@@ -117,4 +119,4 @@ export function createMockResolvePlayback(overrides: Record<string, unknown> = {
 }
 
 export const NOOP_TRANSACTION = async <T>(work: (client: never) => Promise<T>): Promise<T> =>
-  work({} as never);
+  work({ query: async () => ({ rows: [], rowCount: 0 }) } as never);

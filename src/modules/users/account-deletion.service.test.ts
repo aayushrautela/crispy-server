@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { seedTestEnv } from '../../test-helpers.js';
+import { seedTestEnv, NOOP_TRANSACTION } from '../../test-helpers.js';
 
 seedTestEnv();
 
@@ -14,6 +14,7 @@ test('deleteAccount revokes PATs and cleans up data', async () => {
     {} as never,
     { deleteById: async () => true } as never,
     { deleteUser: async () => true } as never,
+    NOOP_TRANSACTION,
   );
 
   const result = await service.deleteAccount({ appUserId: 'user-1', authSubject: 'auth-1' });
@@ -40,6 +41,7 @@ test('deleteAccount transfers ownership when other members exist', async () => {
     {} as never,
     { deleteById: async () => true } as never,
     { deleteUser: async () => false } as never,
+    NOOP_TRANSACTION,
   );
 
   const result = await service.deleteAccount({ appUserId: 'user-1', authSubject: null });
@@ -60,6 +62,7 @@ test('deleteAccount deletes empty profile groups', async () => {
     {} as never,
     { deleteById: async () => true } as never,
     { deleteUser: async () => false } as never,
+    NOOP_TRANSACTION,
   );
 
   const result = await service.deleteAccount({ appUserId: 'user-1', authSubject: null });
@@ -79,6 +82,7 @@ test('deleteAccount includes warnings for avatar keys', async () => {
     {} as never,
     { deleteById: async () => true } as never,
     { deleteUser: async () => false } as never,
+    NOOP_TRANSACTION,
   );
 
   const result = await service.deleteAccount({ appUserId: 'user-1', authSubject: null });

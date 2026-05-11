@@ -15,15 +15,15 @@ OpenAPI remains the machine-readable source of truth for exact endpoint shapes, 
 
 | Area | Owner |
 | --- | --- |
-| Account/profile ownership and authorization | Crispy API Server |
-| Watch history, ratings, watchlist, continue watching, episodic follow | Crispy API Server |
+| Account/profile ownership and authorization | Crispy API Server + Supabase RLS behind Fastify |
+| Watch history, ratings, watchlist, continue watching, episodic follow | Supabase user-interaction state behind Crispy API Server |
 | Canonical media identity and metadata projections | Crispy API Server |
 | Stored recommendation snapshots served to clients | Crispy API Server |
 | Recommendation model logic and generation strategy | External recommendation engine |
 | Pulling eligible source data after recompute events | External recommendation engine through Crispy API |
 | Internal queue jobs in this repository | Crispy Server BullMQ worker |
 
-RECO is not this repository's BullMQ worker and must not read Crispy Server Postgres, Redis, or local runtime state directly.
+RECO is not this repository's BullMQ worker and must not read Crispy Server Postgres, Supabase, Redis, or local runtime state directly by default.
 
 ## Authentication
 
@@ -90,7 +90,7 @@ Diagnostics expose MAIN service-outbox delivery state only (`pending`, `processi
 
 ## Source data and AI-plan flow
 
-RECO retrieves bounded, authorized business inputs through MAIN internal APIs. Typical categories include profile metadata, watch history, ratings, watchlist, continue watching, episodic follow state, existing taste/recommendation context, candidate-pool context, and canonical metadata projections.
+RECO retrieves bounded, authorized business inputs through MAIN internal APIs. Typical categories include profile metadata, watch history, ratings, watchlist, continue watching, episodic follow state, existing taste/recommendation context, candidate-pool context, and canonical metadata projections. MAIN may satisfy those internal reads from local Postgres or Supabase trusted backend readers, but that storage choice is hidden behind the Fastify internal API contract.
 
 When AI assistance is needed:
 
@@ -127,7 +127,7 @@ This contract does not define:
 - Recommendation worker job ids exposed by MAIN.
 - RECO's internal queue implementation.
 - Ranking algorithms or model internals.
-- Direct database, Redis, or admin-UI scraping access by RECO.
+- Direct database, Supabase, Redis, or admin-UI scraping access by RECO.
 
 ## Future lifecycle gaps
 

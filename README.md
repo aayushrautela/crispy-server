@@ -1,20 +1,23 @@
 # Crispy Server
 
-Crispy Server is the backend for the Crispy app. It runs the API, internal backend jobs, persistence, provider imports, stored recommendation surfaces, and AI-assisted features on Crispy-owned infrastructure.
+Crispy Server is the backend for the Crispy app. It runs the API, internal backend jobs, persistence integrations, provider imports, stored recommendation surfaces, and AI-assisted features on Crispy-owned infrastructure.
 
 ## What this service owns
 
-Supabase is used for authentication only.
+Supabase is the external auth provider and the target RLS-backed store for user interaction state, but Fastify remains the default application data API.
 
-- Supabase provides the JWT issuer and JWKS used to verify user bearer tokens.
-- Supabase may be called as the upstream auth admin API during account deletion.
-- Supabase is not the application database and is not used here for Storage, Edge Functions, Realtime, or RLS-managed app data.
+- Supabase Auth provides the JWT issuer and JWKS used to verify user bearer tokens.
+- Supabase Postgres/RPC/RLS stores target profile watch state, history, continue watching, watchlist, ratings, and provider-import interaction facts behind Fastify.
+- Fastify verifies user JWTs, preserves the original access token, and calls Supabase user RPC/Data API with the user's JWT for normal user operations.
+- Supabase service-role credentials are server-only and limited to trusted backend jobs, imports, admin repair, and upstream auth admin calls.
+- Metadata, provider secrets, AI vendor calls, admin/ops, queues, and recommendation orchestration remain backend-owned.
 
-Application data and business logic live in this service:
+Application data and business logic are split by trust boundary:
 
 - Fastify API runtime
 - Internal BullMQ worker runtime
-- Postgres for primary application data
+- Local Postgres for backend-owned operational data, metadata caches, outbox/admin state, and transition-era tables
+- Supabase Postgres/RPC/RLS for target user interaction state behind Fastify
 - Redis for queues and cached read surfaces
 
 ## Stack
@@ -25,7 +28,7 @@ Application data and business logic live in this service:
 - TMDB for canonical metadata
 - Trakt and Simkl for provider imports
 - OpenAI-compatible endpoints for AI features
-- Supabase for external auth only
+- Supabase Auth plus Supabase Postgres/RPC/RLS for user interaction state behind Fastify
 
 ## Runtime components
 
@@ -97,6 +100,7 @@ npm run test
 | Generated API artifacts | `openapi/generated/`, `docs/api/generated/` |
 | Recommendation API guide | `docs/api/recommendations.md` |
 | Recommendation-engine boundary and security contract | `docs/architecture/recommendation-engine.md` |
+| Supabase/Fastify/RLS target migration | `docs/supabase-fastify-rls-target-architecture-plan.md` |
 | Client media identity/watch-state guidance | `docs/api/media-state.md` |
 
 The README intentionally does not maintain an endpoint inventory. OpenAPI is the canonical API contract; use `docs/api/README.md` for the workflow and run the contract checks before merging API changes.

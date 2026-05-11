@@ -112,6 +112,7 @@ export class PersonalAccessTokenService {
         email: user.email,
         tokenId: token.id,
         consumerId: null,
+        accessToken: null,
       } satisfies AuthActor;
     });
   }

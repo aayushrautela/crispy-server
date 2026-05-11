@@ -16,7 +16,7 @@
 
 3. Fill `.env`.
 
-   Auth is external-only. Application data lives in the local Postgres from `DATABASE_URL`, while JWT verification and optional upstream user deletion use the `AUTH_*` variables.
+   Auth is external. Application data is split by trust boundary: Fastify remains the default API/data boundary, local Postgres stores backend-owned operational data, and Supabase Postgres/RPC/RLS is the target store for user interaction state behind Fastify. JWT verification and optional upstream user deletion use the `AUTH_*`/Supabase variables.
 
    Product defaults live in `config/app-config.json.example` (committed template). The loader looks for `config/app-config.json` first; if absent, it falls back to the example template. To customize, copy the template:
    ```bash
@@ -49,7 +49,7 @@
     SUPABASE_SECRET_KEY=replace_with_supabase_secret_key_optional
     ```
 
-   Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for profile data, canonical TMDB-backed media identity, and stored recommendation snapshots.
+   Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for account/profile authorization, canonical TMDB-backed media identity, API contracts, and stored recommendation snapshots. Supabase may store target user interaction signals behind Fastify; the recommendation engine does not read Supabase directly by default.
 
    Do not deploy a separate recommendation worker from this repository. The `worker` container/process in this repo is the internal BullMQ worker for backend queue jobs; scaling it affects internal async work only and does not scale recommendation generation.
 

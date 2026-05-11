@@ -4,21 +4,25 @@ This repository is easy to misread if you only scan env vars. Read this first be
 
 ## Non-negotiable architecture facts
 
-- This repo is a backend server, not a Supabase-native app.
-- Supabase is used for auth only:
-  - bearer JWT issuer and JWKS discovery
-  - optional auth admin API for deleting upstream auth users
-- Supabase is not used here for:
-  - the application database
-  - business data storage
-  - RLS or policy enforcement
-  - Storage buckets
-  - Edge Functions
-  - Realtime infrastructure
-- All core application logic and data live on our own server:
+- This repo is a backend server, not a Supabase-native client app.
+- Supabase Auth is the external identity/session provider:
+  - clients may use Supabase Auth directly for login/session
+  - Fastify verifies bearer JWTs through Supabase issuer/JWKS discovery
+  - Fastify may use the upstream auth admin API for deleting Supabase auth users
+- Supabase Postgres/RPC/RLS is the target store and authorization substrate for user interaction state behind Fastify:
+  - profile watch state
+  - watch history
+  - continue watching
+  - watchlist/favorites/list items
+  - ratings
+  - provider-import interaction facts
+- Normal app data calls must go through Fastify by default. Fastify passes the original user access token to Supabase user-scoped RPC/Data API calls so RLS applies.
+- Supabase service-role credentials are server-only and limited to trusted backend jobs, imports, admin repair, auth admin, and other explicitly audited privileged paths.
+- Supabase is not used here as the metadata authority, provider secret store for clients, AI execution layer, queue system, or default direct client data API.
+- Core backend logic remains on our server:
   - Fastify API
   - BullMQ worker
-  - Postgres accessed directly with `pg`
+  - local Postgres for backend-owned operational data, metadata caches, outbox/admin state, and transition-era tables
   - Redis accessed directly with `ioredis`
 
 ## Auth model
@@ -85,14 +89,15 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/modules/users/account-settings.service.ts` - account-shared settings and secrets
 - `docker-compose.yml` - local runtime topology
 - `DEPLOY.md` - deployment and hosted service auth notes
+- `docs/supabase-fastify-rls-target-architecture-plan.md` - canonical Supabase/Fastify/RLS migration plan
 
 ## Writing guidance for AI agents
 
-- Do not describe this system as using Supabase for the app database.
-- Do not assume Supabase tables, Storage, RLS, Edge Functions, or Realtime are part of this repo.
-- When explaining data flow, say application data is stored in Postgres on our server.
+- Do not describe this system as Supabase-auth-only.
+- Do not assume clients should call Supabase data APIs directly; normal app data calls go through Fastify.
+- When explaining data flow, say Fastify is the default API boundary and Supabase user interaction state is accessed through user-JWT/RLS-backed server calls.
 - When explaining background work or caching, say Redis and BullMQ run on our server.
-- If you see Supabase mentioned in env values, treat it as the current external auth provider, not proof that app data lives in Supabase.
+- If you see Supabase mentioned in env values, distinguish publishable user-JWT/RLS paths from service-role trusted backend paths.
 - Do not claim profiles have separate auth credentials; they are targets under an authenticated account.
 - Do not move Trakt or Simkl to account scope when discussing current product rules.
 - If documenting endpoints, prefer exhaustive grouped lists over vague summaries.

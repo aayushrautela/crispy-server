@@ -10,7 +10,7 @@ Crispy Server publishes OpenAPI contracts by audience. OpenAPI is the canonical 
 | `docs/api/README.md` | API index, contract workflow, quality gates | Endpoint inventories or duplicated schemas |
 | `docs/api/recommendations.md` | Human-facing recommendation API behavior and operational guidance | Exact request/response schemas |
 | `docs/api/media-state.md` | Client media identity and watch-state rules | Full endpoint payload maps |
-| `docs/architecture/recommendation-engine.md` | Cross-service recommendation boundary, security, non-goals | Full OpenAPI schema details |
+| `docs/supabase-fastify-rls-target-architecture-plan.md` | Supabase/Fastify/RLS migration plan and storage-boundary rules | Exact HTTP contracts or endpoint schemas |
 | `openapi/generated/` and `docs/api/generated/` | Generated, tracked tooling artifacts | Hand-authored contract changes |
 
 Do not add a hand-maintained route inventory. Use OpenAPI plus `npm run contract:drift` to detect implemented/documented route drift.
