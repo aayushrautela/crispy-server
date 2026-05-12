@@ -10,7 +10,7 @@ export type WatchMediaCardCacheRecord = {
   titleMediaType: MetadataTitleMediaType;
   title: string;
   subtitle: string | null;
-  posterUrl: string;
+    posterUrl?: string | null;
   backdropUrl: string | null;
   releaseYear: number | null;
   rating: number | null;
@@ -25,7 +25,7 @@ export class WatchMediaCardCacheRepository {
     titleMediaType: MetadataTitleMediaType;
     title: string;
     subtitle?: string | null;
-    posterUrl: string;
+  posterUrl: string | null;
     backdropUrl?: string | null;
     releaseYear?: number | null;
     rating?: number | null;
@@ -91,7 +91,6 @@ export class WatchMediaCardCacheRepository {
           || typeof row.title_provider_id !== 'string'
           || typeof row.title_media_type !== 'string'
           || typeof row.title !== 'string'
-          || typeof row.poster_url !== 'string'
         ) {
           return [];
         }
@@ -114,7 +113,7 @@ export class WatchMediaCardCacheRepository {
             titleMediaType: row.title_media_type,
             title: row.title,
             subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
-            posterUrl: row.poster_url,
+            posterUrl: typeof row.poster_url === 'string' ? row.poster_url : null,
             backdropUrl: typeof row.backdrop_url === 'string' ? row.backdrop_url : null,
             releaseYear: row.release_year === null ? null : Number(row.release_year),
             rating: row.rating === null ? null : Number(row.rating),

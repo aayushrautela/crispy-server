@@ -70,6 +70,7 @@ type ImportedWatchEventDraft = {
   rating?: number | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
+  progressBps?: number | null;
   occurredAt: string;
   payload?: Record<string, unknown>;
 };
@@ -801,17 +802,15 @@ export class ProviderImportService {
       }
 
       if (event.eventType === 'playback_progress_snapshot' || event.eventType === 'playback_completed') {
-        const durationSeconds = Math.max(0, Math.floor(event.durationSeconds ?? 0));
-        const positionSeconds = Math.max(0, Math.floor(event.positionSeconds ?? 0));
-        const progressBps = durationSeconds > 0
-          ? Math.max(0, Math.min(10000, Math.round((positionSeconds / durationSeconds) * 10000)))
-          : 0;
+        const durationSeconds = positiveIntegerOrNull(event.durationSeconds);
+        const positionSeconds = nonNegativeIntegerOrNull(event.positionSeconds);
+        const progressBps = clampProgressBps(event.progressBps ?? progressBpsFromPosition(positionSeconds, durationSeconds));
         playbackStates.push({
           mediaKey: event.mediaKey,
           titleMediaKey: this.resolveProviderEventTitleMediaKey(event),
           mediaType: event.mediaType,
-          positionSeconds,
-          durationSeconds,
+          positionSeconds: positionSeconds ?? 0,
+          durationSeconds: durationSeconds ?? 0,
           progressBps,
           occurredAt: event.occurredAt,
           completed: event.eventType === 'playback_completed',
@@ -1970,6 +1969,7 @@ async function resolveTraktPlaybackMovie(
     occurredAt: playback.occurredAt,
     positionSeconds: playback.positionSeconds,
     durationSeconds: playback.durationSeconds,
+    progressBps: playback.progressBps,
     payload: traktPlaybackPayload(item, playback.progress),
   });
 }
@@ -1996,6 +1996,7 @@ async function resolveTraktPlaybackEpisode(
     occurredAt: playback.occurredAt,
     positionSeconds: playback.positionSeconds,
     durationSeconds: playback.durationSeconds,
+    progressBps: playback.progressBps,
     payload: traktPlaybackPayload(item, playback.progress),
   });
 }
@@ -2086,6 +2087,7 @@ function buildImportedTitleEvent(params: {
   rating?: number | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
+  progressBps?: number | null;
   payload: Record<string, unknown>;
   includeShowTmdbId?: boolean;
 }): ImportedWatchEventDraft {
@@ -2102,6 +2104,7 @@ function buildImportedTitleEvent(params: {
     rating: params.rating ?? null,
     positionSeconds: params.positionSeconds ?? null,
     durationSeconds: params.durationSeconds ?? null,
+    progressBps: params.progressBps ?? null,
     occurredAt: params.occurredAt,
     payload: params.payload,
   };
@@ -2133,6 +2136,7 @@ function buildImportedEpisodeEvent(params: {
   occurredAt: string;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
+  progressBps?: number | null;
   payload: Record<string, unknown>;
 }): ImportedWatchEventDraft {
   return {
@@ -2152,6 +2156,7 @@ function buildImportedEpisodeEvent(params: {
     absoluteEpisodeNumber: params.identity.absoluteEpisodeNumber,
     positionSeconds: params.positionSeconds ?? null,
     durationSeconds: params.durationSeconds ?? null,
+    progressBps: params.progressBps ?? null,
     occurredAt: params.occurredAt,
     payload: params.payload,
   };
@@ -2202,11 +2207,13 @@ function traktPlaybackPayload(item: Record<string, unknown>, progress: number | 
 function traktPlaybackSnapshot(item: Record<string, unknown>, runtime: unknown): {
   eventType: ImportedWatchEventDraft['eventType'];
   progress: number | null;
+  progressBps: number | null;
   positionSeconds: number | null;
   durationSeconds: number | null;
   occurredAt: string;
 } {
   const progress = asFiniteNumber(item.progress);
+  const progressBps = progress === null ? null : clampProgressBps(Math.round(progress * 100));
   const durationSeconds = durationSecondsFromRuntime(runtime);
   const positionSeconds = progress !== null && durationSeconds !== null
     ? Math.max(1, Math.round((durationSeconds * progress) / 100))
@@ -2215,6 +2222,7 @@ function traktPlaybackSnapshot(item: Record<string, unknown>, runtime: unknown):
   return {
     eventType: progress !== null && progress >= 90 ? 'playback_completed' : 'playback_progress_snapshot',
     progress,
+    progressBps,
     positionSeconds,
     durationSeconds,
     occurredAt: firstIsoString(item.paused_at) ?? new Date().toISOString(),
@@ -2452,6 +2460,34 @@ function buildTraktHeaders(params: {
   }
 
   return headers;
+}
+
+function progressBpsFromPosition(positionSeconds: number | null, durationSeconds: number | null): number | null {
+  if (positionSeconds === null || durationSeconds === null || durationSeconds <= 0) {
+    return null;
+  }
+  return Math.round((positionSeconds / durationSeconds) * 10000);
+}
+
+function clampProgressBps(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(10000, Math.round(value)));
+}
+
+function positiveIntegerOrNull(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.floor(value);
+}
+
+function nonNegativeIntegerOrNull(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return Math.floor(value);
 }
 
 function durationSecondsFromRuntime(value: unknown): number | null {

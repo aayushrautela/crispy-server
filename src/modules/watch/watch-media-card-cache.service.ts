@@ -20,7 +20,7 @@ export class WatchMediaCardCacheService {
     detailsReleaseYear: number | null;
     detailsRating: number | null;
   }): Promise<void> {
-    if (!projection.title || !projection.posterUrl) {
+    if (!projection.title) {
       return;
     }
 
@@ -62,7 +62,7 @@ function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
     mediaType: record.titleMediaType,
     mediaKey: record.mediaKey,
     title: record.title,
-    posterUrl: record.posterUrl,
+    posterUrl: record.posterUrl ?? '',
     releaseYear: record.releaseYear,
     rating: record.rating,
     genre: null,
