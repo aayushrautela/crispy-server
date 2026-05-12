@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type pg from 'pg';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RecommendationBatch, RecommendationBatchStatus } from './recommendation-batch.types.js';
 
 type QueryableDb = Pick<pg.Pool | pg.PoolClient, 'query'>;
@@ -95,6 +96,65 @@ export class SqlRecommendationBatchRepo implements RecommendationBatchRepo {
       throw new Error('recommendation_batch_not_found');
     }
     return mapBatchRow(result.rows[0] as RecommendationBatchRow);
+  }
+}
+
+export class SupabaseRecommendationBatchRepo implements RecommendationBatchRepo {
+  constructor(private readonly deps: { supabase: SupabaseClient }) {}
+
+  async createBatch(input: CreateRecommendationBatchRecordInput): Promise<RecommendationBatch> {
+    const { data, error } = await this.deps.supabase.rpc('service_create_batch', {
+      p_run_id: input.runId,
+      p_input: {
+        appId: input.appId,
+        status: input.status,
+        snapshotId: input.snapshotId ?? null,
+        items: input.items ?? [],
+        leaseSeconds: input.leaseSeconds ?? 300,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return mapBatchRow(data as RecommendationBatchRow);
+  }
+
+  async getBatch(input: { appId: string; runId: string; batchId: string }): Promise<RecommendationBatch | null> {
+    const { data, error } = await this.deps.supabase
+      .schema('reco')
+      .from('batches')
+      .select('batch_id, run_id, app_id, status, snapshot_id, lease_id, lease_expires_at, item_count, items, progress, errors, created_at, updated_at')
+      .eq('app_id', input.appId)
+      .eq('run_id', input.runId)
+      .eq('batch_id', input.batchId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ? mapBatchRow(data as RecommendationBatchRow) : null;
+  }
+
+  async updateBatch(input: UpdateRecommendationBatchRecordInput): Promise<RecommendationBatch> {
+    const { data, error } = await this.deps.supabase.rpc('service_update_batch', {
+      p_run_id: input.runId,
+      p_batch_id: input.batchId,
+      p_patch: {
+        appId: input.appId,
+        status: input.status ?? null,
+        progress: input.progress ?? null,
+        errors: input.errors ?? null,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return mapBatchRow(data as RecommendationBatchRow);
   }
 }
 

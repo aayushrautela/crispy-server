@@ -32,6 +32,7 @@ import { SupabaseAdminWatchReadService } from '../../modules/integrations/supaba
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
 import { withDbClient, withTransaction } from '../../lib/db.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -83,6 +84,84 @@ export async function registerAdminApiRoutes(
   async function requireAdminMutation(request: import('fastify').FastifyRequest): Promise<void> {
     await app.requireAdminUiMutation(request);
   }
+
+  app.get('/admin/api/recommendations/runs', async (request, reply) => {
+    await requireAdmin(request);
+    const query = asRecord(request.query);
+    const limit = parseLimit(query.limit);
+    const status = typeof query.status === 'string' && query.status.trim() ? query.status.trim() : null;
+    const supabase = getSupabaseServiceRoleClient();
+    let builder = supabase
+      .schema('reco')
+      .from('runs')
+      .select('run_id, app_id, purpose, run_type, status, model_version, algorithm, progress, error, created_at, updated_at, completed_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (status) {
+      builder = builder.eq('status', status);
+    }
+    const { data, error } = await builder;
+    if (error) {
+      throw new HttpError(500, error.message);
+    }
+    return { runs: data ?? [] };
+  });
+
+  app.get('/admin/api/recommendations/runs/:runId', async (request, reply) => {
+    await requireAdmin(request);
+    const params = asRecord(request.params);
+    const runId = readRequiredString(params.runId, 'runId');
+    const supabase = getSupabaseServiceRoleClient();
+    const { data: run, error } = await supabase
+      .schema('reco')
+      .from('runs')
+      .select('*')
+      .eq('run_id', runId)
+      .maybeSingle();
+    if (error) {
+      throw new HttpError(500, error.message);
+    }
+    if (!run) {
+      throw new HttpError(404, 'Recommendation run not found.');
+    }
+    return { run };
+  });
+
+  app.get('/admin/api/recommendations/runs/:runId/batches', async (request, reply) => {
+    await requireAdmin(request);
+    const params = asRecord(request.params);
+    const query = asRecord(request.query);
+    const supabase = getSupabaseServiceRoleClient();
+    const { data, error } = await supabase
+      .schema('reco')
+      .from('batches')
+      .select('*')
+      .eq('run_id', readRequiredString(params.runId, 'runId'))
+      .order('created_at', { ascending: false })
+      .limit(parseLimit(query.limit));
+    if (error) {
+      throw new HttpError(500, error.message);
+    }
+    return { batches: data ?? [] };
+  });
+
+  app.get('/admin/api/recommendations/runs/:runId/logs', async (request, reply) => {
+    await requireAdmin(request);
+    const params = asRecord(request.params);
+    const query = asRecord(request.query);
+    const supabase = getSupabaseServiceRoleClient();
+    const { data, error } = await supabase
+      .schema('reco')
+      .from('run_logs')
+      .select('id, run_id, batch_id, level, code, message, safe_context, created_at')
+      .eq('run_id', readRequiredString(params.runId, 'runId'))
+      .order('created_at', { ascending: false })
+      .limit(parseLimit(query.limit));
+    if (error) {
+      throw new HttpError(500, error.message);
+    }
+    return { logs: data ?? [] };
+  });
 
   app.get('/admin/api/recommendations/recompute-jobs/capabilities', async (request, reply) => {
     await requireAdmin(request);

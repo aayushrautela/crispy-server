@@ -52,14 +52,15 @@ import { DefaultServiceRecommendationListService } from '../modules/apps/service
 import { SqlRecommendationListRepo } from '../modules/recommendations/recommendation-list.repo.js';
 import { AppRecommendationWritePolicy } from '../modules/recommendations/recommendation-list-policy.js';
 import { DefaultRecommendationListWriteService } from '../modules/recommendations/recommendation-list-write.service.js';
-import { SqlRecommendationRunRepo } from '../modules/apps/recommendation-run.repo.js';
+import { SqlRecommendationRunRepo, SupabaseRecommendationRunRepo } from '../modules/apps/recommendation-run.repo.js';
 import { DefaultRecommendationRunService } from '../modules/apps/recommendation-run.service.js';
-import { SqlRecommendationBatchRepo } from '../modules/apps/recommendation-batch.repo.js';
+import { SqlRecommendationBatchRepo, SupabaseRecommendationBatchRepo } from '../modules/apps/recommendation-batch.repo.js';
 import { DefaultRecommendationBatchService } from '../modules/apps/recommendation-batch.service.js';
 import { SqlRecommendationBackfillRepo } from '../modules/apps/recommendation-backfill.repo.js';
 import { DefaultRecommendationBackfillService } from '../modules/apps/recommendation-backfill.service.js';
 import { env } from '../config/env.js';
 import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
+import { getSupabaseServiceRoleClient } from '../lib/supabase.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -204,7 +205,10 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     maxProfilesPerBatch: 100,
     maxListsPerProfile: 5,
   });
-  const recommendationRunRepo = new SqlRecommendationRunRepo({ db });
+  const supabase = env.supabaseAdminApiKey ? getSupabaseServiceRoleClient() : null;
+  const recommendationRunRepo = supabase
+    ? new SupabaseRecommendationRunRepo({ supabase })
+    : new SqlRecommendationRunRepo({ db });
   const recommendationRunService = new DefaultRecommendationRunService({
     repo: recommendationRunRepo,
     appAuthorizationService,
@@ -212,7 +216,9 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     clock: authDeps.clock,
   });
   const recommendationBatchService = new DefaultRecommendationBatchService({
-    batchRepo: new SqlRecommendationBatchRepo({ db }),
+    batchRepo: supabase
+      ? new SupabaseRecommendationBatchRepo({ supabase })
+      : new SqlRecommendationBatchRepo({ db }),
     runRepo: recommendationRunRepo,
     appAuthorizationService,
     appAuditRepo: authDeps.appAuditRepo,
