@@ -1,4 +1,5 @@
 import type { SupportedProvider } from '../identity/media-key.js';
+import type { MediaItem } from './media-item.types.js';
 import type {
   CatalogItem,
   MetadataExternalIds,
@@ -210,7 +211,13 @@ export type MetadataPersonDetail = {
 };
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series';
-export type MetadataSearchResult = CatalogItem;
+
+export type MetadataSearchResult = CatalogItem & {
+  kind?: 'search_result';
+  mediaItem?: MediaItem;
+  context?: Record<string, unknown>;
+  presentation?: import('./media-item.types.js').MediaPresentationHint | null;
+};
 
 export type MetadataSearchResponse = {
   query: string;

@@ -2,6 +2,8 @@ import { withDbClient, type DbClient } from '../../lib/db.js';
 import { parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { MetadataCardService } from './metadata-card.service.js';
 import type { MetadataViewMediaType } from './metadata-card.types.js';
+import { metadataCardToMediaItem } from './media-item.mapper.js';
+import type { MediaItem } from './media-item.types.js';
 
 type DbRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
@@ -18,6 +20,7 @@ export type HydratedMediaCard = {
   episodeTitle: string | null;
   runtimeMinutes: number | null;
   rating: number | null;
+  mediaItem?: MediaItem;
   metadataRefreshedAt: string | null;
 };
 
@@ -66,6 +69,7 @@ export class MetadataCardBatchService {
         episodeTitle: card.mediaType === 'episode' ? card.title : null,
         runtimeMinutes: card.runtimeMinutes,
         rating: card.rating,
+        mediaItem: metadataCardToMediaItem(card),
         metadataRefreshedAt,
       }));
     });

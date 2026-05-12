@@ -3,7 +3,9 @@ import {
   integerLikeSchema,
   metadataCardViewSchema,
   metadataImagesSchema,
+  mediaItemSchema,
   nullableIntegerSchema,
+  nullableMediaPresentationHintSchema,
   nullableNumberSchema,
   nullableStringSchema,
   nonEmptyStringSchema,
@@ -469,6 +471,19 @@ const playbackResolveResponseSchema = {
   },
 } as const;
 
+const metadataSearchResultSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [...regularCardViewSchema.required, 'kind', 'mediaItem', 'context', 'presentation'],
+  properties: {
+    ...regularCardViewSchema.properties,
+    kind: { const: 'search_result' },
+    mediaItem: mediaItemSchema,
+    context: { type: 'object', additionalProperties: true },
+    presentation: nullableMediaPresentationHintSchema,
+  },
+} as const;
+
 const metadataSearchResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -477,15 +492,15 @@ const metadataSearchResponseSchema = {
     query: stringSchema,
     all: {
       type: 'array',
-      items: regularCardViewSchema,
+      items: metadataSearchResultSchema,
     },
     movies: {
       type: 'array',
-      items: regularCardViewSchema,
+      items: metadataSearchResultSchema,
     },
     series: {
       type: 'array',
-      items: regularCardViewSchema,
+      items: metadataSearchResultSchema,
     },
   },
 } as const;
@@ -521,6 +536,7 @@ const metadataHydratedCardSchema = {
     'episodeTitle',
     'runtimeMinutes',
     'rating',
+    'mediaItem',
     'metadataRefreshedAt',
   ],
   properties: {
@@ -536,6 +552,7 @@ const metadataHydratedCardSchema = {
     episodeTitle: nullableStringSchema,
     runtimeMinutes: nullableIntegerSchema,
     rating: nullableNumberSchema,
+    mediaItem: mediaItemSchema,
     metadataRefreshedAt: nullableStringSchema,
   },
 } as const;

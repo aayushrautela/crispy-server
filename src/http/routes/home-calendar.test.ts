@@ -23,8 +23,6 @@ test('calendar route returns canonical envelope fields', async (t) => {
           media: {
             mediaKey: 'show:tmdb:500',
             mediaType: 'show',
-            provider: 'tmdb',
-            providerId: '500',
             title: 'Example Show',
             posterUrl: 'https://img.test/show-poster.jpg',
             backdropUrl: 'https://img.test/show-backdrop.jpg',
@@ -40,8 +38,6 @@ test('calendar route returns canonical envelope fields', async (t) => {
           relatedShow: {
             mediaKey: 'show:tmdb:500',
             mediaType: 'show',
-            provider: 'tmdb',
-            providerId: '500',
             title: 'Example Show',
             posterUrl: 'https://img.test/show-poster.jpg',
             releaseYear: 2024,
@@ -72,8 +68,6 @@ test('calendar route returns canonical envelope fields', async (t) => {
         media: {
           mediaKey: 'show:tmdb:500',
           mediaType: 'show',
-          provider: 'tmdb',
-          providerId: '500',
           title: 'Example Show',
           posterUrl: 'https://img.test/show-poster.jpg',
           backdropUrl: 'https://img.test/show-backdrop.jpg',
@@ -89,8 +83,6 @@ test('calendar route returns canonical envelope fields', async (t) => {
         relatedShow: {
           mediaKey: 'show:tmdb:500',
           mediaType: 'show',
-          provider: 'tmdb',
-          providerId: '500',
           title: 'Example Show',
           posterUrl: 'https://img.test/show-poster.jpg',
           releaseYear: 2024,
@@ -127,8 +119,6 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
           media: {
             mediaKey: 'show:tmdb:501',
             mediaType: 'show',
-            provider: 'tmdb',
-            providerId: '501',
             title: 'Next Week Show',
             posterUrl: 'https://img.test/next-show-poster.jpg',
             backdropUrl: 'https://img.test/next-show-backdrop.jpg',
@@ -144,8 +134,6 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
           relatedShow: {
             mediaKey: 'show:tmdb:501',
             mediaType: 'show',
-            provider: 'tmdb',
-            providerId: '501',
             title: 'Next Week Show',
             posterUrl: 'https://img.test/next-show-poster.jpg',
             releaseYear: 2024,
@@ -177,8 +165,6 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
         media: {
           mediaKey: 'show:tmdb:501',
           mediaType: 'show',
-          provider: 'tmdb',
-          providerId: '501',
           title: 'Next Week Show',
           posterUrl: 'https://img.test/next-show-poster.jpg',
           backdropUrl: 'https://img.test/next-show-backdrop.jpg',
@@ -194,8 +180,6 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
         relatedShow: {
           mediaKey: 'show:tmdb:501',
           mediaType: 'show',
-          provider: 'tmdb',
-          providerId: '501',
           title: 'Next Week Show',
           posterUrl: 'https://img.test/next-show-poster.jpg',
           releaseYear: 2024,

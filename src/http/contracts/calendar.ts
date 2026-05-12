@@ -1,6 +1,8 @@
 import {
   booleanSchema,
   landscapeCardViewSchema,
+  mediaItemSchema,
+  nullableMediaPresentationHintSchema,
   nullableStringSchema,
   profileIdParamsSchema,
   regularCardViewSchema,
@@ -22,6 +24,23 @@ export const calendarItemSchema = {
     },
     media: landscapeCardViewSchema,
     relatedShow: regularCardViewSchema,
+    kind: { const: 'calendar_item' },
+    mediaItem: mediaItemSchema,
+    relatedShowMediaItem: mediaItemSchema,
+    context: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['bucket', 'airDate', 'watched', 'relatedShow'],
+      properties: {
+        bucket: {
+          enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
+        },
+        airDate: nullableStringSchema,
+        watched: booleanSchema,
+        relatedShow: mediaItemSchema,
+      },
+    },
+    presentation: nullableMediaPresentationHintSchema,
     airDate: nullableStringSchema,
     watched: booleanSchema,
   },

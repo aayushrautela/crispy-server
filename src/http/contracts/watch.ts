@@ -1,6 +1,8 @@
 import {
   booleanSchema,
   landscapeCardViewSchema,
+  mediaItemSchema,
+  nullableMediaPresentationHintSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
   nullableStringSchema,
@@ -72,6 +74,10 @@ export const continueWatchingItemSchema = {
   required: [
     'id',
     'media',
+    'kind',
+    'mediaItem',
+    'context',
+    'presentation',
     'progress',
     'lastActivityAt',
     'origins',
@@ -80,6 +86,39 @@ export const continueWatchingItemSchema = {
   properties: {
     id: stringSchema,
     media: landscapeCardViewSchema,
+    kind: { const: 'continue_watching' },
+    mediaItem: mediaItemSchema,
+    context: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['id', 'progress', 'lastActivityAt', 'origins', 'dismissible'],
+      properties: {
+        id: stringSchema,
+        progress: {
+          anyOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'lastPlayedAt'],
+              properties: {
+                positionSeconds: nullableNumberSchema,
+                durationSeconds: nullableNumberSchema,
+                progressPercent: { type: 'number' },
+                lastPlayedAt: nullableStringSchema,
+              },
+            },
+            { type: 'null' },
+          ],
+        },
+        lastActivityAt: stringSchema,
+        origins: {
+          type: 'array',
+          items: stringSchema,
+        },
+        dismissible: { type: 'boolean' },
+      },
+    },
+    presentation: nullableMediaPresentationHintSchema,
     progress: {
       anyOf: [
         {
@@ -108,9 +147,13 @@ export const continueWatchingItemSchema = {
 const watchProductItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['media'],
+  required: ['media', 'kind', 'mediaItem', 'context', 'presentation'],
   properties: {
     media: regularCardViewSchema,
+    kind: stringSchema,
+    mediaItem: mediaItemSchema,
+    context: recordSchema,
+    presentation: nullableMediaPresentationHintSchema,
   },
 } as const;
 
@@ -246,9 +289,13 @@ const ratingStateSchema = {
 const watchStateItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['media', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys'],
+  required: ['media', 'kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys'],
   properties: {
     media: regularCardViewSchema,
+    kind: { const: 'watch_state' },
+    mediaItem: mediaItemSchema,
+    context: recordSchema,
+    presentation: nullableMediaPresentationHintSchema,
     progress: watchProgressStateSchema,
     continueWatching: continueWatchingStateSchema,
     watched: watchedStateSchema,

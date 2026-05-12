@@ -1,4 +1,5 @@
 import type { CollectionCardView, HeroCardView, LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
+import type { MediaItem, MediaPresentationHint } from '../metadata/media-item.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;
@@ -19,8 +20,20 @@ export type TasteProfilePayload = {
   updatedAt: string;
 };
 
+export type RecommendationItemContext = {
+  reason: string | null;
+  reasonCodes: string[];
+  score: number | null;
+  rank: number | null;
+  payload: Record<string, unknown>;
+};
+
 export type RecommendationSectionItem = {
   media: RegularCardView;
+  kind?: 'recommendation';
+  mediaItem?: MediaItem;
+  context?: RecommendationItemContext;
+  presentation?: MediaPresentationHint | null;
   reason: string | null;
   score: number | null;
   rank: number | null;
@@ -41,6 +54,10 @@ export type RecommendationLandscapeSection = {
   layout: 'landscape';
   items: Array<{
     media: LandscapeCardView;
+    kind?: 'recommendation';
+    mediaItem?: MediaItem;
+    context?: RecommendationItemContext;
+    presentation?: MediaPresentationHint | null;
     reason: string | null;
     score: number | null;
     rank: number | null;

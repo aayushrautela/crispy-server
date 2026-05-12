@@ -4,8 +4,9 @@ import { inferMediaIdentity } from '../identity/media-key.js';
 import { buildMetadataCardView, toCatalogItem } from '../metadata/metadata-card.builders.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
+import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import type { CatalogItem } from '../metadata/metadata-card.types.js';
-import type { MetadataSearchFilter, MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
+import type { MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
 import type { TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
 
 type SearchTitlesInput = {
@@ -28,7 +29,7 @@ type SearchCandidate = CatalogItem & {
 };
 
 type SearchBucketEntry = {
-  item: CatalogItem;
+  item: MetadataSearchResult;
   noisy: boolean;
 };
 
@@ -105,15 +106,25 @@ export class TitleSearchService {
           return null;
         }
 
-        const item = toCatalogItem(buildMetadataCardView({
+        const card = buildMetadataCardView({
           identity,
           title: match,
-        }));
-        return item ? { item, noisy: isNoisyTmdbMatch(match) } : null;
+        });
+        const item = toCatalogItem(card);
+        return item ? {
+          item: {
+            ...item,
+            kind: 'search_result' as const,
+            mediaItem: metadataCardToMediaItem(card),
+            context: {},
+            presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
+          },
+          noisy: isNoisyTmdbMatch(match),
+        } : null;
       }));
 
       return buildBucketedSearchResponse(normalizedQuery, limit, [
-        ...tmdbItems.filter((item): item is SearchBucketEntry => item !== null),
+        ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
       ]);
     }));
   }

@@ -1,6 +1,7 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import type {
@@ -19,6 +20,7 @@ import {
 import { recommendationConfig } from './recommendation-config.js';
 import type {
   RecommendationSection,
+  RecommendationLandscapeSection,
   RecommendationSectionItem,
   RecommendationSnapshotPayload,
   TasteProfilePayload,
@@ -303,7 +305,7 @@ export class RecommendationOutputService {
         id,
         title,
         layout,
-        items,
+        items: items as RecommendationLandscapeSection['items'],
         meta,
       };
     }
@@ -320,9 +322,21 @@ export class RecommendationOutputService {
   private async mapRecommendationItem(client: DbClient, value: unknown, index: number): Promise<RecommendationSectionItem> {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
+    const card = await this.metadataCardService.buildCardView(client, identity);
+    const mediaItem = metadataCardToMediaItem(card);
 
     return {
-      media: toRegularCard(await this.metadataCardService.buildCardView(client, identity)),
+      media: toRegularCard(card),
+      kind: 'recommendation',
+      mediaItem,
+      context: {
+        reason: typeof row.reason === 'string' ? row.reason : null,
+        reasonCodes: [],
+        score: typeof row.score === 'number' ? row.score : null,
+        rank: typeof row.rank === 'number' ? row.rank : index + 1,
+        payload: asRecord(row.payload),
+      },
+      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
       reason: typeof row.reason === 'string' ? row.reason : null,
       score: typeof row.score === 'number' ? row.score : null,
       rank: typeof row.rank === 'number' ? row.rank : index + 1,
@@ -333,13 +347,31 @@ export class RecommendationOutputService {
   private async mapLandscapeRecommendationItem(client: DbClient, value: unknown, index: number) {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
-    const media = toLandscapeCard(await this.metadataCardService.buildCardView(client, identity));
+    const card = await this.metadataCardService.buildCardView(client, identity);
+    const media = toLandscapeCard(card);
     if (!media) {
       return null;
     }
 
+    const mediaItem = metadataCardToMediaItem(card, {
+      posterUrl: media.posterUrl || null,
+      backdropUrl: media.backdropUrl || null,
+      airDate: media.airDate,
+      episodeTitle: media.episodeTitle,
+    });
+
     return {
       media,
+      kind: 'recommendation' as const,
+      mediaItem,
+      context: {
+        reason: typeof row.reason === 'string' ? row.reason : null,
+        reasonCodes: [],
+        score: typeof row.score === 'number' ? row.score : null,
+        rank: typeof row.rank === 'number' ? row.rank : index + 1,
+        payload: asRecord(row.payload),
+      },
+      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
       reason: typeof row.reason === 'string' ? row.reason : null,
       score: typeof row.score === 'number' ? row.score : null,
       rank: typeof row.rank === 'number' ? row.rank : index + 1,

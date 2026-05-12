@@ -169,6 +169,141 @@ export const metadataImagesSchema = {
   },
 } as const;
 
+export const mediaItemTypeSchema = {
+  type: 'string',
+  enum: ['movie', 'show', 'season', 'episode', 'unknown'],
+} as const;
+
+export const mediaExternalIdsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['tmdb', 'imdb', 'tvdb'],
+  properties: {
+    tmdb: nullableIntegerSchema,
+    imdb: nullableStringSchema,
+    tvdb: nullableIntegerSchema,
+  },
+} as const;
+
+export const mediaItemParentSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mediaKey', 'mediaType', 'title'],
+  properties: {
+    mediaKey: stringSchema,
+    mediaType: mediaItemTypeSchema,
+    title: stringSchema,
+  },
+} as const;
+
+export const nullableMediaItemParentSchema = {
+  anyOf: [
+    mediaItemParentSchema,
+    { type: 'null' },
+  ],
+} as const;
+
+export const mediaItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'mediaKey',
+    'mediaType',
+    'title',
+    'originalTitle',
+    'subtitle',
+    'overview',
+    'posterUrl',
+    'backdropUrl',
+    'logoUrl',
+    'stillUrl',
+    'releaseDate',
+    'releaseYear',
+    'rating',
+    'genres',
+    'runtimeMinutes',
+    'status',
+    'certification',
+    'externalIds',
+    'parent',
+    'showTmdbId',
+    'seasonNumber',
+    'episodeNumber',
+    'absoluteEpisodeNumber',
+    'episodeTitle',
+    'airDate',
+  ],
+  properties: {
+    mediaKey: stringSchema,
+    mediaType: mediaItemTypeSchema,
+    title: stringSchema,
+    originalTitle: nullableStringSchema,
+    subtitle: nullableStringSchema,
+    overview: nullableStringSchema,
+    posterUrl: nullableStringSchema,
+    backdropUrl: nullableStringSchema,
+    logoUrl: nullableStringSchema,
+    stillUrl: nullableStringSchema,
+    releaseDate: nullableStringSchema,
+    releaseYear: nullableIntegerSchema,
+    rating: nullableNumberSchema,
+    genres: {
+      type: 'array',
+      items: stringSchema,
+    },
+    runtimeMinutes: nullableIntegerSchema,
+    status: nullableStringSchema,
+    certification: nullableStringSchema,
+    externalIds: mediaExternalIdsSchema,
+    parent: nullableMediaItemParentSchema,
+    showTmdbId: nullableIntegerSchema,
+    seasonNumber: nullableIntegerSchema,
+    episodeNumber: nullableIntegerSchema,
+    absoluteEpisodeNumber: nullableIntegerSchema,
+    episodeTitle: nullableStringSchema,
+    airDate: nullableStringSchema,
+  },
+} as const;
+
+export const mobileSurfaceKindSchema = {
+  type: 'string',
+  enum: [
+    'continue_watching',
+    'recommendation',
+    'watch_history',
+    'watchlist',
+    'rating',
+    'watch_state',
+    'calendar_item',
+    'featured',
+    'search_result',
+    'metadata_detail',
+  ],
+} as const;
+
+export const mediaPresentationHintSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['preferredSize', 'sectionId', 'sectionTitle'],
+  properties: {
+    preferredSize: {
+      anyOf: [
+        { type: 'string', enum: ['poster', 'wide', 'hero', 'compact'] },
+        { type: 'null' },
+      ],
+    },
+    sectionId: nullableStringSchema,
+    sectionTitle: nullableStringSchema,
+  },
+} as const;
+
+export const nullableMediaPresentationHintSchema = {
+  anyOf: [
+    mediaPresentationHintSchema,
+    { type: 'null' },
+  ],
+} as const;
+
 export const metadataCardViewSchema = {
   type: 'object',
   additionalProperties: false,

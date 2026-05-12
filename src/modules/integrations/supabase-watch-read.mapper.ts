@@ -1,5 +1,6 @@
 import { parseMediaKey } from '../identity/media-key.js';
 import type { RegularCardView, LandscapeCardView } from '../metadata/metadata-card.types.js';
+import { regularCardToMediaItem } from '../metadata/media-item.mapper.js';
 import type {
   ContinueWatchingProductItem,
   HistoryProductItem,
@@ -16,9 +17,44 @@ export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): Conti
   const progressBps = numberValue(row.progress_bps) ?? 0;
   const lastActivityAt = isoValue(row.last_activity_at);
 
+  const media = landscapeCard(titleMediaKey, row);
+  const mediaItem = regularCardToMediaItem({
+    mediaType: media.mediaType,
+    mediaKey: media.mediaKey,
+    title: media.title,
+    posterUrl: media.posterUrl,
+    releaseYear: media.releaseYear,
+    rating: media.rating,
+    genre: media.genre,
+    subtitle: null,
+  });
   return {
     id: titleMediaKey,
-    media: landscapeCard(titleMediaKey, row),
+    media,
+    kind: 'continue_watching',
+    mediaItem: {
+      ...mediaItem,
+      backdropUrl: media.backdropUrl || null,
+      seasonNumber: media.seasonNumber,
+      episodeNumber: media.episodeNumber,
+      episodeTitle: media.episodeTitle,
+      airDate: media.airDate,
+      runtimeMinutes: media.runtimeMinutes,
+    },
+    context: {
+      id: titleMediaKey,
+      progress: {
+        positionSeconds: numberValue(row.position_seconds),
+        durationSeconds: numberValue(row.duration_seconds),
+        progressPercent: progressBps / 100,
+        status: 'in_progress',
+        lastPlayedAt: lastActivityAt,
+      },
+      lastActivityAt,
+      origins: origins(row),
+      dismissible: true,
+    },
+    presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
     progress: {
       positionSeconds: numberValue(row.position_seconds),
       durationSeconds: numberValue(row.duration_seconds),
@@ -34,9 +70,18 @@ export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): Conti
 
 export function mapSupabaseListItemRow(row: SupabaseWatchReadRow): WatchlistProductItem {
   const mediaKey = stringValue(row.media_key);
+  const media = regularCard(mediaKey, row);
   return {
     id: mediaKey,
-    media: regularCard(mediaKey, row),
+    media,
+    kind: 'watchlist',
+    mediaItem: regularCardToMediaItem(media),
+    context: {
+      id: mediaKey,
+      addedAt: isoValue(row.added_at),
+      origins: origins(row),
+    },
+    presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
     addedAt: isoValue(row.added_at),
     origins: origins(row),
   };
@@ -44,22 +89,41 @@ export function mapSupabaseListItemRow(row: SupabaseWatchReadRow): WatchlistProd
 
 export function mapSupabaseRatingRow(row: SupabaseWatchReadRow): RatingProductItem {
   const mediaKey = stringValue(row.media_key);
+  const media = regularCard(mediaKey, row);
+  const rating = {
+    value: numberValue(row.rating) ?? 0,
+    ratedAt: isoValue(row.rated_at),
+  };
   return {
     id: mediaKey,
-    media: regularCard(mediaKey, row),
-    rating: {
-      value: numberValue(row.rating) ?? 0,
-      ratedAt: isoValue(row.rated_at),
+    media,
+    kind: 'rating',
+    mediaItem: regularCardToMediaItem(media),
+    context: {
+      id: mediaKey,
+      rating,
+      origins: origins(row),
     },
+    presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
+    rating,
     origins: origins(row),
   };
 }
 
 export function mapSupabaseHistoryRow(row: SupabaseWatchReadRow): HistoryProductItem {
   const mediaKey = stringValue(row.media_key);
+  const media = regularCard(mediaKey, row);
   return {
     id: stringValue(row.id) || `${mediaKey}:${isoValue(row.watched_at)}`,
-    media: regularCard(mediaKey, row),
+    media,
+    kind: 'watch_history',
+    mediaItem: regularCardToMediaItem(media),
+    context: {
+      id: stringValue(row.id) || `${mediaKey}:${isoValue(row.watched_at)}`,
+      watchedAt: isoValue(row.watched_at),
+      origins: origins(row),
+    },
+    presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
     watchedAt: isoValue(row.watched_at),
     origins: origins(row),
   };
@@ -76,32 +140,51 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
   const rating = numberValue(row.rating);
   const ratedAt = nullableIsoValue(row.rated_at);
 
+  const media = regularCard(mediaKey, row);
+  const progress = progressBps !== null && lastActivityAt
+    ? {
+        positionSeconds: numberValue(row.position_seconds),
+        durationSeconds: numberValue(row.duration_seconds),
+        progressPercent: progressBps / 100,
+        status: stringValue(row.playback_status) || undefined,
+        lastPlayedAt: lastActivityAt,
+      }
+    : null;
+  const continueWatching = continueProgressBps !== null && continueLastActivityAt && !row.continue_dismissed_at
+    ? {
+        id: stringValue(row.continue_title_media_key) || mediaKey,
+        positionSeconds: numberValue(row.continue_position_seconds),
+        durationSeconds: numberValue(row.continue_duration_seconds),
+        progressPercent: continueProgressBps / 100,
+        lastActivityAt: continueLastActivityAt,
+      }
+    : null;
+  const watched = lastWatchedAt && stringValue(row.watch_state) === 'watched'
+    ? { watchedAt: lastWatchedAt }
+    : null;
+  const watchlist = watchlistAddedAt ? { addedAt: watchlistAddedAt } : null;
+  const ratingState = rating !== null && ratedAt ? { value: rating, ratedAt } : null;
+  const watchedEpisodeKeys: string[] = [];
+
   return {
-    media: regularCard(mediaKey, row),
-    progress: progressBps !== null && lastActivityAt
-      ? {
-          positionSeconds: numberValue(row.position_seconds),
-          durationSeconds: numberValue(row.duration_seconds),
-          progressPercent: progressBps / 100,
-          status: stringValue(row.playback_status) || undefined,
-          lastPlayedAt: lastActivityAt,
-        }
-      : null,
-    continueWatching: continueProgressBps !== null && continueLastActivityAt && !row.continue_dismissed_at
-      ? {
-          id: stringValue(row.continue_title_media_key) || mediaKey,
-          positionSeconds: numberValue(row.continue_position_seconds),
-          durationSeconds: numberValue(row.continue_duration_seconds),
-          progressPercent: continueProgressBps / 100,
-          lastActivityAt: continueLastActivityAt,
-        }
-      : null,
-    watched: lastWatchedAt && stringValue(row.watch_state) === 'watched'
-      ? { watchedAt: lastWatchedAt }
-      : null,
-    watchlist: watchlistAddedAt ? { addedAt: watchlistAddedAt } : null,
-    rating: rating !== null && ratedAt ? { value: rating, ratedAt } : null,
-    watchedEpisodeKeys: [],
+    media,
+    kind: 'watch_state',
+    mediaItem: regularCardToMediaItem(media),
+    context: {
+      progress,
+      continueWatching,
+      watched,
+      watchlist,
+      rating: ratingState,
+      watchedEpisodeKeys,
+    },
+    presentation: null,
+    progress,
+    continueWatching,
+    watched,
+    watchlist,
+    rating: ratingState,
+    watchedEpisodeKeys,
   };
 }
 

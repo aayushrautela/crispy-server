@@ -1,4 +1,5 @@
 import type { LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
+import type { MediaItem, MediaPresentationHint } from '../metadata/media-item.types.js';
 import type {
   WatchProgressView,
   ContinueWatchingStateView,
@@ -54,6 +55,17 @@ export type WatchStatesEnvelope = {
 
 export type WatchStateResponse = {
   media: RegularCardView;
+  kind: 'watch_state';
+  mediaItem: MediaItem;
+  context: {
+    progress: WatchProgressView | null;
+    continueWatching: ContinueWatchingStateView | null;
+    watched: WatchedStateView | null;
+    watchlist: WatchlistStateView | null;
+    rating: RatingStateView | null;
+    watchedEpisodeKeys: string[];
+  };
+  presentation: MediaPresentationHint | null;
   progress: WatchProgressView | null;
   continueWatching: ContinueWatchingStateView | null;
   watched: WatchedStateView | null;
@@ -68,6 +80,16 @@ export type CalendarItem = {
   bucket: CalendarBucket;
   media: LandscapeCardView;
   relatedShow: RegularCardView;
+  kind?: 'calendar_item';
+  mediaItem?: MediaItem;
+  relatedShowMediaItem?: MediaItem;
+  context?: {
+    bucket: CalendarBucket;
+    airDate: string | null;
+    watched: boolean;
+    relatedShow: MediaItem;
+  };
+  presentation?: MediaPresentationHint | null;
   airDate: string | null;
   watched: boolean;
 };

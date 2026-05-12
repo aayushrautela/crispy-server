@@ -5,6 +5,7 @@ import { MetadataProjectionService } from '../metadata/metadata-projection.servi
 import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata-card.types.js';
 import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
+import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -112,10 +113,29 @@ export class CalendarBuilderService {
         continue;
       }
 
+      const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
+      const mediaItem = metadataCardToMediaItem(mediaCard, {
+        posterUrl: media.posterUrl || null,
+        backdropUrl: media.backdropUrl || null,
+        airDate: nextEpisode?.airDate ?? null,
+        episodeTitle: media.episodeTitle,
+      });
+      const relatedShowMediaItem = metadataCardToMediaItem(showCard);
+
       items.push({
-        bucket: this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs),
+        bucket,
         media,
         relatedShow,
+        kind: 'calendar_item',
+        mediaItem,
+        relatedShowMediaItem,
+        context: {
+          bucket,
+          airDate: nextEpisode?.airDate ?? null,
+          watched: false,
+          relatedShow: relatedShowMediaItem,
+        },
+        presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
         airDate: nextEpisode?.airDate ?? null,
         watched: false,
       });

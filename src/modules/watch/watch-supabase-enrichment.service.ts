@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import type { RegularCardView } from '../metadata/metadata-card.types.js';
+import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
@@ -29,7 +30,24 @@ export class WatchSupabaseEnrichmentService {
     const records = await this.loadRecords(client, items.map((item) => item.media.mediaKey));
     return items.map((item) => {
       const record = records.get(item.media.mediaKey);
-      return record ? { ...item, media: toLandscapeCard(item.media, record) } : item;
+      if (!record) {
+        return item;
+      }
+      const media = toLandscapeCard(item.media, record);
+      const mediaItem = watchCacheRecordToMediaItem(record, {
+        ...item.mediaItem,
+        backdropUrl: media.backdropUrl || null,
+        seasonNumber: media.seasonNumber,
+        episodeNumber: media.episodeNumber,
+        episodeTitle: media.episodeTitle,
+        airDate: media.airDate,
+        runtimeMinutes: media.runtimeMinutes,
+      });
+      return {
+        ...item,
+        media,
+        mediaItem,
+      };
     });
   }
 
@@ -37,7 +55,15 @@ export class WatchSupabaseEnrichmentService {
     const records = await this.loadRecords(client, items.map((item) => item.media.mediaKey));
     return items.map((item) => {
       const record = records.get(item.media.mediaKey);
-      return record ? { ...item, media: toRegularCard(record) } : item;
+      if (!record) {
+        return item;
+      }
+      const media = toRegularCard(record);
+      return {
+        ...item,
+        media,
+        mediaItem: watchCacheRecordToMediaItem(record, item.mediaItem),
+      };
     });
   }
 
