@@ -4,6 +4,39 @@
  */
 
 export interface paths {
+    "/internal/recommender/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingest a MAIN service-outbox event
+         * @description RECO-owned inbound endpoint called by MAIN's service-outbox dispatcher.
+         *     MAIN dispatches `service_outbox_events` rows here, including
+         *     `recommendation.recompute_requested` envelopes with reason `admin_requested`
+         *     for admin-triggered recompute requests.
+         *
+         *     A duplicate event response (`409 Conflict`) is treated by MAIN's dispatcher as
+         *     idempotent success and the service-outbox row may be marked dispatched. `2xx`
+         *     responses are success. `400`, `401`, and `403` are permanent dispatch failures.
+         *     `5xx` and network/timeout failures are retried by MAIN according to outbox
+         *     retry policy.
+         *
+         *     The current MVP response acknowledges the event and may return a recommender
+         *     event id only. It does not return a generation job id, generation status, or
+         *     progress to MAIN.
+         */
+        post: operations["ingestRecommenderEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/apps/v1/me": {
         parameters: {
             query?: never;
@@ -322,6 +355,48 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        RecommenderEventType: "recommendation.recompute_requested";
+        /**
+         * @description Current runtime recompute reasons. `admin_requested` is emitted by admin recompute endpoints.
+         * @enum {string}
+         */
+        RecommenderEventReason: "watch_history_changed" | "rating_changed" | "watchlist_changed" | "playback_progress_changed" | "profile_created" | "profile_settings_changed" | "admin_requested";
+        RecommenderEventEnvelope: {
+            eventId: string;
+            eventType: components["schemas"]["RecommenderEventType"];
+            /** @default 1 */
+            eventVersion: number;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @example profile */
+            aggregateType: string;
+            aggregateId: string;
+            userId: string;
+            profileId: string;
+            /** @example crispy-server */
+            source: string;
+            correlationId: string;
+            payload: {
+                accountId: string;
+                profileId: string;
+                reason: components["schemas"]["RecommenderEventReason"];
+            } & {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        RecommenderEventAcceptedResponse: {
+            /** @constant */
+            accepted: true;
+            /** @description RECO-side event receipt id when available. This is not a generation job id. */
+            recommenderEventId?: string;
+            /** @description True when the event was already received and the response is idempotent. */
+            duplicate?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
         /** @enum {string} */
         ErrorCategory: "validation" | "authentication" | "authorization" | "not_found" | "conflict" | "idempotency" | "rate_limit" | "timeout" | "upstream_dependency" | "internal";
         /** @enum {string} */
@@ -860,6 +935,11 @@ export interface components {
         BatchId: string;
         /** @example Bearer <service-token> */
         Authorization: string;
+        /**
+         * @description Bearer token from MAIN service-outbox dispatcher. RECO validates by comparing SHA-256 hash against MAIN_TO_RECOMMENDER_SERVICE_TOKEN_HASH.
+         * @example Bearer <main-service-token>
+         */
+        RecommenderInboundAuthorization: string;
         ServiceId: "crispy-recommendation-engine";
         /** @example reco-run-example-001:because-you-watched */
         IdempotencyKey: string;
@@ -874,6 +954,86 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ingestRecommenderEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Bearer token from MAIN service-outbox dispatcher. RECO validates by comparing SHA-256 hash against MAIN_TO_RECOMMENDER_SERVICE_TOKEN_HASH.
+                 * @example Bearer <main-service-token>
+                 */
+                Authorization: components["parameters"]["RecommenderInboundAuthorization"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecommenderEventEnvelope"];
+            };
+        };
+        responses: {
+            /** @description Event accepted or already processed idempotently. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommenderEventAcceptedResponse"];
+                };
+            };
+            /** @description Event accepted for recommender-side processing. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommenderEventAcceptedResponse"];
+                };
+            };
+            /** @description Invalid event envelope; permanent failure for MAIN dispatcher. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid bearer token; permanent failure until configuration is fixed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
+                };
+            };
+            /** @description Authenticated caller is not allowed to ingest events; permanent failure until configuration is fixed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
+                };
+            };
+            /** @description Duplicate event receipt. MAIN treats this as idempotent success for dispatch state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommenderEventAcceptedResponse"];
+                };
+            };
+            500: components["responses"]["InternalServerError"];
+        };
+    };
     getInternalAppSelf: {
         parameters: {
             query?: never;

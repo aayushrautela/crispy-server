@@ -1,26 +1,13 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { MetadataCardService } from './metadata-card.service.js';
-import type { MetadataViewMediaType } from './metadata-card.types.js';
 import { metadataCardToMediaItem } from './media-item.mapper.js';
 import type { MediaItem } from './media-item.types.js';
 
 type DbRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export type HydratedMediaCard = {
-  mediaKey: string;
-  mediaType: MetadataViewMediaType;
-  title: string | null;
-  subtitle: string | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  releaseYear: number | null;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  episodeTitle: string | null;
-  runtimeMinutes: number | null;
-  rating: number | null;
-  mediaItem?: MediaItem;
+  mediaItem: MediaItem;
   metadataRefreshedAt: string | null;
 };
 
@@ -57,18 +44,6 @@ export class MetadataCardBatchService {
       const metadataRefreshedAt = new Date().toISOString();
 
       return cards.map((card): HydratedMediaCard => ({
-        mediaKey: card.mediaKey,
-        mediaType: card.mediaType,
-        title: card.title,
-        subtitle: card.subtitle,
-        posterUrl: card.artwork.posterUrl,
-        backdropUrl: card.artwork.backdropUrl,
-        releaseYear: card.releaseYear,
-        seasonNumber: card.seasonNumber,
-        episodeNumber: card.episodeNumber,
-        episodeTitle: card.mediaType === 'episode' ? card.title : null,
-        runtimeMinutes: card.runtimeMinutes,
-        rating: card.rating,
         mediaItem: metadataCardToMediaItem(card),
         metadataRefreshedAt,
       }));

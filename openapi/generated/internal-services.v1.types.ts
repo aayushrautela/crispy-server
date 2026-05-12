@@ -92,6 +92,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/apps/v1/profiles/{profileId}/recommendation-signal-bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Return recommendation signal bundle for a profile (legacy compatibility)
+         * @deprecated
+         * @description Legacy compatibility route for callers that only have profileId. Prefer the account-rooted `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle` endpoint.
+         */
+        get: operations["getLegacyInternalRecommendationSignalBundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle": {
         parameters: {
             query?: never;
@@ -105,6 +126,27 @@ export interface paths {
          */
         get: operations["getInternalRecommendationSignalBundle"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/profiles/{profileId}/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert recommendations for a profile (legacy compatibility)
+         * @deprecated
+         * @description Legacy compatibility route for profile-rooted recommendation writes. Prefer service-owned list writes at `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}`.
+         */
+        put: operations["upsertLegacyInternalProfileRecommendations"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1058,6 +1100,51 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
+    getLegacyInternalRecommendationSignalBundle: {
+        parameters: {
+            query?: {
+                historyLimit?: number;
+                ratingsLimit?: number;
+                watchlistLimit?: number;
+                continueLimit?: number;
+                /** @description Comma-separated signal families to include. */
+                include?: string;
+                /** @description Optional lower bound for incremental signal reads. */
+                since?: string;
+            };
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recommendation signals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationSignalBundleResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
     getInternalRecommendationSignalBundle: {
         parameters: {
             query?: {
@@ -1101,6 +1188,58 @@ export interface operations {
             401: components["responses"]["UnauthorizedError"];
             403: components["responses"]["ForbiddenError"];
             404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    upsertLegacyInternalProfileRecommendations: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example reco-run-example-001:because-you-watched */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecommendationListUpsertRequest"];
+            };
+        };
+        responses: {
+            /** @description Recommendation write accepted or idempotently replayed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationListUpsertResponse"];
+                };
+            };
+            /** @description A new recommendation version was written. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationListUpsertResponse"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            409: components["responses"]["ConflictError"];
             429: components["responses"]["RateLimitedError"];
             500: components["responses"]["InternalServerError"];
         };

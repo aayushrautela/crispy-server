@@ -87,8 +87,14 @@ export class ProfileInputSignalFacade {
       ...(payload.watchlist ? { watchlist: payload.watchlist } : {}),
       ...(payload.continueWatching ? { continueWatching: payload.continueWatching } : {}),
       ...(payload.trackedSeries ? { trackedSeries: payload.trackedSeries } : {}),
-      limits,
-      ...(cache ? { cache } : {}),
+      diagnostics: cache ?? {
+        sourceMode: 'live',
+        schemaVersion: 0,
+        generatedAt: now,
+        decisions: [],
+        cacheReadAttempted: false,
+        cacheWriteAttempted: false,
+      },
     };
   }
 

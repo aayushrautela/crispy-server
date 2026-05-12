@@ -1,4 +1,3 @@
-import type { LandscapeCardView, RegularCardView } from '../metadata/metadata-card.types.js';
 import type { MediaItem, MediaPresentationHint } from '../metadata/media-item.types.js';
 import type {
   WatchProgressView,
@@ -54,7 +53,6 @@ export type WatchStatesEnvelope = {
 };
 
 export type WatchStateResponse = {
-  media: RegularCardView;
   kind: 'watch_state';
   mediaItem: MediaItem;
   context: {
@@ -78,18 +76,15 @@ export type CalendarBucket = 'up_next' | 'this_week' | 'upcoming' | 'recently_re
 
 export type CalendarItem = {
   bucket: CalendarBucket;
-  media: LandscapeCardView;
-  relatedShow: RegularCardView;
-  kind?: 'calendar_item';
-  mediaItem?: MediaItem;
-  relatedShowMediaItem?: MediaItem;
-  context?: {
+  kind: 'calendar_item';
+  mediaItem: MediaItem;
+  context: {
     bucket: CalendarBucket;
     airDate: string | null;
     watched: boolean;
     relatedShow: MediaItem;
   };
-  presentation?: MediaPresentationHint | null;
+  presentation: MediaPresentationHint | null;
   airDate: string | null;
   watched: boolean;
 };

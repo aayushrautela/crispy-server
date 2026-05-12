@@ -5,10 +5,44 @@ import type { WatchMediaCardCacheService } from './watch-media-card-cache.servic
 import type { ContinueWatchingProductItem, HistoryProductItem, RatingProductItem } from './watch-derived-item.types.js';
 import type { WatchStateResponse } from './watch-read.types.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
+import type { MediaItem } from '../metadata/media-item.types.js';
 
 seedTestEnv();
 
-test('enrichContinueWatchingItems replaces media fields from cache while preserving user fields', async () => {
+const emptyExternalIds = { tmdb: null, imdb: null, tvdb: null };
+
+function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
+  return {
+    mediaKey: 'movie:tmdb:123',
+    mediaType: 'movie',
+    title: 'Supabase Fallback Title',
+    originalTitle: null,
+    subtitle: null,
+    overview: null,
+    posterUrl: 'https://supabase.test/poster.jpg',
+    backdropUrl: 'https://supabase.test/backdrop.jpg',
+    logoUrl: null,
+    stillUrl: null,
+    releaseDate: null,
+    releaseYear: 2023,
+    rating: 7.0,
+    genres: [],
+    runtimeMinutes: 120,
+    status: null,
+    certification: null,
+    externalIds: emptyExternalIds,
+    parent: null,
+    showTmdbId: null,
+    seasonNumber: null,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+    episodeTitle: null,
+    airDate: null,
+    ...overrides,
+  };
+}
+
+test('enrichContinueWatchingItems replaces mediaItem fields from cache', async () => {
   const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
     ['movie:tmdb:123', {
@@ -37,21 +71,22 @@ test('enrichContinueWatchingItems replaces media fields from cache while preserv
   const items: ContinueWatchingProductItem[] = [
     {
       id: 'movie:tmdb:123',
-      media: {
-        mediaType: 'movie',
-        mediaKey: 'movie:tmdb:123',
-        title: 'Supabase Fallback Title',
-        posterUrl: 'https://supabase.test/poster.jpg',
-        backdropUrl: 'https://supabase.test/backdrop.jpg',
-        releaseYear: 2023,
-        rating: 7.0,
-        genre: null,
-        seasonNumber: null,
-        episodeNumber: null,
-        episodeTitle: null,
-        airDate: null,
-        runtimeMinutes: 120,
+      kind: 'continue_watching',
+      mediaItem: createMediaItem(),
+      context: {
+        id: 'movie:tmdb:123',
+        progress: {
+          positionSeconds: 300,
+          durationSeconds: 7200,
+          progressPercent: 4.17,
+          status: 'in_progress',
+          lastPlayedAt: '2026-05-11T10:00:00.000Z',
+        },
+        lastActivityAt: '2026-05-11T10:00:00.000Z',
+        origins: ['local'],
+        dismissible: true,
       },
+      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
       progress: {
         positionSeconds: 300,
         durationSeconds: 7200,
@@ -68,80 +103,18 @@ test('enrichContinueWatchingItems replaces media fields from cache while preserv
   const enriched = await service.enrichContinueWatchingItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.media.title, 'Cached Movie Title');
-  assert.equal(enriched[0]?.media.posterUrl, 'https://cache.test/poster.jpg');
-  assert.equal(enriched[0]?.media.backdropUrl, 'https://cache.test/backdrop.jpg');
-  assert.equal(enriched[0]?.media.releaseYear, 2024);
-  assert.equal(enriched[0]?.media.rating, 8.5);
-  assert.equal(enriched[0]?.media.runtimeMinutes, 120);
+  assert.equal(enriched[0]?.mediaItem.title, 'Cached Movie Title');
+  assert.equal(enriched[0]?.mediaItem.posterUrl, 'https://cache.test/poster.jpg');
+  assert.equal(enriched[0]?.mediaItem.backdropUrl, 'https://cache.test/backdrop.jpg');
+  assert.equal(enriched[0]?.mediaItem.releaseYear, 2024);
+  assert.equal(enriched[0]?.mediaItem.rating, 8.5);
+  assert.equal(enriched[0]?.mediaItem.runtimeMinutes, 120);
   assert.equal(enriched[0]?.progress.positionSeconds, 300);
   assert.equal(enriched[0]?.lastActivityAt, '2026-05-11T10:00:00.000Z');
   assert.deepEqual(enriched[0]?.origins, ['local']);
 });
 
-test('enrichContinueWatchingItems uses fallback backdrop when cache has no backdrop', async () => {
-  const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
-  const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
-    ['movie:tmdb:456', {
-      mediaKey: 'movie:tmdb:456',
-      mediaType: 'movie',
-      titleProvider: 'tmdb',
-      titleProviderId: '456',
-      titleMediaType: 'movie',
-      title: 'Movie Without Backdrop',
-      subtitle: null,
-      posterUrl: 'https://cache.test/poster.jpg',
-      backdropUrl: null,
-      releaseYear: 2025,
-      rating: 7.8,
-    }],
-  ]);
-
-  const watchMediaCardCacheService = {
-    listCardCacheRecords: async () => cacheRecords,
-  } as unknown as WatchMediaCardCacheService;
-
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
-    refreshMissingCards: async () => {},
-  });
-
-  const items: ContinueWatchingProductItem[] = [
-    {
-      id: 'movie:tmdb:456',
-      media: {
-        mediaType: 'movie',
-        mediaKey: 'movie:tmdb:456',
-        title: 'Fallback Title',
-        posterUrl: 'https://supabase.test/poster.jpg',
-        backdropUrl: 'https://supabase.test/backdrop.jpg',
-        releaseYear: 2023,
-        rating: 7.0,
-        genre: null,
-        seasonNumber: null,
-        episodeNumber: null,
-        episodeTitle: null,
-        airDate: null,
-        runtimeMinutes: 90,
-      },
-      progress: {
-        positionSeconds: 100,
-        durationSeconds: 5400,
-        progressPercent: 1.85,
-        status: 'in_progress',
-        lastPlayedAt: '2026-05-11T12:00:00.000Z',
-      },
-      lastActivityAt: '2026-05-11T12:00:00.000Z',
-      origins: ['trakt'],
-      dismissible: true,
-    },
-  ];
-
-  const enriched = await service.enrichContinueWatchingItems({} as never, items);
-
-  assert.equal(enriched[0]?.media.backdropUrl, 'https://supabase.test/backdrop.jpg');
-});
-
-test('enrichRegularMediaItems replaces media fields for history items', async () => {
+test('enrichRegularMediaItems replaces mediaItem fields for history items', async () => {
   const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
     ['show:tmdb:789', {
@@ -170,16 +143,21 @@ test('enrichRegularMediaItems replaces media fields for history items', async ()
   const items: HistoryProductItem[] = [
     {
       id: 'show:tmdb:789:2026-05-11',
-      media: {
-        mediaType: 'show',
+      kind: 'watch_history',
+      mediaItem: createMediaItem({
         mediaKey: 'show:tmdb:789',
+        mediaType: 'show',
         title: 'Supabase Show Title',
         posterUrl: 'https://supabase.test/show-poster.jpg',
         releaseYear: 2021,
         rating: 8.0,
-        genre: null,
-        subtitle: null,
+      }),
+      context: {
+        id: 'show:tmdb:789:2026-05-11',
+        watchedAt: '2026-05-11T08:00:00.000Z',
+        origins: ['simkl'],
       },
+      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
       watchedAt: '2026-05-11T08:00:00.000Z',
       origins: ['simkl'],
     },
@@ -188,11 +166,11 @@ test('enrichRegularMediaItems replaces media fields for history items', async ()
   const enriched = await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.media.title, 'Cached Show Title');
-  assert.equal(enriched[0]?.media.posterUrl, 'https://cache.test/show-poster.jpg');
-  assert.equal(enriched[0]?.media.subtitle, 'Season 1');
-  assert.equal(enriched[0]?.media.releaseYear, 2022);
-  assert.equal(enriched[0]?.media.rating, 9.1);
+  assert.equal(enriched[0]?.mediaItem.title, 'Cached Show Title');
+  assert.equal(enriched[0]?.mediaItem.posterUrl, 'https://cache.test/show-poster.jpg');
+  assert.equal(enriched[0]?.mediaItem.subtitle, 'Season 1');
+  assert.equal(enriched[0]?.mediaItem.releaseYear, 2022);
+  assert.equal(enriched[0]?.mediaItem.rating, 9.1);
   assert.equal(enriched[0]?.watchedAt, '2026-05-11T08:00:00.000Z');
   assert.deepEqual(enriched[0]?.origins, ['simkl']);
 });
@@ -212,16 +190,23 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
   const items: RatingProductItem[] = [
     {
       id: 'movie:tmdb:999',
-      media: {
-        mediaType: 'movie',
+      kind: 'rating',
+      mediaItem: createMediaItem({
         mediaKey: 'movie:tmdb:999',
         title: 'Uncached Movie',
         posterUrl: 'https://supabase.test/uncached.jpg',
         releaseYear: 2020,
         rating: 6.5,
-        genre: null,
-        subtitle: null,
+      }),
+      context: {
+        id: 'movie:tmdb:999',
+        rating: {
+          value: 8,
+          ratedAt: '2026-05-10T15:00:00.000Z',
+        },
+        origins: ['local'],
       },
+      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
       rating: {
         value: 8,
         ratedAt: '2026-05-10T15:00:00.000Z',
@@ -233,8 +218,8 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
   const enriched = await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.media.title, 'Uncached Movie');
-  assert.equal(enriched[0]?.media.posterUrl, 'https://supabase.test/uncached.jpg');
+  assert.equal(enriched[0]?.mediaItem.title, 'Uncached Movie');
+  assert.equal(enriched[0]?.mediaItem.posterUrl, 'https://supabase.test/uncached.jpg');
   assert.equal(enriched[0]?.rating.value, 8);
 });
 
@@ -272,31 +257,39 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
   const items: HistoryProductItem[] = [
     {
       id: 'movie:tmdb:111:1',
-      media: {
-        mediaType: 'movie',
+      kind: 'watch_history',
+      mediaItem: createMediaItem({
         mediaKey: 'movie:tmdb:111',
         title: 'Fallback',
         posterUrl: 'https://supabase.test/dup.jpg',
         releaseYear: 2022,
         rating: 7.0,
-        genre: null,
-        subtitle: null,
+      }),
+      context: {
+        id: 'movie:tmdb:111:1',
+        watchedAt: '2026-05-11T10:00:00.000Z',
+        origins: ['local'],
       },
+      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
       watchedAt: '2026-05-11T10:00:00.000Z',
       origins: ['local'],
     },
     {
       id: 'movie:tmdb:111:2',
-      media: {
-        mediaType: 'movie',
+      kind: 'watch_history',
+      mediaItem: createMediaItem({
         mediaKey: 'movie:tmdb:111',
         title: 'Fallback',
         posterUrl: 'https://supabase.test/dup.jpg',
         releaseYear: 2022,
         rating: 7.0,
-        genre: null,
-        subtitle: null,
+      }),
+      context: {
+        id: 'movie:tmdb:111:2',
+        watchedAt: '2026-05-11T11:00:00.000Z',
+        origins: ['local'],
       },
+      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
       watchedAt: '2026-05-11T11:00:00.000Z',
       origins: ['local'],
     },

@@ -197,9 +197,9 @@ export function mapContinueWatchingItem(item: ContinueWatchingProductItem): Reco
   return {
     id: item.id,
     media: {
-      mediaType: item.media.mediaType,
-      mediaKey: item.media.mediaKey,
-      title: item.media.title,
+      mediaType: item.mediaItem.mediaType,
+      mediaKey: item.mediaItem.mediaKey,
+      title: item.mediaItem.title,
     },
     progress: {
       positionSeconds: item.progress.positionSeconds,
@@ -337,7 +337,7 @@ function normalizeSection(value: unknown): Record<string, unknown> | null {
 
 function normalizeMediaItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const mediaKey = readOptionalString(row.mediaKey) ?? readOptionalString(row.media_key);
+  const mediaKey = readOptionalString(row.mediaKey);
   if (!mediaKey) {
     return null;
   }
@@ -355,7 +355,7 @@ function normalizeMediaItem(value: unknown): Record<string, unknown> | null {
 function normalizeCollectionCard(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
   const title = readOptionalString(row.title);
-  const logoUrl = readOptionalString(row.logoUrl) ?? readOptionalString(row.logo_url);
+  const logoUrl = readOptionalString(row.logoUrl);
   const items = Array.isArray(row.items) ? row.items : [];
   const normalizedItems = items.map((item) => normalizeCollectionCardItem(item)).filter((item): item is Record<string, unknown> => item !== null);
   if (!title || !logoUrl || normalizedItems.length < 3) {
@@ -372,9 +372,9 @@ function normalizeCollectionCard(value: unknown): Record<string, unknown> | null
 
 function normalizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const mediaType = readOptionalString(row.mediaType) ?? readOptionalString(row.media_type);
+  const mediaType = readOptionalString(row.mediaType);
   const title = readOptionalString(row.title);
-  const posterUrl = readOptionalString(row.posterUrl) ?? readOptionalString(row.poster_url);
+  const posterUrl = readOptionalString(row.posterUrl);
   if (!mediaType || !title || !posterUrl) {
     return null;
   }
@@ -384,7 +384,7 @@ function normalizeCollectionCardItem(value: unknown): Record<string, unknown> | 
     mediaType,
     title,
     posterUrl,
-    releaseYear: readOptionalNumber(row.releaseYear) ?? readOptionalNumber(row.release_year),
+    releaseYear: readOptionalNumber(row.releaseYear),
     rating: readOptionalNumber(row.rating),
   };
 }

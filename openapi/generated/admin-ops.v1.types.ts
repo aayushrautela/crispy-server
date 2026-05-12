@@ -225,6 +225,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/api/accounts/{accountId}/profiles/{profileId}/recommendations/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue recommendation recompute for one profile
+         * @description Enqueues one `recommendation.recompute_requested` event in `service_outbox_events`
+         *     with reason `admin_requested`. The endpoint confirms the profile belongs to the
+         *     account and returns dispatch-tracking metadata only; it does not wait for
+         *     downstream recommendation generation to finish and does not return a generation
+         *     job id or progress.
+         *
+         *     This is an admin mutation and follows the existing admin route conventions:
+         *     callers need an authenticated admin session or authorized admin bearer token,
+         *     plus the admin mutation/CSRF protection required by the deployed admin stack.
+         */
+        post: operations["postAdminApiAccountsAccountIdProfilesProfileIdRecommendationsRecompute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/accounts/{accountId}/recommendations/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue recommendation recompute for selected account profiles
+         * @description Enqueues one `recommendation.recompute_requested` event per selected profile in
+         *     `service_outbox_events` with reason `admin_requested`. The current MVP accepts
+         *     selected profiles only and caps one request at 50 profile ids. It returns
+         *     outbox/dispatch-tracking metadata only, not downstream generation completion.
+         *
+         *     This is an admin mutation and follows the existing admin route conventions:
+         *     callers need an authenticated admin session or authorized admin bearer token,
+         *     plus the admin mutation/CSRF protection required by the deployed admin stack.
+         */
+        post: operations["postAdminApiAccountsAccountIdRecommendationsRecompute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/api/accounts/{accountId}/profiles/{profileId}/taste-profile": {
         parameters: {
             query?: never;
@@ -344,6 +399,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/api/diagnostics/recommendations/service-outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recommendation service outbox diagnostics
+         * @description Lists recommendation recompute events from `service_outbox_events` for
+         *     dispatch diagnostics. The status values describe MAIN outbox delivery state
+         *     (`pending`, `processing`, `dispatched`, `failed`) only. A dispatched row means
+         *     the dispatcher delivered the event to RECO's internal event ingestion endpoint;
+         *     it does not mean recommendation generation has completed.
+         */
+        get: operations["getAdminApiDiagnosticsRecommendationsServiceOutbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/api/diagnostics/recommendations/outbox": {
         parameters: {
             query?: never;
@@ -351,7 +430,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** diagnostics recommendations outbox */
+        /**
+         * diagnostics recommendations outbox
+         * @deprecated
+         * @description Deprecated compatibility route. Prefer `GET /admin/api/diagnostics/recommendations/service-outbox`, which exposes service-outbox dispatch state and supports correlationId/profileId/reason/status filters.
+         */
         get: operations["getAdminApiDiagnosticsRecommendationsOutbox"];
         put?: never;
         post?: never;
@@ -365,6 +448,84 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Current runtime recompute reason values. `admin_requested` is used for admin-triggered recompute requests.
+         * @enum {string}
+         */
+        RecommendationRecomputeReason: "watch_history_changed" | "rating_changed" | "watchlist_changed" | "playback_progress_changed" | "profile_created" | "profile_settings_changed" | "admin_requested";
+        /** @enum {string} */
+        ServiceOutboxDispatchStatus: "pending" | "processing" | "dispatched" | "failed";
+        AdminRecommendationRecomputeRequest: {
+            /** @description Optional caller-supplied correlation id used to find the outbox event in diagnostics. */
+            correlationId?: string;
+        };
+        AdminAccountRecommendationRecomputeRequest: {
+            /** @description Selected profile ids under the account. Tier-wide or unbounded recompute is outside the MVP. */
+            profileIds: string[];
+            correlationId?: string;
+        };
+        AdminRecommendationRecomputeResponse: {
+            ok: boolean;
+            reason: components["schemas"]["RecommendationRecomputeReason"];
+            accountId: string;
+            profileId: string;
+            /** @constant */
+            requested: 1;
+            enqueued: number;
+            skipped: number;
+            correlationId?: string;
+            note?: string;
+            /** @description Admin diagnostics URL filtered by correlation id when available. */
+            diagnosticsUrl?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        AdminAccountRecommendationRecomputeResponse: {
+            ok: boolean;
+            reason: components["schemas"]["RecommendationRecomputeReason"];
+            accountId: string;
+            profileIds: string[];
+            requested: number;
+            enqueued: number;
+            skipped: number;
+            correlationId?: string;
+            note?: string;
+            diagnosticsUrl?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        AdminRecommendationServiceOutboxEvent: {
+            id: string;
+            profileId: string;
+            userId: string;
+            reason: components["schemas"]["RecommendationRecomputeReason"];
+            status: components["schemas"]["ServiceOutboxDispatchStatus"];
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            availableAt: string;
+            attemptCount: number;
+            /** Format: date-time */
+            lastAttemptAt?: string | null;
+            correlationId: string;
+            /** Format: date-time */
+            createdAt: string;
+        } & {
+            [key: string]: unknown;
+        };
+        AdminRecommendationServiceOutboxResponse: {
+            events: components["schemas"]["AdminRecommendationServiceOutboxEvent"][];
+            summary: {
+                total?: number;
+                pending?: number;
+                dispatched?: number;
+                failed?: number;
+            } & {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
         ErrorEnvelope: {
             error: {
                 code: string;
@@ -448,6 +609,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+        AdminMutationCsrfToken: string;
         RequestId: string;
         IdempotencyKey: string;
         IfMatch: string;
@@ -868,6 +1031,79 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    postAdminApiAccountsAccountIdProfilesProfileIdRecommendationsRecompute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path: {
+                accountId: string;
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminRecommendationRecomputeRequest"];
+            };
+        };
+        responses: {
+            /** @description Recompute request event accepted for asynchronous dispatch. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecommendationRecomputeResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiAccountsAccountIdRecommendationsRecompute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path: {
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAccountRecommendationRecomputeRequest"];
+            };
+        };
+        responses: {
+            /** @description Recompute request events accepted for asynchronous dispatch. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccountRecommendationRecomputeResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     getAdminApiAccountsAccountIdProfilesProfileIdTasteProfile: {
         parameters: {
             query?: {
@@ -1077,6 +1313,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getAdminApiDiagnosticsRecommendationsServiceOutbox: {
+        parameters: {
+            query?: {
+                correlationId?: string;
+                profileId?: string;
+                reason?: components["schemas"]["RecommendationRecomputeReason"];
+                status?: components["schemas"]["ServiceOutboxDispatchStatus"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recommendation service-outbox events. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecommendationServiceOutboxResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

@@ -15,7 +15,6 @@ This directory contains current Crispy Server documentation.
 | `api/recommendations.md` | Recommendation API behavior and operator guidance |
 | `architecture/recommendation-engine.md` | Current MAIN/RECO boundary and security model |
 | `supabase-fastify-rls-target-architecture-plan.md` | Canonical Supabase/Fastify/RLS target architecture |
-| `mobile-media-item-contract-migration-plan.md` | Current plan for replacing layout-specific card DTOs with semantic `MediaItem` contracts |
 
 ## Contract ownership
 

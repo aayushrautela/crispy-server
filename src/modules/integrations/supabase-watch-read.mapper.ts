@@ -1,6 +1,6 @@
 import { parseMediaKey } from '../identity/media-key.js';
-import type { RegularCardView, LandscapeCardView } from '../metadata/metadata-card.types.js';
-import { regularCardToMediaItem } from '../metadata/media-item.mapper.js';
+import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
+import type { MediaItem } from '../metadata/media-item.types.js';
 import type {
   ContinueWatchingProductItem,
   HistoryProductItem,
@@ -16,31 +16,19 @@ export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): Conti
   const playableMediaKey = stringValue(row.playable_media_key) || titleMediaKey;
   const progressBps = numberValue(row.progress_bps) ?? 0;
   const lastActivityAt = isoValue(row.last_activity_at);
-
-  const media = landscapeCard(titleMediaKey, row);
-  const mediaItem = regularCardToMediaItem({
-    mediaType: media.mediaType,
-    mediaKey: media.mediaKey,
-    title: media.title,
-    posterUrl: media.posterUrl,
-    releaseYear: media.releaseYear,
-    rating: media.rating,
-    genre: media.genre,
-    subtitle: null,
+  const mediaItem = mediaItemFromRow(titleMediaKey, row, {
+    mediaKey: playableMediaKey,
+    backdropUrl: nullableStringValue(row.backdrop_url),
+    seasonNumber: numberValue(row.season_number),
+    episodeNumber: numberValue(row.episode_number),
+    episodeTitle: nullableStringValue(row.episode_title),
+    runtimeMinutes: numberValue(row.runtime_minutes),
   });
+
   return {
     id: titleMediaKey,
-    media,
     kind: 'continue_watching',
-    mediaItem: {
-      ...mediaItem,
-      backdropUrl: media.backdropUrl || null,
-      seasonNumber: media.seasonNumber,
-      episodeNumber: media.episodeNumber,
-      episodeTitle: media.episodeTitle,
-      airDate: media.airDate,
-      runtimeMinutes: media.runtimeMinutes,
-    },
+    mediaItem,
     context: {
       id: titleMediaKey,
       progress: {
@@ -70,12 +58,10 @@ export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): Conti
 
 export function mapSupabaseListItemRow(row: SupabaseWatchReadRow): WatchlistProductItem {
   const mediaKey = stringValue(row.media_key);
-  const media = regularCard(mediaKey, row);
   return {
     id: mediaKey,
-    media,
     kind: 'watchlist',
-    mediaItem: regularCardToMediaItem(media),
+    mediaItem: mediaItemFromRow(mediaKey, row),
     context: {
       id: mediaKey,
       addedAt: isoValue(row.added_at),
@@ -89,16 +75,14 @@ export function mapSupabaseListItemRow(row: SupabaseWatchReadRow): WatchlistProd
 
 export function mapSupabaseRatingRow(row: SupabaseWatchReadRow): RatingProductItem {
   const mediaKey = stringValue(row.media_key);
-  const media = regularCard(mediaKey, row);
   const rating = {
     value: numberValue(row.rating) ?? 0,
     ratedAt: isoValue(row.rated_at),
   };
   return {
     id: mediaKey,
-    media,
     kind: 'rating',
-    mediaItem: regularCardToMediaItem(media),
+    mediaItem: mediaItemFromRow(mediaKey, row),
     context: {
       id: mediaKey,
       rating,
@@ -112,12 +96,10 @@ export function mapSupabaseRatingRow(row: SupabaseWatchReadRow): RatingProductIt
 
 export function mapSupabaseHistoryRow(row: SupabaseWatchReadRow): HistoryProductItem {
   const mediaKey = stringValue(row.media_key);
-  const media = regularCard(mediaKey, row);
   return {
     id: stringValue(row.id) || `${mediaKey}:${isoValue(row.watched_at)}`,
-    media,
     kind: 'watch_history',
-    mediaItem: regularCardToMediaItem(media),
+    mediaItem: mediaItemFromRow(mediaKey, row),
     context: {
       id: stringValue(row.id) || `${mediaKey}:${isoValue(row.watched_at)}`,
       watchedAt: isoValue(row.watched_at),
@@ -139,8 +121,6 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
   const watchlistAddedAt = nullableIsoValue(row.watchlist_added_at);
   const rating = numberValue(row.rating);
   const ratedAt = nullableIsoValue(row.rated_at);
-
-  const media = regularCard(mediaKey, row);
   const progress = progressBps !== null && lastActivityAt
     ? {
         positionSeconds: numberValue(row.position_seconds),
@@ -167,9 +147,8 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
   const watchedEpisodeKeys: string[] = [];
 
   return {
-    media,
     kind: 'watch_state',
-    mediaItem: regularCardToMediaItem(media),
+    mediaItem: mediaItemFromRow(mediaKey, row),
     context: {
       progress,
       continueWatching,
@@ -188,39 +167,21 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
   };
 }
 
-function regularCard(mediaKey: string, row: SupabaseWatchReadRow): RegularCardView {
+function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides: Partial<MediaItem> = {}): MediaItem {
   const parsed = parseMediaKey(mediaKey);
-  const mediaType = parsed.mediaType === 'episode' ? 'episode' : parsed.mediaType === 'season' ? 'show' : parsed.mediaType;
-  return {
-    mediaType,
+  return watchCacheRecordToMediaItem({
     mediaKey,
+    mediaType: parsed.mediaType,
+    titleProvider: 'tmdb',
+    titleProviderId: String(parsed.tmdbId ?? parsed.showTmdbId ?? mediaKey),
+    titleMediaType: parsed.mediaType === 'episode' || parsed.mediaType === 'season' ? 'show' : parsed.mediaType,
     title: stringValue(row.title) || mediaKey,
-    posterUrl: stringValue(row.poster_url),
-    releaseYear: numberValue(row.release_year),
-    rating: numberValue(row.metadata_rating),
-    genre: null,
     subtitle: nullableStringValue(row.subtitle),
-  };
-}
-
-function landscapeCard(mediaKey: string, row: SupabaseWatchReadRow): LandscapeCardView {
-  const parsed = parseMediaKey(mediaKey);
-  const mediaType = parsed.mediaType === 'movie' ? 'movie' : 'show';
-  return {
-    mediaType,
-    mediaKey,
-    title: stringValue(row.title) || mediaKey,
-    posterUrl: stringValue(row.poster_url),
-    backdropUrl: stringValue(row.backdrop_url) || stringValue(row.poster_url),
+    posterUrl: nullableStringValue(row.poster_url),
+    backdropUrl: nullableStringValue(row.backdrop_url),
     releaseYear: numberValue(row.release_year),
     rating: numberValue(row.metadata_rating),
-    genre: null,
-    seasonNumber: numberValue(row.season_number),
-    episodeNumber: numberValue(row.episode_number),
-    episodeTitle: nullableStringValue(row.episode_title),
-    airDate: null,
-    runtimeMinutes: numberValue(row.runtime_minutes),
-  };
+  }, overrides);
 }
 
 function origins(row: SupabaseWatchReadRow): string[] {

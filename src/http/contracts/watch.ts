@@ -1,6 +1,5 @@
 import {
   booleanSchema,
-  landscapeCardViewSchema,
   mediaItemSchema,
   nullableMediaPresentationHintSchema,
   nonEmptyStringSchema,
@@ -9,7 +8,6 @@ import {
   positiveIntegerLikeSchema,
   profileIdAndMediaKeyParamsSchema,
   profileIdParamsSchema,
-  regularCardViewSchema,
   recordSchema,
   stringSchema,
   withDefaultErrorResponses,
@@ -73,7 +71,6 @@ export const continueWatchingItemSchema = {
   additionalProperties: false,
   required: [
     'id',
-    'media',
     'kind',
     'mediaItem',
     'context',
@@ -85,7 +82,6 @@ export const continueWatchingItemSchema = {
   ],
   properties: {
     id: stringSchema,
-    media: landscapeCardViewSchema,
     kind: { const: 'continue_watching' },
     mediaItem: mediaItemSchema,
     context: {
@@ -147,9 +143,8 @@ export const continueWatchingItemSchema = {
 const watchProductItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['media', 'kind', 'mediaItem', 'context', 'presentation'],
+  required: ['kind', 'mediaItem', 'context', 'presentation'],
   properties: {
-    media: regularCardViewSchema,
     kind: stringSchema,
     mediaItem: mediaItemSchema,
     context: recordSchema,
@@ -289,9 +284,8 @@ const ratingStateSchema = {
 const watchStateItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['media', 'kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys'],
+  required: ['kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys'],
   properties: {
-    media: regularCardViewSchema,
     kind: { const: 'watch_state' },
     mediaItem: mediaItemSchema,
     context: recordSchema,

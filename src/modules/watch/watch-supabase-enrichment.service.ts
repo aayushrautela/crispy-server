@@ -1,6 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
-import type { RegularCardView } from '../metadata/metadata-card.types.js';
 import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
@@ -27,41 +26,28 @@ export class WatchSupabaseEnrichmentService {
     client: DbClient,
     items: ContinueWatchingProductItem[],
   ): Promise<ContinueWatchingProductItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.media.mediaKey));
+    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey));
     return items.map((item) => {
-      const record = records.get(item.media.mediaKey);
+      const record = records.get(item.mediaItem.mediaKey);
       if (!record) {
         return item;
       }
-      const media = toLandscapeCard(item.media, record);
-      const mediaItem = watchCacheRecordToMediaItem(record, {
-        ...item.mediaItem,
-        backdropUrl: media.backdropUrl || null,
-        seasonNumber: media.seasonNumber,
-        episodeNumber: media.episodeNumber,
-        episodeTitle: media.episodeTitle,
-        airDate: media.airDate,
-        runtimeMinutes: media.runtimeMinutes,
-      });
       return {
         ...item,
-        media,
-        mediaItem,
+        mediaItem: watchCacheRecordToMediaItem(record, item.mediaItem),
       };
     });
   }
 
   async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[]): Promise<TItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.media.mediaKey));
+    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey));
     return items.map((item) => {
-      const record = records.get(item.media.mediaKey);
+      const record = records.get(item.mediaItem.mediaKey);
       if (!record) {
         return item;
       }
-      const media = toRegularCard(record);
       return {
         ...item,
-        media,
         mediaItem: watchCacheRecordToMediaItem(record, item.mediaItem),
       };
     });
@@ -84,34 +70,4 @@ export class WatchSupabaseEnrichmentService {
     }
     return records;
   }
-}
-
-function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
-  return {
-    mediaType: record.titleMediaType,
-    mediaKey: record.mediaKey,
-    title: record.title,
-    posterUrl: record.posterUrl ?? '',
-    releaseYear: record.releaseYear,
-    rating: record.rating,
-    genre: null,
-    subtitle: record.subtitle,
-  };
-}
-
-function toLandscapeCard(
-  fallback: ContinueWatchingProductItem['media'],
-  record: WatchMediaCardCacheRecord,
-): ContinueWatchingProductItem['media'] {
-  return {
-    ...fallback,
-    mediaType: record.titleMediaType,
-    mediaKey: record.mediaKey,
-    title: record.title,
-    posterUrl: record.posterUrl ?? '',
-    backdropUrl: record.backdropUrl ?? fallback.backdropUrl,
-    releaseYear: record.releaseYear,
-    rating: record.rating,
-    genre: null,
-  };
 }

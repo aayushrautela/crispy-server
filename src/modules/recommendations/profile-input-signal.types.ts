@@ -1,5 +1,5 @@
 import type { ProfileInputSignalCacheDiagnostics } from './profile-input-signal-cache.types.js';
-import type { RegularCardView } from '../metadata/metadata-card.types.js';
+import type { MediaItem } from '../metadata/media-item.types.js';
 
 export type ProfileInputSignalInclude = 'history' | 'ratings' | 'watchlist' | 'continue' | 'trackedSeries';
 
@@ -34,14 +34,14 @@ export type AppliedProfileInputSignalLimits = {
 
 export type ProfileInputWatchHistoryItem = {
   id: string;
-  media: RegularCardView;
+  mediaItem: MediaItem;
   watchedAt: string;
   payload: Record<string, unknown> | null;
 };
 
 export type ProfileInputRatingItem = {
   id: string;
-  media: RegularCardView;
+  mediaItem: MediaItem;
   rating: {
     value: number;
     ratedAt: string;
@@ -51,14 +51,14 @@ export type ProfileInputRatingItem = {
 
 export type ProfileInputWatchlistItem = {
   id: string;
-  media: RegularCardView;
+  mediaItem: MediaItem;
   addedAt: string;
   payload: Record<string, unknown> | null;
 };
 
 export type ProfileInputContinueWatchingItem = {
   id: string;
-  media: RegularCardView;
+  mediaItem: MediaItem;
   progress: {
     progressPercent: number;
   };
@@ -66,7 +66,7 @@ export type ProfileInputContinueWatchingItem = {
 };
 
 export type ProfileInputTrackedSeriesItem = {
-  show: RegularCardView | null;
+  show: MediaItem | null;
   reason: string;
   lastInteractedAt: string | null;
   nextEpisodeAirDate: string | null;
@@ -79,6 +79,13 @@ export type ProfileInputTrackedSeriesItem = {
   payload: Record<string, unknown> | null;
 };
 
+export type GetProfileInputSignalBundleInput = {
+  accountId: string;
+  profileId: string;
+  include?: ProfileInputSignalInclude[];
+  limits?: ProfileInputSignalLimits;
+};
+
 export type ProfileInputSignalBundle = {
   accountId: string;
   profileId: string;
@@ -89,13 +96,5 @@ export type ProfileInputSignalBundle = {
   watchlist?: ProfileInputWatchlistItem[];
   continueWatching?: ProfileInputContinueWatchingItem[];
   trackedSeries?: ProfileInputTrackedSeriesItem[];
-  limits: AppliedProfileInputSignalLimits;
-  cache?: ProfileInputSignalCacheDiagnostics;
-};
-
-export type GetProfileInputSignalBundleInput = {
-  accountId: string;
-  profileId: string;
-  include?: ProfileInputSignalInclude[];
-  limits?: ProfileInputSignalLimits;
+  diagnostics: ProfileInputSignalCacheDiagnostics;
 };

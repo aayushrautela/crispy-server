@@ -8,9 +8,7 @@ import type {
   CollectionCardItemView,
   CollectionCardView,
   HeroCardView,
-  LandscapeCardView,
   MetadataCardView,
-  RegularCardView,
 } from '../metadata/metadata-card.types.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
@@ -20,7 +18,6 @@ import {
 import { recommendationConfig } from './recommendation-config.js';
 import type {
   RecommendationSection,
-  RecommendationLandscapeSection,
   RecommendationSectionItem,
   RecommendationSnapshotPayload,
   TasteProfilePayload,
@@ -300,12 +297,12 @@ export class RecommendationOutputService {
 
     if (layout === 'landscape') {
       const items = (await Promise.all(rawItems.map((item, index) => this.mapLandscapeRecommendationItem(client, item, index))))
-        .filter((item): item is NonNullable<Awaited<ReturnType<RecommendationOutputService['mapLandscapeRecommendationItem']>>> => item !== null);
+        .filter((item): item is RecommendationSectionItem => item !== null);
       return {
         id,
         title,
         layout,
-        items: items as RecommendationLandscapeSection['items'],
+        items,
         meta,
       };
     }
@@ -326,7 +323,6 @@ export class RecommendationOutputService {
     const mediaItem = metadataCardToMediaItem(card);
 
     return {
-      media: toRegularCard(card),
       kind: 'recommendation',
       mediaItem,
       context: {
@@ -344,25 +340,14 @@ export class RecommendationOutputService {
     };
   }
 
-  private async mapLandscapeRecommendationItem(client: DbClient, value: unknown, index: number) {
+  private async mapLandscapeRecommendationItem(client: DbClient, value: unknown, index: number): Promise<RecommendationSectionItem | null> {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
     const card = await this.metadataCardService.buildCardView(client, identity);
-    const media = toLandscapeCard(card);
-    if (!media) {
-      return null;
-    }
-
-    const mediaItem = metadataCardToMediaItem(card, {
-      posterUrl: media.posterUrl || null,
-      backdropUrl: media.backdropUrl || null,
-      airDate: media.airDate,
-      episodeTitle: media.episodeTitle,
-    });
+    const mediaItem = metadataCardToMediaItem(card);
 
     return {
-      media,
-      kind: 'recommendation' as const,
+      kind: 'recommendation',
       mediaItem,
       context: {
         reason: typeof row.reason === 'string' ? row.reason : null,
@@ -382,7 +367,7 @@ export class RecommendationOutputService {
   private mapCollectionCard(value: unknown): CollectionCardView | null {
     const row = asRecord(value);
     const title = typeof row.title === 'string' && row.title.trim() ? row.title : null;
-    const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim() ? row.logoUrl : typeof row.logo_url === 'string' && row.logo_url.trim() ? row.logo_url : null;
+    const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim() ? row.logoUrl : null;
     const rawItems = Array.isArray(row.items) ? row.items : [];
     const items = rawItems.map((item) => this.mapCollectionCardItem(item)).filter((item): item is CollectionCardItemView => item !== null);
     if (!title || !logoUrl || items.length < 3) {
@@ -398,9 +383,9 @@ export class RecommendationOutputService {
 
   private mapCollectionCardItem(value: unknown): CollectionCardItemView | null {
     const row = asRecord(value);
-    const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : null;
+    const mediaType = typeof row.mediaType === 'string' ? row.mediaType : null;
     const title = typeof row.title === 'string' ? row.title : null;
-    const posterUrl = typeof row.posterUrl === 'string' ? row.posterUrl : typeof row.poster_url === 'string' ? row.poster_url : null;
+    const posterUrl = typeof row.posterUrl === 'string' ? row.posterUrl : null;
     if (!mediaType || !title || !posterUrl) {
       return null;
     }
@@ -409,7 +394,7 @@ export class RecommendationOutputService {
       mediaType: mediaType as CollectionCardItemView['mediaType'],
       title,
       posterUrl,
-      releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : typeof row.release_year === 'number' ? row.release_year : null,
+      releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : null,
       rating: typeof row.rating === 'number' ? row.rating : null,
     };
   }
@@ -420,43 +405,6 @@ export class RecommendationOutputService {
     const media = await this.metadataCardService.buildCardView(client, identity);
     return toHeroCard(media, row);
   }
-}
-
-function toRegularCard(card: MetadataCardView): RegularCardView {
-  return {
-    mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
-    title: card.title ?? 'Untitled',
-    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl ?? '',
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    subtitle: card.subtitle,
-  };
-}
-
-function toLandscapeCard(card: MetadataCardView): LandscapeCardView | null {
-  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl;
-  const backdropUrl = card.images.stillUrl ?? card.artwork.stillUrl ?? card.images.backdropUrl ?? card.artwork.backdropUrl ?? posterUrl;
-  if (!card.title || !posterUrl || !backdropUrl) {
-    return null;
-  }
-
-  return {
-    mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
-    title: card.title,
-    posterUrl,
-    backdropUrl,
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    seasonNumber: card.seasonNumber,
-    episodeNumber: card.episodeNumber,
-    episodeTitle: card.mediaType === 'episode' ? card.title : null,
-    airDate: card.releaseDate,
-    runtimeMinutes: card.runtimeMinutes,
-  };
 }
 
 function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroCardView | null {
@@ -483,24 +431,19 @@ function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroC
 }
 
 function recommendationIdentityFromRow(row: Record<string, unknown>) {
-  const mediaKey = typeof row.mediaKey === 'string' ? row.mediaKey : typeof row.media_key === 'string' ? row.media_key : null;
-  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : 'movie';
+  const mediaKey = typeof row.mediaKey === 'string' ? row.mediaKey : null;
+  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : 'movie';
   return mediaKey
       ? parseMediaKey(mediaKey)
       : inferMediaIdentity({
           mediaType,
-          tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : typeof row.tmdb_id === 'number' ? row.tmdb_id : null,
+          tmdbId: typeof row.tmdbId === 'number' ? row.tmdbId : null,
           tvdbId: null,
           kitsuId: null,
-          showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : typeof row.show_tmdb_id === 'number' ? row.show_tmdb_id : null,
-        seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : typeof row.season_number === 'number' ? row.season_number : null,
-        episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : typeof row.episode_number === 'number' ? row.episode_number : null,
-        absoluteEpisodeNumber:
-          typeof row.absoluteEpisodeNumber === 'number'
-            ? row.absoluteEpisodeNumber
-            : typeof row.absolute_episode_number === 'number'
-              ? row.absolute_episode_number
-              : null,
+          showTmdbId: typeof row.showTmdbId === 'number' ? row.showTmdbId : null,
+        seasonNumber: typeof row.seasonNumber === 'number' ? row.seasonNumber : null,
+        episodeNumber: typeof row.episodeNumber === 'number' ? row.episodeNumber : null,
+        absoluteEpisodeNumber: typeof row.absoluteEpisodeNumber === 'number' ? row.absoluteEpisodeNumber : null,
       });
 }
 
@@ -530,7 +473,7 @@ function sanitizeRecommendationSection(value: unknown): Record<string, unknown> 
 
 function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const mediaKey = readOptionalIdentityString(row.mediaKey) ?? readOptionalIdentityString(row.media_key);
+  const mediaKey = readOptionalIdentityString(row.mediaKey);
   if (!mediaKey) {
     return null;
   }
@@ -560,11 +503,7 @@ function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown
 function sanitizeCollectionCard(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
   const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
-  const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim()
-    ? row.logoUrl.trim()
-    : typeof row.logo_url === 'string' && row.logo_url.trim()
-      ? row.logo_url.trim()
-      : null;
+  const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim() ? row.logoUrl.trim() : null;
   const items = Array.isArray(row.items) ? row.items : [];
   const sanitizedItems = items.map((item) => sanitizeCollectionCardItem(item)).filter((item): item is Record<string, unknown> => item !== null);
   if (!title || !logoUrl || sanitizedItems.length < 3) {
@@ -581,13 +520,9 @@ function sanitizeCollectionCard(value: unknown): Record<string, unknown> | null 
 
 function sanitizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : typeof row.media_type === 'string' ? row.media_type : null;
+  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : null;
   const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
-  const posterUrl = typeof row.posterUrl === 'string' && row.posterUrl.trim()
-    ? row.posterUrl.trim()
-    : typeof row.poster_url === 'string' && row.poster_url.trim()
-      ? row.poster_url.trim()
-      : null;
+  const posterUrl = typeof row.posterUrl === 'string' && row.posterUrl.trim() ? row.posterUrl.trim() : null;
   if (!mediaType || !title || !posterUrl) {
     return null;
   }
@@ -597,7 +532,7 @@ function sanitizeCollectionCardItem(value: unknown): Record<string, unknown> | n
     mediaType,
     title,
     posterUrl,
-    releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : typeof row.release_year === 'number' ? row.release_year : null,
+    releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : null,
     rating: typeof row.rating === 'number' ? row.rating : null,
   };
 }

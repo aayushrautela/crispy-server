@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
-import type { LandscapeCardView, MetadataCardView, RegularCardView } from '../metadata/metadata-card.types.js';
+import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
@@ -13,57 +13,6 @@ type Candidate = {
   showMediaKey: string;
   lastActivityAt: string | null;
 };
-
-function toRegularCard(card: MetadataCardView): RegularCardView | null {
-  if (!card.title) {
-    return null;
-  }
-
-  return {
-    mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
-    title: card.title,
-    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl ?? '',
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    subtitle: card.subtitle,
-  };
-}
-
-function toLandscapeCard(card: MetadataCardView, params: {
-  relatedShow: MetadataCardView;
-  airDate: string | null;
-}): LandscapeCardView | null {
-  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl ?? params.relatedShow.images.posterUrl ?? params.relatedShow.artwork.posterUrl ?? '';
-  const backdropUrl = card.images.stillUrl
-    ?? card.artwork.stillUrl
-    ?? card.images.backdropUrl
-    ?? card.artwork.backdropUrl
-    ?? params.relatedShow.images.backdropUrl
-    ?? params.relatedShow.artwork.backdropUrl
-    ?? posterUrl;
-
-  if (!card.title) {
-    return null;
-  }
-
-  return {
-    mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
-    title: card.title,
-    posterUrl,
-    backdropUrl,
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genre: null,
-    seasonNumber: card.seasonNumber,
-    episodeNumber: card.episodeNumber,
-    episodeTitle: card.title,
-    airDate: params.airDate,
-    runtimeMinutes: card.runtimeMinutes,
-  };
-}
 
 export class CalendarBuilderService {
   constructor(
@@ -88,12 +37,7 @@ export class CalendarBuilderService {
 
       const nextEpisode = await this.metadataProjectionService.resolveNextEpisode(client, showIdentity).catch(() => null);
       const showCard = await this.metadataCardService.buildCardView(client, showIdentity).catch(() => null);
-      if (!showCard) {
-        continue;
-      }
-
-      const relatedShow = toRegularCard(showCard);
-      if (!relatedShow) {
+      if (!showCard || !showCard.title) {
         continue;
       }
 
@@ -101,34 +45,32 @@ export class CalendarBuilderService {
       const mediaCard = episodeIdentity
         ? await this.metadataCardService.buildCardView(client, episodeIdentity).catch(() => null)
         : showCard;
-      if (!mediaCard) {
-        continue;
-      }
-
-      const media = toLandscapeCard(mediaCard, {
-        relatedShow: showCard,
-        airDate: nextEpisode?.airDate ?? null,
-      });
-      if (!media) {
+      if (!mediaCard || !mediaCard.title) {
         continue;
       }
 
       const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
+      const posterUrl = mediaCard.images.posterUrl ?? mediaCard.artwork.posterUrl ?? showCard.images.posterUrl ?? showCard.artwork.posterUrl ?? null;
+      const backdropUrl = mediaCard.images.stillUrl
+        ?? mediaCard.artwork.stillUrl
+        ?? mediaCard.images.backdropUrl
+        ?? mediaCard.artwork.backdropUrl
+        ?? showCard.images.backdropUrl
+        ?? showCard.artwork.backdropUrl
+        ?? posterUrl;
+
       const mediaItem = metadataCardToMediaItem(mediaCard, {
-        posterUrl: media.posterUrl || null,
-        backdropUrl: media.backdropUrl || null,
+        posterUrl,
+        backdropUrl,
         airDate: nextEpisode?.airDate ?? null,
-        episodeTitle: media.episodeTitle,
+        episodeTitle: mediaCard.title,
       });
       const relatedShowMediaItem = metadataCardToMediaItem(showCard);
 
       items.push({
         bucket,
-        media,
-        relatedShow,
         kind: 'calendar_item',
         mediaItem,
-        relatedShowMediaItem,
         context: {
           bucket,
           airDate: nextEpisode?.airDate ?? null,

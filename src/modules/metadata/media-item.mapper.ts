@@ -1,4 +1,4 @@
-import type { MetadataCardView, RegularCardView } from './metadata-card.types.js';
+import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
 import type { MediaItem, MediaItemType } from './media-item.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
@@ -55,8 +55,8 @@ export function metadataViewToMediaItem(view: MetadataView, overrides: Partial<M
   return item;
 }
 
-export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, fallback: Partial<MediaItem> = {}): MediaItem {
-  const item: MediaItem = {
+export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, overrides: Partial<MediaItem> = {}): MediaItem {
+  return applyOverrides({
     mediaKey: record.mediaKey,
     mediaType: toMediaItemType(record.mediaType),
     title: record.title,
@@ -82,48 +82,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, f
     absoluteEpisodeNumber: null,
     episodeTitle: null,
     airDate: null,
-  };
-
-  return applyOverrides({ ...item, ...fallback }, {
-    mediaKey: record.mediaKey,
-    mediaType: toMediaItemType(record.mediaType),
-    title: record.title,
-    subtitle: record.subtitle,
-    posterUrl: record.posterUrl ?? null,
-    backdropUrl: record.backdropUrl,
-    releaseYear: record.releaseYear,
-    rating: record.rating,
-  });
-}
-
-export function regularCardToMediaItem(card: RegularCardView): MediaItem {
-  return {
-    mediaKey: card.mediaKey,
-    mediaType: toMediaItemType(card.mediaType),
-    title: card.title,
-    originalTitle: null,
-    subtitle: card.subtitle,
-    overview: null,
-    posterUrl: card.posterUrl || null,
-    backdropUrl: null,
-    logoUrl: null,
-    stillUrl: null,
-    releaseDate: null,
-    releaseYear: card.releaseYear,
-    rating: card.rating,
-    genres: [],
-    runtimeMinutes: null,
-    status: null,
-    certification: null,
-    externalIds: emptyExternalIds,
-    parent: null,
-    showTmdbId: null,
-    seasonNumber: null,
-    episodeNumber: null,
-    absoluteEpisodeNumber: null,
-    episodeTitle: null,
-    airDate: null,
-  };
+  }, overrides);
 }
 
 function applyOverrides(item: MediaItem, overrides: Partial<MediaItem>): MediaItem {

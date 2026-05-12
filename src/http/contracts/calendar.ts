@@ -1,11 +1,9 @@
 import {
   booleanSchema,
-  landscapeCardViewSchema,
   mediaItemSchema,
   nullableMediaPresentationHintSchema,
   nullableStringSchema,
   profileIdParamsSchema,
-  regularCardViewSchema,
   stringSchema,
   withDefaultErrorResponses,
 } from './shared.js';
@@ -17,16 +15,13 @@ export type CalendarProfileParams = {
 export const calendarItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['bucket', 'media', 'relatedShow', 'airDate', 'watched'],
+  required: ['bucket', 'kind', 'mediaItem', 'context', 'presentation', 'airDate', 'watched'],
   properties: {
     bucket: {
       enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
     },
-    media: landscapeCardViewSchema,
-    relatedShow: regularCardViewSchema,
     kind: { const: 'calendar_item' },
     mediaItem: mediaItemSchema,
-    relatedShowMediaItem: mediaItemSchema,
     context: {
       type: 'object',
       additionalProperties: false,

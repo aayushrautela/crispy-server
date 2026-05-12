@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { metadataCardToMediaItem, metadataViewToMediaItem, regularCardToMediaItem, watchCacheRecordToMediaItem } from './media-item.mapper.js';
-import type { MetadataCardView, RegularCardView } from './metadata-card.types.js';
+import { metadataCardToMediaItem, metadataViewToMediaItem, watchCacheRecordToMediaItem } from './media-item.mapper.js';
+import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 
@@ -128,20 +128,4 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
   assert.equal(item.episodeNumber, 2);
 });
 
-test('regularCardToMediaItem maps legacy cards defensively', () => {
-  const card: RegularCardView = {
-    mediaType: 'movie',
-    mediaKey: 'movie:tmdb:1',
-    title: 'Movie',
-    posterUrl: '',
-    releaseYear: 2024,
-    rating: null,
-    genre: null,
-    subtitle: null,
-  };
 
-  const item = regularCardToMediaItem(card);
-
-  assert.equal(item.posterUrl, null);
-  assert.equal(item.mediaType, 'movie');
-});
