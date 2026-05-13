@@ -141,8 +141,7 @@ const metadataEpisodePreviewSchema = {
     'airDate',
     'runtimeMinutes',
     'rating',
-    'status',
-    'maturityRating',
+    'images',
   ],
   properties: {
     mediaType: stringSchema,
@@ -158,8 +157,7 @@ const metadataEpisodePreviewSchema = {
     airDate: nullableStringSchema,
     runtimeMinutes: nullableIntegerSchema,
     rating: nullableNumberSchema,
-    status: nullableStringSchema,
-    maturityRating: nullableStringSchema,
+    images: metadataImagesSchema,
   },
 } as const;
 

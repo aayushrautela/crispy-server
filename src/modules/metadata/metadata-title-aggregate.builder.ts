@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
-import { buildMetadataCardView, toCatalogItem } from './metadata-card.builders.js';
+import { buildMetadataCardView } from './metadata-card.builders.js';
 import { metadataCardToMediaItem } from './media-item.mapper.js';
 import {
   buildEpisodeView,
@@ -141,8 +141,7 @@ export class MetadataTitleAggregateBuilder {
     }
 
     const card = buildMetadataCardView({ identity, title: hydrated });
-    const item = toCatalogItem(card);
-    if (!item) {
+    if (!card.title) {
       return null;
     }
 
