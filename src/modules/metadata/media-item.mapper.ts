@@ -72,7 +72,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     releaseDate: null,
     releaseYear: record.releaseYear,
     rating: record.rating,
-    genres: [],
+    genres: record.genres,
     runtimeMinutes: null,
     status: null,
     maturityRating: record.maturityRating,

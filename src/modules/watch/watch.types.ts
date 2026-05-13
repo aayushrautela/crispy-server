@@ -55,6 +55,7 @@ export type WatchMediaProjection = {
   backdropUrl: string | null;
   logoUrl: string | null;
   maturityRating: string | null;
+  genres: string[];
 };
 
 export function sanitizeWatchEventInput(input: WatchEventInput): WatchEventInput {

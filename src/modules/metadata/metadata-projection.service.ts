@@ -74,6 +74,7 @@ export class MetadataProjectionService {
       backdropUrl: detailsMedia.artwork.backdrop.medium,
       logoUrl: detailsMedia.images.logo.medium,
       maturityRating: detailsMedia.maturityRating,
+      genres: detailsMedia.genres,
     };
   }
 
@@ -106,6 +107,7 @@ export class MetadataProjectionService {
       backdropUrl: parentMedia.artwork.backdrop.medium,
       logoUrl: parentMedia.images.logo.medium,
       maturityRating: parentMedia.maturityRating,
+      genres: parentMedia.genres,
     };
   }
 
@@ -174,6 +176,7 @@ function emptyProjection(): WatchMediaProjection {
     backdropUrl: null,
     logoUrl: null,
     maturityRating: null,
+    genres: [],
   };
 }
 

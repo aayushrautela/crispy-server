@@ -16,6 +16,7 @@ export type WatchMediaCardCacheRecord = {
   releaseYear: number | null;
   rating: number | null;
   maturityRating: string | null;
+  genres: string[];
 };
 
 export class WatchMediaCardCacheRepository {
@@ -33,14 +34,15 @@ export class WatchMediaCardCacheRepository {
     releaseYear?: number | null;
     rating?: number | null;
     maturityRating?: string | null;
+    genres?: string[] | null;
   }): Promise<void> {
     await client.query(
       `
         INSERT INTO watch_media_card_cache (
           media_key, media_type, title_provider, title_provider_id, title_media_type,
-          title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating, updated_at
+          title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating, genres, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, now())
         ON CONFLICT (media_key)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
@@ -55,6 +57,7 @@ export class WatchMediaCardCacheRepository {
           release_year = EXCLUDED.release_year,
           rating = EXCLUDED.rating,
           maturity_rating = EXCLUDED.maturity_rating,
+          genres = EXCLUDED.genres,
           updated_at = now()
       `,
       [
@@ -71,6 +74,7 @@ export class WatchMediaCardCacheRepository {
         params.releaseYear ?? null,
         params.rating ?? null,
         params.maturityRating ?? null,
+        JSON.stringify(normalizeGenres(params.genres)),
       ],
     );
   }
@@ -83,7 +87,7 @@ export class WatchMediaCardCacheRepository {
     const result = await client.query(
       `
         SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
-               title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating
+               title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating, genres
         FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
       `,
@@ -127,9 +131,22 @@ export class WatchMediaCardCacheRepository {
             releaseYear: row.release_year === null ? null : Number(row.release_year),
             rating: row.rating === null ? null : Number(row.rating),
             maturityRating: typeof row.maturity_rating === 'string' ? row.maturity_rating : null,
+            genres: parseGenres(row.genres),
           } satisfies WatchMediaCardCacheRecord,
         ]];
       }),
     );
   }
+}
+
+function parseGenres(value: unknown): string[] {
+  return normalizeGenres(value);
+}
+
+function normalizeGenres(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((genre): genre is string => typeof genre === 'string' && genre.trim() !== '');
 }

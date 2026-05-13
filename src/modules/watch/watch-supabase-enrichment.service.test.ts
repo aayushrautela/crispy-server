@@ -63,6 +63,7 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
       releaseYear: 2024,
       rating: 8.5,
       maturityRating: 'PG-13',
+      genres: ['Action'],
     }],
   ]);
 
@@ -110,10 +111,11 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.title, 'Cached Movie Title');
-  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: null, medium: null, large: null });
-  assert.deepEqual(enriched[0]?.mediaItem.images.backdrop, { small: null, medium: null, large: null });
+  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://cache.test/poster.jpg', medium: 'https://cache.test/poster.jpg', large: 'https://cache.test/poster.jpg' });
+  assert.deepEqual(enriched[0]?.mediaItem.images.backdrop, { small: 'https://cache.test/backdrop.jpg', medium: 'https://cache.test/backdrop.jpg', large: 'https://cache.test/backdrop.jpg' });
   assert.equal(enriched[0]?.mediaItem.releaseYear, 2024);
   assert.equal(enriched[0]?.mediaItem.rating, 8.5);
+  assert.deepEqual(enriched[0]?.mediaItem.genres, ['Action']);
   assert.equal(enriched[0]?.mediaItem.runtimeMinutes, 120);
   assert.equal(enriched[0]?.progress.positionSeconds, 300);
   assert.equal(enriched[0]?.lastActivityAt, '2026-05-11T10:00:00.000Z');
@@ -137,6 +139,7 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
       releaseYear: 2022,
       rating: 9.1,
       maturityRating: null,
+      genres: ['Drama'],
     }],
   ]);
 
@@ -180,10 +183,11 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.title, 'Cached Show Title');
-  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: null, medium: null, large: null });
+  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://cache.test/show-poster.jpg', medium: 'https://cache.test/show-poster.jpg', large: 'https://cache.test/show-poster.jpg' });
   assert.equal(enriched[0]?.mediaItem.subtitle, 'Season 1');
   assert.equal(enriched[0]?.mediaItem.releaseYear, 2022);
   assert.equal(enriched[0]?.mediaItem.rating, 9.1);
+  assert.deepEqual(enriched[0]?.mediaItem.genres, ['Drama']);
   assert.equal(enriched[0]?.watchedAt, '2026-05-11T08:00:00.000Z');
   assert.deepEqual(enriched[0]?.origins, ['simkl']);
 });
@@ -260,6 +264,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       releaseYear: 2023,
       rating: 7.5,
       maturityRating: null,
+      genres: ['Comedy'],
     }],
   ]);
 

@@ -22,6 +22,7 @@ export class WatchMediaCardCacheService {
     detailsReleaseYear: number | null;
     detailsRating: number | null;
     maturityRating: string | null;
+    genres: string[];
   }): Promise<void> {
     if (!projection.title) {
       return;
@@ -47,6 +48,7 @@ export class WatchMediaCardCacheService {
       releaseYear: projection.detailsReleaseYear,
       rating: projection.detailsRating,
       maturityRating: projection.maturityRating,
+      genres: projection.genres,
     });
   }
 
@@ -74,7 +76,7 @@ function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
     }),
     releaseYear: record.releaseYear,
     rating: record.rating,
-    genre: null,
+    genre: record.genres[0] ?? null,
     subtitle: record.subtitle,
   };
 }

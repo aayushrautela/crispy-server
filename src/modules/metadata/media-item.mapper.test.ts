@@ -131,6 +131,7 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
     releaseYear: 2024,
     rating: 7.5,
     maturityRating: 'TV-MA',
+    genres: ['Drama'],
   };
 
   const item = watchCacheRecordToMediaItem(record, { seasonNumber: 1, episodeNumber: 2 });
@@ -138,10 +139,11 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
   assert.equal(item.mediaType, 'episode');
   assert.equal(item.title, 'Show');
   assert.deepEqual(item.images.poster, imageSet(null));
-  assert.deepEqual(item.images.backdrop, imageSet(null));
-  assert.deepEqual(item.images.logo, imageSet(null));
+  assert.deepEqual(item.images.backdrop, { small: 'https://image.tmdb.org/t/p/w300backdrop.jpg', medium: 'https://image.tmdb.org/t/p/w780backdrop.jpg', large: 'https://image.tmdb.org/t/p/w1280backdrop.jpg' });
+  assert.deepEqual(item.images.logo, { small: 'https://image.tmdb.org/t/p/w185logo.png', medium: 'https://image.tmdb.org/t/p/w300logo.png', large: 'https://image.tmdb.org/t/p/w500logo.png' });
   assert.equal(item.maturityRating, 'TV-MA');
   assert.equal(item.certification, 'TV-MA');
+  assert.deepEqual(item.genres, ['Drama']);
   assert.equal(item.seasonNumber, 1);
   assert.equal(item.episodeNumber, 2);
 });

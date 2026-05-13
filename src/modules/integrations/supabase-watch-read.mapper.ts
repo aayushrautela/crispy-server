@@ -175,6 +175,7 @@ function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides
     rating: numberValue(row.metadata_rating),
     logoUrl: null,
     maturityRating: null,
+    genres: [],
   }, overrides);
 }
 
