@@ -1,6 +1,7 @@
 import type { DbClient } from '../../../lib/db.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbExternalIdsRepository } from './tmdb-external-ids.repo.js';
+import { TmdbResponseCacheService } from './tmdb-response-cache.service.js';
 import type { TmdbTitleType } from './tmdb.types.js';
 
 type ResolveExternalIdParams = {
@@ -13,6 +14,7 @@ export class TmdbExternalIdResolverService {
   constructor(
     private readonly externalIdsRepository = new TmdbExternalIdsRepository(),
     private readonly tmdbClient = new TmdbClient(),
+    private readonly responseCache = new TmdbResponseCacheService(),
   ) {}
 
   async resolve(client: DbClient, params: ResolveExternalIdParams): Promise<number | null> {
@@ -21,17 +23,35 @@ export class TmdbExternalIdResolverService {
       return null;
     }
 
+    const mediaType = normalizeExternalMediaType(params.mediaType);
     const cached = await this.externalIdsRepository.findByExternalId(client, {
       source: params.source,
       externalId: normalizedExternalId,
-      mediaType: normalizeExternalMediaType(params.mediaType),
+      mediaType,
     });
     if (cached) {
       return cached.tmdbId;
     }
 
-    const payload = await this.tmdbClient.findByExternalId(normalizedExternalId, params.source);
-    const match = extractFindMatch(payload, params.mediaType);
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType: 'external_id',
+        resourceId: `${params.source}:${normalizedExternalId}`,
+        variant: mediaType,
+        language: null,
+        requestPath: `/find/${encodeURIComponent(normalizedExternalId)}`,
+        requestQuery: { external_source: params.source },
+      },
+      'external:positive',
+      () => this.tmdbClient.request(`/find/${encodeURIComponent(normalizedExternalId)}`, { external_source: params.source }),
+    );
+
+    if (response.isNegative || response.statusCode === 404) {
+      return null;
+    }
+
+    const match = extractFindMatch(response.responseJson, params.mediaType);
     if (!match) {
       return null;
     }
@@ -39,7 +59,7 @@ export class TmdbExternalIdResolverService {
     await this.externalIdsRepository.upsert(client, {
       source: params.source,
       externalId: normalizedExternalId,
-      mediaType: normalizeExternalMediaType(params.mediaType),
+      mediaType,
       tmdbId: match.tmdbId,
       raw: match.raw,
     });

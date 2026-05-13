@@ -104,7 +104,7 @@ export class TitleSearchService {
           return null;
         }
 
-        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, 'summary');
+        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId);
         if (!hydrated) {
           return null;
         }

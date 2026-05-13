@@ -65,7 +65,7 @@ export class TmdbRefreshService {
   async refreshIdentity(client: DbClient, profileId: string, identity: MediaIdentity): Promise<MetadataRefreshSummary> {
     if (identity.mediaType === 'movie' && identity.tmdbId) {
       const summary = emptySummary();
-      const title = await this.tmdbCacheService.refreshTitle(client, 'movie', identity.tmdbId, 'detail');
+      const title = await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId);
       if (title) {
         summary.refreshedTitles += 1;
       } else {
@@ -92,7 +92,7 @@ export class TmdbRefreshService {
     episodicFollow?: { titleContentId: string; seriesMediaKey: string; payload?: Record<string, unknown> },
   ): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
-    const title = await this.tmdbCacheService.refreshTitle(client, 'tv', showTmdbId, 'detail');
+    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
     if (!title) {
       summary.skipped += 1;
       return summary;

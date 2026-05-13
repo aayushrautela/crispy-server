@@ -1,109 +1,105 @@
 import { appConfig } from '../../../config/app-config.js';
 import { env } from '../../../config/env.js';
 import { HttpError } from '../../../lib/errors.js';
-import type {
-  TmdbCollectionApiResponse,
-  TmdbDiscoverApiResponse,
-  TmdbPersonApiResponse,
-  TmdbSeasonApiResponse,
-  TmdbSearchApiResponse,
-  TmdbTitleApiResponse,
-  TmdbTitleType,
-} from './tmdb.types.js';
 
-async function fetchTmdbJson(
-  pathname: string,
-  query: Record<string, string | number | undefined> = {},
-): Promise<Record<string, unknown>> {
+export type TmdbRequestQuery = Record<string, string | number | boolean | undefined | null>;
+
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const MAX_RETRIES = 4;
+const BASE_BACKOFF_MS = 500;
+const MIN_REQUEST_INTERVAL_MS = 40;
+
+let nextRequestAt = 0;
+
+async function waitForRequestSlot(): Promise<void> {
+  const now = Date.now();
+  const scheduledAt = Math.max(now, nextRequestAt);
+  nextRequestAt = scheduledAt + MIN_REQUEST_INTERVAL_MS;
+  const delay = scheduledAt - now;
+  if (delay > 0) {
+    await sleep(delay);
+  }
+}
+
+function buildUrl(pathname: string, query: TmdbRequestQuery = {}): URL {
   const url = new URL(`${appConfig.metadata.tmdb.baseUrl.replace(/\/$/, '')}${pathname}`);
   url.searchParams.set('api_key', env.tmdbApiKey);
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined) {
+
+  for (const [key, value] of Object.entries(query).sort(([left], [right]) => left.localeCompare(right))) {
+    if (value === undefined || value === null || value === '') {
       continue;
     }
     url.searchParams.set(key, String(value));
   }
 
-  const response = await fetch(url);
-  if (response.status === 404) {
-    throw new HttpError(404, `TMDB resource not found for ${pathname}`);
+  return url;
+}
+
+function parseRetryAfter(response: Response, body: Record<string, unknown> | null): number | null {
+  const header = response.headers.get('retry-after');
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+
+    const dateMs = Date.parse(header);
+    if (Number.isFinite(dateMs)) {
+      return Math.max(0, dateMs - Date.now());
+    }
   }
-  if (!response.ok) {
-    throw new HttpError(response.status, `TMDB request failed for ${pathname}`);
+
+  const retryAfter = body?.retry_after;
+  return typeof retryAfter === 'number' && Number.isFinite(retryAfter) ? retryAfter * 1000 : null;
+}
+
+function backoffMs(attempt: number): number {
+  return Math.floor(BASE_BACKOFF_MS * 2 ** attempt * (0.75 + Math.random() * 0.5));
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function parseJson(response: Response): Promise<Record<string, unknown> | null> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return null;
   }
-  return (await response.json()) as Record<string, unknown>;
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
 }
 
 export class TmdbClient {
-  async fetchTitleSummary(mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleApiResponse> {
-    const appendToResponse = mediaType === 'movie'
-      ? 'images,release_dates'
-      : 'images,content_ratings';
-    return fetchTmdbJson(`/${mediaType}/${tmdbId}`, {
-      append_to_response: appendToResponse,
-      include_image_language: 'null,en',
-    });
-  }
+  async request(pathname: string, query: TmdbRequestQuery = {}): Promise<Record<string, unknown>> {
+    const url = buildUrl(pathname, query);
 
-  async fetchTitleDetail(mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleApiResponse> {
-    const appendToResponse = mediaType === 'movie'
-      ? 'images,release_dates,videos,credits,reviews,recommendations'
-      : 'images,content_ratings,videos,credits,reviews,recommendations';
-    return fetchTmdbJson(`/${mediaType}/${tmdbId}`, {
-      append_to_response: appendToResponse,
-      include_image_language: 'null,en',
-    });
-  }
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      await waitForRequestSlot();
+      const response = await fetch(url);
+      const body = await parseJson(response);
 
-  async fetchCollection(collectionId: number): Promise<TmdbCollectionApiResponse> {
-    return fetchTmdbJson(`/collection/${collectionId}`);
-  }
+      if (response.ok) {
+        return body ?? {};
+      }
 
-  async findByExternalId(externalId: string, externalSource: string): Promise<Record<string, unknown>> {
-    return fetchTmdbJson(`/find/${encodeURIComponent(externalId)}`, {
-      external_source: externalSource,
-    });
-  }
+      if (response.status === 404) {
+        throw new HttpError(404, `TMDB resource not found for ${pathname}`);
+      }
 
-  async fetchExternalIds(mediaType: TmdbTitleType, tmdbId: number): Promise<Record<string, unknown>> {
-    return fetchTmdbJson(`/${mediaType}/${tmdbId}/external_ids`);
-  }
+      if (attempt < MAX_RETRIES && RETRYABLE_STATUS_CODES.has(response.status)) {
+        await sleep(parseRetryAfter(response, body) ?? backoffMs(attempt));
+        continue;
+      }
 
-  async fetchSeason(showTmdbId: number, seasonNumber: number): Promise<TmdbSeasonApiResponse> {
-    return fetchTmdbJson(`/tv/${showTmdbId}/season/${seasonNumber}`);
-  }
+      throw new HttpError(response.status, `TMDB request failed for ${pathname}`);
+    }
 
-  async fetchPerson(personTmdbId: number, language?: string | null): Promise<TmdbPersonApiResponse> {
-    return fetchTmdbJson(`/person/${personTmdbId}`, {
-      append_to_response: 'combined_credits,external_ids',
-      language: language?.trim() || undefined,
-    });
-  }
-
-  async searchPerson(query: string, page = 1, language?: string | null): Promise<TmdbSearchApiResponse> {
-    return fetchTmdbJson('/search/person', {
-      query,
-      page,
-      include_adult: 'false',
-      language: language?.trim() || undefined,
-    });
-  }
-
-  async searchTitles(mediaType: TmdbTitleType, query: string, page = 1, language?: string | null): Promise<TmdbSearchApiResponse> {
-    return fetchTmdbJson(`/search/${mediaType}`, {
-      query,
-      page,
-      include_adult: 'false',
-      language: language?.trim() || undefined,
-    });
-  }
-
-  async discoverTitlesByGenre(mediaType: TmdbTitleType, genreId: number, page = 1): Promise<TmdbDiscoverApiResponse> {
-    return fetchTmdbJson(`/discover/${mediaType}`, {
-      with_genres: genreId,
-      page,
-      sort_by: 'popularity.desc',
-      include_adult: 'false',
-    });
+    throw new HttpError(502, `TMDB request failed for ${pathname}`);
   }
 }

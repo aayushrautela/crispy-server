@@ -18,7 +18,7 @@ export type TmdbTitleRecord = {
   numberOfEpisodes: number | null;
   externalIds: Record<string, unknown>;
   raw: Record<string, unknown>;
-  hydrationLevel: TmdbHydrationLevel;
+  hydrationLevel?: TmdbHydrationLevel;
   fetchedAt: string;
   expiresAt: string;
 };

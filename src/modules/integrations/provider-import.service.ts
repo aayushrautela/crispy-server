@@ -3,7 +3,7 @@ import { db, withTransaction, type DbClient } from '../../lib/db.js';
 import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import { enqueueProviderImport, enqueueProviderRefresh } from '../../lib/queue.js';
+import { enqueueProviderImport, enqueueProviderRefresh, enqueueTmdbTitleWarmBatch } from '../../lib/queue.js';
 import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
 import { normalizeIsoString } from '../../lib/time.js';
@@ -1501,34 +1501,39 @@ export class ProviderImportService {
   private async refreshImportedMetadata(profileId: string, mediaKeys: string[]): Promise<Record<string, unknown>> {
     const client = await db.connect();
     try {
-      const seen = new Set<string>();
-      const summary = {
-        refreshedTitles: 0,
-        refreshedSeasons: 0,
-        refreshedTrackedShows: 0,
-        skipped: 0,
-        failures: 0,
-      };
+      const movieIds = new Set<number>();
+      const showIds = new Set<number>();
 
       for (const mediaKey of mediaKeys) {
         const normalized = mediaKey.trim();
-        if (!normalized || seen.has(normalized)) {
+        if (!normalized) {
           continue;
         }
-        seen.add(normalized);
+
         try {
-          const result = await this.metadataRefreshService.refreshMediaKey(client, profileId, normalized);
-          summary.refreshedTitles += result.summary.refreshedTitles;
-          summary.refreshedSeasons += result.summary.refreshedSeasons;
-          summary.refreshedTrackedShows += result.summary.refreshedTrackedShows;
-          summary.skipped += result.summary.skipped;
-          summary.failures += result.summary.failures;
+          const identity = inferMediaIdentity({ mediaKey: normalized, mediaType: normalized.split(':')[0] ?? '' });
+          if (identity.mediaType === 'movie' && identity.tmdbId) {
+            movieIds.add(identity.tmdbId);
+          } else if (identity.mediaType === 'show' && identity.tmdbId) {
+            showIds.add(identity.tmdbId);
+          }
         } catch {
-          summary.failures += 1;
+          continue;
         }
       }
 
-      return summary;
+      if (movieIds.size > 0) {
+        await enqueueTmdbTitleWarmBatch('movie', Array.from(movieIds));
+      }
+
+      if (showIds.size > 0) {
+        await enqueueTmdbTitleWarmBatch('tv', Array.from(showIds));
+      }
+
+      return {
+        warmedMovies: movieIds.size,
+        warmedShows: showIds.size,
+      };
     } finally {
       client.release();
     }

@@ -4,18 +4,42 @@ import { HttpError } from '../../lib/errors.js';
 import { buildImageUrl, buildResponsiveImageSet } from './metadata-builder.shared.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { TmdbClient } from './providers/tmdb.client.js';
+import { TmdbResponseCacheService } from './providers/tmdb-response-cache.service.js';
 import type { MetadataPersonDetail, MetadataPersonKnownForItem } from './metadata-detail.types.js';
 
 export class PersonDetailService {
   constructor(
     private readonly tmdbClient = new TmdbClient(),
     private readonly contentIdentityService = new ContentIdentityService(),
+    private readonly responseCache = new TmdbResponseCacheService(),
   ) {}
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
     return withDbClient(async (client) => {
       const tmdbPersonId = await this.contentIdentityService.resolvePersonTmdbId(client, personId);
-      const payload = await this.tmdbClient.fetchPerson(tmdbPersonId, language ?? null);
+      const normalizedLanguage = language?.trim() || null;
+      const response = await this.responseCache.getOrFetch(
+        client,
+        {
+          resourceType: 'person',
+          resourceId: String(tmdbPersonId),
+          variant: 'detail',
+          language: normalizedLanguage,
+          requestPath: `/person/${tmdbPersonId}`,
+          requestQuery: { append_to_response: 'combined_credits,external_ids', language: normalizedLanguage ?? undefined },
+        },
+        'person',
+        () => this.tmdbClient.request(`/person/${tmdbPersonId}`, {
+          append_to_response: 'combined_credits,external_ids',
+          language: normalizedLanguage ?? undefined,
+        }),
+      );
+
+      if (response.isNegative || response.statusCode === 404) {
+        throw new HttpError(404, 'Person metadata not found.');
+      }
+
+      const payload = response.responseJson;
       const name = asString(payload.name);
       if (!name) {
         throw new HttpError(404, 'Person metadata not found.');

@@ -23,7 +23,7 @@ function makeTitle(overrides: Record<string, unknown> = {}) {
     numberOfEpisodes: 10,
     externalIds: {},
     raw: { recommendations: { results: [] } },
-    hydrationLevel: 'detail',
+    hydrationLevel: 'detail' as const,
     fetchedAt: '2026-01-01T00:00:00.000Z',
     expiresAt: '2099-01-01T00:00:00.000Z',
     ...overrides,
@@ -33,110 +33,118 @@ function makeTitle(overrides: Record<string, unknown> = {}) {
 test('getTitle returns cached detail record when fresh and level matches', async () => {
   const { TmdbCacheService } = await import('./tmdb-cache.service.js');
 
-  let refreshCalls = 0;
   const service = new TmdbCacheService(
     {
       getTitle: async () => makeTitle(),
       upsertTitle: async () => {},
     } as never,
     {
-      fetchTitleDetail: async () => {
-        refreshCalls += 1;
-        return { name: 'Refreshed Show' };
-      },
-      fetchTitleSummary: async () => {
-        refreshCalls += 1;
-        return { name: 'Refreshed Show' };
-      },
-      fetchExternalIds: async () => ({}),
+      request: async () => ({ name: 'Fresh Show' }),
+    } as never,
+    {
+      getOrFetch: async () => ({
+        cacheKey: 'test',
+        resourceType: 'title',
+        resourceId: 'tv:42',
+        variant: 'detail',
+        language: null,
+        requestPath: '/tv/42',
+        requestQuery: {},
+        responseJson: { name: 'Cached Show' },
+        statusCode: 200,
+        isNegative: false,
+        fetchedAt: '2026-01-01T00:00:00.000Z',
+        freshUntil: '2099-01-01T00:00:00.000Z',
+        staleUntil: '2099-01-01T00:00:00.000Z',
+        purgeAt: '2099-01-01T00:00:00.000Z',
+        lastError: null,
+        errorCount: 0,
+      }),
     } as never,
   );
 
   const result = await service.getTitle({} as never, 'tv', 42, 'detail');
-  assert.equal(refreshCalls, 0);
   assert.equal(result?.name, 'Cached Show');
 });
 
-test('getTitle upgrades summary cache to detail', async () => {
+test('getTitle refreshes stale derived title from response cache', async () => {
   const { TmdbCacheService } = await import('./tmdb-cache.service.js');
 
-  let refreshCalls = 0;
+  let upserted: ReturnType<typeof makeTitle> | null = null;
   const service = new TmdbCacheService(
     {
-      getTitle: async () => makeTitle({ hydrationLevel: 'summary' }),
-      upsertTitle: async () => {},
+      getTitle: async () => makeTitle({ expiresAt: '2000-01-01T00:00:00.000Z' }),
+      upsertTitle: async (_client: unknown, record: ReturnType<typeof makeTitle>) => { upserted = record; },
     } as never,
     {
-      fetchTitleDetail: async () => {
-        refreshCalls += 1;
-        return { name: 'Upgraded Show', genres: [{ id: 18, name: 'Drama' }] };
-      },
-      fetchTitleSummary: async () => {
-        refreshCalls += 1;
-        return { name: 'Upgraded Show' };
-      },
-      fetchExternalIds: async () => ({}),
+      request: async () => ({ name: 'Should Not Fetch Directly' }),
+    } as never,
+    {
+      getOrFetch: async () => ({
+        cacheKey: 'test',
+        resourceType: 'title',
+        resourceId: 'tv:42',
+        variant: 'detail',
+        language: null,
+        requestPath: '/tv/42',
+        requestQuery: {},
+        responseJson: { name: 'Upgraded Show', genres: [{ id: 18, name: 'Drama' }] },
+        statusCode: 200,
+        isNegative: false,
+        fetchedAt: '2026-01-01T00:00:00.000Z',
+        freshUntil: '2099-01-01T00:00:00.000Z',
+        staleUntil: '2099-01-01T00:00:00.000Z',
+        purgeAt: '2099-01-01T00:00:00.000Z',
+        lastError: null,
+        errorCount: 0,
+      }),
     } as never,
   );
 
   const result = await service.getTitle({} as never, 'tv', 42, 'detail');
-  assert.equal(refreshCalls, 1);
   assert.equal(result?.name, 'Upgraded Show');
-  assert.equal(result?.hydrationLevel, 'detail');
-});
-
-test('getTitle uses summary level when requested', async () => {
-  const { TmdbCacheService } = await import('./tmdb-cache.service.js');
-
-  let refreshCalls = 0;
-  const service = new TmdbCacheService(
-    {
-      getTitle: async () => makeTitle({ hydrationLevel: 'summary' }),
-      upsertTitle: async () => {},
-    } as never,
-    {
-      fetchTitleDetail: async () => {
-        refreshCalls += 1;
-        return { name: 'Detail' };
-      },
-      fetchTitleSummary: async () => {
-        refreshCalls += 1;
-        return { name: 'Summary' };
-      },
-      fetchExternalIds: async () => ({}),
-    } as never,
-  );
-
-  const result = await service.getTitle({} as never, 'tv', 42, 'summary');
-  assert.equal(refreshCalls, 0);
-  assert.equal(result?.name, 'Cached Show');
-  assert.equal(result?.hydrationLevel, 'summary');
+  assert.equal((upserted as ReturnType<typeof makeTitle> | null)?.name, 'Upgraded Show');
 });
 
 test('getTitle fetches from API when not cached', async () => {
   const { TmdbCacheService } = await import('./tmdb-cache.service.js');
 
-  let refreshCalls = 0;
+  let requestCalls = 0;
   const service = new TmdbCacheService(
     {
       getTitle: async () => null,
       upsertTitle: async () => {},
     } as never,
     {
-      fetchTitleDetail: async () => {
-        refreshCalls += 1;
+      request: async () => {
+        requestCalls += 1;
         return { name: 'Fresh Show', genres: [{ id: 18, name: 'Drama' }] };
       },
-      fetchTitleSummary: async () => {
-        refreshCalls += 1;
-        return { name: 'Fresh Show' };
-      },
-      fetchExternalIds: async () => ({}),
+    } as never,
+    {
+      getOrFetch: async (_client: unknown, spec: unknown, _policyKey: unknown, fetchFn: () => Promise<Record<string, unknown>>) => ({
+        cacheKey: 'test',
+        resourceType: 'title',
+        resourceId: 'tv:42',
+        variant: 'detail',
+        language: null,
+        requestPath: '/tv/42',
+        requestQuery: {},
+        responseJson: await fetchFn(),
+        statusCode: 200,
+        isNegative: false,
+        fetchedAt: '2026-01-01T00:00:00.000Z',
+        freshUntil: '2099-01-01T00:00:00.000Z',
+        staleUntil: '2099-01-01T00:00:00.000Z',
+        purgeAt: '2099-01-01T00:00:00.000Z',
+        lastError: null,
+        errorCount: 0,
+      }),
     } as never,
   );
 
   const result = await service.getTitle({} as never, 'tv', 42, 'detail');
-  assert.equal(refreshCalls, 1);
+  assert.equal(requestCalls, 1);
   assert.equal(result?.name, 'Fresh Show');
 });
 
@@ -149,9 +157,37 @@ test('getTitle returns null on 404 from API', async () => {
       upsertTitle: async () => {},
     } as never,
     {
-      fetchTitleDetail: async () => { throw new HttpError(404, 'not found'); },
-      fetchTitleSummary: async () => { throw new HttpError(404, 'not found'); },
-      fetchExternalIds: async () => ({}),
+      request: async () => { throw new HttpError(404, 'not found'); },
+    } as never,
+    {
+      getOrFetch: async (_client: unknown, _spec: unknown, _policyKey: unknown, fetchFn: () => Promise<Record<string, unknown>>) => {
+        try {
+          await fetchFn();
+        } catch (error) {
+          if (error instanceof HttpError && error.statusCode === 404) {
+            return {
+              cacheKey: 'test',
+              resourceType: 'title',
+              resourceId: 'tv:999',
+              variant: 'detail',
+              language: null,
+              requestPath: '/tv/999',
+              requestQuery: {},
+              responseJson: {},
+              statusCode: 404,
+              isNegative: true,
+              fetchedAt: '2026-01-01T00:00:00.000Z',
+              freshUntil: '2099-01-01T00:00:00.000Z',
+              staleUntil: '2099-01-01T00:00:00.000Z',
+              purgeAt: '2099-01-01T00:00:00.000Z',
+              lastError: error.message,
+              errorCount: 1,
+            };
+          }
+          throw error;
+        }
+        throw new Error('expected 404');
+      },
     } as never,
   );
 

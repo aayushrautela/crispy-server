@@ -99,11 +99,6 @@ export class MetadataTitleAggregateBuilder {
       return [];
     }
 
-    const seasonNumbers = extractSeasonNumbersFromTitle(title).filter((seasonNumber) => seasonNumber > 0);
-    for (const seasonNumber of seasonNumbers) {
-      await this.tmdbCacheService.ensureSeasonCached(client, title.tmdbId, seasonNumber);
-    }
-
     const episodes = await this.tmdbCacheService.listEpisodesForShow(client, title.tmdbId);
     const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
       client,
@@ -135,7 +130,7 @@ export class MetadataTitleAggregateBuilder {
       return null;
     }
 
-    const hydrated = await this.tmdbCacheService.getTitle(client, title.mediaType, title.tmdbId, 'summary');
+    const hydrated = await this.tmdbCacheService.getTitle(client, title.mediaType, title.tmdbId);
     if (!hydrated) {
       return null;
     }

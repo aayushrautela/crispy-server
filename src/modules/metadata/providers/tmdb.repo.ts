@@ -1,11 +1,6 @@
 import type { DbClient } from '../../../lib/db.js';
 import { normalizeDateOnlyString, requireDbIsoString } from '../../../lib/time.js';
-import type { TmdbEpisodeRecord, TmdbHydrationLevel, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
-
-function parseHydrationLevel(value: unknown): TmdbHydrationLevel {
-  if (value === 'summary') return 'summary';
-  return 'detail';
-}
+import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
   return {
@@ -25,31 +20,6 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
     numberOfEpisodes: row.number_of_episodes === null || row.number_of_episodes === undefined ? null : Number(row.number_of_episodes),
     externalIds: (row.external_ids as Record<string, unknown> | undefined) ?? {},
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
-    hydrationLevel: parseHydrationLevel(row.hydration_level),
-    fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
-    expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_titles.expires_at'),
-  };
-}
-
-function mapSearchTitle(row: Record<string, unknown>): TmdbTitleRecord {
-  return {
-    mediaType: String(row.media_type) as TmdbTitleType,
-    tmdbId: Number(row.tmdb_id),
-    name: typeof row.name === 'string' ? row.name : null,
-    originalName: typeof row.original_name === 'string' ? row.original_name : null,
-    overview: typeof row.overview === 'string' ? row.overview : null,
-    releaseDate: normalizeDateOnlyString(row.release_date as Date | string | null | undefined),
-    firstAirDate: normalizeDateOnlyString(row.first_air_date as Date | string | null | undefined),
-    status: typeof row.status === 'string' ? row.status : null,
-    posterPath: typeof row.poster_path === 'string' ? row.poster_path : null,
-    backdropPath: typeof row.backdrop_path === 'string' ? row.backdrop_path : null,
-    runtime: null,
-    episodeRunTime: [],
-    numberOfSeasons: null,
-    numberOfEpisodes: null,
-    externalIds: {},
-    raw: {},
-    hydrationLevel: parseHydrationLevel(row.hydration_level),
     fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
     expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_titles.expires_at'),
   };
@@ -93,13 +63,14 @@ export class TmdbRepository {
     const result = await client.query(
       `
         SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
-               poster_path, backdrop_path, fetched_at, expires_at,
+               poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
+               external_ids, raw, fetched_at, expires_at,
                CASE
                   WHEN lower(coalesce(name, '')) = lower($1) THEN 0
                   WHEN lower(coalesce(original_name, '')) = lower($1) THEN 1
-                 WHEN lower(coalesce(name, '')) LIKE lower($1) || '%' THEN 2
-                 WHEN lower(coalesce(original_name, '')) LIKE lower($1) || '%' THEN 3
-                 ELSE 4
+                  WHEN lower(coalesce(name, '')) LIKE lower($1) || '%' THEN 2
+                  WHEN lower(coalesce(original_name, '')) LIKE lower($1) || '%' THEN 3
+                  ELSE 4
                END AS rank_order
         FROM tmdb_titles
         WHERE media_type = ANY($3::text[])
@@ -113,7 +84,7 @@ export class TmdbRepository {
       [query, limit, mediaTypes],
     );
 
-    return result.rows.map((row) => mapSearchTitle(row));
+    return result.rows.map((row) => mapTitle(row));
   }
 
   async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
@@ -121,7 +92,7 @@ export class TmdbRepository {
       `
         SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
                poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
-               external_ids, raw, hydration_level, fetched_at, expires_at
+               external_ids, raw, fetched_at, expires_at
         FROM tmdb_titles
         WHERE media_type = $1 AND tmdb_id = $2
       `,
@@ -136,12 +107,12 @@ export class TmdbRepository {
         INSERT INTO tmdb_titles (
           media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
           poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
-          external_ids, raw, hydration_level, fetched_at, expires_at
+          external_ids, raw, fetched_at, expires_at
         )
         VALUES (
           $1, $2, $3, $4, $5, $6::date, $7::date, $8,
           $9, $10, $11, $12::jsonb, $13, $14,
-          $15::jsonb, $16::jsonb, $17, $18::timestamptz, $19::timestamptz
+          $15::jsonb, $16::jsonb, $17::timestamptz, $18::timestamptz
         )
         ON CONFLICT (media_type, tmdb_id)
         DO UPDATE SET
@@ -159,7 +130,6 @@ export class TmdbRepository {
           number_of_episodes = EXCLUDED.number_of_episodes,
           external_ids = EXCLUDED.external_ids,
           raw = EXCLUDED.raw,
-          hydration_level = EXCLUDED.hydration_level,
           fetched_at = EXCLUDED.fetched_at,
           expires_at = EXCLUDED.expires_at
       `,
@@ -180,7 +150,6 @@ export class TmdbRepository {
         record.numberOfEpisodes,
         JSON.stringify(record.externalIds),
         JSON.stringify(record.raw),
-        record.hydrationLevel,
         record.fetchedAt,
         record.expiresAt,
       ],
@@ -200,12 +169,7 @@ export class TmdbRepository {
     return result.rows[0] ? mapSeason(result.rows[0]) : null;
   }
 
-  async getEpisode(
-    client: DbClient,
-    showTmdbId: number,
-    seasonNumber: number,
-    episodeNumber: number,
-  ): Promise<TmdbEpisodeRecord | null> {
+  async getEpisode(client: DbClient, showTmdbId: number, seasonNumber: number, episodeNumber: number): Promise<TmdbEpisodeRecord | null> {
     const result = await client.query(
       `
         SELECT show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
@@ -319,5 +283,26 @@ export class TmdbRepository {
       [showTmdbId, seasonNumber],
     );
     return result.rows.map((row) => mapEpisode(row));
+  }
+
+  async purgeExpiredApiResponses(client: DbClient, limit: number): Promise<number> {
+    const result = await client.query(
+      `
+        WITH deleted AS (
+          DELETE FROM tmdb_api_responses
+          WHERE cache_key IN (
+            SELECT cache_key
+            FROM tmdb_api_responses
+            WHERE purge_at < now()
+            ORDER BY purge_at ASC
+            LIMIT $1
+          )
+          RETURNING 1
+        )
+        SELECT count(*)::integer AS count FROM deleted
+      `,
+      [limit],
+    );
+    return Number(result.rows[0]?.count ?? 0);
   }
 }
