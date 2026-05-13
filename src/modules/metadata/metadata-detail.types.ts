@@ -221,11 +221,11 @@ export type MetadataPersonDetail = {
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'people';
 
-export type MetadataSearchResult = CatalogItem & {
-  kind?: 'search_result';
-  mediaItem?: MediaItem;
-  context?: Record<string, unknown>;
-  presentation?: MediaPresentationHint | null;
+export type MetadataSearchResult = {
+  kind: 'search_result';
+  mediaItem: MediaItem;
+  context: Record<string, unknown>;
+  presentation: MediaPresentationHint | null;
 };
 
 export type MetadataPersonSearchResult = {

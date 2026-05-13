@@ -2,8 +2,7 @@ import { logger } from '../../config/logger.js';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
-import type { CatalogItem } from '../metadata/metadata-card.types.js';
-import type { MetadataSearchFilter, MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
+import type { MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
@@ -13,7 +12,7 @@ import type { AiSearchResponse } from './ai.types.js';
 
 type ResolvedSuggestion = {
   candidate: AiSearchCandidate;
-  item: CatalogItem;
+  item: MetadataSearchResult;
 };
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
@@ -71,6 +70,11 @@ export class AiSearchService {
       const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, locale);
       const response = finalizeResolvedItems(resolvedSuggestions, analysis, query);
 
+      if (query) {
+        const peopleResponse = await this.titleSearchService.searchTitles({ query, filter: 'people', limit: 5, locale });
+        response.people = peopleResponse.people;
+      }
+
       logger.info({
         userId,
         profileId,
@@ -84,7 +88,7 @@ export class AiSearchService {
         finalCount: response.all.length,
         candidateSamples: candidates.slice(0, 8),
         unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: response.all.slice(0, 8).map((item) => item.title ?? `${item.mediaType}:${item.mediaKey}`),
+        resultTitles: response.all.slice(0, 8).map((item) => `${item.mediaItem.mediaType}:${item.mediaItem.mediaKey}`),
         generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
@@ -111,7 +115,7 @@ async function resolveSuggestion(
   titleSearchService: TitleSearchService,
   candidate: AiSearchCandidate,
   locale: string,
-): Promise<CatalogItem | null> {
+): Promise<MetadataSearchResult | null> {
   const searchFilters = resolveCandidateFilter(candidate.mediaType);
   const queryVariants = buildResolutionQueryVariants(candidate.title);
 
@@ -133,7 +137,7 @@ async function resolveSuggestion(
   return null;
 }
 
-function selectBestMetadataMatch(items: CatalogItem[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): CatalogItem | null {
+function selectBestMetadataMatch(items: MetadataSearchResult[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): MetadataSearchResult | null {
   const normalizedTarget = normalizeTitle(title);
   const sorted = [...items].sort((left, right) => {
     const rightScore = scoreMetadataMatch(right, normalizedTarget, mediaTypeHint);
@@ -141,7 +145,7 @@ function selectBestMetadataMatch(items: CatalogItem[], title: string, mediaTypeH
     if (rightScore !== leftScore) {
       return rightScore - leftScore;
     }
-    return compareReleaseYears(right.releaseYear, left.releaseYear);
+    return compareReleaseYears(right.mediaItem.releaseYear, left.mediaItem.releaseYear);
   });
   const best = sorted[0] ?? null;
   if (!best) {
@@ -153,10 +157,10 @@ function selectBestMetadataMatch(items: CatalogItem[], title: string, mediaTypeH
     : null;
 }
 
-function scoreMetadataMatch(item: CatalogItem, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
+function scoreMetadataMatch(item: MetadataSearchResult, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
   let score = 0;
-  const normalizedTitle = normalizeTitle(item.title ?? '');
-  const normalizedSubtitle = normalizeTitle(item.subtitle ?? '');
+  const normalizedTitle = normalizeTitle(item.mediaItem.title ?? '');
+  const normalizedSubtitle = normalizeTitle(item.mediaItem.subtitle ?? '');
   if (normalizedTitle === normalizedTarget) {
     score += 120;
   } else if (normalizedTitle.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedTitle)) {
@@ -177,20 +181,20 @@ function scoreMetadataMatch(item: CatalogItem, normalizedTarget: string, mediaTy
   if (matchesMediaTypeHint(item, mediaTypeHint)) {
     score += 30;
   }
-  if (item.poster.small || item.poster.medium || item.poster.large) {
+  if (item.mediaItem.images.poster.small || item.mediaItem.images.poster.medium || item.mediaItem.images.poster.large) {
     score += 10;
   }
-  if (item.releaseYear) {
+  if (item.mediaItem.releaseYear) {
     score += 4;
   }
   return score;
 }
 
-function matchesMediaTypeHint(item: CatalogItem, mediaTypeHint: AiSearchCandidate['mediaType']): boolean {
+function matchesMediaTypeHint(item: MetadataSearchResult, mediaTypeHint: AiSearchCandidate['mediaType']): boolean {
   if (!mediaTypeHint) {
     return false;
   }
-  return item.mediaType === mediaTypeHint;
+  return item.mediaItem.mediaType === mediaTypeHint;
 }
 
 function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis, query: string): MetadataSearchResponse {
@@ -214,7 +218,7 @@ function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: Sea
       skippedAnchor = true;
       continue;
     }
-    if (kept.some((existing) => isSameTitleFamily(existing.item.title ?? '', suggestion.item.title ?? ''))) {
+    if (kept.some((existing) => isSameTitleFamily(existing.item.mediaItem.title ?? '', suggestion.item.mediaItem.title ?? ''))) {
       continue;
     }
     kept.push(suggestion);
@@ -226,16 +230,16 @@ function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: Sea
   return kept;
 }
 
-function bucketResolvedItems(query: string, items: CatalogItem[]): MetadataSearchResponse {
-  const movies: CatalogItem[] = [];
-  const series: CatalogItem[] = [];
+function bucketResolvedItems(query: string, items: MetadataSearchResult[]): MetadataSearchResponse {
+  const movies: MetadataSearchResult[] = [];
+  const series: MetadataSearchResult[] = [];
 
   for (const item of items) {
-    if (item.mediaType === 'movie') {
+    if (item.mediaItem.mediaType === 'movie') {
       movies.push(item);
       continue;
     }
-    if (item.mediaType === 'show') {
+    if (item.mediaItem.mediaType === 'show') {
       series.push(item);
       continue;
     }
@@ -254,7 +258,7 @@ function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggest
   const seen = new Set<string>();
   const result: ResolvedSuggestion[] = [];
   for (const suggestion of items) {
-    const key = suggestion.item.mediaKey;
+    const key = suggestion.item.mediaItem.mediaKey;
     if (seen.has(key)) {
       continue;
     }
@@ -340,7 +344,7 @@ function matchesAnchorSuggestion(suggestion: ResolvedSuggestion, anchorHint: str
   }
 
   return titleMatchesAnchor(suggestion.candidate.title, normalizedAnchor)
-    || titleMatchesAnchor(suggestion.item.title ?? '', normalizedAnchor);
+    || titleMatchesAnchor(suggestion.item.mediaItem.title ?? '', normalizedAnchor);
 }
 
 function titleMatchesAnchor(title: string, normalizedAnchor: string): boolean {

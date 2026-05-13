@@ -488,7 +488,7 @@ const playbackResolveResponseSchema = {
   },
 } as const;
 
-const metadataSearchResultSchema = {
+export const metadataSearchResultSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['kind', 'mediaItem', 'context', 'presentation'],
@@ -500,7 +500,7 @@ const metadataSearchResultSchema = {
   },
 } as const;
 
-const metadataPersonSearchResultSchema = {
+export const metadataPersonSearchResultSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['kind', 'tmdbPersonId', 'name', 'knownForDepartment', 'profileUrl', 'knownForTitles'],

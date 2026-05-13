@@ -1,5 +1,4 @@
 import {
-  regularCardViewSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
   profileIdParamsSchema,
@@ -7,26 +6,29 @@ import {
   successEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
-
-const aiSearchItemSchema = regularCardViewSchema;
+import { metadataSearchResultSchema, metadataPersonSearchResultSchema } from './metadata.js';
 
 const aiSearchResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'all', 'movies', 'series'],
+  required: ['query', 'all', 'movies', 'series', 'people'],
   properties: {
     query: stringSchema,
     all: {
       type: 'array',
-      items: aiSearchItemSchema,
+      items: metadataSearchResultSchema,
     },
     movies: {
       type: 'array',
-      items: aiSearchItemSchema,
+      items: metadataSearchResultSchema,
     },
     series: {
       type: 'array',
-      items: aiSearchItemSchema,
+      items: metadataSearchResultSchema,
+    },
+    people: {
+      type: 'array',
+      items: metadataPersonSearchResultSchema,
     },
   },
 } as const;
