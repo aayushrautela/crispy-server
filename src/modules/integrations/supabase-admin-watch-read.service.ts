@@ -60,7 +60,30 @@ export class SupabaseAdminWatchReadService {
   }
 
   async listWatchlistPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
-    return this.listProfileListItemsPage(client, params, 'watchlist');
+    await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const supabase = getSupabaseServiceRoleClient();
+    
+    let query = supabase
+      .from('profile_list_items')
+      .select('*')
+      .eq('profile_id', params.profileId)
+      .eq('list_kind', 'watchlist');
+
+    if (cursor) {
+      query = query.or(`added_at.lt.${cursor.sortValue},and(added_at.eq.${cursor.sortValue},media_key.lt.${cursor.tieBreaker})`);
+    }
+
+    query = query.order('added_at', { ascending: false }).order('media_key', { ascending: false }).limit(params.limit + 1);
+
+    const { data, error } = await query;
+    if (error) {
+      logger.error({ error }, 'supabase admin watchlist read failed');
+      throw new HttpError(502, 'Supabase admin watch read failed.');
+    }
+
+    const rows = (data ?? []) as SupabaseWatchReadRow[];
+    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapSupabaseListItemRow);
   }
 
   async assertProfileAccess(client: DbClient, params: { accountId: string; profileId: string }): Promise<void> {
@@ -119,30 +142,4 @@ export class SupabaseAdminWatchReadService {
     return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.watched_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);
   }
 
-  private async listProfileListItemsPage(client: DbClient, params: ListPageParams, listKind: 'watchlist' | 'favorites'): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
-    await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
-    const cursor = decodeWatchPageCursor(params.cursor);
-    const supabase = getSupabaseServiceRoleClient();
-    
-    let query = supabase
-      .from('profile_list_items')
-      .select('*')
-      .eq('profile_id', params.profileId)
-      .eq('list_kind', listKind);
-
-    if (cursor) {
-      query = query.or(`added_at.lt.${cursor.sortValue},and(added_at.eq.${cursor.sortValue},media_key.lt.${cursor.tieBreaker})`);
-    }
-
-    query = query.order('added_at', { ascending: false }).order('media_key', { ascending: false }).limit(params.limit + 1);
-
-    const { data, error } = await query;
-    if (error) {
-      logger.error({ error }, 'supabase admin watchlist read failed');
-      throw new HttpError(502, 'Supabase admin watch read failed.');
-    }
-
-    const rows = (data ?? []) as SupabaseWatchReadRow[];
-    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapSupabaseListItemRow);
-  }
 }

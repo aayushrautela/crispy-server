@@ -3,7 +3,7 @@ import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { buildMetadataCardView, toCatalogItem } from './metadata-card.builders.js';
-import type { CatalogItem } from './metadata-card.types.js';
+import { metadataCardToMediaItem } from './media-item.mapper.js';
 import {
   buildEpisodeView,
   buildMetadataView,
@@ -58,8 +58,11 @@ export class MetadataTitleAggregateBuilder {
     const collectionContentIds = await this.contentIdentityService.ensureContentIds(client, collectionIdentities);
     const similarTitles = extractSimilarTitles(resolvedTitle);
     const similarIdentities = similarTitles
-      .filter((titleRecord) => titleRecord.mediaType === 'movie')
-      .map((titleRecord) => inferMediaIdentity({ mediaType: 'movie', tmdbId: titleRecord.tmdbId }));
+      .filter((titleRecord) => titleRecord.mediaType === 'movie' || titleRecord.mediaType === 'tv')
+      .map((titleRecord) => inferMediaIdentity({
+        mediaType: titleRecord.mediaType === 'movie' ? 'movie' : 'show',
+        tmdbId: titleRecord.tmdbId,
+      }));
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
 
     return {
@@ -76,13 +79,13 @@ export class MetadataTitleAggregateBuilder {
         ? {
             ...collection,
             parts: collectionParts.flatMap((titleRecord) => {
-              const item = this.buildTmdbCatalogItem(titleRecord, collectionContentIds);
+              const item = this.buildRelatedItem(titleRecord, collectionContentIds);
               return item ? [item] : [];
             }),
           }
         : null,
       similar: similarTitles.flatMap((titleRecord) => {
-        const item = this.buildTmdbCatalogItem(titleRecord, similarContentIds);
+        const item = this.buildRelatedItem(titleRecord, similarContentIds);
         return item ? [item] : [];
       }),
     };
@@ -121,17 +124,27 @@ export class MetadataTitleAggregateBuilder {
     });
   }
 
-  private buildTmdbCatalogItem(title: TmdbTitleRecord, contentIds: Map<string, string>): CatalogItem | null {
-    if (title.mediaType !== 'movie') {
-      return null;
-    }
-
-    const identity = inferMediaIdentity({ mediaType: 'movie', tmdbId: title.tmdbId });
+  private buildRelatedItem(title: TmdbTitleRecord, contentIds: Map<string, string>) {
+    const mediaType = title.mediaType === 'movie' ? 'movie' : 'show';
+    const identity = inferMediaIdentity({ mediaType, tmdbId: title.tmdbId });
     const contentId = contentIds.get(identity.mediaKey);
     if (!contentId) {
       return null;
     }
-    return toCatalogItem(buildMetadataCardView({ identity, title }));
+
+    const card = buildMetadataCardView({ identity, title });
+    const item = toCatalogItem(card);
+    if (!item) {
+      return null;
+    }
+
+    return {
+      ...item,
+      kind: 'metadata_detail' as const,
+      mediaItem: metadataCardToMediaItem(card),
+      context: {},
+      presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
+    };
   }
 
 }

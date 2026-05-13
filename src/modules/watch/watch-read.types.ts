@@ -61,7 +61,6 @@ export type WatchStateResponse = {
     watched: WatchedStateView | null;
     watchlist: WatchlistStateView | null;
     rating: RatingStateView | null;
-    watchedEpisodeKeys: string[];
   };
   presentation: MediaPresentationHint | null;
   progress: WatchProgressView | null;
@@ -69,7 +68,6 @@ export type WatchStateResponse = {
   watched: WatchedStateView | null;
   watchlist: WatchlistStateView | null;
   rating: RatingStateView | null;
-  watchedEpisodeKeys: string[];
 };
 
 export type CalendarBucket = 'up_next' | 'this_week' | 'upcoming' | 'recently_released' | 'no_scheduled';

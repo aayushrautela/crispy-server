@@ -24,7 +24,7 @@ export type WatchEventInput = {
   payload?: Record<string, unknown>;
 };
 
-export type WatchIngestMode = 'synchronous' | 'buffered' | 'sync_fallback';
+export type WatchIngestMode = 'synchronous';
 
 export type WatchIngestResult = {
   accepted: true;

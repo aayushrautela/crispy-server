@@ -1,5 +1,5 @@
 import type { SupportedProvider } from '../identity/media-key.js';
-import type { MediaItem } from './media-item.types.js';
+import type { MediaItem, MediaPresentationHint } from './media-item.types.js';
 import type {
   CatalogItem,
   MetadataExternalIds,
@@ -106,6 +106,13 @@ export type MetadataCompanyView = {
   originCountry: string | null;
 };
 
+export type MetadataRelatedItem = CatalogItem & {
+  kind: 'metadata_detail';
+  mediaItem: MediaItem;
+  context: Record<string, unknown>;
+  presentation: MediaPresentationHint | null;
+};
+
 export type MetadataCollectionView = {
   id: number | string;
   provider: SupportedProvider;
@@ -113,7 +120,7 @@ export type MetadataCollectionView = {
   name: string;
   posterUrl: string | null;
   backdropUrl: string | null;
-  parts: CatalogItem[];
+  parts: MetadataRelatedItem[];
 };
 
 export type MetadataProductionInfoView = {
@@ -136,7 +143,7 @@ export type MetadataTitleDetail = {
   creators: MetadataPersonRefView[];
   production: MetadataProductionInfoView;
   collection: MetadataCollectionView | null;
-  similar: CatalogItem[];
+  similar: MetadataRelatedItem[];
 };
 
 export type MetadataTitleReviewsResponse = {
@@ -217,7 +224,7 @@ export type MetadataSearchResult = CatalogItem & {
   kind?: 'search_result';
   mediaItem?: MediaItem;
   context?: Record<string, unknown>;
-  presentation?: import('./media-item.types.js').MediaPresentationHint | null;
+  presentation?: MediaPresentationHint | null;
 };
 
 export type MetadataSearchResponse = {

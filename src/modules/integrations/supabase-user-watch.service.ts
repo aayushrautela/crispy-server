@@ -39,7 +39,7 @@ type DismissContinueWatchingParams = {
 type SetListItemParams = {
   accessToken: string;
   profileId: string;
-  listKind: 'watchlist' | 'favorites';
+  listKind: 'watchlist';
   mediaKey: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
 };
@@ -47,7 +47,7 @@ type SetListItemParams = {
 type DeleteListItemParams = {
   accessToken: string;
   profileId: string;
-  listKind: 'watchlist' | 'favorites';
+  listKind: 'watchlist';
   mediaKey: string;
 };
 
@@ -109,11 +109,15 @@ export class SupabaseUserWatchService {
   }
 
   async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
-    return this.listProfileListItemsPage(params, 'watchlist');
-  }
-
-  async listFavoritesPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
-    return this.listProfileListItemsPage(params, 'favorites');
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const rows = await this.rpcRows(params.accessToken, 'list_profile_list_items_page', {
+      p_profile_id: params.profileId,
+      p_list_kind: 'watchlist',
+      p_limit: params.limit,
+      p_cursor_added_at: cursor?.sortValue ?? null,
+      p_cursor_media_key: cursor?.tieBreaker ?? null,
+    });
+    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapSupabaseListItemRow);
   }
 
   async listRatingsPage(params: ListPageParams): Promise<PaginatedWatchCollection<RatingProductItem>> {
@@ -153,18 +157,6 @@ export class SupabaseUserWatchService {
     });
     const byKey = new Map(rows.map((row) => [String(row.media_key), row]));
     return params.mediaKeys.map((mediaKey) => mapSupabaseWatchStateRow(byKey.get(mediaKey) ?? { media_key: mediaKey }));
-  }
-
-  private async listProfileListItemsPage(params: ListPageParams, listKind: 'watchlist' | 'favorites'): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
-    const cursor = decodeWatchPageCursor(params.cursor);
-    const rows = await this.rpcRows(params.accessToken, 'list_profile_list_items_page', {
-      p_profile_id: params.profileId,
-      p_list_kind: listKind,
-      p_limit: params.limit,
-      p_cursor_added_at: cursor?.sortValue ?? null,
-      p_cursor_media_key: cursor?.tieBreaker ?? null,
-    });
-    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapSupabaseListItemRow);
   }
 
   private async rpcRows(accessToken: string, rpcName: string, args: Record<string, unknown>): Promise<SupabaseWatchReadRow[]> {

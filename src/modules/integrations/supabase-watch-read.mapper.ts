@@ -144,7 +144,6 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
     : null;
   const watchlist = watchlistAddedAt ? { addedAt: watchlistAddedAt } : null;
   const ratingState = rating !== null && ratedAt ? { value: rating, ratedAt } : null;
-  const watchedEpisodeKeys: string[] = [];
 
   return {
     kind: 'watch_state',
@@ -155,7 +154,6 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
       watched,
       watchlist,
       rating: ratingState,
-      watchedEpisodeKeys,
     },
     presentation: null,
     progress,
@@ -163,7 +161,6 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
     watched,
     watchlist,
     rating: ratingState,
-    watchedEpisodeKeys,
   };
 }
 

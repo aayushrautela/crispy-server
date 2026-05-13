@@ -314,6 +314,18 @@ const metadataCompanyViewSchema = {
   },
 } as const;
 
+const metadataRelatedItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'mediaItem', 'context', 'presentation'],
+  properties: {
+    kind: { const: 'metadata_detail' },
+    mediaItem: mediaItemSchema,
+    context: { type: 'object', additionalProperties: true },
+    presentation: nullableMediaPresentationHintSchema,
+  },
+} as const;
+
 const metadataCollectionViewSchema = {
   type: 'object',
   additionalProperties: false,
@@ -327,7 +339,7 @@ const metadataCollectionViewSchema = {
     backdropUrl: nullableStringSchema,
     parts: {
       type: 'array',
-      items: regularCardViewSchema,
+      items: metadataRelatedItemSchema,
     },
   },
 } as const;
@@ -371,7 +383,7 @@ const metadataTitleDetailResponseSchema = {
         { type: 'null' },
       ],
     },
-    similar: { type: 'array', items: regularCardViewSchema },
+    similar: { type: 'array', items: metadataRelatedItemSchema },
   },
 } as const;
 
