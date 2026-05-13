@@ -181,6 +181,8 @@ function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides
     backdropUrl: nullableStringValue(row.backdrop_url),
     releaseYear: numberValue(row.release_year),
     rating: numberValue(row.metadata_rating),
+    logoUrl: null,
+    maturityRating: null,
   }, overrides);
 }
 

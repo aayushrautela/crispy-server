@@ -11,8 +11,12 @@ export class WatchCacheMissRefreshService {
   ) {}
 
   async refreshMissingCards(client: DbClient, missingMediaKeys: string[]): Promise<void> {
+    await this.refreshMissingCardsAndReturnRecords(client, missingMediaKeys);
+  }
+
+  async refreshMissingCardsAndReturnRecords(client: DbClient, missingMediaKeys: string[]): Promise<Map<string, import('./watch-media-card-cache.repo.js').WatchMediaCardCacheRecord>> {
     if (!missingMediaKeys.length) {
-      return;
+      return new Map();
     }
 
     const identities = missingMediaKeys.map((key) => parseMediaKey(key));
@@ -47,5 +51,7 @@ export class WatchCacheMissRefreshService {
     if (refreshed > 0 || failed > 0) {
       logger.info({ refreshed, failed, total: missingMediaKeys.length }, 'watch cache miss refresh completed');
     }
+
+    return this.cacheService.listCardCacheRecords(client, missingMediaKeys);
   }
 }

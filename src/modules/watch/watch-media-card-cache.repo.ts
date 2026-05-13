@@ -10,10 +10,12 @@ export type WatchMediaCardCacheRecord = {
   titleMediaType: MetadataTitleMediaType;
   title: string;
   subtitle: string | null;
-    posterUrl?: string | null;
+  posterUrl: string | null;
   backdropUrl: string | null;
+  logoUrl: string | null;
   releaseYear: number | null;
   rating: number | null;
+  maturityRating: string | null;
 };
 
 export class WatchMediaCardCacheRepository {
@@ -25,18 +27,20 @@ export class WatchMediaCardCacheRepository {
     titleMediaType: MetadataTitleMediaType;
     title: string;
     subtitle?: string | null;
-  posterUrl: string | null;
+    posterUrl: string | null;
     backdropUrl?: string | null;
+    logoUrl?: string | null;
     releaseYear?: number | null;
     rating?: number | null;
+    maturityRating?: string | null;
   }): Promise<void> {
     await client.query(
       `
         INSERT INTO watch_media_card_cache (
           media_key, media_type, title_provider, title_provider_id, title_media_type,
-          title, subtitle, poster_url, backdrop_url, release_year, rating, updated_at
+          title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
         ON CONFLICT (media_key)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
@@ -47,8 +51,10 @@ export class WatchMediaCardCacheRepository {
           subtitle = EXCLUDED.subtitle,
           poster_url = EXCLUDED.poster_url,
           backdrop_url = EXCLUDED.backdrop_url,
+          logo_url = EXCLUDED.logo_url,
           release_year = EXCLUDED.release_year,
           rating = EXCLUDED.rating,
+          maturity_rating = EXCLUDED.maturity_rating,
           updated_at = now()
       `,
       [
@@ -61,8 +67,10 @@ export class WatchMediaCardCacheRepository {
         params.subtitle ?? null,
         params.posterUrl,
         params.backdropUrl ?? null,
+        params.logoUrl ?? null,
         params.releaseYear ?? null,
         params.rating ?? null,
+        params.maturityRating ?? null,
       ],
     );
   }
@@ -75,7 +83,7 @@ export class WatchMediaCardCacheRepository {
     const result = await client.query(
       `
         SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
-               title, subtitle, poster_url, backdrop_url, release_year, rating
+               title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating
         FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
       `,
@@ -115,8 +123,10 @@ export class WatchMediaCardCacheRepository {
             subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
             posterUrl: typeof row.poster_url === 'string' ? row.poster_url : null,
             backdropUrl: typeof row.backdrop_url === 'string' ? row.backdrop_url : null,
+            logoUrl: typeof row.logo_url === 'string' ? row.logo_url : null,
             releaseYear: row.release_year === null ? null : Number(row.release_year),
             rating: row.rating === null ? null : Number(row.rating),
+            maturityRating: typeof row.maturity_rating === 'string' ? row.maturity_rating : null,
           } satisfies WatchMediaCardCacheRecord,
         ]];
       }),

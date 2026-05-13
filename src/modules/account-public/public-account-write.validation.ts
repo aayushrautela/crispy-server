@@ -1,31 +1,15 @@
 import { createHash } from 'node:crypto';
 import { HttpError } from '../../lib/errors.js';
 import {
-  PUBLIC_RECOMMENDATION_MAX_ITEMS,
   PUBLIC_TASTE_MAX_SIGNALS,
   PUBLIC_TASTE_MAX_SIGNAL_KEY_LENGTH,
   PUBLIC_TASTE_MAX_SIGNAL_LABEL_LENGTH,
   PUBLIC_TASTE_MAX_SUMMARY_LENGTH,
   PUBLIC_WRITE_IDEMPOTENCY_KEY_MAX_LENGTH,
-  type PublicRecommendationItemInput,
   type PublicTasteSignalKind,
 } from './public-account-write.contracts.js';
-import {
-  PUBLIC_RECOMMENDATION_LIST_KEY_PATTERN,
-  PUBLIC_RECOMMENDATION_PROTECTED_LIST_KEY_PREFIXES,
-} from './public-account-write.constants.js';
 
-const RECOMMENDATION_ITEM_TYPES = new Set(['movie', 'tv']);
 const TASTE_SIGNAL_KINDS = new Set(['genre', 'artist', 'track', 'album', 'playlist', 'mood', 'activity', 'language', 'era', 'tag']);
-const REMOVED_RECOMMENDATION_TOP_LEVEL_FIELDS = ['schemaVersion', 'mediaType', 'locale', 'summary', 'clientContext', 'source', 'purpose', 'writeMode', 'input', 'eligibilityVersion', 'signalsVersion', 'modelVersion', 'algorithm'];
-const REMOVED_RECOMMENDATION_ITEM_FIELDS = ['rank', 'score', 'provider', 'providerItemId', 'mediaType', 'title', 'artists', 'album', 'imageUrl', 'reason', 'durationMs', 'releaseDate', 'explicit', 'contentId', 'mediaKey', 'reasonCodes', 'metadata', 'media', 'payload'];
-
-export interface NormalizedPublicRecommendationItem extends PublicRecommendationItemInput {}
-
-export interface NormalizedPublicRecommendationListInput {
-  items: NormalizedPublicRecommendationItem[];
-  requestHash: string;
-}
 
 export interface NormalizedPublicTasteSignal {
   kind: PublicTasteSignalKind;
@@ -43,41 +27,6 @@ export interface NormalizedPublicTasteProfileInput {
   signals: NormalizedPublicTasteSignal[];
   clientContext?: Record<string, unknown>;
   requestHash: string;
-}
-
-export function validatePublicListKeyForWrite(listKey: string): string {
-  const normalized = listKey.trim().toLowerCase();
-  if (PUBLIC_RECOMMENDATION_PROTECTED_LIST_KEY_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
-    throw new HttpError(400, 'Protected recommendation list key.', undefined, 'PROTECTED_RECOMMENDATION_LIST');
-  }
-  if (!PUBLIC_RECOMMENDATION_LIST_KEY_PATTERN.test(normalized)) {
-    throw new HttpError(400, 'Invalid recommendation list key.', undefined, 'INVALID_LIST_KEY');
-  }
-  return normalized;
-}
-
-export function normalizePublicRecommendationListInput(input: unknown): NormalizedPublicRecommendationListInput {
-  assertRecord(input, 'request body');
-  rejectRemovedFields(input, REMOVED_RECOMMENDATION_TOP_LEVEL_FIELDS, '');
-  assertExactKeys(input, ['items']);
-  if (!Array.isArray(input.items) || input.items.length > PUBLIC_RECOMMENDATION_MAX_ITEMS) throw new HttpError(400, 'items must be an array.', { field: 'items' }, 'INVALID_RECOMMENDATION_ITEMS');
-  const seen = new Set<string>();
-  const items = input.items.map((raw, index) => {
-    const path = `items[${index}]`;
-    assertRecord(raw, path);
-    rejectRemovedFields(raw, REMOVED_RECOMMENDATION_ITEM_FIELDS, path);
-    assertExactKeys(raw, ['type', 'tmdbId'], path);
-    if (!RECOMMENDATION_ITEM_TYPES.has(String(raw.type))) throw new HttpError(400, `${path}.type must be movie or tv.`, { field: `${path}.type` }, 'INVALID_RECOMMENDATION_ITEM_TYPE');
-    if (typeof raw.tmdbId !== 'number' || !Number.isSafeInteger(raw.tmdbId) || raw.tmdbId < 1) throw new HttpError(400, `${path}.tmdbId must be a positive integer.`, { field: `${path}.tmdbId` }, 'INVALID_RECOMMENDATION_TMDB_ID');
-    const type = raw.type as PublicRecommendationItemInput['type'];
-    const tmdbId = raw.tmdbId;
-    const mediaKey = `${type}:tmdb:${tmdbId}`;
-    if (seen.has(mediaKey)) throw new HttpError(400, `Duplicate recommendation item at ${path}.`, { field: path, mediaKey }, 'DUPLICATE_RECOMMENDATION_ITEM');
-    seen.add(mediaKey);
-    return { type, tmdbId };
-  });
-  const normalized = { items };
-  return { ...normalized, requestHash: hashPublicWriteRequest(normalized) };
 }
 
 export function normalizePublicTasteProfileInput(input: unknown): NormalizedPublicTasteProfileInput {
@@ -155,15 +104,6 @@ function assertExactKeys(value: Record<string, unknown>, allowed: string[], path
     if (!allowedSet.has(key)) {
       const field = path ? `${path}.${key}` : key;
       throw new HttpError(400, `Unknown field: ${field}`, { field }, 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD');
-    }
-  }
-}
-
-function rejectRemovedFields(value: Record<string, unknown>, fields: string[], path: string): void {
-  for (const field of fields) {
-    if (field in value) {
-      const qualifiedField = path ? `${path}.${field}` : field;
-      throw new HttpError(400, `${qualifiedField} is server-derived and must not be supplied.`, { field: qualifiedField }, 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD');
     }
   }
 }

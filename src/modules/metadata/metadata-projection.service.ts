@@ -72,6 +72,8 @@ export class MetadataProjectionService {
       subtitle: detailsMedia.subtitle,
       posterUrl: detailsMedia.artwork.posterUrl,
       backdropUrl: detailsMedia.artwork.backdropUrl,
+      logoUrl: detailsMedia.images.logoUrl,
+      maturityRating: detailsMedia.maturityRating,
     };
   }
 
@@ -102,6 +104,8 @@ export class MetadataProjectionService {
       subtitle: episodeMedia.subtitle,
       posterUrl: parentMedia.artwork.posterUrl,
       backdropUrl: parentMedia.artwork.backdropUrl,
+      logoUrl: parentMedia.images.logoUrl,
+      maturityRating: parentMedia.maturityRating,
     };
   }
 
@@ -168,6 +172,8 @@ function emptyProjection(): WatchMediaProjection {
     subtitle: null,
     posterUrl: null,
     backdropUrl: null,
+    logoUrl: null,
+    maturityRating: null,
   };
 }
 

@@ -53,6 +53,8 @@ export type WatchMediaProjection = {
   subtitle: string | null;
   posterUrl: string | null;
   backdropUrl: string | null;
+  logoUrl: string | null;
+  maturityRating: string | null;
 };
 
 export function sanitizeWatchEventInput(input: WatchEventInput): WatchEventInput {

@@ -30,6 +30,7 @@ export type MetadataView = {
   releaseYear: number | null;
   runtimeMinutes: number | null;
   rating: number | null;
+  maturityRating: string | null;
   certification: string | null;
   status: string | null;
   genres: string[];

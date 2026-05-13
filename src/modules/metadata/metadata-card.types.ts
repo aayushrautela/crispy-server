@@ -56,6 +56,7 @@ export type MetadataCardView = {
   runtimeMinutes: number | null;
   rating: number | null;
   status: string | null;
+  maturityRating: string | null;
 };
 
 export type RegularCardView = {

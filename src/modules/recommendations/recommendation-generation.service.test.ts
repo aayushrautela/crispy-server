@@ -28,6 +28,7 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
       genres: [],
       runtimeMinutes: 45,
       status: null,
+      maturityRating: null,
       certification: null,
       externalIds: { tmdb: null, tvdb: null, imdb: null },
       parent: null,

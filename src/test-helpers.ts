@@ -99,6 +99,7 @@ export function createMockMetadataView(overrides: Record<string, unknown> = {}) 
     releaseYear: null,
     runtimeMinutes: null,
     rating: null,
+    maturityRating: null,
     certification: null,
     status: null,
     genres: [],

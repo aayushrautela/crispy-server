@@ -29,6 +29,7 @@ function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
     genres: [],
     runtimeMinutes: 120,
     status: null,
+    maturityRating: null,
     certification: null,
     externalIds: emptyExternalIds,
     parent: null,
@@ -55,8 +56,10 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
       subtitle: null,
       posterUrl: 'https://cache.test/poster.jpg',
       backdropUrl: 'https://cache.test/backdrop.jpg',
+      logoUrl: 'https://cache.test/logo.png',
       releaseYear: 2024,
       rating: 8.5,
+      maturityRating: 'PG-13',
     }],
   ]);
 
@@ -65,7 +68,7 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
   } as unknown as WatchMediaCardCacheService;
 
   const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
-    refreshMissingCards: async () => {},
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
   const items: ContinueWatchingProductItem[] = [
@@ -127,8 +130,10 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
       subtitle: 'Season 1',
       posterUrl: 'https://cache.test/show-poster.jpg',
       backdropUrl: 'https://cache.test/show-backdrop.jpg',
+      logoUrl: null,
       releaseYear: 2022,
       rating: 9.1,
+      maturityRating: null,
     }],
   ]);
 
@@ -137,7 +142,7 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
   } as unknown as WatchMediaCardCacheService;
 
   const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
-    refreshMissingCards: async () => {},
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
   const items: HistoryProductItem[] = [
@@ -184,7 +189,7 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
   } as unknown as WatchMediaCardCacheService;
 
   const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
-    refreshMissingCards: async () => {},
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
   const items: RatingProductItem[] = [
@@ -238,8 +243,10 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       subtitle: null,
       posterUrl: 'https://cache.test/dup.jpg',
       backdropUrl: null,
+      logoUrl: null,
       releaseYear: 2023,
       rating: 7.5,
+      maturityRating: null,
     }],
   ]);
 
@@ -251,7 +258,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
   } as unknown as WatchMediaCardCacheService;
 
   const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
-    refreshMissingCards: async () => {},
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
   const items: HistoryProductItem[] = [
@@ -308,7 +315,7 @@ test('enrichRegularMediaItems handles empty items array', async () => {
   } as unknown as WatchMediaCardCacheService;
 
   const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
-    refreshMissingCards: async () => {},
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
   const enriched = await service.enrichRegularMediaItems<WatchStateResponse>({} as never, []);

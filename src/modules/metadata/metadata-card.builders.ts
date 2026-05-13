@@ -15,6 +15,7 @@ import {
   extractRating,
   extractReleaseDate,
   extractReleaseYear,
+  extractCertification,
   metadataMediaTypeFromTitle,
   padded,
 } from './metadata-builder.shared.js';
@@ -117,5 +118,6 @@ export function buildMetadataCardView(params: {
     runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
     rating: extractRating(title, currentEpisode),
     status: title?.status ?? null,
+    maturityRating: extractCertification(title),
   };
 }

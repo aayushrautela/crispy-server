@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
+import type { MediaItem } from '../metadata/media-item.types.js';
 import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
@@ -14,7 +15,7 @@ import type { WatchStateResponse } from './watch-read.types.js';
 
 type RegularMediaItem = HistoryProductItem | WatchlistProductItem | RatingProductItem | WatchStateResponse;
 
-type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMissingCards'>;
+type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMissingCardsAndReturnRecords'>;
 
 export class WatchSupabaseEnrichmentService {
   constructor(
@@ -34,7 +35,7 @@ export class WatchSupabaseEnrichmentService {
       }
       return {
         ...item,
-        mediaItem: watchCacheRecordToMediaItem(record, item.mediaItem),
+        mediaItem: mergeEnrichedMediaItem(record, item.mediaItem),
       };
     });
   }
@@ -48,7 +49,7 @@ export class WatchSupabaseEnrichmentService {
       }
       return {
         ...item,
-        mediaItem: watchCacheRecordToMediaItem(record, item.mediaItem),
+        mediaItem: mergeEnrichedMediaItem(record, item.mediaItem),
       };
     });
   }
@@ -64,10 +65,32 @@ export class WatchSupabaseEnrichmentService {
     if (missingCount > 0) {
       const missingKeys = uniqueMediaKeys.filter((key) => !records.has(key));
       logger.debug({ requestedCount: uniqueMediaKeys.length, hitCount: records.size, missingCount }, 'watch supabase metadata cache misses');
-      this.cacheMissRefreshService.refreshMissingCards(client, missingKeys).catch((error) => {
-        logger.warn({ error, missingCount }, 'background cache miss refresh failed');
-      });
+      const refreshedRecords = await this.cacheMissRefreshService.refreshMissingCardsAndReturnRecords(client, missingKeys);
+      for (const [key, record] of refreshedRecords.entries()) {
+        records.set(key, record);
+      }
     }
     return records;
   }
+}
+
+function mergeEnrichedMediaItem(record: WatchMediaCardCacheRecord, existing: MediaItem): MediaItem {
+  return {
+    ...watchCacheRecordToMediaItem(record),
+    originalTitle: existing.originalTitle,
+    overview: existing.overview,
+    stillUrl: existing.stillUrl,
+    releaseDate: existing.releaseDate,
+    genres: existing.genres,
+    runtimeMinutes: existing.runtimeMinutes,
+    status: existing.status,
+    externalIds: existing.externalIds,
+    parent: existing.parent,
+    showTmdbId: existing.showTmdbId,
+    seasonNumber: existing.seasonNumber,
+    episodeNumber: existing.episodeNumber,
+    absoluteEpisodeNumber: existing.absoluteEpisodeNumber,
+    episodeTitle: existing.episodeTitle,
+    airDate: existing.airDate,
+  };
 }

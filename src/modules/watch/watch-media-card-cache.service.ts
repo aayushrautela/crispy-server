@@ -17,8 +17,10 @@ export class WatchMediaCardCacheService {
     subtitle: string | null;
     posterUrl: string | null;
     backdropUrl: string | null;
+    logoUrl: string | null;
     detailsReleaseYear: number | null;
     detailsRating: number | null;
+    maturityRating: string | null;
   }): Promise<void> {
     if (!projection.title) {
       return;
@@ -40,8 +42,10 @@ export class WatchMediaCardCacheService {
       subtitle: projection.subtitle,
       posterUrl: projection.posterUrl,
       backdropUrl: projection.backdropUrl,
+      logoUrl: projection.logoUrl,
       releaseYear: projection.detailsReleaseYear,
       rating: projection.detailsRating,
+      maturityRating: projection.maturityRating,
     });
   }
 

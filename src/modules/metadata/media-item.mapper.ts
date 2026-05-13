@@ -27,7 +27,8 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
     genres: [],
     runtimeMinutes: card.runtimeMinutes,
     status: card.status,
-    certification: null,
+    maturityRating: card.maturityRating,
+    certification: card.maturityRating,
     externalIds: {
       ...emptyExternalIds,
       tmdb: card.tmdbId,
@@ -46,6 +47,7 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
 
 export function metadataViewToMediaItem(view: MetadataView, overrides: Partial<MediaItem> = {}): MediaItem {
   const item = metadataCardToMediaItem(view, {
+    maturityRating: view.certification,
     certification: view.certification,
     genres: view.genres,
     externalIds: view.externalIds,
@@ -65,7 +67,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     overview: null,
     posterUrl: record.posterUrl ?? null,
     backdropUrl: record.backdropUrl,
-    logoUrl: null,
+    logoUrl: record.logoUrl,
     stillUrl: null,
     releaseDate: null,
     releaseYear: record.releaseYear,
@@ -73,7 +75,8 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     genres: [],
     runtimeMinutes: null,
     status: null,
-    certification: null,
+    maturityRating: record.maturityRating,
+    certification: record.maturityRating,
     externalIds: emptyExternalIds,
     parent: null,
     showTmdbId: null,

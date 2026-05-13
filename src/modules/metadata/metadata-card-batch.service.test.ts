@@ -35,6 +35,7 @@ test('MetadataCardBatchService hydrates valid media keys and reports invalid key
         runtimeMinutes: 45,
         rating: 7.5,
         status: null,
+        maturityRating: null,
       }));
     },
   } satisfies Pick<MetadataCardService, 'buildCardViews'>;

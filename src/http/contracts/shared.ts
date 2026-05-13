@@ -223,6 +223,7 @@ export const mediaItemSchema = {
     'genres',
     'runtimeMinutes',
     'status',
+    'maturityRating',
     'certification',
     'externalIds',
     'parent',
@@ -253,6 +254,7 @@ export const mediaItemSchema = {
     },
     runtimeMinutes: nullableIntegerSchema,
     status: nullableStringSchema,
+    maturityRating: nullableStringSchema,
     certification: nullableStringSchema,
     externalIds: mediaExternalIdsSchema,
     parent: nullableMediaItemParentSchema,
@@ -328,6 +330,7 @@ export const metadataCardViewSchema = {
     'runtimeMinutes',
     'rating',
     'status',
+    'maturityRating',
   ],
   properties: {
     mediaKey: stringSchema,
@@ -350,6 +353,7 @@ export const metadataCardViewSchema = {
     runtimeMinutes: nullableIntegerSchema,
     rating: nullableNumberSchema,
     status: nullableStringSchema,
+    maturityRating: nullableStringSchema,
   },
 } as const;
 

@@ -35,6 +35,7 @@ const baseCard: MetadataCardView = {
   runtimeMinutes: 120,
   rating: 8.1,
   status: 'Released',
+  maturityRating: 'PG-13',
 };
 
 test('metadataCardToMediaItem maps common metadata with artwork fallbacks', () => {
@@ -47,6 +48,8 @@ test('metadataCardToMediaItem maps common metadata with artwork fallbacks', () =
   assert.equal(item.posterUrl, 'poster.jpg');
   assert.equal(item.backdropUrl, 'backdrop.jpg');
   assert.equal(item.logoUrl, 'logo.png');
+  assert.equal(item.maturityRating, 'PG-13');
+  assert.equal(item.certification, 'PG-13');
   assert.deepEqual(item.externalIds, { tmdb: 1, imdb: null, tvdb: null });
   assert.deepEqual(item.genres, []);
 });
@@ -98,6 +101,7 @@ test('metadataViewToMediaItem maps detail-only metadata', () => {
 
   const item = metadataViewToMediaItem(view);
 
+  assert.equal(item.maturityRating, 'PG-13');
   assert.equal(item.certification, 'PG-13');
   assert.deepEqual(item.genres, ['Drama']);
   assert.deepEqual(item.externalIds, { tmdb: 1, imdb: 'tt1', tvdb: 2 });
@@ -114,8 +118,10 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
     subtitle: 'S1 E2',
     posterUrl: null,
     backdropUrl: 'backdrop.jpg',
+    logoUrl: 'logo.png',
     releaseYear: 2024,
     rating: 7.5,
+    maturityRating: 'TV-MA',
   };
 
   const item = watchCacheRecordToMediaItem(record, { seasonNumber: 1, episodeNumber: 2 });
@@ -124,6 +130,9 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
   assert.equal(item.title, 'Show');
   assert.equal(item.posterUrl, null);
   assert.equal(item.backdropUrl, 'backdrop.jpg');
+  assert.equal(item.logoUrl, 'logo.png');
+  assert.equal(item.maturityRating, 'TV-MA');
+  assert.equal(item.certification, 'TV-MA');
   assert.equal(item.seasonNumber, 1);
   assert.equal(item.episodeNumber, 2);
 });

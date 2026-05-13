@@ -29,6 +29,7 @@ export type MediaItem = {
   genres: string[];
   runtimeMinutes: number | null;
   status: string | null;
+  maturityRating: string | null;
   certification: string | null;
   externalIds: MediaExternalIds;
   parent: MediaItemParent | null;

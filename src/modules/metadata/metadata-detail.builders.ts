@@ -35,6 +35,7 @@ export function buildMetadataView(params: {
   return {
     ...card,
     runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
+    maturityRating: extractCertification(title),
     certification: extractCertification(title),
     genres: extractGenres(title),
     externalIds: extractExternalIds(title),
