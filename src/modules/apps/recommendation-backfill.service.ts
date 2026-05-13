@@ -64,7 +64,7 @@ export class DefaultRecommendationBackfillService implements RecommendationBackf
       assignments: items,
       cursor: {
         hasMore,
-        next: hasMore && last
+        nextCursor: hasMore && last
           ? this.deps.cursorCodec.encode({
               appId: principal.appId,
               kind: 'app_audit_events',

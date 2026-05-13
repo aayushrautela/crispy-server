@@ -5,7 +5,16 @@ import { HttpError } from '../../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
 import type { MetadataSearchFilter } from '../metadata-detail.types.js';
-import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+import type { TmdbEpisodeRecord, TmdbPersonRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+
+type PersonSearchPayloadItem = {
+  id?: unknown;
+  name?: unknown;
+  known_for_department?: unknown;
+  profile_path?: unknown;
+  known_for?: unknown[];
+  popularity?: unknown;
+};
 
 type SearchPayloadItem = {
   id?: unknown;
@@ -107,6 +116,33 @@ function sortDiscoverResults(records: TmdbTitleRecord[]): TmdbTitleRecord[] {
   return [...records].sort((left, right) => {
     return searchPopularity(right.raw as SearchPayloadItem) - searchPopularity(left.raw as SearchPayloadItem);
   });
+}
+
+function toSearchPersonRecord(item: PersonSearchPayloadItem): TmdbPersonRecord | null {
+  const tmdbPersonId = typeof item?.id === 'number' ? item.id : null;
+  if (!tmdbPersonId) {
+    return null;
+  }
+
+  const knownFor = Array.isArray(item.known_for)
+    ? item.known_for.map((kf) => {
+        const entry = kf as Record<string, unknown>;
+        return {
+          mediaType: typeof entry.media_type === 'string' ? entry.media_type : 'movie',
+          title: toNullableString(entry.title) ?? toNullableString(entry.name),
+          tmdbId: typeof entry.id === 'number' ? entry.id : 0,
+        };
+      }).filter((kf) => kf.title)
+    : [];
+
+  return {
+    tmdbPersonId,
+    name: toNullableString(item.name) ?? '',
+    knownForDepartment: toNullableString(item.known_for_department),
+    profilePath: toNullableString(item.profile_path),
+    knownFor,
+    popularity: typeof item.popularity === 'number' ? item.popularity : 0,
+  };
 }
 
 function toNullableString(value: unknown): string | null {
@@ -294,6 +330,15 @@ export class TmdbCacheService {
     });
 
     return sortSearchResults(query, dedupeTitles(records)).slice(0, limit);
+  }
+
+  async searchPeople(query: string, limit: number): Promise<TmdbPersonRecord[]> {
+    const payload = await this.tmdbClient.searchPerson(query);
+    const items = Array.isArray(payload.results) ? payload.results as PersonSearchPayloadItem[] : [];
+    const records = items
+      .map((item) => toSearchPersonRecord(item))
+      .filter((item): item is TmdbPersonRecord => item !== null);
+    return records.slice(0, limit);
   }
 
   async discoverTitlesByGenre(params: {

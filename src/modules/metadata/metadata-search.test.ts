@@ -8,12 +8,12 @@ seedTestEnv();
 test('searchTitles returns empty when query is blank', async () => {
   const pkg = await import('../search/title-search.service.js');
   const svc = new pkg.TitleSearchService(
-    { searchTitles: async () => [], discoverTitlesByGenre: async () => [] } as never,
+    { searchTitles: async () => [], discoverTitlesByGenre: async () => [], searchPeople: async () => [] } as never,
     { ensureContentIds: async () => new Map(), ensureContentId: async () => null } as never,
   );
 
   const response = await svc.searchTitles({ query: '   ', limit: 10 });
-  assert.deepEqual(response, { query: '', all: [], movies: [], series: [] });
+  assert.deepEqual(response, { query: '', all: [], movies: [], series: [], people: [] });
 });
 
 test('search filter maps series to TMDB tv search types', async () => {
@@ -56,6 +56,7 @@ test('all filter combines movie and series TMDB results', async () => {
           return [movieRecord, seriesRecord];
         },
         discoverTitlesByGenre: async () => [],
+        searchPeople: async () => [],
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -97,6 +98,7 @@ test('searchTitles drops results without posters', async () => {
           createTmdbShowRecord({ tmdbId: 43, name: 'Visible Series', posterPath: '/series.jpg', firstAirDate: '2022-01-01' }),
         ],
         discoverTitlesByGenre: async () => [],
+        searchPeople: async () => [],
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -134,6 +136,7 @@ test('searchTitles moves noisy series results to the end without disturbing clea
           createTmdbShowRecord({ tmdbId: 203, name: 'Naruto Next', firstAirDate: '2017-04-05', overview: 'Ninja sequel', raw: { vote_average: 7.9 } }),
         ],
         discoverTitlesByGenre: async () => [],
+        searchPeople: async () => [],
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -176,6 +179,7 @@ test('searchTitles coalesces identical in-flight requests', async () => {
           return tmdbPromise;
         },
         discoverTitlesByGenre: async () => [],
+        searchPeople: async () => [],
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {

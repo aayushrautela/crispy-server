@@ -14,6 +14,8 @@ import {
   responsiveImageSetSchema,
   stringListSchema,
   stringSchema,
+  successEnvelope,
+  successListEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
 
@@ -498,10 +500,24 @@ const metadataSearchResultSchema = {
   },
 } as const;
 
+const metadataPersonSearchResultSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'tmdbPersonId', 'name', 'knownForDepartment', 'profileUrl', 'knownForTitles'],
+  properties: {
+    kind: { const: 'person_search_result' },
+    tmdbPersonId: { type: 'integer' },
+    name: stringSchema,
+    knownForDepartment: nullableStringSchema,
+    profileUrl: nullableStringSchema,
+    knownForTitles: { type: 'array', items: stringSchema },
+  },
+} as const;
+
 const metadataSearchResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'all', 'movies', 'series'],
+  required: ['query', 'all', 'movies', 'series', 'people'],
   properties: {
     query: stringSchema,
     all: {
@@ -515,6 +531,10 @@ const metadataSearchResponseSchema = {
     series: {
       type: 'array',
       items: metadataSearchResultSchema,
+    },
+    people: {
+      type: 'array',
+      items: metadataPersonSearchResultSchema,
     },
   },
 } as const;
@@ -576,7 +596,7 @@ const metadataCardsBatchResponseSchema = {
 export const metadataResolveRouteSchema = withDefaultErrorResponses({
   querystring: metadataResolveQuerystringSchema,
   response: {
-    200: metadataResolveResponseSchema,
+    200: successEnvelope(metadataResolveResponseSchema),
   },
 });
 
@@ -584,7 +604,7 @@ export const metadataTitleDetailRouteSchema = withDefaultErrorResponses({
   params: metadataTitleParamsSchema,
   querystring: metadataLanguageQuerystringSchema,
   response: {
-    200: metadataTitleDetailResponseSchema,
+    200: successEnvelope(metadataTitleDetailResponseSchema),
   },
 });
 
@@ -592,14 +612,14 @@ export const metadataTitleReviewsRouteSchema = withDefaultErrorResponses({
   params: profileIdAndMediaKeyParamsSchema,
   querystring: metadataLanguageQuerystringSchema,
   response: {
-    200: metadataTitleReviewsResponseSchema,
+    200: successEnvelope(metadataTitleReviewsResponseSchema),
   },
 });
 
 export const metadataTitleRatingsRouteSchema = withDefaultErrorResponses({
   params: profileIdAndMediaKeyParamsSchema,
   response: {
-    200: metadataTitleRatingsResponseSchema,
+    200: successEnvelope(metadataTitleRatingsResponseSchema),
   },
 });
 
@@ -620,14 +640,14 @@ export const metadataPersonRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: metadataPersonDetailResponseSchema,
+    200: successEnvelope(metadataPersonDetailResponseSchema),
   },
 });
 
 export const playbackResolveRouteSchema = withDefaultErrorResponses({
   querystring: metadataResolveQuerystringSchema,
   response: {
-    200: playbackResolveResponseSchema,
+    200: successEnvelope(playbackResolveResponseSchema),
   },
 });
 
@@ -643,13 +663,13 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: metadataSearchResponseSchema,
+    200: successEnvelope(metadataSearchResponseSchema),
   },
 });
 
 export const metadataCardsBatchRouteSchema = withDefaultErrorResponses({
   body: metadataCardsBatchBodySchema,
   response: {
-    200: metadataCardsBatchResponseSchema,
+    200: successEnvelope(metadataCardsBatchResponseSchema),
   },
 });

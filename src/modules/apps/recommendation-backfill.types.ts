@@ -23,7 +23,7 @@ export interface RecommendationBackfillAssignment {
 
 export interface BackfillAssignmentsResponse {
   assignments: RecommendationBackfillAssignment[];
-  cursor: { next?: string | null; hasMore: boolean };
+  cursor: { nextCursor?: string | null; hasMore: boolean };
 }
 
 export interface GetBackfillAssignmentsInput {

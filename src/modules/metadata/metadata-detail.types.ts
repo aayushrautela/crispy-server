@@ -219,7 +219,7 @@ export type MetadataPersonDetail = {
   knownFor: MetadataPersonKnownForItem[];
 };
 
-export type MetadataSearchFilter = 'all' | 'movies' | 'series';
+export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'people';
 
 export type MetadataSearchResult = CatalogItem & {
   kind?: 'search_result';
@@ -228,11 +228,21 @@ export type MetadataSearchResult = CatalogItem & {
   presentation?: MediaPresentationHint | null;
 };
 
+export type MetadataPersonSearchResult = {
+  kind: 'person_search_result';
+  tmdbPersonId: number;
+  name: string;
+  knownForDepartment: string | null;
+  profileUrl: string | null;
+  knownForTitles: string[];
+};
+
 export type MetadataSearchResponse = {
   query: string;
   all: MetadataSearchResult[];
   movies: MetadataSearchResult[];
   series: MetadataSearchResult[];
+  people: MetadataPersonSearchResult[];
 };
 
 export type MetadataResolveResponse = {

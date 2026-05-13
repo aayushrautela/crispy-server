@@ -6,6 +6,7 @@ import {
   resolveRecommendationSourceKey,
 } from '../../modules/recommendations/recommendation-config.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { success, successList } from '../response.js';
 
 export async function registerRecommendationOutputRoutes(app: FastifyInstance): Promise<void> {
   const outputService = new RecommendationOutputService();
@@ -15,9 +16,9 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['taste-profile:read']);
     const params = request.params as { profileId: string };
-    return {
+    return success({
       items: await outputService.listTasteProfilesForAccount(actor.appUserId, params.profileId),
-    };
+    }, request);
   });
 
   app.get('/v1/profiles/:profileId/taste-profile', async (request) => {
@@ -27,9 +28,9 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const params = request.params as { profileId: string };
     const query = (request.query ?? {}) as Record<string, unknown>;
     const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
-    return {
+    return success({
       tasteProfile: await outputService.getTasteProfileForAccount(actor.appUserId, params.profileId, sourceKey),
-    };
+    }, request);
   });
 
   app.put('/v1/profiles/:profileId/taste-profile', async (request) => {
@@ -37,9 +38,9 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['taste-profile:write']);
     const params = request.params as { profileId: string };
-    return {
+    return success({
       tasteProfile: await outputService.upsertTasteProfileForAccount(actor.appUserId, params.profileId, parseTasteProfileInput(request.body)),
-    };
+    }, request);
   });
 
   app.get('/v1/profiles/:profileId/recommendations', async (request) => {
@@ -49,14 +50,14 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const params = request.params as { profileId: string };
     const query = (request.query ?? {}) as Record<string, unknown>;
     const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
-    return {
+    return success({
       recommendations: await outputService.getRecommendationsForAccount(
         actor.appUserId,
         params.profileId,
         sourceKey,
         resolveRecommendationAlgorithmVersion(query.algorithmVersion),
       ),
-    };
+    }, request);
   });
 
   app.put('/v1/profiles/:profileId/recommendations', async (request) => {
@@ -64,9 +65,9 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:write']);
     const params = request.params as { profileId: string };
-    return {
+    return success({
       recommendations: await outputService.upsertRecommendationsForAccount(actor.appUserId, params.profileId, parseRecommendationSnapshotInput(request.body)),
-    };
+    }, request);
   });
 }
 

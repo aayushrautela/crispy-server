@@ -3,6 +3,7 @@ import { ConfidentialConfigService, parseConfidentialBundleRequest } from '../..
 import type { ConfidentialBundleContext } from '../../modules/confidential/types.js';
 import { AiProviderResolver } from '../../modules/ai/ai-provider-resolver.js';
 import { HttpError } from '../../lib/errors.js';
+import { success } from '../response.js';
 
 export interface InternalConfidentialRoutesDeps {
   confidentialConfigService: ConfidentialConfigService;
@@ -28,10 +29,10 @@ export async function registerInternalConfidentialRoutes(
     };
 
     try {
-      return await confidentialConfigService.resolveBundle(
+      return success(await confidentialConfigService.resolveBundle(
         context,
         parseConfidentialBundleRequest(request.body),
-      );
+      ), request);
     } catch (error) {
       throw confidentialConfigService.toPublicError(error);
     }

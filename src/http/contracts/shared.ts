@@ -5,9 +5,58 @@ export type ApiErrorResponse = {
     category: 'validation' | 'authentication' | 'authorization' | 'not_found' | 'conflict' | 'idempotency' | 'rate_limit' | 'timeout' | 'upstream_dependency' | 'internal';
     retryable: boolean;
     requestId: string;
-    details?: unknown;
+    details: unknown;
   };
 };
+
+export const responseMetaSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['requestId'],
+  properties: {
+    requestId: { type: 'string' },
+    pageInfo: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['nextCursor', 'hasMore'],
+      properties: {
+        nextCursor: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        hasMore: { type: 'boolean' },
+      },
+    },
+  },
+} as const;
+
+export function successEnvelope<T extends Record<string, unknown>>(dataSchema: T) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['data', 'meta'],
+    properties: {
+      data: dataSchema,
+      meta: responseMetaSchema,
+    },
+  } as const;
+}
+
+export function successListEnvelope<T extends Record<string, unknown>>(itemSchema: T) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['data', 'meta'],
+    properties: {
+      data: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['items'],
+        properties: {
+          items: { type: 'array', items: itemSchema },
+        },
+      },
+      meta: responseMetaSchema,
+    },
+  } as const;
+}
 
 export const errorResponseSchema = {
   type: 'object',
@@ -17,7 +66,7 @@ export const errorResponseSchema = {
     error: {
       type: 'object',
       additionalProperties: false,
-      required: ['code', 'message', 'category', 'retryable', 'requestId'],
+      required: ['code', 'message', 'category', 'retryable', 'requestId', 'details'],
       properties: {
         code: { type: 'string' },
         message: { type: 'string' },

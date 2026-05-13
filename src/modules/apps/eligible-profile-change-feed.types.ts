@@ -33,5 +33,5 @@ export interface ListEligibleProfileChangesInput {
 
 export interface ListEligibleProfileChangesResult {
   items: EligibleProfileChangeEvent[];
-  cursor: { next?: string | null; hasMore: boolean };
+  cursor: { nextCursor?: string | null; hasMore: boolean };
 }

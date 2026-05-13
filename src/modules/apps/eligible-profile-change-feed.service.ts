@@ -79,7 +79,7 @@ export class DefaultEligibleProfileChangeFeedService implements EligibleProfileC
       metadata: { count: items.length },
     });
 
-    return { items, cursor: { next, hasMore } };
+    return { items, cursor: { nextCursor: next, hasMore } };
   }
 
   async recordProfileSignalChange(input: { accountId: string; profileId: string; reason: string; signalsVersion: number }): Promise<void> {

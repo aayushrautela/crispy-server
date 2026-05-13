@@ -5,6 +5,7 @@ import {
   nullableStringSchema,
   profileIdParamsSchema,
   stringSchema,
+  successEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
 
@@ -72,13 +73,13 @@ const profileThisWeekResponseSchema = {
 export const profileCalendarRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   response: {
-    200: profileCalendarResponseSchema,
+    200: successEnvelope(profileCalendarResponseSchema),
   },
 });
 
 export const profileThisWeekRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   response: {
-    200: profileThisWeekResponseSchema,
+    200: successEnvelope(profileThisWeekResponseSchema),
   },
 });

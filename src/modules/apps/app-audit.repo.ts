@@ -54,7 +54,7 @@ export interface CreateAppAuditEventInput {
 
 export interface PaginatedAppAuditEvents {
   events: AppAuditEventRecord[];
-  cursor: { next?: string | null; hasMore: boolean };
+  cursor: { nextCursor?: string | null; hasMore: boolean };
 }
 
 export interface AppAuditRepo {
@@ -137,7 +137,7 @@ export class SqlAppAuditRepo implements AppAuditRepo {
       events,
       cursor: {
         hasMore: rows.length > limit,
-        next: rows.length > limit && last ? Buffer.from(last.createdAt.toISOString()).toString('base64url') : null,
+        nextCursor: rows.length > limit && last ? Buffer.from(last.createdAt.toISOString()).toString('base64url') : null,
       },
     };
   }

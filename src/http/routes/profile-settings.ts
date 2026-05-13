@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
+import { success } from '../response.js';
 
 export async function registerProfileSettingsRoutes(app: FastifyInstance): Promise<void> {
   const profileService = new ProfileService();
@@ -8,9 +9,9 @@ export async function registerProfileSettingsRoutes(app: FastifyInstance): Promi
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
-    return {
+    return success({
       settings: await profileService.getSettingsForAccount(actor.appUserId, params.profileId),
-    };
+    }, request);
   });
 
   app.patch('/v1/profiles/:profileId/settings', async (request) => {
@@ -18,8 +19,8 @@ export async function registerProfileSettingsRoutes(app: FastifyInstance): Promi
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return {
+    return success({
       settings: await profileService.patchSettingsForAccount(actor.appUserId, params.profileId, body),
-    };
+    }, request);
   });
 }

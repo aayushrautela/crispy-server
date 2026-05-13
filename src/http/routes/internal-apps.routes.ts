@@ -17,6 +17,27 @@ import { AccountLookupService } from '../../modules/users/account-lookup.service
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
 import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
+import { success, mutation } from '../response.js';
+import {
+  eligibleProfileChangesRouteSchema,
+  createEligibleProfileSnapshotRouteSchema,
+  getEligibleProfileSnapshotItemsRouteSchema,
+  profileEligibilityRouteSchema,
+  profileSignalBundleRouteSchema,
+  serviceRecommendationListsRouteSchema,
+  upsertServiceRecommendationListRouteSchema,
+  accountListUpsertRouteSchema,
+  batchUpsertRouteSchema,
+  createRecommendationRunRouteSchema,
+  updateRecommendationRunRouteSchema,
+  createRecommendationBatchRouteSchema,
+  updateRecommendationBatchRouteSchema,
+  backfillAssignmentsRouteSchema,
+  appAuditEventsRouteSchema,
+  createAuditEventRouteSchema,
+  accountLookupRouteSchema,
+  appSelfRouteSchema,
+} from '../contracts/internal-apps.js';
 
 
 type ProfileOwnershipValidator = Pick<ProfileService, 'requireOwnedProfile' | 'requireProfileOwnerAccountId'>;
@@ -47,52 +68,53 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   const recommendationDataService = new RecommendationDataService();
   const profileService = deps.profileService ?? new ProfileService();
 
-  app.get('/internal/apps/v1/me', async (request) => {
+  app.get('/internal/apps/v1/me', { schema: appSelfRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     deps.appAuthorizationService.requireScope({ principal, scope: 'apps:self:read' });
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'apps.self' });
-    return deps.appSelfService.getAppSelf(principal);
+    return success(await deps.appSelfService.getAppSelf(principal), request);
   });
 
-  app.get('/internal/apps/v1/profiles/eligible/changes', async (request) => {
+  app.get('/internal/apps/v1/profiles/eligible/changes', { schema: eligibleProfileChangesRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.changes' });
     const query = request.query as { cursor?: string; limit?: string; reason?: string; accountId?: string; profileId?: string };
-    return deps.eligibleProfileChangeFeedService.listChanges({
+    return success(await deps.eligibleProfileChangeFeedService.listChanges({
       principal,
       cursor: query.cursor,
       limit: query.limit ? Number(query.limit) : undefined,
       reason: query.reason as Parameters<EligibleProfileChangeFeedService['listChanges']>[0]['reason'],
       accountId: query.accountId,
       profileId: query.profileId,
-    });
+    }), request);
   });
 
-  app.post('/internal/apps/v1/profiles/eligible/snapshots', async (request, reply) => {
+  app.post('/internal/apps/v1/profiles/eligible/snapshots', { schema: createEligibleProfileSnapshotRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.snapshots' });
     const result = await deps.eligibleProfileSnapshotService.createSnapshot({
       principal,
       request: request.body as Parameters<EligibleProfileSnapshotService['createSnapshot']>[0]['request'],
     });
-    return reply.code(201).send(result);
+    reply.code(201);
+    return mutation(result as Record<string, unknown>, request);
   });
 
-  app.get('/internal/apps/v1/profiles/eligible/snapshots/:snapshotId/items', async (request) => {
+  app.get('/internal/apps/v1/profiles/eligible/snapshots/:snapshotId/items', { schema: getEligibleProfileSnapshotItemsRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.snapshots' });
     const params = request.params as { snapshotId: string };
     const query = request.query as { cursor?: string; limit?: string; leaseSeconds?: string };
-    return deps.eligibleProfileSnapshotService.listItems({
+    return success(await deps.eligibleProfileSnapshotService.listItems({
       principal,
       snapshotId: params.snapshotId,
       cursor: query.cursor,
       limit: query.limit ? Number(query.limit) : undefined,
       leaseSeconds: query.leaseSeconds ? Number(query.leaseSeconds) : undefined,
-    });
+    }), request);
   });
 
-  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility', async (request) => {
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility', { schema: profileEligibilityRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
     const hasAllAccountRead = hasScopedAllAccountAccess(principal, 'accounts:all:read');
@@ -100,15 +122,15 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.eligible.changes', accountId: params.accountId, profileId: params.profileId });
-    return deps.profileEligibilityService.check({
+    return success(await deps.profileEligibilityService.check({
       principal,
       accountId: params.accountId,
       profileId: params.profileId,
       purpose: 'recommendation-generation',
-    });
+    }), request);
   });
 
-  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle', async (request) => {
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle', { schema: profileSignalBundleRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
     const query = request.query as { include?: string; historyLimit?: string; ratingsLimit?: string; watchlistLimit?: string; continueLimit?: string; since?: string };
@@ -117,7 +139,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    return deps.profileSignalBundleService.getBundle({
+    return success(await deps.profileSignalBundleService.getBundle({
       principal,
       accountId: params.accountId,
       profileId: params.profileId,
@@ -130,29 +152,29 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
         continueLimit: query.continueLimit ? Number(query.continueLimit) : undefined,
       },
       since: query.since ? new Date(query.since) : undefined,
-    });
+    }), request);
   });
 
-  app.get('/internal/apps/v1/accounts/lookup-by-email/:email/profiles', async (request) => {
+  app.get('/internal/apps/v1/accounts/lookup-by-email/:email/profiles', { schema: accountLookupRouteSchema }, async (request) => {
     await app.requireRecommenderAuth(request);
     const params = request.params as { email: string };
     const account = await accountLookupService.getByEmail(params.email);
-    return {
+    return success({
       account: {
         accountId: account.accountId,
         email: account.email,
       },
       profiles: await recommendationDataService.listAccountProfilesForService(account.accountId),
-    };
+    }, request);
   });
 
-  app.get('/internal/apps/v1/recommendations/service-lists', async (request) => {
+  app.get('/internal/apps/v1/recommendations/service-lists', { schema: serviceRecommendationListsRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.service-lists' });
-    return deps.serviceRecommendationListService.listWritableLists({ principal });
+    return success(await deps.serviceRecommendationListService.listWritableLists({ principal }), request);
   });
 
-  app.put('/internal/apps/v1/profiles/:profileId/recommendations', async (request, reply) => {
+  app.put('/internal/apps/v1/profiles/:profileId/recommendations', { schema: upsertServiceRecommendationListRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { profileId: string };
     const body = request.body as { listKey?: unknown; requestId?: unknown; jobId?: unknown; generatedAt?: unknown; algorithmVersion?: unknown; modelVersion?: unknown; inputBundleAsOf?: unknown; items?: Parameters<ServiceRecommendationListService['upsertList']>[0]['request']['items'] };
@@ -176,10 +198,11 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       idempotencyKey,
       request: { items: body.items ?? [] },
     });
-    return reply.code(result.idempotency.replayed ? 200 : 201).send(result);
+    reply.code(result.idempotency.replayed ? 200 : 201);
+    return mutation(result as unknown as Record<string, unknown>, request);
   });
 
-  app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', async (request, reply) => {
+  app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', { schema: accountListUpsertRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string; listKey: string };
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
@@ -196,10 +219,11 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       idempotencyKey: idempotencyKey ?? '',
       request: request.body as Parameters<ServiceRecommendationListService['upsertList']>[0]['request'],
     });
-    return reply.code(result.idempotency.replayed ? 200 : 201).send(result);
+    reply.code(result.idempotency.replayed ? 200 : 201);
+    return mutation(result as unknown as Record<string, unknown>, request);
   });
 
-  app.post('/internal/apps/v1/recommendations/batch-upsert', async (request, reply) => {
+  app.post('/internal/apps/v1/recommendations/batch-upsert', { schema: batchUpsertRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batch-write' });
@@ -208,31 +232,32 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       idempotencyKey: idempotencyKey ?? '',
       request: request.body as Parameters<ServiceRecommendationListService['batchUpsert']>[0]['request'],
     });
-    return reply.code(200).send(result);
+    return mutation(result as unknown as Record<string, unknown>, request);
   });
 
-  app.post('/internal/apps/v1/recommendations/runs', async (request, reply) => {
+  app.post('/internal/apps/v1/recommendations/runs', { schema: createRecommendationRunRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.runs' });
     const result = await deps.recommendationRunService.createRun({
       principal,
       request: request.body as Parameters<RecommendationRunService['createRun']>[0]['request'],
     });
-    return reply.code(201).send(result);
+    reply.code(201);
+    return mutation(result as Record<string, unknown>, request);
   });
 
-  app.patch('/internal/apps/v1/recommendations/runs/:runId', async (request) => {
+  app.patch('/internal/apps/v1/recommendations/runs/:runId', { schema: updateRecommendationRunRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { runId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.runs', runId: params.runId });
-    return deps.recommendationRunService.updateRun({
+    return success(await deps.recommendationRunService.updateRun({
       principal,
       runId: params.runId,
       request: request.body as Parameters<RecommendationRunService['updateRun']>[0]['request'],
-    });
+    }), request);
   });
 
-  app.post('/internal/apps/v1/recommendations/runs/:runId/batches', async (request, reply) => {
+  app.post('/internal/apps/v1/recommendations/runs/:runId/batches', { schema: createRecommendationBatchRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { runId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batches', runId: params.runId });
@@ -241,41 +266,42 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       runId: params.runId,
       request: request.body as Parameters<RecommendationBatchService['createBatch']>[0]['request'],
     });
-    return reply.code(201).send(result);
+    reply.code(201);
+    return mutation(result as Record<string, unknown>, request);
   });
 
-  app.patch('/internal/apps/v1/recommendations/runs/:runId/batches/:batchId', async (request) => {
+  app.patch('/internal/apps/v1/recommendations/runs/:runId/batches/:batchId', { schema: updateRecommendationBatchRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { runId: string; batchId: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batches', runId: params.runId });
-    return deps.recommendationBatchService.updateBatch({
+    return success(await deps.recommendationBatchService.updateBatch({
       principal,
       runId: params.runId,
       batchId: params.batchId,
       request: request.body as Parameters<RecommendationBatchService['updateBatch']>[0]['request'],
-    });
+    }), request);
   });
 
-  app.get('/internal/apps/v1/recommendations/backfills/assignments', async (request) => {
+  app.get('/internal/apps/v1/recommendations/backfills/assignments', { schema: backfillAssignmentsRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const query = request.query as { status?: Parameters<RecommendationBackfillService['getAssignments']>[0]['query']['status']; limit?: string; cursor?: string };
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.backfills' });
-    return deps.recommendationBackfillService.getAssignments({
+    return success(await deps.recommendationBackfillService.getAssignments({
       principal,
       query: {
         status: query.status,
         limit: query.limit ? Number(query.limit) : undefined,
         cursor: query.cursor,
       },
-    });
+    }), request);
   });
 
-  app.get('/internal/apps/v1/audit/events', async (request) => {
+  app.get('/internal/apps/v1/audit/events', { schema: appAuditEventsRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const query = request.query as { accountId?: string; profileId?: string; runId?: string; batchId?: string; cursor?: string; limit?: string };
     deps.appAuthorizationService.requireScope({ principal, scope: 'apps:audit:read' });
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'apps.audit' });
-    return deps.appAuditRepo.listForApp({
+    return success(await deps.appAuditRepo.listForApp({
       appId: principal.appId,
       accountId: query.accountId,
       profileId: query.profileId,
@@ -283,10 +309,10 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       batchId: query.batchId,
       cursor: query.cursor,
       limit: query.limit ? Number(query.limit) : 50,
-    });
+    }), request);
   });
 
-  app.post('/internal/apps/v1/audit/events', async (request, reply) => {
+  app.post('/internal/apps/v1/audit/events', { schema: createAuditEventRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     deps.appAuthorizationService.requireScope({ principal, scope: 'apps:audit:write' });
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'apps.audit' });
@@ -314,6 +340,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
         ...body.metadata,
       },
     });
-    return reply.code(201).send({ success: true });
+    reply.code(201);
+    return mutation({ success: true }, request);
   });
 }

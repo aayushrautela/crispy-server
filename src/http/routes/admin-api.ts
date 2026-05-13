@@ -33,6 +33,7 @@ import { EpisodicFollowService } from '../../modules/watch/episodic-follow.servi
 import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
 import { withDbClient, withTransaction } from '../../lib/db.js';
 import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { success, mutation } from '../response.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -104,7 +105,7 @@ export async function registerAdminApiRoutes(
     if (error) {
       throw new HttpError(500, error.message);
     }
-    return { runs: data ?? [] };
+    return success({ runs: data ?? [] }, request);
   });
 
   app.get('/admin/api/recommendations/runs/:runId', async (request, reply) => {
@@ -124,7 +125,7 @@ export async function registerAdminApiRoutes(
     if (!run) {
       throw new HttpError(404, 'Recommendation run not found.');
     }
-    return { run };
+    return success({ run }, request);
   });
 
   app.get('/admin/api/recommendations/runs/:runId/batches', async (request, reply) => {
@@ -142,7 +143,7 @@ export async function registerAdminApiRoutes(
     if (error) {
       throw new HttpError(500, error.message);
     }
-    return { batches: data ?? [] };
+    return success({ batches: data ?? [] }, request);
   });
 
   app.get('/admin/api/recommendations/runs/:runId/logs', async (request, reply) => {
@@ -160,12 +161,12 @@ export async function registerAdminApiRoutes(
     if (error) {
       throw new HttpError(500, error.message);
     }
-    return { logs: data ?? [] };
+    return success({ logs: data ?? [] }, request);
   });
 
   app.get('/admin/api/recommendations/recompute-jobs/capabilities', async (request, reply) => {
     await requireAdmin(request);
-    return {
+    return success({
       feature: {
         enabled: env.adminRecommendationRecomputeJobsEnabled,
         createEnabled: env.adminRecommendationRecomputeJobsCreateEnabled,
@@ -187,14 +188,14 @@ export async function registerAdminApiRoutes(
         enumerationPageSize: env.adminBulkJobsEnumerationPageSize,
         fanoutBatchSize: env.adminBulkJobsFanoutBatchSize,
       },
-    };
+    }, request);
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/preview', async (request, reply) => {
     await requireAdmin(request);
     ensureRecomputeJobsEnabled();
     const body = asRecord(request.body);
-    return adminBulkJobService.previewRecommendationRecomputeJob(parseBulkJobInput(body));
+    return success(await adminBulkJobService.previewRecommendationRecomputeJob(parseBulkJobInput(body)), request);
   });
 
   app.post('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
@@ -213,55 +214,55 @@ export async function registerAdminApiRoutes(
     }
     const result = await adminBulkJobService.createRecommendationRecomputeJob(input);
     reply.code(result.created ? 202 : 200);
-    return result;
+    return mutation(result as Record<string, unknown>, request);
   });
 
   app.get('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
     await requireAdmin(request);
     ensureRecomputeJobsEnabled();
     const query = asRecord(request.query);
-    return adminBulkJobService.listJobs({ status: parseBulkJobStatus(query.status), scope: parseBulkJobScopeFilter(query.scope), limit: parseBulkJobLimit(query.limit) });
+    return success(await adminBulkJobService.listJobs({ status: parseBulkJobStatus(query.status), scope: parseBulkJobScopeFilter(query.scope), limit: parseBulkJobLimit(query.limit) }), request);
   });
 
   app.get('/admin/api/recommendations/recompute-jobs/:jobId', async (request, reply) => {
     await requireAdmin(request);
     ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return adminBulkJobService.getJobDetail(readRequiredString(params.jobId, 'jobId'));
+    return success(await adminBulkJobService.getJobDetail(readRequiredString(params.jobId, 'jobId')), request);
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/pause', async (request, reply) => {
     await requireAdminMutation(request);
     ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'pause');
+    return mutation(await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'pause') as Record<string, unknown>, request);
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/resume', async (request, reply) => {
     await requireAdminMutation(request);
     ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'resume');
+    return mutation(await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'resume') as Record<string, unknown>, request);
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/cancel', async (request, reply) => {
     await requireAdminMutation(request);
     ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'cancel');
+    return mutation(await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'cancel') as Record<string, unknown>, request);
   });
 
   app.post('/admin/api/recommendations/recompute-jobs/:jobId/reconcile', async (request, reply) => {
     await requireAdminMutation(request);
     ensureRecomputeJobsEnabled();
     const params = asRecord(request.params);
-    return adminBulkJobService.reconcileJob(readRequiredString(params.jobId, 'jobId'));
+    return mutation(await adminBulkJobService.reconcileJob(readRequiredString(params.jobId, 'jobId')) as Record<string, unknown>, request);
   });
 
   app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
     await requireAdmin(request);
     const query = asRecord(request.query);
-    return recommendationAdminService.getOutbox(parseLimit(query.limit));
+    return success(await recommendationAdminService.getOutbox(parseLimit(query.limit)), request);
   });
 
   app.get('/admin/api/diagnostics/recommendations/service-outbox', async (request, reply) => {
@@ -291,7 +292,7 @@ export async function registerAdminApiRoutes(
       failed: events.filter((e) => e.status === 'failed').length,
     };
 
-    return {
+    return success({
       events: events.map((e) => ({
         id: e.id,
         profileId: e.profileId,
@@ -308,18 +309,18 @@ export async function registerAdminApiRoutes(
         createdAt: e.createdAt,
       })),
       summary,
-    };
+    }, request);
   });
 
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
     await requireAdmin(request);
     const query = asRecord(request.query);
-    return providerAdminService.listConnections({
+    return success(await providerAdminService.listConnections({
       provider: parseProvider(query.provider),
       expiringWithinHours: parseOptionalNumber(query.expiringWithinHours),
       refreshFailuresOnly: query.refreshFailuresOnly === true || query.refreshFailuresOnly === 'true',
       limit: parseLimit(query.limit),
-    });
+    }), request);
   });
 
   app.get('/admin/api/diagnostics/imports/jobs', async (request, reply) => {
@@ -331,21 +332,21 @@ export async function registerAdminApiRoutes(
       failuresOnly: query.failuresOnly === true || query.failuresOnly === 'true',
       limit: parseLimit(query.limit),
     });
-    return {
+    return success({
       jobs: result.jobs.map((job) => mapProviderImportJobAdminView(job)),
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/lookup-by-email/:email', async (request, reply) => {
     await requireAdmin(request);
     const params = asRecord(request.params);
     const account = await accountLookupService.getByEmail(readRequiredString(params.email, 'email'));
-    return {
+    return success({
       account: {
         ...account,
         pricingTier: await accountSettingsService.getPricingTierForUser(account.accountId),
       },
-    };
+    }, request);
   });
 
   app.patch('/admin/api/accounts/:accountId/pricing-tier', async (request, reply) => {
@@ -356,15 +357,15 @@ export async function registerAdminApiRoutes(
       readRequiredString(params.accountId, 'accountId'),
       body.pricingTier,
     );
-    return { pricingTier };
+    return success({ pricingTier }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles', async (request, reply) => {
     await requireAdmin(request);
     const params = asRecord(request.params);
-    return {
+    return success({
       profiles: await recommendationDataService.listAccountProfilesForService(readRequiredString(params.accountId, 'accountId')),
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/watch-history', async (request, reply) => {
@@ -383,14 +384,14 @@ export async function registerAdminApiRoutes(
         items: await watchSupabaseEnrichmentService.enrichRegularMediaItems(client, result.items),
       };
     });
-    return {
+    return success({
       profileId: params.profileId,
       kind: 'history' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: page.items,
       pageInfo: page.pageInfo,
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/continue-watching', async (request, reply) => {
@@ -409,14 +410,14 @@ export async function registerAdminApiRoutes(
         items: await watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, result.items),
       };
     });
-    return {
+    return success({
       profileId: params.profileId,
       kind: 'continue-watching' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: page.items,
       pageInfo: page.pageInfo,
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/watchlist', async (request, reply) => {
@@ -435,14 +436,14 @@ export async function registerAdminApiRoutes(
         items: await watchSupabaseEnrichmentService.enrichRegularMediaItems(client, result.items),
       };
     });
-    return {
+    return success({
       profileId: params.profileId,
       kind: 'watchlist' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: page.items,
       pageInfo: page.pageInfo,
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/ratings', async (request, reply) => {
@@ -461,14 +462,14 @@ export async function registerAdminApiRoutes(
         items: await watchSupabaseEnrichmentService.enrichRegularMediaItems(client, result.items),
       };
     });
-    return {
+    return success({
       profileId: params.profileId,
       kind: 'ratings' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: page.items,
       pageInfo: page.pageInfo,
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/episodic-follow', async (request, reply) => {
@@ -480,39 +481,39 @@ export async function registerAdminApiRoutes(
       await supabaseAdminWatchReadService.assertProfileAccess(client, params);
       return episodicFollowService.listForProfile(client, params.profileId, parseLimit(query.limit));
     });
-    return {
+    return success({
       profileId: params.profileId,
       kind: 'episodic-follow' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items,
       pageInfo: { hasMore: false, nextCursor: null },
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/calendar', async (request, reply) => {
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
-    return calendarService.getCalendarForAccountService(params.accountId, params.profileId);
+    return success(await calendarService.getCalendarForAccountService(params.accountId, params.profileId), request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/calendar/this-week', async (request, reply) => {
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
-    return calendarService.getThisWeekForAccountService(params.accountId, params.profileId);
+    return success(await calendarService.getThisWeekForAccountService(params.accountId, params.profileId), request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/taste-profile', async (request, reply) => {
     await requireAdmin(request);
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
-    return {
+    return success({
       tasteProfile: await recommendationOutputService.getTasteProfileForAccountService(
         params.accountId,
         params.profileId,
         resolveRecommendationSourceKey(query.sourceKey),
       ),
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/recommendations', async (request, reply) => {
@@ -521,14 +522,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
     const algorithmVersion = resolveRecommendationAlgorithmVersion(query.algorithmVersion);
-    return {
+    return success({
       recommendations: await recommendationOutputService.getRecommendationsForAccountService(
         params.accountId,
         params.profileId,
         sourceKey,
         algorithmVersion,
       ),
-    };
+    }, request);
   });
 
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/imports/overview', async (request, reply) => {
@@ -540,12 +541,12 @@ export async function registerAdminApiRoutes(
       loadProviderStates(providerTokenAccessService, params.accountId, params.profileId),
     ]);
 
-    return {
+    return success({
       watchDataState: jobsResult.watchDataState,
       providerDiagnostics: connectionsResult.connections.filter((row) => row.profileId === params.profileId),
       jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
       providers: providerStates,
-    };
+    }, request);
   });
 
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/imports/start', async (request, reply) => {
@@ -560,13 +561,13 @@ export async function registerAdminApiRoutes(
         ? await providerImportService.reconnectProvider(params.accountId, params.profileId, provider)
         : await providerImportService.importProviderNow(params.accountId, params.profileId, provider);
     reply.code(started.nextAction === 'queued' ? 202 : 201);
-    return {
+    return mutation({
       nextAction: started.nextAction,
       authUrl: started.authUrl,
       watchDataState: started.watchDataState,
       providerState: started.providerState,
       job: started.job ? mapProviderImportJobView(started.job) : null,
-    };
+    }, request);
   });
 
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/refresh-token', async (request, reply) => {
@@ -579,7 +580,7 @@ export async function registerAdminApiRoutes(
       { forceRefresh: true },
     );
 
-    return {
+    return success({
       provider: params.provider,
       refreshed: accessToken.refreshed,
       connection: await providerTokenAccessService.getConnectionForAccountProfile(
@@ -592,17 +593,17 @@ export async function registerAdminApiRoutes(
         params.profileId,
         params.provider,
       ),
-    };
+    }, request);
   });
 
   app.delete('/admin/api/accounts/:accountId/profiles/:profileId/providers/:provider/connection', async (request, reply) => {
     await requireAdminMutation(request);
     const params = parseProviderParams(request.params);
-    return providerImportService.disconnectProviderSession(
+    return success(await providerImportService.disconnectProviderSession(
       params.accountId,
       params.profileId,
       params.provider,
-    );
+    ), request);
   });
 
   app.post('/admin/api/accounts/:accountId/profiles/:profileId/recommendations/recompute', async (request, reply) => {
@@ -628,7 +629,7 @@ export async function registerAdminApiRoutes(
     });
 
     reply.code(202);
-    return {
+    return mutation({
       ok: true,
       reason: 'admin_requested',
       accountId: params.accountId,
@@ -639,7 +640,7 @@ export async function registerAdminApiRoutes(
       correlationId,
       note,
       diagnosticsUrl: `/admin/api/diagnostics/recommendations/service-outbox?correlationId=${encodeURIComponent(correlationId)}`,
-    };
+    }, request);
   });
 
   app.post('/admin/api/accounts/:accountId/recommendations/recompute', async (request, reply) => {
@@ -682,7 +683,7 @@ export async function registerAdminApiRoutes(
     });
 
     reply.code(202);
-    return {
+    return mutation({
       ok: true,
       reason: 'admin_requested',
       accountId,
@@ -693,7 +694,7 @@ export async function registerAdminApiRoutes(
       correlationId,
       note,
       diagnosticsUrl: `/admin/api/diagnostics/recommendations/service-outbox?correlationId=${encodeURIComponent(correlationId)}`,
-    };
+    }, request);
   });
 
   app.get('/admin/api/ai/config', async (request, reply) => {
@@ -716,7 +717,7 @@ export async function registerAdminApiRoutes(
       byokModels.push({ feature, model });
     }
 
-    return {
+    return success({
       server: {
         available: serverAvailable,
         label: serverProvider.label,
@@ -727,7 +728,7 @@ export async function registerAdminApiRoutes(
         label: byokProvider.label,
         models: byokModels,
       },
-    };
+    }, request);
   });
 
   app.post('/admin/api/ai/test', async (request, reply) => {
@@ -870,7 +871,7 @@ export async function registerAdminApiRoutes(
     const successCount = results.filter((r) => r.status === 'success').length;
     const errorCount = results.filter((r) => r.status === 'error').length;
 
-    return {
+    return mutation({
       runId,
       startedAt,
       completedAt,
@@ -880,7 +881,7 @@ export async function registerAdminApiRoutes(
         error: errorCount,
       },
       results,
-    };
+    }, request);
   });
 }
 

@@ -56,7 +56,6 @@ type ClientError = {
 };
 
 function toErrorResponse(request: FastifyRequest, statusCode: number, code: string, message: string, details?: unknown): ApiErrorResponse {
-  const sanitizedDetails = sanitizeDetails(details);
   return {
     error: {
       code,
@@ -64,7 +63,7 @@ function toErrorResponse(request: FastifyRequest, statusCode: number, code: stri
       category: errorCategory(statusCode, code),
       retryable: isRetryable(statusCode, code),
       requestId: getRequestId(request),
-      ...(sanitizedDetails === undefined ? {} : { details: sanitizedDetails }),
+      details: sanitizeDetails(details) ?? null,
     },
   };
 }
@@ -76,10 +75,10 @@ function getRequestId(request: FastifyRequest): string {
 }
 
 function sanitizeDetails(details: unknown): unknown {
-  if (details === undefined) return undefined;
+  if (details === undefined || details === null) return null;
   if (details && typeof details === 'object' && !Array.isArray(details)) {
     const { code: _code, ...rest } = details as Record<string, unknown>;
-    return Object.keys(rest).length > 0 ? rest : undefined;
+    return Object.keys(rest).length > 0 ? rest : null;
   }
   return details;
 }

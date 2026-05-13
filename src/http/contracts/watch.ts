@@ -10,6 +10,8 @@ import {
   profileIdParamsSchema,
   recordSchema,
   stringSchema,
+  successEnvelope,
+  successListEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
 
@@ -409,28 +411,28 @@ export const watchListRouteSchema = withDefaultErrorResponses({
 export const continueWatchingListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: buildWatchCollectionResponseSchema('continue-watching', continueWatchingItemSchema),
+    200: successEnvelope(buildWatchCollectionResponseSchema('continue-watching', continueWatchingItemSchema)),
   },
 });
 
 export const historyListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: buildWatchCollectionResponseSchema('history', historyItemSchema),
+    200: successEnvelope(buildWatchCollectionResponseSchema('history', historyItemSchema)),
   },
 });
 
 export const watchlistListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: buildWatchCollectionResponseSchema('watchlist', watchlistItemSchema),
+    200: successEnvelope(buildWatchCollectionResponseSchema('watchlist', watchlistItemSchema)),
   },
 });
 
 export const ratingsListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: buildWatchCollectionResponseSchema('ratings', ratingItemSchema),
+    200: successEnvelope(buildWatchCollectionResponseSchema('ratings', ratingItemSchema)),
   },
 });
 
@@ -457,7 +459,7 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: watchStateEnvelopeSchema,
+    200: successEnvelope(watchStateEnvelopeSchema),
   },
 });
 
@@ -482,7 +484,7 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: watchStatesEnvelopeSchema,
+    200: successEnvelope(watchStatesEnvelopeSchema),
   },
 });
 

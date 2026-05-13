@@ -6,8 +6,8 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import type { CatalogItem } from '../metadata/metadata-card.types.js';
-import type { MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
-import type { TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
+import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
+import type { TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
 
 type SearchTitlesInput = {
   query: string;
@@ -89,6 +89,10 @@ export class TitleSearchService {
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
 
+      const peopleMatches = shouldSearchPeople(normalizedFilter) && normalizedQuery
+        ? await this.tmdbCacheService.searchPeople(normalizedQuery, limit)
+        : [];
+
       const tmdbIdentities = filteredTmdbMatches.map((match) => inferMediaIdentity({
         mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
         tmdbId: match.tmdbId,
@@ -123,9 +127,11 @@ export class TitleSearchService {
         } : null;
       }));
 
+      const peopleItems = peopleMatches.map(buildPersonSearchResult);
+
       return buildBucketedSearchResponse(normalizedQuery, limit, [
         ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
-      ]);
+      ], peopleItems);
     }));
   }
 }
@@ -136,6 +142,20 @@ function emptySearchResponse(query: string): MetadataSearchResponse {
     all: [],
     movies: [],
     series: [],
+    people: [],
+  };
+}
+
+function buildPersonSearchResult(person: TmdbPersonRecord): MetadataPersonSearchResult {
+  return {
+    kind: 'person_search_result',
+    tmdbPersonId: person.tmdbPersonId,
+    name: person.name,
+    knownForDepartment: person.knownForDepartment,
+    profileUrl: person.profilePath ? `https://image.tmdb.org/t/p/w185${person.profilePath}` : null,
+    knownForTitles: person.knownFor
+      .map((kf) => kf.title)
+      .filter((title): title is string => title !== null),
   };
 }
 
@@ -171,7 +191,7 @@ function normalizeSearchLocale(value: string | null | undefined): string | null 
 }
 
 function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined): MetadataSearchFilter {
-  return filter === 'movies' || filter === 'series' ? filter : 'all';
+  return filter === 'movies' || filter === 'series' || filter === 'people' ? filter : 'all';
 }
 
 function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilter): boolean {
@@ -181,11 +201,18 @@ function matchesSearchFilter(match: TmdbTitleRecord, filter: MetadataSearchFilte
   if (filter === 'series') {
     return match.mediaType === 'tv';
   }
+  if (filter === 'people') {
+    return false;
+  }
   return match.mediaType === 'movie' || match.mediaType === 'tv';
 }
 
 function shouldQueryTmdb(filter: MetadataSearchFilter): boolean {
   return filter === 'movies' || filter === 'series' || filter === 'all';
+}
+
+function shouldSearchPeople(filter: MetadataSearchFilter): boolean {
+  return filter === 'people' || filter === 'all';
 }
 
 function normalizeGenreKey(value: string): string {
@@ -233,7 +260,7 @@ function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
   return buckets;
 }
 
-function buildBucketedSearchResponse(query: string, limit: number, entries: SearchBucketEntry[]): MetadataSearchResponse {
+function buildBucketedSearchResponse(query: string, limit: number, entries: SearchBucketEntry[], peopleEntries: MetadataPersonSearchResult[]): MetadataSearchResponse {
   const buckets = buildSearchBuckets(entries);
   const movies = finalizeBucket(query, buckets.movies, Math.min(limit, MOVIES_LIMIT));
   const series = finalizeBucket(query, buckets.series, Math.min(limit, SERIES_LIMIT));
@@ -244,6 +271,7 @@ function buildBucketedSearchResponse(query: string, limit: number, entries: Sear
     all: toCatalogItems(all),
     movies: toCatalogItems(movies),
     series: toCatalogItems(series),
+    people: peopleEntries,
   };
 }
 

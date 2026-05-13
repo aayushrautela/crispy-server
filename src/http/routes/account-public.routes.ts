@@ -5,6 +5,7 @@ import { PublicAccountReadService } from '../../modules/account-public/public-ac
 import { PublicTasteReadService } from '../../modules/account-public/public-taste-read.service.js';
 import { LanguageProfileReadService } from '../../modules/language-profile/language-profile-read.service.js';
 import { PublicAccountWriteService } from '../../modules/account-public/public-account-write.service.js';
+import { success, mutation } from '../response.js';
 
 export interface PublicAccountRateLimitDecision {
   allowed: boolean;
@@ -59,7 +60,7 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
     await enforcePublicAccountRateLimit(request, reply, rateLimitService);
     const actor = request.auth as AuthActor;
     const account = await accountReadService.getAccount(actor);
-    return { account };
+    return success({ account }, request);
   });
 
   app.get('/api/account/v1/profiles', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -67,7 +68,7 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
     await enforcePublicAccountRateLimit(request, reply, rateLimitService);
     const actor = request.auth as AuthActor;
     const profiles = await accountReadService.listProfiles(actor);
-    return { profiles };
+    return success({ profiles }, request);
   });
 
   app.get('/api/account/v1/profiles/:profileId', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -76,7 +77,7 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
     const actor = request.auth as AuthActor;
     const params = request.params as { profileId: string };
     const profile = await accountReadService.getProfile(actor, params.profileId);
-    return { profile };
+    return success({ profile }, request);
   });
 
   app.get('/api/account/v1/profiles/:profileId/language-profile', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -87,7 +88,7 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
 
     const languageProfile = await languageProfileReadService.getForProfile(actor, params.profileId);
 
-    return { languageProfile };
+    return success({ languageProfile }, request);
   });
 
   app.get('/api/account/v1/profiles/:profileId/taste/current', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -98,7 +99,7 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
 
     const taste = await tasteReadService.getCurrentForProfile(actor, params.profileId);
 
-    return { taste };
+    return success({ taste }, request);
   });
 
   app.put('/api/account/v1/profiles/:profileId/taste/current', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -114,7 +115,7 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
       ifMatch: getHeader(request, 'if-match'),
     });
     reply.header('ETag', result.etag).code(result.status);
-    return result.response;
+    return mutation(result.response as unknown as Record<string, unknown>, request);
   });
 
   app.delete('/api/account/v1/profiles/:profileId/taste/current', async (request: FastifyRequest, reply: FastifyReply) => {

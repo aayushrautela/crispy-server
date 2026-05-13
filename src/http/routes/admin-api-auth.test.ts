@@ -158,7 +158,7 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
+  assert.deepEqual(response.json().data, {
     watchDataState: null,
     providerDiagnostics: [],
     jobs: [],
@@ -285,7 +285,7 @@ test('admin provider token refresh route forces refresh for trakt and returns up
     });
 
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), {
+    assert.deepEqual(response.json().data, {
       provider,
       refreshed: true,
       connection: {

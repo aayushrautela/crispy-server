@@ -25,6 +25,7 @@ import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detai
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
 import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-batch.service.js';
+import { success } from '../response.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataDetailService = new MetadataDetailService();
@@ -39,7 +40,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
 
-    return metadataDetailService.resolve({
+    return success(await metadataDetailService.resolve({
       mediaKey: asUndefinedString(query.mediaKey),
       tmdbId: parseOptionalPositiveNumber(query.tmdbId, 'tmdbId'),
       imdbId: asOptionalString(query.imdbId),
@@ -47,14 +48,14 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       seasonNumber: parseOptionalNumber(query.seasonNumber),
       episodeNumber: parseOptionalNumber(query.episodeNumber),
       language: asOptionalString(query.language),
-    });
+    }));
   });
 
   app.get('/v1/metadata/titles/:mediaKey', { schema: metadataTitleDetailRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return metadataDetailService.getTitleDetailById(params.mediaKey, asOptionalString(query.language));
+    return success(await metadataDetailService.getTitleDetailById(params.mediaKey, asOptionalString(query.language)));
   });
 
   app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/reviews', { schema: metadataTitleReviewsRouteSchema }, async (request) => {
@@ -62,27 +63,27 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; mediaKey: string };
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return metadataReviewsService.getTitleReviews(actor.appUserId, params.profileId, params.mediaKey, asOptionalString(query.language));
+    return success(await metadataReviewsService.getTitleReviews(actor.appUserId, params.profileId, params.mediaKey, asOptionalString(query.language)));
   });
 
   app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/ratings', { schema: metadataTitleRatingsRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; mediaKey: string };
-    return metadataRatingsService.getTitleRatings(actor.appUserId, params.profileId, params.mediaKey);
+    return success(await metadataRatingsService.getTitleRatings(actor.appUserId, params.profileId, params.mediaKey));
   });
 
   app.get('/v1/metadata/people/:id', { schema: metadataPersonRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataPersonParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return personDetailService.getPersonDetail(params.id, asOptionalString(query.language));
+    return success(await personDetailService.getPersonDetail(params.id, asOptionalString(query.language)));
   });
 
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
-    return playbackResolveService.resolvePlayback({
+    return success(await playbackResolveService.resolvePlayback({
       mediaKey: asUndefinedString(query.mediaKey),
       tmdbId: parseOptionalPositiveNumber(query.tmdbId, 'tmdbId'),
       imdbId: asOptionalString(query.imdbId),
@@ -90,7 +91,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       seasonNumber: parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
       episodeNumber: parseOptionalPositiveNumber(query.episodeNumber, 'episodeNumber'),
       language: asOptionalString(query.language),
-    });
+    }));
   });
 
   app.get('/v1/search/titles', { schema: metadataSearchRouteSchema }, async (request) => {
@@ -100,17 +101,17 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const genre = asOptionalString(query.genre);
     const filter = parseSearchFilter(query.filter);
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 20, 1, 50);
-    return titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit });
+    return success(await titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit }));
   });
 
   app.post('/v1/metadata/cards/batch', { schema: metadataCardsBatchRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const body = (request.body ?? {}) as MetadataCardsBatchBody;
 
-    return metadataCardBatchService.hydrate({
+    return success(await metadataCardBatchService.hydrate({
       mediaKeys: body.mediaKeys ?? [],
       language: asOptionalString(body.language),
-    });
+    }));
   });
 }
 
@@ -154,7 +155,7 @@ function parseSupportedMediaType(value: unknown): SupportedMediaType | null {
 }
 
 function parseSearchFilter(value: unknown): MetadataSearchFilter {
-  if (value === 'movies' || value === 'series') {
+  if (value === 'movies' || value === 'series' || value === 'people') {
     return value;
   }
   if (value === undefined || value === null || value === '' || value === 'all') {

@@ -2,19 +2,12 @@ import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
 import type { MediaItem, MediaItemType } from './media-item.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
-import { emptyResponsiveImageSet } from './metadata-builder.shared.js';
+import { buildResponsiveImageSet, emptyResponsiveImageSet } from './metadata-builder.shared.js';
 
 const emptyExternalIds = {
   tmdb: null,
   imdb: null,
   tvdb: null,
-};
-
-const emptyImages = {
-  poster: emptyResponsiveImageSet(),
-  backdrop: emptyResponsiveImageSet(),
-  logo: emptyResponsiveImageSet(),
-  still: emptyResponsiveImageSet(),
 };
 
 export function metadataCardToMediaItem(card: MetadataCardView, overrides: Partial<MediaItem> = {}): MediaItem {
@@ -70,7 +63,12 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     originalTitle: null,
     subtitle: record.subtitle,
     overview: null,
-    images: emptyImages,
+    images: {
+      poster: buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' }),
+      backdrop: buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' }),
+      logo: buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' }),
+      still: emptyResponsiveImageSet(),
+    },
     releaseDate: null,
     releaseYear: record.releaseYear,
     rating: record.rating,

@@ -70,6 +70,15 @@ export class TmdbClient {
     });
   }
 
+  async searchPerson(query: string, page = 1, language?: string | null): Promise<TmdbSearchApiResponse> {
+    return fetchTmdbJson('/search/person', {
+      query,
+      page,
+      include_adult: 'false',
+      language: language?.trim() || undefined,
+    });
+  }
+
   async searchTitles(mediaType: TmdbTitleType, query: string, page = 1, language?: string | null): Promise<TmdbSearchApiResponse> {
     return fetchTmdbJson(`/search/${mediaType}`, {
       query,

@@ -126,7 +126,7 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
+  assert.deepEqual(response.json().data, {
     profileId: 'profile-1',
     source: 'canonical_calendar',
     generatedAt: '2026-04-15T00:00:00.000Z',
@@ -330,7 +330,7 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
+  assert.deepEqual(response.json().data, {
     profileId: 'profile-1',
     source: 'canonical_calendar',
     kind: 'this-week',

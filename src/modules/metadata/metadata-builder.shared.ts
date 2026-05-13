@@ -44,16 +44,24 @@ export function padded(value: number): string {
   return String(value).padStart(2, '0');
 }
 
+const tmdbUrlPattern = /^https?:\/\/image\.tmdb\.org\/t\/p\/[^/]+\/(.+)$/;
+
 export function buildImageUrl(path: string | null, size: string): string | null {
   if (!path) {
     return null;
   }
 
+  const baseUrl = appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '');
+
   if (path.startsWith('http://') || path.startsWith('https://')) {
+    const match = path.match(tmdbUrlPattern);
+    if (match) {
+      return `${baseUrl}/${size}/${match[1]}`;
+    }
     return path;
   }
 
-  return `${appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
+  return `${baseUrl}/${size}${path}`;
 }
 
 export function buildResponsiveImageSet(

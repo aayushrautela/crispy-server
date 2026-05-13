@@ -169,7 +169,7 @@ test('POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/
   });
 
   assert.equal(response.statusCode, 200);
-  const body = response.json();
+  const body = response.json().data;
   assert.equal(body.schemaVersion, 1);
   assert.equal(body.requestId, 'req-123');
   assert.equal(body.runId, 'run-123');
@@ -366,7 +366,7 @@ test('POST ai-plan response does not expose AI provider/model/proxy', async (t) 
   });
 
   assert.equal(response.statusCode, 200);
-  const body = response.json();
+  const body = response.json().data;
   const bodyStr = JSON.stringify(body);
   
   // Response should not contain these fields

@@ -3,7 +3,8 @@ import { ProviderImportService, parseImportProvider } from '../../modules/integr
 import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
 import { mapProfileView } from '../../modules/profiles/profile.views.js';
-import { nonEmptyStringSchema, nullableStringSchema, profileIdParamsSchema, stringSchema, withDefaultErrorResponses } from '../contracts/shared.js';
+import { nonEmptyStringSchema, nullableStringSchema, profileIdParamsSchema, stringSchema, successEnvelope, withDefaultErrorResponses } from '../contracts/shared.js';
+import { success, mutation } from '../response.js';
 
 const providerStateSchema = {
   type: 'object',
@@ -36,38 +37,49 @@ const providerStateSchema = {
   },
 } as const;
 
+const providerConnectionsResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['providerStates', 'watchDataState'],
+  properties: {
+    providerStates: {
+      type: 'array',
+      items: providerStateSchema,
+    },
+    watchDataState: {
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
+          properties: {
+            profileId: stringSchema,
+            watchDataUpdatedAt: stringSchema,
+            watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
+            lastImportCompletedAt: { anyOf: [stringSchema, { type: 'null' }] },
+          },
+        },
+        { type: 'null' },
+      ],
+    },
+  },
+} as const;
+
 const providerConnectionRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   response: {
-    200: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['providerStates', 'watchDataState'],
-      properties: {
-        providerStates: {
-          type: 'array',
-          items: providerStateSchema,
-        },
-        watchDataState: {
-          anyOf: [
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
-              properties: {
-                profileId: stringSchema,
-                watchDataUpdatedAt: stringSchema,
-                watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
-                lastImportCompletedAt: { anyOf: [stringSchema, { type: 'null' }] },
-              },
-            },
-            { type: 'null' },
-          ],
-        },
-      },
-    },
+    200: successEnvelope(providerConnectionsResponseSchema),
   },
 });
+
+const providerConnectionDeleteResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['providerState'],
+  properties: {
+    providerState: providerStateSchema,
+  },
+} as const;
 
 const providerConnectionDeleteRouteSchema = withDefaultErrorResponses({
   params: {
@@ -81,16 +93,37 @@ const providerConnectionDeleteRouteSchema = withDefaultErrorResponses({
   },
   body: { type: 'object', additionalProperties: false },
   response: {
-    200: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['providerState'],
-      properties: {
-        providerState: providerStateSchema,
-      },
-    },
+    200: successEnvelope(providerConnectionDeleteResponseSchema),
   },
 });
+
+const providerImportResultSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction'],
+  properties: {
+    job: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
+    providerState: providerStateSchema,
+    watchDataState: {
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
+          properties: {
+            profileId: stringSchema,
+            watchDataUpdatedAt: stringSchema,
+            watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
+            lastImportCompletedAt: nullableStringSchema,
+          },
+        },
+        { type: 'null' },
+      ],
+    },
+    authUrl: nullableStringSchema,
+    nextAction: { type: 'string', enum: ['authorize_provider', 'queued'] },
+  },
+} as const;
 
 const providerImportStartRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
@@ -104,60 +137,8 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    201: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction'],
-      properties: {
-        job: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
-        providerState: providerStateSchema,
-        watchDataState: {
-          anyOf: [
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
-              properties: {
-                profileId: stringSchema,
-                watchDataUpdatedAt: stringSchema,
-                watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
-                lastImportCompletedAt: nullableStringSchema,
-              },
-            },
-            { type: 'null' },
-          ],
-        },
-        authUrl: nullableStringSchema,
-        nextAction: { type: 'string', enum: ['authorize_provider', 'queued'] },
-      },
-    },
-    202: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction'],
-      properties: {
-        job: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
-        providerState: providerStateSchema,
-        watchDataState: {
-          anyOf: [
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
-              properties: {
-                profileId: stringSchema,
-                watchDataUpdatedAt: stringSchema,
-                watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
-                lastImportCompletedAt: nullableStringSchema,
-              },
-            },
-            { type: 'null' },
-          ],
-        },
-        authUrl: nullableStringSchema,
-        nextAction: { type: 'string', enum: ['authorize_provider', 'queued'] },
-      },
-    },
+    201: successEnvelope(providerImportResultSchema),
+    202: successEnvelope(providerImportResultSchema),
   },
 });
 
@@ -168,9 +149,9 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
   app.get('/v1/profiles', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
-    return {
+    return success({
       profiles: (await profileService.listForAccount(actor.appUserId)).map((profile) => mapProfileView(profile)),
-    };
+    }, request);
   });
 
   app.post('/v1/profiles', async (request) => {
@@ -183,7 +164,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
       isKids: Boolean(body.isKids),
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
-    return { profile: mapProfileView(profile) };
+    return success({ profile: mapProfileView(profile) }, request);
   });
 
   app.patch('/v1/profiles/:profileId', async (request) => {
@@ -197,7 +178,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
       isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
-    return { profile: mapProfileView(profile) };
+    return success({ profile: mapProfileView(profile) }, request);
   });
 
   app.post('/v1/profiles/:profileId/imports/start', { schema: providerImportStartRouteSchema }, async (request, reply) => {
@@ -213,10 +194,10 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
         ? await providerImportService.reconnectProvider(actor.appUserId, params.profileId, provider)
         : await providerImportService.importProviderNow(actor.appUserId, params.profileId, provider);
     reply.code(started.nextAction === 'queued' ? 202 : 201);
-    return {
+    return mutation({
       ...started,
       job: started.job ? mapProviderImportJobView(started.job) : null,
-    };
+    }, request);
   });
 
   app.get('/v1/profiles/:profileId/imports', async (request) => {
@@ -224,24 +205,24 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
     const result = await providerImportService.listJobs(actor.appUserId, params.profileId);
-    return {
+    return success({
       ...result,
       jobs: result.jobs.map((job) => mapProviderImportJobView(job)),
-    };
+    }, request);
   });
 
   app.get('/v1/profiles/:profileId/import-connections', { schema: providerConnectionRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string };
-    return providerImportService.listProviderSessions(actor.appUserId, params.profileId);
+    return success(await providerImportService.listProviderSessions(actor.appUserId, params.profileId), request);
   });
 
   app.delete('/v1/profiles/:profileId/import-connections/:provider', { schema: providerConnectionDeleteRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; provider: string };
-    return providerImportService.disconnectProviderSession(actor.appUserId, params.profileId, parseImportProvider(params.provider));
+    return success(await providerImportService.disconnectProviderSession(actor.appUserId, params.profileId, parseImportProvider(params.provider)), request);
   });
 
   app.get('/v1/profiles/:profileId/imports/:jobId', async (request) => {
@@ -249,9 +230,7 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; jobId: string };
     const job = await providerImportService.getJob(actor.appUserId, params.profileId, params.jobId);
-    return {
-      job: mapProviderImportJobView(job),
-    };
+    return success({ job: mapProviderImportJobView(job) }, request);
   });
 
   app.get('/v1/imports/:provider/callback', async (request, reply) => {
@@ -269,9 +248,9 @@ export async function registerProfileRoutes(app: FastifyInstance): Promise<void>
             : undefined,
     });
     reply.code(202);
-    return {
+    return mutation({
       ...completed,
       job: mapProviderImportJobView(completed.job),
-    };
+    }, request);
   });
 }

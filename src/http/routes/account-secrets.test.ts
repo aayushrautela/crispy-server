@@ -26,12 +26,12 @@ test('GET /v1/account/secrets/ai-api-key returns metadata without raw value', as
   });
 
   assert.equal(response.statusCode, 200);
-  const body = response.json() as { secret: { appUserId: string; key: string; present: boolean; fingerprint: string; value?: string } };
-  assert.equal(body.secret.appUserId, 'user-1');
-  assert.equal(body.secret.key, 'ai.api_key');
-  assert.equal(body.secret.present, true);
-  assert.equal(body.secret.fingerprint, 'abc123def456');
-  assert.equal(body.secret.value, undefined);
+  const body = response.json() as { data: { secret: { appUserId: string; key: string; present: boolean; fingerprint: string; value?: string } } };
+  assert.equal(body.data.secret.appUserId, 'user-1');
+  assert.equal(body.data.secret.key, 'ai.api_key');
+  assert.equal(body.data.secret.present, true);
+  assert.equal(body.data.secret.fingerprint, 'abc123def456');
+  assert.equal(body.data.secret.value, undefined);
 });
 
 test('PUT /v1/account/secrets/ai-api-key returns metadata without raw value', async (t) => {
@@ -57,12 +57,12 @@ test('PUT /v1/account/secrets/ai-api-key returns metadata without raw value', as
   });
 
   assert.equal(response.statusCode, 200);
-  const body = response.json() as { secret: { appUserId: string; key: string; present: boolean; fingerprint: string; value?: string } };
-  assert.equal(body.secret.appUserId, 'user-1');
-  assert.equal(body.secret.key, 'ai.api_key');
-  assert.equal(body.secret.present, true);
-  assert.equal(body.secret.fingerprint, 'new123abc456');
-  assert.equal(body.secret.value, undefined);
+  const body = response.json() as { data: { secret: { appUserId: string; key: string; present: boolean; fingerprint: string; value?: string } } };
+  assert.equal(body.data.secret.appUserId, 'user-1');
+  assert.equal(body.data.secret.key, 'ai.api_key');
+  assert.equal(body.data.secret.present, true);
+  assert.equal(body.data.secret.fingerprint, 'new123abc456');
+  assert.equal(body.data.secret.value, undefined);
 });
 
 test('DELETE /v1/account/secrets/ai-api-key returns deletion status', async (t) => {
@@ -87,5 +87,5 @@ test('DELETE /v1/account/secrets/ai-api-key returns deletion status', async (t) 
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), { deleted: true });
+  assert.equal(response.json().data.deleted, true);
 });

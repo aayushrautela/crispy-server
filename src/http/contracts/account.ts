@@ -3,6 +3,7 @@ import {
   nonEmptyStringSchema,
   recordSchema,
   stringSchema,
+  successEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
 
@@ -132,52 +133,52 @@ const secretValueBodySchema = {
 
 export const accountSettingsRouteSchema = withDefaultErrorResponses({
   response: {
-    200: accountSettingsEnvelopeSchema,
+    200: successEnvelope(accountSettingsEnvelopeSchema),
   },
 });
 
 export const accountSettingsPatchRouteSchema = withDefaultErrorResponses({
   body: recordSchema,
   response: {
-    200: accountSettingsEnvelopeSchema,
+    200: successEnvelope(accountSettingsEnvelopeSchema),
   },
 });
 
 export const aiAccountSecretGetRouteSchema = withDefaultErrorResponses({
   response: {
-    200: secretEnvelopeSchema,
+    200: successEnvelope(secretEnvelopeSchema),
   },
 });
 
 export const aiAccountSecretPutRouteSchema = withDefaultErrorResponses({
   body: secretValueBodySchema,
   response: {
-    200: secretEnvelopeSchema,
+    200: successEnvelope(secretEnvelopeSchema),
   },
 });
 
 export const mdblistAccountSecretGetRouteSchema = withDefaultErrorResponses({
   response: {
-    200: secretEnvelopeSchema,
+    200: successEnvelope(secretEnvelopeSchema),
   },
 });
 
 export const mdblistAccountSecretPutRouteSchema = withDefaultErrorResponses({
   body: secretValueBodySchema,
   response: {
-    200: secretEnvelopeSchema,
+    200: successEnvelope(secretEnvelopeSchema),
   },
 });
 
 export const deleteResultRouteSchema = withDefaultErrorResponses({
   response: {
-    200: deleteEnvelopeSchema,
+    200: successEnvelope(deleteEnvelopeSchema),
   },
 });
 
 export const meRouteSchema = withDefaultErrorResponses({
   response: {
-    200: {
+    200: successEnvelope({
       type: 'object',
       additionalProperties: false,
       required: ['user', 'accountSettings', 'profiles'],
@@ -197,7 +198,7 @@ export const meRouteSchema = withDefaultErrorResponses({
           items: recordSchema,
         },
       },
-    },
+    }),
   },
 });
 
@@ -214,6 +215,6 @@ const internalAccountProfileParamsSchema = {
 export const internalAiSecretRouteSchema = withDefaultErrorResponses({
   params: internalAccountProfileParamsSchema,
   response: {
-    200: internalAiSecretEnvelopeSchema,
+    200: successEnvelope(internalAiSecretEnvelopeSchema),
   },
 });

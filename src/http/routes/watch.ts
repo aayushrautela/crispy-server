@@ -26,6 +26,7 @@ import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
+import { mutation, success } from '../response.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const supabaseUserWatchService = new SupabaseUserWatchService();
@@ -53,7 +54,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
       eventKind: String(body.eventType ?? '') === 'playback_completed' ? 'playback_completed' : 'playback_progress',
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.get('/v1/profiles/:profileId/watch/continue-watching', { schema: continueWatchingListRouteSchema }, async (request) => {
@@ -74,14 +75,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
         watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, page.items),
       )
       : page.items;
-    return {
+    return success({
       profileId,
       kind: 'continue-watching' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: enrichedItems,
       pageInfo: page.pageInfo,
-    };
+    });
   });
 
   app.delete('/v1/profiles/:profileId/watch/continue-watching/:id', { schema: watchContinueWatchingDismissRouteSchema }, async (request) => {
@@ -95,7 +96,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       profileId,
       titleMediaKey,
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.get('/v1/profiles/:profileId/watch/history', { schema: historyListRouteSchema }, async (request) => {
@@ -116,14 +117,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
         watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
       )
       : page.items;
-    return {
+    return success({
       profileId,
       kind: 'history' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: enrichedItems,
       pageInfo: page.pageInfo,
-    };
+    });
   });
 
   app.get('/v1/profiles/:profileId/watch/watchlist', { schema: watchlistListRouteSchema }, async (request) => {
@@ -144,14 +145,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
         watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
       )
       : page.items;
-    return {
+    return success({
       profileId,
       kind: 'watchlist' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: enrichedItems,
       pageInfo: page.pageInfo,
-    };
+    });
   });
 
   app.get('/v1/profiles/:profileId/watch/ratings', { schema: ratingsListRouteSchema }, async (request) => {
@@ -172,14 +173,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
         watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
       )
       : page.items;
-    return {
+    return success({
       profileId,
       kind: 'ratings' as const,
       source: 'canonical_watch' as const,
       generatedAt,
       items: enrichedItems,
       pageInfo: page.pageInfo,
-    };
+    });
   });
 
   app.get('/v1/profiles/:profileId/watch/state', { schema: watchStateRouteSchema }, async (request) => {
@@ -195,12 +196,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const enrichedItem = await withDbClient((client) =>
       watchSupabaseEnrichmentService.enrichRegularMediaItems(client, [item]),
     );
-    return {
+    return success({
       profileId,
       source: 'canonical_watch' as const,
       generatedAt: nowIso(),
       item: enrichedItem[0] ?? item,
-    };
+    });
   });
 
   app.post('/v1/profiles/:profileId/watch/states', { schema: watchStatesRouteSchema }, async (request) => {
@@ -220,12 +221,12 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
         watchSupabaseEnrichmentService.enrichRegularMediaItems(client, stateItems),
       )
       : stateItems;
-    return {
+    return success({
       profileId,
       source: 'canonical_watch' as const,
       generatedAt: nowIso(),
       items: enrichedItems,
-    };
+    });
   });
 
   app.post('/v1/profiles/:profileId/watch/mark-watched', { schema: watchMutationRouteSchema }, async (request) => {
@@ -248,7 +249,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       mediaType: identity.mediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.post('/v1/profiles/:profileId/watch/unmark-watched', { schema: watchMutationRouteSchema }, async (request) => {
@@ -271,7 +272,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       mediaType: identity.mediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.put('/v1/profiles/:profileId/watch/watchlist/:mediaKey', { schema: watchMediaKeyMutationRouteSchema }, async (request) => {
@@ -294,7 +295,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       mediaKey: canonicalTitleMediaKey(identity),
       mediaType: canonicalTitleMediaType(identity),
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.delete('/v1/profiles/:profileId/watch/watchlist/:mediaKey', { schema: watchMediaKeyParamsRouteSchema }, async (request) => {
@@ -309,7 +310,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       listKind: 'watchlist',
       mediaKey: canonicalTitleMediaKey(identity),
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.put('/v1/profiles/:profileId/watch/rating/:mediaKey', { schema: watchMediaKeyMutationRouteSchema }, async (request) => {
@@ -335,7 +336,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       mediaType: canonicalTitleMediaType(identity),
       rating: body.rating,
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
   app.delete('/v1/profiles/:profileId/watch/rating/:mediaKey', { schema: watchMediaKeyParamsRouteSchema }, async (request) => {
@@ -349,7 +350,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       profileId,
       mediaKey: canonicalTitleMediaKey(identity),
     });
-    return { accepted: true, mode: 'synchronous' as const };
+    return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 }
 

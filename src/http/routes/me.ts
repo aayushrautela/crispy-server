@@ -4,6 +4,7 @@ import { FeatureEntitlementService } from '../../modules/entitlements/feature-en
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
 import { mapProfileView } from '../../modules/profiles/profile.views.js';
+import { success } from '../response.js';
 
 export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
   const profileService = new ProfileService();
@@ -18,7 +19,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
     const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.appUserId);
     const auth = request.auth!;
     const profiles = await profileService.listForAccount(actor.appUserId);
-    return {
+    return success({
       user: {
         id: actor.appUserId,
         email: auth.email,
@@ -29,6 +30,6 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
         pricingTier: await accountSettingsService.getPricingTierForUser(actor.appUserId),
       }),
       profiles: profiles.map((profile) => mapProfileView(profile)),
-    };
+    });
   });
 }

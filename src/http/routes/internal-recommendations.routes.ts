@@ -5,6 +5,7 @@ import type { AppRateLimitService } from '../../modules/apps/app-rate-limit.serv
 import { RecommendationAiPlanService } from '../../modules/recommendations/recommendation-ai-plan.service.js';
 import type { RecommendationAiPlanRequest } from '../../modules/recommendations/recommendation-ai-plan.types.js';
 import { validateAiPlanRequest, validatePathBodyMatch } from '../../modules/recommendations/recommendation-ai-plan.validation.js';
+import { success } from '../response.js';
 
 export interface InternalRecommendationsRoutesDeps {
   appAuthorizationService: AppAuthorizationService;
@@ -33,6 +34,6 @@ export async function registerInternalRecommendationsRoutes(
     validatePathBodyMatch(params.accountId, params.profileId, body);
 
     const response = await recommendationAiPlanService.generatePlan(body);
-    return reply.code(200).send(response);
+    return success(response, request);
   });
 }

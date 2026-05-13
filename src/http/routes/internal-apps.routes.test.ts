@@ -77,7 +77,7 @@ class FakeAuditRepo implements AppAuditRepo {
   async insert(event: CreateAppAuditEventInput): Promise<AppAuditEventRecord> {
     return { eventId: 'event', appId: event.appId, keyId: event.keyId, action: event.action, createdAt: new Date('2024-01-01T00:00:00.000Z') };
   }
-  async listForApp(): Promise<PaginatedAppAuditEvents> { return { events: [], cursor: { hasMore: false, next: null } }; }
+  async listForApp(): Promise<PaginatedAppAuditEvents> { return { events: [], cursor: { hasMore: false, nextCursor: null } }; }
 }
 
 class FakeAuthorizationService implements AppAuthorizationService {
@@ -125,13 +125,13 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     appRateLimitService: rateLimitService,
     appSelfService: { async getAppSelf(p) { return { appId: p.appId, name: p.registryEntry.name, status: p.registryEntry.status, principalType: p.registryEntry.principalType, scopes: p.scopes, ownedSources: p.ownedSources, ownedListKeys: p.ownedListKeys, rateLimitPolicy: p.rateLimitPolicy }; } } satisfies AppSelfService,
     profileEligibilityService: { async check() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async assertEligible() { throw new Error('not used'); }, async recomputeAndStore() { throw new Error('not used'); } } satisfies ProfileEligibilityService,
-    eligibleProfileChangeFeedService: { async listChanges() { return { items: [], cursor: { hasMore: false, next: null } }; }, async recordProfileSignalChange() {}, async recordEligibilityChange() {} } satisfies EligibleProfileChangeFeedService,
+    eligibleProfileChangeFeedService: { async listChanges() { return { items: [], cursor: { hasMore: false, nextCursor: null } }; }, async recordProfileSignalChange() {}, async recordEligibilityChange() {} } satisfies EligibleProfileChangeFeedService,
     eligibleProfileSnapshotService: { async createSnapshot() { throw new Error('not used'); }, async listItems() { throw new Error('not used'); } } satisfies EligibleProfileSnapshotService,
     profileSignalBundleService: { async getBundle() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligibility: { eligible: true, eligibilityVersion: 1 }, bundle: { signalsVersion: 1, generatedAt: new Date('2024-01-01T00:00:00.000Z'), profileContext: { profileName: 'Test Profile', isKids: false, watchDataOrigin: 'server_sync' }, history: [{ mediaKey: 'movie:tmdb:101', contentType: 'movie', watchedAt: new Date('2024-01-01T00:00:00.000Z'), progressPercent: 100, completionState: 'completed', durationSeconds: null }], ratings: [], watchlist: [], continueWatching: [] }, limits: {} }; } } satisfies ProfileSignalBundleService,
     serviceRecommendationListService: serviceRecommendationListService ?? { async listWritableLists() { return { appId: 'test-app', source: 'reco', lists: [] }; }, async upsertList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'for-you', source: 'official-recommender', version: 1, status: 'written', itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z'), eligibility: { checkedAt: new Date('2024-01-01T00:00:00.000Z'), eligible: true, eligibilityVersion: 1 } }; }, async batchUpsert() { throw new Error('not used'); } } satisfies ServiceRecommendationListService,
     recommendationRunService: { async createRun() { throw new Error('not used'); }, async updateRun() { throw new Error('not used'); } } satisfies RecommendationRunService,
     recommendationBatchService: { async createBatch() { throw new Error('not used'); }, async updateBatch() { throw new Error('not used'); } } satisfies RecommendationBatchService,
-    recommendationBackfillService: { async getAssignments() { return { assignments: [], cursor: { hasMore: false, next: null } }; } } satisfies RecommendationBackfillService,
+    recommendationBackfillService: { async getAssignments() { return { assignments: [], cursor: { hasMore: false, nextCursor: null } }; } } satisfies RecommendationBackfillService,
     appAuditRepo: auditRepo,
     profileService,
   });
@@ -145,8 +145,8 @@ test('GET /internal/apps/v1/me returns authenticated app self', async (t) => {
   const response = await app.inject({ method: 'GET', url: '/internal/apps/v1/me' });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().appId, 'test-app');
-  assert.deepEqual(response.json().scopes, ['apps:self:read']);
+  assert.equal(response.json().data.appId, 'test-app');
+  assert.deepEqual(response.json().data.scopes, ['apps:self:read']);
 });
 
 test('GET /internal/apps/v1/profiles/eligible/changes is registered', async (t) => {
@@ -156,7 +156,7 @@ test('GET /internal/apps/v1/profiles/eligible/changes is registered', async (t) 
   const response = await app.inject({ method: 'GET', url: '/internal/apps/v1/profiles/eligible/changes?limit=1' });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), { items: [], cursor: { hasMore: false, next: null } });
+  assert.deepEqual(response.json().data, { items: [], cursor: { hasMore: false, nextCursor: null } });
 });
 
 test('legacy integrations v1 RECO endpoints are absent', async (t) => {
@@ -248,8 +248,8 @@ test('official recommender with accounts:all:read can access profile signals acr
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().bundle.history[0].mediaKey, 'movie:tmdb:101');
-  assert.equal('contentId' in response.json().bundle.history[0], false);
+  assert.equal(response.json().data.bundle.history[0].mediaKey, 'movie:tmdb:101');
+  assert.equal('contentId' in response.json().data.bundle.history[0], false);
 });
 
 test('official recommender with accounts:all:write can write recommendations across accounts', async (t) => {

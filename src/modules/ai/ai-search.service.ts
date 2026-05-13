@@ -246,6 +246,7 @@ function bucketResolvedItems(query: string, items: CatalogItem[]): MetadataSearc
     all: items,
     movies,
     series,
+    people: [],
   };
 }
 

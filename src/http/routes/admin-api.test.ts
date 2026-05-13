@@ -58,13 +58,12 @@ test('admin AI test accepts arbitrary non-empty custom model ids', async (t) => 
   assert.deepEqual(requestedModels, [slashlessModel]);
 
   const payload = JSON.parse(response.body) as {
-    summary: { success: number; error: number };
-    results: Array<{ status: string; model: string; result?: { model?: string } }>;
+    data: { summary: { success: number; error: number }; results: Array<{ status: string; model: string; result?: { model?: string } }> };
   };
-  assert.deepEqual(payload.summary, { total: 1, success: 1, error: 0 });
-  assert.equal(payload.results[0]?.status, 'success');
-  assert.equal(payload.results[0]?.model, slashlessModel);
-  assert.equal(payload.results[0]?.result?.model, slashlessModel);
+  assert.deepEqual(payload.data.summary, { total: 1, success: 1, error: 0 });
+  assert.equal(payload.data.results[0]?.status, 'success');
+  assert.equal(payload.data.results[0]?.model, slashlessModel);
+  assert.equal(payload.data.results[0]?.result?.model, slashlessModel);
 });
 
 test('admin AI test returns upstream model format failures as provider errors', async (t) => {
@@ -108,23 +107,25 @@ test('admin AI test returns upstream model format failures as provider errors', 
 
   assert.equal(response.statusCode, 200);
   const payload = JSON.parse(response.body) as {
-    summary: { success: number; error: number };
-    results: Array<{
-      status: string;
-      error?: string;
-      providerError?: { providerStatus?: number; responseBody?: string; providerErrorCode?: string; providerErrorParam?: string };
-      logs?: string[];
-    }>;
+    data: {
+      summary: { success: number; error: number };
+      results: Array<{
+        status: string;
+        error?: string;
+        providerError?: { providerStatus?: number; responseBody?: string; providerErrorCode?: string; providerErrorParam?: string };
+        logs?: string[];
+      }>;
+    };
   };
 
-  assert.deepEqual(payload.summary, { total: 1, success: 0, error: 1 });
-  assert.equal(payload.results[0]?.status, 'error');
-  assert.equal(payload.results[0]?.error, 'Provider rejected this model: model should be in provider/model format');
-  assert.equal(payload.results[0]?.providerError?.providerStatus, 400);
-  assert.equal(payload.results[0]?.providerError?.providerErrorCode, 'invalid_model');
-  assert.equal(payload.results[0]?.providerError?.providerErrorParam, 'model');
-  assert.match(payload.results[0]?.providerError?.responseBody ?? '', /model should be in provider\/model format/);
-  assert.ok(payload.results[0]?.logs?.some((line) => line.includes('Provider error returned by upstream AI provider')));
+  assert.deepEqual(payload.data.summary, { total: 1, success: 0, error: 1 });
+  assert.equal(payload.data.results[0]?.status, 'error');
+  assert.equal(payload.data.results[0]?.error, 'Provider rejected this model: model should be in provider/model format');
+  assert.equal(payload.data.results[0]?.providerError?.providerStatus, 400);
+  assert.equal(payload.data.results[0]?.providerError?.providerErrorCode, 'invalid_model');
+  assert.equal(payload.data.results[0]?.providerError?.providerErrorParam, 'model');
+  assert.match(payload.data.results[0]?.providerError?.responseBody ?? '', /model should be in provider\/model format/);
+  assert.ok(payload.data.results[0]?.logs?.some((line) => line.includes('Provider error returned by upstream AI provider')));
 });
 
 test('admin AI test rejects empty custom model ids only', async (t) => {
@@ -212,14 +213,12 @@ test('admin recompute jobs capabilities returns worker configuration', async (t)
 
   assert.equal(response.statusCode, 200);
   const payload = JSON.parse(response.body) as {
-    feature: { enabled: boolean; createEnabled: boolean };
-    worker: { mode: string; pollIntervalMs: number };
-    allowedScopes: unknown[];
+    data: { feature: { enabled: boolean; createEnabled: boolean }; worker: { mode: string; pollIntervalMs: number }; allowedScopes: unknown[] };
   };
 
-  assert.ok(typeof payload.feature.enabled === 'boolean', 'should return feature.enabled');
-  assert.ok(typeof payload.feature.createEnabled === 'boolean', 'should return feature.createEnabled');
-  assert.ok(typeof payload.worker.mode === 'string', 'should return worker.mode');
-  assert.ok(typeof payload.worker.pollIntervalMs === 'number', 'should return worker.pollIntervalMs');
-  assert.ok(Array.isArray(payload.allowedScopes), 'should return allowedScopes array');
+  assert.ok(typeof payload.data.feature.enabled === 'boolean', 'should return feature.enabled');
+  assert.ok(typeof payload.data.feature.createEnabled === 'boolean', 'should return feature.createEnabled');
+  assert.ok(typeof payload.data.worker.mode === 'string', 'should return worker.mode');
+  assert.ok(typeof payload.data.worker.pollIntervalMs === 'number', 'should return worker.pollIntervalMs');
+  assert.ok(Array.isArray(payload.data.allowedScopes), 'should return allowedScopes array');
 });

@@ -47,13 +47,13 @@ test('account settings route returns AI client configuration envelope', async (t
   const response = await app.inject({ method: 'GET', url: '/v1/account/settings', headers: { authorization: 'Bearer test' } });
   assert.equal(response.statusCode, 200);
 
-  const payload = response.json() as { settings: Record<string, any> };
-  assert.equal(payload.settings.ai.providerId, 'openrouter');
-  assert.equal(payload.settings.ai.hasAiApiKey, true);
-  assert.equal(payload.settings.ai.defaultProviderId, 'openrouter');
-  assert.equal(Array.isArray(payload.settings.ai.providers), true);
-  assert.equal(payload.settings.metadata.hasMdbListAccess, true);
-  assert.equal(payload.settings.pricingTier, 'free');
+  const payload = response.json() as { data: { settings: Record<string, any> } };
+  assert.equal(payload.data.settings.ai.providerId, 'openrouter');
+  assert.equal(payload.data.settings.ai.hasAiApiKey, true);
+  assert.equal(payload.data.settings.ai.defaultProviderId, 'openrouter');
+  assert.equal(Array.isArray(payload.data.settings.ai.providers), true);
+  assert.equal(payload.data.settings.metadata.hasMdbListAccess, true);
+  assert.equal(payload.data.settings.pricingTier, 'free');
 });
 
 test('account settings patch route returns merged AI client configuration envelope', async (t) => {
@@ -103,11 +103,11 @@ test('account settings patch route returns merged AI client configuration envelo
   });
   assert.equal(response.statusCode, 200);
 
-  const payload = response.json() as { settings: Record<string, any> };
-  assert.equal(payload.settings.ai.providerId, 'openrouter');
-  assert.equal(payload.settings.ai.hasAiApiKey, false);
-  assert.equal(payload.settings.metadata.hasMdbListAccess, false);
-  assert.equal(payload.settings.pricingTier, 'pro');
+  const payload = response.json() as { data: { settings: Record<string, any> } };
+  assert.equal(payload.data.settings.ai.providerId, 'openrouter');
+  assert.equal(payload.data.settings.ai.hasAiApiKey, false);
+  assert.equal(payload.data.settings.metadata.hasMdbListAccess, false);
+  assert.equal(payload.data.settings.pricingTier, 'pro');
 });
 
 test('account settings patch route returns API error contract for unsupported AI provider', async (t) => {
@@ -136,10 +136,9 @@ test('account settings patch route returns API error contract for unsupported AI
   });
 
   assert.equal(response.statusCode, 400);
-  assert.deepEqual(response.json(), {
-    code: 'ai_provider_is_not_supported',
-    message: 'AI provider is not supported.',
-  });
+  const err = response.json().error;
+  assert.equal(err.code, 'ai_provider_is_not_supported');
+  assert.equal(err.message, 'AI provider is not supported.');
 });
 
 test('account MDBList secret routes return metadata and delegate to account settings service', async (t) => {
@@ -174,11 +173,11 @@ test('account MDBList secret routes return metadata and delegate to account sett
 
   const getResponse = await app.inject({ method: 'GET', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
   assert.equal(getResponse.statusCode, 200);
-  const getBody = getResponse.json() as { secret: { key: string; present: boolean; fingerprint: string; value?: string } };
-  assert.equal(getBody.secret.key, 'mdblist.api_key');
-  assert.equal(getBody.secret.present, true);
-  assert.equal(getBody.secret.fingerprint, 'mdb123abc456');
-  assert.equal(getBody.secret.value, undefined);
+  const getBody = getResponse.json() as { data: { secret: { key: string; present: boolean; fingerprint: string; value?: string } } };
+  assert.equal(getBody.data.secret.key, 'mdblist.api_key');
+  assert.equal(getBody.data.secret.present, true);
+  assert.equal(getBody.data.secret.fingerprint, 'mdb123abc456');
+  assert.equal(getBody.data.secret.value, undefined);
 
   const putResponse = await app.inject({
     method: 'PUT',
@@ -187,15 +186,15 @@ test('account MDBList secret routes return metadata and delegate to account sett
     payload: { value: 'new-mdb-key' },
   });
   assert.equal(putResponse.statusCode, 200);
-  const putBody = putResponse.json() as { secret: { key: string; present: boolean; fingerprint: string; value?: string } };
-  assert.equal(putBody.secret.key, 'mdblist.api_key');
-  assert.equal(putBody.secret.present, true);
-  assert.equal(putBody.secret.fingerprint, 'new123abc456');
-  assert.equal(putBody.secret.value, undefined);
+  const putBody = putResponse.json() as { data: { secret: { key: string; present: boolean; fingerprint: string; value?: string } } };
+  assert.equal(putBody.data.secret.key, 'mdblist.api_key');
+  assert.equal(putBody.data.secret.present, true);
+  assert.equal(putBody.data.secret.fingerprint, 'new123abc456');
+  assert.equal(putBody.data.secret.value, undefined);
 
   const deleteResponse = await app.inject({ method: 'DELETE', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
   assert.equal(deleteResponse.statusCode, 200);
-  assert.deepEqual(deleteResponse.json(), { deleted: true });
+  assert.equal(deleteResponse.json().data.deleted, true);
 });
 
 test('me route returns AI client configuration in account settings', async (t) => {
@@ -258,9 +257,9 @@ test('me route returns AI client configuration in account settings', async (t) =
   const response = await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: 'Bearer test' } });
   assert.equal(response.statusCode, 200);
 
-  const payload = response.json() as { accountSettings: Record<string, any> };
-  assert.equal(payload.accountSettings.ai.providerId, 'openrouter');
-  assert.equal(payload.accountSettings.ai.hasAiApiKey, true);
-  assert.equal(payload.accountSettings.metadata.hasMdbListAccess, false);
-  assert.equal(payload.accountSettings.pricingTier, 'free');
+  const payload = response.json() as { data: { accountSettings: Record<string, any> } };
+  assert.equal(payload.data.accountSettings.ai.providerId, 'openrouter');
+  assert.equal(payload.data.accountSettings.ai.hasAiApiKey, true);
+  assert.equal(payload.data.accountSettings.metadata.hasMdbListAccess, false);
+  assert.equal(payload.data.accountSettings.pricingTier, 'free');
 });

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { aiInsightsRouteSchema, aiSearchRouteSchema } from '../contracts/ai.js';
 import { AiInsightsService } from '../../modules/ai/ai-insights.service.js';
 import { AiSearchService } from '../../modules/ai/ai-search.service.js';
+import { success } from '../response.js';
 
 export async function registerAiRoutes(app: FastifyInstance): Promise<void> {
   const aiSearchService = new AiSearchService();
@@ -12,11 +13,11 @@ export async function registerAiRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserActor(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
     const params = request.params as { profileId: string };
-    return aiSearchService.search(actor.appUserId, {
+    return success(await aiSearchService.search(actor.appUserId, {
       query: typeof body.query === 'string' ? body.query : '',
       profileId: params.profileId,
       locale: typeof body.locale === 'string' ? body.locale : null,
-    });
+    }), request);
   });
 
   app.post('/v1/profiles/:profileId/ai/insights', { schema: aiInsightsRouteSchema }, async (request) => {
@@ -24,10 +25,10 @@ export async function registerAiRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserActor(request);
     const body = (request.body ?? {}) as Record<string, unknown>;
     const params = request.params as { profileId: string };
-    return aiInsightsService.getInsights(actor.appUserId, {
+    return success(await aiInsightsService.getInsights(actor.appUserId, {
       mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : '',
       profileId: params.profileId,
       locale: typeof body.locale === 'string' ? body.locale : null,
-    });
+    }), request);
   });
 }

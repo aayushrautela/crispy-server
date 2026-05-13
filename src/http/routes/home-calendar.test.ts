@@ -100,7 +100,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
 
   const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/calendar', headers: { authorization: 'Bearer test' } });
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
+  assert.deepEqual(response.json().data, {
     profileId: 'profile-1',
     source: 'canonical_calendar',
     generatedAt: '2024-01-02T00:00:00.000Z',
@@ -179,8 +179,8 @@ test('calendar route returns canonical envelope fields', async (t) => {
       },
     ],
   });
-  assert.equal('kind' in response.json(), false);
-  assert.equal('relatedShow' in response.json().items[0].context, true);
+  assert.equal('kind' in response.json().data, false);
+  assert.equal('relatedShow' in response.json().data.items[0].context, true);
 });
 
 test('calendar this-week route returns narrowed canonical envelope fields', async (t) => {
@@ -280,7 +280,7 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
 
   const response = await app.inject({ method: 'GET', url: '/v1/profiles/profile-1/calendar/this-week', headers: { authorization: 'Bearer test' } });
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
+  assert.deepEqual(response.json().data, {
     profileId: 'profile-1',
     source: 'canonical_calendar',
     kind: 'this-week',
@@ -360,6 +360,6 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
       },
     ],
   });
-  assert.equal(response.json().kind, 'this-week');
-  assert.equal('relatedShow' in response.json().items[0].context, true);
+  assert.equal(response.json().data.kind, 'this-week');
+  assert.equal('relatedShow' in response.json().data.items[0].context, true);
 });

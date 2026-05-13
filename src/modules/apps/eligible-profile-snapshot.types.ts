@@ -70,6 +70,6 @@ export interface EligibleProfileSnapshotService {
   }): Promise<{
     snapshot: EligibleProfileSnapshot;
     items: EligibleProfileSnapshotItem[];
-    cursor: { next?: string | null; hasMore: boolean };
+    cursor: { nextCursor?: string | null; hasMore: boolean };
   }>;
 }

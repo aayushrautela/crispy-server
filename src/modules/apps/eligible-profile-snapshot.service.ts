@@ -68,7 +68,7 @@ export class DefaultEligibleProfileSnapshotService implements EligibleProfileSna
   }): Promise<{
     snapshot: EligibleProfileSnapshot;
     items: EligibleProfileSnapshotItem[];
-    cursor: { next?: string | null; hasMore: boolean };
+    cursor: { nextCursor?: string | null; hasMore: boolean };
   }> {
     this.deps.appAuthorizationService.requireScope({ principal: input.principal, scope: 'profiles:eligible:snapshot:read' });
     this.deps.appAuthorizationService.requireGrant({
@@ -127,6 +127,6 @@ export class DefaultEligibleProfileSnapshotService implements EligibleProfileSna
       metadata: { count: returnedItems.length },
     });
 
-    return { snapshot, items: returnedItems, cursor: { next, hasMore } };
+    return { snapshot, items: returnedItems, cursor: { nextCursor: next, hasMore } };
   }
 }

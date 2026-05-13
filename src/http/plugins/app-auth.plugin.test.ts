@@ -98,7 +98,7 @@ class FakeAuditRepo implements AppAuditRepo {
   }
 
   async listForApp(): Promise<PaginatedAppAuditEvents> {
-    return { events: [], cursor: { hasMore: false, next: null } };
+    return { events: [], cursor: { hasMore: false, nextCursor: null } };
   }
 }
 

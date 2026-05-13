@@ -60,7 +60,7 @@ class FakeAuditRepo implements AppAuditRepo {
     this.events.push(event);
     return { eventId: 'event', appId: event.appId, keyId: event.keyId, action: event.action, createdAt: new Date('2024-01-01T00:00:00.000Z') };
   }
-  async listForApp(): Promise<PaginatedAppAuditEvents> { return { events: [], cursor: { hasMore: false, next: null } }; }
+  async listForApp(): Promise<PaginatedAppAuditEvents> { return { events: [], cursor: { hasMore: false, nextCursor: null } }; }
 }
 
 class FakeServiceListRepo implements ServiceRecommendationListRepo {

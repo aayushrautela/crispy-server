@@ -1,7 +1,9 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert';
-import { buildTestApp } from '../../test-helpers.js';
+import { buildTestApp, seedTestEnv } from '../../test-helpers.js';
 import { registerAccountPublicRoutes } from './account-public.routes.js';
+
+seedTestEnv();
 
 describe('Public Account Write API', () => {
   test('PUT /api/account/v1/profiles/:profileId/taste/current creates taste profile', async (t) => {
@@ -43,7 +45,7 @@ describe('Public Account Write API', () => {
     });
 
     assert.strictEqual(response.statusCode, 201);
-    const body = response.json();
+    const body = response.json().data;
     assert.strictEqual(body.profileId, 'prof-1');
     assert.strictEqual(body.version, 1);
     assert.strictEqual(body.signalCount, 2);

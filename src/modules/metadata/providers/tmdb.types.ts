@@ -60,3 +60,12 @@ export type TmdbSearchResultItem = {
 };
 export type TmdbDiscoverApiResponse = Record<string, unknown>;
 export type TmdbPersonApiResponse = Record<string, unknown>;
+
+export type TmdbPersonRecord = {
+  tmdbPersonId: number;
+  name: string;
+  knownForDepartment: string | null;
+  profilePath: string | null;
+  knownFor: Array<{ mediaType: string; title: string | null; tmdbId: number }>;
+  popularity: number;
+};
