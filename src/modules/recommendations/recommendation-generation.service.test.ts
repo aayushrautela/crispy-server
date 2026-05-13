@@ -40,6 +40,7 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
       absoluteEpisodeNumber: null,
       episodeTitle: 'Cat\'s in the Bag...',
       airDate: '2008-01-27',
+      badges: [],
     },
     context: {
       id: 'cw_1',

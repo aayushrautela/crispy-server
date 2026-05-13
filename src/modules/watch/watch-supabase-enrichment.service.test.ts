@@ -41,6 +41,7 @@ function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
     absoluteEpisodeNumber: null,
     episodeTitle: null,
     airDate: null,
+    badges: [],
     ...overrides,
   };
 }

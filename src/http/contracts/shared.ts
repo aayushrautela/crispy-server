@@ -263,6 +263,16 @@ export const nullableMediaItemParentSchema = {
   ],
 } as const;
 
+export const mediaItemBadgeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'label'],
+  properties: {
+    kind: stringSchema,
+    label: stringSchema,
+  },
+} as const;
+
 export const mediaItemSchema = {
   type: 'object',
   additionalProperties: false,
@@ -290,6 +300,7 @@ export const mediaItemSchema = {
     'absoluteEpisodeNumber',
     'episodeTitle',
     'airDate',
+    'badges',
   ],
   properties: {
     mediaKey: stringSchema,
@@ -318,6 +329,10 @@ export const mediaItemSchema = {
     absoluteEpisodeNumber: nullableIntegerSchema,
     episodeTitle: nullableStringSchema,
     airDate: nullableStringSchema,
+    badges: {
+      type: 'array',
+      items: mediaItemBadgeSchema,
+    },
   },
 } as const;
 

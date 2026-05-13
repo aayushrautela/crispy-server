@@ -50,6 +50,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
             absoluteEpisodeNumber: null,
             episodeTitle: 'Third Episode',
             airDate: '2024-01-03',
+            badges: [],
           },
           context: {
             bucket: 'this_week',
@@ -84,6 +85,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
               absoluteEpisodeNumber: null,
               episodeTitle: null,
               airDate: null,
+              badges: [],
             },
           },
           presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
@@ -137,6 +139,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
           absoluteEpisodeNumber: null,
           episodeTitle: 'Third Episode',
           airDate: '2024-01-03',
+          badges: [],
         },
         context: {
           bucket: 'this_week',
@@ -171,6 +174,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
             absoluteEpisodeNumber: null,
             episodeTitle: null,
             airDate: null,
+            badges: [],
           },
         },
         presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
@@ -230,6 +234,7 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
             absoluteEpisodeNumber: null,
             episodeTitle: 'Season Premiere',
             airDate: '2024-01-05',
+            badges: [],
           },
           context: {
             bucket: 'this_week',
@@ -264,6 +269,7 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
               absoluteEpisodeNumber: null,
               episodeTitle: null,
               airDate: null,
+              badges: [],
             },
           },
           presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
@@ -318,6 +324,7 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
           absoluteEpisodeNumber: null,
           episodeTitle: 'Season Premiere',
           airDate: '2024-01-05',
+          badges: [],
         },
         context: {
           bucket: 'this_week',
@@ -352,6 +359,7 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
             absoluteEpisodeNumber: null,
             episodeTitle: null,
             airDate: null,
+            badges: [],
           },
         },
         presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },

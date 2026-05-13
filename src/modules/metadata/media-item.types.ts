@@ -25,6 +25,11 @@ export type MediaImages = {
   still: ResponsiveImageSet;
 };
 
+export type Badge = {
+  kind: string;
+  label: string;
+};
+
 export type MediaItem = {
   mediaKey: string;
   mediaType: MediaItemType;
@@ -49,6 +54,7 @@ export type MediaItem = {
   absoluteEpisodeNumber: number | null;
   episodeTitle: string | null;
   airDate: string | null;
+  badges: Badge[];
 };
 
 export type MobileSurfaceKind =

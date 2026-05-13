@@ -185,6 +185,7 @@ function makeMediaItem(key: string) {
     absoluteEpisodeNumber: null,
     episodeTitle: null,
     airDate: null,
+    badges: [],
   };
 }
 

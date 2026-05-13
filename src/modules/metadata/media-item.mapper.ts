@@ -38,6 +38,7 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
     absoluteEpisodeNumber: card.absoluteEpisodeNumber,
     episodeTitle: card.mediaType === 'episode' ? card.title : null,
     airDate: card.mediaType === 'episode' ? card.releaseDate : null,
+    badges: [],
   };
 
   return applyOverrides(item, overrides);
@@ -85,6 +86,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     absoluteEpisodeNumber: null,
     episodeTitle: null,
     airDate: null,
+    badges: [],
   }, overrides);
 }
 
@@ -95,6 +97,7 @@ function applyOverrides(item: MediaItem, overrides: Partial<MediaItem>): MediaIt
     images: overrides.images ?? item.images,
     externalIds: overrides.externalIds ?? item.externalIds,
     genres: overrides.genres ?? item.genres,
+    badges: overrides.badges ?? item.badges,
     parent: overrides.parent === undefined ? item.parent : overrides.parent,
   };
 }

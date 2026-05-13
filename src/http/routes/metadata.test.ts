@@ -34,6 +34,7 @@ function makeMediaItem(key = 'movie:tmdb:694') {
     absoluteEpisodeNumber: null,
     episodeTitle: null,
     airDate: null,
+    badges: [],
   };
 }
 
