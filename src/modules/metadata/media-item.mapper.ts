@@ -2,11 +2,19 @@ import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
 import type { MediaItem, MediaItemType } from './media-item.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
+import { emptyResponsiveImageSet } from './metadata-builder.shared.js';
 
 const emptyExternalIds = {
   tmdb: null,
   imdb: null,
   tvdb: null,
+};
+
+const emptyImages = {
+  poster: emptyResponsiveImageSet(),
+  backdrop: emptyResponsiveImageSet(),
+  logo: emptyResponsiveImageSet(),
+  still: emptyResponsiveImageSet(),
 };
 
 export function metadataCardToMediaItem(card: MetadataCardView, overrides: Partial<MediaItem> = {}): MediaItem {
@@ -17,10 +25,7 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
     originalTitle: null,
     subtitle: card.subtitle,
     overview: card.overview ?? card.summary,
-    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl,
-    backdropUrl: card.images.backdropUrl ?? card.artwork.backdropUrl,
-    logoUrl: card.images.logoUrl,
-    stillUrl: card.images.stillUrl ?? card.artwork.stillUrl,
+    images: card.images,
     releaseDate: card.releaseDate,
     releaseYear: card.releaseYear,
     rating: card.rating,
@@ -65,10 +70,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     originalTitle: null,
     subtitle: record.subtitle,
     overview: null,
-    posterUrl: record.posterUrl ?? null,
-    backdropUrl: record.backdropUrl,
-    logoUrl: record.logoUrl,
-    stillUrl: null,
+    images: emptyImages,
     releaseDate: null,
     releaseYear: record.releaseYear,
     rating: record.rating,
@@ -92,6 +94,7 @@ function applyOverrides(item: MediaItem, overrides: Partial<MediaItem>): MediaIt
   return {
     ...item,
     ...overrides,
+    images: overrides.images ?? item.images,
     externalIds: overrides.externalIds ?? item.externalIds,
     genres: overrides.genres ?? item.genres,
     parent: overrides.parent === undefined ? item.parent : overrides.parent,

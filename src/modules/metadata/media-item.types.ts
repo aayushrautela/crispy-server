@@ -12,6 +12,19 @@ export type MediaItemParent = {
   title: string;
 };
 
+export type ResponsiveImageSet = {
+  small: string | null;
+  medium: string | null;
+  large: string | null;
+};
+
+export type MediaImages = {
+  poster: ResponsiveImageSet;
+  backdrop: ResponsiveImageSet;
+  logo: ResponsiveImageSet;
+  still: ResponsiveImageSet;
+};
+
 export type MediaItem = {
   mediaKey: string;
   mediaType: MediaItemType;
@@ -19,10 +32,7 @@ export type MediaItem = {
   originalTitle: string | null;
   subtitle: string | null;
   overview: string | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  logoUrl: string | null;
-  stillUrl: string | null;
+  images: MediaImages;
   releaseDate: string | null;
   releaseYear: number | null;
   rating: number | null;

@@ -1,6 +1,7 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
@@ -376,7 +377,11 @@ export class RecommendationOutputService {
 
     return {
       title,
-      logoUrl,
+      logo: buildResponsiveImageSet(logoUrl, {
+        small: 'w185',
+        medium: 'w300',
+        large: 'w500',
+      }),
       items: [items[0]!, items[1]!, items[2]!],
     };
   }
@@ -393,7 +398,11 @@ export class RecommendationOutputService {
     return {
       mediaType: mediaType as CollectionCardItemView['mediaType'],
       title,
-      posterUrl,
+      poster: buildResponsiveImageSet(posterUrl, {
+        small: 'w342',
+        medium: 'w500',
+        large: 'w780',
+      }),
       releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : null,
       rating: typeof row.rating === 'number' ? row.rating : null,
     };
@@ -408,11 +417,11 @@ export class RecommendationOutputService {
 }
 
 function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroCardView | null {
-  const backdropUrl = card.images.backdropUrl ?? card.artwork.backdropUrl;
+  const backdrop = card.images.backdrop;
   const description = typeof row.description === 'string' && row.description.trim()
     ? row.description
     : card.overview ?? card.summary ?? null;
-  if (!card.title || !backdropUrl || !description) {
+  if (!card.title || (!backdrop.small && !backdrop.medium && !backdrop.large) || !description) {
     return null;
   }
 
@@ -421,9 +430,9 @@ function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroC
     mediaType: card.mediaType,
     title: card.title,
     description,
-    backdropUrl,
-    posterUrl: card.images.posterUrl ?? card.artwork.posterUrl,
-    logoUrl: card.images.logoUrl ?? null,
+    backdrop,
+    poster: card.images.poster,
+    logo: card.images.logo,
     releaseYear: card.releaseYear,
     rating: card.rating,
     genre: null,

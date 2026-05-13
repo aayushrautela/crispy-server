@@ -70,9 +70,9 @@ export class MetadataProjectionService {
       ...toDetailsSnapshot(detailsMedia),
       title: detailsMedia.title,
       subtitle: detailsMedia.subtitle,
-      posterUrl: detailsMedia.artwork.posterUrl,
-      backdropUrl: detailsMedia.artwork.backdropUrl,
-      logoUrl: detailsMedia.images.logoUrl,
+      posterUrl: detailsMedia.artwork.poster.medium,
+      backdropUrl: detailsMedia.artwork.backdrop.medium,
+      logoUrl: detailsMedia.images.logo.medium,
       maturityRating: detailsMedia.maturityRating,
     };
   }
@@ -99,12 +99,12 @@ export class MetadataProjectionService {
       episodeTitle: episodeMedia.title,
       episodeAirDate: episodeMedia.releaseDate,
       episodeRuntimeMinutes: episodeMedia.runtimeMinutes,
-      episodeStillUrl: episodeMedia.artwork.stillUrl,
+      episodeStillUrl: episodeMedia.artwork.still.medium,
       title: parentMedia.title,
       subtitle: episodeMedia.subtitle,
-      posterUrl: parentMedia.artwork.posterUrl,
-      backdropUrl: parentMedia.artwork.backdropUrl,
-      logoUrl: parentMedia.images.logoUrl,
+      posterUrl: parentMedia.artwork.poster.medium,
+      backdropUrl: parentMedia.artwork.backdrop.medium,
+      logoUrl: parentMedia.images.logo.medium,
       maturityRating: parentMedia.maturityRating,
     };
   }
@@ -185,7 +185,7 @@ function toDetailsSnapshot(media: MetadataCardView): Pick<
   | 'detailsRating'
 > {
   return {
-    detailsStillUrl: media.artwork.stillUrl,
+    detailsStillUrl: media.artwork.still.medium,
     detailsReleaseYear: media.releaseYear,
     detailsRuntimeMinutes: media.runtimeMinutes,
     detailsRating: media.rating,

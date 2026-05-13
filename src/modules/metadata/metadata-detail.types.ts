@@ -8,6 +8,7 @@ import type {
   MetadataParentMediaType,
   MetadataTitleMediaType,
   MetadataViewMediaType,
+  ResponsiveImageSet,
 } from './metadata-card.types.js';
 
 export type MetadataView = {
@@ -50,7 +51,7 @@ export type MetadataSeasonView = {
   airDate: string | null;
   episodeCount: number | null;
   images: {
-    posterUrl: string | null;
+    poster: ResponsiveImageSet;
   };
 };
 
@@ -102,7 +103,7 @@ export type MetadataCompanyView = {
   provider: SupportedProvider;
   providerId: string;
   name: string;
-  logoUrl: string | null;
+  logo: ResponsiveImageSet;
   originCountry: string | null;
 };
 
@@ -118,8 +119,8 @@ export type MetadataCollectionView = {
   provider: SupportedProvider;
   providerId: string;
   name: string;
-  posterUrl: string | null;
-  backdropUrl: string | null;
+  poster: ResponsiveImageSet;
+  backdrop: ResponsiveImageSet;
   parts: MetadataRelatedItem[];
 };
 
@@ -197,7 +198,7 @@ export type MetadataPersonKnownForItem = {
   providerId: string;
   tmdbId: number;
   title: string;
-  posterUrl: string | null;
+  poster: ResponsiveImageSet;
   rating: number | null;
   releaseYear: number | null;
 };

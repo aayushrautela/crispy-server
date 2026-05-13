@@ -1,4 +1,4 @@
-import { parseMediaKey } from '../identity/media-key.js';
+import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
 import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
 import type { MediaItem } from '../metadata/media-item.types.js';
 import type {
@@ -13,12 +13,9 @@ export type SupabaseWatchReadRow = Record<string, unknown>;
 
 export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): ContinueWatchingProductItem {
   const titleMediaKey = stringValue(row.title_media_key);
-  const playableMediaKey = stringValue(row.playable_media_key) || titleMediaKey;
   const progressBps = numberValue(row.progress_bps) ?? 0;
   const lastActivityAt = isoValue(row.last_activity_at);
   const mediaItem = mediaItemFromRow(titleMediaKey, row, {
-    mediaKey: playableMediaKey,
-    backdropUrl: nullableStringValue(row.backdrop_url),
     seasonNumber: numberValue(row.season_number),
     episodeNumber: numberValue(row.episode_number),
     episodeTitle: nullableStringValue(row.episode_title),
@@ -165,14 +162,14 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
 }
 
 function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides: Partial<MediaItem> = {}): MediaItem {
-  const parsed = parseMediaKey(mediaKey);
+  const parsed = parseMediaKey(canonicalTitleMediaKey(parseMediaKey(mediaKey)));
   return watchCacheRecordToMediaItem({
-    mediaKey,
+    mediaKey: parsed.mediaKey,
     mediaType: parsed.mediaType,
     titleProvider: 'tmdb',
-    titleProviderId: String(parsed.tmdbId ?? parsed.showTmdbId ?? mediaKey),
-    titleMediaType: parsed.mediaType === 'episode' || parsed.mediaType === 'season' ? 'show' : parsed.mediaType,
-    title: stringValue(row.title) || mediaKey,
+    titleProviderId: String(parsed.tmdbId ?? parsed.showTmdbId ?? parsed.mediaKey),
+    titleMediaType: canonicalTitleMediaType(parsed),
+    title: stringValue(row.title) || parsed.mediaKey,
     subtitle: nullableStringValue(row.subtitle),
     posterUrl: nullableStringValue(row.poster_url),
     backdropUrl: nullableStringValue(row.backdrop_url),

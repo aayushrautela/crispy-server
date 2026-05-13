@@ -25,8 +25,8 @@ Common behavior:
 - Missing or inaccessible profiles are authorization/not-found failures.
 - A profile may have no recommendation signals yet; empty signal arrays are valid input for generation.
 - `GET /recommendations` returns a successful response with a null recommendation snapshot when no snapshot exists for the resolved profile/source/algorithm version. This differs from an existing snapshot whose item arrays are empty.
-- Recommendation read items use canonical server-enriched `mediaItem` presentation data, including nullable `posterUrl`, `backdropUrl`, `logoUrl`, `rating`, `releaseYear`, and `maturityRating`.
-- `logoUrl` is best-effort TMDB artwork and may be null even when posters/backdrops exist.
+- Recommendation read items use canonical server-enriched `mediaItem` presentation data, including `images.poster`, `images.backdrop`, `images.logo`, and `images.still` responsive sets with `small`, `medium`, and `large` nullable URLs, plus `rating`, `releaseYear`, and `maturityRating`.
+- Scalar legacy image fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned. `images.logo` is best-effort TMDB artwork and may contain null sizes even when posters/backdrops exist.
 - Legacy public account recommendation endpoints (`GET /api/account/v1/profiles/:profileId/recommendations/current` and `PUT/DELETE /api/account/v1/profiles/:profileId/recommendations/:listKey`) have been retired; clients should use `GET /v1/profiles/:profileId/recommendations` and `PUT /v1/profiles/:profileId/recommendations`.
 
 ## Recommendation writes

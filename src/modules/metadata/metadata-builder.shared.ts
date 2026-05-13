@@ -12,6 +12,7 @@ import type {
   MetadataExternalIds,
   MetadataImages,
   MetadataParentMediaType,
+  ResponsiveImageSet,
 } from './metadata-card.types.js';
 import type {
   TmdbEpisodeRecord,
@@ -53,6 +54,25 @@ export function buildImageUrl(path: string | null, size: string): string | null 
   }
 
   return `${appConfig.metadata.tmdb.imageBaseUrl.replace(/\/$/, '')}/${size}${path}`;
+}
+
+export function buildResponsiveImageSet(
+  path: string | null,
+  sizes: { small: string; medium: string; large: string },
+): ResponsiveImageSet {
+  return {
+    small: buildImageUrl(path, sizes.small),
+    medium: buildImageUrl(path, sizes.medium),
+    large: buildImageUrl(path, sizes.large),
+  };
+}
+
+export function emptyResponsiveImageSet(): ResponsiveImageSet {
+  return {
+    small: null,
+    medium: null,
+    large: null,
+  };
 }
 
 export function metadataMediaTypeFromTitle(title: TmdbTitleRecord): 'movie' | 'show' {
@@ -250,7 +270,11 @@ function buildCompanyView(record: Record<string, unknown>): MetadataCompanyView 
     provider: 'tmdb',
     providerId: String(id),
     name,
-    logoUrl: buildImageUrl(asString(record.logo_path), 'w185'),
+    logo: buildResponsiveImageSet(asString(record.logo_path), {
+      small: 'w185',
+      medium: 'w300',
+      large: 'w500',
+    }),
     originCountry: asString(record.origin_country),
   };
 }
@@ -292,8 +316,16 @@ export function extractCollection(title: TmdbTitleRecord | null): MetadataCollec
     provider: 'tmdb',
     providerId: String(id),
     name,
-    posterUrl: buildImageUrl(asString(collection.poster_path), 'w500'),
-    backdropUrl: buildImageUrl(asString(collection.backdrop_path), 'w780'),
+    poster: buildResponsiveImageSet(asString(collection.poster_path), {
+      small: 'w342',
+      medium: 'w500',
+      large: 'w780',
+    }),
+    backdrop: buildResponsiveImageSet(asString(collection.backdrop_path), {
+      small: 'w300',
+      medium: 'w780',
+      large: 'w1280',
+    }),
     parts: [],
   };
 }
@@ -452,9 +484,25 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
 
 export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null): MetadataImages {
   return {
-    posterUrl: buildImageUrl(title?.posterPath ?? null, 'w500'),
-    backdropUrl: buildImageUrl(title?.backdropPath ?? null, 'w780'),
-    stillUrl: buildImageUrl(episode?.stillPath ?? null, 'w500'),
-    logoUrl: title ? buildImageUrl(extractBestLogoPath(title.raw), 'w500') : null,
+    poster: buildResponsiveImageSet(title?.posterPath ?? null, {
+      small: 'w342',
+      medium: 'w500',
+      large: 'w780',
+    }),
+    backdrop: buildResponsiveImageSet(title?.backdropPath ?? null, {
+      small: 'w300',
+      medium: 'w780',
+      large: 'w1280',
+    }),
+    still: buildResponsiveImageSet(episode?.stillPath ?? null, {
+      small: 'w185',
+      medium: 'w300',
+      large: 'original',
+    }),
+    logo: buildResponsiveImageSet(extractBestLogoPath(title?.raw ?? {}), {
+      small: 'w185',
+      medium: 'w300',
+      large: 'w500',
+    }),
   };
 }

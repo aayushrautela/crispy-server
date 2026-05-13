@@ -51,8 +51,6 @@ export class MetadataCardService {
       subtitleOverride: identity.mediaType === 'episode'
         ? rowSubtitle ?? buildEpisodeSubtitle(identity.seasonNumber, identity.episodeNumber)
         : rowSubtitle,
-      posterUrlOverride: rowPosterUrl,
-      backdropUrlOverride: rowBackdropUrl,
     });
   }
 

@@ -124,7 +124,12 @@ test('episodeViewToLookup extracts episode-like fields', () => {
     airDate: '2024-01-15',
     runtimeMinutes: 47,
     rating: 8.1,
-    images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+    images: {
+      poster: { small: null, medium: null, large: null },
+      backdrop: { small: null, medium: null, large: null },
+      still: { small: null, medium: null, large: null },
+      logo: { small: null, medium: null, large: null },
+    },
     showId: 'uuid-show',
     showTitle: 'Test Show',
     showExternalIds: { tmdb: 42, imdb: 'tt123', tvdb: null },

@@ -344,6 +344,7 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
       absoluteEpisodeNumber: null,
       positionSeconds: 900,
       durationSeconds: 3600,
+      progressBps: 2500,
       occurredAt: '2024-01-04T00:00:00.000Z',
       payload: {
         provider: 'trakt',
@@ -437,6 +438,7 @@ test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime
       rating: null,
       positionSeconds: null,
       durationSeconds: null,
+      progressBps: 1000,
       occurredAt: '2015-01-25T22:01:32.000Z',
       payload: {
         provider: 'trakt',

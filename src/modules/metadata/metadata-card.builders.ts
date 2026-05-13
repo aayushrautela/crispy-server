@@ -29,8 +29,8 @@ function resolveProviderParentMediaType(identity: MediaIdentity): MetadataParent
 }
 
 export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
-  const posterUrl = card.images.posterUrl ?? card.artwork.posterUrl;
-  if (!card.title || !posterUrl) {
+  const poster = card.images.poster;
+  if (!card.title || (!poster.small && !poster.medium && !poster.large)) {
     return null;
   }
 
@@ -38,7 +38,7 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
     mediaType: card.mediaType,
     mediaKey: card.mediaKey,
     title: card.title,
-    posterUrl,
+    poster,
     releaseYear: card.releaseYear,
     rating: card.rating,
     genre: null,
@@ -71,16 +71,14 @@ export function buildMetadataCardView(params: {
   currentEpisode?: TmdbEpisodeRecord | null;
   titleOverride?: string | null;
   subtitleOverride?: string | null;
-  posterUrlOverride?: string | null;
-  backdropUrlOverride?: string | null;
 }): MetadataCardView {
   const { identity, title, currentEpisode = null } = params;
   const releaseDate = extractReleaseDate(title, currentEpisode);
   const images = buildMetadataImages(title, currentEpisode);
   const artwork = {
-    posterUrl: params.posterUrlOverride ?? images.posterUrl,
-    backdropUrl: params.backdropUrlOverride ?? images.backdropUrl,
-    stillUrl: images.stillUrl,
+    poster: images.poster,
+    backdrop: images.backdrop,
+    still: images.still,
   };
   const resolvedMediaType = identity.mediaType === 'show' || identity.mediaType === 'episode'
     ? identity.mediaType

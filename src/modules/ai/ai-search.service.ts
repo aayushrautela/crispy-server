@@ -177,7 +177,7 @@ function scoreMetadataMatch(item: CatalogItem, normalizedTarget: string, mediaTy
   if (matchesMediaTypeHint(item, mediaTypeHint)) {
     score += 30;
   }
-  if (item.posterUrl) {
+  if (item.poster.small || item.poster.medium || item.poster.large) {
     score += 10;
   }
   if (item.releaseYear) {

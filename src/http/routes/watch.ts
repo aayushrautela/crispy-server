@@ -20,7 +20,7 @@ import {
   type WatchStateLookupContract,
 } from '../contracts/watch.js';
 import { SupabaseUserWatchService } from '../../modules/integrations/supabase-user-watch.service.js';
-import { canonicalContinueWatchingMediaKey, inferMediaIdentity, parseMediaKey } from '../../modules/identity/media-key.js';
+import { canonicalTitleMediaKey, canonicalTitleMediaType, inferMediaIdentity, parseMediaKey } from '../../modules/identity/media-key.js';
 import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
@@ -47,7 +47,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
       mediaKey: identity.mediaKey,
-      titleMediaKey: canonicalContinueWatchingMediaKey(identity),
+      titleMediaKey: canonicalTitleMediaKey(identity),
       mediaType: identity.mediaType,
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
@@ -244,7 +244,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
       mediaKey: identity.mediaKey,
-      titleMediaKey: canonicalContinueWatchingMediaKey(identity),
+      titleMediaKey: canonicalTitleMediaKey(identity),
       mediaType: identity.mediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
@@ -267,7 +267,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
       mediaKey: identity.mediaKey,
-      titleMediaKey: canonicalContinueWatchingMediaKey(identity),
+      titleMediaKey: canonicalTitleMediaKey(identity),
       mediaType: identity.mediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
@@ -291,8 +291,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
       listKind: 'watchlist',
-      mediaKey: canonicalContinueWatchingMediaKey(identity),
-      mediaType: identity.mediaType,
+      mediaKey: canonicalTitleMediaKey(identity),
+      mediaType: canonicalTitleMediaType(identity),
     });
     return { accepted: true, mode: 'synchronous' as const };
   });
@@ -307,7 +307,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
       listKind: 'watchlist',
-      mediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaKey: canonicalTitleMediaKey(identity),
     });
     return { accepted: true, mode: 'synchronous' as const };
   });
@@ -331,8 +331,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await supabaseUserWatchService.setRating({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
-      mediaKey: canonicalContinueWatchingMediaKey(identity),
-      mediaType: identity.mediaType,
+      mediaKey: canonicalTitleMediaKey(identity),
+      mediaType: canonicalTitleMediaType(identity),
       rating: body.rating,
     });
     return { accepted: true, mode: 'synchronous' as const };
@@ -347,7 +347,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await supabaseUserWatchService.deleteRating({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
-      mediaKey: canonicalContinueWatchingMediaKey(identity),
+      mediaKey: canonicalTitleMediaKey(identity),
     });
     return { accepted: true, mode: 'synchronous' as const };
   });

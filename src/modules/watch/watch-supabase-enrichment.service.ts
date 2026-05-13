@@ -75,11 +75,15 @@ export class WatchSupabaseEnrichmentService {
 }
 
 function mergeEnrichedMediaItem(record: WatchMediaCardCacheRecord, existing: MediaItem): MediaItem {
+  const enriched = watchCacheRecordToMediaItem(record);
   return {
-    ...watchCacheRecordToMediaItem(record),
+    ...enriched,
     originalTitle: existing.originalTitle,
     overview: existing.overview,
-    stillUrl: existing.stillUrl,
+    images: {
+      ...enriched.images,
+      still: existing.images.still,
+    },
     releaseDate: existing.releaseDate,
     genres: existing.genres,
     runtimeMinutes: existing.runtimeMinutes,

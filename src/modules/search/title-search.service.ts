@@ -268,7 +268,7 @@ function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
 }
 
 function hasSearchPoster(item: CatalogItem): boolean {
-  return Boolean(item.posterUrl?.trim());
+  return Boolean(item.poster.small || item.poster.medium || item.poster.large);
 }
 
 function toCatalogItems(entries: SearchBucketEntry[]): CatalogItem[] {

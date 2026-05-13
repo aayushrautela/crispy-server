@@ -11,7 +11,7 @@ import {
   nonEmptyStringSchema,
   positiveIntegerLikeSchema,
   profileIdAndMediaKeyParamsSchema,
-  regularCardViewSchema,
+  responsiveImageSetSchema,
   stringListSchema,
   stringSchema,
   withDefaultErrorResponses,
@@ -219,9 +219,9 @@ const metadataSeasonViewSchema = {
     images: {
       type: 'object',
       additionalProperties: false,
-      required: ['posterUrl'],
+      required: ['poster'],
       properties: {
-        posterUrl: nullableStringSchema,
+        poster: responsiveImageSetSchema,
       },
     },
   },
@@ -303,13 +303,13 @@ const stringOrIntegerSchema = {
 const metadataCompanyViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'provider', 'providerId', 'name', 'logoUrl', 'originCountry'],
+  required: ['id', 'provider', 'providerId', 'name', 'logo', 'originCountry'],
   properties: {
     id: stringOrIntegerSchema,
     provider: stringSchema,
     providerId: stringSchema,
     name: stringSchema,
-    logoUrl: nullableStringSchema,
+    logo: responsiveImageSetSchema,
     originCountry: nullableStringSchema,
   },
 } as const;
@@ -329,14 +329,14 @@ const metadataRelatedItemSchema = {
 const metadataCollectionViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'provider', 'providerId', 'name', 'posterUrl', 'backdropUrl', 'parts'],
+  required: ['id', 'provider', 'providerId', 'name', 'poster', 'backdrop', 'parts'],
   properties: {
     id: stringOrIntegerSchema,
     provider: stringSchema,
     providerId: stringSchema,
     name: stringSchema,
-    posterUrl: nullableStringSchema,
-    backdropUrl: nullableStringSchema,
+    poster: responsiveImageSetSchema,
+    backdrop: responsiveImageSetSchema,
     parts: {
       type: 'array',
       items: metadataRelatedItemSchema,
@@ -431,13 +431,13 @@ const metadataResolveResponseSchema = {
 const metadataPersonKnownForItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaType', 'mediaKey', 'tmdbId', 'title', 'posterUrl', 'rating', 'releaseYear'],
+  required: ['mediaType', 'mediaKey', 'tmdbId', 'title', 'poster', 'rating', 'releaseYear'],
   properties: {
     mediaType: stringSchema,
     mediaKey: stringSchema,
     tmdbId: { type: 'integer' },
     title: stringSchema,
-    posterUrl: nullableStringSchema,
+    poster: responsiveImageSetSchema,
     rating: nullableNumberSchema,
     releaseYear: nullableIntegerSchema,
   },

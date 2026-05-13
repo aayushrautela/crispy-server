@@ -19,10 +19,12 @@ function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
     originalTitle: null,
     subtitle: null,
     overview: null,
-    posterUrl: 'https://supabase.test/poster.jpg',
-    backdropUrl: 'https://supabase.test/backdrop.jpg',
-    logoUrl: null,
-    stillUrl: null,
+    images: {
+      poster: { small: 'https://supabase.test/poster.jpg', medium: 'https://supabase.test/poster.jpg', large: 'https://supabase.test/poster.jpg' },
+      backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+      logo: { small: null, medium: null, large: null },
+      still: { small: null, medium: null, large: null },
+    },
     releaseDate: null,
     releaseYear: 2023,
     rating: 7.0,
@@ -107,8 +109,8 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.title, 'Cached Movie Title');
-  assert.equal(enriched[0]?.mediaItem.posterUrl, 'https://cache.test/poster.jpg');
-  assert.equal(enriched[0]?.mediaItem.backdropUrl, 'https://cache.test/backdrop.jpg');
+  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: null, medium: null, large: null });
+  assert.deepEqual(enriched[0]?.mediaItem.images.backdrop, { small: null, medium: null, large: null });
   assert.equal(enriched[0]?.mediaItem.releaseYear, 2024);
   assert.equal(enriched[0]?.mediaItem.rating, 8.5);
   assert.equal(enriched[0]?.mediaItem.runtimeMinutes, 120);
@@ -153,7 +155,12 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
         mediaKey: 'show:tmdb:789',
         mediaType: 'show',
         title: 'Supabase Show Title',
-        posterUrl: 'https://supabase.test/show-poster.jpg',
+        images: {
+          poster: { small: 'https://supabase.test/show-poster.jpg', medium: 'https://supabase.test/show-poster.jpg', large: 'https://supabase.test/show-poster.jpg' },
+          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          logo: { small: null, medium: null, large: null },
+          still: { small: null, medium: null, large: null },
+        },
         releaseYear: 2021,
         rating: 8.0,
       }),
@@ -172,7 +179,7 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.title, 'Cached Show Title');
-  assert.equal(enriched[0]?.mediaItem.posterUrl, 'https://cache.test/show-poster.jpg');
+  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: null, medium: null, large: null });
   assert.equal(enriched[0]?.mediaItem.subtitle, 'Season 1');
   assert.equal(enriched[0]?.mediaItem.releaseYear, 2022);
   assert.equal(enriched[0]?.mediaItem.rating, 9.1);
@@ -199,7 +206,12 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
       mediaItem: createMediaItem({
         mediaKey: 'movie:tmdb:999',
         title: 'Uncached Movie',
-        posterUrl: 'https://supabase.test/uncached.jpg',
+        images: {
+          poster: { small: 'https://supabase.test/uncached.jpg', medium: 'https://supabase.test/uncached.jpg', large: 'https://supabase.test/uncached.jpg' },
+          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          logo: { small: null, medium: null, large: null },
+          still: { small: null, medium: null, large: null },
+        },
         releaseYear: 2020,
         rating: 6.5,
       }),
@@ -224,7 +236,7 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.title, 'Uncached Movie');
-  assert.equal(enriched[0]?.mediaItem.posterUrl, 'https://supabase.test/uncached.jpg');
+  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://supabase.test/uncached.jpg', medium: 'https://supabase.test/uncached.jpg', large: 'https://supabase.test/uncached.jpg' });
   assert.equal(enriched[0]?.rating.value, 8);
 });
 
@@ -268,7 +280,12 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       mediaItem: createMediaItem({
         mediaKey: 'movie:tmdb:111',
         title: 'Fallback',
-        posterUrl: 'https://supabase.test/dup.jpg',
+        images: {
+          poster: { small: 'https://supabase.test/dup.jpg', medium: 'https://supabase.test/dup.jpg', large: 'https://supabase.test/dup.jpg' },
+          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          logo: { small: null, medium: null, large: null },
+          still: { small: null, medium: null, large: null },
+        },
         releaseYear: 2022,
         rating: 7.0,
       }),
@@ -287,7 +304,12 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       mediaItem: createMediaItem({
         mediaKey: 'movie:tmdb:111',
         title: 'Fallback',
-        posterUrl: 'https://supabase.test/dup.jpg',
+        images: {
+          poster: { small: 'https://supabase.test/dup.jpg', medium: 'https://supabase.test/dup.jpg', large: 'https://supabase.test/dup.jpg' },
+          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          logo: { small: null, medium: null, large: null },
+          still: { small: null, medium: null, large: null },
+        },
         releaseYear: 2022,
         rating: 7.0,
       }),

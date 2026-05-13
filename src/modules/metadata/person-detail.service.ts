@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { buildImageUrl } from './metadata-builder.shared.js';
+import { buildImageUrl, buildResponsiveImageSet } from './metadata-builder.shared.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { TmdbClient } from './providers/tmdb.client.js';
 import type { MetadataPersonDetail, MetadataPersonKnownForItem } from './metadata-detail.types.js';
@@ -83,7 +83,11 @@ async function buildKnownForItems(
       providerId: String(tmdbId),
       tmdbId,
       title,
-      posterUrl: buildImageUrl(asString(record.poster_path), 'w500'),
+      poster: buildResponsiveImageSet(asString(record.poster_path), {
+        small: 'w342',
+        medium: 'w500',
+        large: 'w780',
+      }),
       rating: asFiniteNumber(record.vote_average),
       releaseYear: releaseDate ? parseYear(releaseDate) : null,
       popularity: asFiniteNumber(record.popularity) ?? 0,

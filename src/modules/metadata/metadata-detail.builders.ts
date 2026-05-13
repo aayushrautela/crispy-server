@@ -75,10 +75,10 @@ export function buildSeasonViewFromTitleRaw(
       airDate: typeof season.air_date === 'string' ? season.air_date : null,
       episodeCount: typeof season.episode_count === 'number' ? season.episode_count : null,
       images: {
-        posterUrl: buildMetadataImages({
+        poster: buildMetadataImages({
           ...title,
           posterPath: typeof season.poster_path === 'string' ? season.poster_path : null,
-        }, null).posterUrl,
+        }, null).poster,
       },
     });
   }
@@ -101,28 +101,28 @@ export function buildSeasonViewFromRecord(
     summary: season.overview,
     airDate: season.airDate,
     episodeCount: season.episodeCount,
-    images: {
-      posterUrl: buildMetadataImages({
-        mediaType: 'tv',
-        tmdbId: showTmdbId,
-        name: null,
-        originalName: null,
-        overview: null,
-        releaseDate: null,
-        firstAirDate: null,
-        status: null,
-        posterPath: season.posterPath,
-        backdropPath: null,
-        runtime: null,
-        episodeRunTime: [],
-        numberOfSeasons: null,
-        numberOfEpisodes: null,
-        externalIds: {},
-        raw: {},
-        fetchedAt: season.fetchedAt,
-        expiresAt: season.expiresAt,
-      }, null).posterUrl,
-    },
+      images: {
+        poster: buildMetadataImages({
+          mediaType: 'tv',
+          tmdbId: showTmdbId,
+          name: null,
+          originalName: null,
+          overview: null,
+          releaseDate: null,
+          firstAirDate: null,
+          status: null,
+          posterPath: season.posterPath,
+          backdropPath: null,
+          runtime: null,
+          episodeRunTime: [],
+          numberOfSeasons: null,
+          numberOfEpisodes: null,
+          externalIds: {},
+          raw: {},
+          fetchedAt: season.fetchedAt,
+          expiresAt: season.expiresAt,
+        }, null).poster,
+      },
   };
 }
 

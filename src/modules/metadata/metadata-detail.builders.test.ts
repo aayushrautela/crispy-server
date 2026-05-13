@@ -41,9 +41,9 @@ test('buildMetadataView for show extracts provider-based detail fields', async (
   assert.equal(view.kind, 'title');
   assert.equal(view.title, 'Breaking Point');
   assert.equal(view.overview, 'A thrilling drama.');
-  assert.equal(view.artwork.posterUrl, 'https://image.tmdb.org/t/p/w500/poster.jpg');
-  assert.equal(view.artwork.backdropUrl, 'https://image.tmdb.org/t/p/w780/backdrop.jpg');
-  assert.equal(view.images.logoUrl, 'https://image.tmdb.org/t/p/w500/logo.png');
+  assert.equal(view.artwork.poster.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  assert.equal(view.artwork.backdrop.medium, 'https://image.tmdb.org/t/p/w780/backdrop.jpg');
+  assert.equal(view.images.logo.large, 'https://image.tmdb.org/t/p/w500/logo.png');
   assert.equal(view.rating, 8.4);
   assert.deepEqual(view.genres, ['Drama', 'Crime']);
   assert.equal(view.certification, 'TV-MA');
@@ -76,7 +76,7 @@ test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
   assert.equal(seasons.length, 2);
   assert.equal(seasons[0]?.mediaKey, 'season:tmdb:42:0');
   assert.equal(seasons[1]?.mediaKey, 'season:tmdb:42:1');
-  assert.equal(seasons[1]?.images.posterUrl, 'https://image.tmdb.org/t/p/w500/season1.jpg');
+  assert.equal(seasons[1]?.images.poster.medium, 'https://image.tmdb.org/t/p/w500/season1.jpg');
 });
 
 test('buildSeasonViewFromRecord produces clean payload', async () => {
@@ -92,7 +92,7 @@ test('buildSeasonViewFromRecord produces clean payload', async () => {
   assert.equal(view.mediaKey, 'season:tmdb:42:2');
   assert.equal(view.title, 'Season 2');
   assert.equal(view.episodeCount, 8);
-  assert.equal(view.images.posterUrl, 'https://image.tmdb.org/t/p/w500/season2.jpg');
+  assert.equal(view.images.poster.medium, 'https://image.tmdb.org/t/p/w500/season2.jpg');
 });
 
 test('buildEpisodeView includes provider-based show context', async () => {

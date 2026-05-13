@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../../lib/errors.js';
-import { canonicalContinueWatchingMediaKey, parseMediaKey } from './media-key.js';
+import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from './media-key.js';
 
-test('canonicalContinueWatchingMediaKey collapses episodes to the parent show key', () => {
+test('canonicalTitleMediaKey collapses episodes to the parent show key', () => {
   assert.equal(
-    canonicalContinueWatchingMediaKey({
+    canonicalTitleMediaKey({
       mediaKey: 'episode:tmdb:55:2:4',
       mediaType: 'episode',
       tmdbId: null,
@@ -19,9 +19,9 @@ test('canonicalContinueWatchingMediaKey collapses episodes to the parent show ke
   );
 });
 
-test('canonicalContinueWatchingMediaKey preserves movie and show identities', () => {
+test('canonicalTitleMediaKey preserves movie and show identities', () => {
   assert.equal(
-    canonicalContinueWatchingMediaKey({
+    canonicalTitleMediaKey({
       mediaKey: 'movie:tmdb:77',
       mediaType: 'movie',
       tmdbId: 77,
@@ -33,7 +33,7 @@ test('canonicalContinueWatchingMediaKey preserves movie and show identities', ()
   );
 
   assert.equal(
-    canonicalContinueWatchingMediaKey({
+    canonicalTitleMediaKey({
       mediaKey: 'show:tmdb:88',
       mediaType: 'show',
       provider: 'tmdb',
@@ -47,9 +47,9 @@ test('canonicalContinueWatchingMediaKey preserves movie and show identities', ()
   );
 });
 
-test('canonicalContinueWatchingMediaKey rejects unsupported incomplete identities', () => {
+test('canonicalTitleMediaKey rejects unsupported incomplete identities', () => {
   assert.throws(
-    () => canonicalContinueWatchingMediaKey({
+    () => canonicalTitleMediaKey({
       mediaKey: 'episode:tmdb:unknown',
       mediaType: 'episode',
       tmdbId: null,
@@ -64,6 +64,12 @@ test('canonicalContinueWatchingMediaKey rejects unsupported incomplete identitie
       return true;
     },
   );
+});
+
+test('canonicalTitleMediaType collapses season and episodes to show', () => {
+  assert.equal(canonicalTitleMediaType(parseMediaKey('episode:tmdb:55:2:4')), 'show');
+  assert.equal(canonicalTitleMediaType(parseMediaKey('season:tmdb:55:2')), 'show');
+  assert.equal(canonicalTitleMediaType(parseMediaKey('movie:tmdb:77')), 'movie');
 });
 
 test('parseMediaKey accepts TMDB show media keys', () => {

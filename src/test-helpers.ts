@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import type { FastifyRequest } from 'fastify';
 import type { AuthActor } from './modules/auth/auth.types.js';
 
+const emptyImageSet = () => ({ small: null, medium: null, large: null });
+
 const REQUIRED_ENV: Record<string, string> = {
   NODE_ENV: 'test',
   DATABASE_URL: 'postgres://test:test@127.0.0.1:5432/test',
@@ -93,8 +95,8 @@ export function createMockMetadataView(overrides: Record<string, unknown> = {}) 
     subtitle: null,
     summary: null,
     overview: null,
-    artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-    images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+    artwork: { poster: emptyImageSet(), backdrop: emptyImageSet(), still: emptyImageSet() },
+    images: { poster: emptyImageSet(), backdrop: emptyImageSet(), still: emptyImageSet(), logo: emptyImageSet() },
     releaseDate: null,
     releaseYear: null,
     runtimeMinutes: null,

@@ -2,14 +2,20 @@ export type MetadataTitleMediaType = 'movie' | 'show';
 export type MetadataViewMediaType = MetadataTitleMediaType | 'episode';
 export type MetadataParentMediaType = 'show';
 
+export type ResponsiveImageSet = {
+  small: string | null;
+  medium: string | null;
+  large: string | null;
+};
+
 export type MetadataArtwork = {
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  stillUrl: string | null;
+  poster: ResponsiveImageSet;
+  backdrop: ResponsiveImageSet;
+  still: ResponsiveImageSet;
 };
 
 export type MetadataImages = MetadataArtwork & {
-  logoUrl: string | null;
+  logo: ResponsiveImageSet;
 };
 
 export type MetadataExternalIds = {
@@ -63,7 +69,7 @@ export type RegularCardView = {
   mediaType: MetadataViewMediaType;
   mediaKey: string;
   title: string;
-  posterUrl: string;
+  poster: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
   genre: string | null;
@@ -76,8 +82,8 @@ export type LandscapeCardView = {
   mediaType: MetadataViewMediaType;
   mediaKey: string;
   title: string;
-  posterUrl: string;
-  backdropUrl: string;
+  poster: ResponsiveImageSet;
+  backdrop: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
   genre: string | null;
@@ -91,14 +97,14 @@ export type LandscapeCardView = {
 export type CollectionCardItemView = {
   mediaType: MetadataViewMediaType;
   title: string;
-  posterUrl: string;
+  poster: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
 };
 
 export type CollectionCardView = {
   title: string;
-  logoUrl: string;
+  logo: ResponsiveImageSet;
   items: [CollectionCardItemView, CollectionCardItemView, CollectionCardItemView];
 };
 
@@ -107,9 +113,9 @@ export type HeroCardView = {
   mediaType: MetadataViewMediaType;
   title: string;
   description: string;
-  backdropUrl: string;
-  posterUrl: string | null;
-  logoUrl: string | null;
+  backdrop: ResponsiveImageSet;
+  poster: ResponsiveImageSet;
+  logo: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
   genre: string | null;

@@ -35,8 +35,9 @@ Search and metadata routes resolve TMDB-backed identities:
 - There is no `anime` search bucket.
 - Metadata resolve/detail/playback routes should be called with `mediaKey` or the identity fields documented in OpenAPI.
 - Clients should not construct provider-routed identities from deprecated `provider`/`providerId` fields when `mediaKey` is available.
-- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `title`, artwork URLs, `rating`, `releaseYear`, and nullable `maturityRating`.
-- `logoUrl` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `title`, `images.poster`, `images.backdrop`, `images.logo`, `images.still`, `rating`, `releaseYear`, and nullable `maturityRating`.
+- Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
+- `images.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 
 ## Watch state
 
@@ -54,8 +55,9 @@ Recommendation read payloads should follow canonical media identity rules:
 
 - Use `mediaKey` where a recommendation item is navigable.
 - Treat `mediaType` as derived convenience data.
-- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `title`, artwork URLs, `rating`, `releaseYear`, and nullable `maturityRating`.
-- `logoUrl` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `title`, `images.poster`, `images.backdrop`, `images.logo`, `images.still`, `rating`, `releaseYear`, and nullable `maturityRating`.
+- Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
+- `images.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 - Do not depend on deprecated `provider`/`providerId` fields for navigation.
 
 Recommendation write payloads for service-owned lists use ordered TMDB references as documented in OpenAPI and `docs/api/recommendations.md`; writers should not submit enriched card metadata or legacy identity aliases.

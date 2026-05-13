@@ -10,7 +10,7 @@ import { normalizeIsoString } from '../../lib/time.js';
 import { calendarCacheKey } from '../cache/cache-keys.js';
 import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
-import { inferMediaIdentity, canonicalContinueWatchingMediaKey, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
+import { inferMediaIdentity, canonicalTitleMediaKey, canonicalTitleMediaType, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
@@ -783,18 +783,20 @@ export class ProviderImportService {
 
     for (const event of payload.importedEvents) {
       if (event.eventType === 'watchlist_put') {
+        const titleIdentity = this.resolveProviderEventTitleIdentity(event);
         watchlistItems.push({
-          mediaKey: event.mediaKey,
-          mediaType: event.mediaType,
+          mediaKey: canonicalTitleMediaKey(titleIdentity),
+          mediaType: canonicalTitleMediaType(titleIdentity),
           addedAt: event.occurredAt,
         });
         continue;
       }
 
       if (event.eventType === 'rating_put' && typeof event.rating === 'number' && Number.isFinite(event.rating)) {
+        const titleIdentity = this.resolveProviderEventTitleIdentity(event);
         ratings.push({
-          mediaKey: event.mediaKey,
-          mediaType: event.mediaType,
+          mediaKey: canonicalTitleMediaKey(titleIdentity),
+          mediaType: canonicalTitleMediaType(titleIdentity),
           rating: event.rating,
           ratedAt: event.occurredAt,
         });
@@ -822,17 +824,17 @@ export class ProviderImportService {
   }
 
   private resolveProviderEventTitleMediaKey(event: ImportedWatchEventDraft): string {
-    try {
-      return canonicalContinueWatchingMediaKey(inferMediaIdentity({
-        mediaKey: event.mediaKey,
-        mediaType: event.mediaType,
-        seasonNumber: event.seasonNumber ?? null,
-        episodeNumber: event.episodeNumber ?? null,
-        absoluteEpisodeNumber: event.absoluteEpisodeNumber ?? null,
-      }));
-    } catch {
-      return event.mediaKey;
-    }
+    return canonicalTitleMediaKey(this.resolveProviderEventTitleIdentity(event));
+  }
+
+  private resolveProviderEventTitleIdentity(event: ImportedWatchEventDraft): MediaIdentity {
+    return inferMediaIdentity({
+      mediaKey: event.mediaKey,
+      mediaType: event.mediaType,
+      seasonNumber: event.seasonNumber ?? null,
+      episodeNumber: event.episodeNumber ?? null,
+      absoluteEpisodeNumber: event.absoluteEpisodeNumber ?? null,
+    });
   }
 
   private buildAuthUrl(

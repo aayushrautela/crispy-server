@@ -93,8 +93,8 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
     {
       searchTitles: async () => ({
         query: 'Alpha',
-        all: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:1', provider: 'tmdb', providerId: '1', title: 'Alpha Movie', posterUrl: 'https://img.example/alpha.jpg', releaseYear: 2024, rating: 8.1, genre: null, subtitle: null }],
-        movies: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:1', provider: 'tmdb', providerId: '1', title: 'Alpha Movie', posterUrl: 'https://img.example/alpha.jpg', releaseYear: 2024, rating: 8.1, genre: null, subtitle: null }],
+        all: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:1', provider: 'tmdb', providerId: '1', title: 'Alpha Movie', poster: { small: 'https://img.example/alpha.jpg', medium: 'https://img.example/alpha.jpg', large: 'https://img.example/alpha.jpg' }, releaseYear: 2024, rating: 8.1, genre: null, subtitle: null }],
+        movies: [{ mediaType: 'movie', mediaKey: 'movie:tmdb:1', provider: 'tmdb', providerId: '1', title: 'Alpha Movie', poster: { small: 'https://img.example/alpha.jpg', medium: 'https://img.example/alpha.jpg', large: 'https://img.example/alpha.jpg' }, releaseYear: 2024, rating: 8.1, genre: null, subtitle: null }],
         series: [],
       }),
     } as never,

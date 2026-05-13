@@ -5,6 +5,8 @@ import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 
+const imageSet = (value: string | null) => ({ small: value, medium: value, large: value });
+
 const baseCard: MetadataCardView = {
   mediaType: 'movie',
   kind: 'title',
@@ -20,15 +22,15 @@ const baseCard: MetadataCardView = {
   summary: 'Summary',
   overview: null,
   artwork: {
-    posterUrl: 'poster.jpg',
-    backdropUrl: 'backdrop.jpg',
-    stillUrl: null,
+    poster: imageSet('poster.jpg'),
+    backdrop: imageSet('backdrop.jpg'),
+    still: imageSet(null),
   },
   images: {
-    posterUrl: null,
-    backdropUrl: null,
-    stillUrl: null,
-    logoUrl: 'logo.png',
+    poster: imageSet('poster.jpg'),
+    backdrop: imageSet('backdrop.jpg'),
+    still: imageSet(null),
+    logo: imageSet('logo.png'),
   },
   releaseDate: '2024-01-01',
   releaseYear: 2024,
@@ -45,9 +47,15 @@ test('metadataCardToMediaItem maps common metadata with artwork fallbacks', () =
   assert.equal(item.mediaType, 'movie');
   assert.equal(item.title, 'Movie');
   assert.equal(item.overview, 'Summary');
-  assert.equal(item.posterUrl, 'poster.jpg');
-  assert.equal(item.backdropUrl, 'backdrop.jpg');
-  assert.equal(item.logoUrl, 'logo.png');
+  assert.equal(item.images.poster.small, 'poster.jpg');
+  assert.equal(item.images.poster.medium, 'poster.jpg');
+  assert.equal(item.images.poster.large, 'poster.jpg');
+  assert.equal(item.images.backdrop.small, 'backdrop.jpg');
+  assert.equal(item.images.backdrop.medium, 'backdrop.jpg');
+  assert.equal(item.images.backdrop.large, 'backdrop.jpg');
+  assert.equal(item.images.logo.small, 'logo.png');
+  assert.equal(item.images.logo.medium, 'logo.png');
+  assert.equal(item.images.logo.large, 'logo.png');
   assert.equal(item.maturityRating, 'PG-13');
   assert.equal(item.certification, 'PG-13');
   assert.deepEqual(item.externalIds, { tmdb: 1, imdb: null, tvdb: null });
@@ -58,14 +66,14 @@ test('metadataCardToMediaItem uses Untitled title fallback and null artwork', ()
   const item = metadataCardToMediaItem({
     ...baseCard,
     title: null,
-    artwork: { posterUrl: null, backdropUrl: null, stillUrl: null },
-    images: { posterUrl: null, backdropUrl: null, stillUrl: null, logoUrl: null },
+    artwork: { poster: imageSet(null), backdrop: imageSet(null), still: imageSet(null) },
+    images: { poster: imageSet(null), backdrop: imageSet(null), still: imageSet(null), logo: imageSet(null) },
   });
 
   assert.equal(item.title, 'Untitled');
-  assert.equal(item.posterUrl, null);
-  assert.equal(item.backdropUrl, null);
-  assert.equal(item.logoUrl, null);
+  assert.deepEqual(item.images.poster, imageSet(null));
+  assert.deepEqual(item.images.backdrop, imageSet(null));
+  assert.deepEqual(item.images.logo, imageSet(null));
 });
 
 test('metadataCardToMediaItem maps episode fields', () => {
@@ -128,9 +136,9 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
 
   assert.equal(item.mediaType, 'episode');
   assert.equal(item.title, 'Show');
-  assert.equal(item.posterUrl, null);
-  assert.equal(item.backdropUrl, 'backdrop.jpg');
-  assert.equal(item.logoUrl, 'logo.png');
+  assert.deepEqual(item.images.poster, imageSet(null));
+  assert.deepEqual(item.images.backdrop, imageSet(null));
+  assert.deepEqual(item.images.logo, imageSet(null));
   assert.equal(item.maturityRating, 'TV-MA');
   assert.equal(item.certification, 'TV-MA');
   assert.equal(item.seasonNumber, 1);

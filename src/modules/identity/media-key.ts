@@ -76,7 +76,9 @@ export function showTmdbIdForIdentity(identity: MediaIdentity): number | null {
   return parentTmdbId;
 }
 
-export function canonicalContinueWatchingMediaKey(identity: MediaIdentity): string {
+export type TitleMediaType = 'movie' | 'show';
+
+export function canonicalTitleMediaKey(identity: MediaIdentity): string {
   if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
     return identity.mediaKey;
   }
@@ -87,7 +89,27 @@ export function canonicalContinueWatchingMediaKey(identity: MediaIdentity): stri
     return `show:tmdb:${canonicalShowTmdbId}`;
   }
 
-  throw new HttpError(400, 'Unable to infer canonical continue watching media key.');
+  throw new HttpError(400, 'Unable to infer canonical title media key.');
+}
+
+export function canonicalTitleMediaType(identity: MediaIdentity): TitleMediaType {
+  if (identity.mediaType === 'movie') {
+    return 'movie';
+  }
+
+  return 'show';
+}
+
+export function isTitleLevelMediaType(mediaType: SupportedMediaType): mediaType is TitleMediaType {
+  return mediaType === 'movie' || mediaType === 'show';
+}
+
+export function isPlayableMediaType(mediaType: SupportedMediaType): boolean {
+  return mediaType === 'movie' || mediaType === 'show' || mediaType === 'episode';
+}
+
+export function canonicalContinueWatchingMediaKey(identity: MediaIdentity): string {
+  return canonicalTitleMediaKey(identity);
 }
 
 export function parseMediaKey(mediaKey: string): MediaIdentity {

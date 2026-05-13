@@ -50,18 +50,19 @@ export class CalendarBuilderService {
       }
 
       const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
-      const posterUrl = mediaCard.images.posterUrl ?? mediaCard.artwork.posterUrl ?? showCard.images.posterUrl ?? showCard.artwork.posterUrl ?? null;
-      const backdropUrl = mediaCard.images.stillUrl
-        ?? mediaCard.artwork.stillUrl
-        ?? mediaCard.images.backdropUrl
-        ?? mediaCard.artwork.backdropUrl
-        ?? showCard.images.backdropUrl
-        ?? showCard.artwork.backdropUrl
-        ?? posterUrl;
+      const poster = mediaCard.images.poster ?? showCard.images.poster;
+      const backdrop = mediaCard.images.still
+        ?? mediaCard.images.backdrop
+        ?? showCard.images.backdrop
+        ?? poster;
 
       const mediaItem = metadataCardToMediaItem(mediaCard, {
-        posterUrl,
-        backdropUrl,
+        images: {
+          poster,
+          backdrop,
+          logo: mediaCard.images.logo,
+          still: mediaCard.images.still,
+        },
         airDate: nextEpisode?.airDate ?? null,
         episodeTitle: mediaCard.title,
       });

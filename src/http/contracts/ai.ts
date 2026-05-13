@@ -7,43 +7,6 @@ import {
   withDefaultErrorResponses,
 } from './shared.js';
 
-const nullableStringSchema = {
-  anyOf: [
-    stringSchema,
-    { type: 'null' },
-  ],
-} as const;
-
-const nullableIntegerSchema = {
-  anyOf: [
-    { type: 'integer' },
-    { type: 'null' },
-  ],
-} as const;
-
-const metadataArtworkSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['posterUrl', 'backdropUrl', 'stillUrl'],
-  properties: {
-    posterUrl: nullableStringSchema,
-    backdropUrl: nullableStringSchema,
-    stillUrl: nullableStringSchema,
-  },
-} as const;
-
-const metadataImagesSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['posterUrl', 'backdropUrl', 'stillUrl', 'logoUrl'],
-  properties: {
-    posterUrl: nullableStringSchema,
-    backdropUrl: nullableStringSchema,
-    stillUrl: nullableStringSchema,
-    logoUrl: nullableStringSchema,
-  },
-} as const;
-
 const aiSearchItemSchema = regularCardViewSchema;
 
 export const aiSearchRouteSchema = withDefaultErrorResponses({

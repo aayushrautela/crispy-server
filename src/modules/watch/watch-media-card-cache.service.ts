@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import { showTmdbIdForIdentity } from '../identity/media-key.js';
+import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import type { MetadataTitleMediaType, RegularCardView } from '../metadata/metadata-card.types.js';
 import { WatchMediaCardCacheRepository, type WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 
@@ -66,7 +67,11 @@ function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
     mediaType: record.titleMediaType,
     mediaKey: record.mediaKey,
     title: record.title,
-    posterUrl: record.posterUrl ?? '',
+    poster: buildResponsiveImageSet(record.posterUrl, {
+      small: 'w342',
+      medium: 'w500',
+      large: 'w780',
+    }),
     releaseYear: record.releaseYear,
     rating: record.rating,
     genre: null,
