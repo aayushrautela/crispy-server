@@ -117,6 +117,19 @@ function toNullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function toNoLanguagePosterPath(title: Record<string, unknown>): string | null {
+  const images = title.images;
+  if (typeof images !== 'object' || images === null || !Array.isArray((images as Record<string, unknown>).posters)) {
+    return null;
+  }
+
+  const poster = ((images as Record<string, unknown>).posters as unknown[])
+    .map((entry) => (typeof entry === 'object' && entry !== null ? entry as Record<string, unknown> : null))
+    .find((entry) => entry?.iso_639_1 === null);
+
+  return poster ? toNullableString(poster.file_path) : null;
+}
+
 function hasRecommendationPayload(record: TmdbTitleRecord): boolean {
   const recommendations = (record.raw as Record<string, unknown>).recommendations;
   return typeof recommendations === 'object' && recommendations !== null;
@@ -165,7 +178,7 @@ export class TmdbCacheService {
       releaseDate: toNullableString(title.release_date),
       firstAirDate: toNullableString(title.first_air_date),
       status: toNullableString(title.status),
-      posterPath: toNullableString(title.poster_path),
+      posterPath: toNoLanguagePosterPath(title) ?? toNullableString(title.poster_path),
       backdropPath: toNullableString(title.backdrop_path),
       runtime: toNullableNumber(title.runtime),
       episodeRunTime: Array.isArray(title.episode_run_time) ? title.episode_run_time.map((value) => Number(value)) : [],

@@ -41,7 +41,7 @@ export class TmdbClient {
       : 'images,content_ratings,videos,credits,reviews,recommendations';
     return fetchTmdbJson(`/${mediaType}/${tmdbId}`, {
       append_to_response: appendToResponse,
-      include_image_language: 'en,null',
+      include_image_language: 'null',
     });
   }
 
