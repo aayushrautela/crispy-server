@@ -2,10 +2,11 @@ import { addHours } from './tmdb-time.js';
 import { appConfig } from '../../../config/app-config.js';
 import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
+import { ShortLivedRequestCoalescer } from '../../../lib/request-coalescer.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
 import type { MetadataSearchFilter } from '../metadata-detail.types.js';
-import type { TmdbEpisodeRecord, TmdbPersonRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+import type { TmdbEpisodeRecord, TmdbHydrationLevel, TmdbPersonRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 type PersonSearchPayloadItem = {
   id?: unknown;
@@ -81,6 +82,7 @@ function toSearchTitleRecord(mediaType: TmdbTitleType, item: SearchPayloadItem):
     numberOfEpisodes: null,
     externalIds: {},
     raw: item as Record<string, unknown>,
+    hydrationLevel: 'summary',
     fetchedAt: now,
     expiresAt: now,
   };
@@ -166,43 +168,77 @@ function toNoLanguagePosterPath(title: Record<string, unknown>): string | null {
   return poster ? toNullableString(poster.file_path) : null;
 }
 
-function hasRecommendationPayload(record: TmdbTitleRecord): boolean {
-  const recommendations = (record.raw as Record<string, unknown>).recommendations;
-  return typeof recommendations === 'object' && recommendations !== null;
-}
-
-function usesLegacySimilarPayload(record: TmdbTitleRecord): boolean {
-  const raw = record.raw as Record<string, unknown>;
-  return !hasRecommendationPayload(record) && typeof raw.similar === 'object' && raw.similar !== null;
-}
+const HYDRATE_COALESCE_TTL_MS = 1_000;
 
 export class TmdbCacheService {
   constructor(
     private readonly tmdbRepository = new TmdbRepository(),
     private readonly tmdbClient = new TmdbClient(),
+    private readonly hydrateCoalescer = new ShortLivedRequestCoalescer<TmdbTitleRecord | null>(HYDRATE_COALESCE_TTL_MS),
   ) {}
 
-  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
+  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, level: TmdbHydrationLevel = 'detail'): Promise<TmdbTitleRecord | null> {
+    const key = `${mediaType}:${tmdbId}:${level}`;
+    return this.hydrateCoalescer.run(key, () => this.getTitleImpl(client, mediaType, tmdbId, level));
+  }
+
+  private async getTitleImpl(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, level: TmdbHydrationLevel): Promise<TmdbTitleRecord | null> {
     const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId);
-    const hasLegacySimilarPayload = cached ? usesLegacySimilarPayload(cached) : false;
-    if (cached && !hasLegacySimilarPayload && Date.parse(cached.expiresAt) > Date.now()) {
-      return cached;
+
+    if (cached) {
+      const isFresh = Date.parse(cached.expiresAt) > Date.now();
+
+      if (cached.hydrationLevel === 'detail') {
+        if (isFresh) {
+          return cached;
+        }
+        return this.withFallback(
+          () => this.refreshTitle(client, mediaType, tmdbId, 'detail'),
+          cached,
+        );
+      }
+
+      if (level === 'summary') {
+        if (isFresh) {
+          return cached;
+        }
+        return this.withFallback(
+          () => this.refreshTitle(client, mediaType, tmdbId, 'summary'),
+          cached,
+        );
+      }
+
+      return this.withFallback(
+        () => this.refreshTitle(client, mediaType, tmdbId, 'detail'),
+        isFresh ? cached : null,
+      );
     }
 
     try {
-      const fetched = await this.refreshTitle(client, mediaType, tmdbId);
-      return fetched ?? cached;
+      return await this.refreshTitle(client, mediaType, tmdbId, level);
     } catch (error) {
-      if (cached && !hasLegacySimilarPayload) {
-        return cached;
+      if (error instanceof HttpError && error.statusCode === 404) {
+        return null;
       }
       throw error;
     }
   }
 
-  async refreshTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
-    const title = await this.tmdbClient.fetchTitle(mediaType, tmdbId);
-    const externalIds = await this.tmdbClient.fetchExternalIds(mediaType, tmdbId);
+  private async withFallback(fn: () => Promise<TmdbTitleRecord | null>, fallback: TmdbTitleRecord | null): Promise<TmdbTitleRecord | null> {
+    try {
+      return await fn();
+    } catch {
+      return fallback;
+    }
+  }
+
+  async refreshTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, level: TmdbHydrationLevel = 'detail'): Promise<TmdbTitleRecord | null> {
+    const title = level === 'summary'
+      ? await this.tmdbClient.fetchTitleSummary(mediaType, tmdbId)
+      : await this.tmdbClient.fetchTitleDetail(mediaType, tmdbId);
+    const externalIds = level === 'detail'
+      ? await this.tmdbClient.fetchExternalIds(mediaType, tmdbId)
+      : {};
     const now = new Date().toISOString();
     const ttlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
     const record: TmdbTitleRecord = {
@@ -222,6 +258,7 @@ export class TmdbCacheService {
       numberOfEpisodes: toNullableNumber(title.number_of_episodes),
       externalIds,
       raw: title,
+      hydrationLevel: level,
       fetchedAt: now,
       expiresAt: addHours(now, ttlHours),
     };
@@ -238,10 +275,6 @@ export class TmdbCacheService {
       }
       throw error;
     }
-  }
-
-  async ensureTitleCached(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
-    return this.getTitle(client, mediaType, tmdbId);
   }
 
   async refreshSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<void> {

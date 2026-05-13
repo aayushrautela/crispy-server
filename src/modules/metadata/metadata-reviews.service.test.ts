@@ -65,6 +65,7 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
       spoken_languages: [],
       similar: { results: [] },
     },
+    hydrationLevel: 'detail',
     fetchedAt: '2026-03-22T00:00:00.000Z',
     expiresAt: '2026-03-23T00:00:00.000Z',
   };
@@ -145,6 +146,7 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
       spoken_languages: [],
       similar: { results: [] },
     },
+    hydrationLevel: 'detail',
     fetchedAt: '2026-03-22T00:00:00.000Z',
     expiresAt: '2026-03-23T00:00:00.000Z',
   };
@@ -225,6 +227,7 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
       spoken_languages: [],
       similar: { results: [] },
     },
+    hydrationLevel: 'detail',
     fetchedAt: '2026-03-22T00:00:00.000Z',
     expiresAt: '2026-03-23T00:00:00.000Z',
   };
@@ -292,6 +295,7 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
       spoken_languages: [],
       similar: { results: [] },
     },
+    hydrationLevel: 'detail',
     fetchedAt: '2026-03-22T00:00:00.000Z',
     expiresAt: '2026-03-23T00:00:00.000Z',
   };

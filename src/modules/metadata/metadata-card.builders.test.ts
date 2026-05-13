@@ -15,6 +15,7 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
       status: 'Returning Series', posterPath: '/poster.jpg', backdropPath: '/backdrop.jpg',
       runtime: null, episodeRunTime: [45], numberOfSeasons: 3, numberOfEpisodes: 30,
       externalIds: {}, raw: { genres: [], vote_average: 8.0 },
+      hydrationLevel: 'detail',
       fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
     },
     currentEpisode: {
@@ -41,7 +42,7 @@ test('buildEpisodePreview produces provider-based payload', async () => {
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: {},
-      fetchedAt: '', expiresAt: '',
+      hydrationLevel: 'detail', fetchedAt: '', expiresAt: '',
     },
     {
       showTmdbId: 42, seasonNumber: 1, episodeNumber: 3, tmdbId: 555,

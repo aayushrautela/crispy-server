@@ -57,6 +57,11 @@ test('all filter combines movie and series TMDB results', async () => {
         },
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
+        getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => {
+          if (tmdbId === movieRecord.tmdbId) return hydrateSearchRecord(movieRecord);
+          if (tmdbId === seriesRecord.tmdbId) return hydrateSearchRecord(seriesRecord);
+          return null;
+        },
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -90,15 +95,19 @@ test('searchTitles drops results without posters', async () => {
 
   try {
     const pkg = await import('../search/title-search.service.js');
+    const posterMovie = createTmdbMovieRecord({ tmdbId: 41, name: 'Poster Movie', posterPath: '/poster.jpg' });
+    const hiddenSeries = createTmdbShowRecord({ tmdbId: 42, name: 'Hidden Series', posterPath: null });
+    const visibleSeries = createTmdbShowRecord({ tmdbId: 43, name: 'Visible Series', posterPath: '/series.jpg', firstAirDate: '2022-01-01' });
+    const allRecords = [posterMovie, hiddenSeries, visibleSeries];
     const svc = new pkg.TitleSearchService(
       {
-        searchTitles: async () => [
-          createTmdbMovieRecord({ tmdbId: 41, name: 'Poster Movie', posterPath: '/poster.jpg' }),
-          createTmdbShowRecord({ tmdbId: 42, name: 'Hidden Series', posterPath: null }),
-          createTmdbShowRecord({ tmdbId: 43, name: 'Visible Series', posterPath: '/series.jpg', firstAirDate: '2022-01-01' }),
-        ],
+        searchTitles: async () => allRecords,
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
+        getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => {
+          const match = allRecords.find((r) => r.tmdbId === tmdbId);
+          return match ? hydrateSearchRecord(match) : null;
+        },
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -128,15 +137,19 @@ test('searchTitles moves noisy series results to the end without disturbing clea
 
   try {
     const pkg = await import('../search/title-search.service.js');
+    const naruto = createTmdbShowRecord({ tmdbId: 201, name: 'Naruto', firstAirDate: '2002-10-03', overview: 'Ninja', raw: { vote_average: 8.4 } });
+    const narutoLost = createTmdbShowRecord({ tmdbId: 202, name: 'Naruto Lost', firstAirDate: null, overview: null, raw: { vote_average: null } });
+    const narutoNext = createTmdbShowRecord({ tmdbId: 203, name: 'Naruto Next', firstAirDate: '2017-04-05', overview: 'Ninja sequel', raw: { vote_average: 7.9 } });
+    const narutoRecords = [naruto, narutoLost, narutoNext];
     const svc = new pkg.TitleSearchService(
       {
-        searchTitles: async () => [
-          createTmdbShowRecord({ tmdbId: 201, name: 'Naruto', firstAirDate: '2002-10-03', overview: 'Ninja', raw: { vote_average: 8.4 } }),
-          createTmdbShowRecord({ tmdbId: 202, name: 'Naruto Lost', firstAirDate: null, overview: null, raw: { vote_average: null } }),
-          createTmdbShowRecord({ tmdbId: 203, name: 'Naruto Next', firstAirDate: '2017-04-05', overview: 'Ninja sequel', raw: { vote_average: 7.9 } }),
-        ],
+        searchTitles: async () => narutoRecords,
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
+        getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => {
+          const match = narutoRecords.find((r) => r.tmdbId === tmdbId);
+          return match ? hydrateSearchRecord(match) : null;
+        },
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -172,6 +185,8 @@ test('searchTitles coalesces identical in-flight requests', async () => {
       resolveTmdb = resolve;
     });
 
+    const alphaMovie = createTmdbMovieRecord({ tmdbId: 77, name: 'Alpha Movie', releaseDate: '2024-01-01', posterPath: '/alpha.jpg' });
+
     const svc = new pkg.TitleSearchService(
       {
         searchTitles: async () => {
@@ -180,6 +195,7 @@ test('searchTitles coalesces identical in-flight requests', async () => {
         },
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
+        getTitle: async () => hydrateSearchRecord(alphaMovie),
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
@@ -195,9 +211,7 @@ test('searchTitles coalesces identical in-flight requests', async () => {
     await Promise.resolve();
     assert.equal(tmdbCalls, 1);
 
-    resolveTmdb([
-      createTmdbMovieRecord({ tmdbId: 77, name: 'Alpha Movie', releaseDate: '2024-01-01', posterPath: '/alpha.jpg' }),
-    ]);
+    resolveTmdb([alphaMovie]);
 
     const [left, right] = await Promise.all([first, second]);
     assert.deepEqual(left, right);
@@ -206,6 +220,18 @@ test('searchTitles coalesces identical in-flight requests', async () => {
     db.connect = originalConnect;
   }
 });
+
+function hydrateSearchRecord(record: TmdbTitleRecord): TmdbTitleRecord {
+  return {
+    ...record,
+    hydrationLevel: 'summary',
+    raw: {
+      ...record.raw,
+      genres: [],
+      images: { logos: [] },
+    },
+  };
+}
 
 function createTmdbMovieRecord(overrides: Partial<TmdbTitleRecord> = {}): TmdbTitleRecord {
   return {
@@ -225,6 +251,7 @@ function createTmdbMovieRecord(overrides: Partial<TmdbTitleRecord> = {}): TmdbTi
     numberOfEpisodes: null,
     externalIds: {},
     raw: { vote_average: 7.1 },
+    hydrationLevel: 'summary',
     fetchedAt: '2024-01-01T00:00:00.000Z',
     expiresAt: '2024-01-02T00:00:00.000Z',
     ...overrides,
@@ -249,6 +276,7 @@ function createTmdbShowRecord(overrides: Partial<TmdbTitleRecord> = {}): TmdbTit
     numberOfEpisodes: 12,
     externalIds: {},
     raw: { vote_average: 8.2 },
+    hydrationLevel: 'summary',
     fetchedAt: '2024-01-01T00:00:00.000Z',
     expiresAt: '2024-01-02T00:00:00.000Z',
     ...overrides,

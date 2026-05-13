@@ -12,6 +12,7 @@ import type { TmdbEpisodeRecord, TmdbTitleRecord } from './providers/tmdb.types.
 import {
   buildMetadataImages,
   deriveRuntimeMinutes,
+  extractGenres,
   extractRating,
   extractReleaseDate,
   extractReleaseYear,
@@ -117,5 +118,6 @@ export function buildMetadataCardView(params: {
     rating: extractRating(title, currentEpisode),
     status: title?.status ?? null,
     maturityRating: extractCertification(title),
+    genres: extractGenres(title),
   };
 }

@@ -63,6 +63,7 @@ export type MetadataCardView = {
   rating: number | null;
   status: string | null;
   maturityRating: string | null;
+  genres: string[];
 };
 
 export type RegularCardView = {

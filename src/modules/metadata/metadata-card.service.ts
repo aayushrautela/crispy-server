@@ -15,7 +15,7 @@ export class MetadataCardService {
   ) {}
 
   async buildCardView(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataCardView> {
-    const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
+    const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null, 'summary');
     return buildMetadataCardView({
       identity,
       title: source.tmdbTitle,
@@ -25,7 +25,7 @@ export class MetadataCardService {
 
   async buildCardViewFromRow(client: DbClient, row: Record<string, unknown>): Promise<MetadataCardView> {
     const identity = this.identityFromRow(row);
-    const source = await this.titleSourceService.loadTitleSource(client, identity).catch(() => null);
+    const source = await this.titleSourceService.loadTitleSource(client, identity, null, 'summary').catch(() => null);
     const rowTitle = typeof row.title === 'string' && row.title.trim() ? row.title : null;
     const rowSubtitle = typeof row.subtitle === 'string' && row.subtitle.trim() ? row.subtitle : null;
     const rowPosterUrl = typeof row.poster_url === 'string' && row.poster_url.trim() ? row.poster_url : null;

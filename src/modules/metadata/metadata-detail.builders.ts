@@ -119,6 +119,7 @@ export function buildSeasonViewFromRecord(
           numberOfEpisodes: null,
           externalIds: {},
           raw: {},
+          hydrationLevel: 'detail',
           fetchedAt: season.fetchedAt,
           expiresAt: season.expiresAt,
         }, null).poster,

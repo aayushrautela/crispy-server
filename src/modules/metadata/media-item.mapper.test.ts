@@ -38,6 +38,7 @@ const baseCard: MetadataCardView = {
   rating: 8.1,
   status: 'Released',
   maturityRating: 'PG-13',
+  genres: [],
 };
 
 test('metadataCardToMediaItem maps common metadata with artwork fallbacks', () => {

@@ -1,4 +1,5 @@
 export type TmdbTitleType = 'movie' | 'tv';
+export type TmdbHydrationLevel = 'summary' | 'detail';
 
 export type TmdbTitleRecord = {
   mediaType: TmdbTitleType;
@@ -17,6 +18,7 @@ export type TmdbTitleRecord = {
   numberOfEpisodes: number | null;
   externalIds: Record<string, unknown>;
   raw: Record<string, unknown>;
+  hydrationLevel: TmdbHydrationLevel;
   fetchedAt: string;
   expiresAt: string;
 };

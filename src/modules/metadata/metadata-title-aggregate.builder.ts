@@ -65,6 +65,15 @@ export class MetadataTitleAggregateBuilder {
       }));
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
 
+    const [collectionRelated, similarRelated] = await Promise.all([
+      Promise.all(collectionParts.map((titleRecord) =>
+        this.buildRelatedItem(client, titleRecord, collectionContentIds),
+      )),
+      Promise.all(similarTitles.map((titleRecord) =>
+        this.buildRelatedItem(client, titleRecord, similarContentIds),
+      )),
+    ]);
+
     return {
       item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode }),
       seasons: buildSeasonViewFromTitleRaw(resolvedTitle, seasonIds),
@@ -78,16 +87,10 @@ export class MetadataTitleAggregateBuilder {
       collection: collection
         ? {
             ...collection,
-            parts: collectionParts.flatMap((titleRecord) => {
-              const item = this.buildRelatedItem(titleRecord, collectionContentIds);
-              return item ? [item] : [];
-            }),
+            parts: collectionRelated.filter((item): item is NonNullable<typeof item> => item !== null),
           }
         : null,
-      similar: similarTitles.flatMap((titleRecord) => {
-        const item = this.buildRelatedItem(titleRecord, similarContentIds);
-        return item ? [item] : [];
-      }),
+      similar: similarRelated.filter((item): item is NonNullable<typeof item> => item !== null),
     };
   }
 
@@ -124,7 +127,7 @@ export class MetadataTitleAggregateBuilder {
     });
   }
 
-  private buildRelatedItem(title: TmdbTitleRecord, contentIds: Map<string, string>) {
+  private async buildRelatedItem(client: DbClient, title: TmdbTitleRecord, contentIds: Map<string, string>) {
     const mediaType = title.mediaType === 'movie' ? 'movie' : 'show';
     const identity = inferMediaIdentity({ mediaType, tmdbId: title.tmdbId });
     const contentId = contentIds.get(identity.mediaKey);
@@ -132,7 +135,12 @@ export class MetadataTitleAggregateBuilder {
       return null;
     }
 
-    const card = buildMetadataCardView({ identity, title });
+    const hydrated = await this.tmdbCacheService.getTitle(client, title.mediaType, title.tmdbId, 'summary');
+    if (!hydrated) {
+      return null;
+    }
+
+    const card = buildMetadataCardView({ identity, title: hydrated });
     const item = toCatalogItem(card);
     if (!item) {
       return null;

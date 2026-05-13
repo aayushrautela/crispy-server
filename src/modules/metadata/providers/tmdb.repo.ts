@@ -1,6 +1,11 @@
 import type { DbClient } from '../../../lib/db.js';
 import { normalizeDateOnlyString, requireDbIsoString } from '../../../lib/time.js';
-import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+import type { TmdbEpisodeRecord, TmdbHydrationLevel, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
+
+function parseHydrationLevel(value: unknown): TmdbHydrationLevel {
+  if (value === 'summary') return 'summary';
+  return 'detail';
+}
 
 function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
   return {
@@ -20,6 +25,7 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
     numberOfEpisodes: row.number_of_episodes === null || row.number_of_episodes === undefined ? null : Number(row.number_of_episodes),
     externalIds: (row.external_ids as Record<string, unknown> | undefined) ?? {},
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
+    hydrationLevel: parseHydrationLevel(row.hydration_level),
     fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
     expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_titles.expires_at'),
   };
@@ -43,6 +49,7 @@ function mapSearchTitle(row: Record<string, unknown>): TmdbTitleRecord {
     numberOfEpisodes: null,
     externalIds: {},
     raw: {},
+    hydrationLevel: parseHydrationLevel(row.hydration_level),
     fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
     expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_titles.expires_at'),
   };
@@ -114,7 +121,7 @@ export class TmdbRepository {
       `
         SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
                poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
-               external_ids, raw, fetched_at, expires_at
+               external_ids, raw, hydration_level, fetched_at, expires_at
         FROM tmdb_titles
         WHERE media_type = $1 AND tmdb_id = $2
       `,
@@ -129,12 +136,12 @@ export class TmdbRepository {
         INSERT INTO tmdb_titles (
           media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
           poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
-          external_ids, raw, fetched_at, expires_at
+          external_ids, raw, hydration_level, fetched_at, expires_at
         )
         VALUES (
           $1, $2, $3, $4, $5, $6::date, $7::date, $8,
           $9, $10, $11, $12::jsonb, $13, $14,
-          $15::jsonb, $16::jsonb, $17::timestamptz, $18::timestamptz
+          $15::jsonb, $16::jsonb, $17, $18::timestamptz, $19::timestamptz
         )
         ON CONFLICT (media_type, tmdb_id)
         DO UPDATE SET
@@ -152,6 +159,7 @@ export class TmdbRepository {
           number_of_episodes = EXCLUDED.number_of_episodes,
           external_ids = EXCLUDED.external_ids,
           raw = EXCLUDED.raw,
+          hydration_level = EXCLUDED.hydration_level,
           fetched_at = EXCLUDED.fetched_at,
           expires_at = EXCLUDED.expires_at
       `,
@@ -172,6 +180,7 @@ export class TmdbRepository {
         record.numberOfEpisodes,
         JSON.stringify(record.externalIds),
         JSON.stringify(record.raw),
+        record.hydrationLevel,
         record.fetchedAt,
         record.expiresAt,
       ],

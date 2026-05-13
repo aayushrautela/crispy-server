@@ -22,7 +22,7 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
     releaseDate: card.releaseDate,
     releaseYear: card.releaseYear,
     rating: card.rating,
-    genres: [],
+    genres: card.genres,
     runtimeMinutes: card.runtimeMinutes,
     status: card.status,
     maturityRating: card.maturityRating,
@@ -48,7 +48,6 @@ export function metadataViewToMediaItem(view: MetadataView, overrides: Partial<M
   const item = metadataCardToMediaItem(view, {
     maturityRating: view.certification,
     certification: view.certification,
-    genres: view.genres,
     externalIds: view.externalIds,
     ...overrides,
   });

@@ -32,6 +32,7 @@ test('buildMetadataView for show extracts provider-based detail fields', async (
         images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] },
         content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
       },
+      hydrationLevel: 'detail',
       fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
     },
   });
@@ -62,6 +63,7 @@ test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: null, backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: {},
+      hydrationLevel: 'detail',
       raw: {
         seasons: [
           { season_number: 0, name: 'Specials', poster_path: '/season0.jpg' },
@@ -104,7 +106,7 @@ test('buildEpisodeView includes provider-based show context', async () => {
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: { imdb_id: 'tt1234567' },
-      raw: {}, fetchedAt: '', expiresAt: '',
+      hydrationLevel: 'detail', raw: {}, fetchedAt: '', expiresAt: '',
     },
     {
       showTmdbId: 42, seasonNumber: 1, episodeNumber: 3, tmdbId: 555,
@@ -156,6 +158,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
     numberOfSeasons: 3,
     numberOfEpisodes: 30,
     externalIds: {},
+    hydrationLevel: 'detail',
     raw: {
       videos: {
         results: [{ id: 'vid1', key: 'abc123', name: 'Official Trailer', site: 'YouTube', type: 'Trailer', official: true, published_at: '2024-01-01T00:00:00.000Z' }],

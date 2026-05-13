@@ -104,9 +104,14 @@ export class TitleSearchService {
           return null;
         }
 
+        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, 'summary');
+        if (!hydrated) {
+          return null;
+        }
+
         const card = buildMetadataCardView({
           identity,
-          title: match,
+          title: hydrated,
         });
         return {
           item: {
@@ -115,7 +120,7 @@ export class TitleSearchService {
             context: {},
             presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
           },
-          noisy: isNoisyTmdbMatch(match),
+          noisy: isNoisyTmdbMatch(hydrated),
         };
       }));
 

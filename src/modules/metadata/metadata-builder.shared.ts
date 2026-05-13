@@ -365,6 +365,7 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
         numberOfEpisodes: null,
         externalIds: {},
         raw: entry,
+        hydrationLevel: 'summary',
         fetchedAt: '',
         expiresAt: '',
       };
@@ -407,6 +408,7 @@ export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRe
         numberOfEpisodes: null,
         externalIds: {},
         raw: entry,
+        hydrationLevel: 'summary',
         fetchedAt: title.fetchedAt,
         expiresAt: title.expiresAt,
       };
