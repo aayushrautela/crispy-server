@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
@@ -153,4 +153,123 @@ test('watch routes reject requests without access token', async (t) => {
   const body = response.json();
   assert.equal(body.error.code, 'missing_bearer_token');
   assert.equal(body.error.message, 'Missing bearer token.');
+});
+
+function makeMediaItem(key: string) {
+  return {
+    mediaKey: key,
+    mediaType: 'movie' as const,
+    title: 'Test Movie',
+    originalTitle: null,
+    subtitle: null,
+    overview: null,
+    images: {
+      poster: { small: null, medium: null, large: null },
+      backdrop: { small: null, medium: null, large: null },
+      still: { small: null, medium: null, large: null },
+      logo: { small: null, medium: null, large: null },
+    },
+    releaseDate: null,
+    releaseYear: null,
+    rating: null,
+    genres: [],
+    runtimeMinutes: null,
+    status: null,
+    maturityRating: null,
+    certification: null,
+    externalIds: { tmdb: 694, imdb: null, tvdb: null },
+    parent: null,
+    showTmdbId: null,
+    seasonNumber: null,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+    episodeTitle: null,
+    airDate: null,
+  };
+}
+
+test('continue-watching serializes items with progress', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
+  const { SupabaseUserWatchService } = await import('../../modules/integrations/supabase-user-watch.service.js');
+  const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
+
+  const originals = {
+    listContinueWatchingPage: SupabaseUserWatchService.prototype.listContinueWatchingPage,
+    enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
+  };
+
+  t.after(() => {
+    SupabaseUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
+    WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+  });
+
+  const now = '2026-05-13T00:00:00.000Z';
+
+  SupabaseUserWatchService.prototype.listContinueWatchingPage = async () => ({
+    items: [
+      {
+        id: 'movie:tmdb:694',
+        kind: 'continue_watching',
+        mediaItem: makeMediaItem('movie:tmdb:694'),
+        context: {
+          id: 'movie:tmdb:694',
+          progress: {
+            positionSeconds: 120,
+            durationSeconds: 7200,
+            progressPercent: 1.67,
+            lastPlayedAt: now,
+          },
+          lastActivityAt: now,
+          origins: ['test'],
+          dismissible: true,
+        },
+        presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
+        progress: {
+          positionSeconds: 120,
+          durationSeconds: 7200,
+          progressPercent: 1.67,
+          lastPlayedAt: now,
+        },
+        lastActivityAt: now,
+        origins: ['test'],
+        dismissible: true,
+      },
+    ],
+    pageInfo: { nextCursor: null, hasMore: false },
+  });
+
+  WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = async (_client, items) => items;
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/continue-watching',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  const body = response.json();
+  assert.equal(response.statusCode, 200, JSON.stringify(body, null, 2));
+  assert.ok(Array.isArray(body.data.items));
+  assert.equal(body.data.items.length, 1);
+  const item = body.data.items[0];
+  assert.equal(item.id, 'movie:tmdb:694');
+  assert.equal(item.kind, 'continue_watching');
+  assert.ok(item.progress);
+  assert.equal(item.progress.positionSeconds, 120);
+  assert.equal(item.progress.durationSeconds, 7200);
+  assert.equal(item.progress.progressPercent, 1.67);
+  assert.equal(item.progress.lastPlayedAt, now);
+  assert.equal(item.progress.status, undefined);
+  assert.equal(item.context.progress.status, undefined);
 });

@@ -139,7 +139,6 @@ export class MetadataTitleAggregateBuilder {
     }
 
     return {
-      ...item,
       kind: 'metadata_detail' as const,
       mediaItem: metadataCardToMediaItem(card),
       context: {},

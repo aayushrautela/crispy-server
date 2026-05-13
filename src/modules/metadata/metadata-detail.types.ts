@@ -1,7 +1,6 @@
 import type { SupportedProvider } from '../identity/media-key.js';
 import type { MediaItem, MediaPresentationHint } from './media-item.types.js';
 import type {
-  CatalogItem,
   MetadataExternalIds,
   MetadataEpisodePreview,
   MetadataImages,
@@ -107,7 +106,7 @@ export type MetadataCompanyView = {
   originCountry: string | null;
 };
 
-export type MetadataRelatedItem = CatalogItem & {
+export type MetadataRelatedItem = {
   kind: 'metadata_detail';
   mediaItem: MediaItem;
   context: Record<string, unknown>;
