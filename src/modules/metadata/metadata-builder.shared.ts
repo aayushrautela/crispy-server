@@ -181,12 +181,68 @@ export function extractVideos(title: TmdbTitleRecord | null): MetadataVideoView[
 }
 
 export function extractPrimaryTrailer(title: TmdbTitleRecord | null): MetadataVideoView | null {
-  const videos = extractVideos(title).filter((video) => video.url);
-  return videos.find((video) => video.site === 'YouTube' && video.type === 'Trailer' && video.official)
-    ?? videos.find((video) => video.site === 'YouTube' && video.type === 'Trailer')
-    ?? videos.find((video) => video.site === 'YouTube')
-    ?? videos[0]
-    ?? null;
+  if (!title) {
+    return null;
+  }
+
+  const results = asArray(asRecord(title.raw.videos)?.results)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+  const originalLanguage = asString(asRecord(title.raw)?.original_language);
+
+  let best: MetadataVideoView | null = null;
+  let bestScore = -1;
+
+  for (const video of results) {
+    const id = asString(video.id);
+    const key = asString(video.key);
+    if (!id || !key) {
+      continue;
+    }
+
+    const site = asString(video.site);
+    const url = site === 'YouTube' ? `https://www.youtube.com/watch?v=${key}` : null;
+    if (!url) {
+      continue;
+    }
+
+    const type = asString(video.type);
+    const language = asString(video.iso_639_1);
+
+    const typeScore = type === 'Trailer' && asBoolean(video.official) ? 10000
+      : type === 'Trailer' ? 5000
+      : site === 'YouTube' ? 1000
+      : 0;
+
+    const langScore = language === 'en' ? 100
+      : language && language === originalLanguage ? 50
+      : 0;
+
+    const score = typeScore + langScore;
+    if (score > bestScore) {
+      bestScore = score;
+      best = {
+        id,
+        key,
+        name: asString(video.name),
+        site,
+        type,
+        official: asBoolean(video.official),
+        publishedAt: asString(video.published_at),
+        url,
+        thumbnailUrl: `https://img.youtube.com/vi/${key}/hqdefault.jpg`,
+      };
+    }
+  }
+
+  return best;
+}
+
+export function extractExtraVideos(title: TmdbTitleRecord | null): MetadataVideoView[] {
+  return extractVideos(title).filter((video) =>
+    video.url && (video.type === 'Behind the Scenes' || video.type === 'Bloopers'),
+  );
 }
 
 function buildPersonRefView(record: Record<string, unknown>): MetadataPersonRefView | null {

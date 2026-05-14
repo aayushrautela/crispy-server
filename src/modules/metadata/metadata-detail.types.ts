@@ -142,6 +142,7 @@ export type MetadataTitleDetail = {
   episodes: MetadataEpisodeView[];
   nextEpisode: MetadataEpisodeView | null;
   videos: MetadataVideoView[];
+  extraVideos: MetadataVideoView[];
   cast: MetadataPersonRefView[];
   directors: MetadataPersonRefView[];
   creators: MetadataPersonRefView[];

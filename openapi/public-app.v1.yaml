@@ -573,6 +573,11 @@ paths:
         - Metadata
       operationId: getV1MetadataTitlesMediaKey
       summary: Get title details.
+      description: |
+        Returns full metadata for a movie or show. Key video fields:
+        - `videos` — all TMDB video results for the title.
+        - `trailerUrl` / `trailerThumbnailUrl` — primary trailer (official YouTube trailer preferred; also tries English language, then original language, then any language).
+        - `extraVideos` — Behind the Scenes and Bloopers videos for client apps to use separately.
       security:
         - UserBearerAuth: []
       parameters:
