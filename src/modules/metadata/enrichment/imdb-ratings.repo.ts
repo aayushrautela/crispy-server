@@ -33,14 +33,14 @@ export class ImdbRatingsRepository {
     let paramIndex = 1;
 
     for (const entry of ratings) {
-      values.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+      values.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, now())`);
       params.push(entry.imdbId, entry.rating, entry.votes);
     }
 
     await client.query(
       `
         INSERT INTO imdb_ratings (imdb_id, rating, votes, updated_at)
-        VALUES ${values.map((value) => `${value}, now()`).join(', ')}
+        VALUES ${values.join(', ')}
         ON CONFLICT (imdb_id)
         DO UPDATE SET
           rating = EXCLUDED.rating,
