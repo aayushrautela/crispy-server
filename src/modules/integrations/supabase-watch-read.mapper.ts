@@ -127,7 +127,6 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
         positionSeconds: numberValue(row.position_seconds),
         durationSeconds: numberValue(row.duration_seconds),
         progressPercent: progressBps / 100,
-        status: lastActivityAt ? undefined : undefined,
         lastPlayedAt: lastActivityAt,
       }
     : null;

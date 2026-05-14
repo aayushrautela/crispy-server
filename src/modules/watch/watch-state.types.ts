@@ -2,8 +2,7 @@ export type WatchProgressView = {
   positionSeconds: number | null;
   durationSeconds: number | null;
   progressPercent: number;
-  status?: string;
-  lastPlayedAt?: string;
+  lastPlayedAt: string;
 };
 
 export type ContinueWatchingStateView = {

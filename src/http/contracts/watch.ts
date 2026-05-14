@@ -209,12 +209,11 @@ const watchProgressStateSchema = {
     {
       type: 'object',
       additionalProperties: false,
-      required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'status', 'lastPlayedAt'],
+      required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'lastPlayedAt'],
       properties: {
         positionSeconds: nullableNumberSchema,
         durationSeconds: nullableNumberSchema,
         progressPercent: { type: 'number' },
-        status: stringSchema,
         lastPlayedAt: stringSchema,
       },
     },

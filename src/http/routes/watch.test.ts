@@ -275,6 +275,77 @@ test('continue-watching serializes items with progress', async (t) => {
   assert.equal(item.progress.durationSeconds, 7200);
   assert.equal(item.progress.progressPercent, 1.67);
   assert.equal(item.progress.lastPlayedAt, now);
-  assert.equal(item.progress.status, undefined);
-  assert.equal(item.context.progress.status, undefined);
+  assert.equal(item.context.progress.lastPlayedAt, now);
+});
+
+test('watch state serializes progress without status', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
+  const { SupabaseUserWatchService } = await import('../../modules/integrations/supabase-user-watch.service.js');
+  const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
+
+  const originals = {
+    getState: SupabaseUserWatchService.prototype.getState,
+    enrichRegularMediaItems: WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems,
+  };
+
+  t.after(() => {
+    SupabaseUserWatchService.prototype.getState = originals.getState;
+    WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems = originals.enrichRegularMediaItems;
+  });
+
+  const now = '2026-05-13T00:00:00.000Z';
+  const progress = {
+    positionSeconds: 120,
+    durationSeconds: 7200,
+    progressPercent: 1.67,
+    lastPlayedAt: now,
+  };
+
+  SupabaseUserWatchService.prototype.getState = async () => ({
+    kind: 'watch_state',
+    mediaItem: makeMediaItem('movie:tmdb:694'),
+    context: {
+      progress,
+      continueWatching: null,
+      watched: null,
+      watchlist: null,
+      rating: null,
+      watchedEpisodeKeys: [],
+      playCount: 0,
+    },
+    presentation: null,
+    progress,
+    continueWatching: null,
+    watched: null,
+    watchlist: null,
+    rating: null,
+    watchedEpisodeKeys: [],
+    playCount: 0,
+  });
+
+  WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems = async (_client, items) => items;
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:694',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  const body = response.json();
+  assert.equal(response.statusCode, 200, JSON.stringify(body, null, 2));
+  assert.equal(body.data.item.kind, 'watch_state');
+  assert.deepEqual(body.data.item.progress, progress);
+  assert.deepEqual(body.data.item.context.progress, progress);
 });
