@@ -665,6 +665,31 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
   },
 });
 
+const metadataTitleExtrasResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['episodes', 'reviews', 'similar', 'collection'],
+  properties: {
+    episodes: { type: 'array', items: metadataEpisodeViewSchema },
+    reviews: { type: 'array', items: metadataReviewViewSchema },
+    similar: { type: 'array', items: metadataRelatedItemSchema },
+    collection: {
+      anyOf: [
+        metadataCollectionViewSchema,
+        { type: 'null' },
+      ],
+    },
+  },
+} as const;
+
+export const metadataTitleExtrasRouteSchema = withDefaultErrorResponses({
+  params: metadataTitleParamsSchema,
+  querystring: metadataLanguageQuerystringSchema,
+  response: {
+    200: successEnvelope(metadataTitleExtrasResponseSchema),
+  },
+});
+
 export const metadataCardsBatchRouteSchema = withDefaultErrorResponses({
   body: metadataCardsBatchBodySchema,
   response: {

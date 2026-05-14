@@ -18,6 +18,7 @@ import type {
   TmdbEpisodeRecord,
   TmdbSeasonRecord,
   TmdbTitleRecord,
+  TmdbTitleType,
 } from './providers/tmdb.types.js';
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
@@ -237,8 +238,8 @@ export function extractCreators(title: TmdbTitleRecord | null): MetadataPersonRe
     .filter((entry): entry is MetadataPersonRefView => entry !== null);
 }
 
-export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewView[] {
-  return asArray(asRecord(title?.raw.reviews)?.results)
+export function extractReviewsFromRaw(raw: Record<string, unknown> | null): MetadataReviewView[] {
+  return asArray(asRecord(raw?.reviews)?.results)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .map<MetadataReviewView | null>((review) => {
@@ -264,6 +265,10 @@ export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewVie
     })
     .filter((review): review is MetadataReviewView => review !== null)
     .slice(0, 10);
+}
+
+export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewView[] {
+  return extractReviewsFromRaw(title?.raw ?? null);
 }
 
 function buildCompanyView(record: Record<string, unknown>): MetadataCompanyView | null {
@@ -381,18 +386,18 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
     });
 }
 
-export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRecord[] {
-  return asArray(asRecord(title?.raw.recommendations)?.results)
+export function extractSimilarFromRaw(raw: Record<string, unknown> | null, sourceMediaType: TmdbTitleType): TmdbTitleRecord[] {
+  return asArray(asRecord(raw?.recommendations)?.results)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .map((entry): TmdbTitleRecord | null => {
       const tmdbId = asNumber(entry.id);
-      if (!tmdbId || !title) {
+      if (!tmdbId) {
         return null;
       }
 
       return {
-        mediaType: title.mediaType,
+        mediaType: sourceMediaType,
         tmdbId,
         name: asString(entry.title) ?? asString(entry.name),
         originalName: asString(entry.original_title) ?? asString(entry.original_name),
@@ -409,12 +414,16 @@ export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRe
         externalIds: {},
         raw: entry,
         hydrationLevel: 'summary',
-        fetchedAt: title.fetchedAt,
-        expiresAt: title.expiresAt,
+        fetchedAt: '',
+        expiresAt: '',
       };
     })
     .filter((entry): entry is TmdbTitleRecord => entry !== null)
     .slice(0, 20);
+}
+
+export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRecord[] {
+  return extractSimilarFromRaw(title?.raw ?? null, title?.mediaType ?? 'movie');
 }
 
 function extractBestLogoPath(raw: Record<string, unknown>): string | null {

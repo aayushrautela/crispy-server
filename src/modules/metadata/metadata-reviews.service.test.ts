@@ -7,6 +7,15 @@ import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
 setTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-test-id' });
 
+function buildMockTmdbCache(extrasReviews: Record<string, unknown>[]) {
+  return {
+    fetchTitleExtrasPayload: async () => ({
+      reviews: { results: extrasReviews },
+      recommendations: { results: [] },
+    }),
+  } as never;
+}
+
 function buildTmdbReview(id: string, content: string): Record<string, unknown> {
   return {
     id,
@@ -99,6 +108,7 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
     {
       getAccessTokenForAccountProfile: async () => ({ accessToken: 'user-trakt-token' }),
     } as never,
+    buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
   );
 
   const reviews = await service.loadTitleReviews(
@@ -176,6 +186,7 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
     {
       getAccessTokenForAccountProfile: async () => ({ accessToken: 'show-token' }),
     } as never,
+    buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
   );
 
   const reviews = await service.loadTitleReviews(
@@ -251,6 +262,11 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
       },
     } as never,
     {} as never,
+    buildMockTmdbCache([
+      buildTmdbReview('provider-1', 'Provider review 1'),
+      buildTmdbReview('provider-2', 'Provider review 2'),
+      buildTmdbReview('provider-3', 'Provider review 3'),
+    ]),
   );
 
   const reviews = await service.loadTitleReviews(
@@ -324,6 +340,7 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
         throw new HttpError(404, 'Provider connection not found.');
       },
     } as never,
+    buildMockTmdbCache([buildTmdbReview('tmdb-7', 'Primary review')]),
   );
 
   const reviews = await service.loadTitleReviews(

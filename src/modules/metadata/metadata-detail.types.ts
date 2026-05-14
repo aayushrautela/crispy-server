@@ -163,6 +163,13 @@ export type MetadataTitleRatingsResponse = {
   };
 };
 
+export type MetadataTitleExtras = {
+  episodes: MetadataEpisodeView[];
+  reviews: MetadataReviewView[];
+  similar: MetadataRelatedItem[];
+  collection: MetadataCollectionView | null;
+};
+
 export type MetadataSeasonDetail = {
   show: MetadataView;
   season: MetadataSeasonView;

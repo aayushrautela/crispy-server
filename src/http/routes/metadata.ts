@@ -5,6 +5,7 @@ import {
   metadataResolveRouteSchema,
   metadataSearchRouteSchema,
   metadataTitleDetailRouteSchema,
+  metadataTitleExtrasRouteSchema,
   metadataTitleRatingsRouteSchema,
   metadataTitleReviewsRouteSchema,
   playbackResolveRouteSchema,
@@ -17,6 +18,7 @@ import {
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDetailService } from '../../modules/metadata/metadata-detail.service.js';
+import { MetadataTitleExtrasService } from '../../modules/metadata/metadata-title-extras.service.js';
 import { PersonDetailService } from '../../modules/metadata/person-detail.service.js';
 import { PlaybackResolveService } from '../../modules/metadata/playback-resolve.service.js';
 import { MetadataRatingsService } from '../../modules/metadata/metadata-ratings.service.js';
@@ -29,6 +31,7 @@ import { success } from '../response.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
   const metadataDetailService = new MetadataDetailService();
+  const metadataTitleExtrasService = new MetadataTitleExtrasService();
   const titleSearchService = new TitleSearchService();
   const metadataRatingsService = new MetadataRatingsService();
   const metadataReviewsService = new MetadataReviewsService();
@@ -56,6 +59,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
     return success(await metadataDetailService.getTitleDetailById(params.mediaKey, asOptionalString(query.language)));
+  });
+
+  app.get('/v1/metadata/titles/:mediaKey/extras', { schema: metadataTitleExtrasRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const params = request.params as MetadataTitleParams;
+    const query = (request.query ?? {}) as MetadataPersonQuery;
+    return success(await metadataTitleExtrasService.getTitleExtras(params.mediaKey, asOptionalString(query.language)));
   });
 
   app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/reviews', { schema: metadataTitleReviewsRouteSchema }, async (request) => {

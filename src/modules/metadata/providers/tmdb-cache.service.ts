@@ -181,8 +181,8 @@ export class TmdbCacheService {
 
     const policyKey = mediaType === 'movie' ? 'title:movie' : 'title:tv';
     const appendToResponse = mediaType === 'movie'
-      ? 'images,release_dates,videos,credits,reviews,recommendations,external_ids'
-      : 'images,content_ratings,videos,credits,reviews,recommendations,external_ids';
+      ? 'images,release_dates,videos,credits,external_ids'
+      : 'images,content_ratings,videos,credits,external_ids';
 
     const response = await this.responseCache.getOrFetch(
       client,
@@ -330,6 +330,29 @@ export class TmdbCacheService {
       }
       throw error;
     }
+  }
+
+  async fetchTitleExtrasPayload(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<Record<string, unknown> | null> {
+    const appendToResponse = 'reviews,recommendations';
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType: 'title',
+        resourceId: `${mediaType}:${tmdbId}`,
+        variant: 'extras',
+        language: null,
+        requestPath: `/${mediaType}/${tmdbId}`,
+        requestQuery: { append_to_response: appendToResponse, include_image_language: 'null,en' },
+      },
+      mediaType === 'movie' ? 'title:movie' : 'title:tv',
+      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: 'null,en' }),
+    );
+
+    if (response.isNegative || response.statusCode === 404) {
+      return null;
+    }
+
+    return response.responseJson;
   }
 
   async listEpisodesForShow(client: DbClient, showTmdbId: number): Promise<TmdbEpisodeRecord[]> {

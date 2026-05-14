@@ -6,10 +6,11 @@ import type { ProviderImportProvider } from '../integrations/provider-import.typ
 import { ProviderTokenAccessService } from '../integrations/provider-token-access.service.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { extractExternalIds, extractReviews } from './metadata-builder.shared.js';
+import { extractExternalIds, extractReviewsFromRaw } from './metadata-builder.shared.js';
 import { resolveTitleRouteIdentity } from './metadata-route-identity.js';
 import type { MetadataReviewView, MetadataTitleReviewsResponse } from './metadata-detail.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { TraktClient } from './providers/trakt.client.js';
 
 const PRIMARY_REVIEW_THRESHOLD = 3;
@@ -21,6 +22,7 @@ export class MetadataReviewsService {
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly traktClient = new TraktClient(),
     private readonly providerTokenAccessService = new ProviderTokenAccessService(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async getTitleReviews(userId: string, profileId: string, mediaKey: string, language?: string | null): Promise<MetadataTitleReviewsResponse> {
@@ -80,6 +82,12 @@ export class MetadataReviewsService {
     const title = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const externalIds = extractExternalIds(title);
 
+    const extrasRaw = await this.tmdbCacheService.fetchTitleExtrasPayload(
+      client,
+      identity.mediaType === 'movie' ? 'movie' : 'tv',
+      title.tmdbId,
+    );
+
     return {
       mediaType: identity.mediaType === 'movie' ? 'movie' : 'show',
       externalIds: {
@@ -87,7 +95,7 @@ export class MetadataReviewsService {
         tmdb: externalIds.tmdb,
         tvdb: externalIds.tvdb,
       },
-      primaryReviews: extractReviews(title),
+      primaryReviews: extrasRaw ? extractReviewsFromRaw(extrasRaw) : [],
     };
   }
 

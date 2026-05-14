@@ -79,7 +79,7 @@ function makeView() {
   };
 }
 
-test('GET /v1/metadata/titles/:mediaKey serializes collection with parts', async (t) => {
+test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', async (t) => {
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
 
   const original = MetadataDetailService.prototype.getTitleDetailById;
@@ -108,14 +108,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with parts', async
       name: 'Test Collection',
       poster: { small: null, medium: null, large: null },
       backdrop: { small: null, medium: null, large: null },
-      parts: [
-        {
-          kind: 'metadata_detail',
-          mediaItem: makeMediaItem('movie:tmdb:1'),
-          context: {},
-          presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-        },
-      ],
+      parts: [],
     },
     similar: [],
   })) as any;
@@ -137,9 +130,8 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with parts', async
   assert.equal(response.statusCode, 200);
   const body = response.json();
   assert.ok(body.data.collection);
-  assert.equal(body.data.collection.parts.length, 1);
-  assert.equal(body.data.collection.parts[0].kind, 'metadata_detail');
-  assert.equal(body.data.collection.parts[0].mediaItem.mediaKey, 'movie:tmdb:1');
+  assert.equal(body.data.collection.name, 'Test Collection');
+  assert.equal(body.data.collection.parts.length, 0);
 });
 
 test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) => {
@@ -285,7 +277,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
   assert.ok(body.data.item.nextEpisode.images);
 });
 
-test('GET /v1/metadata/titles/:mediaKey serializes movie with collection and similar', async (t) => {
+test('GET /v1/metadata/titles/:mediaKey serializes movie with lightweight collection', async (t) => {
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
 
   const original = MetadataDetailService.prototype.getTitleDetailById;
@@ -314,29 +306,9 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie with collection and sim
       name: 'Avatar Collection',
       poster: { small: null, medium: null, large: null },
       backdrop: { small: null, medium: null, large: null },
-      parts: [
-        {
-          kind: 'metadata_detail',
-          mediaItem: makeMediaItem('movie:tmdb:19995'),
-          context: {},
-          presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-        },
-        {
-          kind: 'metadata_detail',
-          mediaItem: makeMediaItem('movie:tmdb:76600'),
-          context: {},
-          presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-        },
-      ],
+      parts: [],
     },
-    similar: [
-      {
-        kind: 'metadata_detail',
-        mediaItem: makeMediaItem('movie:tmdb:10195'),
-        context: {},
-        presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      },
-    ],
+    similar: [],
   })) as any;
 
   t.after(() => {
@@ -357,10 +329,163 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie with collection and sim
   const body = response.json();
   assert.ok(body.data.collection);
   assert.equal(body.data.collection.name, 'Avatar Collection');
-  assert.equal(body.data.collection.parts.length, 2);
-  assert.equal(body.data.collection.parts[0].kind, 'metadata_detail');
-  assert.equal(body.data.collection.parts[0].mediaItem.mediaKey, 'movie:tmdb:19995');
+  assert.equal(body.data.collection.parts.length, 0);
+  assert.equal(body.data.similar.length, 0);
+});
+
+test('GET /v1/metadata/titles/:mediaKey/extras serializes movie extras', async (t) => {
+  const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
+
+  const original = MetadataTitleExtrasService.prototype.getTitleExtras;
+
+  MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
+    episodes: [],
+    reviews: [
+      {
+        id: 'rev-1',
+        provider: 'tmdb',
+        author: 'Author',
+        username: 'author123',
+        content: 'Great movie!',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        url: 'https://example.com/review/1',
+        rating: 8,
+        avatarUrl: null,
+      },
+    ],
+    similar: [
+      {
+        kind: 'metadata_detail',
+        mediaItem: makeMediaItem('movie:tmdb:10195'),
+        context: {},
+        presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
+      },
+    ],
+    collection: {
+      id: 83533,
+      provider: 'tmdb',
+      providerId: '83533',
+      name: 'Avatar Collection',
+      poster: { small: null, medium: null, large: null },
+      backdrop: { small: null, medium: null, large: null },
+      parts: [
+        {
+          kind: 'metadata_detail',
+          mediaItem: makeMediaItem('movie:tmdb:19995'),
+          context: {},
+          presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
+        },
+      ],
+    },
+  })) as any;
+
+  t.after(() => {
+    MetadataTitleExtrasService.prototype.getTitleExtras = original;
+  });
+
+  const { registerMetadataRoutes } = await import('./metadata.js');
+  const app = await buildTestApp(registerMetadataRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/titles/movie:tmdb:83533/extras',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.data.episodes.length, 0);
+  assert.equal(body.data.reviews.length, 1);
+  assert.equal(body.data.reviews[0].id, 'rev-1');
   assert.equal(body.data.similar.length, 1);
-  assert.equal(body.data.similar[0].kind, 'metadata_detail');
   assert.equal(body.data.similar[0].mediaItem.mediaKey, 'movie:tmdb:10195');
+  assert.ok(body.data.collection);
+  assert.equal(body.data.collection.name, 'Avatar Collection');
+  assert.equal(body.data.collection.parts.length, 1);
+});
+
+test('GET /v1/metadata/titles/:mediaKey/extras serializes show episodes', async (t) => {
+  const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
+
+  const original = MetadataTitleExtrasService.prototype.getTitleExtras;
+
+  MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
+    episodes: [
+      {
+        mediaType: 'episode',
+        mediaKey: 'episode:tmdb:32726:1:1',
+        parentMediaType: 'show',
+        tmdbId: 1001,
+        showTmdbId: 32726,
+        seasonNumber: 1,
+        episodeNumber: 1,
+        absoluteEpisodeNumber: null,
+        title: 'Pilot',
+        summary: 'The first episode',
+        airDate: '2024-01-01',
+        runtimeMinutes: 30,
+        rating: 8.0,
+        images: {
+          poster: { small: null, medium: null, large: null },
+          backdrop: { small: null, medium: null, large: null },
+          still: { small: null, medium: null, large: null },
+          logo: { small: null, medium: null, large: null },
+        },
+        showTitle: 'Test Show',
+        showExternalIds: { tmdb: 32726, imdb: 'tt1234567', tvdb: null },
+      },
+      {
+        mediaType: 'episode',
+        mediaKey: 'episode:tmdb:32726:1:2',
+        parentMediaType: 'show',
+        tmdbId: 1002,
+        showTmdbId: 32726,
+        seasonNumber: 1,
+        episodeNumber: 2,
+        absoluteEpisodeNumber: null,
+        title: 'Second Episode',
+        summary: 'The second episode',
+        airDate: '2024-01-08',
+        runtimeMinutes: 30,
+        rating: 7.5,
+        images: {
+          poster: { small: null, medium: null, large: null },
+          backdrop: { small: null, medium: null, large: null },
+          still: { small: null, medium: null, large: null },
+          logo: { small: null, medium: null, large: null },
+        },
+        showTitle: 'Test Show',
+        showExternalIds: { tmdb: 32726, imdb: 'tt1234567', tvdb: null },
+      },
+    ],
+    reviews: [],
+    similar: [],
+    collection: null,
+  })) as any;
+
+  t.after(() => {
+    MetadataTitleExtrasService.prototype.getTitleExtras = original;
+  });
+
+  const { registerMetadataRoutes } = await import('./metadata.js');
+  const app = await buildTestApp(registerMetadataRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/metadata/titles/show:tmdb:32726/extras',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.data.episodes.length, 2);
+  assert.equal(body.data.episodes[0].episodeNumber, 1);
+  assert.equal(body.data.episodes[1].episodeNumber, 2);
+  assert.equal(body.data.episodes[0].showTitle, 'Test Show');
+  assert.equal(body.data.reviews.length, 0);
+  assert.equal(body.data.similar.length, 0);
+  assert.equal(body.data.collection, null);
 });
