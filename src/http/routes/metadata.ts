@@ -9,11 +9,13 @@ import {
   metadataTitleRatingsRouteSchema,
   metadataTitleReviewsRouteSchema,
   playbackResolveRouteSchema,
+  searchSuggestionsRouteSchema,
   type MetadataCardsBatchBody,
   type MetadataPersonParams,
   type MetadataPersonQuery,
   type MetadataResolveQuery,
   type MetadataSearchQuery,
+  type MetadataSearchSuggestionsQuery,
   type MetadataTitleParams,
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
@@ -112,6 +114,16 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const filter = parseSearchFilter(query.filter);
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 20, 1, 50);
     return success(await titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit }));
+  });
+
+  app.get('/v1/search/suggestions', { schema: searchSuggestionsRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const query = (request.query ?? {}) as MetadataSearchSuggestionsQuery;
+    const searchQuery = asOptionalString(query.query) ?? '';
+    const filter = parseSearchFilter(query.filter);
+    const limit = clampLimit(parseOptionalNumber(query.limit) ?? 8, 1, 10);
+    const locale = asOptionalString(query.locale);
+    return success({ suggestions: await titleSearchService.suggestTitles({ query: searchQuery, filter, limit, locale }) });
   });
 
   app.post('/v1/metadata/cards/batch', { schema: metadataCardsBatchRouteSchema }, async (request) => {

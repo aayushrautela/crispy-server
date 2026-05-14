@@ -247,6 +247,16 @@ export type MetadataPersonSearchResult = {
   knownForTitles: string[];
 };
 
+export type SearchSuggestionItem = {
+  tmdbId: number;
+  mediaType: 'movie' | 'tv';
+  title: string;
+  year: number | null;
+  posterPath: string | null;
+  popularity: number;
+  overview: string | null;
+};
+
 export type MetadataSearchResponse = {
   query: string;
   all: MetadataSearchResult[];

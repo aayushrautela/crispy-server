@@ -67,6 +67,13 @@ export type MetadataSearchQuery = {
   limit?: number | string;
 };
 
+export type MetadataSearchSuggestionsQuery = {
+  query?: string;
+  filter?: string;
+  limit?: number | string;
+  locale?: string;
+};
+
 export type MetadataCardsBatchBody = {
   mediaKeys?: string[];
   language?: string;
@@ -662,6 +669,49 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
   },
   response: {
     200: successEnvelope(metadataSearchResponseSchema),
+  },
+});
+
+export const searchSuggestionItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['tmdbId', 'mediaType', 'title', 'year', 'posterPath', 'popularity'],
+  properties: {
+    tmdbId: { type: 'integer' },
+    mediaType: { type: 'string', enum: ['movie', 'tv'] },
+    title: stringSchema,
+    year: nullableIntegerSchema,
+    posterPath: nullableStringSchema,
+    popularity: { type: 'number' },
+    overview: nullableStringSchema,
+  },
+} as const;
+
+const searchSuggestionsResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['suggestions'],
+  properties: {
+    suggestions: {
+      type: 'array',
+      items: searchSuggestionItemSchema,
+    },
+  },
+} as const;
+
+export const searchSuggestionsRouteSchema = withDefaultErrorResponses({
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      query: stringSchema,
+      filter: stringSchema,
+      limit: positiveIntegerLikeSchema,
+      locale: stringSchema,
+    },
+  },
+  response: {
+    200: successEnvelope(searchSuggestionsResponseSchema),
   },
 });
 

@@ -4,7 +4,7 @@ import { HttpError } from '../../../lib/errors.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
 import { TmdbResponseCacheService } from './tmdb-response-cache.service.js';
-import type { MetadataSearchFilter } from '../metadata-detail.types.js';
+import type { MetadataSearchFilter, SearchSuggestionItem } from '../metadata-detail.types.js';
 import type { TmdbEpisodeRecord, TmdbPersonRecord, TmdbSeasonRecord, TmdbTitleRecord, TmdbTitleType } from './tmdb.types.js';
 
 type PersonSearchPayloadItem = {
@@ -427,6 +427,82 @@ export class TmdbCacheService {
         .map((item) => toSearchPersonRecord(item))
         .filter((item): item is TmdbPersonRecord => item !== null);
       return records.slice(0, limit);
+    } finally {
+      client.release();
+    }
+  }
+
+  async searchSuggestions(query: string, limit: number, filter: MetadataSearchFilter, locale?: string | null): Promise<SearchSuggestionItem[]> {
+    const client = await (await import('../../../lib/db.js')).db.connect();
+    try {
+      const normalizedLocale = locale?.trim() || undefined;
+
+      const response = await this.responseCache.getOrFetch(
+        client,
+        {
+          resourceType: 'search',
+          resourceId: null,
+          variant: 'suggestion',
+          language: normalizedLocale ?? null,
+          requestPath: '/search/multi',
+          requestQuery: { query, page: 1, include_adult: 'false', language: normalizedLocale },
+        },
+        'search',
+        () => this.tmdbClient.request('/search/multi', { query, page: 1, include_adult: 'false', language: normalizedLocale }),
+      );
+
+      if (response.isNegative || response.statusCode === 404) {
+        return [];
+      }
+
+      type MultiSearchItem = {
+        id?: unknown;
+        media_type?: unknown;
+        title?: unknown;
+        name?: unknown;
+        release_date?: unknown;
+        first_air_date?: unknown;
+        poster_path?: unknown;
+        overview?: unknown;
+        popularity?: unknown;
+      };
+
+      const results = Array.isArray(response.responseJson.results) ? response.responseJson.results as MultiSearchItem[] : [];
+      const suggestions: SearchSuggestionItem[] = [];
+
+      for (const item of results) {
+        const mediaType = item.media_type;
+        if (mediaType !== 'movie' && mediaType !== 'tv') {
+          continue;
+        }
+        if (filter === 'movies' && mediaType !== 'movie') continue;
+        if (filter === 'series' && mediaType !== 'tv') continue;
+        if (filter === 'people') continue;
+
+        const tmdbId = typeof item.id === 'number' ? item.id : null;
+        if (!tmdbId) continue;
+
+        const title = toNullableString(item.title) ?? toNullableString(item.name) ?? '';
+        if (!title) continue;
+
+        const dateStr = mediaType === 'movie'
+          ? toNullableString(item.release_date)
+          : toNullableString(item.first_air_date);
+        const year = dateStr ? new Date(dateStr).getFullYear() : null;
+
+        suggestions.push({
+          tmdbId,
+          mediaType,
+          title,
+          year,
+          posterPath: toNullableString(item.poster_path),
+          popularity: typeof item.popularity === 'number' ? item.popularity : 0,
+          overview: toNullableString(item.overview),
+        });
+      }
+
+      suggestions.sort((a, b) => b.popularity - a.popularity);
+      return suggestions.slice(0, limit);
     } finally {
       client.release();
     }

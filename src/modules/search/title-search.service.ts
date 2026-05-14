@@ -6,7 +6,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import type { MediaItem } from '../metadata/media-item.types.js';
-import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
+import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult, SearchSuggestionItem } from '../metadata/metadata-detail.types.js';
 import type { TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
 
 type SearchTitlesInput = {
@@ -48,6 +48,7 @@ export class TitleSearchService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly requestCoalescer = new ShortLivedRequestCoalescer<MetadataSearchResponse>(SEARCH_CACHE_TTL_MS),
+    private readonly suggestionCoalescer = new ShortLivedRequestCoalescer<SearchSuggestionItem[]>(SEARCH_CACHE_TTL_MS),
   ) {}
 
   async searchTitles(input: SearchTitlesInput): Promise<MetadataSearchResponse> {
@@ -130,6 +131,27 @@ export class TitleSearchService {
         ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
       ], peopleItems);
     }));
+  }
+
+  async suggestTitles(input: SearchTitlesInput): Promise<SearchSuggestionItem[]> {
+    const normalizedQuery = input.query.trim();
+    const normalizedFilter = normalizeSearchFilter(input.filter);
+    const locale = normalizeSearchLocale(input.locale);
+    const limit = Math.min(input.limit ?? 8, 10);
+
+    if (normalizedQuery.length < 2) {
+      return [];
+    }
+
+    if (normalizedFilter === 'people') {
+      return [];
+    }
+
+    const suggestionKey = [normalizedQuery, normalizedFilter, locale ?? '', String(limit)].join('|');
+
+    return this.suggestionCoalescer.run(suggestionKey, () =>
+      this.tmdbCacheService.searchSuggestions(normalizedQuery, limit, normalizedFilter, locale),
+    );
   }
 }
 
