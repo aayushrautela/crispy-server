@@ -27,9 +27,9 @@ export function parseSearchCandidates(items: unknown[]): AiSearchCandidate[] {
   return candidates;
 }
 
-export function resolveCandidateFilter(mediaType: AiSuggestedMediaType | null): Array<'movies' | 'series' | 'all'> {
+export function resolveCandidateFilter(mediaType: AiSuggestedMediaType | null): Array<'movies' | 'series'> {
   const hintedFilter = mapSuggestedMediaTypeToSearchFilter(mediaType);
-  return hintedFilter ? [hintedFilter, 'all'] : ['all'];
+  return hintedFilter ? [hintedFilter] : ['movies', 'series'];
 }
 
 function normalizeSearchCandidate(value: unknown): AiSearchCandidate | null {

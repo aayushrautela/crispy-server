@@ -2,7 +2,7 @@ import { logger } from '../../config/logger.js';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
-import type { MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
+import type { MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
@@ -22,6 +22,7 @@ const RESOLUTION_SEARCH_LIMIT = 20;
 const MIN_METADATA_MATCH_SCORE = 36;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
+const RESOLUTION_TIMEOUT_MS = 15_000;
 
 export class AiSearchService {
   constructor(
@@ -67,13 +68,11 @@ export class AiSearchService {
 
       const rawItems = Array.isArray(generated.items) ? generated.items : [];
       const candidates = parseSearchCandidates(rawItems);
-      const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, locale);
+      const resolvedSuggestions = await withTimeout(
+        resolveSuggestions(this.titleSearchService, candidates, locale),
+        RESOLUTION_TIMEOUT_MS,
+      );
       const response = finalizeResolvedItems(resolvedSuggestions, analysis, query);
-
-      if (query) {
-        const peopleResponse = await this.titleSearchService.searchTitles({ query, filter: 'people', limit: 5, locale });
-        response.people = peopleResponse.people;
-      }
 
       logger.info({
         userId,
@@ -123,7 +122,7 @@ async function resolveSuggestion(
     for (const query of queryVariants) {
       const response = await titleSearchService.searchTitles({
         query,
-        filter: mapFilterToMetadataFilter(candidateFilter),
+        filter: candidateFilter,
         limit: RESOLUTION_SEARCH_LIMIT,
         locale,
       });
@@ -480,13 +479,6 @@ function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function mapFilterToMetadataFilter(filter: 'movies' | 'series' | 'all'): MetadataSearchFilter | null {
-  if (filter === 'movies' || filter === 'series') {
-    return filter;
-  }
-  return null;
-}
-
 function normalizeLocale(value: unknown): string {
   const normalized = normalizeString(value);
   return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(normalized) ? normalized : 'en-US';
@@ -509,4 +501,13 @@ function sampleQuery(value: string, maxLength = 120): string {
     return value;
   }
   return `${value.slice(0, maxLength)}...`;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new HttpError(504, 'Search resolution timed out.')), ms),
+    ),
+  ]);
 }

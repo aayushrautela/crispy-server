@@ -30,8 +30,8 @@ test('parseSearchCandidates dedupes by title and media type while preserving pla
   ]);
 });
 
-test('resolveCandidateFilter uses media type hints before falling back to mixed search', () => {
-  assert.deepEqual(resolveCandidateFilter('movie'), ['movies', 'all']);
-  assert.deepEqual(resolveCandidateFilter('show'), ['series', 'all']);
-  assert.deepEqual(resolveCandidateFilter(null), ['all']);
+test('resolveCandidateFilter uses only movie and series filters', () => {
+  assert.deepEqual(resolveCandidateFilter('movie'), ['movies']);
+  assert.deepEqual(resolveCandidateFilter('show'), ['series']);
+  assert.deepEqual(resolveCandidateFilter(null), ['movies', 'series']);
 });
