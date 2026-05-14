@@ -7,7 +7,7 @@ import { ProfileRepository } from '../profiles/profile.repo.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
-import { parseSearchCandidates, resolveCandidateFilter, type AiSearchCandidate } from './ai-search-candidates.js';
+import { parseSearchCandidates, type AiSearchCandidate } from './ai-search-candidates.js';
 import type { AiSearchResponse } from './ai.types.js';
 
 type ResolvedSuggestion = {
@@ -18,13 +18,10 @@ type ResolvedSuggestion = {
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const FINAL_RESULT_LIMIT = 12;
-const RESOLUTION_SEARCH_LIMIT = 5;
-const MIN_METADATA_MATCH_SCORE = 36;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
 const RESOLUTION_TIMEOUT_MS = 12_000;
 const MAX_RESOLUTION_CANDIDATES = 8;
-const MAX_QUERY_VARIANTS = 2;
 
 export class AiSearchService {
   constructor(
@@ -119,13 +116,9 @@ async function resolveSuggestions(
     if (!candidate) {
       continue;
     }
-    try {
-      const item = await resolveSuggestion(titleSearchService, candidate, locale, signal);
-      if (item) {
-        results.push({ candidate, item });
-      }
-    } catch {
-      logger.warn({ candidate: candidate.title }, 'Failed to resolve candidate, skipping.');
+    const item = await resolveSuggestion(titleSearchService, candidate, locale, signal);
+    if (item) {
+      results.push({ candidate, item });
     }
   }
   return results;
@@ -137,93 +130,21 @@ async function resolveSuggestion(
   locale: string,
   signal: AbortSignal,
 ): Promise<MetadataSearchResult | null> {
-  const searchFilters = resolveCandidateFilter(candidate.mediaType);
-  const queryVariants = buildResolutionQueryVariants(candidate.title).slice(0, MAX_QUERY_VARIANTS);
-
-  for (const candidateFilter of searchFilters) {
-    for (const query of queryVariants) {
-      if (signal.aborted) {
-        return null;
-      }
-      try {
-        const response = await titleSearchService.searchTitles({
-          query,
-          filter: candidateFilter,
-          limit: RESOLUTION_SEARCH_LIMIT,
-          locale,
-          signal,
-        });
-        const selected = selectBestMetadataMatch(response.all, candidate.title, candidate.mediaType);
-        if (selected) {
-          return selected;
-        }
-      } catch (err) {
-        logger.debug({ query, filter: candidateFilter, err }, 'SearchTitles call failed during candidate resolution.');
-      }
-    }
-  }
-
-  return null;
-}
-
-function selectBestMetadataMatch(items: MetadataSearchResult[], title: string, mediaTypeHint: AiSearchCandidate['mediaType']): MetadataSearchResult | null {
-  const normalizedTarget = normalizeTitle(title);
-  const sorted = [...items].sort((left, right) => {
-    const rightScore = scoreMetadataMatch(right, normalizedTarget, mediaTypeHint);
-    const leftScore = scoreMetadataMatch(left, normalizedTarget, mediaTypeHint);
-    if (rightScore !== leftScore) {
-      return rightScore - leftScore;
-    }
-    return compareReleaseYears(right.mediaItem.releaseYear, left.mediaItem.releaseYear);
-  });
-  const best = sorted[0] ?? null;
-  if (!best) {
+  if (signal.aborted) {
     return null;
   }
-
-  return scoreMetadataMatch(best, normalizedTarget, mediaTypeHint) >= MIN_METADATA_MATCH_SCORE
-    ? best
-    : null;
-}
-
-function scoreMetadataMatch(item: MetadataSearchResult, normalizedTarget: string, mediaTypeHint: AiSearchCandidate['mediaType']): number {
-  let score = 0;
-  const normalizedTitle = normalizeTitle(item.mediaItem.title ?? '');
-  const normalizedSubtitle = normalizeTitle(item.mediaItem.subtitle ?? '');
-  if (normalizedTitle === normalizedTarget) {
-    score += 120;
-  } else if (normalizedTitle.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedTitle)) {
-    score += 80;
-  } else if (normalizedTitle.includes(normalizedTarget) || normalizedTarget.includes(normalizedTitle)) {
-    score += 40;
+  try {
+    const tmdbMediaType = candidate.mediaType === 'show' ? 'tv' : candidate.mediaType;
+    return await titleSearchService.resolveAiCandidate({
+      query: candidate.title,
+      mediaType: tmdbMediaType,
+      locale,
+      signal,
+    });
+  } catch {
+    logger.debug({ candidate: candidate.title }, 'Failed to resolve candidate, skipping.');
+    return null;
   }
-
-  if (normalizedSubtitle) {
-    if (normalizedSubtitle === normalizedTarget) {
-      score += 60;
-    } else if (normalizedSubtitle.includes(normalizedTarget) || normalizedTarget.includes(normalizedSubtitle)) {
-      score += 20;
-    }
-  }
-
-  score += Math.min(sharedTitleTokenCount(normalizedTitle, normalizedTarget) * 12, 36);
-  if (matchesMediaTypeHint(item, mediaTypeHint)) {
-    score += 30;
-  }
-  if (item.mediaItem.images.poster.small || item.mediaItem.images.poster.medium || item.mediaItem.images.poster.large) {
-    score += 10;
-  }
-  if (item.mediaItem.releaseYear) {
-    score += 4;
-  }
-  return score;
-}
-
-function matchesMediaTypeHint(item: MetadataSearchResult, mediaTypeHint: AiSearchCandidate['mediaType']): boolean {
-  if (!mediaTypeHint) {
-    return false;
-  }
-  return item.mediaItem.mediaType === mediaTypeHint;
 }
 
 function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis, query: string): MetadataSearchResponse {
@@ -431,38 +352,6 @@ function titleFamilyKey(title: string): string | null {
     return null;
   }
   return tokens.slice(0, 1).join(' ');
-}
-
-export function buildResolutionQueryVariants(title: string): string[] {
-  const candidates = [
-    title,
-    title.replace(/["'`]+/g, ' '),
-    title.replace(/[,:;!?]+/g, ' '),
-    title.split(':', 1)[0] ?? title,
-    title.replace(/\s+\((19|20)\d{2}\)\s*$/g, ''),
-  ];
-
-  const seen = new Set<string>();
-  const queries: string[] = [];
-  for (const value of candidates) {
-    const normalized = value.trim().replace(/\s+/g, ' ');
-    if (!normalized) {
-      continue;
-    }
-    const key = normalizeTitle(normalized);
-    if (!key || seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    queries.push(normalized);
-  }
-  return queries;
-}
-
-function compareReleaseYears(left: number | null, right: number | null): number {
-  const leftValue = left ?? -1;
-  const rightValue = right ?? -1;
-  return leftValue - rightValue;
 }
 
 function hasSharedSeriesPrefix(leftTitle: string, rightTitle: string): boolean {

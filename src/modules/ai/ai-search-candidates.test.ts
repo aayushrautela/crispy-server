@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseSearchCandidates, resolveCandidateFilter } from './ai-search-candidates.js';
+import { parseSearchCandidates } from './ai-search-candidates.js';
 
 test('parseSearchCandidates keeps title and normalized media type hints', () => {
   const candidates = parseSearchCandidates([
@@ -30,8 +30,3 @@ test('parseSearchCandidates dedupes by title and media type while preserving pla
   ]);
 });
 
-test('resolveCandidateFilter uses only movie and series filters', () => {
-  assert.deepEqual(resolveCandidateFilter('movie'), ['movies']);
-  assert.deepEqual(resolveCandidateFilter('show'), ['series']);
-  assert.deepEqual(resolveCandidateFilter(null), ['movies', 'series']);
-});

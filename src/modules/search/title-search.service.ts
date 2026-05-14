@@ -139,6 +139,55 @@ export class TitleSearchService {
     }));
   }
 
+  async resolveAiCandidate(input: {
+    query: string;
+    mediaType: 'movie' | 'tv' | null;
+    locale?: string | null;
+    signal?: AbortSignal;
+  }): Promise<MetadataSearchResult | null> {
+    const normalizedQuery = input.query.trim();
+    if (!normalizedQuery) {
+      return null;
+    }
+
+    const locale = normalizeSearchLocale(input.locale);
+    const mediaTypes: TmdbTitleType[] = input.mediaType ? [input.mediaType] : ['movie', 'tv'];
+
+    return withDbClient(async (client) => {
+      const rawMatches = await this.tmdbCacheService.searchTitles(normalizedQuery, 3, mediaTypes, locale, input.signal);
+      if (rawMatches.length === 0) {
+        return null;
+      }
+
+      const best = pickBestAiMatch(normalizedQuery, rawMatches);
+      if (!best) {
+        return null;
+      }
+
+      const identity = inferMediaIdentity({
+        mediaType: best.mediaType === 'movie' ? 'movie' : 'show',
+        tmdbId: best.tmdbId,
+      });
+      const contentId = await this.contentIdentityService.ensureContentId(client, identity);
+      if (!contentId) {
+        return null;
+      }
+
+      const hydrated = await this.tmdbCacheService.getTitle(client, best.mediaType, best.tmdbId, undefined, input.signal);
+      if (!hydrated) {
+        return null;
+      }
+
+      const card = buildMetadataCardView({ identity, title: hydrated });
+      return {
+        kind: 'search_result' as const,
+        mediaItem: metadataCardToMediaItem(card),
+        context: {},
+        presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
+      };
+    });
+  }
+
   async suggestTitles(input: SearchTitlesInput): Promise<SearchSuggestionItem[]> {
     const normalizedQuery = input.query.trim();
     const normalizedFilter = normalizeSearchFilter(input.filter);
@@ -431,4 +480,40 @@ function resolveGenreMapping(genre: string | null | undefined): GenreMapping | n
   };
 
   return genreMap[normalizeGenreKey(genre)] ?? null;
+}
+
+function pickBestAiMatch(query: string, matches: TmdbTitleRecord[]): TmdbTitleRecord | null {
+  const normalizedQuery = normalizeForAiMatch(query);
+  const queryTokens = new Set(normalizedQuery.split(' ').filter(Boolean));
+
+  for (const match of matches) {
+    const normalizedName = normalizeForAiMatch(match.name ?? '');
+    const normalizedOriginal = normalizeForAiMatch(match.originalName ?? '');
+    if (normalizedName === normalizedQuery || normalizedOriginal === normalizedQuery) {
+      return match;
+    }
+  }
+
+  const first = matches[0];
+  if (!first) {
+    return null;
+  }
+
+  const nameTokens = new Set(normalizeForAiMatch(first.name ?? '').split(' ').filter(Boolean));
+  const hasSharedToken = [...queryTokens].some((token) => nameTokens.has(token));
+
+  if (hasSharedToken && (first.releaseDate || first.firstAirDate)) {
+    return first;
+  }
+
+  return null;
+}
+
+function normalizeForAiMatch(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

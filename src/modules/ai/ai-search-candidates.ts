@@ -27,11 +27,6 @@ export function parseSearchCandidates(items: unknown[]): AiSearchCandidate[] {
   return candidates;
 }
 
-export function resolveCandidateFilter(mediaType: AiSuggestedMediaType | null): Array<'movies' | 'series'> {
-  const hintedFilter = mapSuggestedMediaTypeToSearchFilter(mediaType);
-  return hintedFilter ? [hintedFilter] : ['movies', 'series'];
-}
-
 function normalizeSearchCandidate(value: unknown): AiSearchCandidate | null {
   const title = normalizeSuggestedTitle(value);
   if (!title) {
@@ -81,16 +76,6 @@ function normalizeSuggestedMediaType(value: unknown): AiSuggestedMediaType | nul
     return 'show';
   }
 
-  return null;
-}
-
-function mapSuggestedMediaTypeToSearchFilter(mediaType: AiSuggestedMediaType | null): 'movies' | 'series' | null {
-  if (mediaType === 'movie') {
-    return 'movies';
-  }
-  if (mediaType === 'show') {
-    return 'series';
-  }
   return null;
 }
 
