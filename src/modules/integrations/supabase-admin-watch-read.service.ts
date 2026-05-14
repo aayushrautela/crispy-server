@@ -37,7 +37,7 @@ export class SupabaseAdminWatchReadService {
     const supabase = getSupabaseServiceRoleClient();
     
     let query = supabase
-      .from('continue_watching_items')
+      .from('playback_progress')
       .select('*')
       .eq('profile_id', params.profileId)
       .is('dismissed_at', null)
@@ -122,9 +122,10 @@ export class SupabaseAdminWatchReadService {
     const supabase = getSupabaseServiceRoleClient();
     
     let query = supabase
-      .from('watch_history')
+      .from('watch_events')
       .select('*')
-      .eq('profile_id', params.profileId);
+      .eq('profile_id', params.profileId)
+      .eq('event_type', 'playback_completed');
 
     if (cursor) {
       query = query.or(`watched_at.lt.${cursor.sortValue},and(watched_at.eq.${cursor.sortValue},id.lt.${cursor.tieBreaker})`);

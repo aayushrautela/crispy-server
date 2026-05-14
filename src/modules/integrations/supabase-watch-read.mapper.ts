@@ -112,16 +112,22 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
   const continueProgressBps = numberValue(row.continue_progress_bps);
   const lastActivityAt = nullableIsoValue(row.last_activity_at);
   const continueLastActivityAt = nullableIsoValue(row.continue_last_activity_at);
-  const lastWatchedAt = nullableIsoValue(row.last_watched_at) ?? nullableIsoValue(row.completed_at);
+  const lastWatchedAt = nullableIsoValue(row.last_watched_at);
   const watchlistAddedAt = nullableIsoValue(row.watchlist_added_at);
   const rating = numberValue(row.rating);
   const ratedAt = nullableIsoValue(row.rated_at);
+  const effectiveWatched = row.effective_watched === true;
+  const playCount = numberValue(row.play_count) ?? 0;
+  const watchedEpisodeKeys = Array.isArray(row.watched_episode_keys)
+    ? (row.watched_episode_keys as string[])
+    : [];
+
   const progress = progressBps !== null && lastActivityAt
     ? {
         positionSeconds: numberValue(row.position_seconds),
         durationSeconds: numberValue(row.duration_seconds),
         progressPercent: progressBps / 100,
-        status: stringValue(row.playback_status) || undefined,
+        status: lastActivityAt ? undefined : undefined,
         lastPlayedAt: lastActivityAt,
       }
     : null;
@@ -134,7 +140,7 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
         lastActivityAt: continueLastActivityAt,
       }
     : null;
-  const watched = lastWatchedAt && stringValue(row.watch_state) === 'watched'
+  const watched = effectiveWatched && lastWatchedAt
     ? { watchedAt: lastWatchedAt }
     : null;
   const watchlist = watchlistAddedAt ? { addedAt: watchlistAddedAt } : null;
@@ -149,6 +155,8 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
       watched,
       watchlist,
       rating: ratingState,
+      watchedEpisodeKeys,
+      playCount,
     },
     presentation: null,
     progress,
@@ -156,6 +164,8 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
     watched,
     watchlist,
     rating: ratingState,
+    watchedEpisodeKeys,
+    playCount,
   };
 }
 

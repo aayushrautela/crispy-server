@@ -286,7 +286,7 @@ const ratingStateSchema = {
 const watchStateItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating'],
+  required: ['kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys', 'playCount'],
   properties: {
     kind: { const: 'watch_state' },
     mediaItem: mediaItemSchema,
@@ -297,6 +297,11 @@ const watchStateItemSchema = {
     watched: watchedStateSchema,
     watchlist: watchlistStateSchema,
     rating: ratingStateSchema,
+    watchedEpisodeKeys: {
+      type: 'array',
+      items: stringSchema,
+    },
+    playCount: { type: 'number' },
   },
 } as const;
 

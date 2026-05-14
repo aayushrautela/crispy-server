@@ -91,18 +91,19 @@ export class CalendarBuilderService {
     const supabase = getSupabaseServiceRoleClient();
     const [continueWatching, history, watchlist] = await Promise.all([
       supabase
-        .from('continue_watching_items')
+        .from('playback_progress')
         .select('title_media_key, playable_media_key, last_activity_at')
         .eq('profile_id', profileId)
         .is('dismissed_at', null)
         .order('last_activity_at', { ascending: false })
         .limit(limit),
       supabase
-        .from('watch_history')
-        .select('media_key, watched_at')
+        .from('watch_events')
+        .select('media_key, occurred_at')
         .eq('profile_id', profileId)
         .eq('media_type', 'episode')
-        .order('watched_at', { ascending: false })
+        .eq('event_type', 'playback_completed')
+        .order('occurred_at', { ascending: false })
         .limit(limit),
       supabase
         .from('profile_list_items')
@@ -134,7 +135,7 @@ export class CalendarBuilderService {
       addCandidate(row.playable_media_key, row.last_activity_at);
     }
     for (const row of history.data ?? []) {
-      addCandidate(row.media_key, row.watched_at);
+      addCandidate(row.media_key, row.occurred_at);
     }
     for (const row of watchlist.data ?? []) {
       addCandidate(row.media_key, row.added_at);
