@@ -73,6 +73,10 @@ export class MetadataProjectionService {
       posterUrl: detailsMedia.artwork.poster.medium,
       backdropUrl: detailsMedia.artwork.backdrop.medium,
       logoUrl: detailsMedia.images.logo.medium,
+      trailerUrl: detailsMedia.trailerUrl,
+      trailerThumbnailUrl: detailsMedia.trailerThumbnailUrl,
+      posterColor: detailsMedia.posterColor,
+      backdropColor: detailsMedia.backdropColor,
       maturityRating: detailsMedia.maturityRating,
       genres: detailsMedia.genres,
     };
@@ -106,6 +110,10 @@ export class MetadataProjectionService {
       posterUrl: parentMedia.artwork.poster.medium,
       backdropUrl: parentMedia.artwork.backdrop.medium,
       logoUrl: parentMedia.images.logo.medium,
+      trailerUrl: parentMedia.trailerUrl,
+      trailerThumbnailUrl: parentMedia.trailerThumbnailUrl,
+      posterColor: parentMedia.posterColor,
+      backdropColor: parentMedia.backdropColor,
       maturityRating: parentMedia.maturityRating,
       genres: parentMedia.genres,
     };
@@ -175,6 +183,10 @@ function emptyProjection(): WatchMediaProjection {
     posterUrl: null,
     backdropUrl: null,
     logoUrl: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
     maturityRating: null,
     genres: [],
   };

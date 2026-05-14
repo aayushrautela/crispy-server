@@ -36,6 +36,10 @@ test('MetadataCardBatchService hydrates valid media keys and reports invalid key
         rating: 7.5,
         status: null,
         maturityRating: null,
+        trailerUrl: null,
+        trailerThumbnailUrl: null,
+        posterColor: null,
+        backdropColor: null,
         genres: [],
       }));
     },

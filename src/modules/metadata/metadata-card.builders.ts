@@ -17,6 +17,7 @@ import {
   extractReleaseDate,
   extractReleaseYear,
   extractCertification,
+  extractPrimaryTrailer,
   metadataMediaTypeFromTitle,
   padded,
 } from './metadata-builder.shared.js';
@@ -76,6 +77,7 @@ export function buildMetadataCardView(params: {
   const { identity, title, currentEpisode = null } = params;
   const releaseDate = extractReleaseDate(title, currentEpisode);
   const images = buildMetadataImages(title, currentEpisode);
+  const trailer = extractPrimaryTrailer(title);
   const artwork = {
     poster: images.poster,
     backdrop: images.backdrop,
@@ -118,6 +120,10 @@ export function buildMetadataCardView(params: {
     rating: extractRating(title, currentEpisode),
     status: title?.status ?? null,
     maturityRating: extractCertification(title),
+    trailerUrl: trailer?.url ?? null,
+    trailerThumbnailUrl: trailer?.thumbnailUrl ?? null,
+    posterColor: null,
+    backdropColor: null,
     genres: extractGenres(title),
   };
 }

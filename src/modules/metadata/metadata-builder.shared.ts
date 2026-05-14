@@ -180,6 +180,15 @@ export function extractVideos(title: TmdbTitleRecord | null): MetadataVideoView[
     .filter((video): video is MetadataVideoView => video !== null);
 }
 
+export function extractPrimaryTrailer(title: TmdbTitleRecord | null): MetadataVideoView | null {
+  const videos = extractVideos(title).filter((video) => video.url);
+  return videos.find((video) => video.site === 'YouTube' && video.type === 'Trailer' && video.official)
+    ?? videos.find((video) => video.site === 'YouTube' && video.type === 'Trailer')
+    ?? videos.find((video) => video.site === 'YouTube')
+    ?? videos[0]
+    ?? null;
+}
+
 function buildPersonRefView(record: Record<string, unknown>): MetadataPersonRefView | null {
   const tmdbPersonId = asNumber(record.id);
   const name = asString(record.name);

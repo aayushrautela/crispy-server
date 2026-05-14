@@ -13,6 +13,10 @@ export type WatchMediaCardCacheRecord = {
   posterUrl: string | null;
   backdropUrl: string | null;
   logoUrl: string | null;
+  trailerUrl: string | null;
+  trailerThumbnailUrl: string | null;
+  posterColor: string | null;
+  backdropColor: string | null;
   releaseYear: number | null;
   rating: number | null;
   maturityRating: string | null;
@@ -31,6 +35,10 @@ export class WatchMediaCardCacheRepository {
     posterUrl: string | null;
     backdropUrl?: string | null;
     logoUrl?: string | null;
+    trailerUrl?: string | null;
+    trailerThumbnailUrl?: string | null;
+    posterColor?: string | null;
+    backdropColor?: string | null;
     releaseYear?: number | null;
     rating?: number | null;
     maturityRating?: string | null;
@@ -40,9 +48,11 @@ export class WatchMediaCardCacheRepository {
       `
         INSERT INTO watch_media_card_cache (
           media_key, media_type, title_provider, title_provider_id, title_media_type,
-          title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating, genres, updated_at
+          title, subtitle, poster_url, backdrop_url, logo_url,
+          trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
+          release_year, rating, maturity_rating, genres, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, now())
         ON CONFLICT (media_key)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
@@ -54,6 +64,10 @@ export class WatchMediaCardCacheRepository {
           poster_url = EXCLUDED.poster_url,
           backdrop_url = EXCLUDED.backdrop_url,
           logo_url = EXCLUDED.logo_url,
+          trailer_url = EXCLUDED.trailer_url,
+          trailer_thumbnail_url = EXCLUDED.trailer_thumbnail_url,
+          poster_color = EXCLUDED.poster_color,
+          backdrop_color = EXCLUDED.backdrop_color,
           release_year = EXCLUDED.release_year,
           rating = EXCLUDED.rating,
           maturity_rating = EXCLUDED.maturity_rating,
@@ -71,6 +85,10 @@ export class WatchMediaCardCacheRepository {
         params.posterUrl,
         params.backdropUrl ?? null,
         params.logoUrl ?? null,
+        params.trailerUrl ?? null,
+        params.trailerThumbnailUrl ?? null,
+        params.posterColor ?? null,
+        params.backdropColor ?? null,
         params.releaseYear ?? null,
         params.rating ?? null,
         params.maturityRating ?? null,
@@ -87,7 +105,9 @@ export class WatchMediaCardCacheRepository {
     const result = await client.query(
       `
         SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
-               title, subtitle, poster_url, backdrop_url, logo_url, release_year, rating, maturity_rating, genres
+               title, subtitle, poster_url, backdrop_url, logo_url,
+               trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
+               release_year, rating, maturity_rating, genres
         FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
       `,
@@ -128,6 +148,10 @@ export class WatchMediaCardCacheRepository {
             posterUrl: typeof row.poster_url === 'string' ? row.poster_url : null,
             backdropUrl: typeof row.backdrop_url === 'string' ? row.backdrop_url : null,
             logoUrl: typeof row.logo_url === 'string' ? row.logo_url : null,
+            trailerUrl: typeof row.trailer_url === 'string' ? row.trailer_url : null,
+            trailerThumbnailUrl: typeof row.trailer_thumbnail_url === 'string' ? row.trailer_thumbnail_url : null,
+            posterColor: typeof row.poster_color === 'string' ? row.poster_color : null,
+            backdropColor: typeof row.backdrop_color === 'string' ? row.backdrop_color : null,
             releaseYear: row.release_year === null ? null : Number(row.release_year),
             rating: row.rating === null ? null : Number(row.rating),
             maturityRating: typeof row.maturity_rating === 'string' ? row.maturity_rating : null,

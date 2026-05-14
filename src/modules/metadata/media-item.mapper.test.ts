@@ -38,6 +38,10 @@ const baseCard: MetadataCardView = {
   rating: 8.1,
   status: 'Released',
   maturityRating: 'PG-13',
+  trailerUrl: null,
+  trailerThumbnailUrl: null,
+  posterColor: null,
+  backdropColor: null,
   genres: [],
 };
 
@@ -128,6 +132,10 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
     posterUrl: null,
     backdropUrl: 'backdrop.jpg',
     logoUrl: 'logo.png',
+    trailerUrl: 'https://youtube.test/watch?v=abc',
+    trailerThumbnailUrl: 'https://youtube.test/thumb.jpg',
+    posterColor: '#111111',
+    backdropColor: '#222222',
     releaseYear: 2024,
     rating: 7.5,
     maturityRating: 'TV-MA',
@@ -143,6 +151,10 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
   assert.deepEqual(item.images.logo, { small: 'https://image.tmdb.org/t/p/w185logo.png', medium: 'https://image.tmdb.org/t/p/w300logo.png', large: 'https://image.tmdb.org/t/p/w500logo.png' });
   assert.equal(item.maturityRating, 'TV-MA');
   assert.equal(item.certification, 'TV-MA');
+  assert.equal(item.trailerUrl, 'https://youtube.test/watch?v=abc');
+  assert.equal(item.trailerThumbnailUrl, 'https://youtube.test/thumb.jpg');
+  assert.equal(item.posterColor, '#111111');
+  assert.equal(item.backdropColor, '#222222');
   assert.deepEqual(item.genres, ['Drama']);
   assert.equal(item.seasonNumber, 1);
   assert.equal(item.episodeNumber, 2);

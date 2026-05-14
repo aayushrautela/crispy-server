@@ -33,6 +33,10 @@ function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
     status: null,
     maturityRating: null,
     certification: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
     externalIds: emptyExternalIds,
     parent: null,
     showTmdbId: null,
@@ -60,6 +64,10 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
       posterUrl: 'https://cache.test/poster.jpg',
       backdropUrl: 'https://cache.test/backdrop.jpg',
       logoUrl: 'https://cache.test/logo.png',
+      trailerUrl: 'https://youtube.test/watch?v=abc',
+      trailerThumbnailUrl: 'https://youtube.test/thumb.jpg',
+      posterColor: '#111111',
+      backdropColor: '#222222',
       releaseYear: 2024,
       rating: 8.5,
       maturityRating: 'PG-13',
@@ -116,6 +124,10 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
   assert.equal(enriched[0]?.mediaItem.releaseYear, 2024);
   assert.equal(enriched[0]?.mediaItem.rating, 8.5);
   assert.deepEqual(enriched[0]?.mediaItem.genres, ['Action']);
+  assert.equal(enriched[0]?.mediaItem.trailerUrl, 'https://youtube.test/watch?v=abc');
+  assert.equal(enriched[0]?.mediaItem.trailerThumbnailUrl, 'https://youtube.test/thumb.jpg');
+  assert.equal(enriched[0]?.mediaItem.posterColor, '#111111');
+  assert.equal(enriched[0]?.mediaItem.backdropColor, '#222222');
   assert.equal(enriched[0]?.mediaItem.runtimeMinutes, 120);
   assert.equal(enriched[0]?.progress.positionSeconds, 300);
   assert.equal(enriched[0]?.lastActivityAt, '2026-05-11T10:00:00.000Z');
@@ -136,6 +148,10 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
       posterUrl: 'https://cache.test/show-poster.jpg',
       backdropUrl: 'https://cache.test/show-backdrop.jpg',
       logoUrl: null,
+      trailerUrl: null,
+      trailerThumbnailUrl: null,
+      posterColor: null,
+      backdropColor: null,
       releaseYear: 2022,
       rating: 9.1,
       maturityRating: null,
@@ -261,6 +277,10 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       posterUrl: 'https://cache.test/dup.jpg',
       backdropUrl: null,
       logoUrl: null,
+      trailerUrl: null,
+      trailerThumbnailUrl: null,
+      posterColor: null,
+      backdropColor: null,
       releaseYear: 2023,
       rating: 7.5,
       maturityRating: null,

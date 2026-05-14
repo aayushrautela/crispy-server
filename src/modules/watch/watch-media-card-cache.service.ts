@@ -19,6 +19,10 @@ export class WatchMediaCardCacheService {
     posterUrl: string | null;
     backdropUrl: string | null;
     logoUrl: string | null;
+    trailerUrl: string | null;
+    trailerThumbnailUrl: string | null;
+    posterColor: string | null;
+    backdropColor: string | null;
     detailsReleaseYear: number | null;
     detailsRating: number | null;
     maturityRating: string | null;
@@ -45,6 +49,10 @@ export class WatchMediaCardCacheService {
       posterUrl: projection.posterUrl,
       backdropUrl: projection.backdropUrl,
       logoUrl: projection.logoUrl,
+      trailerUrl: projection.trailerUrl,
+      trailerThumbnailUrl: projection.trailerThumbnailUrl,
+      posterColor: projection.posterColor,
+      backdropColor: projection.backdropColor,
       releaseYear: projection.detailsReleaseYear,
       rating: projection.detailsRating,
       maturityRating: projection.maturityRating,

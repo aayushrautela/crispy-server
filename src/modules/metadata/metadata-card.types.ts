@@ -63,6 +63,10 @@ export type MetadataCardView = {
   rating: number | null;
   status: string | null;
   maturityRating: string | null;
+  trailerUrl: string | null;
+  trailerThumbnailUrl: string | null;
+  posterColor: string | null;
+  backdropColor: string | null;
   genres: string[];
 };
 

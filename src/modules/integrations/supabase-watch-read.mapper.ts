@@ -184,6 +184,10 @@ function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides
     releaseYear: numberValue(row.release_year),
     rating: numberValue(row.metadata_rating),
     logoUrl: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
     maturityRating: null,
     genres: [],
   }, overrides);

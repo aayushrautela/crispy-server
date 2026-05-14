@@ -46,6 +46,10 @@ export type MediaItem = {
   status: string | null;
   maturityRating: string | null;
   certification: string | null;
+  trailerUrl: string | null;
+  trailerThumbnailUrl: string | null;
+  posterColor: string | null;
+  backdropColor: string | null;
   externalIds: MediaExternalIds;
   parent: MediaItemParent | null;
   showTmdbId: number | null;
