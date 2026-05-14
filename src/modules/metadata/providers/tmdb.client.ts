@@ -5,9 +5,10 @@ import { HttpError } from '../../../lib/errors.js';
 export type TmdbRequestQuery = Record<string, string | number | boolean | undefined | null>;
 
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
-const MAX_RETRIES = 4;
+const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 500;
 const MIN_REQUEST_INTERVAL_MS = 40;
+const REQUEST_TIMEOUT_MS = 5_000;
 
 let nextRequestAt = 0;
 
@@ -75,13 +76,23 @@ async function parseJson(response: Response): Promise<Record<string, unknown> | 
   }
 }
 
+function combinedSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  if (!signal) {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  if (signal.aborted) {
+    return signal;
+  }
+  return AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
+}
+
 export class TmdbClient {
-  async request(pathname: string, query: TmdbRequestQuery = {}): Promise<Record<string, unknown>> {
+  async request(pathname: string, query: TmdbRequestQuery = {}, signal?: AbortSignal): Promise<Record<string, unknown>> {
     const url = buildUrl(pathname, query);
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       await waitForRequestSlot();
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: combinedSignal(signal, REQUEST_TIMEOUT_MS) });
       const body = await parseJson(response);
 
       if (response.ok) {

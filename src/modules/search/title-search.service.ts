@@ -15,6 +15,7 @@ type SearchTitlesInput = {
   filter?: MetadataSearchFilter | null;
   genre?: string | null;
   locale?: string | null;
+  signal?: AbortSignal;
 };
 
 type GenreMapping = {
@@ -42,6 +43,7 @@ const MOVIES_LIMIT = 20;
 const SERIES_LIMIT = 20;
 const ALL_LIMIT = 60;
 const SEARCH_CACHE_TTL_MS = 3_000;
+const HYDRATION_CONCURRENCY = 3;
 
 export class TitleSearchService {
   constructor(
@@ -69,6 +71,7 @@ export class TitleSearchService {
       genreMapping,
       limit,
       locale,
+      abortable: Boolean(input.signal),
     });
 
     return this.requestCoalescer.run(requestKey, () => withDbClient(async (client) => {
@@ -80,7 +83,7 @@ export class TitleSearchService {
               filter: normalizedFilter,
               limit,
             })
-          : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes, locale)
+          : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes, locale, input.signal)
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
 
@@ -95,7 +98,10 @@ export class TitleSearchService {
 
       const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
 
-      const tmdbItems = await Promise.all(filteredTmdbMatches.map(async (match: TmdbTitleRecord) => {
+      const tmdbItems = await mapWithConcurrency(filteredTmdbMatches, HYDRATION_CONCURRENCY, async (match: TmdbTitleRecord) => {
+        if (input.signal?.aborted) {
+          return null;
+        }
         const identity = inferMediaIdentity({
           mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
           tmdbId: match.tmdbId,
@@ -105,7 +111,7 @@ export class TitleSearchService {
           return null;
         }
 
-        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId);
+        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, undefined, input.signal);
         if (!hydrated) {
           return null;
         }
@@ -123,7 +129,7 @@ export class TitleSearchService {
           },
           noisy: isNoisyTmdbMatch(hydrated),
         };
-      }));
+      });
 
       const peopleItems = peopleMatches.map(buildPersonSearchResult);
 
@@ -155,6 +161,15 @@ export class TitleSearchService {
   }
 }
 
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    const batch = items.slice(index, index + concurrency);
+    results.push(...await Promise.all(batch.map(mapper)));
+  }
+  return results;
+}
+
 function emptySearchResponse(query: string): MetadataSearchResponse {
   return {
     query,
@@ -184,11 +199,12 @@ function buildSearchRequestKey(params: {
   genreMapping: GenreMapping | null;
   limit: number;
   locale: string | null;
+  abortable: boolean;
 }): string {
   const genreKey = params.genreMapping
     ? `${params.genreMapping.movieGenreId}:${params.genreMapping.tvGenreId ?? ''}`
     : '';
-  return [params.query, params.filter, genreKey, String(params.limit), params.locale ?? ''].join('|');
+  return [params.query, params.filter, genreKey, String(params.limit), params.locale ?? '', params.abortable ? 'abortable' : 'shared'].join('|');
 }
 
 export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTitleType[] {

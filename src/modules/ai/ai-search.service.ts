@@ -18,11 +18,13 @@ type ResolvedSuggestion = {
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const FINAL_RESULT_LIMIT = 12;
-const RESOLUTION_SEARCH_LIMIT = 20;
+const RESOLUTION_SEARCH_LIMIT = 5;
 const MIN_METADATA_MATCH_SCORE = 36;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
-const RESOLUTION_TIMEOUT_MS = 15_000;
+const RESOLUTION_TIMEOUT_MS = 12_000;
+const MAX_RESOLUTION_CANDIDATES = 8;
+const MAX_QUERY_VARIANTS = 2;
 
 export class AiSearchService {
   constructor(
@@ -69,9 +71,15 @@ export class AiSearchService {
       const rawItems = Array.isArray(generated.items) ? generated.items : [];
       const candidates = parseSearchCandidates(rawItems);
       const resolvedSuggestions = await withTimeout(
-        resolveSuggestions(this.titleSearchService, candidates, locale),
+        (signal) => resolveSuggestions(this.titleSearchService, candidates, locale, signal),
         RESOLUTION_TIMEOUT_MS,
-      );
+      ).catch((err) => {
+        if (err instanceof HttpError && err.statusCode === 504) {
+          logger.warn({ userId, profileId, query: sampleQuery(query) }, 'AI search resolution timed out, returning partial results.');
+          return [] as ResolvedSuggestion[];
+        }
+        throw err;
+      });
       const response = finalizeResolvedItems(resolvedSuggestions, analysis, query);
 
       logger.info({
@@ -100,35 +108,57 @@ async function resolveSuggestions(
   titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
   locale: string,
+  signal: AbortSignal,
 ): Promise<ResolvedSuggestion[]> {
-  const resolved = await Promise.all(
-    candidates.map(async (candidate) => {
-      const item = await resolveSuggestion(titleSearchService, candidate, locale);
-      return item ? { candidate, item } : null;
-    }),
-  );
-  return resolved.filter((item): item is ResolvedSuggestion => item !== null);
+  const results: ResolvedSuggestion[] = [];
+  for (let i = 0; i < Math.min(candidates.length, MAX_RESOLUTION_CANDIDATES); i++) {
+    if (signal.aborted) {
+      break;
+    }
+    const candidate = candidates[i];
+    if (!candidate) {
+      continue;
+    }
+    try {
+      const item = await resolveSuggestion(titleSearchService, candidate, locale, signal);
+      if (item) {
+        results.push({ candidate, item });
+      }
+    } catch {
+      logger.warn({ candidate: candidate.title }, 'Failed to resolve candidate, skipping.');
+    }
+  }
+  return results;
 }
 
 async function resolveSuggestion(
   titleSearchService: TitleSearchService,
   candidate: AiSearchCandidate,
   locale: string,
+  signal: AbortSignal,
 ): Promise<MetadataSearchResult | null> {
   const searchFilters = resolveCandidateFilter(candidate.mediaType);
-  const queryVariants = buildResolutionQueryVariants(candidate.title);
+  const queryVariants = buildResolutionQueryVariants(candidate.title).slice(0, MAX_QUERY_VARIANTS);
 
   for (const candidateFilter of searchFilters) {
     for (const query of queryVariants) {
-      const response = await titleSearchService.searchTitles({
-        query,
-        filter: candidateFilter,
-        limit: RESOLUTION_SEARCH_LIMIT,
-        locale,
-      });
-      const selected = selectBestMetadataMatch(response.all, candidate.title, candidate.mediaType);
-      if (selected) {
-        return selected;
+      if (signal.aborted) {
+        return null;
+      }
+      try {
+        const response = await titleSearchService.searchTitles({
+          query,
+          filter: candidateFilter,
+          limit: RESOLUTION_SEARCH_LIMIT,
+          locale,
+          signal,
+        });
+        const selected = selectBestMetadataMatch(response.all, candidate.title, candidate.mediaType);
+        if (selected) {
+          return selected;
+        }
+      } catch (err) {
+        logger.debug({ query, filter: candidateFilter, err }, 'SearchTitles call failed during candidate resolution.');
       }
     }
   }
@@ -503,11 +533,16 @@ function sampleQuery(value: string, maxLength = 120): string {
   return `${value.slice(0, maxLength)}...`;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new HttpError(504, 'Search resolution timed out.')), ms),
-    ),
-  ]);
+    work(controller.signal),
+    new Promise<T>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new HttpError(504, 'Search resolution timed out.'));
+      }, ms);
+    }),
+  ]).finally(() => clearTimeout(timeout));
 }

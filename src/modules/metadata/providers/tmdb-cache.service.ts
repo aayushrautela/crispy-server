@@ -173,7 +173,7 @@ export class TmdbCacheService {
     private readonly responseCache = new TmdbResponseCacheService(),
   ) {}
 
-  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, _level?: string): Promise<TmdbTitleRecord | null> {
+  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, _level?: string, signal?: AbortSignal): Promise<TmdbTitleRecord | null> {
     const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId);
     if (cached && Date.parse(cached.expiresAt) > Date.now()) {
       return cached;
@@ -195,7 +195,7 @@ export class TmdbCacheService {
         requestQuery: { append_to_response: appendToResponse, include_image_language: 'null,en' },
       },
       policyKey,
-      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: 'null,en' }),
+      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: 'null,en' }, signal),
     );
 
     if (response.isNegative || response.statusCode === 404) {
@@ -363,7 +363,7 @@ export class TmdbCacheService {
     return this.tmdbRepository.listEpisodesForSeason(client, showTmdbId, seasonNumber);
   }
 
-  async searchTitles(query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null): Promise<TmdbTitleRecord[]> {
+  async searchTitles(query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null, signal?: AbortSignal): Promise<TmdbTitleRecord[]> {
     const client = await (await import('../../../lib/db.js')).db.connect();
     try {
       const payloads = await Promise.all(
@@ -379,7 +379,7 @@ export class TmdbCacheService {
               requestQuery: { query, page: 1, include_adult: 'false', language: locale ?? undefined },
             },
             'search',
-            () => this.tmdbClient.request(`/search/${mediaType}`, { query, page: 1, include_adult: 'false', language: locale ?? undefined }),
+            () => this.tmdbClient.request(`/search/${mediaType}`, { query, page: 1, include_adult: 'false', language: locale ?? undefined }, signal),
           ),
         ),
       );
