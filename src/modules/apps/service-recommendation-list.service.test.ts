@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DefaultServiceRecommendationListService } from './service-recommendation-list.service.js';
 import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, PaginatedAppAuditEvents } from './app-audit.repo.js';
 import type { AppAuthorizationService } from './app-authorization.service.js';
+import { DefaultAppAuthorizationService } from './app-authorization.service.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPrincipal, AppPurpose, AppScope } from './app-principal.types.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
@@ -166,4 +167,12 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
   assert.ok(batchWrite);
   assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1:for-you');
   assert.deepEqual(batchWrite.items, [{ contentId: 'movie:tmdb:603', rank: 1 }]);
+});
+
+test('authorization allows wildcard owned list keys', () => {
+  const authorization = new DefaultAppAuthorizationService();
+  const principal = buildPrincipal();
+  principal.ownedListKeys = ['*'];
+
+  assert.doesNotThrow(() => authorization.requireOwnedListKey({ principal, source: 'reco', listKey: 'hero' }));
 });

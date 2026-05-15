@@ -85,7 +85,7 @@ export class DefaultAppAuthorizationService implements AppAuthorizationService {
 
   requireOwnedListKey(input: { principal: AppPrincipal; source: string; listKey: string }): void {
     this.requireOwnedSource({ principal: input.principal, source: input.source });
-    if (!input.principal.ownedListKeys.includes(input.listKey)) {
+    if (!input.principal.ownedListKeys.includes('*') && !input.principal.ownedListKeys.includes(input.listKey)) {
       throw new AppAuthError({
         code: 'app_grant_missing',
         message: `App does not own list key: ${input.listKey}`,
