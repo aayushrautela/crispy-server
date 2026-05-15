@@ -107,17 +107,22 @@ export class WatchMediaCardCacheRepository {
     }
 
     const effectiveLanguage = language ?? 'en';
+    const languages = effectiveLanguage === 'en' ? ['en'] : [effectiveLanguage, 'en'];
     const result = await client.query(
       `
-        SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
+        SELECT DISTINCT ON (media_key)
+               media_key, media_type, title_provider, title_provider_id, title_media_type,
                title, subtitle, poster_url, backdrop_url, logo_url,
                trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
                release_year, rating, maturity_rating, genres, language
         FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
-          AND language = $2
+          AND language = ANY($2::text[])
+        ORDER BY media_key,
+                 CASE WHEN language = $3 THEN 0 WHEN language = 'en' THEN 1 ELSE 2 END,
+                 updated_at DESC
       `,
-      [mediaKeys, effectiveLanguage],
+      [mediaKeys, languages, effectiveLanguage],
     );
 
     return new Map(

@@ -52,6 +52,6 @@ export class WatchCacheMissRefreshService {
       logger.info({ refreshed, failed, total: missingMediaKeys.length }, 'watch cache miss refresh completed');
     }
 
-    return this.cacheService.listCardCacheRecords(client, missingMediaKeys);
+    return this.cacheService.listCardCacheRecords(client, missingMediaKeys, language);
   }
 }
