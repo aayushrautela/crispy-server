@@ -46,7 +46,7 @@ export class WatchMediaCardCacheRepository {
     genres?: string[] | null;
     language?: string;
   }): Promise<void> {
-    const effectiveLanguage = params.language ?? 'en';
+    const effectiveLanguage = params.language ?? 'en-US';
     await client.query(
       `
         INSERT INTO watch_media_card_cache (
@@ -106,23 +106,33 @@ export class WatchMediaCardCacheRepository {
       return new Map();
     }
 
-    const effectiveLanguage = language ?? 'en';
-    const languages = effectiveLanguage === 'en' ? ['en'] : [effectiveLanguage, 'en'];
+    const effectiveLanguage = language ?? 'en-US';
+    const requestedRecords = await this.getByMediaKeysForLanguage(client, mediaKeys, effectiveLanguage);
+    if (effectiveLanguage === 'en-US' || requestedRecords.size === mediaKeys.length) {
+      return requestedRecords;
+    }
+
+    const missingMediaKeys = mediaKeys.filter((mediaKey) => !requestedRecords.has(mediaKey));
+    const fallbackRecords = await this.getByMediaKeysForLanguage(client, missingMediaKeys, 'en-US');
+    return new Map([...fallbackRecords, ...requestedRecords]);
+  }
+
+  private async getByMediaKeysForLanguage(client: DbClient, mediaKeys: string[], language: string): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    if (!mediaKeys.length) {
+      return new Map();
+    }
+
     const result = await client.query(
       `
-        SELECT DISTINCT ON (media_key)
-               media_key, media_type, title_provider, title_provider_id, title_media_type,
+        SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
                title, subtitle, poster_url, backdrop_url, logo_url,
                trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
                release_year, rating, maturity_rating, genres, language
         FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
-          AND language = ANY($2::text[])
-        ORDER BY media_key,
-                 CASE WHEN language = $3 THEN 0 WHEN language = 'en' THEN 1 ELSE 2 END,
-                 updated_at DESC
+          AND language = $2
       `,
-      [mediaKeys, languages, effectiveLanguage],
+      [mediaKeys, language],
     );
 
     return new Map(

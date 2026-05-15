@@ -510,10 +510,8 @@ function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: s
   const preferred = preferredLanguage
     ? (logos.find((logo) => asString(logo.iso_639_1) === preferredLanguage)
       ?? logos.find((logo) => asString(logo.iso_639_1) === 'en')
-      ?? logos.find((logo) => asString(logo.iso_639_1) === null)
       ?? logos[0])
     : (logos.find((logo) => asString(logo.iso_639_1) === 'en')
-      ?? logos.find((logo) => asString(logo.iso_639_1) === null)
       ?? logos[0]);
 
   return preferred ? asString(preferred.file_path) : null;

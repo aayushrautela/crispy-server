@@ -5,27 +5,34 @@ import { WatchMediaCardCacheRepository } from './watch-media-card-cache.repo.js'
 
 seedTestEnv();
 
-test('getByMediaKeys prefers requested language and falls back to English', async () => {
+test('getByMediaKeys reads requested language and falls back to en-US for misses', async () => {
   const repository = new WatchMediaCardCacheRepository();
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
   const client = {
     query: async (sql: string, params: unknown[]) => {
-      assert.match(sql, /DISTINCT ON \(media_key\)/);
-      assert.deepEqual(params, [['movie:tmdb:1', 'movie:tmdb:2'], ['en-US', 'en'], 'en-US']);
+      calls.push({ sql, params });
+      if (calls.length === 1) {
+        assert.deepEqual(params, [['movie:tmdb:1', 'movie:tmdb:2'], 'fr-FR']);
+        return {
+          rows: [row({ media_key: 'movie:tmdb:1', title: 'Localized', language: 'fr-FR' })],
+        };
+      }
+
+      assert.deepEqual(params, [['movie:tmdb:2'], 'en-US']);
       return {
-        rows: [
-          row({ media_key: 'movie:tmdb:1', title: 'Localized', language: 'en-US' }),
-          row({ media_key: 'movie:tmdb:2', title: 'Fallback', language: 'en' }),
-        ],
+        rows: [row({ media_key: 'movie:tmdb:2', title: 'Fallback', language: 'en-US' })],
       };
     },
   };
 
-  const records = await repository.getByMediaKeys(client as never, ['movie:tmdb:1', 'movie:tmdb:2'], 'en-US');
+  const records = await repository.getByMediaKeys(client as never, ['movie:tmdb:1', 'movie:tmdb:2'], 'fr-FR');
 
+  assert.equal(calls.length, 2);
+  assert.doesNotMatch(calls[0]?.sql ?? '', /DISTINCT ON/);
   assert.equal(records.get('movie:tmdb:1')?.title, 'Localized');
-  assert.equal(records.get('movie:tmdb:1')?.language, 'en-US');
+  assert.equal(records.get('movie:tmdb:1')?.language, 'fr-FR');
   assert.equal(records.get('movie:tmdb:2')?.title, 'Fallback');
-  assert.equal(records.get('movie:tmdb:2')?.language, 'en');
+  assert.equal(records.get('movie:tmdb:2')?.language, 'en-US');
 });
 
 function row(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
