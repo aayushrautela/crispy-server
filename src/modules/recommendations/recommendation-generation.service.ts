@@ -13,7 +13,9 @@ import type {
   RecommendationSignalContinueWatchingItem,
   RecommendationSignalGenerationResponse,
 } from './recommendation-signal.types.js';
-import type { ContinueWatchingProductItem } from '../watch/watch-derived-item.types.js';
+import type {
+  ProfileInputContinueWatchingItem,
+} from './profile-input-signal.types.js';
 
 type GenerationContext = {
   accountId: string;
@@ -185,7 +187,7 @@ export class RecommendationGenerationService {
         credentialSource: aiRequest.credentialSource,
       },
       optionalExtras: {
-        continueWatching: [],
+        continueWatching: signals.continueWatching ? signals.continueWatching.map(mapInputContinueWatchingItem) : [],
         trackedSeries: signals.trackedSeries ?? [],
         limits,
       },
@@ -193,7 +195,11 @@ export class RecommendationGenerationService {
   }
 }
 
-export function mapContinueWatchingItem(item: ContinueWatchingProductItem): RecommendationSignalContinueWatchingItem {
+export function mapContinueWatchingItem(item: ProfileInputContinueWatchingItem): RecommendationSignalContinueWatchingItem {
+  return mapInputContinueWatchingItem(item);
+}
+
+export function mapInputContinueWatchingItem(item: ProfileInputContinueWatchingItem): RecommendationSignalContinueWatchingItem {
   return {
     id: item.id,
     media: {
@@ -202,10 +208,9 @@ export function mapContinueWatchingItem(item: ContinueWatchingProductItem): Reco
       title: item.mediaItem.title,
     },
     progress: {
-      positionSeconds: item.progress.positionSeconds,
-      durationSeconds: item.progress.durationSeconds,
+      positionSeconds: null,
+      durationSeconds: null,
       progressPercent: item.progress.progressPercent,
-      ...(item.progress.lastPlayedAt ? { lastPlayedAt: item.progress.lastPlayedAt } : {}),
     },
     lastActivityAt: item.lastActivityAt,
     payload: {},

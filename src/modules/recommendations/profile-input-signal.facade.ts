@@ -1,3 +1,7 @@
+import { withDbClient } from '../../lib/db.js';
+import { SupabaseAdminWatchReadService } from '../integrations/supabase-admin-watch-read.service.js';
+import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
+import { EpisodicFollowService } from '../watch/episodic-follow.service.js';
 import type { ProfileInputSignalCacheService } from './profile-input-signal-cache.service.js';
 import {
   familyLimit,
@@ -20,6 +24,8 @@ export class ProfileInputSignalFacade {
     private readonly deps: {
       defaults: ProfileInputSignalLimitDefaults;
       cacheService?: ProfileInputSignalCacheService;
+      watchReadService?: SupabaseAdminWatchReadService;
+      episodicFollowService?: EpisodicFollowService;
     },
   ) {}
 
@@ -43,7 +49,7 @@ export class ProfileInputSignalFacade {
       : undefined;
 
     const liveRequests = cacheRead?.liveRequests ?? requests;
-    const livePayload = await this.fetchLivePayload(liveRequests);
+    const livePayload = await this.fetchLivePayload(input, liveRequests);
     const cachePayload = cacheRead?.payload ?? {};
     const payload = { ...cachePayload, ...livePayload };
 
@@ -98,32 +104,97 @@ export class ProfileInputSignalFacade {
     };
   }
 
-  private async fetchLivePayload(requests: ProfileInputSignalCacheFamilyRequest[]): Promise<ProfileInputSignalCacheSectionPayload> {
-    const payload: ProfileInputSignalCacheSectionPayload = {};
-    for (const request of requests) {
-      switch (request.family) {
-        case 'history':
-          payload.history = [];
-          break;
-        case 'ratings':
-          payload.ratings = [];
-          break;
-        case 'watchlist':
-          payload.watchlist = [];
-          break;
-        case 'continueWatching':
-          payload.continueWatching = [];
-          break;
-        case 'trackedSeries':
-          payload.trackedSeries = [];
-          break;
-      }
+  private async fetchLivePayload(input: GetProfileInputSignalBundleInput, requests: ProfileInputSignalCacheFamilyRequest[]): Promise<ProfileInputSignalCacheSectionPayload> {
+    if (requests.length === 0) {
+      return {};
     }
-    return payload;
+
+    return withDbClient(async (client) => {
+      const payload: ProfileInputSignalCacheSectionPayload = {};
+      const watchReadService = this.deps.watchReadService ?? new SupabaseAdminWatchReadService();
+      const episodicFollowService = this.deps.episodicFollowService ?? new EpisodicFollowService();
+
+      await Promise.all(requests.map(async (request) => {
+        const params = {
+          accountId: input.accountId,
+          profileId: input.profileId,
+          limit: request.requestedLimit,
+        };
+
+        switch (request.family) {
+          case 'history': {
+            const page = await watchReadService.listHistoryPage(client, params);
+            payload.history = page.items.map((item) => ({
+              id: item.id,
+              mediaItem: item.mediaItem,
+              watchedAt: item.watchedAt,
+              payload: {
+                eventType: item.eventType,
+                occurredAt: item.occurredAt,
+                origins: item.origins,
+              },
+            }));
+            break;
+          }
+          case 'ratings': {
+            const page = await watchReadService.listRatingsPage(client, params);
+            payload.ratings = page.items.map((item) => ({
+              id: item.id,
+              mediaItem: item.mediaItem,
+              rating: item.rating,
+              payload: { origins: item.origins },
+            }));
+            break;
+          }
+          case 'watchlist': {
+            const page = await watchReadService.listWatchlistPage(client, params);
+            payload.watchlist = page.items.map((item) => ({
+              id: item.id,
+              mediaItem: item.mediaItem,
+              addedAt: item.addedAt,
+              payload: { origins: item.origins },
+            }));
+            break;
+          }
+          case 'continueWatching': {
+            const page = await watchReadService.listContinueWatchingPage(client, params);
+            payload.continueWatching = page.items.map((item) => ({
+              id: item.id,
+              mediaItem: item.mediaItem,
+              progress: {
+                progressPercent: item.progress.progressPercent,
+              },
+              lastActivityAt: item.lastActivityAt,
+            }));
+            break;
+          }
+          case 'trackedSeries': {
+            await watchReadService.assertProfileAccess(client, { accountId: input.accountId, profileId: input.profileId });
+            const items = await episodicFollowService.listForProfile(client, input.profileId, request.requestedLimit);
+            payload.trackedSeries = items.map((item) => ({
+              show: item.show ? metadataCardToMediaItem(item.show) : null,
+              reason: item.reason ?? 'watch_activity',
+              lastInteractedAt: item.lastInteractedAt,
+              nextEpisodeAirDate: item.nextEpisodeAirDate,
+              nextEpisodeMediaKey: item.nextEpisodeMediaKey,
+              nextEpisodeSeasonNumber: item.nextEpisodeSeasonNumber,
+              nextEpisodeEpisodeNumber: item.nextEpisodeEpisodeNumber,
+              nextEpisodeAbsoluteEpisodeNumber: item.nextEpisodeAbsoluteEpisodeNumber,
+              nextEpisodeTitle: item.nextEpisodeTitle,
+              metadataRefreshedAt: item.metadataRefreshedAt,
+              payload: item.payload,
+            }));
+            break;
+          }
+        }
+      }));
+
+      return payload;
+    });
   }
 
   private normalizeIncludes(include?: ProfileInputSignalInclude[]): ProfileInputSignalInclude[] {
-    if (!include?.length) return DEFAULT_INCLUDES;
+    if (!include) return DEFAULT_INCLUDES;
     return [...new Set(include)];
   }
 

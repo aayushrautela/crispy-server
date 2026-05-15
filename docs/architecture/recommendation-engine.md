@@ -90,7 +90,7 @@ Diagnostics expose MAIN service-outbox delivery state only (`pending`, `processi
 
 ## Source data and AI-plan flow
 
-RECO retrieves bounded, authorized business inputs through MAIN internal APIs. Typical categories include profile metadata, watch history, ratings, watchlist, continue watching, episodic follow state, existing taste/recommendation context, candidate-pool context, and canonical metadata projections. MAIN may satisfy those internal reads from local Postgres or Supabase trusted backend readers, but that storage choice is hidden behind the Fastify internal API contract.
+RECO retrieves bounded, authorized business inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from authorized profile context plus Supabase-backed canonical watch history, ratings, watchlist, and continue-watching state; MAIN may also include episodic follow state and other derived context. Storage details remain hidden behind the Fastify internal API contract.
 
 When AI assistance is needed:
 

@@ -1,16 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
-import type { ContinueWatchingProductItem } from '../watch/watch-derived-item.types.js';
+import type { ProfileInputContinueWatchingItem } from './profile-input-signal.types.js';
 
 seedTestEnv();
 
 const { mapContinueWatchingItem } = await import('./recommendation-generation.service.js');
 
 test('mapContinueWatchingItem maps continue-watching items into explicit worker DTOs', () => {
-  const item: ContinueWatchingProductItem = {
+  const item: ProfileInputContinueWatchingItem = {
     id: 'cw_1',
-    kind: 'continue_watching',
     mediaItem: {
       mediaKey: 'show:tmdb:1396',
       mediaType: 'episode',
@@ -46,28 +45,10 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
       airDate: '2008-01-27',
       badges: [],
     },
-    context: {
-      id: 'cw_1',
-      progress: {
-        positionSeconds: null,
-        durationSeconds: null,
-        progressPercent: 14.5,
-        lastPlayedAt: '2026-03-01T18:00:00.000Z',
-      },
-      lastActivityAt: '2026-03-01T18:00:00.000Z',
-      origins: ['canonical_watch'],
-      dismissible: true,
-    },
-    presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
     progress: {
-      positionSeconds: null,
-      durationSeconds: null,
       progressPercent: 14.5,
-      lastPlayedAt: '2026-03-01T18:00:00.000Z',
     },
     lastActivityAt: '2026-03-01T18:00:00.000Z',
-    origins: ['canonical_watch'],
-    dismissible: true,
   };
 
   const mapped = mapContinueWatchingItem(item);
@@ -83,7 +64,6 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
       positionSeconds: null,
       durationSeconds: null,
       progressPercent: 14.5,
-      lastPlayedAt: '2026-03-01T18:00:00.000Z',
     },
     lastActivityAt: '2026-03-01T18:00:00.000Z',
     payload: {},

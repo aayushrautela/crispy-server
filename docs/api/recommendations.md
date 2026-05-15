@@ -50,7 +50,7 @@ Recommendation generation is event-driven:
 
 1. MAIN emits durable `recommendation.recompute_requested` events through `service_outbox_events`.
 2. The MAIN outbox dispatcher posts those envelopes to RECO's inbound `POST /internal/recommender/v1/events` endpoint with service auth.
-3. RECO authenticates to MAIN as an internal app principal and reads bounded business inputs from `/internal/apps/v1` endpoints.
+3. RECO authenticates to MAIN as an internal app principal and reads bounded business inputs from `/internal/apps/v1` endpoints. The recommendation bundle is hydrated from MAIN-owned profile context plus Supabase-backed canonical watch history, ratings, watchlist, and continue-watching state exposed through Fastify; storage remains hidden behind the internal API contract.
 4. When AI assistance is needed, RECO calls MAIN's internal AI-plan endpoint with business inputs and a bounded candidate pool.
 5. MAIN owns AI provider selection, model selection, credentials, prompt construction, vendor protocol, response parsing, and typed-plan validation.
 6. RECO publishes final stored outputs back through internal app recommendation write endpoints.
