@@ -7,8 +7,8 @@ seedTestEnv();
 
 test('searchTitles returns empty when query is blank', async () => {
   const pkg = await import('../search/title-search.service.js');
-  const svc = new pkg.TitleSearchService(
-    { searchTitles: async () => [], discoverTitlesByGenre: async () => [], searchPeople: async () => [] } as never,
+    const svc = new pkg.TitleSearchService(
+      { searchTitles: async () => [], discoverTitlesByGenre: async () => [], searchPeople: async () => [], getTitles: async () => new Map() } as never,
     { ensureContentIds: async () => new Map(), ensureContentId: async () => null } as never,
   );
 
@@ -51,16 +51,19 @@ test('all filter combines movie and series TMDB results', async () => {
 
     const svc = new pkg.TitleSearchService(
       {
-        searchTitles: async (query: string, limit: number, mediaTypes: string[], locale?: string | null) => {
+        searchTitles: async (_client: unknown, query: string, limit: number, mediaTypes: string[], locale?: string | null) => {
           tmdbCalls.push({ query, limit, mediaTypes, locale });
           return [movieRecord, seriesRecord];
         },
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
-        getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => {
-          if (tmdbId === movieRecord.tmdbId) return hydrateSearchRecord(movieRecord);
-          if (tmdbId === seriesRecord.tmdbId) return hydrateSearchRecord(seriesRecord);
-          return null;
+        getTitles: async (_client: unknown, requests: Array<{ mediaType: string; tmdbId: number }>) => {
+          const map = new Map<string, TmdbTitleRecord | null>();
+          for (const req of requests) {
+            if (req.tmdbId === movieRecord.tmdbId) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(movieRecord));
+            if (req.tmdbId === seriesRecord.tmdbId) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(seriesRecord));
+          }
+          return map;
         },
       } as never,
       {
@@ -104,9 +107,13 @@ test('searchTitles drops results without posters', async () => {
         searchTitles: async () => allRecords,
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
-        getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => {
-          const match = allRecords.find((r) => r.tmdbId === tmdbId);
-          return match ? hydrateSearchRecord(match) : null;
+        getTitles: async (_client: unknown, requests: Array<{ mediaType: string; tmdbId: number }>) => {
+          const map = new Map<string, TmdbTitleRecord | null>();
+          for (const req of requests) {
+            const match = allRecords.find((r) => r.tmdbId === req.tmdbId);
+            if (match) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(match));
+          }
+          return map;
         },
       } as never,
       {
@@ -146,9 +153,13 @@ test('searchTitles moves noisy series results to the end without disturbing clea
         searchTitles: async () => narutoRecords,
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
-        getTitle: async (_client: unknown, mediaType: string, tmdbId: number) => {
-          const match = narutoRecords.find((r) => r.tmdbId === tmdbId);
-          return match ? hydrateSearchRecord(match) : null;
+        getTitles: async (_client: unknown, requests: Array<{ mediaType: string; tmdbId: number }>) => {
+          const map = new Map<string, TmdbTitleRecord | null>();
+          for (const req of requests) {
+            const match = narutoRecords.find((r) => r.tmdbId === req.tmdbId);
+            if (match) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(match));
+          }
+          return map;
         },
       } as never,
       {
@@ -195,7 +206,11 @@ test('searchTitles coalesces identical in-flight requests', async () => {
         },
         discoverTitlesByGenre: async () => [],
         searchPeople: async () => [],
-        getTitle: async () => hydrateSearchRecord(alphaMovie),
+        getTitles: async () => {
+          const map = new Map<string, TmdbTitleRecord | null>();
+          map.set('movie:77', hydrateSearchRecord(alphaMovie));
+          return map;
+        },
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {

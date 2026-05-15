@@ -176,7 +176,7 @@ export class TmdbCacheService {
     private readonly responseCache = new TmdbResponseCacheService(),
   ) {}
 
-  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null, _level?: string, signal?: AbortSignal): Promise<TmdbTitleRecord | null> {
+  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null, signal?: AbortSignal): Promise<TmdbTitleRecord | null> {
     const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
     const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId, effectiveLanguage);
     if (cached && Date.parse(cached.expiresAt) > Date.now()) {
@@ -364,6 +364,32 @@ export class TmdbCacheService {
     return response.responseJson;
   }
 
+  async getTitles(client: DbClient, requests: Array<{ mediaType: TmdbTitleType; tmdbId: number }>, language?: string | null, signal?: AbortSignal): Promise<Map<string, TmdbTitleRecord | null>> {
+    const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
+    const cached = await this.tmdbRepository.getTitles(client, requests, effectiveLanguage);
+
+    const results = new Map<string, TmdbTitleRecord | null>();
+    const missing: Array<{ mediaType: TmdbTitleType; tmdbId: number }> = [];
+
+    for (const req of requests) {
+      const key = `${req.mediaType}:${req.tmdbId}`;
+      const record = cached.get(key);
+      if (record && Date.parse(record.expiresAt) > Date.now()) {
+        results.set(key, record);
+      } else {
+        missing.push(req);
+      }
+    }
+
+    await Promise.all(missing.map(async (req) => {
+      const key = `${req.mediaType}:${req.tmdbId}`;
+      const hydrated = await this.getTitle(client, req.mediaType, req.tmdbId, effectiveLanguage, signal);
+      results.set(key, hydrated);
+    }));
+
+    return results;
+  }
+
   async listEpisodesForShow(client: DbClient, showTmdbId: number): Promise<TmdbEpisodeRecord[]> {
     return this.tmdbRepository.listEpisodesForShow(client, showTmdbId);
   }
@@ -372,199 +398,179 @@ export class TmdbCacheService {
     return this.tmdbRepository.listEpisodesForSeason(client, showTmdbId, seasonNumber);
   }
 
-  async searchTitles(query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null, signal?: AbortSignal): Promise<TmdbTitleRecord[]> {
-    const client = await (await import('../../../lib/db.js')).db.connect();
-    try {
-      const payloads = await Promise.all(
-        mediaTypes.map((mediaType) =>
-          this.responseCache.getOrFetch(
-            client,
-            {
-              resourceType: 'search',
-              resourceId: null,
-              variant: 'title',
-              language: normalizeMetadataLanguage(locale),
-              requestPath: `/search/${mediaType}`,
-              requestQuery: { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizeMetadataLanguage(locale)) },
-            },
-            'search',
-            () => this.tmdbClient.request(`/search/${mediaType}`, { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizeMetadataLanguage(locale)) }, signal),
-          ),
+  async searchTitles(client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null, signal?: AbortSignal): Promise<TmdbTitleRecord[]> {
+    const payloads = await Promise.all(
+      mediaTypes.map((mediaType) =>
+        this.responseCache.getOrFetch(
+          client,
+          {
+            resourceType: 'search',
+            resourceId: null,
+            variant: 'title',
+            language: normalizeMetadataLanguage(locale),
+            requestPath: `/search/${mediaType}`,
+            requestQuery: { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizeMetadataLanguage(locale)) },
+          },
+          'search',
+          () => this.tmdbClient.request(`/search/${mediaType}`, { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizeMetadataLanguage(locale)) }, signal),
         ),
-      );
+      ),
+    );
 
-      const records = payloads.flatMap((response, index) => {
-        if (response.isNegative || response.statusCode === 404) {
-          return [];
-        }
-        const mediaType = mediaTypes[index] as TmdbTitleType;
-        const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as SearchPayloadItem[] : [];
-        return items
-          .map((item) => toSearchTitleRecord(mediaType, item, normalizeMetadataLanguage(locale) ?? undefined))
-          .filter((item): item is TmdbTitleRecord => item !== null);
+    const records = payloads.flatMap((response, index) => {
+      if (response.isNegative || response.statusCode === 404) {
+        return [];
+      }
+      const mediaType = mediaTypes[index] as TmdbTitleType;
+      const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as SearchPayloadItem[] : [];
+      return items
+        .map((item) => toSearchTitleRecord(mediaType, item, normalizeMetadataLanguage(locale) ?? undefined))
+        .filter((item): item is TmdbTitleRecord => item !== null);
+    });
+
+    return sortSearchResults(query, dedupeTitles(records)).slice(0, limit);
+  }
+
+  async searchPeople(client: DbClient, query: string, limit: number): Promise<TmdbPersonRecord[]> {
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType: 'search',
+        resourceId: null,
+        variant: 'person',
+        language: null,
+        requestPath: '/search/person',
+        requestQuery: { query, page: 1, include_adult: 'false' },
+      },
+      'search',
+      () => this.tmdbClient.request('/search/person', { query, page: 1, include_adult: 'false' }),
+    );
+
+    if (response.isNegative || response.statusCode === 404) {
+      return [];
+    }
+
+    const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as PersonSearchPayloadItem[] : [];
+    const records = items
+      .map((item) => toSearchPersonRecord(item))
+      .filter((item): item is TmdbPersonRecord => item !== null);
+    return records.slice(0, limit);
+  }
+
+  async searchSuggestions(client: DbClient, query: string, limit: number, filter: MetadataSearchFilter, locale?: string | null): Promise<SearchSuggestionItem[]> {
+    const normalizedLocale = normalizeMetadataLanguage(locale) ?? undefined;
+
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType: 'search',
+        resourceId: null,
+        variant: 'suggestion',
+        language: normalizedLocale ?? null,
+        requestPath: '/search/multi',
+        requestQuery: { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizedLocale ?? null) },
+      },
+      'search',
+      () => this.tmdbClient.request('/search/multi', { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizedLocale ?? null) }),
+    );
+
+    if (response.isNegative || response.statusCode === 404) {
+      return [];
+    }
+
+    type MultiSearchItem = {
+      id?: unknown;
+      media_type?: unknown;
+      title?: unknown;
+      name?: unknown;
+      release_date?: unknown;
+      first_air_date?: unknown;
+      poster_path?: unknown;
+      overview?: unknown;
+      popularity?: unknown;
+    };
+
+    const results = Array.isArray(response.responseJson.results) ? response.responseJson.results as MultiSearchItem[] : [];
+    const suggestions: SearchSuggestionItem[] = [];
+
+    for (const item of results) {
+      const mediaType = item.media_type;
+      if (mediaType !== 'movie' && mediaType !== 'tv') {
+        continue;
+      }
+      if (filter === 'movies' && mediaType !== 'movie') continue;
+      if (filter === 'series' && mediaType !== 'tv') continue;
+      if (filter === 'people') continue;
+
+      const tmdbId = typeof item.id === 'number' ? item.id : null;
+      if (!tmdbId) continue;
+
+      const title = toNullableString(item.title) ?? toNullableString(item.name) ?? '';
+      if (!title) continue;
+
+      const dateStr = mediaType === 'movie'
+        ? toNullableString(item.release_date)
+        : toNullableString(item.first_air_date);
+      const year = dateStr ? new Date(dateStr).getFullYear() : null;
+
+      suggestions.push({
+        tmdbId,
+        mediaType,
+        title,
+        year,
+        posterPath: toNullableString(item.poster_path),
+        popularity: typeof item.popularity === 'number' ? item.popularity : 0,
+        overview: toNullableString(item.overview),
       });
-
-      return sortSearchResults(query, dedupeTitles(records)).slice(0, limit);
-    } finally {
-      client.release();
     }
+
+    suggestions.sort((a, b) => b.popularity - a.popularity);
+    return suggestions.slice(0, limit);
   }
 
-  async searchPeople(query: string, limit: number): Promise<TmdbPersonRecord[]> {
-    const client = await (await import('../../../lib/db.js')).db.connect();
-    try {
-      const response = await this.responseCache.getOrFetch(
-        client,
-        {
-          resourceType: 'search',
-          resourceId: null,
-          variant: 'person',
-          language: null,
-          requestPath: '/search/person',
-          requestQuery: { query, page: 1, include_adult: 'false' },
-        },
-        'search',
-        () => this.tmdbClient.request('/search/person', { query, page: 1, include_adult: 'false' }),
-      );
-
-      if (response.isNegative || response.statusCode === 404) {
-        return [];
-      }
-
-      const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as PersonSearchPayloadItem[] : [];
-      const records = items
-        .map((item) => toSearchPersonRecord(item))
-        .filter((item): item is TmdbPersonRecord => item !== null);
-      return records.slice(0, limit);
-    } finally {
-      client.release();
-    }
-  }
-
-  async searchSuggestions(query: string, limit: number, filter: MetadataSearchFilter, locale?: string | null): Promise<SearchSuggestionItem[]> {
-    const client = await (await import('../../../lib/db.js')).db.connect();
-    try {
-      const normalizedLocale = normalizeMetadataLanguage(locale) ?? undefined;
-
-      const response = await this.responseCache.getOrFetch(
-        client,
-        {
-          resourceType: 'search',
-          resourceId: null,
-          variant: 'suggestion',
-          language: normalizedLocale ?? null,
-          requestPath: '/search/multi',
-          requestQuery: { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizedLocale ?? null) },
-        },
-        'search',
-        () => this.tmdbClient.request('/search/multi', { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizedLocale ?? null) }),
-      );
-
-      if (response.isNegative || response.statusCode === 404) {
-        return [];
-      }
-
-      type MultiSearchItem = {
-        id?: unknown;
-        media_type?: unknown;
-        title?: unknown;
-        name?: unknown;
-        release_date?: unknown;
-        first_air_date?: unknown;
-        poster_path?: unknown;
-        overview?: unknown;
-        popularity?: unknown;
-      };
-
-      const results = Array.isArray(response.responseJson.results) ? response.responseJson.results as MultiSearchItem[] : [];
-      const suggestions: SearchSuggestionItem[] = [];
-
-      for (const item of results) {
-        const mediaType = item.media_type;
-        if (mediaType !== 'movie' && mediaType !== 'tv') {
-          continue;
-        }
-        if (filter === 'movies' && mediaType !== 'movie') continue;
-        if (filter === 'series' && mediaType !== 'tv') continue;
-        if (filter === 'people') continue;
-
-        const tmdbId = typeof item.id === 'number' ? item.id : null;
-        if (!tmdbId) continue;
-
-        const title = toNullableString(item.title) ?? toNullableString(item.name) ?? '';
-        if (!title) continue;
-
-        const dateStr = mediaType === 'movie'
-          ? toNullableString(item.release_date)
-          : toNullableString(item.first_air_date);
-        const year = dateStr ? new Date(dateStr).getFullYear() : null;
-
-        suggestions.push({
-          tmdbId,
-          mediaType,
-          title,
-          year,
-          posterPath: toNullableString(item.poster_path),
-          popularity: typeof item.popularity === 'number' ? item.popularity : 0,
-          overview: toNullableString(item.overview),
-        });
-      }
-
-      suggestions.sort((a, b) => b.popularity - a.popularity);
-      return suggestions.slice(0, limit);
-    } finally {
-      client.release();
-    }
-  }
-
-  async discoverTitlesByGenre(params: {
+  async discoverTitlesByGenre(client: DbClient, params: {
       movieGenreId?: number | null;
       tvGenreId?: number | null;
       filter: MetadataSearchFilter;
       limit: number;
     }): Promise<TmdbTitleRecord[]> {
-    const client = await (await import('../../../lib/db.js')).db.connect();
-    try {
-      const requestedTypes: Array<{ mediaType: TmdbTitleType; genreId: number }> = [];
-      if ((params.filter === 'movies' || params.filter === 'all') && params.movieGenreId) {
-        requestedTypes.push({ mediaType: 'movie', genreId: params.movieGenreId });
-      }
-
-      const payloads = await Promise.all(
-        requestedTypes.map(({ mediaType, genreId }) =>
-          this.responseCache.getOrFetch(
-            client,
-            {
-              resourceType: 'discover',
-              resourceId: null,
-              variant: 'genre',
-              language: null,
-              requestPath: `/discover/${mediaType}`,
-              requestQuery: { with_genres: genreId, page: 1, sort_by: 'popularity.desc', include_adult: 'false' },
-            },
-            'search',
-            () => this.tmdbClient.request(`/discover/${mediaType}`, { with_genres: genreId, page: 1, sort_by: 'popularity.desc', include_adult: 'false' }),
-          ),
-        ),
-      );
-
-      const records = payloads.flatMap((response, index) => {
-        if (response.isNegative || response.statusCode === 404) {
-          return [];
-        }
-        const mediaType = requestedTypes[index]?.mediaType;
-        if (!mediaType) {
-          return [];
-        }
-        const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as SearchPayloadItem[] : [];
-        return items
-          .map((item) => toSearchTitleRecord(mediaType, item))
-          .filter((item): item is TmdbTitleRecord => item !== null);
-      });
-
-      return sortDiscoverResults(dedupeTitles(records)).slice(0, params.limit);
-    } finally {
-      client.release();
+    const requestedTypes: Array<{ mediaType: TmdbTitleType; genreId: number }> = [];
+    if ((params.filter === 'movies' || params.filter === 'all') && params.movieGenreId) {
+      requestedTypes.push({ mediaType: 'movie', genreId: params.movieGenreId });
     }
+
+    const payloads = await Promise.all(
+      requestedTypes.map(({ mediaType, genreId }) =>
+        this.responseCache.getOrFetch(
+          client,
+          {
+            resourceType: 'discover',
+            resourceId: null,
+            variant: 'genre',
+            language: null,
+            requestPath: `/discover/${mediaType}`,
+            requestQuery: { with_genres: genreId, page: 1, sort_by: 'popularity.desc', include_adult: 'false' },
+          },
+          'search',
+          () => this.tmdbClient.request(`/discover/${mediaType}`, { with_genres: genreId, page: 1, sort_by: 'popularity.desc', include_adult: 'false' }),
+        ),
+      ),
+    );
+
+    const records = payloads.flatMap((response, index) => {
+      if (response.isNegative || response.statusCode === 404) {
+        return [];
+      }
+      const mediaType = requestedTypes[index]?.mediaType;
+      if (!mediaType) {
+        return [];
+      }
+      const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as SearchPayloadItem[] : [];
+      return items
+        .map((item) => toSearchTitleRecord(mediaType, item))
+        .filter((item): item is TmdbTitleRecord => item !== null);
+    });
+
+    return sortDiscoverResults(dedupeTitles(records)).slice(0, params.limit);
   }
 }

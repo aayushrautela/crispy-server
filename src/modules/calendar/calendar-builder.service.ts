@@ -8,6 +8,7 @@ import type { CalendarItem } from '../watch/watch-read.types.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BUILD_CONCURRENCY = 4;
 
 type Candidate = {
   showMediaKey: string;
@@ -25,66 +26,71 @@ export class CalendarBuilderService {
     const items: CalendarItem[] = [];
     const nowMs = Date.now();
 
-    for (const candidate of candidates) {
-      if (items.length >= limit) {
-        break;
-      }
+    for (let i = 0; i < candidates.length && items.length < limit; i += BUILD_CONCURRENCY) {
+      const batch = candidates.slice(i, i + BUILD_CONCURRENCY);
+      const batchResults = await Promise.all(batch.map(async (candidate) => {
+        const showIdentity = safeParseMediaKey(candidate.showMediaKey);
+        if (!showIdentity) {
+          return null;
+        }
 
-      const showIdentity = safeParseMediaKey(candidate.showMediaKey);
-      if (!showIdentity) {
-        continue;
-      }
+        const nextEpisode = await this.metadataProjectionService.resolveNextEpisode(client, showIdentity).catch(() => null);
+        const showCard = await this.metadataCardService.buildCardView(client, showIdentity).catch(() => null);
+        if (!showCard || !showCard.title) {
+          return null;
+        }
 
-      const nextEpisode = await this.metadataProjectionService.resolveNextEpisode(client, showIdentity).catch(() => null);
-      const showCard = await this.metadataCardService.buildCardView(client, showIdentity).catch(() => null);
-      if (!showCard || !showCard.title) {
-        continue;
-      }
+        const episodeIdentity = nextEpisode ? safeParseMediaKey(nextEpisode.mediaKey) : null;
+        const watched = nextEpisode?.mediaKey
+          ? await this.isWatched(profileId, nextEpisode.mediaKey)
+          : false;
+        const mediaCard = episodeIdentity
+          ? await this.metadataCardService.buildCardView(client, episodeIdentity).catch(() => null)
+          : showCard;
+        if (!mediaCard || !mediaCard.title) {
+          return null;
+        }
 
-      const episodeIdentity = nextEpisode ? safeParseMediaKey(nextEpisode.mediaKey) : null;
-      const watched = nextEpisode?.mediaKey
-        ? await this.isWatched(profileId, nextEpisode.mediaKey)
-        : false;
-      const mediaCard = episodeIdentity
-        ? await this.metadataCardService.buildCardView(client, episodeIdentity).catch(() => null)
-        : showCard;
-      if (!mediaCard || !mediaCard.title) {
-        continue;
-      }
+        const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
+        const poster = mediaCard.images.poster ?? showCard.images.poster;
+        const backdrop = mediaCard.images.still
+          ?? mediaCard.images.backdrop
+          ?? showCard.images.backdrop
+          ?? poster;
 
-      const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
-      const poster = mediaCard.images.poster ?? showCard.images.poster;
-      const backdrop = mediaCard.images.still
-        ?? mediaCard.images.backdrop
-        ?? showCard.images.backdrop
-        ?? poster;
+        const mediaItem = metadataCardToMediaItem(mediaCard, {
+          images: {
+            poster,
+            backdrop,
+            logo: mediaCard.images.logo,
+            still: mediaCard.images.still,
+          },
+          airDate: nextEpisode?.airDate ?? null,
+          episodeTitle: mediaCard.title,
+        });
+        const relatedShowMediaItem = metadataCardToMediaItem(showCard);
 
-      const mediaItem = metadataCardToMediaItem(mediaCard, {
-        images: {
-          poster,
-          backdrop,
-          logo: mediaCard.images.logo,
-          still: mediaCard.images.still,
-        },
-        airDate: nextEpisode?.airDate ?? null,
-        episodeTitle: mediaCard.title,
-      });
-      const relatedShowMediaItem = metadataCardToMediaItem(showCard);
-
-      items.push({
-        bucket,
-        kind: 'calendar_item',
-        mediaItem,
-        context: {
+        return {
           bucket,
+          kind: 'calendar_item' as const,
+          mediaItem,
+          context: {
+            bucket,
+            airDate: nextEpisode?.airDate ?? null,
+            watched,
+            relatedShow: relatedShowMediaItem,
+          },
+          presentation: { preferredSize: 'wide' as const, sectionId: null, sectionTitle: null },
           airDate: nextEpisode?.airDate ?? null,
           watched,
-          relatedShow: relatedShowMediaItem,
-        },
-        presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-        airDate: nextEpisode?.airDate ?? null,
-        watched,
-      });
+        };
+      }));
+
+      for (const result of batchResults) {
+        if (result && items.length < limit) {
+          items.push(result);
+        }
+      }
     }
 
     return items;

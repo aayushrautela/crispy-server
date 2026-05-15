@@ -198,22 +198,10 @@ export class ContentIdentityService {
       return [];
     }
 
+    const records = await this.repository.ensureProviderRefs(client, requested);
     const resolved = new Map<string, ContentProviderRefRecord>();
-    const initial = await this.repository.ensureProviderRefs(client, requested);
-    for (const record of initial) {
+    for (const record of records) {
       resolved.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
-    }
-
-    const missing = requested.filter((ref) => !resolved.has(providerRefKey(ref.provider, ref.entityType, ref.externalId)));
-    for (const ref of missing) {
-      try {
-        const [record] = await this.repository.ensureProviderRefs(client, [ref]);
-        if (record?.contentId) {
-          resolved.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
-        }
-      } catch {
-        continue;
-      }
     }
 
     return requested.flatMap((ref) => {

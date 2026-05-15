@@ -63,7 +63,7 @@ test('getTitle returns cached detail record when fresh and level matches', async
     } as never,
   );
 
-  const result = await service.getTitle({} as never, 'tv', 42, 'detail');
+  const result = await service.getTitle({} as never, 'tv', 42);
   assert.equal(result?.name, 'Cached Show');
 });
 
@@ -101,7 +101,7 @@ test('getTitle refreshes stale derived title from response cache', async () => {
     } as never,
   );
 
-  const result = await service.getTitle({} as never, 'tv', 42, 'detail');
+  const result = await service.getTitle({} as never, 'tv', 42);
   assert.equal(result?.name, 'Upgraded Show');
   assert.equal((upserted as ReturnType<typeof makeTitle> | null)?.name, 'Upgraded Show');
 });
@@ -143,7 +143,7 @@ test('getTitle fetches from API when not cached', async () => {
     } as never,
   );
 
-  const result = await service.getTitle({} as never, 'tv', 42, 'detail');
+  const result = await service.getTitle({} as never, 'tv', 42);
   assert.equal(requestCalls, 1);
   assert.equal(result?.name, 'Fresh Show');
 });
@@ -191,6 +191,6 @@ test('getTitle returns null on 404 from API', async () => {
     } as never,
   );
 
-  const result = await service.getTitle({} as never, 'tv', 999, 'detail');
+  const result = await service.getTitle({} as never, 'tv', 999);
   assert.equal(result, null);
 });

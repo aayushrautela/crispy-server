@@ -302,11 +302,9 @@ export class TmdbResponseCacheService {
   }
 
   private scheduleRefresh(cacheKey: string, spec: TmdbCacheSpec, policyKey: string): void {
-    setTimeout(() => {
-      this.enqueueRefreshJob(cacheKey, spec, policyKey).catch((error) => {
-        console.error(`Failed to schedule refresh for ${cacheKey}:`, error);
-      });
-    }, 1000);
+    this.enqueueRefreshJob(cacheKey, spec, policyKey).catch((error) => {
+      console.error(`Failed to schedule refresh for ${cacheKey}:`, error);
+    });
   }
 
   private async enqueueRefreshJob(cacheKey: string, spec: TmdbCacheSpec, policyKey: string): Promise<void> {

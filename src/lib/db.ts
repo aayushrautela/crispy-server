@@ -7,7 +7,7 @@ types.setTypeParser(1082, (value) => value);
 
 export const db = new Pool({
   connectionString: env.databaseUrl,
-  max: 10,
+  max: env.databasePoolMax,
 });
 
 export type DbClient = pg.PoolClient;

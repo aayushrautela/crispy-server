@@ -18,7 +18,7 @@ function createStubRepository(options?: {
         externalId: ref.externalId,
       })));
 
-      const shouldSkipBatch = refs.length > 1
+      const shouldSkipBatch = (refs.length > 1 || options?.skipBatchResults)
         && (options?.skipBatchResults
           || refs.some((ref) => options?.skipBatchEntityTypes?.includes(ref.entityType)));
       if (shouldSkipBatch) {
@@ -44,8 +44,8 @@ function createStubRepository(options?: {
   };
 }
 
-test('ensureContentIds falls back to individual materialization when batch misses refs', async () => {
-  const { repository, calls } = createStubRepository({ skipBatchResults: true });
+test('ensureContentIds resolves all content ids in a single batch call', async () => {
+  const { repository, calls } = createStubRepository();
   const service = new ContentIdentityService(repository as never);
 
   const identities = [
@@ -62,13 +62,11 @@ test('ensureContentIds falls back to individual materialization when batch misse
       { provider: 'tmdb', entityType: 'movie', externalId: '77' },
       { provider: 'tmdb', entityType: 'show', externalId: '88' },
     ],
-    [{ provider: 'tmdb', entityType: 'movie', externalId: '77' }],
-    [{ provider: 'tmdb', entityType: 'show', externalId: '88' }],
   ]);
 });
 
-test('ensureTitleContentIds falls back to individual materialization when batch misses refs', async () => {
-  const { repository, calls } = createStubRepository({ skipBatchEntityTypes: ['movie', 'show'] });
+test('ensureTitleContentIds resolves all content ids in a single batch call', async () => {
+  const { repository, calls } = createStubRepository();
   const service = new ContentIdentityService(repository as never);
 
   const contentIds = await service.ensureTitleContentIds({} as never, [
@@ -83,13 +81,11 @@ test('ensureTitleContentIds falls back to individual materialization when batch 
       { provider: 'tmdb', entityType: 'movie', externalId: '77' },
       { provider: 'tmdb', entityType: 'show', externalId: '88' },
     ],
-    [{ provider: 'tmdb', entityType: 'movie', externalId: '77' }],
-    [{ provider: 'tmdb', entityType: 'show', externalId: '88' }],
   ]);
 });
 
-test('ensureEpisodeContentIds falls back to individual materialization when batch misses refs', async () => {
-  const { repository, calls } = createStubRepository({ skipBatchEntityTypes: ['episode'] });
+test('ensureEpisodeContentIds resolves all content ids in a single batch call', async () => {
+  const { repository, calls } = createStubRepository();
   const service = new ContentIdentityService(repository as never);
 
   const contentIds = await service.ensureEpisodeContentIds({} as never, [
@@ -104,13 +100,11 @@ test('ensureEpisodeContentIds falls back to individual materialization when batc
       { provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e2' },
       { provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e3' },
     ],
-    [{ provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e2' }],
-    [{ provider: 'tmdb', entityType: 'episode', externalId: '44:s1:e3' }],
   ]);
 });
 
-test('ensureSeasonContentIds falls back to individual materialization when batch misses refs', async () => {
-  const { repository, calls } = createStubRepository({ skipBatchEntityTypes: ['season'] });
+test('ensureSeasonContentIds resolves all content ids in a single batch call', async () => {
+  const { repository, calls } = createStubRepository();
   const service = new ContentIdentityService(repository as never);
 
   const contentIds = await service.ensureSeasonContentIds({} as never, {
@@ -126,7 +120,18 @@ test('ensureSeasonContentIds falls back to individual materialization when batch
       { provider: 'tmdb', entityType: 'season', externalId: '44:s1' },
       { provider: 'tmdb', entityType: 'season', externalId: '44:s2' },
     ],
-    [{ provider: 'tmdb', entityType: 'season', externalId: '44:s1' }],
-    [{ provider: 'tmdb', entityType: 'season', externalId: '44:s2' }],
   ]);
+});
+
+test('ensureContentIds returns empty map when batch returns no results', async () => {
+  const { repository } = createStubRepository({ skipBatchResults: true, skipBatchEntityTypes: ['movie'] });
+  const service = new ContentIdentityService(repository as never);
+
+  const identities = [
+    inferMediaIdentity({ mediaType: 'movie', tmdbId: 77 }),
+  ];
+
+  const contentIds = await service.ensureContentIds({} as never, identities);
+  assert.equal(contentIds.has('movie:tmdb:77'), false);
+  assert.equal(contentIds.size, 0);
 });

@@ -185,6 +185,35 @@ export class TmdbRepository {
     return result.rows[0] ? mapEpisode(result.rows[0]) : null;
   }
 
+  async getTitles(client: DbClient, requests: Array<{ mediaType: TmdbTitleType; tmdbId: number }>, language: string): Promise<Map<string, TmdbTitleRecord>> {
+    if (!requests.length) {
+      return new Map();
+    }
+
+    const values: unknown[] = [];
+    const conditions = requests.map((req, i) => {
+      const base = i * 3;
+      values.push(req.mediaType, req.tmdbId, language);
+      return `(media_type = $${base + 1}::text AND tmdb_id = $${base + 2}::integer AND language = $${base + 3}::text)`;
+    });
+
+    const result = await client.query(
+      `SELECT media_type, tmdb_id, language, name, original_name, overview, release_date, first_air_date, status,
+              poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
+              external_ids, raw, fetched_at, expires_at
+       FROM tmdb_titles
+       WHERE ${conditions.join(' OR ')}`,
+      values,
+    );
+
+    const map = new Map<string, TmdbTitleRecord>();
+    for (const row of result.rows) {
+      const record = mapTitle(row);
+      map.set(`${record.mediaType}:${record.tmdbId}`, record);
+    }
+    return map;
+  }
+
   async replaceSeasonEpisodes(client: DbClient, params: {
     showTmdbId: number;
     seasonNumber: number;
@@ -231,30 +260,25 @@ export class TmdbRepository {
 
     await client.query(`DELETE FROM tmdb_tv_episodes WHERE show_tmdb_id = $1 AND season_number = $2`, [params.showTmdbId, params.seasonNumber]);
 
-    for (const episode of params.episodes) {
+    if (params.episodes.length > 0) {
+      const values: unknown[] = [];
+      const tuples = params.episodes.map((episode, index) => {
+        const base = index * 13;
+        values.push(
+          episode.showTmdbId, episode.seasonNumber, episode.episodeNumber,
+          episode.tmdbId, episode.name, episode.overview, episode.airDate,
+          episode.runtime, episode.stillPath, episode.voteAverage,
+          JSON.stringify(episode.raw), episode.fetchedAt, episode.expiresAt,
+        );
+        return `($${base + 1}::integer, $${base + 2}::integer, $${base + 3}::integer, $${base + 4}::integer, $${base + 5}::text, $${base + 6}::text, $${base + 7}::date, $${base + 8}::integer, $${base + 9}::text, $${base + 10}::numeric, $${base + 11}::jsonb, $${base + 12}::timestamptz, $${base + 13}::timestamptz)`;
+      });
+
       await client.query(
-        `
-          INSERT INTO tmdb_tv_episodes (
-            show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
-            runtime, still_path, vote_average, raw, fetched_at, expires_at
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, $11::jsonb, $12::timestamptz, $13::timestamptz)
-        `,
-        [
-          episode.showTmdbId,
-          episode.seasonNumber,
-          episode.episodeNumber,
-          episode.tmdbId,
-          episode.name,
-          episode.overview,
-          episode.airDate,
-          episode.runtime,
-          episode.stillPath,
-          episode.voteAverage,
-          JSON.stringify(episode.raw),
-          episode.fetchedAt,
-          episode.expiresAt,
-        ],
+        `INSERT INTO tmdb_tv_episodes (
+          show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
+          runtime, still_path, vote_average, raw, fetched_at, expires_at
+        ) VALUES ${tuples.join(', ')}`,
+        values,
       );
     }
   }

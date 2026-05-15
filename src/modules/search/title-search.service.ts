@@ -78,18 +78,18 @@ export class TitleSearchService {
     return this.requestCoalescer.run(requestKey, () => withDbClient(async (client) => {
       const tmdbMatches = shouldQueryTmdb(normalizedFilter)
         ? genreMapping
-          ? await this.tmdbCacheService.discoverTitlesByGenre({
+          ? await this.tmdbCacheService.discoverTitlesByGenre(client, {
               movieGenreId: genreMapping.movieGenreId,
               tvGenreId: genreMapping.tvGenreId,
               filter: normalizedFilter,
               limit,
             })
-          : await this.tmdbCacheService.searchTitles(normalizedQuery, limit, mediaTypes, locale, input.signal)
+          : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit, mediaTypes, locale, input.signal)
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
 
       const peopleMatches = shouldSearchPeople(normalizedFilter) && normalizedQuery
-        ? await this.tmdbCacheService.searchPeople(normalizedQuery, limit)
+        ? await this.tmdbCacheService.searchPeople(client, normalizedQuery, limit)
         : [];
 
       const tmdbIdentities = filteredTmdbMatches.map((match) => inferMediaIdentity({
@@ -98,6 +98,13 @@ export class TitleSearchService {
       }));
 
       const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
+
+      const hydratedMap = await this.tmdbCacheService.getTitles(
+        client,
+        filteredTmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })),
+        locale,
+        input.signal,
+      );
 
       const tmdbItems = await mapWithConcurrency(filteredTmdbMatches, HYDRATION_CONCURRENCY, async (match: TmdbTitleRecord) => {
         if (input.signal?.aborted) {
@@ -112,7 +119,7 @@ export class TitleSearchService {
           return null;
         }
 
-        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, locale, undefined, input.signal);
+        const hydrated = hydratedMap.get(`${match.mediaType}:${match.tmdbId}`);
         if (!hydrated) {
           return null;
         }
@@ -156,7 +163,7 @@ export class TitleSearchService {
     const mediaTypes: TmdbTitleType[] = input.mediaType ? [input.mediaType] : ['movie', 'tv'];
 
     return withDbClient(async (client) => {
-      const rawMatches = await this.tmdbCacheService.searchTitles(normalizedQuery, 3, mediaTypes, locale, input.signal);
+      const rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, 3, mediaTypes, locale, input.signal);
       if (rawMatches.length === 0) {
         return null;
       }
@@ -175,7 +182,7 @@ export class TitleSearchService {
         return null;
       }
 
-      const hydrated = await this.tmdbCacheService.getTitle(client, best.mediaType, best.tmdbId, locale, undefined, input.signal);
+      const hydrated = await this.tmdbCacheService.getTitle(client, best.mediaType, best.tmdbId, locale, input.signal);
       if (!hydrated) {
         return null;
       }
@@ -207,7 +214,9 @@ export class TitleSearchService {
     const suggestionKey = [normalizedQuery, normalizedFilter, locale ?? '', String(limit)].join('|');
 
     return this.suggestionCoalescer.run(suggestionKey, () =>
-      this.tmdbCacheService.searchSuggestions(normalizedQuery, limit, normalizedFilter, locale),
+      withDbClient((client) =>
+        this.tmdbCacheService.searchSuggestions(client, normalizedQuery, limit, normalizedFilter, locale),
+      ),
     );
   }
 }

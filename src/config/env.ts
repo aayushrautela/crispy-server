@@ -94,6 +94,7 @@ export const env = {
   adminUiPassword: optionalEnv('ADMIN_UI_PASSWORD') ?? '',
   adminUiSessionSecret: optionalEnv('ADMIN_UI_SESSION_SECRET') ?? '',
   databaseUrl: requireEnv('DATABASE_URL'),
+  databasePoolMax: parseNumber('DATABASE_POOL_MAX', 20),
   redisUrl: requireEnv('REDIS_URL'),
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
