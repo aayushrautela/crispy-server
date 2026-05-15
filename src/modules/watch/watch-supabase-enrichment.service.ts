@@ -26,8 +26,9 @@ export class WatchSupabaseEnrichmentService {
   async enrichContinueWatchingItems(
     client: DbClient,
     items: ContinueWatchingProductItem[],
+    language?: string | null,
   ): Promise<ContinueWatchingProductItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey));
+    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey), language);
     return items.map((item) => {
       const record = records.get(item.mediaItem.mediaKey);
       if (!record) {
@@ -40,8 +41,8 @@ export class WatchSupabaseEnrichmentService {
     });
   }
 
-  async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[]): Promise<TItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey));
+  async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[], language?: string | null): Promise<TItem[]> {
+    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey), language);
     return items.map((item) => {
       const record = records.get(item.mediaItem.mediaKey);
       if (!record) {
@@ -54,18 +55,18 @@ export class WatchSupabaseEnrichmentService {
     });
   }
 
-  private async loadRecords(client: DbClient, mediaKeys: string[]): Promise<Map<string, WatchMediaCardCacheRecord>> {
+  private async loadRecords(client: DbClient, mediaKeys: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {
     const uniqueMediaKeys = [...new Set(mediaKeys.filter((mediaKey) => mediaKey.trim()))];
     if (!uniqueMediaKeys.length) {
       return new Map();
     }
 
-    const records = await this.watchMediaCardCacheService.listCardCacheRecords(client, uniqueMediaKeys);
+    const records = await this.watchMediaCardCacheService.listCardCacheRecords(client, uniqueMediaKeys, language);
     const missingCount = uniqueMediaKeys.length - records.size;
     if (missingCount > 0) {
       const missingKeys = uniqueMediaKeys.filter((key) => !records.has(key));
       logger.debug({ requestedCount: uniqueMediaKeys.length, hitCount: records.size, missingCount }, 'watch supabase metadata cache misses');
-      const refreshedRecords = await this.cacheMissRefreshService.refreshMissingCardsAndReturnRecords(client, missingKeys);
+      const refreshedRecords = await this.cacheMissRefreshService.refreshMissingCardsAndReturnRecords(client, missingKeys, language);
       for (const [key, record] of refreshedRecords.entries()) {
         records.set(key, record);
       }

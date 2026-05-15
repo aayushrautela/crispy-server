@@ -10,18 +10,18 @@ export class WatchCacheMissRefreshService {
     private readonly cacheService = new WatchMediaCardCacheService(),
   ) {}
 
-  async refreshMissingCards(client: DbClient, missingMediaKeys: string[]): Promise<void> {
-    await this.refreshMissingCardsAndReturnRecords(client, missingMediaKeys);
+  async refreshMissingCards(client: DbClient, missingMediaKeys: string[], language?: string | null): Promise<void> {
+    await this.refreshMissingCardsAndReturnRecords(client, missingMediaKeys, language);
   }
 
-  async refreshMissingCardsAndReturnRecords(client: DbClient, missingMediaKeys: string[]): Promise<Map<string, import('./watch-media-card-cache.repo.js').WatchMediaCardCacheRecord>> {
+  async refreshMissingCardsAndReturnRecords(client: DbClient, missingMediaKeys: string[], language?: string | null): Promise<Map<string, import('./watch-media-card-cache.repo.js').WatchMediaCardCacheRecord>> {
     if (!missingMediaKeys.length) {
       return new Map();
     }
 
     const identities = missingMediaKeys.map((key) => parseMediaKey(key));
     const projections = await Promise.allSettled(
-      identities.map((identity) => this.projectionService.buildWatchProjection(client, identity)),
+      identities.map((identity) => this.projectionService.buildWatchProjection(client, identity, language)),
     );
 
     let refreshed = 0;
@@ -37,7 +37,7 @@ export class WatchCacheMissRefreshService {
 
       if (result.status === 'fulfilled') {
         try {
-          await this.cacheService.upsertFromProjection(client, identity, result.value);
+          await this.cacheService.upsertFromProjection(client, identity, result.value, language);
           refreshed++;
         } catch (error) {
           logger.warn({ error, mediaKey: identity.mediaKey }, 'failed to cache projection');

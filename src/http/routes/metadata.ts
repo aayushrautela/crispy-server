@@ -29,6 +29,7 @@ import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detai
 import type { SupportedMediaType } from '../../modules/identity/media-key.js';
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
 import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-batch.service.js';
+import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { success } from '../response.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
@@ -40,10 +41,14 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const personDetailService = new PersonDetailService();
   const playbackResolveService = new PlaybackResolveService();
   const metadataCardBatchService = new MetadataCardBatchService();
+  const metadataLanguageService = new MetadataLanguageService();
 
   app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
+
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
 
     return success(await metadataDetailService.resolve({
       mediaKey: asUndefinedString(query.mediaKey),
@@ -52,7 +57,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalNumber(query.seasonNumber),
       episodeNumber: parseOptionalNumber(query.episodeNumber),
-      language: asOptionalString(query.language),
+      language,
     }));
   });
 
@@ -60,14 +65,18 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return success(await metadataDetailService.getTitleDetailById(params.mediaKey, asOptionalString(query.language)));
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
+    return success(await metadataDetailService.getTitleDetailById(params.mediaKey, language));
   });
 
   app.get('/v1/metadata/titles/:mediaKey/extras', { schema: metadataTitleExtrasRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataTitleParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return success(await metadataTitleExtrasService.getTitleExtras(params.mediaKey, asOptionalString(query.language)));
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
+    return success(await metadataTitleExtrasService.getTitleExtras(params.mediaKey, language));
   });
 
   app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/reviews', { schema: metadataTitleReviewsRouteSchema }, async (request) => {
@@ -75,7 +84,8 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const params = request.params as { profileId: string; mediaKey: string };
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return success(await metadataReviewsService.getTitleReviews(actor.appUserId, params.profileId, params.mediaKey, asOptionalString(query.language)));
+    const language = await metadataLanguageService.resolveForProfile(params.profileId, actor.appUserId, asOptionalString(query.language));
+    return success(await metadataReviewsService.getTitleReviews(actor.appUserId, params.profileId, params.mediaKey, language));
   });
 
   app.get('/v1/profiles/:profileId/metadata/titles/:mediaKey/ratings', { schema: metadataTitleRatingsRouteSchema }, async (request) => {
@@ -89,12 +99,16 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const params = request.params as MetadataPersonParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
-    return success(await personDetailService.getPersonDetail(params.id, asOptionalString(query.language)));
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
+    return success(await personDetailService.getPersonDetail(params.id, language));
   });
 
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const query = (request.query ?? {}) as MetadataResolveQuery;
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
     return success(await playbackResolveService.resolvePlayback({
       mediaKey: asUndefinedString(query.mediaKey),
       tmdbId: parseOptionalPositiveNumber(query.tmdbId, 'tmdbId'),
@@ -102,7 +116,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       mediaType: parseSupportedMediaType(query.mediaType),
       seasonNumber: parseOptionalPositiveNumber(query.seasonNumber, 'seasonNumber'),
       episodeNumber: parseOptionalPositiveNumber(query.episodeNumber, 'episodeNumber'),
-      language: asOptionalString(query.language),
+      language,
     }));
   });
 
@@ -113,7 +127,11 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const genre = asOptionalString(query.genre);
     const filter = parseSearchFilter(query.filter);
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 20, 1, 50);
-    return success(await titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit }));
+    const locale = await metadataLanguageService.resolveForAccount(
+      (app.requireUserActor(request) as { appUserId: string }).appUserId,
+      asOptionalString(query.locale),
+    );
+    return success(await titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit, locale }));
   });
 
   app.get('/v1/search/suggestions', { schema: searchSuggestionsRouteSchema }, async (request) => {
@@ -122,7 +140,10 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const searchQuery = asOptionalString(query.query) ?? '';
     const filter = parseSearchFilter(query.filter);
     const limit = clampLimit(parseOptionalNumber(query.limit) ?? 8, 1, 10);
-    const locale = asOptionalString(query.locale);
+    const locale = await metadataLanguageService.resolveForAccount(
+      (app.requireUserActor(request) as { appUserId: string }).appUserId,
+      asOptionalString(query.locale),
+    );
     return success({ suggestions: await titleSearchService.suggestTitles({ query: searchQuery, filter, limit, locale }) });
   });
 
@@ -130,9 +151,11 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     await app.requireAuth(request);
     const body = (request.body ?? {}) as MetadataCardsBatchBody;
 
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(body.language));
     return success(await metadataCardBatchService.hydrate({
       mediaKeys: body.mediaKeys ?? [],
-      language: asOptionalString(body.language),
+      language,
     }));
   });
 }

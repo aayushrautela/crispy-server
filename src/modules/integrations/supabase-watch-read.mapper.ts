@@ -189,6 +189,7 @@ function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides
     backdropColor: null,
     maturityRating: null,
     genres: [],
+    language: 'en',
   }, overrides);
 }
 

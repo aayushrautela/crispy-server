@@ -72,6 +72,7 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
       rating: 8.5,
       maturityRating: 'PG-13',
       genres: ['Action'],
+      language: 'en',
     }],
   ]);
 
@@ -154,6 +155,7 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
       rating: 9.1,
       maturityRating: null,
       genres: ['Drama'],
+      language: 'en',
     }],
   ]);
 
@@ -283,6 +285,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       rating: 7.5,
       maturityRating: null,
       genres: ['Comedy'],
+      language: 'en',
     }],
   ]);
 

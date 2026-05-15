@@ -20,6 +20,7 @@ export class MetadataCardService {
       identity,
       title: source.tmdbTitle,
       currentEpisode: source.tmdbCurrentEpisode,
+      language: language ?? null,
     });
   }
 
@@ -51,6 +52,7 @@ export class MetadataCardService {
       subtitleOverride: identity.mediaType === 'episode'
         ? rowSubtitle ?? buildEpisodeSubtitle(identity.seasonNumber, identity.episodeNumber)
         : rowSubtitle,
+      language: null,
     });
   }
 

@@ -10,7 +10,7 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
   const view = buildMetadataCardView({
     identity: { mediaKey: 'episode:tmdb:42:1:2', mediaType: 'episode', tmdbId: null, showTmdbId: 42, seasonNumber: 1, episodeNumber: 2 },
     title: {
-      mediaType: 'tv', tmdbId: 42, name: 'Breaking Point', originalName: 'Breaking Point',
+      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Breaking Point', originalName: 'Breaking Point',
       overview: 'A thrilling drama.', releaseDate: null, firstAirDate: '2024-01-01',
       status: 'Returning Series', posterPath: '/poster.jpg', backdropPath: '/backdrop.jpg',
       runtime: null, episodeRunTime: [45], numberOfSeasons: 3, numberOfEpisodes: 30,
@@ -38,7 +38,7 @@ test('buildEpisodePreview produces provider-based payload', async () => {
 
   const preview = buildEpisodePreview(
     {
-      mediaType: 'tv', tmdbId: 42, name: 'Test Show', originalName: 'Test Show',
+      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Test Show', originalName: 'Test Show',
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: {},

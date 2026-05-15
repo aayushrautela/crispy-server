@@ -26,11 +26,13 @@ import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
+import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { mutation, success } from '../response.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const supabaseUserWatchService = new SupabaseUserWatchService();
   const watchSupabaseEnrichmentService = new WatchSupabaseEnrichmentService();
+  const metadataLanguageService = new MetadataLanguageService();
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
@@ -64,6 +66,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const generatedAt = nowIso();
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await supabaseUserWatchService.listContinueWatchingPage({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
@@ -72,7 +75,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, page.items),
+        watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -106,6 +109,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await supabaseUserWatchService.listHistoryPage({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
@@ -114,7 +118,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -134,6 +138,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await supabaseUserWatchService.listWatchlistPage({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
@@ -142,7 +147,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -162,6 +167,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await supabaseUserWatchService.listRatingsPage({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
@@ -170,7 +176,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items),
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -188,13 +194,14 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchStateLookupContract;
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const item = await supabaseUserWatchService.getState({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
       mediaKeys: [mapStateLookupInput(query).mediaKey],
     });
     const enrichedItem = await withDbClient((client) =>
-      watchSupabaseEnrichmentService.enrichRegularMediaItems(client, [item]),
+      watchSupabaseEnrichmentService.enrichRegularMediaItems(client, [item], language),
     );
     return success({
       profileId,
@@ -211,6 +218,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const body = (request.body ?? {}) as WatchStateBatchBody;
     const items = Array.isArray(body.items) ? body.items : [];
 
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const stateItems = await supabaseUserWatchService.getStates({
       accessToken: requireSupabaseAccessToken(actor),
       profileId,
@@ -218,7 +226,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = stateItems.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, stateItems),
+        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, stateItems, language),
       )
       : stateItems;
     return success({

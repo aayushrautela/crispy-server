@@ -4,6 +4,7 @@ export type TmdbHydrationLevel = 'summary' | 'detail';
 export type TmdbTitleRecord = {
   mediaType: TmdbTitleType;
   tmdbId: number;
+  language: string;
   name: string | null;
   originalName: string | null;
   overview: string | null;

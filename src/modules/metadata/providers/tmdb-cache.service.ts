@@ -1,6 +1,7 @@
 import { appConfig } from '../../../config/app-config.js';
 import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
+import { buildTmdbIncludeImageLanguage, normalizeMetadataLanguage, toTmdbLanguageQuery } from '../metadata-language.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
 import { TmdbResponseCacheService } from './tmdb-response-cache.service.js';
@@ -57,16 +58,18 @@ function searchPopularity(item: SearchPayloadItem): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function toSearchTitleRecord(mediaType: TmdbTitleType, item: SearchPayloadItem): TmdbTitleRecord | null {
+function toSearchTitleRecord(mediaType: TmdbTitleType, item: SearchPayloadItem, language?: string): TmdbTitleRecord | null {
   const tmdbId = typeof item?.id === 'number' ? item.id : null;
   if (!tmdbId) {
     return null;
   }
 
   const now = new Date().toISOString();
+  const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
   return {
     mediaType,
     tmdbId,
+    language: effectiveLanguage,
     name: toNullableString(item.title) ?? toNullableString(item.name),
     originalName: toNullableString(item.original_title) ?? toNullableString(item.original_name),
     overview: toNullableString(item.overview),
@@ -173,8 +176,9 @@ export class TmdbCacheService {
     private readonly responseCache = new TmdbResponseCacheService(),
   ) {}
 
-  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, _level?: string, signal?: AbortSignal): Promise<TmdbTitleRecord | null> {
-    const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId);
+  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null, _level?: string, signal?: AbortSignal): Promise<TmdbTitleRecord | null> {
+    const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
+    const cached = await this.tmdbRepository.getTitle(client, mediaType, tmdbId, effectiveLanguage);
     if (cached && Date.parse(cached.expiresAt) > Date.now()) {
       return cached;
     }
@@ -183,6 +187,7 @@ export class TmdbCacheService {
     const appendToResponse = mediaType === 'movie'
       ? 'images,release_dates,videos,credits,external_ids'
       : 'images,content_ratings,videos,credits,external_ids';
+    const includeImageLanguage = buildTmdbIncludeImageLanguage(effectiveLanguage);
 
     const response = await this.responseCache.getOrFetch(
       client,
@@ -190,12 +195,12 @@ export class TmdbCacheService {
         resourceType: 'title',
         resourceId: `${mediaType}:${tmdbId}`,
         variant: 'detail',
-        language: null,
+        language: effectiveLanguage,
         requestPath: `/${mediaType}/${tmdbId}`,
-        requestQuery: { append_to_response: appendToResponse, include_image_language: 'null,en' },
+        requestQuery: { append_to_response: appendToResponse, include_image_language: includeImageLanguage, language: toTmdbLanguageQuery(effectiveLanguage) },
       },
       policyKey,
-      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: 'null,en' }, signal),
+      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: includeImageLanguage, language: toTmdbLanguageQuery(effectiveLanguage) }, signal),
     );
 
     if (response.isNegative || response.statusCode === 404) {
@@ -208,6 +213,7 @@ export class TmdbCacheService {
     const record: TmdbTitleRecord = {
       mediaType,
       tmdbId,
+      language: effectiveLanguage,
       name: toNullableString(title.title) ?? toNullableString(title.name),
       originalName: toNullableString(title.original_title) ?? toNullableString(title.original_name),
       overview: toNullableString(title.overview),
@@ -230,19 +236,20 @@ export class TmdbCacheService {
     return record;
   }
 
-  async getCollection(client: DbClient, collectionId: number): Promise<Record<string, unknown> | null> {
+  async getCollection(client: DbClient, collectionId: number, language?: string | null): Promise<Record<string, unknown> | null> {
+    const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
     const response = await this.responseCache.getOrFetch(
       client,
       {
         resourceType: 'collection',
         resourceId: String(collectionId),
         variant: 'detail',
-        language: null,
+        language: effectiveLanguage,
         requestPath: `/collection/${collectionId}`,
-        requestQuery: {},
+        requestQuery: { language: toTmdbLanguageQuery(effectiveLanguage) },
       },
       'collection',
-      () => this.tmdbClient.request(`/collection/${collectionId}`),
+      () => this.tmdbClient.request(`/collection/${collectionId}`, { language: toTmdbLanguageQuery(effectiveLanguage) }),
     );
 
     if (response.isNegative || response.statusCode === 404) {
@@ -332,20 +339,22 @@ export class TmdbCacheService {
     }
   }
 
-  async fetchTitleExtrasPayload(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<Record<string, unknown> | null> {
+  async fetchTitleExtrasPayload(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null): Promise<Record<string, unknown> | null> {
+    const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
     const appendToResponse = 'reviews,recommendations';
+    const includeImageLanguage = buildTmdbIncludeImageLanguage(effectiveLanguage);
     const response = await this.responseCache.getOrFetch(
       client,
       {
         resourceType: 'title',
         resourceId: `${mediaType}:${tmdbId}`,
         variant: 'extras',
-        language: null,
+        language: effectiveLanguage,
         requestPath: `/${mediaType}/${tmdbId}`,
-        requestQuery: { append_to_response: appendToResponse, include_image_language: 'null,en' },
+        requestQuery: { append_to_response: appendToResponse, include_image_language: includeImageLanguage, language: toTmdbLanguageQuery(effectiveLanguage) },
       },
       mediaType === 'movie' ? 'title:movie' : 'title:tv',
-      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: 'null,en' }),
+      () => this.tmdbClient.request(`/${mediaType}/${tmdbId}`, { append_to_response: appendToResponse, include_image_language: includeImageLanguage, language: toTmdbLanguageQuery(effectiveLanguage) }),
     );
 
     if (response.isNegative || response.statusCode === 404) {
@@ -374,12 +383,12 @@ export class TmdbCacheService {
               resourceType: 'search',
               resourceId: null,
               variant: 'title',
-              language: locale ?? null,
+              language: normalizeMetadataLanguage(locale),
               requestPath: `/search/${mediaType}`,
-              requestQuery: { query, page: 1, include_adult: 'false', language: locale ?? undefined },
+              requestQuery: { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizeMetadataLanguage(locale)) },
             },
             'search',
-            () => this.tmdbClient.request(`/search/${mediaType}`, { query, page: 1, include_adult: 'false', language: locale ?? undefined }, signal),
+            () => this.tmdbClient.request(`/search/${mediaType}`, { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizeMetadataLanguage(locale)) }, signal),
           ),
         ),
       );
@@ -391,7 +400,7 @@ export class TmdbCacheService {
         const mediaType = mediaTypes[index] as TmdbTitleType;
         const items = Array.isArray(response.responseJson.results) ? response.responseJson.results as SearchPayloadItem[] : [];
         return items
-          .map((item) => toSearchTitleRecord(mediaType, item))
+          .map((item) => toSearchTitleRecord(mediaType, item, normalizeMetadataLanguage(locale) ?? undefined))
           .filter((item): item is TmdbTitleRecord => item !== null);
       });
 
@@ -435,7 +444,7 @@ export class TmdbCacheService {
   async searchSuggestions(query: string, limit: number, filter: MetadataSearchFilter, locale?: string | null): Promise<SearchSuggestionItem[]> {
     const client = await (await import('../../../lib/db.js')).db.connect();
     try {
-      const normalizedLocale = locale?.trim() || undefined;
+      const normalizedLocale = normalizeMetadataLanguage(locale) ?? undefined;
 
       const response = await this.responseCache.getOrFetch(
         client,
@@ -445,10 +454,10 @@ export class TmdbCacheService {
           variant: 'suggestion',
           language: normalizedLocale ?? null,
           requestPath: '/search/multi',
-          requestQuery: { query, page: 1, include_adult: 'false', language: normalizedLocale },
+          requestQuery: { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizedLocale ?? null) },
         },
         'search',
-        () => this.tmdbClient.request('/search/multi', { query, page: 1, include_adult: 'false', language: normalizedLocale }),
+        () => this.tmdbClient.request('/search/multi', { query, page: 1, include_adult: 'false', language: toTmdbLanguageQuery(normalizedLocale ?? null) }),
       );
 
       if (response.isNegative || response.statusCode === 404) {

@@ -237,6 +237,7 @@ function createTmdbMovieRecord(overrides: Partial<TmdbTitleRecord> = {}): TmdbTi
   return {
     mediaType: 'movie',
     tmdbId: 1,
+    language: 'en',
     name: 'Movie',
     originalName: 'Movie',
     overview: null,
@@ -262,6 +263,7 @@ function createTmdbShowRecord(overrides: Partial<TmdbTitleRecord> = {}): TmdbTit
   return {
     mediaType: 'tv',
     tmdbId: 2,
+    language: 'en',
     name: 'Series',
     originalName: 'Series',
     overview: null,

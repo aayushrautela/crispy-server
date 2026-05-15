@@ -27,9 +27,10 @@ export function buildMetadataView(params: {
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
   nextEpisode?: TmdbEpisodeRecord | null;
+  language?: string | null;
 }): MetadataView {
   const card = buildMetadataCardView(params);
-  const { identity, title } = params;
+  const { identity, title, language } = params;
   const currentEpisode = params.currentEpisode ?? null;
 
   return {
@@ -42,7 +43,7 @@ export function buildMetadataView(params: {
     seasonCount: title?.numberOfSeasons ?? null,
     episodeCount: title?.numberOfEpisodes ?? null,
     nextEpisode: title && params.nextEpisode
-      ? buildEpisodePreview(title, params.nextEpisode)
+      ? buildEpisodePreview(title, params.nextEpisode, language)
       : null,
   };
 }
@@ -105,6 +106,7 @@ export function buildSeasonViewFromRecord(
         poster: buildMetadataImages({
           mediaType: 'tv',
           tmdbId: showTmdbId,
+          language: 'en',
           name: null,
           originalName: null,
           overview: null,

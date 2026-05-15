@@ -16,7 +16,7 @@ export class MetadataTitleSourceService {
 
     const titleType: TmdbTitleType = identity.mediaType === 'movie' ? 'movie' : 'tv';
     const titleTmdbId = identity.mediaType === 'episode' ? showTmdbIdForIdentity(identity) : identity.tmdbId;
-    const tmdbTitle = titleTmdbId ? await this.tmdbCacheService.getTitle(client, titleType, titleTmdbId) : null;
+    const tmdbTitle = titleTmdbId ? await this.tmdbCacheService.getTitle(client, titleType, titleTmdbId, normalizedLanguage) : null;
     const tmdbCurrentEpisode = titleTmdbId
       && identity.mediaType === 'episode'
       && identity.seasonNumber !== null

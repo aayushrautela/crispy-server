@@ -6,6 +6,7 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
   return {
     mediaType: String(row.media_type) as TmdbTitleType,
     tmdbId: Number(row.tmdb_id),
+    language: typeof row.language === 'string' ? row.language : 'en',
     name: typeof row.name === 'string' ? row.name : null,
     originalName: typeof row.original_name === 'string' ? row.original_name : null,
     overview: typeof row.overview === 'string' ? row.overview : null,
@@ -87,16 +88,16 @@ export class TmdbRepository {
     return result.rows.map((row) => mapTitle(row));
   }
 
-  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<TmdbTitleRecord | null> {
+  async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string): Promise<TmdbTitleRecord | null> {
     const result = await client.query(
       `
-        SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
+        SELECT media_type, tmdb_id, language, name, original_name, overview, release_date, first_air_date, status,
                poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
                external_ids, raw, fetched_at, expires_at
         FROM tmdb_titles
-        WHERE media_type = $1 AND tmdb_id = $2
+        WHERE media_type = $1 AND tmdb_id = $2 AND language = $3
       `,
-      [mediaType, tmdbId],
+      [mediaType, tmdbId, language ?? 'en'],
     );
     return result.rows[0] ? mapTitle(result.rows[0]) : null;
   }
@@ -105,16 +106,16 @@ export class TmdbRepository {
     await client.query(
       `
         INSERT INTO tmdb_titles (
-          media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
+          media_type, tmdb_id, language, name, original_name, overview, release_date, first_air_date, status,
           poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
           external_ids, raw, fetched_at, expires_at
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6::date, $7::date, $8,
-          $9, $10, $11, $12::jsonb, $13, $14,
-          $15::jsonb, $16::jsonb, $17::timestamptz, $18::timestamptz
+          $1, $2, $3, $4, $5, $6, $7::date, $8::date, $9,
+          $10, $11, $12, $13::jsonb, $14, $15,
+          $16::jsonb, $17::jsonb, $18::timestamptz, $19::timestamptz
         )
-        ON CONFLICT (media_type, tmdb_id)
+        ON CONFLICT (media_type, tmdb_id, language)
         DO UPDATE SET
           name = EXCLUDED.name,
           original_name = EXCLUDED.original_name,
@@ -136,6 +137,7 @@ export class TmdbRepository {
       [
         record.mediaType,
         record.tmdbId,
+        record.language,
         record.name,
         record.originalName,
         record.overview,

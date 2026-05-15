@@ -48,7 +48,7 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
   };
 }
 
-export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisodeRecord): MetadataEpisodePreview {
+export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisodeRecord, language?: string | null): MetadataEpisodePreview {
   return {
     mediaType: 'episode',
     mediaKey: `episode:tmdb:${episode.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`,
@@ -63,7 +63,7 @@ export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisode
     airDate: episode.airDate,
     runtimeMinutes: deriveRuntimeMinutes(title, episode),
     rating: episode.voteAverage,
-    images: buildMetadataImages(title, episode),
+    images: buildMetadataImages(title, episode, language),
   };
 }
 
@@ -73,11 +73,12 @@ export function buildMetadataCardView(params: {
   currentEpisode?: TmdbEpisodeRecord | null;
   titleOverride?: string | null;
   subtitleOverride?: string | null;
+  language?: string | null;
 }): MetadataCardView {
-  const { identity, title, currentEpisode = null } = params;
+  const { identity, title, currentEpisode = null, language } = params;
   const releaseDate = extractReleaseDate(title, currentEpisode);
-  const images = buildMetadataImages(title, currentEpisode);
-  const trailer = extractPrimaryTrailer(title);
+  const images = buildMetadataImages(title, currentEpisode, language);
+  const trailer = extractPrimaryTrailer(title, language);
   const artwork = {
     poster: images.poster,
     backdrop: images.backdrop,

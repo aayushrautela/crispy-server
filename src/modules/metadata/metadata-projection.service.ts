@@ -23,17 +23,17 @@ export class MetadataProjectionService {
     private readonly metadataCardService = new MetadataCardService(),
   ) {}
 
-  async buildWatchProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
+  async buildWatchProjection(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<WatchMediaProjection> {
     if (identity.mediaType === 'episode') {
-      return this.buildEpisodeProjection(client, identity);
+      return this.buildEpisodeProjection(client, identity, language);
     }
 
-    return this.buildTitleProjection(client, identity);
+    return this.buildTitleProjection(client, identity, language);
   }
 
-  async warmCache(client: DbClient, identity: MediaIdentity): Promise<void> {
+  async warmCache(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<void> {
     if (identity.mediaType === 'movie' && identity.provider === 'tmdb' && identity.tmdbId) {
-      await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId);
+      await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId, language);
     }
   }
 
@@ -53,8 +53,8 @@ export class MetadataProjectionService {
     return null;
   }
 
-  private async buildTitleProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
-    const detailsMedia = await this.buildDisplayCard(client, identity);
+  private async buildTitleProjection(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<WatchMediaProjection> {
+    const detailsMedia = await this.buildDisplayCard(client, identity, language);
 
     return {
       ...emptyProjection(),
@@ -82,11 +82,11 @@ export class MetadataProjectionService {
     };
   }
 
-  private async buildEpisodeProjection(client: DbClient, identity: MediaIdentity): Promise<WatchMediaProjection> {
+  private async buildEpisodeProjection(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<WatchMediaProjection> {
     const parentIdentity = resolveParentIdentity(identity);
     const [parentMedia, episodeMedia] = await Promise.all([
-      this.buildDisplayCard(client, parentIdentity),
-      this.buildDisplayCard(client, identity),
+      this.buildDisplayCard(client, parentIdentity, language),
+      this.buildDisplayCard(client, identity, language),
     ]);
 
     return {
@@ -119,8 +119,8 @@ export class MetadataProjectionService {
     };
   }
 
-  private async buildDisplayCard(client: DbClient, identity: MediaIdentity): Promise<MetadataCardView> {
-    return this.metadataCardService.buildCardView(client, identity);
+  private async buildDisplayCard(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataCardView> {
+    return this.metadataCardService.buildCardView(client, identity, language);
   }
 
   private resolveTmdbNextEpisodeIdentity(seriesIdentity: MediaIdentity, episode: TmdbEpisodeRecord): MediaIdentity | null {

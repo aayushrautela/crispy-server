@@ -35,16 +35,17 @@ export class MetadataTitleExtrasBuilder {
 
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
+    const effectiveLanguage = language ?? null;
 
     const [episodes, extrasRaw] = await Promise.all([
       this.buildAllEpisodes(client, resolvedTitle),
-      this.tmdbCacheService.fetchTitleExtrasPayload(client, resolvedTitle.mediaType, resolvedTitle.tmdbId),
+      this.tmdbCacheService.fetchTitleExtrasPayload(client, resolvedTitle.mediaType, resolvedTitle.tmdbId, effectiveLanguage),
     ]);
 
     const [reviews, similar, collection] = await Promise.all([
       Promise.resolve(extrasRaw ? extractReviewsFromRaw(extrasRaw) : []),
       this.buildSimilar(client, resolvedTitle, extrasRaw),
-      this.buildFullCollection(client, resolvedTitle),
+      this.buildFullCollection(client, resolvedTitle, effectiveLanguage),
     ]);
 
     return { episodes, reviews, similar, collection };
@@ -87,6 +88,7 @@ export class MetadataTitleExtrasBuilder {
     client: DbClient,
     title: TmdbTitleRecord,
     extrasRaw: Record<string, unknown> | null,
+    language?: string | null,
   ): Promise<MetadataRelatedItem[]> {
     const similarTitles = extractSimilarFromRaw(extrasRaw, title.mediaType);
     if (similarTitles.length === 0) {
@@ -102,18 +104,18 @@ export class MetadataTitleExtrasBuilder {
     const similarContentIds = await this.contentIdentityService.ensureContentIds(client, similarIdentities);
 
     const related = await Promise.all(
-      similarTitles.map((t) => this.buildRelatedItem(client, t, similarContentIds)),
+      similarTitles.map((t) => this.buildRelatedItem(client, t, similarContentIds, language)),
     );
     return related.filter((item): item is NonNullable<typeof item> => item !== null);
   }
 
-  private async buildFullCollection(client: DbClient, title: TmdbTitleRecord): Promise<MetadataCollectionView | null> {
+  private async buildFullCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<MetadataCollectionView | null> {
     const collection = extractCollection(title);
     if (!collection || typeof collection.id !== 'number') {
       return null;
     }
 
-    const collectionRaw = await this.tmdbCacheService.getCollection(client, collection.id).catch(() => null);
+    const collectionRaw = await this.tmdbCacheService.getCollection(client, collection.id, language).catch(() => null);
     if (!collectionRaw) {
       return collection;
     }
@@ -123,7 +125,7 @@ export class MetadataTitleExtrasBuilder {
     const collectionContentIds = await this.contentIdentityService.ensureContentIds(client, collectionIdentities);
 
     const parts = await Promise.all(
-      collectionParts.map((t) => this.buildRelatedItem(client, t, collectionContentIds)),
+      collectionParts.map((t) => this.buildRelatedItem(client, t, collectionContentIds, language)),
     );
 
     return {
@@ -136,6 +138,7 @@ export class MetadataTitleExtrasBuilder {
     client: DbClient,
     titleRecord: TmdbTitleRecord,
     contentIds: Map<string, string>,
+    language?: string | null,
   ): Promise<MetadataRelatedItem | null> {
     const mediaType = titleRecord.mediaType === 'movie' ? 'movie' : 'show';
     const identity = inferMediaIdentity({ mediaType, tmdbId: titleRecord.tmdbId });
@@ -144,12 +147,12 @@ export class MetadataTitleExtrasBuilder {
       return null;
     }
 
-    const hydrated = await this.tmdbCacheService.getTitle(client, titleRecord.mediaType, titleRecord.tmdbId);
+    const hydrated = await this.tmdbCacheService.getTitle(client, titleRecord.mediaType, titleRecord.tmdbId, language);
     if (!hydrated) {
       return null;
     }
 
-    const card = buildMetadataCardView({ identity, title: hydrated });
+    const card = buildMetadataCardView({ identity, title: hydrated, language });
     if (!card.title) {
       return null;
     }

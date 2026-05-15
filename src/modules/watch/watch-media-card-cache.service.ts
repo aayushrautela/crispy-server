@@ -27,7 +27,7 @@ export class WatchMediaCardCacheService {
     detailsRating: number | null;
     maturityRating: string | null;
     genres: string[];
-  }): Promise<void> {
+  }, language?: string | null): Promise<void> {
     if (!projection.title) {
       return;
     }
@@ -57,18 +57,19 @@ export class WatchMediaCardCacheService {
       rating: projection.detailsRating,
       maturityRating: projection.maturityRating,
       genres: projection.genres,
+      language: language ?? undefined,
     });
   }
 
-  async listRegularCards(client: DbClient, mediaKeys: string[]): Promise<Map<string, RegularCardView>> {
-    const records = await this.repository.getByMediaKeys(client, mediaKeys);
+  async listRegularCards(client: DbClient, mediaKeys: string[], language?: string | null): Promise<Map<string, RegularCardView>> {
+    const records = await this.repository.getByMediaKeys(client, mediaKeys, language ?? undefined);
     return new Map(
       Array.from(records.entries()).map(([mediaKey, record]) => [mediaKey, toRegularCard(record)]),
     );
   }
 
-  async listCardCacheRecords(client: DbClient, mediaKeys: string[]): Promise<Map<string, WatchMediaCardCacheRecord>> {
-    return this.repository.getByMediaKeys(client, mediaKeys);
+  async listCardCacheRecords(client: DbClient, mediaKeys: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    return this.repository.getByMediaKeys(client, mediaKeys, language ?? undefined);
   }
 }
 

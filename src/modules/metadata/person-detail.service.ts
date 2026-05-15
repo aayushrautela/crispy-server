@@ -6,6 +6,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { TmdbClient } from './providers/tmdb.client.js';
 import { TmdbResponseCacheService } from './providers/tmdb-response-cache.service.js';
 import type { MetadataPersonDetail, MetadataPersonKnownForItem } from './metadata-detail.types.js';
+import { normalizeMetadataLanguage, toTmdbLanguageQuery } from './metadata-language.js';
 
 export class PersonDetailService {
   constructor(
@@ -17,7 +18,7 @@ export class PersonDetailService {
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
     return withDbClient(async (client) => {
       const tmdbPersonId = await this.contentIdentityService.resolvePersonTmdbId(client, personId);
-      const normalizedLanguage = language?.trim() || null;
+      const normalizedLanguage = normalizeMetadataLanguage(language);
       const response = await this.responseCache.getOrFetch(
         client,
         {
@@ -26,12 +27,12 @@ export class PersonDetailService {
           variant: 'detail',
           language: normalizedLanguage,
           requestPath: `/person/${tmdbPersonId}`,
-          requestQuery: { append_to_response: 'combined_credits,external_ids', language: normalizedLanguage ?? undefined },
+          requestQuery: { append_to_response: 'combined_credits,external_ids', language: toTmdbLanguageQuery(normalizedLanguage) },
         },
         'person',
         () => this.tmdbClient.request(`/person/${tmdbPersonId}`, {
           append_to_response: 'combined_credits,external_ids',
-          language: normalizedLanguage ?? undefined,
+          language: toTmdbLanguageQuery(normalizedLanguage),
         }),
       );
 

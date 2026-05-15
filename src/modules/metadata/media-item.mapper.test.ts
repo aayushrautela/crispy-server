@@ -140,6 +140,7 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
     rating: 7.5,
     maturityRating: 'TV-MA',
     genres: ['Drama'],
+    language: 'en',
   };
 
   const item = watchCacheRecordToMediaItem(record, { seasonNumber: 1, episodeNumber: 2 });

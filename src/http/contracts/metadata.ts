@@ -65,6 +65,7 @@ export type MetadataSearchQuery = {
   genre?: string;
   filter?: string;
   limit?: number | string;
+  locale?: string;
 };
 
 export type MetadataSearchSuggestionsQuery = {
@@ -665,6 +666,7 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
       genre: stringSchema,
       filter: stringSchema,
       limit: positiveIntegerLikeSchema,
+      locale: stringSchema,
     },
   },
   response: {

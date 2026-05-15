@@ -49,6 +49,7 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'movie',
     tmdbId: 42,
+    language: 'en',
     name: 'Batman Begins',
     originalName: 'Batman Begins',
     overview: 'A bat starts.',
@@ -131,6 +132,7 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'tv',
     tmdbId: 555,
+    language: 'en',
     name: 'One Piece',
     originalName: 'One Piece',
     overview: 'Pirates.',
@@ -207,6 +209,7 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'tv',
     tmdbId: 1396,
+    language: 'en',
     name: 'Breaking Bad',
     originalName: 'Breaking Bad',
     overview: 'Chemistry.',
@@ -286,6 +289,7 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'movie',
     tmdbId: 7,
+    language: 'en',
     name: 'Se7en',
     originalName: 'Se7en',
     overview: 'Detectives.',

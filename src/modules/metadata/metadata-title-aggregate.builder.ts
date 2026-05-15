@@ -45,7 +45,7 @@ export class MetadataTitleAggregateBuilder {
     const collection = extractCollection(resolvedTitle);
 
     return {
-      item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode }),
+      item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
       seasons: buildSeasonViewFromTitleRaw(resolvedTitle, seasonIds),
       episodes: [],
       nextEpisode: source.tmdbNextEpisode

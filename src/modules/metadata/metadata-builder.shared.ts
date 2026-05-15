@@ -180,7 +180,7 @@ export function extractVideos(title: TmdbTitleRecord | null): MetadataVideoView[
     .filter((video): video is MetadataVideoView => video !== null);
 }
 
-export function extractPrimaryTrailer(title: TmdbTitleRecord | null): MetadataVideoView | null {
+export function extractPrimaryTrailer(title: TmdbTitleRecord | null, preferredLanguage?: string | null): MetadataVideoView | null {
   if (!title) {
     return null;
   }
@@ -190,36 +190,44 @@ export function extractPrimaryTrailer(title: TmdbTitleRecord | null): MetadataVi
     .filter((entry): entry is Record<string, unknown> => entry !== null);
 
   const originalLanguage = asString(asRecord(title.raw)?.original_language);
+  const languageTiers = uniqueStrings([
+    preferredLanguage ?? null,
+    'en',
+    originalLanguage,
+    null,
+  ]);
 
+  for (const language of languageTiers) {
+    const trailer = pickPrimaryTrailerFromVideos(results, language);
+    if (trailer) {
+      return trailer;
+    }
+  }
+
+  return null;
+}
+
+function pickPrimaryTrailerFromVideos(videos: Record<string, unknown>[], language: string | null): MetadataVideoView | null {
   let best: MetadataVideoView | null = null;
   let bestScore = -1;
 
-  for (const video of results) {
-    const id = asString(video.id);
-    const key = asString(video.key);
-    if (!id || !key) {
+  for (const video of videos) {
+    if (language !== null && asString(video.iso_639_1) !== language) {
       continue;
     }
 
+    const id = asString(video.id);
+    const key = asString(video.key);
     const site = asString(video.site);
-    const url = site === 'YouTube' ? `https://www.youtube.com/watch?v=${key}` : null;
-    if (!url) {
+    if (!id || !key || site !== 'YouTube') {
       continue;
     }
 
     const type = asString(video.type);
-    const language = asString(video.iso_639_1);
-
-    const typeScore = type === 'Trailer' && asBoolean(video.official) ? 10000
+    const score = type === 'Trailer' && asBoolean(video.official) ? 10000
       : type === 'Trailer' ? 5000
-      : site === 'YouTube' ? 1000
-      : 0;
+      : 1000;
 
-    const langScore = language === 'en' ? 100
-      : language && language === originalLanguage ? 50
-      : 0;
-
-    const score = typeScore + langScore;
     if (score > bestScore) {
       bestScore = score;
       best = {
@@ -230,7 +238,7 @@ export function extractPrimaryTrailer(title: TmdbTitleRecord | null): MetadataVi
         type,
         official: asBoolean(video.official),
         publishedAt: asString(video.published_at),
-        url,
+        url: `https://www.youtube.com/watch?v=${key}`,
         thumbnailUrl: `https://img.youtube.com/vi/${key}/hqdefault.jpg`,
       };
     }
@@ -421,6 +429,7 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
       return {
         mediaType: 'movie',
         tmdbId,
+        language: 'en',
         name: asString(entry.title) ?? asString(entry.name),
         originalName: asString(entry.original_title) ?? asString(entry.original_name),
         overview: asString(entry.overview),
@@ -464,6 +473,7 @@ export function extractSimilarFromRaw(raw: Record<string, unknown> | null, sourc
       return {
         mediaType: sourceMediaType,
         tmdbId,
+        language: 'en',
         name: asString(entry.title) ?? asString(entry.name),
         originalName: asString(entry.original_title) ?? asString(entry.original_name),
         overview: asString(entry.overview),
@@ -491,16 +501,20 @@ export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRe
   return extractSimilarFromRaw(title?.raw ?? null, title?.mediaType ?? 'movie');
 }
 
-function extractBestLogoPath(raw: Record<string, unknown>): string | null {
+function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: string | null): string | null {
   const images = asRecord(raw.images);
   const logos = asArray(images?.logos)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null);
 
-  const preferred = logos.find((logo) => asString(logo.iso_639_1) === 'en')
-    ?? logos.find((logo) => asString(logo.iso_639_1) === null)
-    ?? logos[0]
-    ?? null;
+  const preferred = preferredLanguage
+    ? (logos.find((logo) => asString(logo.iso_639_1) === preferredLanguage)
+      ?? logos.find((logo) => asString(logo.iso_639_1) === 'en')
+      ?? logos.find((logo) => asString(logo.iso_639_1) === null)
+      ?? logos[0])
+    : (logos.find((logo) => asString(logo.iso_639_1) === 'en')
+      ?? logos.find((logo) => asString(logo.iso_639_1) === null)
+      ?? logos[0]);
 
   return preferred ? asString(preferred.file_path) : null;
 }
@@ -566,7 +580,7 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
   };
 }
 
-export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null): MetadataImages {
+export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, preferredLanguage?: string | null): MetadataImages {
   return {
     poster: buildResponsiveImageSet(title?.posterPath ?? null, {
       small: 'w342',
@@ -583,7 +597,7 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
       medium: 'w300',
       large: 'original',
     }),
-    logo: buildResponsiveImageSet(extractBestLogoPath(title?.raw ?? {}), {
+    logo: buildResponsiveImageSet(extractBestLogoPath(title?.raw ?? {}, preferredLanguage), {
       small: 'w185',
       medium: 'w300',
       large: 'w500',

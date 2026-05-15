@@ -21,7 +21,7 @@ test('buildMetadataView for show extracts provider-based detail fields', async (
   const view = buildMetadataView({
     identity: { mediaKey: 'show:tmdb:42', mediaType: 'show', tmdbId: 42, showTmdbId: 42, seasonNumber: null, episodeNumber: null },
     title: {
-      mediaType: 'tv', tmdbId: 42, name: 'Breaking Point', originalName: 'Breaking Point',
+      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Breaking Point', originalName: 'Breaking Point',
       overview: 'A thrilling drama.', releaseDate: null, firstAirDate: '2024-01-01',
       status: 'Returning Series', posterPath: '/poster.jpg', backdropPath: '/backdrop.jpg',
       runtime: null, episodeRunTime: [45, 42], numberOfSeasons: 3, numberOfEpisodes: 30,
@@ -59,7 +59,7 @@ test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
 
   const seasons = buildSeasonViewFromTitleRaw(
     {
-      mediaType: 'tv', tmdbId: 42, name: 'Test Show', originalName: 'Test Show',
+      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Test Show', originalName: 'Test Show',
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: null, backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: {},
@@ -102,7 +102,7 @@ test('buildEpisodeView includes provider-based show context', async () => {
 
   const view = buildEpisodeView(
     {
-      mediaType: 'tv', tmdbId: 42, name: 'Breaking Point', originalName: 'Breaking Point',
+      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Breaking Point', originalName: 'Breaking Point',
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: { imdb_id: 'tt1234567' },
@@ -145,6 +145,7 @@ test('rich detail extractors map videos, people, reviews, production, and collec
   const title: TmdbTitleRecord = {
     mediaType: 'tv',
     tmdbId: 42,
+    language: 'en',
     name: 'Breaking Point',
     originalName: 'Breaking Point',
     overview: null,

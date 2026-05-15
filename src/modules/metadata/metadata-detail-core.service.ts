@@ -16,6 +16,7 @@ export class MetadataDetailCoreService {
       title: source.tmdbTitle,
       currentEpisode: null,
       nextEpisode: source.tmdbNextEpisode,
+      language: language ?? null,
     });
   }
 }

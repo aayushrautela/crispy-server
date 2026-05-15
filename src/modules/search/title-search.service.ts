@@ -7,6 +7,7 @@ import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import type { MediaItem } from '../metadata/media-item.types.js';
 import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult, SearchSuggestionItem } from '../metadata/metadata-detail.types.js';
+import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
 import type { TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
 
 type SearchTitlesInput = {
@@ -111,7 +112,7 @@ export class TitleSearchService {
           return null;
         }
 
-        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, undefined, input.signal);
+        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, locale, undefined, input.signal);
         if (!hydrated) {
           return null;
         }
@@ -119,6 +120,7 @@ export class TitleSearchService {
         const card = buildMetadataCardView({
           identity,
           title: hydrated,
+          language: locale,
         });
         return {
           item: {
@@ -173,12 +175,12 @@ export class TitleSearchService {
         return null;
       }
 
-      const hydrated = await this.tmdbCacheService.getTitle(client, best.mediaType, best.tmdbId, undefined, input.signal);
+      const hydrated = await this.tmdbCacheService.getTitle(client, best.mediaType, best.tmdbId, locale, undefined, input.signal);
       if (!hydrated) {
         return null;
       }
 
-      const card = buildMetadataCardView({ identity, title: hydrated });
+      const card = buildMetadataCardView({ identity, title: hydrated, language: locale });
       return {
         kind: 'search_result' as const,
         mediaItem: metadataCardToMediaItem(card),
@@ -270,8 +272,7 @@ export function mapSearchFilterToTmdbTypes(filter: MetadataSearchFilter): TmdbTi
 }
 
 function normalizeSearchLocale(value: string | null | undefined): string | null {
-  const normalized = typeof value === 'string' ? value.trim() : '';
-  return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(normalized) ? normalized : null;
+  return normalizeMetadataLanguage(value);
 }
 
 function normalizeSearchFilter(filter: MetadataSearchFilter | null | undefined): MetadataSearchFilter {

@@ -21,6 +21,7 @@ export type WatchMediaCardCacheRecord = {
   rating: number | null;
   maturityRating: string | null;
   genres: string[];
+  language: string;
 };
 
 export class WatchMediaCardCacheRepository {
@@ -43,17 +44,19 @@ export class WatchMediaCardCacheRepository {
     rating?: number | null;
     maturityRating?: string | null;
     genres?: string[] | null;
+    language?: string;
   }): Promise<void> {
+    const effectiveLanguage = params.language ?? 'en';
     await client.query(
       `
         INSERT INTO watch_media_card_cache (
           media_key, media_type, title_provider, title_provider_id, title_media_type,
           title, subtitle, poster_url, backdrop_url, logo_url,
           trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
-          release_year, rating, maturity_rating, genres, updated_at
+          release_year, rating, maturity_rating, genres, language, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, now())
-        ON CONFLICT (media_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, now())
+        ON CONFLICT (media_key, language)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
           title_provider = EXCLUDED.title_provider,
@@ -93,25 +96,28 @@ export class WatchMediaCardCacheRepository {
         params.rating ?? null,
         params.maturityRating ?? null,
         JSON.stringify(normalizeGenres(params.genres)),
+        effectiveLanguage,
       ],
     );
   }
 
-  async getByMediaKeys(client: DbClient, mediaKeys: string[]): Promise<Map<string, WatchMediaCardCacheRecord>> {
+  async getByMediaKeys(client: DbClient, mediaKeys: string[], language?: string): Promise<Map<string, WatchMediaCardCacheRecord>> {
     if (!mediaKeys.length) {
       return new Map();
     }
 
+    const effectiveLanguage = language ?? 'en';
     const result = await client.query(
       `
         SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
                title, subtitle, poster_url, backdrop_url, logo_url,
                trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
-               release_year, rating, maturity_rating, genres
+               release_year, rating, maturity_rating, genres, language
         FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
+          AND language = $2
       `,
-      [mediaKeys],
+      [mediaKeys, effectiveLanguage],
     );
 
     return new Map(
@@ -156,6 +162,7 @@ export class WatchMediaCardCacheRepository {
             rating: row.rating === null ? null : Number(row.rating),
             maturityRating: typeof row.maturity_rating === 'string' ? row.maturity_rating : null,
             genres: parseGenres(row.genres),
+            language: typeof row.language === 'string' ? row.language : 'en',
           } satisfies WatchMediaCardCacheRecord,
         ]];
       }),
