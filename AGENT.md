@@ -48,7 +48,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - User routes live under `/v1/...`.
 - Internal privileged routes live under `/internal/v1/...`.
 - Do not guess route shapes from old discussions; verify them against `src/http/app.ts` and `src/http/routes/*.ts`.
-- The README contains a maintained endpoint map and should stay in sync with the route files.
+- The README intentionally does not maintain an endpoint inventory; OpenAPI specs in `openapi/` are the machine-readable source of truth for endpoint contracts.
 - Do not reintroduce legacy profile-only internal compatibility routes; privileged integrations should use `/internal/v1/accounts/...`.
 - Human admin and diagnostics UI belongs on the API server control plane, not on the external recommendation engine.
 - Recommendation generation is event-driven and external: MAIN emits recompute events through its outbox, and the engine calls authenticated Crispy API endpoints to fetch bounded source data. For AI-assisted planning it uses `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan`; do not document raw AI key delivery, provider/model config delivery, config-bundle delivery, or AI proxy calls to RECO. Do not describe MAIN as submitting generation jobs to it or polling it for status.

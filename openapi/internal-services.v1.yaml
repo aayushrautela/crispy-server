@@ -206,53 +206,6 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  /internal/apps/v1/profiles/{profileId}/recommendation-signal-bundle:
-    get:
-      deprecated: true
-      tags: [Signal Bundles]
-      operationId: getLegacyInternalRecommendationSignalBundle
-      summary: Return recommendation signal bundle for a profile (legacy compatibility)
-      description: Legacy compatibility route for callers that only have profileId. Prefer the account-rooted `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle` endpoint.
-      x-internal: true
-      x-owner: crispy-server
-      x-consumers: [crispy-recommendation-engine]
-      parameters:
-        - $ref: '#/components/parameters/ProfileId'
-        - $ref: '#/components/parameters/Authorization'
-        - $ref: '#/components/parameters/ServiceId'
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/CorrelationId'
-        - name: historyLimit
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: ratingsLimit
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: watchlistLimit
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: continueLimit
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: include
-          in: query
-          description: Comma-separated signal families to include.
-          schema: { type: string, example: history,ratings,watchlist,continue }
-        - name: since
-          in: query
-          description: Optional lower bound for incremental signal reads.
-          schema: { type: string, format: date-time }
-      responses:
-        '200':
-          description: Recommendation signals.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RecommendationSignalBundleResponse' }
-        '401': { $ref: '#/components/responses/UnauthorizedError' }
-        '403': { $ref: '#/components/responses/ForbiddenError' }
-        '404': { $ref: '#/components/responses/NotFoundError' }
-        '429': { $ref: '#/components/responses/RateLimitedError' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
   /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle:
     get:
       tags: [Signal Bundles]

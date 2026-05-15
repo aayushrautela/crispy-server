@@ -55,40 +55,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/account/v1/profiles/{profileId}/continue-watching": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List continue watching. */
-        get: operations["getApiAccountV1ProfilesProfileIdContinueWatching"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/account/v1/profiles/{profileId}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List history. */
-        get: operations["getApiAccountV1ProfilesProfileIdHistory"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/account/v1/profiles/{profileId}/language-profile": {
         parameters: {
             query?: never;
@@ -98,40 +64,6 @@ export interface paths {
         };
         /** Get language profile. */
         get: operations["getApiAccountV1ProfilesProfileIdLanguageProfile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/account/v1/profiles/{profileId}/ratings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List ratings. */
-        get: operations["getApiAccountV1ProfilesProfileIdRatings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/account/v1/profiles/{profileId}/recent-watched": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List recent watched. */
-        get: operations["getApiAccountV1ProfilesProfileIdRecentWatched"];
         put?: never;
         post?: never;
         delete?: never;
@@ -154,23 +86,6 @@ export interface paths {
         post?: never;
         /** Clear taste profile. */
         delete: operations["deleteApiAccountV1ProfilesProfileIdTasteCurrent"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/account/v1/profiles/{profileId}/watchlist": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List watchlist. */
-        get: operations["getApiAccountV1ProfilesProfileIdWatchlist"];
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -356,136 +271,9 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getApiAccountV1ProfilesProfileIdContinueWatching: {
-        parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getApiAccountV1ProfilesProfileIdHistory: {
-        parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
     getApiAccountV1ProfilesProfileIdLanguageProfile: {
         parameters: {
             query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getApiAccountV1ProfilesProfileIdRatings: {
-        parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getApiAccountV1ProfilesProfileIdRecentWatched: {
-        parameters: {
-            query?: {
-                limit?: string;
-            };
             header?: never;
             path: {
                 profileId: string;
@@ -597,38 +385,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getApiAccountV1ProfilesProfileIdWatchlist: {
-        parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];

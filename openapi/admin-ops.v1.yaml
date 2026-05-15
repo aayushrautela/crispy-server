@@ -19,6 +19,8 @@ tags:
     description: Account support and mutation tooling.
   - name: Admin AI
     description: AI configuration diagnostics and test calls.
+  - name: Admin Recommendations
+    description: Recommendation engine diagnostics and job management.
 paths:
   /admin/api/accounts/lookup-by-email/{email}:
     get:
@@ -1182,6 +1184,520 @@ paths:
           required: false
           schema:
             type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/runs:
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRuns
+      summary: List recommendation engine runs
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/runs/{runId}:
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRunsRunId
+      summary: Get recommendation run details
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/runs/{runId}/batches:
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRunsRunIdBatches
+      summary: List batches for a recommendation run
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/runs/{runId}/logs:
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRunsRunIdLogs
+      summary: List logs for a recommendation run
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/capabilities:
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRecomputeJobsCapabilities
+      summary: Get recompute job feature capabilities
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/preview:
+    post:
+      tags:
+        - Admin Recommendations
+      operationId: postAdminApiRecommendationsRecomputeJobsPreview
+      summary: Preview a recompute job without executing
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs:
+    post:
+      tags:
+        - Admin Recommendations
+      operationId: postAdminApiRecommendationsRecomputeJobs
+      summary: Create a recommendation recompute job
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Job already exists or completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "202":
+          description: Job created and accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRecomputeJobs
+      summary: List recommendation recompute jobs
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/{jobId}:
+    get:
+      tags:
+        - Admin Recommendations
+      operationId: getAdminApiRecommendationsRecomputeJobsJobId
+      summary: Get recompute job details
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/{jobId}/pause:
+    post:
+      tags:
+        - Admin Recommendations
+      operationId: postAdminApiRecommendationsRecomputeJobsJobIdPause
+      summary: Pause a recompute job
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/{jobId}/resume:
+    post:
+      tags:
+        - Admin Recommendations
+      operationId: postAdminApiRecommendationsRecomputeJobsJobIdResume
+      summary: Resume a paused recompute job
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/{jobId}/cancel:
+    post:
+      tags:
+        - Admin Recommendations
+      operationId: postAdminApiRecommendationsRecomputeJobsJobIdCancel
+      summary: Cancel a recompute job
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/recommendations/recompute-jobs/{jobId}/reconcile:
+    post:
+      tags:
+        - Admin Recommendations
+      operationId: postAdminApiRecommendationsRecomputeJobsJobIdReconcile
+      summary: Reconcile a recompute job's state
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
       responses:
         "200":
           description: Successful response.
