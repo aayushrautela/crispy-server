@@ -59,7 +59,7 @@ export class SqlAppSourceOwnershipRepo implements AppSourceOwnershipRepo {
       !ownership ||
       ownership.ownerAppId !== input.appId ||
       ownership.status !== 'active' ||
-      !ownership.allowedListKeys.includes(input.listKey)
+      (!ownership.allowedListKeys.includes('*') && !ownership.allowedListKeys.includes(input.listKey))
     ) {
       throw new AppAuthError({
         code: 'app_grant_missing',

@@ -5,6 +5,7 @@ import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, Pagin
 import type { AppAuthorizationService } from './app-authorization.service.js';
 import { DefaultAppAuthorizationService } from './app-authorization.service.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPrincipal, AppPurpose, AppScope } from './app-principal.types.js';
+import { SqlAppSourceOwnershipRepo } from './app-source-ownership.repo.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
 import type { RecommendationListWriteService } from '../recommendations/recommendation-list-write.service.js';
@@ -175,4 +176,22 @@ test('authorization allows wildcard owned list keys', () => {
   principal.ownedListKeys = ['*'];
 
   assert.doesNotThrow(() => authorization.requireOwnedListKey({ principal, source: 'reco', listKey: 'hero' }));
+});
+
+test('source ownership allows wildcard owned list keys', async () => {
+  const repo = new SqlAppSourceOwnershipRepo({
+    db: {
+      async query() {
+        return {
+          command: 'SELECT',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: [{ source: 'reco', app_id: 'test-app', allowed_list_keys: ['*'], status: 'active' }],
+        };
+      },
+    },
+  });
+
+  await assert.doesNotReject(repo.assertAppOwnsListKey({ appId: 'test-app', source: 'reco', listKey: 'hero' }));
 });
