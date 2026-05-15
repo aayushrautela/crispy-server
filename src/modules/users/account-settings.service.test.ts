@@ -15,7 +15,6 @@ test('getSettings delegates to repository', async () => {
   const settings = { addons: { trakt: true } };
   const service = new AccountSettingsService(
     { getSettingsForUser: async () => settings } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -26,7 +25,6 @@ test('getSettings delegates to repository', async () => {
 test('getAiApiKeyForUser returns secret when present', async () => {
   const service = new AccountSettingsService(
     { getSecretForUser: async () => 'ai-key-value' } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -39,7 +37,6 @@ test('getAiApiKeyForUser returns secret when present', async () => {
 test('getAiApiKeyForUser throws 404 when not found', async () => {
   const service = new AccountSettingsService(
     { getSecretForUser: async () => null } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -56,7 +53,6 @@ test('getAiApiKeyForUser throws 404 when not found', async () => {
 test('getMdbListApiKeyForUser returns secret when present', async () => {
   const service = new AccountSettingsService(
     { getSecretForUser: async () => 'mdb-key-value' } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -69,7 +65,6 @@ test('getMdbListApiKeyForUser returns secret when present', async () => {
 test('getAiProviderIdForUser falls back to default provider', async () => {
   const service = new AccountSettingsService(
     { getSettingsForUser: async () => ({}) } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -83,7 +78,6 @@ test('getAiClientSettingsForUser returns provider metadata and selected provider
       getSettingsForUser: async () => ({ ai: { providerId: 'openrouter' } }),
       getSecretForUser: async () => 'ai-key-value',
     } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -97,7 +91,6 @@ test('getAiClientSettingsForUser returns provider metadata and selected provider
 test('getPricingTierForUser defaults to free', async () => {
   const service = new AccountSettingsService(
     { getSettingsForUser: async () => ({}) } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -107,7 +100,6 @@ test('getPricingTierForUser defaults to free', async () => {
 test('getPricingTierForUser returns stored pricing tier', async () => {
   const service = new AccountSettingsService(
     { getSettingsForUser: async () => ({ pricingTier: 'pro' }) } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -123,7 +115,6 @@ test('setPricingTierForUser validates and stores pricing tier', async () => {
         return nextPatch;
       },
     } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -134,7 +125,6 @@ test('setPricingTierForUser validates and stores pricing tier', async () => {
 
 test('setPricingTierForUser rejects invalid pricing tier', async () => {
   const service = new AccountSettingsService(
-    {} as never,
     {} as never,
     async (work) => work({} as never),
   );
@@ -152,7 +142,6 @@ test('setPricingTierForUser rejects invalid pricing tier', async () => {
 test('setAiApiKeyForUser delegates to repository', async () => {
   const service = new AccountSettingsService(
     { setSecretForUser: async () => {} } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -165,7 +154,6 @@ test('setAiApiKeyForUser delegates to repository', async () => {
 test('clearAiApiKeyForUser returns true when secret existed', async () => {
   const service = new AccountSettingsService(
     { deleteSecretForUser: async () => true } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -176,7 +164,6 @@ test('clearAiApiKeyForUser returns true when secret existed', async () => {
 test('setMdbListApiKeyForUser delegates to repository', async () => {
   const service = new AccountSettingsService(
     { setSecretForUser: async () => {} } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 
@@ -189,7 +176,6 @@ test('setMdbListApiKeyForUser delegates to repository', async () => {
 test('clearMdbListApiKeyForUser returns true when secret existed', async () => {
   const service = new AccountSettingsService(
     { deleteSecretForUser: async () => true } as never,
-    {} as never,
     async (work) => work({} as never),
   );
 

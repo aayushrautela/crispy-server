@@ -283,10 +283,10 @@ export async function buildApp() {
     }
   });
 
-  const supabase = env.supabaseAdminApiKey ? getSupabaseServiceRoleClient() : null;
-  const supabaseProfileService = supabase ? new SupabaseProfileService(supabase) : undefined;
-  const supabasePatService = supabase ? new SupabasePersonalAccessTokenService(supabase) : undefined;
-  const supabaseAccountSettingsRepo = supabase ? new SupabaseAccountSettingsRepository(supabase) : undefined;
+  const supabase = getSupabaseServiceRoleClient();
+  const supabaseProfileService = new SupabaseProfileService(supabase);
+  const supabasePatService = new SupabasePersonalAccessTokenService(supabase);
+  const supabaseAccountSettingsRepo = new SupabaseAccountSettingsRepository(supabase);
 
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);

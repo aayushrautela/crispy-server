@@ -3,8 +3,10 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AiClientSettings } from '../ai/ai.types.js';
 import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-account-settings.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
+import { SupabaseAccountSettingsRepository } from './supabase-account-settings.repo.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { env } from '../../config/env.js';
 
 export type AccountSecretField = 'ai.api_key' | 'mdblist.api_key';
 
@@ -33,10 +35,16 @@ const ACCOUNT_SECRET_FIELD_SET = new Set<AccountSecretField>(ACCOUNT_SECRET_FIEL
 const ACCOUNT_SECRET_SETTING_KEYS = new Set<string>(ACCOUNT_SECRET_FIELDS);
 const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', ...ACCOUNT_SECRET_FIELDS, 'addons']);
 
+function defaultRepo(): AccountSettingsRepository | SupabaseAccountSettingsRepository {
+  if (env.supabaseAdminApiKey) {
+    return new SupabaseAccountSettingsRepository(getSupabaseServiceRoleClient());
+  }
+  return new AccountSettingsRepository();
+}
+
 export class AccountSettingsService {
   constructor(
-    private readonly accountSettingsRepository = new AccountSettingsRepository(),
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly accountSettingsRepository: AccountSettingsRepository | SupabaseAccountSettingsRepository = defaultRepo(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
@@ -141,25 +149,8 @@ export class AccountSettingsService {
     return this.runInTransaction((client) => this.accountSettingsRepository.deleteSecretForUser(client, userId, secretField));
   }
 
-  async getSecretForAccountProfile(accountId: string, profileId: string, field: string): Promise<AccountSecretValue> {
-    return this.runInTransaction(async (client) => {
-      const secretField = normalizeSecretField(field);
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found for account.');
-      }
-
-      const value = await this.accountSettingsRepository.getSecretForUser(client, accountId, secretField);
-      if (!value) {
-        throw new HttpError(404, 'Account secret not found.');
-      }
-
-      return {
-        appUserId: accountId,
-        key: secretField,
-        value,
-      } satisfies AccountSecretValue;
-    });
+  async getSecretForAccountProfile(accountId: string, _profileId: string, field: string): Promise<AccountSecretValue> {
+    return this.getSecretForUser(accountId, field);
   }
 }
 

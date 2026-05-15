@@ -16,98 +16,96 @@ import { success } from '../response.js';
 
 export async function registerAccountRoutes(
   app: FastifyInstance,
-  opts?: { supabaseAccountSettingsRepo?: SupabaseAccountSettingsRepository },
+  opts: { supabaseAccountSettingsRepo: SupabaseAccountSettingsRepository },
 ): Promise<void> {
   const accountDeletionService = new AccountDeletionService();
-  const accountSettingsService = opts?.supabaseAccountSettingsRepo
-    ? new AccountSettingsService(opts.supabaseAccountSettingsRepo)
-    : new AccountSettingsService();
+  const accountSettingsService = new AccountSettingsService(opts.supabaseAccountSettingsRepo);
   const entitlementService = new FeatureEntitlementService();
 
   app.get('/v1/account/settings', { schema: accountSettingsRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
-    const baseSettings = await accountSettingsService.getSettings(actor.appUserId);
-    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
-    const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.appUserId);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const baseSettings = await accountSettingsService.getSettings(actor.authSubject);
+    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.authSubject);
+    const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.authSubject);
     return success({
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
-        pricingTier: await accountSettingsService.getPricingTierForUser(actor.appUserId),
+        pricingTier: await accountSettingsService.getPricingTierForUser(actor.authSubject),
       }),
     });
   });
 
   app.patch('/v1/account/settings', { schema: accountSettingsPatchRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const baseSettings = await accountSettingsService.patchSettings(actor.appUserId, body);
-    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.appUserId);
-    const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.appUserId);
+    const baseSettings = await accountSettingsService.patchSettings(actor.authSubject, body);
+    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.authSubject);
+    const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.authSubject);
     return success({
       settings: mergeAccountScopedSettings(baseSettings, {
         ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
-        pricingTier: await accountSettingsService.getPricingTierForUser(actor.appUserId),
+        pricingTier: await accountSettingsService.getPricingTierForUser(actor.authSubject),
       }),
     });
   });
 
   app.get('/v1/account/secrets/ai-api-key', { schema: aiAccountSecretGetRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
     return success({
-      secret: await accountSettingsService.getAiApiKeyMetadataForUser(actor.appUserId),
+      secret: await accountSettingsService.getAiApiKeyMetadataForUser(actor.authSubject),
     });
   });
 
   app.put('/v1/account/secrets/ai-api-key', { schema: aiAccountSecretPutRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     return success({
-      secret: await accountSettingsService.setAiApiKeyForUser(actor.appUserId, String(body.value ?? '')),
+      secret: await accountSettingsService.setAiApiKeyForUser(actor.authSubject, String(body.value ?? '')),
     });
   });
 
   app.delete('/v1/account/secrets/ai-api-key', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
     return success({
-      deleted: await accountSettingsService.clearAiApiKeyForUser(actor.appUserId),
+      deleted: await accountSettingsService.clearAiApiKeyForUser(actor.authSubject),
     });
   });
 
   app.get('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretGetRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
     return success({
-      secret: await accountSettingsService.getMdbListApiKeyMetadataForUser(actor.appUserId),
+      secret: await accountSettingsService.getMdbListApiKeyMetadataForUser(actor.authSubject),
     });
   });
 
   app.put('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretPutRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     return success({
-      secret: await accountSettingsService.setMdbListApiKeyForUser(actor.appUserId, String(body.value ?? '')),
+      secret: await accountSettingsService.setMdbListApiKeyForUser(actor.authSubject, String(body.value ?? '')),
     });
   });
 
   app.delete('/v1/account/secrets/mdblist-api-key', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
     return success({
-      deleted: await accountSettingsService.clearMdbListApiKeyForUser(actor.appUserId),
+      deleted: await accountSettingsService.clearMdbListApiKeyForUser(actor.authSubject),
     });
   });
 
   app.delete('/v1/account', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserSessionActor(request) as { appUserId: string; authSubject: string };
     return success({
       deleted: await accountDeletionService.deleteAccount({
         appUserId: actor.appUserId,

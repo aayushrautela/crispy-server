@@ -16,7 +16,7 @@ test('GET /v1/account/secrets/ai-api-key returns metadata without raw value', as
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -46,7 +46,7 @@ test('PUT /v1/account/secrets/ai-api-key returns metadata without raw value', as
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -77,7 +77,7 @@ test('DELETE /v1/account/secrets/ai-api-key returns deletion status', async (t) 
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({

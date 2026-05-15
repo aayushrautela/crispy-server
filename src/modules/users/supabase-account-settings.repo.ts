@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { db, type DbClient } from '../../lib/db.js';
+import { type DbClient } from '../../lib/db.js';
 import { encryptSecret, decryptSecret } from '../../lib/crypto.js';
 
 export type AccountSecretRecord = {
@@ -10,16 +10,7 @@ export type AccountSecretRecord = {
 export class SupabaseAccountSettingsRepository {
   constructor(private readonly supabase: SupabaseClient) {}
 
-  private async resolveAccountId(_client: DbClient, localUserId: string): Promise<string> {
-    const result = await db.query(
-      `SELECT auth_subject FROM app_users WHERE id = $1::uuid`,
-      [localUserId],
-    );
-    return result.rows[0]?.auth_subject ?? localUserId;
-  }
-
-  async getSettingsForUser(client: DbClient, userId: string): Promise<Record<string, unknown>> {
-    const accountId = await this.resolveAccountId(client, userId);
+  async getSettingsForUser(_client: DbClient, accountId: string): Promise<Record<string, unknown>> {
     const { data, error } = await this.supabase
       .from('account_preferences')
       .select('settings_json')
@@ -30,10 +21,8 @@ export class SupabaseAccountSettingsRepository {
     return (data?.settings_json as Record<string, unknown> | undefined) ?? {};
   }
 
-  async patchSettingsForUser(client: DbClient, userId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const accountId = await this.resolveAccountId(client, userId);
-    // Read current to merge
-    const current = await this.getSettingsForUser(client, userId);
+  async patchSettingsForUser(_client: DbClient, accountId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const current = await this.getSettingsForUser(_client, accountId);
     const merged = { ...current, ...patch };
 
     const { data, error } = await this.supabase
@@ -46,8 +35,7 @@ export class SupabaseAccountSettingsRepository {
     return (data?.settings_json as Record<string, unknown> | undefined) ?? {};
   }
 
-  async getSecretForUser(client: DbClient, userId: string, fieldKey: string): Promise<string | null> {
-    const accountId = await this.resolveAccountId(client, userId);
+  async getSecretForUser(_client: DbClient, accountId: string, fieldKey: string): Promise<string | null> {
     const { data, error } = await this.supabase
       .from('account_secrets')
       .select('secrets_json')
@@ -65,8 +53,7 @@ export class SupabaseAccountSettingsRepository {
     }
   }
 
-  async setSecretForUser(client: DbClient, userId: string, fieldKey: string, value: string): Promise<void> {
-    const accountId = await this.resolveAccountId(client, userId);
+  async setSecretForUser(_client: DbClient, accountId: string, fieldKey: string, value: string): Promise<void> {
     const encrypted = encryptSecret(value);
 
     const { data: current } = await this.supabase
@@ -84,9 +71,7 @@ export class SupabaseAccountSettingsRepository {
     if (error) throw error;
   }
 
-  async deleteSecretForUser(client: DbClient, userId: string, fieldKey: string): Promise<boolean> {
-    const accountId = await this.resolveAccountId(client, userId);
-
+  async deleteSecretForUser(_client: DbClient, accountId: string, fieldKey: string): Promise<boolean> {
     const { data: current } = await this.supabase
       .from('account_secrets')
       .select('secrets_json')
@@ -105,7 +90,7 @@ export class SupabaseAccountSettingsRepository {
     return true;
   }
 
-  async listSecretsForField(client: DbClient, fieldKey: string): Promise<AccountSecretRecord[]> {
+  async listSecretsForField(_client: DbClient, fieldKey: string): Promise<AccountSecretRecord[]> {
     const { data, error } = await this.supabase
       .from('account_secrets')
       .select('account_id, secrets_json')

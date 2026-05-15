@@ -41,7 +41,7 @@ test('account settings route returns AI client configuration envelope', async (t
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({ method: 'GET', url: '/v1/account/settings', headers: { authorization: 'Bearer test' } });
@@ -92,7 +92,7 @@ test('account settings patch route returns merged AI client configuration envelo
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -125,7 +125,7 @@ test('account settings patch route returns API error contract for unsupported AI
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -166,7 +166,7 @@ test('account MDBList secret routes return metadata and delegate to account sett
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp(registerAccountRoutes);
+  const app = await buildTestApp((app) => registerAccountRoutes(app, { supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const auth = { authorization: 'Bearer test' };
@@ -251,7 +251,7 @@ test('me route returns AI client configuration in account settings', async (t) =
   };
 
   const { registerMeRoutes } = await import('./me.js');
-  const app = await buildTestApp(registerMeRoutes);
+  const app = await buildTestApp((app) => registerMeRoutes(app, { supabaseProfileService: {} as never, supabaseAccountSettingsRepo: {} as never }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: 'Bearer test' } });
