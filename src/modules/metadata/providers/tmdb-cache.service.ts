@@ -538,7 +538,7 @@ export class TmdbCacheService {
     if ((params.filter === 'movies' || params.filter === 'all') && params.movieGenreId) {
       requestedTypes.push({ mediaType: 'movie', genreId: params.movieGenreId });
     }
-    if ((params.filter === 'shows' || params.filter === 'all') && params.tvGenreId) {
+    if ((params.filter === 'series' || params.filter === 'all') && params.tvGenreId) {
       requestedTypes.push({ mediaType: 'tv', genreId: params.tvGenreId });
     }
 
