@@ -32,7 +32,7 @@ export class PublicAccountReadService {
     const profile = await withDbClient((client) => this.accessService.requireOwnedProfile(client, actor, profileId));
     return {
       ...mapProfileSummary(profile),
-      profileGroupId: profile.profileGroupId,
+      profileGroupId: profile.id,
     };
   }
 }

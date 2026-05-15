@@ -1,19 +1,21 @@
 import type { DbClient } from '../../lib/db.js';
-import { HttpError } from '../../lib/errors.js';
-import { ProfileRepository, type ProfileRecord } from './profile.repo.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { SupabaseProfileService, type SupabaseProfileRecord } from './supabase-profile.service.js';
 
 export class ProfileAccessService {
-  constructor(private readonly profileRepository = new ProfileRepository()) {}
+  constructor(
+    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+  ) {}
 
-  async assertOwnedProfile(client: DbClient, profileId: string, accountId: string): Promise<ProfileRecord> {
-    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-    if (!profile) {
-      throw new HttpError(404, 'Profile not found.');
-    }
-    return profile;
+  async assertOwnedProfile(_client: DbClient, profileId: string, accountId: string): Promise<SupabaseProfileRecord> {
+    return this.supabaseProfileService.requireOwnedProfile(accountId, profileId);
   }
 
-  async findOwnerUserId(client: DbClient, profileId: string): Promise<string | null> {
-    return this.profileRepository.findOwnerUserIdById(client, profileId);
+  async findOwnerUserId(_client: DbClient, profileId: string): Promise<string | null> {
+    try {
+      return await this.supabaseProfileService.requireProfileOwnerAccountId(profileId);
+    } catch {
+      return null;
+    }
   }
 }

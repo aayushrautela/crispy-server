@@ -1,6 +1,5 @@
-import { withDbClient, type DbClient } from '../../lib/db.js';
-import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
 
 export type RecommendationDataListKind = never;
 
@@ -14,36 +13,28 @@ type ProfileSummary = {
 
 export class RecommendationDataService {
   constructor(
-    private readonly profileAccessService = new ProfileAccessService(),
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
   ) {}
 
   async listAccountProfiles(accountId: string): Promise<ProfileSummary[]> {
-    return withDbClient(async (client) => {
-      const profiles = await this.profileRepository.listForOwnerUser(client, accountId);
-      return Promise.all(profiles.map((profile) => toProfileSummary(this.profileAccessService, client, profile)));
-    });
+    const profiles = await this.supabaseProfileService.listForAccount(accountId);
+    return profiles.map((profile) => ({
+      id: profile.id,
+      accountId,
+      name: profile.name,
+      isKids: profile.isKids,
+      updatedAt: profile.updatedAt,
+    }));
   }
 
   async listAccountProfilesForService(accountId: string): Promise<ProfileSummary[]> {
-    return withDbClient(async (client) => {
-      const profiles = await this.profileRepository.listForOwnerUser(client, accountId);
-      return Promise.all(profiles.map((profile) => toProfileSummary(this.profileAccessService, client, profile)));
-    });
+    const profiles = await this.supabaseProfileService.listForAccount(accountId);
+    return profiles.map((profile) => ({
+      id: profile.id,
+      accountId,
+      name: profile.name,
+      isKids: profile.isKids,
+      updatedAt: profile.updatedAt,
+    }));
   }
-}
-
-async function toProfileSummary(
-  profileAccessService: ProfileAccessService,
-  client: DbClient,
-  profile: ProfileRecord,
-): Promise<ProfileSummary> {
-  const accountId = await profileAccessService.findOwnerUserId(client, profile.id);
-  return {
-    id: profile.id,
-    accountId,
-    name: profile.name,
-    isKids: profile.isKids,
-    updatedAt: profile.updatedAt,
-  };
 }

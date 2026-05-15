@@ -1,7 +1,8 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeIsoString } from '../../lib/time.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
 import {
   ProviderSessionsRepository,
   type ProviderSessionConnectedRecord,
@@ -52,7 +53,7 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 
 export class ProviderTokenAccessService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
@@ -115,12 +116,9 @@ export class ProviderTokenAccessService {
     provider: ProviderImportProvider,
   ): Promise<ProviderSessionConnectedRecord> {
     return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found for account.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(accountId, profileId);
 
-      const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profile.id, provider);
+      const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
       if (!providerSession) {
         throw new HttpError(404, 'Provider connection not found.');
       }

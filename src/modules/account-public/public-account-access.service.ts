@@ -1,7 +1,8 @@
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import type { AuthActor, AuthScope } from '../auth/auth.types.js';
-import { ProfileRepository, type ProfileRecord } from '../profiles/profile.repo.js';
+import { SupabaseProfileService, type SupabaseProfileRecord } from '../profiles/supabase-profile.service.js';
 
 export type PublicAccountScope =
   | 'profiles:read'
@@ -22,7 +23,9 @@ const SCOPE_HIERARCHY: Record<string, PublicAccountScope[]> = {
 };
 
 export class PublicAccountAccessService {
-  constructor(private readonly profileRepository = new ProfileRepository()) {}
+  constructor(
+    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+  ) {}
 
   requireScope(actor: AuthActor, scope: PublicAccountScope): void {
     const granted = new Set(actor.scopes);
@@ -37,24 +40,19 @@ export class PublicAccountAccessService {
     throw new HttpError(403, `Missing required scope: ${scope}`);
   }
 
-  async requireOwnedProfile(client: DbClient, actor: AuthActor, profileId: string): Promise<ProfileRecord> {
+  async requireOwnedProfile(_client: DbClient, actor: AuthActor, profileId: string): Promise<SupabaseProfileRecord> {
     if (!actor.appUserId) {
       throw new HttpError(403, 'User authentication required.');
     }
 
-    const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, actor.appUserId);
-    if (!profile) {
-      throw new HttpError(404, 'Profile not found.');
-    }
-
-    return profile;
+    return this.supabaseProfileService.requireOwnedProfile(actor.appUserId, profileId);
   }
 
-  async listVisibleProfiles(client: DbClient, actor: AuthActor): Promise<ProfileRecord[]> {
+  async listVisibleProfiles(_client: DbClient, actor: AuthActor): Promise<SupabaseProfileRecord[]> {
     if (!actor.appUserId) {
       throw new HttpError(403, 'User authentication required.');
     }
 
-    return this.profileRepository.listForOwnerUser(client, actor.appUserId);
+    return this.supabaseProfileService.listForAccount(actor.appUserId);
   }
 }

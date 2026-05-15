@@ -11,7 +11,8 @@ import { calendarCacheKey } from '../cache/cache-keys.js';
 import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, canonicalTitleMediaKey, canonicalTitleMediaType, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import type { ProfileRecord } from '../profiles/profile.repo.js';
+import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import { isProviderImportProvider, type ProviderImportProvider } from './provider-import.types.js';
@@ -179,7 +180,7 @@ function buildDefaultSupabaseProviderHistoryWriter(): SupabaseProviderHistoryWri
 
 export class ProviderImportService {
   constructor(
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
@@ -216,10 +217,7 @@ export class ProviderImportService {
   ): Promise<ProviderSessionActionResult> {
     assertProviderEnabled(provider);
     const started = await this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
 
       const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
       const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
@@ -235,7 +233,7 @@ export class ProviderImportService {
       const activeProviderSession = await this.ensureImportableSessionAccount(client, providerSession);
       const queuedJob = await this.jobsRepository.create(client, {
         profileId,
-        profileGroupId: profile.profileGroupId,
+        profileGroupId: '',
         provider,
         requestedByUserId: userId,
         status: 'queued',
@@ -262,10 +260,7 @@ export class ProviderImportService {
     profileId: string,
   ): Promise<{ providerStates: ProviderStateView[]; watchDataState: ProviderWatchDataStateView | null }> {
     return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
 
       const [providerSessions, watchDataState] = await Promise.all([
         this.providerSessionsRepository.listForProfile(client, profileId),
@@ -290,10 +285,7 @@ export class ProviderImportService {
     assertProviderEnabled(provider);
 
     const providerSession = await this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
 
       return this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
     });
@@ -425,10 +417,7 @@ export class ProviderImportService {
 
   async listJobs(userId: string, profileId: string): Promise<{ jobs: ProviderImportJobRecord[]; watchDataState: ProfileWatchDataStateRecord | null }> {
     return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
 
       const [jobs, watchDataState] = await Promise.all([
         this.jobsRepository.listForProfile(client, profileId),
@@ -457,10 +446,7 @@ export class ProviderImportService {
   ): Promise<ProviderSessionActionResult> {
     assertProviderEnabled(provider);
     const started = await this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
 
       const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
       const currentSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
@@ -486,7 +472,7 @@ export class ProviderImportService {
       });
       const pendingJob = await this.jobsRepository.create(client, {
         profileId,
-        profileGroupId: profile.profileGroupId,
+        profileGroupId: '',
         provider,
         requestedByUserId: userId,
         status: 'oauth_pending',
@@ -559,10 +545,7 @@ export class ProviderImportService {
 
   async getJob(userId: string, profileId: string, jobId: string): Promise<ProviderImportJobRecord> {
     return this.runInTransaction(async (client) => {
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, userId);
-      if (!profile) {
-        throw new HttpError(404, 'Profile not found.');
-      }
+      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
 
       const job = await this.jobsRepository.findByIdForProfile(client, profileId, jobId);
       if (!job) {
@@ -734,13 +717,34 @@ export class ProviderImportService {
     importedAt: string;
     payload: ProviderReplaceImportPayload;
   }): Promise<SupabaseProviderImportSyncResult> {
+    const supabase = getSupabaseServiceRoleClient();
+
     const context = await this.runInTransaction(async (client) => {
-      const [profile, appUser] = await Promise.all([
-        this.profileRepository.findById(client, params.job.profileId),
+      const [profileRow, appUser] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, account_id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at')
+          .eq('id', params.job.profileId)
+          .is('deleted_at', null)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (!data) return null;
+            return {
+              id: data.id,
+              profileGroupId: '',
+              name: data.name,
+              avatarKey: data.avatar_key,
+              isKids: data.is_kids,
+              sortOrder: data.sort_order,
+              createdByUserId: data.created_by_account_id,
+              createdAt: String(data.created_at),
+              updatedAt: String(data.updated_at),
+            } as ProfileRecord;
+          }),
         this.userRepository.findById(client, params.job.requestedByUserId),
       ]);
 
-      return { profile, appUser };
+      return { profile: profileRow, appUser };
     });
 
     if (!context.profile || !context.appUser) {
