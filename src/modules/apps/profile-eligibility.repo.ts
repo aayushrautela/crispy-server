@@ -1,6 +1,12 @@
 import type pg from 'pg';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { HttpError } from '../../lib/errors.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 
 type QueryableDb = Pick<pg.Pool | pg.PoolClient, 'query'>;
+type PreferenceRow = { settings_json: Record<string, unknown> | null };
+type AccountRow = { id: string; deleted_at: string | null };
+type ProfileRow = { id: string; account_id: string; deleted_at: string | null };
 
 export interface ProfileEligibilityInputs {
   accountId: string;
@@ -9,6 +15,7 @@ export interface ProfileEligibilityInputs {
   profileActive: boolean;
   profileDeleted: boolean;
   profileLocked: boolean;
+  useOfficialRecommendationEngine: boolean;
   recommendationsEnabled: boolean;
   aiPersonalizationEnabled: boolean;
   accountAllowsPersonalization: boolean;
@@ -36,49 +43,46 @@ export interface ProfileEligibilityRepo {
 }
 
 export class SqlProfileEligibilityRepo implements ProfileEligibilityRepo {
-  constructor(private readonly deps: { db: QueryableDb }) {}
+  constructor(private readonly deps: { db: QueryableDb; supabase?: SupabaseClient }) {}
 
   async loadEligibilityInputs(input: { accountId: string; profileId: string }): Promise<ProfileEligibilityInputs | null> {
-    const result = await this.deps.db.query(
-      `SELECT 
-         p.id AS profile_id,
-         pg.owner_user_id AS account_id,
-         (au.id IS NOT NULL) AS account_active,
-         (p.id IS NOT NULL) AS profile_active,
-         false AS profile_deleted,
-         false AS profile_locked,
-         COALESCE((ps.settings_json->>'recommendations.enabled')::boolean, true) AS recommendations_enabled,
-         COALESCE((ps.settings_json->>'ai.personalization_enabled')::boolean, true) AS ai_personalization_enabled,
-         COALESCE((acs.settings_json->>'personalization.enabled')::boolean, true) AS account_allows_personalization,
-         true AS consent_allows_processing,
-         true AS maturity_policy_allows_reco,
-         true AS jurisdiction_allows_processing
-       FROM profiles p
-       INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
-       INNER JOIN app_users au ON au.id = pg.owner_user_id
-       LEFT JOIN profile_settings ps ON ps.profile_id = p.id
-       LEFT JOIN account_settings acs ON acs.app_user_id = pg.owner_user_id
-       WHERE pg.owner_user_id = $1::uuid
-         AND p.id = $2::uuid`,
-      [input.accountId, input.profileId],
-    );
+    const supabase = this.deps.supabase ?? getSupabaseServiceRoleClient();
+    const [{ data: account, error: accountError }, { data: profile, error: profileError }, { data: profilePreferences, error: profilePreferencesError }, { data: accountPreferences, error: accountPreferencesError }] = await Promise.all([
+      supabase.from('accounts').select('id, deleted_at').eq('id', input.accountId).maybeSingle(),
+      supabase.from('profiles').select('id, account_id, deleted_at').eq('id', input.profileId).eq('account_id', input.accountId).maybeSingle(),
+      supabase.from('profile_preferences').select('settings_json').eq('profile_id', input.profileId).maybeSingle(),
+      supabase.from('account_preferences').select('settings_json').eq('account_id', input.accountId).maybeSingle(),
+    ]);
 
-    const row = result.rows[0];
-    if (!row) return null;
+    const error = accountError ?? profileError ?? profilePreferencesError ?? accountPreferencesError;
+    if (error) {
+      throw new HttpError(502, `Supabase eligibility read failed: ${error.message}`);
+    }
+
+    if (!account || !profile) return null;
+
+    const accountRow = account as AccountRow;
+    const profileRow = profile as ProfileRow;
+    const profileSettings = asRecord((profilePreferences as PreferenceRow | null)?.settings_json);
+    const accountSettings = asRecord((accountPreferences as PreferenceRow | null)?.settings_json);
+    const recommendations = asRecord(profileSettings.recommendations);
+    const ai = asRecord(profileSettings.ai);
+    const personalization = asRecord(accountSettings.personalization);
 
     return {
       accountId: input.accountId,
       profileId: input.profileId,
-      accountActive: row.account_active,
-      profileActive: row.profile_active,
-      profileDeleted: row.profile_deleted,
-      profileLocked: row.profile_locked,
-      recommendationsEnabled: row.recommendations_enabled,
-      aiPersonalizationEnabled: row.ai_personalization_enabled,
-      accountAllowsPersonalization: row.account_allows_personalization,
-      consentAllowsProcessing: row.consent_allows_processing,
-      maturityPolicyAllowsReco: row.maturity_policy_allows_reco,
-      jurisdictionAllowsProcessing: row.jurisdiction_allows_processing,
+      accountActive: accountRow.deleted_at === null,
+      profileActive: profileRow.deleted_at === null,
+      profileDeleted: profileRow.deleted_at !== null,
+      profileLocked: false,
+      useOfficialRecommendationEngine: readBoolean(recommendations.useOfficialEngine, true),
+      recommendationsEnabled: readBoolean(recommendations.enabled, true),
+      aiPersonalizationEnabled: readBoolean(ai.personalizationEnabled, readBoolean(profileSettings['ai.personalization_enabled'], true)),
+      accountAllowsPersonalization: readBoolean(personalization.enabled, readBoolean(accountSettings['personalization.enabled'], true)),
+      consentAllowsProcessing: true,
+      maturityPolicyAllowsReco: true,
+      jurisdictionAllowsProcessing: true,
     };
   }
 
@@ -133,4 +137,12 @@ export class SqlProfileEligibilityRepo implements ProfileEligibilityRepo {
       ],
     );
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
 }

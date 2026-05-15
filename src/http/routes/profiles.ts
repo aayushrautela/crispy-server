@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { ProfileService } from '../../modules/profiles/profile.service.js';
+import type { SupabaseProfileService } from '../../modules/profiles/supabase-profile.service.js';
+import type { ProfileRecord } from '../../modules/profiles/profile.repo.js';
 import { mapProfileView } from '../../modules/profiles/profile.views.js';
 import { nonEmptyStringSchema, nullableStringSchema, profileIdParamsSchema, stringSchema, successEnvelope, withDefaultErrorResponses } from '../contracts/shared.js';
 import { success, mutation } from '../response.js';
@@ -142,43 +144,64 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export async function registerProfileRoutes(app: FastifyInstance): Promise<void> {
+export async function registerProfileRoutes(
+  app: FastifyInstance,
+  opts?: { supabaseProfileService?: SupabaseProfileService },
+): Promise<void> {
   const profileService = new ProfileService();
+  const supabaseProfileService = opts?.supabaseProfileService;
   const providerImportService = new ProviderImportService();
 
   app.get('/v1/profiles', async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserActor(request) as { appUserId: string; authSubject: string };
+    const profiles = supabaseProfileService
+      ? await supabaseProfileService.listForAccount(actor.authSubject)
+      : await profileService.listForAccount(actor.appUserId);
     return success({
-      profiles: (await profileService.listForAccount(actor.appUserId)).map((profile) => mapProfileView(profile)),
+      profiles: profiles.map((profile) => mapProfileView(profile as ProfileRecord)),
     }, request);
   });
 
   app.post('/v1/profiles', async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserActor(request) as { appUserId: string; authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const profile = await profileService.create(actor.appUserId, {
-      name: String(body.name ?? '').trim(),
-      avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : null,
-      isKids: Boolean(body.isKids),
-      sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
-    });
-    return success({ profile: mapProfileView(profile) }, request);
+    const profile = supabaseProfileService
+      ? await supabaseProfileService.create(actor.authSubject, {
+          name: String(body.name ?? '').trim(),
+          avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : null,
+          isKids: Boolean(body.isKids),
+          sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
+        })
+      : await profileService.create(actor.appUserId, {
+          name: String(body.name ?? '').trim(),
+          avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : null,
+          isKids: Boolean(body.isKids),
+          sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
+        });
+    return success({ profile: mapProfileView(profile as ProfileRecord) }, request);
   });
 
   app.patch('/v1/profiles/:profileId', async (request) => {
     await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
+    const actor = app.requireUserActor(request) as { appUserId: string; authSubject: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const profile = await profileService.update(actor.appUserId, params.profileId, {
-      name: typeof body.name === 'string' ? body.name : undefined,
-      avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : undefined,
-      isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
-      sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
-    });
-    return success({ profile: mapProfileView(profile) }, request);
+    const profile = supabaseProfileService
+      ? await supabaseProfileService.update(actor.authSubject, params.profileId, {
+          name: typeof body.name === 'string' ? body.name : undefined,
+          avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : undefined,
+          isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
+          sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
+        })
+      : await profileService.update(actor.appUserId, params.profileId, {
+          name: typeof body.name === 'string' ? body.name : undefined,
+          avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : undefined,
+          isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
+          sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
+        });
+    return success({ profile: mapProfileView(profile as ProfileRecord) }, request);
   });
 
   app.post('/v1/profiles/:profileId/imports/start', { schema: providerImportStartRouteSchema }, async (request, reply) => {

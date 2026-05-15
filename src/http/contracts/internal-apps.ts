@@ -287,7 +287,7 @@ export const profileEligibilityPolicySchema = {
   additionalProperties: false,
   required: [
     'accountActive', 'profileActive', 'profileDeleted', 'profileLocked',
-    'recommendationsEnabled', 'aiPersonalizationEnabled', 'accountAllowsPersonalization',
+    'useOfficialRecommendationEngine', 'recommendationsEnabled', 'aiPersonalizationEnabled', 'accountAllowsPersonalization',
     'consentAllowsProcessing', 'maturityPolicyAllowsReco', 'appGrantAllowsProfile',
   ],
   properties: {
@@ -295,6 +295,7 @@ export const profileEligibilityPolicySchema = {
     profileActive: booleanSchema,
     profileDeleted: booleanSchema,
     profileLocked: booleanSchema,
+    useOfficialRecommendationEngine: booleanSchema,
     recommendationsEnabled: booleanSchema,
     aiPersonalizationEnabled: booleanSchema,
     accountAllowsPersonalization: booleanSchema,

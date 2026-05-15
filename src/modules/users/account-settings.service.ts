@@ -239,7 +239,12 @@ export function normalizeProfileSettingsPatch(value: unknown): Record<string, un
     }
   }
 
-  return value;
+  const normalized = { ...value };
+  if (Object.hasOwn(normalized, 'recommendations')) {
+    normalized.recommendations = normalizeEditableRecommendationSettings(normalized.recommendations);
+  }
+
+  return normalized;
 }
 
 function normalizeSecretField(field: string): AccountSecretField {
@@ -276,6 +281,27 @@ function normalizePricingTier(value: unknown): PricingTier {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeEditableRecommendationSettings(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new HttpError(400, 'Recommendation settings patch must be an object.');
+  }
+
+  const normalized: Record<string, unknown> = {};
+  if (Object.hasOwn(value, 'useOfficialEngine')) {
+    if (typeof value.useOfficialEngine !== 'boolean') {
+      throw new HttpError(400, 'recommendations.useOfficialEngine must be a boolean.');
+    }
+    normalized.useOfficialEngine = value.useOfficialEngine;
+  }
+  if (Object.hasOwn(value, 'enabled')) {
+    if (typeof value.enabled !== 'boolean') {
+      throw new HttpError(400, 'recommendations.enabled must be a boolean.');
+    }
+    normalized.enabled = value.enabled;
+  }
+  return normalized;
 }
 
 function normalizeEditableAiSettings(value: unknown): Record<string, unknown> {

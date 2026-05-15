@@ -15,6 +15,7 @@ This directory contains current Crispy Server documentation.
 | `api/recommendations.md` | Recommendation API behavior and operator guidance |
 | `architecture/recommendation-engine.md` | Current MAIN/RECO boundary and security model |
 | `supabase-fastify-rls-target-architecture-plan.md` | Current Supabase/Fastify/RLS architecture and watch-domain storage model |
+| `specs/user-data-supabase-residency.md` | User-data Supabase residency migration spec and local/Supabase data-boundary rules |
 
 ## Contract ownership
 

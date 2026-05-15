@@ -117,6 +117,7 @@ export class DefaultProfileEligibilityService implements ProfileEligibilityServi
       profileActive: input.inputs.profileActive,
       profileDeleted: input.inputs.profileDeleted,
       profileLocked: input.inputs.profileLocked,
+      useOfficialRecommendationEngine: input.inputs.useOfficialRecommendationEngine,
       recommendationsEnabled: input.inputs.recommendationsEnabled,
       aiPersonalizationEnabled: input.inputs.aiPersonalizationEnabled,
       accountAllowsPersonalization: input.inputs.accountAllowsPersonalization,
@@ -129,6 +130,7 @@ export class DefaultProfileEligibilityService implements ProfileEligibilityServi
     if (!input.inputs.profileActive) reasons.push('profile_inactive');
     if (input.inputs.profileDeleted) reasons.push('profile_deleted');
     if (input.inputs.profileLocked) reasons.push('profile_locked');
+    if (!input.inputs.useOfficialRecommendationEngine) reasons.push('official_recommendation_engine_disabled');
     if (!input.inputs.recommendationsEnabled) reasons.push('profile_disabled_recommendations');
     if (input.requireAiPersonalization && !input.inputs.aiPersonalizationEnabled) {
       reasons.push('ai_personalization_disabled');
@@ -157,6 +159,7 @@ export class DefaultProfileEligibilityService implements ProfileEligibilityServi
       profileActive: false,
       profileDeleted: false,
       profileLocked: false,
+      useOfficialRecommendationEngine: false,
       recommendationsEnabled: false,
       aiPersonalizationEnabled: false,
       accountAllowsPersonalization: false,

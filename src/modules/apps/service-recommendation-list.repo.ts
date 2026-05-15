@@ -17,10 +17,10 @@ export class SqlServiceRecommendationListRepo implements ServiceRecommendationLi
   async listWritableServiceLists(input: { appId: string }): Promise<ServiceRecommendationListDescriptor[]> {
     if (input.appId === OFFICIAL_RECOMMENDER_APP_ID) return getOfficialRecommenderListDescriptors();
     const result = await this.deps.db.query(
-      `SELECT so.owner_app_id, so.source, list_key
+      `SELECT so.app_id AS owner_app_id, so.source, list_key
        FROM app_source_ownership so
        CROSS JOIN LATERAL unnest(so.allowed_list_keys) AS list_key
-       WHERE so.owner_app_id = $1 AND so.status = 'active'
+       WHERE so.app_id = $1 AND so.status = 'active'
        ORDER BY list_key`,
       [input.appId],
     );
@@ -34,10 +34,10 @@ export class SqlServiceRecommendationListRepo implements ServiceRecommendationLi
         : null;
     }
     const result = await this.deps.db.query(
-      `SELECT so.owner_app_id, so.source, list_key
+      `SELECT so.app_id AS owner_app_id, so.source, list_key
        FROM app_source_ownership so
        CROSS JOIN LATERAL unnest(so.allowed_list_keys) AS list_key
-       WHERE so.owner_app_id = $1 AND so.status = 'active' AND list_key = $2
+       WHERE so.app_id = $1 AND so.status = 'active' AND list_key = $2
        LIMIT 1`,
       [input.appId, input.listKey],
     );

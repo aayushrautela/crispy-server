@@ -1,15 +1,25 @@
 # Supabase, Fastify, and RLS Architecture
 
-This document describes the current Supabase/Fastify/RLS architecture for Crispy user interaction state.
+This document describes the current Supabase/Fastify/RLS architecture for Crispy user data. The detailed migration spec for removing durable user data from local Postgres is `docs/specs/user-data-supabase-residency.md`.
 
 ## Source of truth
 
 - Fastify remains the client API boundary.
 - Supabase Auth is the user session authority.
-- Supabase Postgres/RPC/RLS stores profile-scoped user interaction state behind Fastify.
+- Supabase Postgres/RPC/RLS stores durable user/account/profile-scoped data behind Fastify.
+- This includes accounts, profiles, preferences, secrets/token metadata, provider integration state, watch/list/rating/progress state, recommendation outputs, taste profiles, and copied profile signals.
+- Local Postgres is metadata/cache-only, except temporary explicitly allowlisted operational outbox/admin delivery state.
 - Clients should not call Supabase user-state tables or RPCs directly by default.
 - Fastify forwards the original Supabase user access token to user-scoped Supabase RPC/Data API calls so RLS applies.
 - Supabase service-role access is server-only and limited to trusted backend jobs: provider imports, admin repair, controlled backfills, and auth admin tasks.
+
+## User data residency
+
+Durable user/account/profile-scoped data belongs in Supabase, not local Postgres. Local Postgres may store metadata/cache tables and, for now, explicitly allowlisted operational delivery/admin state such as `service_outbox_events` and `admin_bulk_jobs*`.
+
+Forbidden local source-of-truth data includes account/profile identity, settings, preferences, secrets, PATs, provider credentials, watch/list/rating/progress state, recommendation outputs, taste profiles, and copied profile signals.
+
+See `docs/specs/user-data-supabase-residency.md` for the migration plan, guardrail requirements, and acceptance criteria.
 
 ## Identity
 

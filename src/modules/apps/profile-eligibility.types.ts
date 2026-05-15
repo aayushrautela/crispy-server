@@ -5,6 +5,7 @@ export type ProfileEligibilityReason =
   | 'profile_inactive'
   | 'profile_deleted'
   | 'profile_locked'
+  | 'official_recommendation_engine_disabled'
   | 'profile_disabled_recommendations'
   | 'ai_personalization_disabled'
   | 'account_personalization_disabled'
@@ -18,6 +19,7 @@ export interface ProfileEligibilityPolicy {
   profileActive: boolean;
   profileDeleted: boolean;
   profileLocked: boolean;
+  useOfficialRecommendationEngine: boolean;
   recommendationsEnabled: boolean;
   aiPersonalizationEnabled: boolean;
   accountAllowsPersonalization: boolean;

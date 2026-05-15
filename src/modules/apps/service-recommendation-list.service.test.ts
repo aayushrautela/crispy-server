@@ -88,7 +88,7 @@ class FakeRecommendationListWriteService implements RecommendationListWriteServi
 
 const eligibilityService: ProfileEligibilityService = {
   async check() { throw new Error('not used'); },
-  async assertEligible() { return { accountId: 'acc-1', profileId: 'prof-1', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 42, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; },
+    async assertEligible() { return { accountId: 'acc-1', profileId: 'prof-1', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 42, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, useOfficialRecommendationEngine: true, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; },
   async recomputeAndStore() { throw new Error('not used'); },
 };
 

@@ -1,5 +1,5 @@
 import { HttpError } from '../../lib/errors.js';
-import type { AppAuthorizationService } from '../apps/app-authorization.service.js';
+import { OFFICIAL_RECOMMENDER_APP_ID } from '../apps/official-recommender-lists.js';
 import type { AppSourceOwnershipRepo } from '../apps/app-source-ownership.repo.js';
 import type { RecommendationListItemInput, RecommendationListPolicyDecision, RecommendationListWriteInput, RecommendationWriteActor } from './recommendation-list.types.js';
 
@@ -35,7 +35,6 @@ export class PublicRecommendationWritePolicy implements RecommendationListWriteP
 
 export class AppRecommendationWritePolicy implements RecommendationListWritePolicy {
   constructor(private readonly deps: {
-    appAuthorizationService: AppAuthorizationService;
     sourceOwnershipRepo: AppSourceOwnershipRepo;
     maxItemsDefault: number;
   }) {}
@@ -44,14 +43,17 @@ export class AppRecommendationWritePolicy implements RecommendationListWritePoli
     if (input.actor.type !== 'app') {
       return { allowed: false, source: input.source, maxItems: this.deps.maxItemsDefault, requiresEligibilityAtWrite: true, rejectReason: 'App actor is required.' };
     }
-    const principal = { appId: input.actor.appId, keyId: input.actor.keyId };
-    await this.deps.sourceOwnershipRepo.assertAppOwnsListKey({ appId: principal.appId, source: input.source, listKey: input.listKey });
+    if (input.actor.appId !== OFFICIAL_RECOMMENDER_APP_ID) {
+      await this.deps.sourceOwnershipRepo.assertAppOwnsListKey({ appId: input.actor.appId, source: input.source, listKey: input.listKey });
+    }
     return { allowed: true, source: input.source, maxItems: this.deps.maxItemsDefault, requiresEligibilityAtWrite: true };
   }
 
   async validateListKey(input: { listKey: string; source: string; actor: RecommendationWriteActor }): Promise<void> {
     if (input.actor.type !== 'app') throw new HttpError(403, 'App actor is required.', undefined, 'APP_ACTOR_REQUIRED');
-    await this.deps.sourceOwnershipRepo.assertAppOwnsListKey({ appId: input.actor.appId, source: input.source, listKey: input.listKey });
+    if (input.actor.appId !== OFFICIAL_RECOMMENDER_APP_ID) {
+      await this.deps.sourceOwnershipRepo.assertAppOwnsListKey({ appId: input.actor.appId, source: input.source, listKey: input.listKey });
+    }
   }
 
   async validateItems(input: { items: RecommendationListItemInput[]; maxItems: number }): Promise<void> {

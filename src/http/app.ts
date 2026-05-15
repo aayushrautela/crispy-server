@@ -25,8 +25,11 @@ import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerInternalConfidentialRoutes } from './routes/internal-confidential.js';
 import { ConfidentialConfigService } from '../modules/confidential/service.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
+import { SupabasePersonalAccessTokenService } from '../modules/auth/supabase-personal-access-token.service.js';
+import { SupabaseAccountSettingsRepository } from '../modules/users/supabase-account-settings.repo.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
+import { SupabaseProfileService } from '../modules/profiles/supabase-profile.service.js';
 import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
@@ -188,7 +191,6 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
   const recommendationListWriteService = new DefaultRecommendationListWriteService({
     repo: recommendationListRepo,
     policy: new AppRecommendationWritePolicy({
-      appAuthorizationService,
       sourceOwnershipRepo: authDeps.sourceOwnershipRepo,
       maxItemsDefault: 100,
     }),
@@ -281,14 +283,19 @@ export async function buildApp() {
     }
   });
 
+  const supabase = env.supabaseAdminApiKey ? getSupabaseServiceRoleClient() : null;
+  const supabaseProfileService = supabase ? new SupabaseProfileService(supabase) : undefined;
+  const supabasePatService = supabase ? new SupabasePersonalAccessTokenService(supabase) : undefined;
+  const supabaseAccountSettingsRepo = supabase ? new SupabaseAccountSettingsRepository(supabase) : undefined;
+
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
-  await registerAccountRoutes(app);
+  await registerAccountRoutes(app, { supabaseAccountSettingsRepo });
   await registerAiRoutes(app);
-  await registerMeRoutes(app);
-  await registerPersonalAccessTokenRoutes(app);
-  await registerProfileRoutes(app);
-  await registerProfileSettingsRoutes(app);
+  await registerMeRoutes(app, { supabaseProfileService, supabaseAccountSettingsRepo });
+  await registerPersonalAccessTokenRoutes(app, { supabasePatService });
+  await registerProfileRoutes(app, { supabaseProfileService });
+  await registerProfileSettingsRoutes(app, { supabaseProfileService });
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
   await registerRecommendationOutputRoutes(app);

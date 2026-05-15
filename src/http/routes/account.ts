@@ -11,11 +11,17 @@ import {
 import { AccountDeletionService } from '../../modules/users/account-deletion.service.js';
 import { FeatureEntitlementService } from '../../modules/entitlements/feature-entitlement.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
+import type { SupabaseAccountSettingsRepository } from '../../modules/users/supabase-account-settings.repo.js';
 import { success } from '../response.js';
 
-export async function registerAccountRoutes(app: FastifyInstance): Promise<void> {
+export async function registerAccountRoutes(
+  app: FastifyInstance,
+  opts?: { supabaseAccountSettingsRepo?: SupabaseAccountSettingsRepository },
+): Promise<void> {
   const accountDeletionService = new AccountDeletionService();
-  const accountSettingsService = new AccountSettingsService();
+  const accountSettingsService = opts?.supabaseAccountSettingsRepo
+    ? new AccountSettingsService(opts.supabaseAccountSettingsRepo)
+    : new AccountSettingsService();
   const entitlementService = new FeatureEntitlementService();
 
   app.get('/v1/account/settings', { schema: accountSettingsRouteSchema }, async (request) => {

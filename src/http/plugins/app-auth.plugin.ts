@@ -140,7 +140,7 @@ function buildOfficialRecommenderPrincipal(): AppPrincipal {
     keyId: 'crispy-recommender-api-token',
     scopes: OFFICIAL_RECOMMENDER_SCOPES,
     grants: OFFICIAL_RECOMMENDER_GRANTS,
-    ownedSources: ['official-recommender', 'recommender', 'crispy'],
+    ownedSources: ['official-recommender'],
     ownedListKeys: ['*'],
     rateLimitPolicy: {
       profileChangesReadsPerMinute: 1000000,
