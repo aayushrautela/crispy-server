@@ -107,7 +107,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
-    const limit = Number(query.limit ?? 50);
+    const limit = Number(query.limit ?? 100);
     const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await supabaseUserWatchService.listHistoryPage({

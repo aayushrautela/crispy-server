@@ -1069,7 +1069,7 @@ Routes covered by this policy:
 - `POST /v1/profiles/:profileId/watch/events`
 - `GET /v1/profiles/:profileId/watch/continue-watching`
 - `DELETE /v1/profiles/:profileId/watch/continue-watching/:id`
-- `GET /v1/profiles/:profileId/watch/history`
+- `GET /v1/profiles/:profileId/watch/history` (default limit: 100, cursor-based pagination, ordered by `watched_at` desc)
 - `GET /v1/profiles/:profileId/watch/watchlist`
 - `GET /v1/profiles/:profileId/watch/ratings`
 - `GET /v1/profiles/:profileId/watch/state`
