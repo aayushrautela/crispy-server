@@ -76,7 +76,7 @@ BEGIN
     MAX(we.occurred_at),
     COALESCE(v_latest_state_event.source_kind, 'local'),
     v_latest_state_event.source_provider,
-    MAX(we.account_id),
+    (array_agg(we.account_id ORDER BY we.occurred_at DESC, we.created_at DESC, we.id DESC))[1],
     now()
   FROM public.watch_events we
   WHERE we.profile_id = p_profile_id

@@ -4,10 +4,10 @@ Crispy Server is the backend for the Crispy app. It runs the API, internal backe
 
 ## What this service owns
 
-Supabase is the external auth provider and the target RLS-backed store for user interaction state, but Fastify remains the default application data API.
+Supabase is the external auth provider and the RLS-backed store for user interaction state, but Fastify remains the default application data API.
 
 - Supabase Auth provides the JWT issuer and JWKS used to verify user bearer tokens.
-- Supabase Postgres/RPC/RLS stores target profile watch state, history, continue watching, watchlist, ratings, and provider-import interaction facts behind Fastify.
+- Supabase Postgres/RPC/RLS stores profile watch state, history, continue watching, watchlist, ratings, and provider-import interaction facts behind Fastify.
 - Fastify verifies user JWTs, preserves the original access token, and calls Supabase user RPC/Data API with the user's JWT for normal user operations.
 - Supabase service-role credentials are server-only and limited to trusted backend jobs, imports, admin repair, and upstream auth admin calls.
 - Metadata, provider secrets, AI vendor calls, admin/ops, queues, and recommendation orchestration remain backend-owned.
@@ -17,7 +17,7 @@ Application data and business logic are split by trust boundary:
 - Fastify API runtime
 - Internal BullMQ worker runtime
 - Local Postgres for backend-owned operational data, metadata caches, outbox/admin state, and transition-era tables
-- Supabase Postgres/RPC/RLS for target user interaction state behind Fastify
+- Supabase Postgres/RPC/RLS for user interaction state behind Fastify
 - Redis for queues and cached read surfaces
 
 ## Stack
@@ -100,7 +100,7 @@ npm run test
 | Generated API artifacts | `openapi/generated/`, `docs/api/generated/` |
 | Recommendation API guide | `docs/api/recommendations.md` |
 | Recommendation-engine boundary and security contract | `docs/architecture/recommendation-engine.md` |
-| Supabase/Fastify/RLS target migration | `docs/supabase-fastify-rls-target-architecture-plan.md` |
+| Supabase/Fastify/RLS architecture | `docs/supabase-fastify-rls-target-architecture-plan.md` |
 | Client media identity/watch-state guidance | `docs/api/media-state.md` |
 
 The README intentionally does not maintain an endpoint inventory. OpenAPI is the canonical API contract; use `docs/api/README.md` for the workflow and run the contract checks before merging API changes.

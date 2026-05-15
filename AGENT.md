@@ -9,7 +9,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
   - clients may use Supabase Auth directly for login/session
   - Fastify verifies bearer JWTs through Supabase issuer/JWKS discovery
   - Fastify may use the upstream auth admin API for deleting Supabase auth users
-- Supabase Postgres/RPC/RLS is the target store and authorization substrate for user interaction state behind Fastify:
+- Supabase Postgres/RPC/RLS is the store and authorization substrate for user interaction state behind Fastify:
   - profile watch state
   - watch history
   - continue watching

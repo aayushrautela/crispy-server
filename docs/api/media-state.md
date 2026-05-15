@@ -41,13 +41,22 @@ Search and metadata routes resolve TMDB-backed identities:
 
 ## Watch state
 
-Watch-state routes are `mediaKey`-based:
+Watch-state routes are `mediaKey`-based and express product intent rather than storage details:
 
 - Single-item state lookup receives one media identity.
 - Batch state lookup receives a bounded list of media identities.
 - Watchlist and rating mutations should target the canonical media key path value documented in OpenAPI.
+- Playback progress updates incomplete resume state.
+- Completed playback records a chronological history event and removes active resume state for that title.
+- Manual mark watched records watched state and removes active resume state.
+- Manual unwatch records a new watched-state event that can make effective watched state false.
+- Full watch history returns chronological watched events and preserves rewatches.
+- Media-specific history can be requested for a movie, episode, or show media key.
+- Show state includes `watchedEpisodeKeys` derived from watched episode summaries.
 
-Continue-watching items include a Crispy projection id for dismissal/correlation. Use the id returned by the continue-watching response when calling the dismissal endpoint.
+Continue-watching items represent active resume state only. Use the id returned by the continue-watching response when calling the dismissal endpoint.
+
+Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 
 ## Recommendations
 

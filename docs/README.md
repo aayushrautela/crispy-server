@@ -14,7 +14,7 @@ This directory contains current Crispy Server documentation.
 | `api/media-state.md` | Client media identity and watch-state behavior guide |
 | `api/recommendations.md` | Recommendation API behavior and operator guidance |
 | `architecture/recommendation-engine.md` | Current MAIN/RECO boundary and security model |
-| `supabase-fastify-rls-target-architecture-plan.md` | Canonical Supabase/Fastify/RLS target architecture |
+| `supabase-fastify-rls-target-architecture-plan.md` | Current Supabase/Fastify/RLS architecture and watch-domain storage model |
 
 ## Contract ownership
 
