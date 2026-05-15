@@ -55,6 +55,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
       eventKind: String(body.eventType ?? '') === 'playback_completed' ? 'playback_completed' : 'playback_progress',
+      occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
+      clientEventId: typeof body.clientEventId === 'string' ? body.clientEventId : null,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });
@@ -115,6 +117,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       profileId,
       limit,
       cursor: parseNullableString(query.cursor),
+      mediaKey: parseNullableString(query.mediaKey),
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>

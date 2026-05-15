@@ -33,11 +33,15 @@ export type HistoryProductItem = {
   mediaItem: MediaItem;
   context: {
     id: string;
+    eventType: string;
+    occurredAt: string;
     watchedAt: string;
     origins: string[];
   };
   presentation: MediaPresentationHint | null;
   id: string;
+  eventType: string;
+  occurredAt: string;
   watchedAt: string;
   origins: string[];
 };

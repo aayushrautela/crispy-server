@@ -32,6 +32,7 @@ export type WatchMediaKeyParams = {
 export type WatchPaginationQuery = {
   limit?: number | string;
   cursor?: string;
+  mediaKey?: string;
 };
 
 export type WatchStateLookupContract = {
@@ -156,12 +157,14 @@ const watchProductItemSchema = {
 
 const historyItemSchema = {
   ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'id', 'watchedAt', 'origins'],
-  properties: {
-    ...watchProductItemSchema.properties,
-    id: stringSchema,
-    watchedAt: stringSchema,
-    origins: {
+  required: [...watchProductItemSchema.required, 'id', 'eventType', 'occurredAt', 'watchedAt', 'origins'],
+    properties: {
+      ...watchProductItemSchema.properties,
+      id: stringSchema,
+      eventType: stringSchema,
+      occurredAt: nullableStringSchema,
+      watchedAt: nullableStringSchema,
+      origins: {
       type: 'array',
       items: stringSchema,
     },
@@ -412,17 +415,26 @@ export const watchListRouteSchema = withDefaultErrorResponses({
   },
 });
 
+export const historyListRouteSchema = withDefaultErrorResponses({
+  params: profileIdParamsSchema,
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      limit: positiveIntegerLikeSchema,
+      cursor: stringSchema,
+      mediaKey: stringSchema,
+    },
+  },
+  response: {
+    200: successEnvelope(buildWatchCollectionResponseSchema('history', historyItemSchema)),
+  },
+});
+
 export const continueWatchingListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
     200: successEnvelope(buildWatchCollectionResponseSchema('continue-watching', continueWatchingItemSchema)),
-  },
-});
-
-export const historyListRouteSchema = withDefaultErrorResponses({
-  ...watchListRouteSchema,
-  response: {
-    200: successEnvelope(buildWatchCollectionResponseSchema('history', historyItemSchema)),
   },
 });
 

@@ -42,6 +42,9 @@ export class CalendarBuilderService {
       }
 
       const episodeIdentity = nextEpisode ? safeParseMediaKey(nextEpisode.mediaKey) : null;
+      const watched = nextEpisode?.mediaKey
+        ? await this.isWatched(profileId, nextEpisode.mediaKey)
+        : false;
       const mediaCard = episodeIdentity
         ? await this.metadataCardService.buildCardView(client, episodeIdentity).catch(() => null)
         : showCard;
@@ -75,16 +78,32 @@ export class CalendarBuilderService {
         context: {
           bucket,
           airDate: nextEpisode?.airDate ?? null,
-          watched: false,
+          watched,
           relatedShow: relatedShowMediaItem,
         },
         presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
         airDate: nextEpisode?.airDate ?? null,
-        watched: false,
+        watched,
       });
     }
 
     return items;
+  }
+
+  private async isWatched(profileId: string, mediaKey: string): Promise<boolean> {
+    const supabase = getSupabaseServiceRoleClient();
+    const { data, error } = await supabase
+      .from('media_watch_summary')
+      .select('effective_watched')
+      .eq('profile_id', profileId)
+      .eq('media_key', mediaKey)
+      .maybeSingle();
+
+    if (error) {
+      return false;
+    }
+
+    return data?.effective_watched === true;
   }
 
   private async loadCandidates(profileId: string, limit: number): Promise<Candidate[]> {

@@ -15,6 +15,8 @@ test('watch routes require user session actor with access token', async (t) => {
     unmarkWatched: SupabaseUserWatchService.prototype.unmarkWatched,
     enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
   };
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
+  const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
     SupabaseUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
@@ -22,6 +24,7 @@ test('watch routes require user session actor with access token', async (t) => {
     SupabaseUserWatchService.prototype.markWatched = originals.markWatched;
     SupabaseUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
     WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+    MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
   let receivedAccessToken: string | null = null;
@@ -51,6 +54,10 @@ test('watch routes require user session actor with access token', async (t) => {
 
   WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = async function (_client, items) {
     return items;
+  };
+
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en-US';
   };
 
   const { registerWatchRoutes } = await import('./watch.js');

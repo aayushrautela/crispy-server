@@ -91,17 +91,24 @@ export function mapSupabaseRatingRow(row: SupabaseWatchReadRow): RatingProductIt
 
 export function mapSupabaseHistoryRow(row: SupabaseWatchReadRow): HistoryProductItem {
   const mediaKey = stringValue(row.media_key);
+  const occurredAt = isoValue(row.occurred_at ?? row.watched_at);
+  const id = stringValue(row.id) || `${mediaKey}:${occurredAt}`;
+  const eventType = stringValue(row.event_type) || 'playback_completed';
   return {
-    id: stringValue(row.id) || `${mediaKey}:${isoValue(row.watched_at)}`,
+    id,
     kind: 'watch_history',
     mediaItem: mediaItemFromRow(mediaKey, row),
     context: {
-      id: stringValue(row.id) || `${mediaKey}:${isoValue(row.watched_at)}`,
-      watchedAt: isoValue(row.watched_at),
+      id,
+      eventType,
+      occurredAt,
+      watchedAt: occurredAt,
       origins: origins(row),
     },
     presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-    watchedAt: isoValue(row.watched_at),
+    eventType,
+    occurredAt,
+    watchedAt: occurredAt,
     origins: origins(row),
   };
 }

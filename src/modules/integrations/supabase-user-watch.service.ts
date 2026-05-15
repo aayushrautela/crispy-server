@@ -28,6 +28,8 @@ type RecordPlaybackParams = {
   positionSeconds: number | null;
   durationSeconds: number | null;
   eventKind: 'playback_progress' | 'playback_completed';
+  occurredAt?: string | null;
+  clientEventId?: string | null;
 };
 
 type DismissContinueWatchingParams = {
@@ -90,6 +92,10 @@ type ListPageParams = {
   cursor?: string | null;
 };
 
+type ListHistoryPageParams = ListPageParams & {
+  mediaKey?: string | null;
+};
+
 type GetStateParams = {
   accessToken: string;
   profileId: string;
@@ -131,15 +137,17 @@ export class SupabaseUserWatchService {
     return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.rated_at), tieBreaker: String(row.media_key) }), mapSupabaseRatingRow);
   }
 
-  async listHistoryPage(params: ListPageParams): Promise<PaginatedWatchCollection<HistoryProductItem>> {
+  async listHistoryPage(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<HistoryProductItem>> {
     const cursor = decodeWatchPageCursor(params.cursor);
-    const rows = await this.rpcRows(params.accessToken, 'list_watch_history_page', {
+    const rpcName = params.mediaKey ? 'list_media_watch_history_page' : 'list_watch_history_page';
+    const rows = await this.rpcRows(params.accessToken, rpcName, {
       p_profile_id: params.profileId,
+      ...(params.mediaKey ? { p_media_key: params.mediaKey } : {}),
       p_limit: params.limit,
-      p_cursor_watched_at: cursor?.sortValue ?? null,
+      p_cursor_occurred_at: cursor?.sortValue ?? null,
       p_cursor_id: cursor?.tieBreaker ?? null,
     });
-    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.watched_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);
+    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);
   }
 
   async getState(params: GetStateParams): Promise<WatchStateResponse> {
@@ -183,6 +191,8 @@ export class SupabaseUserWatchService {
       p_duration_seconds: params.durationSeconds,
       p_progress_bps: progressBps,
       p_event_kind: params.eventKind,
+      p_occurred_at: params.occurredAt ?? null,
+      p_client_event_id: params.clientEventId ?? null,
     });
   }
 

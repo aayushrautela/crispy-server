@@ -125,13 +125,13 @@ export class SupabaseAdminWatchReadService {
       .from('watch_events')
       .select('*')
       .eq('profile_id', params.profileId)
-      .eq('event_type', 'playback_completed');
+      .in('event_type', ['playback_completed', 'marked_watched']);
 
     if (cursor) {
-      query = query.or(`watched_at.lt.${cursor.sortValue},and(watched_at.eq.${cursor.sortValue},id.lt.${cursor.tieBreaker})`);
+      query = query.or(`occurred_at.lt.${cursor.sortValue},and(occurred_at.eq.${cursor.sortValue},id.lt.${cursor.tieBreaker})`);
     }
 
-    query = query.order('watched_at', { ascending: false }).order('id', { ascending: false }).limit(params.limit + 1);
+    query = query.order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(params.limit + 1);
 
     const { data, error } = await query;
     if (error) {
@@ -140,7 +140,7 @@ export class SupabaseAdminWatchReadService {
     }
 
     const rows = (data ?? []) as SupabaseWatchReadRow[];
-    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.watched_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);
+    return pageFromRows(rows, params.limit, (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);
   }
 
 }
