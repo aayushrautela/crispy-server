@@ -133,7 +133,7 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
   assert.deepEqual(left, right);
   assert.equal(profileChecks, 1);
   assert.equal(aiCalls, 1);
-  assert.deepEqual(left.all.map((item) => item.mediaItem.title), ['Alpha Movie']);
-  assert.deepEqual(left.movies.map((item) => item.mediaItem.title), ['Alpha Movie']);
+  assert.deepEqual(left.all.map((item) => item.mediaItem.name), ['Alpha Movie']);
+  assert.deepEqual(left.movies.map((item) => item.mediaItem.name), ['Alpha Movie']);
   assert.deepEqual(left.series, []);
 });

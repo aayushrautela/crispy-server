@@ -4,8 +4,8 @@ import { inferMediaIdentity } from '../identity/media-key.js';
 import { buildMetadataCardView } from '../metadata/metadata-card.builders.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
-import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
-import type { MediaItem } from '../metadata/media-item.types.js';
+import { metadataCardToMediaItem, mediaItemToMediaItemDto } from '../metadata/media-item.mapper.js';
+import type { MediaItemDto } from '../metadata/media-item.types.js';
 import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult, SearchSuggestionItem } from '../metadata/metadata-detail.types.js';
 import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
 import type { TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
@@ -132,7 +132,7 @@ export class TitleSearchService {
         return {
           item: {
             kind: 'search_result' as const,
-            mediaItem: metadataCardToMediaItem(card),
+            mediaItem: mediaItemToMediaItemDto(metadataCardToMediaItem(card)),
             context: {},
             presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
           },
@@ -190,7 +190,7 @@ export class TitleSearchService {
       const card = buildMetadataCardView({ identity, title: hydrated, language: locale });
       return {
         kind: 'search_result' as const,
-        mediaItem: metadataCardToMediaItem(card),
+        mediaItem: mediaItemToMediaItemDto(metadataCardToMediaItem(card)),
         context: {},
         presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
       };
@@ -326,9 +326,9 @@ function rankSearchEntries(query: string, entries: SearchBucketEntry[]): SearchB
     })
     .map((entry) => ({
       ...entry,
-      normalizedTitle: normalizeSearchText(entry.item.mediaItem.title),
-      normalizedSubtitle: normalizeSearchText(entry.item.mediaItem.subtitle ?? null),
-      sourcePriority: entry.item.mediaItem.mediaType === 'movie' ? 0 : 1,
+      normalizedTitle: normalizeSearchText(entry.item.mediaItem.name),
+      normalizedSubtitle: normalizeSearchText(entry.item.mediaItem.originalTitle ?? null),
+      sourcePriority: entry.item.mediaItem.type === 'Movie' ? 0 : 1,
     }))
     .sort(compareSearchEntries(query))
     .map(({ normalizedTitle: _normalizedTitle, normalizedSubtitle: _normalizedSubtitle, sourcePriority: _sourcePriority, ...entry }) => entry);
@@ -345,7 +345,7 @@ function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
       continue;
     }
 
-    const bucket = bucketForMediaType(entry.item.mediaItem.mediaType);
+    const bucket = bucketForMediaType(entry.item.mediaItem);
     if (bucket) {
       buckets[bucket].push(entry);
     }
@@ -389,19 +389,19 @@ function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
   return [...clean, ...noisy];
 }
 
-function hasSearchPoster(item: MediaItem): boolean {
-  return Boolean(item.images.poster.small || item.images.poster.medium || item.images.poster.large);
+function hasSearchPoster(item: MediaItemDto): boolean {
+  return Boolean(item.imageTags.primary?.small || item.imageTags.primary?.medium || item.imageTags.primary?.large);
 }
 
 function toSearchResults(entries: SearchBucketEntry[]): MetadataSearchResult[] {
   return entries.map(({ item }) => item);
 }
 
-function bucketForMediaType(mediaType: MediaItem['mediaType']): keyof SearchBuckets | null {
-  if (mediaType === 'movie') {
+function bucketForMediaType(dto: MediaItemDto): keyof SearchBuckets | null {
+  if (dto.type === 'Movie') {
     return 'movies';
   }
-  if (mediaType === 'show') {
+  if (dto.type === 'Series') {
     return 'series';
   }
   return null;
@@ -416,14 +416,14 @@ function compareSearchEntries(query: string): (left: SearchEntryCandidate, right
       return leftRank - rightRank;
     }
 
-    const leftYear = left.item.mediaItem.releaseYear ?? Number.MIN_SAFE_INTEGER;
-    const rightYear = right.item.mediaItem.releaseYear ?? Number.MIN_SAFE_INTEGER;
+    const leftYear = left.item.mediaItem.productionYear ?? Number.MIN_SAFE_INTEGER;
+    const rightYear = right.item.mediaItem.productionYear ?? Number.MIN_SAFE_INTEGER;
     if (leftYear !== rightYear) {
       return rightYear - leftYear;
     }
 
-    const leftRating = left.item.mediaItem.rating ?? Number.MIN_SAFE_INTEGER;
-    const rightRating = right.item.mediaItem.rating ?? Number.MIN_SAFE_INTEGER;
+    const leftRating = left.item.mediaItem.communityRating ?? Number.MIN_SAFE_INTEGER;
+    const rightRating = right.item.mediaItem.communityRating ?? Number.MIN_SAFE_INTEGER;
     if (leftRating !== rightRating) {
       return rightRating - leftRating;
     }
@@ -432,7 +432,7 @@ function compareSearchEntries(query: string): (left: SearchEntryCandidate, right
       return left.sourcePriority - right.sourcePriority;
     }
 
-    return left.item.mediaItem.title.localeCompare(right.item.mediaItem.title);
+    return left.item.mediaItem.name.localeCompare(right.item.mediaItem.name);
   };
 }
 

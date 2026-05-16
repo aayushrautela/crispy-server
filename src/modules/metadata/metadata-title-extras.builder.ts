@@ -4,7 +4,7 @@ import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { buildMetadataCardView } from './metadata-card.builders.js';
 import { buildSeasonViewFromTitleRaw } from './metadata-detail.builders.js';
-import { metadataCardToMediaItem } from './media-item.mapper.js';
+import { metadataCardToMediaItem, mediaItemToMediaItemDto } from './media-item.mapper.js';
 import { buildEpisodeView } from './metadata-detail.builders.js';
 import type {
   MetadataCollectionView,
@@ -181,7 +181,7 @@ export class MetadataTitleExtrasBuilder {
 
     return {
       kind: 'metadata_detail' as const,
-      mediaItem: metadataCardToMediaItem(card),
+      mediaItem: mediaItemToMediaItemDto(metadataCardToMediaItem(card)),
       context: {},
       presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
     };

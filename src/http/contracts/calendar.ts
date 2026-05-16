@@ -1,6 +1,6 @@
 import {
   booleanSchema,
-  mediaItemSchema,
+  mediaItemDtoSchema,
   nullableMediaPresentationHintSchema,
   nullableStringSchema,
   profileIdParamsSchema,
@@ -22,7 +22,7 @@ export const calendarItemSchema = {
       enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
     },
     kind: { const: 'calendar_item' },
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     context: {
       type: 'object',
       additionalProperties: false,
@@ -33,7 +33,7 @@ export const calendarItemSchema = {
         },
         airDate: nullableStringSchema,
         watched: booleanSchema,
-        relatedShow: mediaItemSchema,
+        relatedShow: mediaItemDtoSchema,
       },
     },
     presentation: nullableMediaPresentationHintSchema,

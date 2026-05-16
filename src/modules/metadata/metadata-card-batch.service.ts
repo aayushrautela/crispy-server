@@ -1,13 +1,13 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import { MetadataCardService } from './metadata-card.service.js';
-import { metadataCardToMediaItem } from './media-item.mapper.js';
-import type { MediaItem } from './media-item.types.js';
+import { metadataCardToMediaItem, mediaItemToMediaItemDto } from './media-item.mapper.js';
+import type { MediaItemDto } from './media-item.types.js';
 
 type DbRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export type HydratedMediaCard = {
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   metadataRefreshedAt: string | null;
 };
 
@@ -44,7 +44,7 @@ export class MetadataCardBatchService {
       const metadataRefreshedAt = new Date().toISOString();
 
       return cards.map((card): HydratedMediaCard => ({
-        mediaItem: metadataCardToMediaItem(card),
+        mediaItem: mediaItemToMediaItemDto(metadataCardToMediaItem(card)),
         metadataRefreshedAt,
       }));
     });

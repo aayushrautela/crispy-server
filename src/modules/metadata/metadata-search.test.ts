@@ -78,9 +78,9 @@ test('all filter combines movie and series TMDB results', async () => {
     const response = await svc.searchTitles({ query: 'Alpha', filter: 'all', limit: 2, locale: 'en-US' });
 
     assert.deepEqual(tmdbCalls, [{ query: 'Alpha', limit: 2, mediaTypes: ['movie', 'tv'], locale: 'en-US' }]);
-    assert.deepEqual(response.movies.map((item) => item.mediaItem.title), ['Alpha Movie']);
-    assert.deepEqual(response.series.map((item) => item.mediaItem.title), ['Alpha Series']);
-    assert.deepEqual(response.all.map((item) => item.mediaItem.title), ['Alpha Series', 'Alpha Movie']);
+    assert.deepEqual(response.movies.map((item) => item.mediaItem.name), ['Alpha Movie']);
+    assert.deepEqual(response.series.map((item) => item.mediaItem.name), ['Alpha Series']);
+    assert.deepEqual(response.all.map((item) => item.mediaItem.name), ['Alpha Series', 'Alpha Movie']);
     assert.deepEqual(ensuredMediaKeys, ['movie:tmdb:101', 'show:tmdb:201']);
   } finally {
     db.connect = originalConnect;
@@ -126,8 +126,8 @@ test('searchTitles drops results without posters', async () => {
 
     const response = await svc.searchTitles({ query: 'Visible', filter: 'all', limit: 20 });
 
-    assert.deepEqual(response.series.map((item) => item.mediaItem.title), ['Visible Series']);
-    assert.deepEqual(response.all.map((item) => item.mediaItem.title), ['Visible Series', 'Poster Movie']);
+    assert.deepEqual(response.series.map((item) => item.mediaItem.name), ['Visible Series']);
+    assert.deepEqual(response.all.map((item) => item.mediaItem.name), ['Visible Series', 'Poster Movie']);
   } finally {
     db.connect = originalConnect;
   }
@@ -172,8 +172,8 @@ test('searchTitles moves noisy series results to the end without disturbing clea
 
     const response = await svc.searchTitles({ query: 'Naruto', filter: 'series', limit: 20 });
 
-    assert.deepEqual(response.series.map((item) => item.mediaItem.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
-    assert.deepEqual(response.all.map((item) => item.mediaItem.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
+    assert.deepEqual(response.series.map((item) => item.mediaItem.name), ['Naruto', 'Naruto Next', 'Naruto Lost']);
+    assert.deepEqual(response.all.map((item) => item.mediaItem.name), ['Naruto', 'Naruto Next', 'Naruto Lost']);
   } finally {
     db.connect = originalConnect;
   }

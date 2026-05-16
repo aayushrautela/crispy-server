@@ -87,7 +87,7 @@ export class AiSearchService {
         finalCount: response.all.length,
         candidateSamples: candidates.slice(0, 8),
         unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: response.all.slice(0, 8).map((item) => `${item.mediaItem.mediaType}:${item.mediaItem.mediaKey}`),
+        resultTitles: response.all.slice(0, 8).map((item) => `${item.mediaItem.type}:${item.mediaItem.mediaKey}`),
         generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
@@ -163,7 +163,7 @@ function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: Sea
       skippedAnchor = true;
       continue;
     }
-    if (kept.some((existing) => isSameTitleFamily(existing.item.mediaItem.title ?? '', suggestion.item.mediaItem.title ?? ''))) {
+    if (kept.some((existing) => isSameTitleFamily(existing.item.mediaItem.name ?? '', suggestion.item.mediaItem.name ?? ''))) {
       continue;
     }
     kept.push(suggestion);
@@ -180,11 +180,11 @@ function bucketResolvedItems(query: string, items: MetadataSearchResult[]): Meta
   const series: MetadataSearchResult[] = [];
 
   for (const item of items) {
-    if (item.mediaItem.mediaType === 'movie') {
+    if (item.mediaItem.type === 'Movie') {
       movies.push(item);
       continue;
     }
-    if (item.mediaItem.mediaType === 'show') {
+    if (item.mediaItem.type === 'Series') {
       series.push(item);
       continue;
     }
@@ -289,7 +289,7 @@ function matchesAnchorSuggestion(suggestion: ResolvedSuggestion, anchorHint: str
   }
 
   return titleMatchesAnchor(suggestion.candidate.title, normalizedAnchor)
-    || titleMatchesAnchor(suggestion.item.mediaItem.title ?? '', normalizedAnchor);
+    || titleMatchesAnchor(suggestion.item.mediaItem.name ?? '', normalizedAnchor);
 }
 
 function titleMatchesAnchor(title: string, normalizedAnchor: string): boolean {

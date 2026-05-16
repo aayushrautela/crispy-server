@@ -3,7 +3,7 @@ import {
   integerLikeSchema,
   metadataCardViewSchema,
   metadataImagesSchema,
-  mediaItemSchema,
+  mediaItemDtoSchema,
   nullableIntegerSchema,
   nullableMediaPresentationHintSchema,
   nullableNumberSchema,
@@ -328,7 +328,7 @@ const metadataRelatedItemSchema = {
   required: ['kind', 'mediaItem', 'context', 'presentation'],
   properties: {
     kind: { const: 'metadata_detail' },
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     context: { type: 'object', additionalProperties: true },
     presentation: nullableMediaPresentationHintSchema,
   },
@@ -498,7 +498,7 @@ export const metadataSearchResultSchema = {
   required: ['kind', 'mediaItem', 'context', 'presentation'],
   properties: {
     kind: { const: 'search_result' },
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     context: { type: 'object', additionalProperties: true },
     presentation: nullableMediaPresentationHintSchema,
   },
@@ -566,7 +566,7 @@ const metadataHydratedCardSchema = {
     'metadataRefreshedAt',
   ],
   properties: {
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     metadataRefreshedAt: nullableStringSchema,
   },
 } as const;

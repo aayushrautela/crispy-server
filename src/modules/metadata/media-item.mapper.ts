@@ -1,6 +1,6 @@
 import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
-import type { MediaItem, MediaItemType, MediaItemDto, MediaImageTags, ParentMediaImageTags, ProviderIds, ResponsiveImageSet } from './media-item.types.js';
+import type { MediaItem, MediaItemType, MediaItemDto, MediaItemKind, MediaImageTags, ParentMediaImageTags, ProviderIds, ResponsiveImageSet } from './media-item.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from './metadata-builder.shared.js';
 

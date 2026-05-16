@@ -1,5 +1,5 @@
 import type { SupportedProvider } from '../identity/media-key.js';
-import type { MediaItem, MediaPresentationHint } from './media-item.types.js';
+import type { MediaItemDto, MediaPresentationHint } from './media-item.types.js';
 import type {
   MetadataExternalIds,
   MetadataEpisodePreview,
@@ -112,7 +112,7 @@ export type MetadataCompanyView = {
 
 export type MetadataRelatedItem = {
   kind: 'metadata_detail';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: Record<string, unknown>;
   presentation: MediaPresentationHint | null;
 };
@@ -232,7 +232,7 @@ export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'people';
 
 export type MetadataSearchResult = {
   kind: 'search_result';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: Record<string, unknown>;
   presentation: MediaPresentationHint | null;
 };
