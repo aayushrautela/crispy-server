@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
-import { SupabaseProfileService } from '../../modules/profiles/supabase-profile.service.js';
+import type { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 import { nonEmptyStringSchema, nullableStringSchema, profileIdParamsSchema, stringSchema, successEnvelope, withDefaultErrorResponses } from '../contracts/shared.js';
 import { success, mutation } from '../response.js';
 
@@ -143,9 +143,9 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
 
 export async function registerProfileRoutes(
   app: FastifyInstance,
-  opts: { supabaseProfileService: SupabaseProfileService },
+  opts: { profileService: ProfileLocalService },
 ): Promise<void> {
-  const profileService = opts.supabaseProfileService;
+  const profileService = opts.profileService;
   const providerImportService = new ProviderImportService();
 
   app.get('/v1/profiles', async (request) => {

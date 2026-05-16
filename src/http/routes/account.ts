@@ -11,15 +11,14 @@ import {
 import { AccountDeletionService } from '../../modules/users/account-deletion.service.js';
 import { FeatureEntitlementService } from '../../modules/entitlements/feature-entitlement.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
-import type { SupabaseAccountSettingsRepository } from '../../modules/users/supabase-account-settings.repo.js';
 import { success } from '../response.js';
 
 export async function registerAccountRoutes(
   app: FastifyInstance,
-  opts: { supabaseAccountSettingsRepo: SupabaseAccountSettingsRepository },
+  opts: { accountSettingsService: AccountSettingsService },
 ): Promise<void> {
   const accountDeletionService = new AccountDeletionService();
-  const accountSettingsService = new AccountSettingsService(opts.supabaseAccountSettingsRepo);
+  const accountSettingsService = opts.accountSettingsService;
   const entitlementService = new FeatureEntitlementService();
 
   app.get('/v1/account/settings', { schema: accountSettingsRouteSchema }, async (request) => {

@@ -43,8 +43,8 @@ export class PersonalAccessTokenRepository {
   }): Promise<PersonalAccessTokenRecord> {
     const result = await client.query(
       `
-        INSERT INTO personal_access_tokens (
-          user_id,
+        INSERT INTO private.personal_access_tokens (
+          account_id,
           name,
           token_hash,
           token_preview,
@@ -52,7 +52,7 @@ export class PersonalAccessTokenRepository {
           expires_at
         )
         VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6::timestamptz)
-        RETURNING id, user_id, name, token_hash, token_preview, scopes,
+        RETURNING id, account_id AS user_id, name, token_hash, token_preview, scopes,
                   expires_at, last_used_at, revoked_at, created_at, updated_at
       `,
       [params.userId, params.name, params.tokenHash, params.tokenPreview, JSON.stringify(params.scopes), params.expiresAt ?? null],
@@ -64,9 +64,9 @@ export class PersonalAccessTokenRepository {
   async findActiveByHash(client: DbClient, tokenHash: string): Promise<PersonalAccessTokenRecord | null> {
     const result = await client.query(
       `
-        SELECT id, user_id, name, token_hash, token_preview, scopes,
+        SELECT id, account_id AS user_id, name, token_hash, token_preview, scopes,
                expires_at, last_used_at, revoked_at, created_at, updated_at
-        FROM personal_access_tokens
+        FROM private.personal_access_tokens
         WHERE token_hash = $1
           AND revoked_at IS NULL
           AND (expires_at IS NULL OR expires_at > now())
@@ -80,7 +80,7 @@ export class PersonalAccessTokenRepository {
   async touchLastUsed(client: DbClient, tokenId: string): Promise<void> {
     await client.query(
       `
-        UPDATE personal_access_tokens
+        UPDATE private.personal_access_tokens
         SET last_used_at = now(), updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -91,10 +91,10 @@ export class PersonalAccessTokenRepository {
   async listForUser(client: DbClient, userId: string): Promise<PersonalAccessTokenRecord[]> {
     const result = await client.query(
       `
-        SELECT id, user_id, name, token_hash, token_preview, scopes,
+        SELECT id, account_id AS user_id, name, token_hash, token_preview, scopes,
                expires_at, last_used_at, revoked_at, created_at, updated_at
-        FROM personal_access_tokens
-        WHERE user_id = $1::uuid
+        FROM private.personal_access_tokens
+        WHERE account_id = $1::uuid
         ORDER BY created_at DESC
       `,
       [userId],
@@ -106,12 +106,12 @@ export class PersonalAccessTokenRepository {
   async revoke(client: DbClient, userId: string, tokenId: string): Promise<PersonalAccessTokenRecord | null> {
     const result = await client.query(
       `
-        UPDATE personal_access_tokens
+        UPDATE private.personal_access_tokens
         SET revoked_at = now(), updated_at = now()
         WHERE id = $1::uuid
-          AND user_id = $2::uuid
+          AND account_id = $2::uuid
           AND revoked_at IS NULL
-        RETURNING id, user_id, name, token_hash, token_preview, scopes,
+        RETURNING id, account_id AS user_id, name, token_hash, token_preview, scopes,
                   expires_at, last_used_at, revoked_at, created_at, updated_at
       `,
       [tokenId, userId],
@@ -123,9 +123,9 @@ export class PersonalAccessTokenRepository {
   async revokeAllForUser(client: DbClient, userId: string): Promise<number> {
     const result = await client.query(
       `
-        UPDATE personal_access_tokens
+        UPDATE private.personal_access_tokens
         SET revoked_at = now(), updated_at = now()
-        WHERE user_id = $1::uuid
+        WHERE account_id = $1::uuid
           AND revoked_at IS NULL
       `,
       [userId],

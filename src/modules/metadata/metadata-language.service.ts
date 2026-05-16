@@ -1,13 +1,12 @@
 import { withTransaction } from '../../lib/db.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
-import { SupabaseAccountSettingsRepository } from '../users/supabase-account-settings.repo.js';
+import { AccountSettingsRepository } from '../users/account-settings.repo.js';
 import { resolveEffectiveMetadataLanguage, normalizeMetadataLanguage } from './metadata-language.js';
 
 export class MetadataLanguageService {
   constructor(
     private readonly profileSettingsRepository = new ProfileSettingsRepository(),
-    private readonly accountSettingsRepository = new SupabaseAccountSettingsRepository(getSupabaseServiceRoleClient()),
+    private readonly accountSettingsRepository = new AccountSettingsRepository(),
   ) {}
 
   async resolveForProfile(profileId: string, accountId: string, explicitLanguage?: string | null): Promise<string> {

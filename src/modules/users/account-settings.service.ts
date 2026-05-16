@@ -4,9 +4,6 @@ import { HttpError } from '../../lib/errors.js';
 import type { AiClientSettings } from '../ai/ai.types.js';
 import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-account-settings.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
-import { SupabaseAccountSettingsRepository } from './supabase-account-settings.repo.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
-import { env } from '../../config/env.js';
 
 export type AccountSecretField = 'ai.api_key' | 'mdblist.api_key';
 
@@ -35,16 +32,9 @@ const ACCOUNT_SECRET_FIELD_SET = new Set<AccountSecretField>(ACCOUNT_SECRET_FIEL
 const ACCOUNT_SECRET_SETTING_KEYS = new Set<string>(ACCOUNT_SECRET_FIELDS);
 const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', ...ACCOUNT_SECRET_FIELDS, 'addons']);
 
-function defaultRepo(): AccountSettingsRepository | SupabaseAccountSettingsRepository {
-  if (env.supabaseAdminApiKey) {
-    return new SupabaseAccountSettingsRepository(getSupabaseServiceRoleClient());
-  }
-  return new AccountSettingsRepository();
-}
-
 export class AccountSettingsService {
   constructor(
-    private readonly accountSettingsRepository: AccountSettingsRepository | SupabaseAccountSettingsRepository = defaultRepo(),
+    private readonly accountSettingsRepository: AccountSettingsRepository = new AccountSettingsRepository(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 

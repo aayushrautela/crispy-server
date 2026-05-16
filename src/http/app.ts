@@ -25,11 +25,11 @@ import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerInternalConfidentialRoutes } from './routes/internal-confidential.js';
 import { ConfidentialConfigService } from '../modules/confidential/service.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
-import { SupabasePersonalAccessTokenService } from '../modules/auth/supabase-personal-access-token.service.js';
-import { SupabaseAccountSettingsRepository } from '../modules/users/supabase-account-settings.repo.js';
+import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
+import { AccountSettingsService } from '../modules/users/account-settings.service.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
-import { SupabaseProfileService } from '../modules/profiles/supabase-profile.service.js';
+import { ProfileLocalService } from '../modules/profiles/profile-local.service.js';
 import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
@@ -55,15 +55,14 @@ import { DefaultServiceRecommendationListService } from '../modules/apps/service
 import { SqlRecommendationListRepo } from '../modules/recommendations/recommendation-list.repo.js';
 import { AppRecommendationWritePolicy } from '../modules/recommendations/recommendation-list-policy.js';
 import { DefaultRecommendationListWriteService } from '../modules/recommendations/recommendation-list-write.service.js';
-import { SqlRecommendationRunRepo, SupabaseRecommendationRunRepo } from '../modules/apps/recommendation-run.repo.js';
+import { SqlRecommendationRunRepo } from '../modules/apps/recommendation-run.repo.js';
 import { DefaultRecommendationRunService } from '../modules/apps/recommendation-run.service.js';
-import { SqlRecommendationBatchRepo, SupabaseRecommendationBatchRepo } from '../modules/apps/recommendation-batch.repo.js';
+import { SqlRecommendationBatchRepo } from '../modules/apps/recommendation-batch.repo.js';
 import { DefaultRecommendationBatchService } from '../modules/apps/recommendation-batch.service.js';
 import { SqlRecommendationBackfillRepo } from '../modules/apps/recommendation-backfill.repo.js';
 import { DefaultRecommendationBackfillService } from '../modules/apps/recommendation-backfill.service.js';
 import { env } from '../config/env.js';
 import type { AuthScope, UserAuthActor } from '../modules/auth/auth.types.js';
-import { getSupabaseServiceRoleClient } from '../lib/supabase.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -207,10 +206,7 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     maxProfilesPerBatch: 100,
     maxListsPerProfile: 5,
   });
-  const supabase = env.supabaseAdminApiKey ? getSupabaseServiceRoleClient() : null;
-  const recommendationRunRepo = supabase
-    ? new SupabaseRecommendationRunRepo({ supabase })
-    : new SqlRecommendationRunRepo({ db });
+  const recommendationRunRepo = new SqlRecommendationRunRepo({ db });
   const recommendationRunService = new DefaultRecommendationRunService({
     repo: recommendationRunRepo,
     appAuthorizationService,
@@ -218,9 +214,7 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     clock: authDeps.clock,
   });
   const recommendationBatchService = new DefaultRecommendationBatchService({
-    batchRepo: supabase
-      ? new SupabaseRecommendationBatchRepo({ supabase })
-      : new SqlRecommendationBatchRepo({ db }),
+    batchRepo: new SqlRecommendationBatchRepo({ db }),
     runRepo: recommendationRunRepo,
     appAuthorizationService,
     appAuditRepo: authDeps.appAuditRepo,
@@ -283,19 +277,18 @@ export async function buildApp() {
     }
   });
 
-  const supabase = getSupabaseServiceRoleClient();
-  const supabaseProfileService = new SupabaseProfileService(supabase);
-  const supabasePatService = new SupabasePersonalAccessTokenService(supabase);
-  const supabaseAccountSettingsRepo = new SupabaseAccountSettingsRepository(supabase);
+  const profileService = new ProfileLocalService();
+  const accountSettingsService = new AccountSettingsService();
+  const patService = new PersonalAccessTokenService();
 
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
-  await registerAccountRoutes(app, { supabaseAccountSettingsRepo });
+  await registerAccountRoutes(app, { accountSettingsService });
   await registerAiRoutes(app);
-  await registerMeRoutes(app, { supabaseProfileService, supabaseAccountSettingsRepo });
-  await registerPersonalAccessTokenRoutes(app, { supabasePatService });
-  await registerProfileRoutes(app, { supabaseProfileService });
-  await registerProfileSettingsRoutes(app, { supabaseProfileService });
+  await registerMeRoutes(app, { profileService, accountSettingsService });
+  await registerPersonalAccessTokenRoutes(app, { patService });
+  await registerProfileRoutes(app, { profileService });
+  await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);
   await registerRecommendationOutputRoutes(app);

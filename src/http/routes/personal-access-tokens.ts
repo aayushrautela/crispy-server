@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { AuthScope } from '../../modules/auth/auth.types.js';
 import { isPersonalAccessTokenScope } from '../../modules/auth/auth.types.js';
-import type { SupabasePersonalAccessTokenService } from '../../modules/auth/supabase-personal-access-token.service.js';
+import type { PersonalAccessTokenService } from '../../modules/auth/personal-access-token.service.js';
 import { success, mutation } from '../response.js';
 
 export async function registerPersonalAccessTokenRoutes(
   app: FastifyInstance,
-  opts: { supabasePatService: SupabasePersonalAccessTokenService },
+  opts: { patService: PersonalAccessTokenService },
 ): Promise<void> {
-  const patService = opts.supabasePatService;
+  const patService = opts.patService;
 
   app.get('/v1/auth/personal-access-tokens', async (request) => {
     await app.requireAuth(request);

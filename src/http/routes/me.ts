@@ -2,16 +2,15 @@ import type { FastifyInstance } from 'fastify';
 import { meRouteSchema } from '../contracts/account.js';
 import { FeatureEntitlementService } from '../../modules/entitlements/feature-entitlement.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
-import type { SupabaseProfileService } from '../../modules/profiles/supabase-profile.service.js';
-import type { SupabaseAccountSettingsRepository } from '../../modules/users/supabase-account-settings.repo.js';
+import type { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 import { success } from '../response.js';
 
 export async function registerMeRoutes(
   app: FastifyInstance,
-  opts: { supabaseProfileService: SupabaseProfileService; supabaseAccountSettingsRepo: SupabaseAccountSettingsRepository },
+  opts: { profileService: ProfileLocalService; accountSettingsService: AccountSettingsService },
 ): Promise<void> {
-  const profileService = opts.supabaseProfileService;
-  const accountSettingsService = new AccountSettingsService(opts.supabaseAccountSettingsRepo);
+  const profileService = opts.profileService;
+  const accountSettingsService = opts.accountSettingsService;
   const entitlementService = new FeatureEntitlementService();
 
   app.get('/v1/me', { schema: meRouteSchema }, async (request) => {

@@ -1,5 +1,4 @@
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
-import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 
 export type RecommendationDataListKind = never;
 
@@ -13,11 +12,11 @@ type ProfileSummary = {
 
 export class RecommendationDataService {
   constructor(
-    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+    private readonly profileLocalService = new ProfileLocalService(),
   ) {}
 
   async listAccountProfiles(accountId: string): Promise<ProfileSummary[]> {
-    const profiles = await this.supabaseProfileService.listForAccount(accountId);
+    const profiles = await this.profileLocalService.listForAccount(accountId);
     return profiles.map((profile) => ({
       id: profile.id,
       accountId,
@@ -28,7 +27,7 @@ export class RecommendationDataService {
   }
 
   async listAccountProfilesForService(accountId: string): Promise<ProfileSummary[]> {
-    const profiles = await this.supabaseProfileService.listForAccount(accountId);
+    const profiles = await this.profileLocalService.listForAccount(accountId);
     return profiles.map((profile) => ({
       id: profile.id,
       accountId,

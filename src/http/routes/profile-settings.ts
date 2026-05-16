@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import type { SupabaseProfileService } from '../../modules/profiles/supabase-profile.service.js';
+import type { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 import { success } from '../response.js';
 
 export async function registerProfileSettingsRoutes(
   app: FastifyInstance,
-  opts: { supabaseProfileService: SupabaseProfileService },
+  opts: { profileService: ProfileLocalService },
 ): Promise<void> {
-  const profileService = opts.supabaseProfileService;
+  const profileService = opts.profileService;
 
   app.get('/v1/profiles/:profileId/settings', async (request) => {
     await app.requireAuth(request);

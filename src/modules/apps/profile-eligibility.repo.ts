@@ -1,7 +1,5 @@
 import type pg from 'pg';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { HttpError } from '../../lib/errors.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 
 type QueryableDb = Pick<pg.Pool | pg.PoolClient, 'query'>;
 type PreferenceRow = { settings_json: Record<string, unknown> | null };
@@ -43,28 +41,23 @@ export interface ProfileEligibilityRepo {
 }
 
 export class SqlProfileEligibilityRepo implements ProfileEligibilityRepo {
-  constructor(private readonly deps: { db: QueryableDb; supabase?: SupabaseClient }) {}
+  constructor(private readonly deps: { db: QueryableDb }) {}
 
   async loadEligibilityInputs(input: { accountId: string; profileId: string }): Promise<ProfileEligibilityInputs | null> {
-    const supabase = this.deps.supabase ?? getSupabaseServiceRoleClient();
-    const [{ data: account, error: accountError }, { data: profile, error: profileError }, { data: profilePreferences, error: profilePreferencesError }, { data: accountPreferences, error: accountPreferencesError }] = await Promise.all([
-      supabase.from('accounts').select('id, deleted_at').eq('id', input.accountId).maybeSingle(),
-      supabase.from('profiles').select('id, account_id, deleted_at').eq('id', input.profileId).eq('account_id', input.accountId).maybeSingle(),
-      supabase.from('profile_preferences').select('settings_json').eq('profile_id', input.profileId).maybeSingle(),
-      supabase.from('account_preferences').select('settings_json').eq('account_id', input.accountId).maybeSingle(),
+    const [accountResult, profileResult, profilePreferencesResult, accountPreferencesResult] = await Promise.all([
+      this.deps.db.query(`SELECT id, deleted_at FROM identity.accounts WHERE id = $1::uuid`, [input.accountId]),
+      this.deps.db.query(`SELECT id, account_id, deleted_at FROM identity.profiles WHERE id = $1::uuid AND account_id = $2::uuid`, [input.profileId, input.accountId]),
+      this.deps.db.query(`SELECT settings_json FROM identity.profile_preferences WHERE profile_id = $1::uuid`, [input.profileId]),
+      this.deps.db.query(`SELECT settings_json FROM identity.account_preferences WHERE account_id = $1::uuid`, [input.accountId]),
     ]);
 
-    const error = accountError ?? profileError ?? profilePreferencesError ?? accountPreferencesError;
-    if (error) {
-      throw new HttpError(502, `Supabase eligibility read failed: ${error.message}`);
-    }
+    const account = accountResult.rows[0] as AccountRow | undefined;
+    const profile = profileResult.rows[0] as ProfileRow | undefined;
 
     if (!account || !profile) return null;
 
-    const accountRow = account as AccountRow;
-    const profileRow = profile as ProfileRow;
-    const profileSettings = asRecord((profilePreferences as PreferenceRow | null)?.settings_json);
-    const accountSettings = asRecord((accountPreferences as PreferenceRow | null)?.settings_json);
+    const profileSettings = asRecord((profilePreferencesResult.rows[0] as PreferenceRow | undefined)?.settings_json);
+    const accountSettings = asRecord((accountPreferencesResult.rows[0] as PreferenceRow | undefined)?.settings_json);
     const recommendations = asRecord(profileSettings.recommendations);
     const ai = asRecord(profileSettings.ai);
     const personalization = asRecord(accountSettings.personalization);
@@ -72,9 +65,9 @@ export class SqlProfileEligibilityRepo implements ProfileEligibilityRepo {
     return {
       accountId: input.accountId,
       profileId: input.profileId,
-      accountActive: accountRow.deleted_at === null,
-      profileActive: profileRow.deleted_at === null,
-      profileDeleted: profileRow.deleted_at !== null,
+      accountActive: account.deleted_at === null,
+      profileActive: profile.deleted_at === null,
+      profileDeleted: profile.deleted_at !== null,
       profileLocked: false,
       useOfficialRecommendationEngine: readBoolean(recommendations.useOfficialEngine, true),
       recommendationsEnabled: readBoolean(recommendations.enabled, true),

@@ -1,5 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { db } from '../../lib/db.js';
 import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
@@ -60,31 +60,10 @@ export class EpisodicFollowService {
   }
 
   private async loadCandidates(profileId: string, limit: number): Promise<Candidate[]> {
-    const supabase = getSupabaseServiceRoleClient();
     const [continueWatching, history, watchlist] = await Promise.all([
-      supabase
-        .from('playback_progress')
-        .select('title_media_key, playable_media_key, last_activity_at')
-        .eq('profile_id', profileId)
-        .is('dismissed_at', null)
-        .order('last_activity_at', { ascending: false })
-        .limit(limit),
-      supabase
-        .from('watch_events')
-        .select('media_key, occurred_at')
-        .eq('profile_id', profileId)
-        .eq('media_type', 'episode')
-        .eq('event_type', 'playback_completed')
-        .order('occurred_at', { ascending: false })
-        .limit(limit),
-      supabase
-        .from('profile_list_items')
-        .select('media_key, added_at')
-        .eq('profile_id', profileId)
-        .eq('list_kind', 'watchlist')
-        .in('media_type', ['show', 'episode'])
-        .order('added_at', { ascending: false })
-        .limit(limit),
+      this.queryContinueWatching(profileId, limit),
+      this.queryHistory(profileId, limit),
+      this.queryWatchlist(profileId, limit),
     ]);
 
     const candidates = new Map<string, Candidate>();
@@ -103,18 +82,54 @@ export class EpisodicFollowService {
       });
     };
 
-    for (const row of continueWatching.data ?? []) {
+    for (const row of continueWatching) {
       addCandidate(row.title_media_key, row.last_activity_at, 'continue_watching');
       addCandidate(row.playable_media_key, row.last_activity_at, 'continue_watching');
     }
-    for (const row of history.data ?? []) {
+    for (const row of history) {
       addCandidate(row.media_key, row.occurred_at, 'recent_episode_history');
     }
-    for (const row of watchlist.data ?? []) {
+    for (const row of watchlist) {
       addCandidate(row.media_key, row.added_at, 'watchlist');
     }
 
     return Array.from(candidates.values()).sort((a, b) => b.lastInteractedAt.localeCompare(a.lastInteractedAt));
+  }
+
+  private async queryContinueWatching(profileId: string, limit: number): Promise<Array<{ title_media_key: string; playable_media_key: string; last_activity_at: string }>> {
+    const result = await db.query(
+      `SELECT title_media_key, playable_media_key, last_activity_at
+       FROM user_state.playback_progress
+       WHERE profile_id = $1::uuid AND dismissed_at IS NULL
+       ORDER BY last_activity_at DESC
+       LIMIT $2`,
+      [profileId, limit],
+    );
+    return result.rows;
+  }
+
+  private async queryHistory(profileId: string, limit: number): Promise<Array<{ media_key: string; occurred_at: string }>> {
+    const result = await db.query(
+      `SELECT media_key, occurred_at
+       FROM user_state.watch_events
+       WHERE profile_id = $1::uuid AND media_type = 'episode' AND event_type = 'playback_completed'
+       ORDER BY occurred_at DESC
+       LIMIT $2`,
+      [profileId, limit],
+    );
+    return result.rows;
+  }
+
+  private async queryWatchlist(profileId: string, limit: number): Promise<Array<{ media_key: string; added_at: string }>> {
+    const result = await db.query(
+      `SELECT media_key, added_at
+       FROM user_state.profile_list_items
+       WHERE profile_id = $1::uuid AND list_kind = 'watchlist' AND media_type IN ('show', 'episode')
+       ORDER BY added_at DESC
+       LIMIT $2`,
+      [profileId, limit],
+    );
+    return result.rows;
   }
 }
 

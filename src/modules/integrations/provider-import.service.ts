@@ -1,6 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { db, withTransaction, type DbClient } from '../../lib/db.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { enqueueProviderImport, enqueueProviderRefresh, enqueueTmdbTitleWarmBatch } from '../../lib/queue.js';
@@ -12,7 +11,7 @@ import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-extern
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, canonicalTitleMediaKey, canonicalTitleMediaType, type MediaIdentity, type SupportedMediaType } from '../identity/media-key.js';
 import type { ProfileRecord } from '../profiles/profile.repo.js';
-import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import { isProviderImportProvider, type ProviderImportProvider } from './provider-import.types.js';
@@ -26,13 +25,13 @@ import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { UserRepository } from '../users/user.repo.js';
 import {
-  SupabaseProviderHistoryWriter,
+  LocalProviderHistoryWriter,
   type ImportedProviderHistoryEntry,
   type ImportedProviderListItem,
   type ImportedProviderPlaybackState,
   type ImportedProviderRating,
-  type SupabaseProviderImportSyncResult,
-} from './supabase-provider-history-writer.js';
+  type LocalProviderImportSyncResult,
+} from './local-provider-history-writer.js';
 
 type ImportedHistoryEntryDraft = {
   mediaKey: string;
@@ -147,7 +146,7 @@ type ResolveImportIdentityFn = (params: ImportIdentityLookup) => Promise<Resolve
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-type SupabaseProviderImportFacts = {
+type ProviderImportFacts = {
   historyEntries: ImportedProviderHistoryEntry[];
   watchlistItems: ImportedProviderListItem[];
   ratings: ImportedProviderRating[];
@@ -174,13 +173,13 @@ type ProviderWatchDataStateView = {
   lastImportCompletedAt: string | null;
 };
 
-function buildDefaultSupabaseProviderHistoryWriter(): SupabaseProviderHistoryWriter {
-  return new SupabaseProviderHistoryWriter(env.supabaseAdminApiKey ? getSupabaseServiceRoleClient() : null);
+function buildDefaultLocalProviderHistoryWriter(): LocalProviderHistoryWriter {
+  return new LocalProviderHistoryWriter();
 }
 
 export class ProviderImportService {
   constructor(
-    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+    private readonly profileService = new ProfileLocalService(),
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
     private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
@@ -191,7 +190,7 @@ export class ProviderImportService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly metadataCardService = new MetadataCardService(),
     private readonly userRepository = new UserRepository(),
-    private readonly supabaseProviderHistoryWriter = buildDefaultSupabaseProviderHistoryWriter(),
+    private readonly localProviderHistoryWriter = buildDefaultLocalProviderHistoryWriter(),
   ) {}
 
   async connectProvider(
@@ -217,7 +216,7 @@ export class ProviderImportService {
   ): Promise<ProviderSessionActionResult> {
     assertProviderEnabled(provider);
     const started = await this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileService.requireOwnedProfile(userId, profileId);
 
       const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
       const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
@@ -260,7 +259,7 @@ export class ProviderImportService {
     profileId: string,
   ): Promise<{ providerStates: ProviderStateView[]; watchDataState: ProviderWatchDataStateView | null }> {
     return this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileService.requireOwnedProfile(userId, profileId);
 
       const [providerSessions, watchDataState] = await Promise.all([
         this.providerSessionsRepository.listForProfile(client, profileId),
@@ -285,7 +284,7 @@ export class ProviderImportService {
     assertProviderEnabled(provider);
 
     const providerSession = await this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileService.requireOwnedProfile(userId, profileId);
 
       return this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
     });
@@ -417,7 +416,7 @@ export class ProviderImportService {
 
   async listJobs(userId: string, profileId: string): Promise<{ jobs: ProviderImportJobRecord[]; watchDataState: ProfileWatchDataStateRecord | null }> {
     return this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileService.requireOwnedProfile(userId, profileId);
 
       const [jobs, watchDataState] = await Promise.all([
         this.jobsRepository.listForProfile(client, profileId),
@@ -446,7 +445,7 @@ export class ProviderImportService {
   ): Promise<ProviderSessionActionResult> {
     assertProviderEnabled(provider);
     const started = await this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileService.requireOwnedProfile(userId, profileId);
 
       const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
       const currentSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
@@ -545,7 +544,7 @@ export class ProviderImportService {
 
   async getJob(userId: string, profileId: string, jobId: string): Promise<ProviderImportJobRecord> {
     return this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileService.requireOwnedProfile(userId, profileId);
 
       const job = await this.jobsRepository.findByIdForProfile(client, profileId, jobId);
       if (!job) {
@@ -599,7 +598,7 @@ export class ProviderImportService {
       }));
       const historyGeneration = watchDataState.historyGeneration;
 
-      const supabaseInteractionSummary = await this.syncProviderInteractionsToSupabase({
+      const interactionSummary = await this.syncProviderInteractionsToLocal({
         job: runningJob,
         providerSession: activeProviderSession,
         historyGeneration,
@@ -607,7 +606,7 @@ export class ProviderImportService {
         payload: importedPayload,
       });
 
-      const warnings: string[] = [...supabaseInteractionSummary.warnings];
+      const warnings: string[] = [...interactionSummary.warnings];
       let metadataSummary: Record<string, unknown> = {
         refreshedTitles: 0,
         refreshedSeasons: 0,
@@ -667,7 +666,7 @@ export class ProviderImportService {
             insertedHistoryEntries: 0,
             projectionSummary: { titleProjections: 0, trackedTitleStates: 0 },
             metadataSummary,
-            supabaseInteractionSummary,
+            interactionSummary,
             historyGeneration,
             warnings,
           },
@@ -686,7 +685,7 @@ export class ProviderImportService {
         profileId: runningJob.profileId,
         provider: runningJob.provider,
         metadataSummary,
-        supabaseInteractionSummary,
+        interactionSummary,
         insertedEvents: 0,
         insertedHistoryEntries: 0,
         warnings,
@@ -710,72 +709,75 @@ export class ProviderImportService {
     }
   }
 
-  private async syncProviderInteractionsToSupabase(params: {
+  private async syncProviderInteractionsToLocal(params: {
     job: ProviderImportJobRecord;
     providerSession: ProviderSessionRecord;
     historyGeneration: number;
     importedAt: string;
     payload: ProviderReplaceImportPayload;
-  }): Promise<SupabaseProviderImportSyncResult> {
-    const supabase = getSupabaseServiceRoleClient();
-
-    const context = await this.runInTransaction(async (client) => {
+  }): Promise<LocalProviderImportSyncResult> {
+    return this.runInTransaction(async (client) => {
       const [profileRow, appUser] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, account_id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at')
-          .eq('id', params.job.profileId)
-          .is('deleted_at', null)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (!data) return null;
-            return {
-              id: data.id,
-              profileGroupId: '',
-              name: data.name,
-              avatarKey: data.avatar_key,
-              isKids: data.is_kids,
-              sortOrder: data.sort_order,
-              createdByUserId: data.created_by_account_id,
-              createdAt: String(data.created_at),
-              updatedAt: String(data.updated_at),
-            } as ProfileRecord;
-          }),
+        this.getLocalProfile(params.job.profileId),
         this.userRepository.findById(client, params.job.requestedByUserId),
       ]);
 
-      return { profile: profileRow, appUser };
-    });
+      if (!profileRow || !appUser) {
+        logger.warn({
+          profileId: params.job.profileId,
+          requestedByUserId: params.job.requestedByUserId,
+        }, 'local provider import sync skipped: missing local profile or app user');
+        return {
+          historyInserted: 0,
+          watchlistInserted: 0,
+          ratingsInserted: 0,
+          playbackInserted: 0,
+          skipped: true,
+          warnings: ['Local provider import sync skipped: missing local profile or app user'],
+        };
+      }
 
-    if (!context.profile || !context.appUser) {
-      logger.warn({
-        profileId: params.job.profileId,
-        requestedByUserId: params.job.requestedByUserId,
-      }, 'supabase provider import sync skipped: missing local profile or app user');
-      return {
-        historyInserted: 0,
-        watchlistInserted: 0,
-        ratingsInserted: 0,
-        playbackInserted: 0,
-        skipped: true,
-        warnings: ['Supabase provider import sync skipped: missing local profile or app user'],
-      };
-    }
+      const facts = this.buildProviderImportFacts(params.payload);
 
-    const facts = this.buildSupabaseProviderImportFacts(params.payload);
-
-    return this.supabaseProviderHistoryWriter.replaceImportedInteractions({
-      appUser: context.appUser,
-      job: params.job,
-      profile: context.profile,
-      providerSession: params.providerSession,
-      historyGeneration: params.historyGeneration,
-      importedAt: params.importedAt,
-      ...facts,
+      return this.localProviderHistoryWriter.replaceImportedInteractions(client, {
+        appUser,
+        job: params.job,
+        profile: profileRow,
+        providerSession: params.providerSession,
+        historyGeneration: params.historyGeneration,
+        importedAt: params.importedAt,
+        ...facts,
+      });
     });
   }
 
-  private buildSupabaseProviderImportFacts(payload: ProviderReplaceImportPayload): SupabaseProviderImportFacts {
+  private async getLocalProfile(profileId: string): Promise<ProfileRecord | null> {
+    try {
+      const result = await db.query(
+        `SELECT id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+         FROM identity.profiles
+         WHERE id = $1::uuid AND deleted_at IS NULL`,
+        [profileId],
+      );
+      if (!result.rows[0]) return null;
+      const r = result.rows[0];
+      return {
+        id: String(r.id),
+        profileGroupId: '',
+        name: String(r.name),
+        avatarKey: typeof r.avatar_key === 'string' ? r.avatar_key : null,
+        isKids: Boolean(r.is_kids),
+        sortOrder: Number(r.sort_order),
+        createdByUserId: typeof r.created_by_account_id === 'string' ? r.created_by_account_id : null,
+        createdAt: String(r.created_at),
+        updatedAt: String(r.updated_at),
+      } as ProfileRecord;
+    } catch {
+      return null;
+    }
+  }
+
+  private buildProviderImportFacts(payload: ProviderReplaceImportPayload): ProviderImportFacts {
     const historyEntries = payload.importedHistoryEntries.map((entry) => ({
       mediaKey: entry.mediaKey,
       mediaType: entry.mediaType,

@@ -4,9 +4,8 @@ import { verifyAuthJwt } from '../../lib/jwks.js';
 import { HttpError } from '../../lib/errors.js';
 import type { AuthActor, AuthScope, UserAuthActor } from '../../modules/auth/auth.types.js';
 import { USER_DEFAULT_SCOPES } from '../../modules/auth/auth.types.js';
-import { SupabasePersonalAccessTokenService } from '../../modules/auth/supabase-personal-access-token.service.js';
-import { env } from '../../config/env.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
+import { PersonalAccessTokenService } from '../../modules/auth/personal-access-token.service.js';
+import { db } from '../../lib/db.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -22,12 +21,7 @@ declare module 'fastify' {
 }
 
 const authPlugin: FastifyPluginAsync = async (fastify) => {
-  if (!env.supabaseAdminApiKey) {
-    throw new Error('SUPABASE_SECRET_KEY is required. All user data is in Supabase.');
-  }
-
-  const supabase = getSupabaseServiceRoleClient();
-  const patService = new SupabasePersonalAccessTokenService(supabase);
+  const patService = new PersonalAccessTokenService();
 
   fastify.decorateRequest('auth');
 
@@ -56,11 +50,17 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       throw new HttpError(401, 'Invalid bearer token.');
     }
 
-    await supabase.rpc('bootstrap_account', {
-      target_account_id: payload.sub,
-      target_email: typeof payload.email === 'string' ? payload.email : null,
-      target_user_metadata: (payload as Record<string, unknown>).user_metadata ?? {},
-    });
+    // Bootstrap local account on first login
+    const client = await db.connect();
+    try {
+      await client.query('SELECT identity.upsert_account($1, $2, $3)', [
+        payload.sub,
+        typeof payload.email === 'string' ? payload.email : null,
+        null,
+      ]);
+    } finally {
+      client.release();
+    }
 
     request.auth = {
       type: 'user',
@@ -71,7 +71,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       email: payload.email ?? null,
       tokenId: null,
       consumerId: null,
-      accessToken: token,
+      accessToken: null,
     };
   });
 

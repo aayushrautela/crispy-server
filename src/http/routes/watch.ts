@@ -19,7 +19,7 @@ import {
   type WatchStateBatchBody,
   type WatchStateLookupContract,
 } from '../contracts/watch.js';
-import { SupabaseUserWatchService } from '../../modules/integrations/supabase-user-watch.service.js';
+import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { canonicalTitleMediaKey, canonicalTitleMediaType, inferMediaIdentity, parseMediaKey } from '../../modules/identity/media-key.js';
 import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
@@ -30,7 +30,7 @@ import { MetadataLanguageService } from '../../modules/metadata/metadata-languag
 import { mutation, success } from '../response.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
-  const supabaseUserWatchService = new SupabaseUserWatchService();
+  const localUserWatchService = new LocalUserWatchService();
   const watchSupabaseEnrichmentService = new WatchSupabaseEnrichmentService();
   const metadataLanguageService = new MetadataLanguageService();
 
@@ -46,8 +46,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
-    await supabaseUserWatchService.recordPlaybackState({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.recordPlaybackState({
+      accountId: actor.authSubject!,
       profileId,
       mediaKey: identity.mediaKey,
       titleMediaKey: canonicalTitleMediaKey(identity),
@@ -69,8 +69,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const limit = Number(query.limit ?? 20);
     const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
-    const page = await supabaseUserWatchService.listContinueWatchingPage({
-      accessToken: requireSupabaseAccessToken(actor),
+    const page = await localUserWatchService.listContinueWatchingPage({
+      accountId: actor.authSubject!,
       profileId,
       limit,
       cursor: parseNullableString(query.cursor),
@@ -96,8 +96,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const params = request.params as Partial<WatchContinueWatchingDismissParams> & { id: string };
     const profileId = getProfileIdFromParams(params);
     const titleMediaKey = decodeContinueWatchingRouteId(params.id);
-    await supabaseUserWatchService.dismissContinueWatching({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.dismissContinueWatching({
+      accountId: actor.authSubject!,
       profileId,
       titleMediaKey,
     });
@@ -112,8 +112,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const limit = Number(query.limit ?? 100);
     const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
-    const page = await supabaseUserWatchService.listHistoryPage({
-      accessToken: requireSupabaseAccessToken(actor),
+    const page = await localUserWatchService.listHistoryPage({
+      accountId: actor.authSubject!,
       profileId,
       limit,
       cursor: parseNullableString(query.cursor),
@@ -142,8 +142,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
-    const page = await supabaseUserWatchService.listWatchlistPage({
-      accessToken: requireSupabaseAccessToken(actor),
+    const page = await localUserWatchService.listWatchlistPage({
+      accountId: actor.authSubject!,
       profileId,
       limit,
       cursor: parseNullableString(query.cursor),
@@ -171,8 +171,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const limit = Number(query.limit ?? 50);
     const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
-    const page = await supabaseUserWatchService.listRatingsPage({
-      accessToken: requireSupabaseAccessToken(actor),
+    const page = await localUserWatchService.listRatingsPage({
+      accountId: actor.authSubject!,
       profileId,
       limit,
       cursor: parseNullableString(query.cursor),
@@ -198,8 +198,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchStateLookupContract;
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
-    const item = await supabaseUserWatchService.getState({
-      accessToken: requireSupabaseAccessToken(actor),
+    const item = await localUserWatchService.getState({
+      accountId: actor.authSubject!,
       profileId,
       mediaKeys: [mapStateLookupInput(query).mediaKey],
     });
@@ -222,8 +222,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const items = Array.isArray(body.items) ? body.items : [];
 
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
-    const stateItems = await supabaseUserWatchService.getStates({
-      accessToken: requireSupabaseAccessToken(actor),
+    const stateItems = await localUserWatchService.getStates({
+      accountId: actor.authSubject!,
       profileId,
       mediaKeys: items.map((item) => mapStateLookupInput((item ?? {}) as WatchStateLookupContract).mediaKey),
     });
@@ -252,8 +252,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
-    await supabaseUserWatchService.markWatched({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.markWatched({
+      accountId: actor.authSubject!,
       profileId,
       mediaKey: identity.mediaKey,
       titleMediaKey: canonicalTitleMediaKey(identity),
@@ -275,8 +275,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
-    await supabaseUserWatchService.unmarkWatched({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.unmarkWatched({
+      accountId: actor.authSubject!,
       profileId,
       mediaKey: identity.mediaKey,
       titleMediaKey: canonicalTitleMediaKey(identity),
@@ -299,8 +299,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
-    await supabaseUserWatchService.setListItem({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.setListItem({
+      accountId: actor.authSubject!,
       profileId,
       listKind: 'watchlist',
       mediaKey: canonicalTitleMediaKey(identity),
@@ -315,8 +315,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const params = request.params as Partial<WatchMediaKeyParams> & { mediaKey: string };
     const profileId = getProfileIdFromParams(params);
     const identity = parseMediaKey(params.mediaKey);
-    await supabaseUserWatchService.deleteListItem({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.deleteListItem({
+      accountId: actor.authSubject!,
       profileId,
       listKind: 'watchlist',
       mediaKey: canonicalTitleMediaKey(identity),
@@ -340,8 +340,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       episodeNumber: parseNullableNumber(body.episodeNumber),
       absoluteEpisodeNumber: parseNullableNumber(body.absoluteEpisodeNumber),
     });
-    await supabaseUserWatchService.setRating({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.setRating({
+      accountId: actor.authSubject!,
       profileId,
       mediaKey: canonicalTitleMediaKey(identity),
       mediaType: canonicalTitleMediaType(identity),
@@ -356,8 +356,8 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const params = request.params as Partial<WatchMediaKeyParams> & { mediaKey: string };
     const profileId = getProfileIdFromParams(params);
     const identity = parseMediaKey(params.mediaKey);
-    await supabaseUserWatchService.deleteRating({
-      accessToken: requireSupabaseAccessToken(actor),
+    await localUserWatchService.deleteRating({
+      accountId: actor.authSubject!,
       profileId,
       mediaKey: canonicalTitleMediaKey(identity),
     });
@@ -410,14 +410,6 @@ function parseNullableString(value: unknown): string | null {
   }
   return parseOptionalString(value);
 }
-
-function requireSupabaseAccessToken(actor: { accessToken: string | null }): string {
-  if (!actor.accessToken) {
-    throw new HttpError(403, 'Supabase user session required.');
-  }
-  return actor.accessToken;
-}
-
 function decodeContinueWatchingRouteId(id: string): string {
   const trimmed = id.trim();
   if (!trimmed) {

@@ -1,8 +1,7 @@
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeIsoString } from '../../lib/time.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
-import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import {
   ProviderSessionsRepository,
   type ProviderSessionConnectedRecord,
@@ -53,7 +52,7 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 
 export class ProviderTokenAccessService {
   constructor(
-    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+    private readonly profileLocalService = new ProfileLocalService(),
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
@@ -116,7 +115,7 @@ export class ProviderTokenAccessService {
     provider: ProviderImportProvider,
   ): Promise<ProviderSessionConnectedRecord> {
     return this.runInTransaction(async (client) => {
-      await this.supabaseProfileService.requireOwnedProfile(accountId, profileId);
+      await this.profileLocalService.requireOwnedProfile(accountId, profileId);
 
       const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
       if (!providerSession) {

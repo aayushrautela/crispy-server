@@ -4,51 +4,51 @@ import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('watch routes require user session actor with access token', async (t) => {
-  const { SupabaseUserWatchService } = await import('../../modules/integrations/supabase-user-watch.service.js');
+test('watch routes work with user actor auth subject', async (t) => {
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
    
   const originals = {
-    listContinueWatchingPage: SupabaseUserWatchService.prototype.listContinueWatchingPage,
-    recordPlaybackState: SupabaseUserWatchService.prototype.recordPlaybackState,
-    markWatched: SupabaseUserWatchService.prototype.markWatched,
-    unmarkWatched: SupabaseUserWatchService.prototype.unmarkWatched,
+    listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
+    recordPlaybackState: LocalUserWatchService.prototype.recordPlaybackState,
+    markWatched: LocalUserWatchService.prototype.markWatched,
+    unmarkWatched: LocalUserWatchService.prototype.unmarkWatched,
     enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
   };
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
-    SupabaseUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
-    SupabaseUserWatchService.prototype.recordPlaybackState = originals.recordPlaybackState;
-    SupabaseUserWatchService.prototype.markWatched = originals.markWatched;
-    SupabaseUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
+    LocalUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
+    LocalUserWatchService.prototype.recordPlaybackState = originals.recordPlaybackState;
+    LocalUserWatchService.prototype.markWatched = originals.markWatched;
+    LocalUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
     WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
-  let receivedAccessToken: string | null = null;
+  let receivedAccountId: string | null = null;
   const watchedCalls: Array<Record<string, unknown>> = [];
 
-  SupabaseUserWatchService.prototype.listContinueWatchingPage = async function (params) {
-    receivedAccessToken = params.accessToken;
+  LocalUserWatchService.prototype.listContinueWatchingPage = async function (params) {
+    receivedAccountId = params.accountId;
     return {
       items: [],
       pageInfo: { nextCursor: null, hasMore: false },
     } as never;
   };
 
-  SupabaseUserWatchService.prototype.recordPlaybackState = async function (params) {
-    receivedAccessToken = params.accessToken;
+  LocalUserWatchService.prototype.recordPlaybackState = async function (params) {
+    receivedAccountId = params.accountId;
   };
 
-  SupabaseUserWatchService.prototype.markWatched = async function (params) {
-    receivedAccessToken = params.accessToken;
+  LocalUserWatchService.prototype.markWatched = async function (params) {
+    receivedAccountId = params.accountId;
     watchedCalls.push({ ...params, kind: 'mark' });
   };
 
-  SupabaseUserWatchService.prototype.unmarkWatched = async function (params) {
-    receivedAccessToken = params.accessToken;
+  LocalUserWatchService.prototype.unmarkWatched = async function (params) {
+    receivedAccountId = params.accountId;
     watchedCalls.push({ ...params, kind: 'unmark' });
   };
 
@@ -72,9 +72,9 @@ test('watch routes require user session actor with access token', async (t) => {
     headers: auth,
   });
   assert.equal(listResponse.statusCode, 200);
-  assert.equal(receivedAccessToken, 'test-supabase-jwt-token');
+  assert.equal(receivedAccountId, 'auth-subject');
 
-  receivedAccessToken = null;
+  receivedAccountId = null;
 
   const eventResponse = await app.inject({
     method: 'POST',
@@ -89,9 +89,9 @@ test('watch routes require user session actor with access token', async (t) => {
     },
   });
   assert.equal(eventResponse.statusCode, 200);
-  assert.equal(receivedAccessToken, 'test-supabase-jwt-token');
+  assert.equal(receivedAccountId, 'auth-subject');
 
-  receivedAccessToken = null;
+  receivedAccountId = null;
 
   const markResponse = await app.inject({
     method: 'POST',
@@ -104,7 +104,7 @@ test('watch routes require user session actor with access token', async (t) => {
     },
   });
   assert.equal(markResponse.statusCode, 200);
-  assert.equal(receivedAccessToken, 'test-supabase-jwt-token');
+  assert.equal(receivedAccountId, 'auth-subject');
 
   const unmarkResponse = await app.inject({
     method: 'POST',
@@ -119,7 +119,7 @@ test('watch routes require user session actor with access token', async (t) => {
 
   assert.deepEqual(watchedCalls, [
     {
-      accessToken: 'test-supabase-jwt-token',
+      accountId: 'auth-subject',
       profileId: 'profile-1',
       mediaKey: 'movie:tmdb:1',
       titleMediaKey: 'movie:tmdb:1',
@@ -128,7 +128,7 @@ test('watch routes require user session actor with access token', async (t) => {
       kind: 'mark',
     },
     {
-      accessToken: 'test-supabase-jwt-token',
+      accountId: 'auth-subject',
       profileId: 'profile-1',
       mediaKey: 'movie:tmdb:1',
       titleMediaKey: 'movie:tmdb:1',
@@ -210,22 +210,22 @@ test('continue-watching serializes items with progress', async (t) => {
     delete (pool as unknown as Record<string, unknown>).connect;
   });
 
-  const { SupabaseUserWatchService } = await import('../../modules/integrations/supabase-user-watch.service.js');
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
 
   const originals = {
-    listContinueWatchingPage: SupabaseUserWatchService.prototype.listContinueWatchingPage,
+    listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
     enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
   };
 
   t.after(() => {
-    SupabaseUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
+    LocalUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
     WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
   });
 
   const now = '2026-05-13T00:00:00.000Z';
 
-  SupabaseUserWatchService.prototype.listContinueWatchingPage = async () => ({
+  LocalUserWatchService.prototype.listContinueWatchingPage = async () => ({
     items: [
       {
         id: 'movie:tmdb:694',
@@ -295,16 +295,16 @@ test('watch state serializes progress without status', async (t) => {
     delete (pool as unknown as Record<string, unknown>).connect;
   });
 
-  const { SupabaseUserWatchService } = await import('../../modules/integrations/supabase-user-watch.service.js');
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
 
   const originals = {
-    getState: SupabaseUserWatchService.prototype.getState,
+    getState: LocalUserWatchService.prototype.getState,
     enrichRegularMediaItems: WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems,
   };
 
   t.after(() => {
-    SupabaseUserWatchService.prototype.getState = originals.getState;
+    LocalUserWatchService.prototype.getState = originals.getState;
     WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems = originals.enrichRegularMediaItems;
   });
 
@@ -316,7 +316,7 @@ test('watch state serializes progress without status', async (t) => {
     lastPlayedAt: now,
   };
 
-  SupabaseUserWatchService.prototype.getState = async () => ({
+  LocalUserWatchService.prototype.getState = async () => ({
     kind: 'watch_state',
     mediaItem: makeMediaItem('movie:tmdb:694'),
     context: {

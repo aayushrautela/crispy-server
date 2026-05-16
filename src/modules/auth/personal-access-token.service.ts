@@ -1,11 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { withTransaction } from '../../lib/db.js';
+import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { UserRepository } from '../users/user.repo.js';
 import type { AuthActor, AuthScope } from './auth.types.js';
 import { PAT_DEFAULT_SCOPES, isPersonalAccessTokenScope } from './auth.types.js';
-import { PersonalAccessTokenRepository, type PersonalAccessTokenRecord } from './personal-access-token.repo.js';
 import { hashAccessToken } from './token-hash.js';
+import { PersonalAccessTokenRepository } from './personal-access-token.repo.js';
 
 export type PersonalAccessTokenView = {
   id: string;
@@ -25,11 +24,10 @@ export type CreatedPersonalAccessToken = {
 
 export class PersonalAccessTokenService {
   constructor(
-    private readonly tokenRepository = new PersonalAccessTokenRepository(),
-    private readonly userRepository = new UserRepository(),
+    private readonly repo: PersonalAccessTokenRepository = new PersonalAccessTokenRepository(),
   ) {}
 
-  async createForUser(userId: string, input: {
+  async createForUser(authSubject: string, input: {
     name: string;
     scopes?: AuthScope[];
     expiresAt?: string | null;
@@ -45,75 +43,63 @@ export class PersonalAccessTokenService {
     const tokenHash = hashAccessToken(plaintextToken);
     const tokenPreview = plaintextToken.slice(0, 12);
 
-    const created = await withTransaction(async (client) => {
-      return this.tokenRepository.create(client, {
-        userId,
+    const record = await withDbClient((client) =>
+      this.repo.create(client, {
+        userId: authSubject,
         name,
         tokenHash,
         tokenPreview,
         scopes,
         expiresAt: input.expiresAt ?? null,
-      });
-    });
+      }),
+    );
 
     return {
-      token: toTokenView(created),
+      token: mapView(record),
       plaintextToken,
     };
   }
 
-  async listForUser(userId: string): Promise<PersonalAccessTokenView[]> {
-    return withTransaction(async (client) => {
-      const rows = await this.tokenRepository.listForUser(client, userId);
-      return rows.map((row) => toTokenView(row));
-    });
+  async listForUser(authSubject: string): Promise<PersonalAccessTokenView[]> {
+    const records = await withDbClient((client) => this.repo.listForUser(client, authSubject));
+    return records.map(mapView);
   }
 
-  async revokeForUser(userId: string, tokenId: string): Promise<PersonalAccessTokenView> {
-    return withTransaction(async (client) => {
-      const revoked = await this.tokenRepository.revoke(client, userId, tokenId);
-      if (!revoked) {
-        throw new HttpError(404, 'Personal access token not found.');
-      }
-      return toTokenView(revoked);
-    });
+  async revokeForUser(authSubject: string, tokenId: string): Promise<PersonalAccessTokenView> {
+    const record = await withDbClient((client) => this.repo.revoke(client, authSubject, tokenId));
+    if (!record) throw new HttpError(404, 'Personal access token not found.');
+    return mapView(record);
   }
 
-  async revokeAllForUser(userId: string): Promise<number> {
-    return withTransaction(async (client) => this.tokenRepository.revokeAllForUser(client, userId));
+  async revokeAllForUser(authSubject: string): Promise<number> {
+    return withDbClient((client) => this.repo.revokeAllForUser(client, authSubject));
   }
 
   async authenticate(rawToken: string): Promise<AuthActor | null> {
     const tokenHash = hashAccessToken(rawToken);
-    return withTransaction(async (client) => {
-      const token = await this.tokenRepository.findActiveByHash(client, tokenHash);
-      if (!token) {
-        return null;
-      }
 
-      // Enforce expiry at service layer
-      if (token.expiresAt && new Date(token.expiresAt) <= new Date()) {
-        return null;
-      }
+    return withDbClient(async (client) => {
+      const token = await this.repo.findActiveByHash(client, tokenHash);
+      if (!token) return null;
 
-      const user = await this.userRepository.findById(client, token.userId);
-      if (!user) {
-        return null;
-      }
+      const emailResult = await client.query(
+        'SELECT email FROM identity.accounts WHERE id = $1::uuid',
+        [token.userId],
+      );
 
-      await this.tokenRepository.touchLastUsed(client, token.id);
+      await this.repo.touchLastUsed(client, token.id);
 
       return {
         type: 'pat',
-        appUserId: user.id,
+        appUserId: token.userId,
         serviceId: null,
         scopes: token.scopes,
-        authSubject: user.authSubject,
-        email: user.email,
+        authSubject: token.userId,
+        email: emailResult.rows[0]?.email ?? null,
         tokenId: token.id,
         consumerId: null,
         accessToken: null,
-      } satisfies AuthActor;
+      };
     });
   }
 }
@@ -123,7 +109,16 @@ function normalizeScopes(scopes?: AuthScope[]): AuthScope[] {
   return Array.from(new Set(values.filter(isPersonalAccessTokenScope)));
 }
 
-function toTokenView(record: PersonalAccessTokenRecord): PersonalAccessTokenView {
+function mapView(record: {
+  id: string;
+  name: string;
+  tokenPreview: string;
+  scopes: AuthScope[];
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}): PersonalAccessTokenView {
   return {
     id: record.id,
     name: record.name,

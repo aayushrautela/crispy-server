@@ -6,8 +6,7 @@ import { parseMediaKey } from '../identity/media-key.js';
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
 import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
-import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
@@ -20,7 +19,7 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 
 export class AiInsightsService {
   constructor(
-    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+    private readonly profileLocalService = new ProfileLocalService(),
     private readonly cacheRepository = new AiInsightsCacheRepository(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly entitlementService = new FeatureEntitlementService(),
@@ -45,7 +44,7 @@ export class AiInsightsService {
     if (!profileId) {
       throw new HttpError(400, 'Profile is required.');
     }
-    await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+    await this.profileLocalService.requireOwnedProfile(userId, profileId);
     const contentId = await this.runInTransaction(async (client) => {
       return this.contentIdentityService.ensureContentId(client, parseMediaKey(mediaKey));
     });

@@ -3,8 +3,7 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import type { MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
-import { SupabaseProfileService } from '../profiles/supabase-profile.service.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
@@ -26,7 +25,7 @@ const MAX_RESOLUTION_CANDIDATES = 8;
 
 export class AiSearchService {
   constructor(
-    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+    private readonly profileLocalService = new ProfileLocalService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly titleSearchService = new TitleSearchService(),
     private readonly requestCoalescer = new ShortLivedRequestCoalescer<AiSearchResponse>(AI_SEARCH_CACHE_TTL_MS),
@@ -53,7 +52,7 @@ export class AiSearchService {
     const requestKey = [userId, profileId, query, locale].join('|');
 
     return this.requestCoalescer.run(requestKey, async () => {
-      await this.supabaseProfileService.requireOwnedProfile(userId, profileId);
+      await this.profileLocalService.requireOwnedProfile(userId, profileId);
       const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
         userId,
         feature: 'search',

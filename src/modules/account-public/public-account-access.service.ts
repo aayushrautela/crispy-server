@@ -1,8 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 import type { AuthActor, AuthScope } from '../auth/auth.types.js';
-import { SupabaseProfileService, type SupabaseProfileRecord } from '../profiles/supabase-profile.service.js';
+import { ProfileLocalService, type ProfileRecord } from '../profiles/profile-local.service.js';
 
 export type PublicAccountScope =
   | 'profiles:read'
@@ -24,7 +23,7 @@ const SCOPE_HIERARCHY: Record<string, PublicAccountScope[]> = {
 
 export class PublicAccountAccessService {
   constructor(
-    private readonly supabaseProfileService = new SupabaseProfileService(getSupabaseServiceRoleClient()),
+    private readonly profileLocalService = new ProfileLocalService(),
   ) {}
 
   requireScope(actor: AuthActor, scope: PublicAccountScope): void {
@@ -40,19 +39,19 @@ export class PublicAccountAccessService {
     throw new HttpError(403, `Missing required scope: ${scope}`);
   }
 
-  async requireOwnedProfile(_client: DbClient, actor: AuthActor, profileId: string): Promise<SupabaseProfileRecord> {
+  async requireOwnedProfile(_client: DbClient, actor: AuthActor, profileId: string): Promise<ProfileRecord> {
     if (!actor.appUserId) {
       throw new HttpError(403, 'User authentication required.');
     }
 
-    return this.supabaseProfileService.requireOwnedProfile(actor.appUserId, profileId);
+    return this.profileLocalService.requireOwnedProfile(actor.appUserId, profileId);
   }
 
-  async listVisibleProfiles(_client: DbClient, actor: AuthActor): Promise<SupabaseProfileRecord[]> {
+  async listVisibleProfiles(_client: DbClient, actor: AuthActor): Promise<ProfileRecord[]> {
     if (!actor.appUserId) {
       throw new HttpError(403, 'User authentication required.');
     }
 
-    return this.supabaseProfileService.listForAccount(actor.appUserId);
+    return this.profileLocalService.listForAccount(actor.appUserId);
   }
 }
