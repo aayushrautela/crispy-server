@@ -432,6 +432,9 @@ export const ADMIN_UI_CLIENT = String.raw`
       error.payload = payload;
       throw error;
     }
+    if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'data')) {
+      return payload.data;
+    }
     return payload;
   }
 
