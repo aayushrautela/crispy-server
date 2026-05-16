@@ -61,7 +61,7 @@ export class ProviderSessionsRepository {
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
                last_import_completed_at, disconnected_at, created_at, updated_at
-        FROM provider_sessions
+        FROM user_state.provider_sessions
         WHERE provider = $1
           AND state = 'oauth_pending'
           AND state_token = $2
@@ -82,7 +82,7 @@ export class ProviderSessionsRepository {
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
                last_import_completed_at, disconnected_at, created_at, updated_at
-        FROM provider_sessions
+        FROM user_state.provider_sessions
         WHERE profile_id = $1::uuid AND provider = $2
       `,
       [profileId, provider],
@@ -96,7 +96,7 @@ export class ProviderSessionsRepository {
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
                last_import_completed_at, disconnected_at, created_at, updated_at
-        FROM provider_sessions
+        FROM user_state.provider_sessions
         WHERE profile_id = $1::uuid
         ORDER BY provider ASC
       `,
@@ -114,7 +114,7 @@ export class ProviderSessionsRepository {
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
                last_import_completed_at, disconnected_at, created_at, updated_at
-        FROM provider_sessions
+        FROM user_state.provider_sessions
         WHERE ($1::text IS NULL OR provider = $1)
         ORDER BY updated_at DESC, created_at DESC
         LIMIT $2
@@ -145,7 +145,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionRecord> {
     const result = await client.query(
       `
-        INSERT INTO provider_sessions (
+        INSERT INTO user_state.provider_sessions (
           profile_id,
           provider,
           state,
@@ -196,7 +196,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionRecord> {
     const result = await client.query(
       `
-        INSERT INTO provider_sessions (
+        INSERT INTO user_state.provider_sessions (
           profile_id,
           provider,
           state,
@@ -255,7 +255,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionRecord> {
     const result = await client.query(
       `
-        INSERT INTO provider_sessions (
+        INSERT INTO user_state.provider_sessions (
           profile_id,
           provider,
           state,
@@ -310,7 +310,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionConnectedRecord> {
     const result = await client.query(
       `
-        UPDATE provider_sessions
+        UPDATE user_state.provider_sessions
         SET state = 'connected',
           provider_user_id = COALESCE($4, provider_user_id),
           external_username = COALESCE($5, external_username),
@@ -356,7 +356,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionRecord> {
     const result = await client.query(
       `
-        INSERT INTO provider_sessions (
+        INSERT INTO user_state.provider_sessions (
           profile_id,
           provider,
           state,
@@ -410,7 +410,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionRecord> {
     const result = await client.query(
       `
-        INSERT INTO provider_sessions (
+        INSERT INTO user_state.provider_sessions (
           profile_id,
           provider,
           state,
@@ -448,7 +448,7 @@ export class ProviderSessionsRepository {
   }): Promise<ProviderSessionRecord | null> {
     const result = await client.query(
       `
-        UPDATE provider_sessions
+        UPDATE user_state.provider_sessions
         SET last_import_completed_at = $3::timestamptz,
             credentials_json = jsonb_strip_nulls(credentials_json || jsonb_build_object(
               'lastImportCompletedAt', $3::timestamptz,

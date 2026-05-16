@@ -30,10 +30,10 @@ export class ProfileWatchDataStateRepository {
   async ensure(client: DbClient, profileId: string): Promise<ProfileWatchDataStateRecord> {
     const result = await client.query(
       `
-        INSERT INTO profile_watch_data_state (profile_id)
+        INSERT INTO user_state.profile_watch_data_state (profile_id)
         VALUES ($1::uuid)
         ON CONFLICT (profile_id)
-        DO UPDATE SET updated_at = profile_watch_data_state.updated_at
+        DO UPDATE SET updated_at = user_state.profile_watch_data_state.updated_at
         RETURNING profile_id, history_generation, current_origin, last_import_provider,
                   last_import_job_id, last_reset_at, last_import_completed_at, updated_at
       `,
@@ -47,7 +47,7 @@ export class ProfileWatchDataStateRepository {
       `
         SELECT profile_id, history_generation, current_origin, last_import_provider,
                last_import_job_id, last_reset_at, last_import_completed_at, updated_at
-        FROM profile_watch_data_state
+        FROM user_state.profile_watch_data_state
         WHERE profile_id = $1::uuid
       `,
       [profileId],
@@ -63,7 +63,7 @@ export class ProfileWatchDataStateRepository {
   }): Promise<ProfileWatchDataStateRecord> {
     const result = await client.query(
       `
-        INSERT INTO profile_watch_data_state (
+        INSERT INTO user_state.profile_watch_data_state (
           profile_id,
           history_generation,
           current_origin,
@@ -75,7 +75,7 @@ export class ProfileWatchDataStateRepository {
         VALUES ($1::uuid, 1, $2, $3, $4::uuid, $5::timestamptz, now())
         ON CONFLICT (profile_id)
         DO UPDATE SET
-          history_generation = profile_watch_data_state.history_generation + 1,
+          history_generation = user_state.profile_watch_data_state.history_generation + 1,
           current_origin = EXCLUDED.current_origin,
           last_import_provider = EXCLUDED.last_import_provider,
           last_import_job_id = EXCLUDED.last_import_job_id,
@@ -97,7 +97,7 @@ export class ProfileWatchDataStateRepository {
   }): Promise<ProfileWatchDataStateRecord> {
     const result = await client.query(
       `
-        UPDATE profile_watch_data_state
+        UPDATE user_state.profile_watch_data_state
         SET current_origin = $2,
             last_import_provider = $3,
             last_import_job_id = $4::uuid,

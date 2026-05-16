@@ -53,7 +53,7 @@ export class ProviderImportJobsRepository {
   }): Promise<ProviderImportJobRecord> {
     const result = await client.query(
       `
-        INSERT INTO provider_import_jobs (
+        INSERT INTO user_state.provider_import_jobs (
           profile_id,
           profile_group_id,
           provider,
@@ -75,7 +75,7 @@ export class ProviderImportJobsRepository {
       `
         SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
-        FROM provider_import_jobs
+        FROM user_state.provider_import_jobs
         WHERE profile_id = $1::uuid
         ORDER BY created_at DESC
         LIMIT $2
@@ -90,7 +90,7 @@ export class ProviderImportJobsRepository {
       `
         SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
-        FROM provider_import_jobs
+        FROM user_state.provider_import_jobs
         WHERE profile_id = $1::uuid AND id = $2::uuid
       `,
       [profileId, jobId],
@@ -103,7 +103,7 @@ export class ProviderImportJobsRepository {
       `
         SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
-        FROM provider_import_jobs
+        FROM user_state.provider_import_jobs
         WHERE id = $1::uuid
       `,
       [jobId],
@@ -120,7 +120,7 @@ export class ProviderImportJobsRepository {
       `
         SELECT id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id,
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
-        FROM provider_import_jobs
+        FROM user_state.provider_import_jobs
         WHERE profile_id = $1::uuid
           AND provider = $2
           AND status = 'oauth_pending'
@@ -138,7 +138,7 @@ export class ProviderImportJobsRepository {
   }): Promise<void> {
     await client.query(
       `
-        UPDATE provider_import_jobs
+        UPDATE user_state.provider_import_jobs
         SET status = 'queued',
             summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
             checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
@@ -158,7 +158,7 @@ export class ProviderImportJobsRepository {
   async markRunning(client: DbClient, jobId: string): Promise<void> {
     await client.query(
       `
-        UPDATE provider_import_jobs
+        UPDATE user_state.provider_import_jobs
         SET status = 'running', started_at = COALESCE(started_at, now()), updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -172,7 +172,7 @@ export class ProviderImportJobsRepository {
   }): Promise<void> {
     await client.query(
       `
-        UPDATE provider_import_jobs
+        UPDATE user_state.provider_import_jobs
         SET status = 'succeeded',
             summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
             checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
@@ -195,7 +195,7 @@ export class ProviderImportJobsRepository {
   }): Promise<void> {
     await client.query(
       `
-        UPDATE provider_import_jobs
+        UPDATE user_state.provider_import_jobs
         SET status = 'succeeded_with_warnings',
             summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
             checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
@@ -218,7 +218,7 @@ export class ProviderImportJobsRepository {
   }): Promise<void> {
     await client.query(
       `
-        UPDATE provider_import_jobs
+        UPDATE user_state.provider_import_jobs
         SET summary_json = CASE WHEN $2::jsonb IS NULL THEN summary_json ELSE $2::jsonb END,
             checkpoint_json = CASE WHEN $3::jsonb IS NULL THEN checkpoint_json ELSE $3::jsonb END,
             updated_at = now()
@@ -235,7 +235,7 @@ export class ProviderImportJobsRepository {
   async markFailed(client: DbClient, jobId: string, errorJson: Record<string, unknown>): Promise<void> {
     await client.query(
       `
-        UPDATE provider_import_jobs
+        UPDATE user_state.provider_import_jobs
         SET status = 'failed', error_json = $2::jsonb, finished_at = now(), updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -255,7 +255,7 @@ export class ProviderImportJobsRepository {
                checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at,
                 NULLIF(error_json ->> 'code', '') AS error_code,
                 NULLIF(error_json ->> 'message', '') AS error_message
-        FROM provider_import_jobs
+        FROM user_state.provider_import_jobs
         WHERE ($1::text IS NULL OR provider = $1)
           AND ($2::text IS NULL OR status = $2)
           AND ($3::boolean = false OR status IN ('failed', 'succeeded_with_warnings'))
