@@ -61,7 +61,7 @@ export class ProviderImportJobsRepository {
           status,
           requested_by_user_id
         )
-        VALUES ($1::uuid, $2::uuid, $3, 'replace_import', $4, $5::uuid)
+        VALUES ($1::uuid, $2, $3, 'replace_import', $4, $5::uuid)
         RETURNING id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id,
                   checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
       `,
