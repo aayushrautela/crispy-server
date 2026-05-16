@@ -236,22 +236,47 @@ export class LocalUserWatchService {
 
   async getState(params: GetStateParams): Promise<WatchStateResponse> {
     const states = await this.getStates(params);
-    return states[0] ?? ({
+    return states[0] ?? {
       kind: 'watch_state' as const,
       mediaItem: {
+        id: params.mediaKeys[0] ?? '',
         mediaKey: params.mediaKeys[0] ?? '',
-        mediaType: '',
-        images: { poster: null, backdrop: null, logo: null, still: null },
-        title: params.mediaKeys[0] ?? '',
-        originalTitle: null, overview: null, releaseDate: null,
-        genres: [], runtimeMinutes: null, status: null,
-        maturityRating: null, certification: null,
-        trailerUrl: null, trailerThumbnailUrl: null,
-        posterColor: null, backdropColor: null,
-        externalIds: {}, parent: null, showTmdbId: null,
-        seasonNumber: null, episodeNumber: null,
-        absoluteEpisodeNumber: null, episodeTitle: null, airDate: null,
-        subtitle: null, releaseYear: null, rating: null, badges: [] as never[],
+        type: 'Unknown' as const,
+        name: params.mediaKeys[0] ?? '',
+        originalTitle: null,
+        overview: null,
+        tagline: null,
+        productionYear: null,
+        premiereDate: null,
+        communityRating: null,
+        officialRating: null,
+        certification: null,
+        genres: [],
+        runTimeSeconds: null,
+        status: null,
+        providerIds: { tmdb: null, imdb: null, tvdb: null },
+        imageTags: {
+          primary: null,
+          backdrop: [],
+          logo: null,
+          thumb: null,
+          screenshot: [],
+        },
+        parentImageTags: null,
+        seriesId: null,
+        seriesName: null,
+        seasonId: null,
+        seasonName: null,
+        parentIndexNumber: null,
+        indexNumber: null,
+        absoluteIndexNumber: null,
+        episodeTitle: null,
+        airDate: null,
+        trailerUrl: null,
+        trailerThumbnailUrl: null,
+        posterColor: null,
+        backdropColor: null,
+        userData: null,
       },
       context: {
         progress: null, continueWatching: null, watched: null,
@@ -260,7 +285,7 @@ export class LocalUserWatchService {
       presentation: null,
       progress: null, continueWatching: null, watched: null,
       watchlist: null, rating: null, watchedEpisodeKeys: [], playCount: 0,
-    } as unknown as WatchStateResponse);
+    };
   }
 
   async getStates(params: GetStateParams): Promise<WatchStateResponse[]> {

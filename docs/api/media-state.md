@@ -35,9 +35,9 @@ Search and metadata routes resolve TMDB-backed identities:
 - There is no `anime` search bucket.
 - Metadata resolve/detail/playback routes should be called with `mediaKey` or the identity fields documented in OpenAPI.
 - Clients should not construct provider-routed identities from deprecated `provider`/`providerId` fields when `mediaKey` is available.
-- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `title`, `images.poster`, `images.backdrop`, `images.logo`, `images.still`, `rating`, `releaseYear`, and nullable `maturityRating`.
+- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `name`, `imageTags.primary`, `imageTags.backdrop`, `imageTags.logo`, `imageTags.thumb`, `communityRating`, `productionYear`, and nullable `officialRating`.
 - Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
-- `images.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- `imageTags.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 
 ## Watch state
 
@@ -58,7 +58,9 @@ Continue-watching items represent active resume state only.
 
 - **`id`** is the title-level key (`movie:tmdb:X` or `show:tmdb:X`). Use this when calling the dismiss endpoint.
 - **`mediaItem.mediaKey`** is the playable unit: `movie:tmdb:X` for movies, `episode:tmdb:showId:season:episode` for episode progress.
-- **`mediaItem.parent`** is non-null for episodes and contains `mediaKey` (show key), `mediaType: 'show'`, and the resolved `title`. Clients should use `parent.mediaKey` for show-level navigation from episode items.
+- **`mediaItem.seriesName`** and **`mediaItem.seriesId`** are populated for episodes. Clients should use `seriesId` for show-level navigation from episode items.
+- **`mediaItem.parentIndexNumber`** is the season number, **`mediaItem.indexNumber`** is the episode number.
+- **`mediaItem.episodeTitle`** is the episode name (also available in `mediaItem.name`).
 
 Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 
@@ -67,10 +69,10 @@ Clients should not infer watched status from continue-watching rows. Watched bad
 Recommendation read payloads should follow canonical media identity rules:
 
 - Use `mediaKey` where a recommendation item is navigable.
-- Treat `mediaType` as derived convenience data.
-- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `title`, `images.poster`, `images.backdrop`, `images.logo`, `images.still`, `rating`, `releaseYear`, and nullable `maturityRating`.
+- Treat `type` as derived convenience data.
+- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `name`, `imageTags.primary`, `imageTags.backdrop`, `imageTags.logo`, `imageTags.thumb`, `communityRating`, `productionYear`, and nullable `officialRating`.
 - Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
-- `images.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- `imageTags.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 - Do not depend on deprecated `provider`/`providerId` fields for navigation.
 
 Recommendation write payloads for service-owned lists use ordered TMDB references as documented in OpenAPI and `docs/api/recommendations.md`; writers should not submit enriched card metadata or legacy identity aliases.
