@@ -12,6 +12,7 @@ export type WatchMediaCardCacheRecord = {
   subtitle: string | null;
   posterUrl: string | null;
   backdropUrl: string | null;
+  stillUrl: string | null;
   logoUrl: string | null;
   trailerUrl: string | null;
   trailerThumbnailUrl: string | null;
@@ -35,6 +36,7 @@ export class WatchMediaCardCacheRepository {
     subtitle?: string | null;
     posterUrl: string | null;
     backdropUrl?: string | null;
+    stillUrl?: string | null;
     logoUrl?: string | null;
     trailerUrl?: string | null;
     trailerThumbnailUrl?: string | null;
@@ -51,11 +53,11 @@ export class WatchMediaCardCacheRepository {
       `
         INSERT INTO watch_media_card_cache (
           media_key, media_type, title_provider, title_provider_id, title_media_type,
-          title, subtitle, poster_url, backdrop_url, logo_url,
+          title, subtitle, poster_url, backdrop_url, still_url, logo_url,
           trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
           release_year, rating, maturity_rating, genres, language, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, now())
         ON CONFLICT (media_key, language)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
@@ -66,6 +68,7 @@ export class WatchMediaCardCacheRepository {
           subtitle = EXCLUDED.subtitle,
           poster_url = EXCLUDED.poster_url,
           backdrop_url = EXCLUDED.backdrop_url,
+          still_url = EXCLUDED.still_url,
           logo_url = EXCLUDED.logo_url,
           trailer_url = EXCLUDED.trailer_url,
           trailer_thumbnail_url = EXCLUDED.trailer_thumbnail_url,
@@ -87,6 +90,7 @@ export class WatchMediaCardCacheRepository {
         params.subtitle ?? null,
         params.posterUrl,
         params.backdropUrl ?? null,
+        params.stillUrl ?? null,
         params.logoUrl ?? null,
         params.trailerUrl ?? null,
         params.trailerThumbnailUrl ?? null,
@@ -124,11 +128,11 @@ export class WatchMediaCardCacheRepository {
 
     const result = await client.query(
       `
-        SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
-               title, subtitle, poster_url, backdrop_url, logo_url,
-               trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
-               release_year, rating, maturity_rating, genres, language
-        FROM watch_media_card_cache
+      SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
+             title, subtitle, poster_url, backdrop_url, still_url, logo_url,
+             trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
+             release_year, rating, maturity_rating, genres, language
+      FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
           AND language = $2
       `,
@@ -168,6 +172,7 @@ export class WatchMediaCardCacheRepository {
             subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
             posterUrl: typeof row.poster_url === 'string' ? row.poster_url : null,
             backdropUrl: typeof row.backdrop_url === 'string' ? row.backdrop_url : null,
+            stillUrl: typeof row.still_url === 'string' ? row.still_url : null,
             logoUrl: typeof row.logo_url === 'string' ? row.logo_url : null,
             trailerUrl: typeof row.trailer_url === 'string' ? row.trailer_url : null,
             trailerThumbnailUrl: typeof row.trailer_thumbnail_url === 'string' ? row.trailer_thumbnail_url : null,

@@ -585,7 +585,7 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
       medium: 'w500',
       large: 'w780',
     }),
-    backdrop: buildResponsiveImageSet(title?.backdropPath ?? null, {
+    backdrop: buildResponsiveImageSet(episode?.stillPath ?? title?.backdropPath ?? null, {
       small: 'w300',
       medium: 'w780',
       large: 'w1280',

@@ -131,6 +131,7 @@ test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
     subtitle: 'S1 E2',
     posterUrl: null,
     backdropUrl: 'backdrop.jpg',
+    stillUrl: null,
     logoUrl: 'logo.png',
     trailerUrl: 'https://youtube.test/watch?v=abc',
     trailerThumbnailUrl: 'https://youtube.test/thumb.jpg',

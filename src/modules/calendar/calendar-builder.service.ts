@@ -53,10 +53,7 @@ export class CalendarBuilderService {
 
         const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
         const poster = mediaCard.images.poster ?? showCard.images.poster;
-        const backdrop = mediaCard.images.still
-          ?? mediaCard.images.backdrop
-          ?? showCard.images.backdrop
-          ?? poster;
+        const backdrop = mediaCard.images.backdrop ?? poster;
 
         const mediaItem = metadataCardToMediaItem(mediaCard, {
           images: {

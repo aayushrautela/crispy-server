@@ -83,7 +83,7 @@ function mergeEnrichedMediaItem(record: WatchMediaCardCacheRecord, existing: Med
     overview: existing.overview,
     images: {
       ...enriched.images,
-      still: existing.images.still,
+      still: existing.images.still.small ? existing.images.still : enriched.images.still,
     },
     releaseDate: existing.releaseDate,
     genres: enriched.genres,

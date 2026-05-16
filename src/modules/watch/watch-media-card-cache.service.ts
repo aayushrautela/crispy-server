@@ -18,6 +18,7 @@ export class WatchMediaCardCacheService {
     subtitle: string | null;
     posterUrl: string | null;
     backdropUrl: string | null;
+    episodeStillUrl?: string | null;
     logoUrl: string | null;
     trailerUrl: string | null;
     trailerThumbnailUrl: string | null;
@@ -48,6 +49,7 @@ export class WatchMediaCardCacheService {
       subtitle: projection.subtitle,
       posterUrl: projection.posterUrl,
       backdropUrl: projection.backdropUrl,
+      stillUrl: projection.episodeStillUrl ?? null,
       logoUrl: projection.logoUrl,
       trailerUrl: projection.trailerUrl,
       trailerThumbnailUrl: projection.trailerThumbnailUrl,

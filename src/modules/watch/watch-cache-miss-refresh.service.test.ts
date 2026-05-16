@@ -18,6 +18,7 @@ test('refreshMissingCardsAndReturnRecords reads refreshed records in requested l
     subtitle: null,
     posterUrl: 'https://cache.test/poster.jpg',
     backdropUrl: null,
+    stillUrl: null,
     logoUrl: null,
     trailerUrl: null,
     trailerThumbnailUrl: null,

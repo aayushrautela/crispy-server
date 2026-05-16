@@ -60,7 +60,11 @@ export function metadataViewToMediaItem(view: MetadataView, overrides: Partial<M
 }
 
 export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, overrides: Partial<MediaItem> = {}): MediaItem {
-  return applyOverrides({
+  const still = record.stillUrl
+    ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
+    : emptyResponsiveImageSet();
+
+  const item = applyOverrides({
     mediaKey: record.mediaKey,
     mediaType: toMediaItemType(record.mediaType),
     title: record.title,
@@ -71,7 +75,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
       poster: buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' }),
       backdrop: buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' }),
       logo: buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' }),
-      still: emptyResponsiveImageSet(),
+      still,
     },
     releaseDate: null,
     releaseYear: record.releaseYear,
@@ -95,6 +99,15 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     airDate: null,
     badges: [],
   }, overrides);
+
+  if (item.mediaType === 'episode' && still.small) {
+    item.images = {
+      ...item.images,
+      backdrop: still,
+    };
+  }
+
+  return item;
 }
 
 function applyOverrides(item: MediaItem, overrides: Partial<MediaItem>): MediaItem {

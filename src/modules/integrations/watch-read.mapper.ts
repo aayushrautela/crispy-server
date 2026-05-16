@@ -187,6 +187,7 @@ function mediaItemFromRow(mediaKey: string, row: WatchReadRow, overrides: Partia
     subtitle: nullableStringValue(row.subtitle),
     posterUrl: nullableStringValue(row.poster_url),
     backdropUrl: nullableStringValue(row.backdrop_url),
+    stillUrl: nullableStringValue(row.still_url),
     releaseYear: numberValue(row.release_year),
     rating: numberValue(row.metadata_rating),
     logoUrl: null,
