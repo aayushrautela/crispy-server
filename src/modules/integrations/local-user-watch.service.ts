@@ -177,19 +177,19 @@ export class LocalUserWatchService {
                FROM user_state.watch_events we
                WHERE we.profile_id = $1::uuid AND we.title_media_key = $2
                  AND ($3::timestamptz IS NULL OR we.occurred_at < $3::timestamptz
-                      OR (we.occurred_at = $3::timestamptz AND we.id > $4))
+                      OR (we.occurred_at = $3::timestamptz AND we.id > $4::uuid))
                ORDER BY we.occurred_at DESC, we.id ASC
                LIMIT $5`;
-      queryParams.push(params.mediaKey, cursor?.sortValue ?? null, cursor?.tieBreaker ?? '', limit);
+      queryParams.push(params.mediaKey, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     } else {
       query = `SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider
                FROM user_state.watch_events we
                WHERE we.profile_id = $1::uuid
                  AND ($2::timestamptz IS NULL OR we.occurred_at < $2::timestamptz
-                      OR (we.occurred_at = $2::timestamptz AND we.id > $3))
+                      OR (we.occurred_at = $2::timestamptz AND we.id > $3::uuid))
                ORDER BY we.occurred_at DESC, we.id ASC
                LIMIT $4`;
-      queryParams.push(cursor?.sortValue ?? null, cursor?.tieBreaker ?? '', limit);
+      queryParams.push(cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     }
 
     const result = await db.query(query, queryParams);
