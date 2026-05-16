@@ -140,3 +140,41 @@ test('AccountLookupService.getById throws 404 for missing ID', async (t) => {
     );
   });
 });
+
+test('AccountLookupService.getByEmail falls back to Auth Admin when local misses', async (t) => {
+  await withMockedDb(async () => {
+    const { AccountLookupService } = await import('./account-lookup.service.js');
+    const mockRepo = createMockRepo({ listByEmail: async () => [], upsertFromAuthSubject: async (_client, params) => ({ id: params.authSubject, authSubject: params.authSubject, email: params.email, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z', lastSeenAt: '2024-01-01T00:00:00.000Z' }) });
+    const mockAuthAdmin = { isConfigured: () => true, findUserByEmail: async (email: string) => email === 'remote@example.com' ? { id: 'remote-uuid', email: 'remote@example.com' } : null };
+    const svc = new AccountLookupService(mockRepo as never, mockAuthAdmin as never);
+    const result = await svc.getByEmail('remote@example.com');
+    assert.equal(result.accountId, 'remote-uuid');
+    assert.equal(result.email, 'remote@example.com');
+  });
+});
+
+test('AccountLookupService.getByEmail throws 404 when Auth Admin not configured', async (t) => {
+  await withMockedDb(async () => {
+    const { AccountLookupService } = await import('./account-lookup.service.js');
+    const mockRepo = createMockRepo({ listByEmail: async () => [] });
+    const mockAuthAdmin = { isConfigured: () => false };
+    const svc = new AccountLookupService(mockRepo as never, mockAuthAdmin as never);
+    await assert.rejects(
+      () => svc.getByEmail('remote@example.com'),
+      (err: { statusCode?: number; message?: string }) => err.statusCode === 404,
+    );
+  });
+});
+
+test('AccountLookupService.getByEmail throws 404 when Auth Admin returns no match', async (t) => {
+  await withMockedDb(async () => {
+    const { AccountLookupService } = await import('./account-lookup.service.js');
+    const mockRepo = createMockRepo({ listByEmail: async () => [] });
+    const mockAuthAdmin = { isConfigured: () => true, findUserByEmail: async () => null };
+    const svc = new AccountLookupService(mockRepo as never, mockAuthAdmin as never);
+    await assert.rejects(
+      () => svc.getByEmail('unknown@example.com'),
+      (err: { statusCode?: number; message?: string }) => err.statusCode === 404,
+    );
+  });
+});
