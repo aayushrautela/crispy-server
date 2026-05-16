@@ -177,30 +177,50 @@ export class LocalUserWatchService {
                FROM user_state.watch_events we
                WHERE we.profile_id = $1::uuid
                  AND we.event_type IN ('playback_completed', 'marked_watched')
-                 AND (we.media_key = $2 OR we.title_media_key = $2)
+                 AND (
+                   we.media_key = $2
+                   OR we.title_media_key = $2
+                   OR CASE
+                        WHEN we.media_type = 'movie' THEN COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                        WHEN COALESCE(NULLIF(we.title_media_key, ''), '') LIKE 'show:%' THEN we.title_media_key
+                        WHEN we.media_key LIKE 'episode:%:%:%' OR we.media_key LIKE 'season:%:%' THEN concat('show:', split_part(we.media_key, ':', 2), ':', split_part(we.media_key, ':', 3))
+                        ELSE COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                      END = $2
+                 )
                  AND ($3::timestamptz IS NULL OR we.occurred_at < $3::timestamptz
-                      OR (we.occurred_at = $3::timestamptz AND we.id > $4::uuid))
-               ORDER BY we.occurred_at DESC, we.id ASC
+                      OR (we.occurred_at = $3::timestamptz AND we.id < $4::uuid))
+                ORDER BY we.occurred_at DESC, we.id DESC
                LIMIT $5`;
       queryParams.push(params.mediaKey, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     } else {
-      query = `WITH title_ranked AS (
-                 SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at,
-                        we.source_kind, we.source_provider,
-                        ROW_NUMBER() OVER (
-                          PARTITION BY COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
-                          ORDER BY we.occurred_at DESC, we.id DESC
-                        ) AS rn
+      query = `WITH event_rows AS (
+                 SELECT we.id,
+                        CASE
+                          WHEN we.media_type = 'movie' THEN COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                          WHEN COALESCE(NULLIF(we.title_media_key, ''), '') LIKE 'show:%' THEN we.title_media_key
+                          WHEN we.media_key LIKE 'episode:%:%:%' OR we.media_key LIKE 'season:%:%' THEN concat('show:', split_part(we.media_key, ':', 2), ':', split_part(we.media_key, ':', 3))
+                          ELSE COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                        END AS history_media_key,
+                        CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END AS history_media_type,
+                        we.event_type, we.occurred_at, we.source_kind, we.source_provider
                  FROM user_state.watch_events we
                  WHERE we.profile_id = $1::uuid
                    AND we.event_type IN ('playback_completed', 'marked_watched')
+               ),
+               title_ranked AS (
+                 SELECT er.*,
+                        ROW_NUMBER() OVER (
+                          PARTITION BY er.history_media_key, date_trunc('month', er.occurred_at)
+                          ORDER BY er.occurred_at DESC, er.id DESC
+                        ) AS rn
+                 FROM event_rows er
                )
-               SELECT id, media_key, media_type, event_type, occurred_at, source_kind, source_provider
+               SELECT id, history_media_key AS media_key, history_media_type AS media_type, event_type, occurred_at, source_kind, source_provider
                FROM title_ranked
                WHERE rn = 1
-                 AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
-                      OR (occurred_at = $2::timestamptz AND id > $3::uuid))
-               ORDER BY occurred_at DESC, id ASC
+                  AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
+                       OR (occurred_at = $2::timestamptz AND id < $3::uuid))
+                ORDER BY occurred_at DESC, id DESC
                LIMIT $4`;
       queryParams.push(cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     }

@@ -102,24 +102,35 @@ export class AdminWatchReadService {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
     const cursor = decodeWatchPageCursor(params.cursor);
 
-    const query = `WITH title_ranked AS (
-                     SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at,
-                            we.source_kind, we.source_provider,
-                            ROW_NUMBER() OVER (
-                              PARTITION BY COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
-                              ORDER BY we.occurred_at DESC, we.id DESC
-                            ) AS rn
+    const query = `WITH event_rows AS (
+                     SELECT we.id,
+                            CASE
+                              WHEN we.media_type = 'movie' THEN COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                              WHEN COALESCE(NULLIF(we.title_media_key, ''), '') LIKE 'show:%' THEN we.title_media_key
+                              WHEN we.media_key LIKE 'episode:%:%:%' OR we.media_key LIKE 'season:%:%' THEN concat('show:', split_part(we.media_key, ':', 2), ':', split_part(we.media_key, ':', 3))
+                              ELSE COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                            END AS history_media_key,
+                            CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END AS history_media_type,
+                            we.event_type, we.occurred_at, we.source_kind, we.source_provider
                      FROM user_state.watch_events we
                      WHERE we.profile_id = $1::uuid
                        AND we.event_type IN ('playback_completed', 'marked_watched')
+                   ),
+                   title_ranked AS (
+                     SELECT er.*,
+                            ROW_NUMBER() OVER (
+                              PARTITION BY er.history_media_key, date_trunc('month', er.occurred_at)
+                              ORDER BY er.occurred_at DESC, er.id DESC
+                            ) AS rn
+                     FROM event_rows er
                    )
-                   SELECT id, media_key, media_type, event_type, occurred_at, source_kind, source_provider
+                   SELECT id, history_media_key AS media_key, history_media_type AS media_type, event_type, occurred_at, source_kind, source_provider
                    FROM title_ranked
                    WHERE rn = 1
-                     AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
-                          OR (occurred_at = $2::timestamptz AND id > $3::uuid))
-                   ORDER BY occurred_at DESC, id ASC
-                   LIMIT $4`;
+                      AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
+                           OR (occurred_at = $2::timestamptz AND id < $3::uuid))
+                     ORDER BY occurred_at DESC, id DESC
+                    LIMIT $4`;
     const queryParams: unknown[] = [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1];
 
     const { rows } = await db.query(query, queryParams);

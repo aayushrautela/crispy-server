@@ -2,6 +2,8 @@ import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import type { MediaItem } from '../metadata/media-item.types.js';
 import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
+import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
+import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
@@ -21,6 +23,7 @@ export class WatchMetadataEnrichmentService {
   constructor(
     private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
     private readonly cacheMissRefreshService: CacheMissRefreshDependency = new WatchCacheMissRefreshService(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async enrichContinueWatchingItems(
@@ -29,16 +32,28 @@ export class WatchMetadataEnrichmentService {
     language?: string | null,
   ): Promise<ContinueWatchingProductItem[]> {
     const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey), language);
-    return items.map((item) => {
+    return Promise.all(items.map(async (item) => {
       const record = records.get(item.mediaItem.mediaKey);
       if (!record) {
         return item;
       }
-      return {
-        ...item,
-        mediaItem: mergeEnrichedMediaItem(record, item.mediaItem),
-      };
-    });
+      const enriched = mergeEnrichedMediaItem(record, item.mediaItem);
+
+      if (enriched.showTmdbId != null && enriched.seasonNumber != null && enriched.episodeNumber != null) {
+        const episode = await this.tmdbCacheService.getEpisode(
+          client, enriched.showTmdbId, enriched.seasonNumber, enriched.episodeNumber,
+        ).catch(() => null);
+        if (episode?.stillPath) {
+          enriched.images = {
+            ...enriched.images,
+            backdrop: buildResponsiveImageSet(episode.stillPath, { small: 'w300', medium: 'w780', large: 'w1280' }),
+            still: buildResponsiveImageSet(episode.stillPath, { small: 'w185', medium: 'w300', large: 'original' }),
+          };
+        }
+      }
+
+      return { ...item, mediaItem: enriched };
+    }));
   }
 
   async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[], language?: string | null): Promise<TItem[]> {

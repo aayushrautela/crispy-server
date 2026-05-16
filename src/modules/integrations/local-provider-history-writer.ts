@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
+import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
 import type { ProfileRecord } from '../profiles/profile.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderSessionRecord } from './provider-sessions.repo.js';
@@ -204,12 +205,13 @@ export class LocalProviderHistoryWriter {
 
     let inserted = 0;
     for (const entry of params.historyEntries) {
+      const identity = parseMediaKey(entry.mediaKey);
       await client.query(
         `INSERT INTO user_state.watch_events
            (account_id, profile_id, media_key, title_media_key, media_type, event_type,
             occurred_at, source_kind, source_provider)
-         VALUES ($1::uuid, $2::uuid, $3, $3, $4, 'playback_completed', $5::timestamptz, 'provider_import', $6)`,
-        [accountId, profileId, entry.mediaKey, entry.mediaType, entry.watchedAt, provider],
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'playback_completed', $6::timestamptz, 'provider_import', $7)`,
+        [accountId, profileId, entry.mediaKey, canonicalTitleMediaKey(identity), canonicalTitleMediaType(identity), entry.watchedAt, provider],
       );
       inserted++;
     }

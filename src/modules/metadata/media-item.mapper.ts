@@ -100,7 +100,7 @@ export function watchCacheRecordToMediaItem(record: WatchMediaCardCacheRecord, o
     badges: [],
   }, overrides);
 
-  if (item.mediaType === 'episode' && still.small) {
+  if (still.small) {
     item.images = {
       ...item.images,
       backdrop: still,
