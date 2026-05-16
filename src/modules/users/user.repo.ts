@@ -1,6 +1,10 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
+import { HttpError } from '../../lib/errors.js';
 import type { AppUser } from './user.types.js';
+
+const ACTIVE_WHERE = 'deleted_at IS NULL';
+const BASE_SELECT = 'id, email, created_at, updated_at, last_seen_at';
 
 function mapUserRow(row: Record<string, unknown>): AppUser {
   return {
@@ -13,28 +17,28 @@ function mapUserRow(row: Record<string, unknown>): AppUser {
   };
 }
 
+function rowOrNull(row: Record<string, unknown> | undefined): AppUser | null {
+  return row ? mapUserRow(row) : null;
+}
+
 export class UserRepository {
   async findById(client: DbClient, userId: string): Promise<AppUser | null> {
     const result = await client.query(
-      `
-        SELECT id, email, created_at, updated_at, last_seen_at
-        FROM identity.accounts
-        WHERE id = $1::uuid
-      `,
+      `SELECT ${BASE_SELECT}
+       FROM identity.accounts
+       WHERE id = $1::uuid AND ${ACTIVE_WHERE}`,
       [userId],
     );
-    return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+    return rowOrNull(result.rows[0]);
   }
 
   async listByEmail(client: DbClient, email: string): Promise<AppUser[]> {
     const normalizedEmail = email.trim();
     const result = await client.query(
-      `
-        SELECT id, email, created_at, updated_at, last_seen_at
-        FROM identity.accounts
-        WHERE lower(email) = lower($1)
-        ORDER BY last_seen_at DESC, updated_at DESC, created_at DESC
-      `,
+      `SELECT ${BASE_SELECT}
+       FROM identity.accounts
+       WHERE lower(email) = lower($1) AND ${ACTIVE_WHERE}
+       ORDER BY last_seen_at DESC, updated_at DESC, created_at DESC`,
       [normalizedEmail],
     );
     return result.rows.map((row) => mapUserRow(row));
@@ -42,34 +46,36 @@ export class UserRepository {
 
   async findByAuthSubject(client: DbClient, authSubject: string): Promise<AppUser | null> {
     const result = await client.query(
-      `
-        SELECT id, email, created_at, updated_at, last_seen_at
-        FROM identity.accounts
-        WHERE id = $1::uuid
-      `,
+      `SELECT ${BASE_SELECT}
+       FROM identity.accounts
+       WHERE id = $1::uuid AND ${ACTIVE_WHERE}`,
       [authSubject],
     );
-    return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+    return rowOrNull(result.rows[0]);
   }
 
   async upsertFromAuthSubject(client: DbClient, params: { authSubject: string; email: string | null }): Promise<AppUser> {
-    const result = await client.query(
-      `
-        SELECT id, email, created_at, updated_at, last_seen_at
-        FROM identity.upsert_account($1::uuid, $2, $3)
-      `,
+    await client.query(
+      `SELECT identity.upsert_account($1::uuid, $2, $3)`,
       [params.authSubject, params.email, null],
     );
+    const result = await client.query(
+      `SELECT ${BASE_SELECT}
+       FROM identity.accounts
+       WHERE id = $1::uuid AND ${ACTIVE_WHERE}`,
+      [params.authSubject],
+    );
+    if (!result.rows[0]) {
+      throw new HttpError(500, 'Account row not found after upsert. The account may be soft-deleted or the upsert function did not create a row.');
+    }
     return mapUserRow(result.rows[0]);
   }
 
   async deleteById(client: DbClient, userId: string): Promise<boolean> {
     const result = await client.query(
-      `
-        DELETE FROM identity.accounts
-        WHERE id = $1::uuid
-        RETURNING id
-      `,
+      `DELETE FROM identity.accounts
+       WHERE id = $1::uuid AND ${ACTIVE_WHERE}
+       RETURNING id`,
       [userId],
     );
     return (result.rowCount ?? 0) > 0;

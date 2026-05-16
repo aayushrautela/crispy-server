@@ -1,6 +1,6 @@
 import { HttpError } from '../../lib/errors.js';
 import type { AuthScope } from '../auth/auth.types.js';
-import { ProfileService } from '../profiles/profile.service.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { ConfidentialResourceForbiddenError, ConfidentialResourceNotFoundError } from './errors.js';
 import { getConfidentialResourceDefinition, isConfidentialResourceSelector } from './registry.js';
 import { ConfidentialAiConfigResolver } from './resolvers/ai-config.js';
@@ -15,7 +15,7 @@ import type { AppAuthorizationService } from '../apps/app-authorization.service.
 import type { AppAuditRepo } from '../apps/app-audit.repo.js';
 
 export interface ConfidentialConfigServiceDeps {
-  profileService?: ProfileService;
+  profileService?: ProfileLocalService;
   aiConfigResolver?: ConfidentialAiConfigResolver;
   profileEligibilityService?: ProfileEligibilityService;
   appAuthorizationService?: AppAuthorizationService;
@@ -23,14 +23,14 @@ export interface ConfidentialConfigServiceDeps {
 }
 
 export class ConfidentialConfigService {
-  private readonly profileService: ProfileService;
+  private readonly profileService: ProfileLocalService;
   private readonly aiConfigResolver: ConfidentialAiConfigResolver;
   private readonly profileEligibilityService?: ProfileEligibilityService;
   private readonly appAuthorizationService?: AppAuthorizationService;
   private readonly appAuditRepo?: AppAuditRepo;
 
   constructor(deps?: ConfidentialConfigServiceDeps) {
-    this.profileService = deps?.profileService || new ProfileService();
+    this.profileService = deps?.profileService || new ProfileLocalService();
     this.aiConfigResolver = deps?.aiConfigResolver || new ConfidentialAiConfigResolver();
     this.profileEligibilityService = deps?.profileEligibilityService;
     this.appAuthorizationService = deps?.appAuthorizationService;

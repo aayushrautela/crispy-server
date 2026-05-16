@@ -15,7 +15,7 @@ import type { RecommendationBatchService } from '../../modules/apps/recommendati
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
-import { ProfileService } from '../../modules/profiles/profile.service.js';
+import { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
 import { success, mutation } from '../response.js';
 import {
@@ -40,7 +40,7 @@ import {
 } from '../contracts/internal-apps.js';
 
 
-type ProfileOwnershipValidator = Pick<ProfileService, 'requireOwnedProfile' | 'requireProfileOwnerAccountId'>;
+type ProfileOwnershipValidator = Pick<ProfileLocalService, 'requireOwnedProfile' | 'requireProfileOwnerAccountId'>;
 
 export interface InternalAppsRoutesDeps {
   appAuthService: AppAuthService;
@@ -66,7 +66,7 @@ function hasScopedAllAccountAccess(principal: AppPrincipal, scope: AppScope): bo
 export async function registerInternalAppsRoutes(app: FastifyInstance, deps: InternalAppsRoutesDeps): Promise<void> {
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
-  const profileService = deps.profileService ?? new ProfileService();
+  const profileService = deps.profileService ?? new ProfileLocalService();
 
   app.get('/internal/apps/v1/me', { schema: appSelfRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);

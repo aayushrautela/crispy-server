@@ -50,7 +50,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       throw new HttpError(401, 'Invalid bearer token.');
     }
 
-    // Bootstrap local account on first login
+    // Bootstrap local account + default profile on first login
     const client = await db.connect();
     try {
       await client.query('SELECT identity.upsert_account($1, $2, $3)', [
@@ -58,6 +58,31 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         typeof payload.email === 'string' ? payload.email : null,
         null,
       ]);
+
+      // Ensure at least one active profile exists
+      const profileCheck = await client.query(
+        `SELECT id FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL LIMIT 1`,
+        [payload.sub],
+      );
+      if (profileCheck.rows.length === 0) {
+        const profileResult = await client.query(
+          `INSERT INTO identity.profiles (account_id, name, is_default, sort_order, created_by_account_id)
+           VALUES ($1::uuid, 'main', true, 0, $1::uuid)
+           RETURNING id`,
+          [payload.sub],
+        );
+        const profileId = profileResult.rows[0].id;
+        await client.query(
+          `INSERT INTO identity.profile_members (profile_id, account_id, role)
+           VALUES ($1::uuid, $2::uuid, 'owner')`,
+          [profileId, payload.sub],
+        );
+        await client.query(
+          `INSERT INTO identity.profile_preferences (profile_id, settings_json)
+           VALUES ($1::uuid, '{}'::jsonb)`,
+          [profileId],
+        );
+      }
     } finally {
       client.release();
     }
