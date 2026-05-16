@@ -119,7 +119,7 @@ export class LocalUserWatchService {
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: String(row.last_activity_at), tieBreaker: String(row.title_media_key) }),
+      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.title_media_key) }),
       (row) => mapContinueWatchingRow(row),
     );
   }
@@ -140,7 +140,7 @@ export class LocalUserWatchService {
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }),
+      (row) => ({ sortValue: row.added_at as Date, tieBreaker: String(row.media_key) }),
       (row) => mapListItemRow(row),
     );
   }
@@ -161,7 +161,7 @@ export class LocalUserWatchService {
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: String(row.rated_at), tieBreaker: String(row.media_key) }),
+      (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.media_key) }),
       (row) => mapRatingRow(row),
     );
   }
@@ -229,7 +229,7 @@ export class LocalUserWatchService {
     return pageFromRows(
       result.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }),
+      (row) => ({ sortValue: row.occurred_at as Date, tieBreaker: String(row.id) }),
       (row) => mapHistoryRow(row),
     );
   }

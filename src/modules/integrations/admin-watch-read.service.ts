@@ -49,7 +49,7 @@ export class AdminWatchReadService {
     queryParams.push(params.limit + 1);
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.last_activity_at), tieBreaker: String(row.title_media_key) }), mapContinueWatchingRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.title_media_key) }), mapContinueWatchingRow);
   }
 
   async listWatchlistPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
@@ -70,7 +70,7 @@ export class AdminWatchReadService {
     queryParams.push(params.limit + 1);
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapListItemRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.added_at as Date, tieBreaker: String(row.media_key) }), mapListItemRow);
   }
 
   async assertProfileAccess(client: DbClient, params: { accountId: string; profileId: string }): Promise<void> {
@@ -95,7 +95,7 @@ export class AdminWatchReadService {
     queryParams.push(params.limit + 1);
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.rated_at), tieBreaker: String(row.media_key) }), mapRatingRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.media_key) }), mapRatingRow);
   }
 
   async listHistoryPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<HistoryProductItem>> {
@@ -134,6 +134,6 @@ export class AdminWatchReadService {
     const queryParams: unknown[] = [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1];
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }), mapHistoryRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.occurred_at as Date, tieBreaker: String(row.id) }), mapHistoryRow);
   }
 }

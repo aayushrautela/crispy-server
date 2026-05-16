@@ -1,7 +1,7 @@
 import { HttpError } from '../../lib/errors.js';
 
 export type WatchPageCursor = {
-  sortValue: string;
+  sortValue: string | Date;
   tieBreaker: string;
 };
 
@@ -12,7 +12,9 @@ type SerializedWatchPageCursor = {
 };
 
 export function encodeWatchPageCursor(cursor: WatchPageCursor): string {
-  return Buffer.from(JSON.stringify({ v: 1, s: cursor.sortValue, t: cursor.tieBreaker } satisfies SerializedWatchPageCursor), 'utf8')
+  const sortValue = cursor.sortValue instanceof Date ? cursor.sortValue.toISOString() : cursor.sortValue;
+
+  return Buffer.from(JSON.stringify({ v: 1, s: sortValue, t: cursor.tieBreaker } satisfies SerializedWatchPageCursor), 'utf8')
     .toString('base64url');
 }
 
