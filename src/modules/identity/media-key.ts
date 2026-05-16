@@ -109,7 +109,7 @@ export function isPlayableMediaType(mediaType: SupportedMediaType): boolean {
 }
 
 export function canonicalContinueWatchingMediaKey(identity: MediaIdentity): string {
-  return canonicalTitleMediaKey(identity);
+  return identity.mediaKey;
 }
 
 export function parseMediaKey(mediaKey: string): MediaIdentity {

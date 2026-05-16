@@ -613,7 +613,7 @@ paths:
       tags:
         - Metadata
       operationId: getV1MetadataTitlesMediaKeyExtras
-      summary: Get optional title detail sections (episodes, reviews, similar, collection parts).
+      summary: Get optional title detail sections (seasons, episodes, reviews, similar, collection parts).
       security:
         - UserBearerAuth: []
       parameters:

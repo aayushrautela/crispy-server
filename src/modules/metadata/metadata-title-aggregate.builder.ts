@@ -1,11 +1,9 @@
 import type { DbClient } from '../../lib/db.js';
 import { assertPresent } from '../../lib/errors.js';
-import { type MediaIdentity } from '../identity/media-key.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
+import type { MediaIdentity } from '../identity/media-key.js';
 import {
   buildEpisodeView,
   buildMetadataView,
-  buildSeasonViewFromTitleRaw,
 } from './metadata-detail.builders.js';
 import type {
   MetadataTitleDetail,
@@ -18,12 +16,10 @@ import {
   extractProduction,
   extractVideos,
 } from './metadata-builder.shared.js';
-import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 
 export class MetadataTitleAggregateBuilder {
   constructor(
-    private readonly contentIdentityService = new ContentIdentityService(),
     private readonly titleSourceService = new MetadataTitleSourceService(),
   ) {}
 
@@ -35,17 +31,10 @@ export class MetadataTitleAggregateBuilder {
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
 
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
-    const seasonNumbers = extractSeasonNumbersFromTitle(resolvedTitle);
-    const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
-      parentMediaType: 'show',
-      provider: 'tmdb',
-      parentProviderId: resolvedTitle.tmdbId,
-    }, seasonNumbers);
     const collection = extractCollection(resolvedTitle);
 
     return {
       item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
-      seasons: buildSeasonViewFromTitleRaw(resolvedTitle, seasonIds),
       nextEpisode: source.tmdbNextEpisode
         ? buildEpisodeView(resolvedTitle, source.tmdbNextEpisode, '', '')
         : null,
@@ -59,12 +48,4 @@ export class MetadataTitleAggregateBuilder {
     };
   }
 
-}
-
-function extractSeasonNumbersFromTitle(title: TmdbTitleRecord): number[] {
-  const rawSeasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
-  return rawSeasons
-    .map((entry) => (typeof entry === 'object' && entry !== null ? Number((entry as Record<string, unknown>).season_number) : Number.NaN))
-    .filter((seasonNumber) => Number.isInteger(seasonNumber) && seasonNumber >= 0)
-    .sort((left, right) => left - right);
 }

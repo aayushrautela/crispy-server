@@ -13,14 +13,10 @@ export type WatchReadRow = Record<string, unknown>;
 
 export function mapContinueWatchingRow(row: WatchReadRow): ContinueWatchingProductItem {
   const titleMediaKey = stringValue(row.title_media_key);
+  const playableMediaKey = stringValue(row.playable_media_key) || titleMediaKey;
   const progressBps = numberValue(row.progress_bps) ?? 0;
   const lastActivityAt = isoValue(row.last_activity_at);
-  const mediaItem = mediaItemFromRow(titleMediaKey, row, {
-    seasonNumber: numberValue(row.season_number),
-    episodeNumber: numberValue(row.episode_number),
-    episodeTitle: nullableStringValue(row.episode_title),
-    runtimeMinutes: numberValue(row.runtime_minutes),
-  });
+  const mediaItem = playableMediaItemFromRow(playableMediaKey, titleMediaKey, row);
 
   return {
     id: titleMediaKey,
@@ -173,6 +169,45 @@ export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
     watchedEpisodeKeys,
     playCount,
   };
+}
+
+function playableMediaItemFromRow(playableMediaKey: string, titleMediaKey: string, row: WatchReadRow): MediaItem {
+  const parsed = parseMediaKey(playableMediaKey);
+  const isEpisode = parsed.mediaType === 'episode';
+  const parent = isEpisode
+    ? { mediaKey: titleMediaKey, mediaType: 'show' as const, title: '' }
+    : null;
+
+  return watchCacheRecordToMediaItem({
+    mediaKey: playableMediaKey,
+    mediaType: isEpisode ? 'episode' : parsed.mediaType,
+    titleProvider: 'tmdb',
+    titleProviderId: isEpisode ? String(parsed.showTmdbId ?? '') : String(parsed.tmdbId ?? ''),
+    titleMediaType: canonicalTitleMediaType(parsed),
+    title: stringValue(row.title) || playableMediaKey,
+    subtitle: nullableStringValue(row.subtitle),
+    posterUrl: nullableStringValue(row.poster_url),
+    backdropUrl: nullableStringValue(row.backdrop_url),
+    stillUrl: nullableStringValue(row.still_url),
+    releaseYear: numberValue(row.release_year),
+    rating: numberValue(row.metadata_rating),
+    logoUrl: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
+    maturityRating: null,
+    genres: [],
+    language: 'en',
+  }, {
+    parent,
+    showTmdbId: isEpisode ? parsed.showTmdbId : null,
+    seasonNumber: isEpisode ? parsed.seasonNumber : null,
+    episodeNumber: isEpisode ? parsed.episodeNumber : null,
+    absoluteEpisodeNumber: null,
+    episodeTitle: null,
+    airDate: null,
+  });
 }
 
 function mediaItemFromRow(mediaKey: string, row: WatchReadRow, overrides: Partial<MediaItem> = {}): MediaItem {

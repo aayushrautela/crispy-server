@@ -2,8 +2,6 @@ import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import type { MediaItem } from '../metadata/media-item.types.js';
 import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
-import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
-import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
@@ -23,7 +21,6 @@ export class WatchMetadataEnrichmentService {
   constructor(
     private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
     private readonly cacheMissRefreshService: CacheMissRefreshDependency = new WatchCacheMissRefreshService(),
-    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async enrichContinueWatchingItems(
@@ -31,29 +28,34 @@ export class WatchMetadataEnrichmentService {
     items: ContinueWatchingProductItem[],
     language?: string | null,
   ): Promise<ContinueWatchingProductItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey), language);
-    return Promise.all(items.map(async (item) => {
+    const mediaKeys = items.map((item) => item.mediaItem.mediaKey);
+    const parentKeys = items
+      .map((item) => item.mediaItem.parent?.mediaKey)
+      .filter((k): k is string => !!k);
+    const allKeys = [...new Set([...mediaKeys, ...parentKeys])];
+    const records = await this.loadRecords(client, allKeys, language);
+
+    return items.reduce<ContinueWatchingProductItem[]>((acc, item) => {
       const record = records.get(item.mediaItem.mediaKey);
       if (!record) {
-        return item;
+        return acc;
       }
+
+      const parentKey = item.mediaItem.parent?.mediaKey;
+      const parentRecord = parentKey ? records.get(parentKey) : undefined;
+
+      if (item.mediaItem.mediaType === 'episode' && !parentRecord) {
+        return acc;
+      }
+
       const enriched = mergeEnrichedMediaItem(record, item.mediaItem);
 
-      if (enriched.showTmdbId != null && enriched.seasonNumber != null && enriched.episodeNumber != null) {
-        const episode = await this.tmdbCacheService.getEpisode(
-          client, enriched.showTmdbId, enriched.seasonNumber, enriched.episodeNumber,
-        ).catch(() => null);
-        if (episode?.stillPath) {
-          enriched.images = {
-            ...enriched.images,
-            backdrop: buildResponsiveImageSet(episode.stillPath, { small: 'w300', medium: 'w780', large: 'w1280' }),
-            still: buildResponsiveImageSet(episode.stillPath, { small: 'w185', medium: 'w300', large: 'original' }),
-          };
-        }
+      if (parentRecord && enriched.parent) {
+        enriched.parent = { ...enriched.parent, title: parentRecord.title };
       }
 
-      return { ...item, mediaItem: enriched };
-    }));
+      return acc.concat([{ ...item, mediaItem: enriched }]);
+    }, []);
   }
 
   async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[], language?: string | null): Promise<TItem[]> {

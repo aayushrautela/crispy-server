@@ -54,7 +54,11 @@ Watch-state routes are `mediaKey`-based and express product intent rather than s
 - Media-specific history can be requested for a movie, episode, or show media key.
 - Show state includes `watchedEpisodeKeys` derived from watched episode summaries.
 
-Continue-watching items represent active resume state only. Use the id returned by the continue-watching response when calling the dismissal endpoint.
+Continue-watching items represent active resume state only.
+
+- **`id`** is the title-level key (`movie:tmdb:X` or `show:tmdb:X`). Use this when calling the dismiss endpoint.
+- **`mediaItem.mediaKey`** is the playable unit: `movie:tmdb:X` for movies, `episode:tmdb:showId:season:episode` for episode progress.
+- **`mediaItem.parent`** is non-null for episodes and contains `mediaKey` (show key), `mediaType: 'show'`, and the resolved `title`. Clients should use `parent.mediaKey` for show-level navigation from episode items.
 
 Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 

@@ -105,7 +105,7 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT pp.title_media_key, pp.media_type,
+      `SELECT pp.title_media_key, pp.playable_media_key, pp.media_type,
               pp.position_seconds, pp.duration_seconds, pp.progress_bps,
               pp.last_activity_at, pp.source_kind, pp.source_provider
        FROM user_state.playback_progress pp

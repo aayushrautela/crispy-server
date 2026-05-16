@@ -134,6 +134,193 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
   assert.deepEqual(enriched[0]?.origins, ['local']);
 });
 
+test('enrichContinueWatchingItems enriches parent title for episode items', async () => {
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
+  const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
+    ['episode:tmdb:123:2:5', {
+      mediaKey: 'episode:tmdb:123:2:5',
+      mediaType: 'episode',
+      titleProvider: 'tmdb',
+      titleProviderId: '123',
+      titleMediaType: 'show',
+      title: 'Episode 5 Title',
+      subtitle: null,
+      posterUrl: 'https://cache.test/ep-poster.jpg',
+      backdropUrl: 'https://cache.test/ep-backdrop.jpg',
+      stillUrl: 'https://cache.test/ep-still.jpg',
+      logoUrl: null,
+      trailerUrl: null,
+      trailerThumbnailUrl: null,
+      posterColor: null,
+      backdropColor: null,
+      releaseYear: 2023,
+      rating: 8.0,
+      maturityRating: null,
+      genres: ['Drama'],
+      language: 'en',
+    }],
+    ['show:tmdb:123', {
+      mediaKey: 'show:tmdb:123',
+      mediaType: 'show',
+      titleProvider: 'tmdb',
+      titleProviderId: '123',
+      titleMediaType: 'show',
+      title: 'Parent Show Title',
+      subtitle: null,
+      posterUrl: 'https://cache.test/show-poster.jpg',
+      backdropUrl: 'https://cache.test/show-backdrop.jpg',
+      stillUrl: null,
+      logoUrl: null,
+      trailerUrl: null,
+      trailerThumbnailUrl: null,
+      posterColor: null,
+      backdropColor: null,
+      releaseYear: 2022,
+      rating: 9.0,
+      maturityRating: null,
+      genres: ['Drama'],
+      language: 'en',
+    }],
+  ]);
+
+  const watchMediaCardCacheService = {
+    listCardCacheRecords: async () => cacheRecords,
+  } as unknown as WatchMediaCardCacheService;
+
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
+  });
+
+  const items: ContinueWatchingProductItem[] = [
+    {
+      id: 'show:tmdb:123',
+      kind: 'continue_watching',
+      mediaItem: createMediaItem({
+        mediaKey: 'episode:tmdb:123:2:5',
+        mediaType: 'episode',
+        parent: { mediaKey: 'show:tmdb:123', mediaType: 'show', title: '' },
+        showTmdbId: 123,
+        seasonNumber: 2,
+        episodeNumber: 5,
+      }),
+      context: {
+        id: 'show:tmdb:123',
+        progress: {
+          positionSeconds: 600,
+          durationSeconds: 1800,
+          progressPercent: 33.33,
+          lastPlayedAt: '2026-05-14T08:00:00.000Z',
+        },
+        lastActivityAt: '2026-05-14T08:00:00.000Z',
+        origins: ['local'],
+        dismissible: true,
+      },
+      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
+      progress: {
+        positionSeconds: 600,
+        durationSeconds: 1800,
+        progressPercent: 33.33,
+        lastPlayedAt: '2026-05-14T08:00:00.000Z',
+      },
+      lastActivityAt: '2026-05-14T08:00:00.000Z',
+      origins: ['local'],
+      dismissible: true,
+    },
+  ];
+
+  const enriched = await service.enrichContinueWatchingItems({} as never, items);
+
+  assert.equal(enriched.length, 1);
+  assert.equal(enriched[0]?.mediaItem.mediaKey, 'episode:tmdb:123:2:5');
+  assert.equal(enriched[0]?.mediaItem.mediaType, 'episode');
+  assert.ok(enriched[0]?.mediaItem.parent);
+  assert.equal(enriched[0]?.mediaItem.parent?.mediaKey, 'show:tmdb:123');
+  assert.equal(enriched[0]?.mediaItem.parent?.title, 'Parent Show Title');
+  assert.equal(enriched[0]?.mediaItem.title, 'Episode 5 Title');
+  assert.equal(enriched[0]?.mediaItem.showTmdbId, 123);
+  assert.equal(enriched[0]?.mediaItem.seasonNumber, 2);
+  assert.equal(enriched[0]?.mediaItem.episodeNumber, 5);
+  assert.ok(enriched[0]?.mediaItem.images.still.small);
+  assert.ok(enriched[0]?.mediaItem.images.backdrop.small);
+});
+
+test('enrichContinueWatchingItems drops episode items missing parent show record', async () => {
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
+  const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
+    ['episode:tmdb:999:1:1', {
+      mediaKey: 'episode:tmdb:999:1:1',
+      mediaType: 'episode',
+      titleProvider: 'tmdb',
+      titleProviderId: '999',
+      titleMediaType: 'show',
+      title: 'Orphan Episode',
+      subtitle: null,
+      posterUrl: null,
+      backdropUrl: null,
+      stillUrl: null,
+      logoUrl: null,
+      trailerUrl: null,
+      trailerThumbnailUrl: null,
+      posterColor: null,
+      backdropColor: null,
+      releaseYear: null,
+      rating: null,
+      maturityRating: null,
+      genres: [],
+      language: 'en',
+    }],
+  ]);
+
+  const watchMediaCardCacheService = {
+    listCardCacheRecords: async () => cacheRecords,
+  } as unknown as WatchMediaCardCacheService;
+
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
+    refreshMissingCardsAndReturnRecords: async () => new Map(),
+  });
+
+  const items: ContinueWatchingProductItem[] = [
+    {
+      id: 'show:tmdb:999',
+      kind: 'continue_watching',
+      mediaItem: createMediaItem({
+        mediaKey: 'episode:tmdb:999:1:1',
+        mediaType: 'episode',
+        parent: { mediaKey: 'show:tmdb:999', mediaType: 'show', title: '' },
+        showTmdbId: 999,
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+      context: {
+        id: 'show:tmdb:999',
+        progress: {
+          positionSeconds: 100,
+          durationSeconds: 1800,
+          progressPercent: 5.56,
+          lastPlayedAt: '2026-05-14T10:00:00.000Z',
+        },
+        lastActivityAt: '2026-05-14T10:00:00.000Z',
+        origins: ['local'],
+        dismissible: true,
+      },
+      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
+      progress: {
+        positionSeconds: 100,
+        durationSeconds: 1800,
+        progressPercent: 5.56,
+        lastPlayedAt: '2026-05-14T10:00:00.000Z',
+      },
+      lastActivityAt: '2026-05-14T10:00:00.000Z',
+      origins: ['local'],
+      dismissible: true,
+    },
+  ];
+
+  const enriched = await service.enrichContinueWatchingItems({} as never, items);
+
+  assert.equal(enriched.length, 0);
+});
+
 test('enrichRegularMediaItems replaces mediaItem fields for history items', async () => {
   const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([

@@ -3,12 +3,14 @@ import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { buildMetadataCardView } from './metadata-card.builders.js';
+import { buildSeasonViewFromTitleRaw } from './metadata-detail.builders.js';
 import { metadataCardToMediaItem } from './media-item.mapper.js';
 import { buildEpisodeView } from './metadata-detail.builders.js';
 import type {
   MetadataCollectionView,
   MetadataEpisodeView,
   MetadataRelatedItem,
+  MetadataSeasonView,
   MetadataTitleExtras,
 } from './metadata-detail.types.js';
 import {
@@ -37,8 +39,9 @@ export class MetadataTitleExtrasBuilder {
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const effectiveLanguage = language ?? null;
 
-    const [episodes, extrasRaw] = await Promise.all([
+    const [episodes, seasons, extrasRaw] = await Promise.all([
       this.buildAllEpisodes(client, resolvedTitle),
+      this.buildAllSeasons(client, resolvedTitle),
       this.tmdbCacheService.fetchTitleExtrasPayload(client, resolvedTitle.mediaType, resolvedTitle.tmdbId, effectiveLanguage),
     ]);
 
@@ -48,7 +51,26 @@ export class MetadataTitleExtrasBuilder {
       this.buildFullCollection(client, resolvedTitle, effectiveLanguage),
     ]);
 
-    return { episodes, reviews, similar, collection };
+    return { seasons, episodes, reviews, similar, collection };
+  }
+
+  private async buildAllSeasons(client: DbClient, title: TmdbTitleRecord): Promise<MetadataSeasonView[]> {
+    if (title.mediaType !== 'tv') {
+      return [];
+    }
+
+    const seasonNumbers = extractSeasonNumbersFromTitle(title);
+    if (seasonNumbers.length === 0) {
+      return [];
+    }
+
+    const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
+      parentMediaType: 'show',
+      provider: 'tmdb',
+      parentProviderId: String(title.tmdbId),
+    }, seasonNumbers);
+
+    return buildSeasonViewFromTitleRaw(title, seasonIds);
   }
 
   private async buildAllEpisodes(client: DbClient, title: TmdbTitleRecord): Promise<MetadataEpisodeView[]> {

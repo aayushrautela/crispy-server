@@ -138,7 +138,6 @@ export type MetadataProductionInfoView = {
 
 export type MetadataTitleDetail = {
   item: MetadataView;
-  seasons: MetadataSeasonView[];
   nextEpisode: MetadataEpisodeView | null;
   videos: MetadataVideoView[];
   cast: MetadataPersonRefView[];
@@ -167,6 +166,7 @@ export type MetadataTitleRatingsResponse = {
 };
 
 export type MetadataTitleExtras = {
+  seasons: MetadataSeasonView[];
   episodes: MetadataEpisodeView[];
   reviews: MetadataReviewView[];
   similar: MetadataRelatedItem[];

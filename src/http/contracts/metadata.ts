@@ -369,10 +369,9 @@ const metadataProductionInfoViewSchema = {
 const metadataTitleDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['item', 'seasons', 'nextEpisode', 'videos', 'cast', 'directors', 'creators', 'production', 'collection', 'similar'],
+  required: ['item', 'nextEpisode', 'videos', 'cast', 'directors', 'creators', 'production', 'collection', 'similar'],
   properties: {
     item: metadataViewSchema,
-    seasons: { type: 'array', items: metadataSeasonViewSchema },
     nextEpisode: {
       anyOf: [
         metadataEpisodeViewSchema,
@@ -719,8 +718,9 @@ export const searchSuggestionsRouteSchema = withDefaultErrorResponses({
 const metadataTitleExtrasResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['episodes', 'reviews', 'similar', 'collection'],
+  required: ['seasons', 'episodes', 'reviews', 'similar', 'collection'],
   properties: {
+    seasons: { type: 'array', items: metadataSeasonViewSchema },
     episodes: { type: 'array', items: metadataEpisodeViewSchema },
     reviews: { type: 'array', items: metadataReviewViewSchema },
     similar: { type: 'array', items: metadataRelatedItemSchema },
