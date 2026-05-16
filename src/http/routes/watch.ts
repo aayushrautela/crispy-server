@@ -25,13 +25,13 @@ import { HttpError } from '../../lib/errors.js';
 import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 import { withDbClient } from '../../lib/db.js';
-import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
+import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { mutation, success } from '../response.js';
 
 export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
   const localUserWatchService = new LocalUserWatchService();
-  const watchSupabaseEnrichmentService = new WatchSupabaseEnrichmentService();
+  const watchMetadataEnrichmentService = new WatchMetadataEnrichmentService();
   const metadataLanguageService = new MetadataLanguageService();
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
@@ -77,7 +77,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, page.items, language),
+        watchMetadataEnrichmentService.enrichContinueWatchingItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -121,7 +121,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items, language),
+        watchMetadataEnrichmentService.enrichRegularMediaItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -150,7 +150,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items, language),
+        watchMetadataEnrichmentService.enrichRegularMediaItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -179,7 +179,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, page.items, language),
+        watchMetadataEnrichmentService.enrichRegularMediaItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -204,7 +204,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       mediaKeys: [mapStateLookupInput(query).mediaKey],
     });
     const enrichedItem = await withDbClient((client) =>
-      watchSupabaseEnrichmentService.enrichRegularMediaItems(client, [item], language),
+      watchMetadataEnrichmentService.enrichRegularMediaItems(client, [item], language),
     );
     return success({
       profileId,
@@ -229,7 +229,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     });
     const enrichedItems = stateItems.length
       ? await withDbClient((client) =>
-        watchSupabaseEnrichmentService.enrichRegularMediaItems(client, stateItems, language),
+        watchMetadataEnrichmentService.enrichRegularMediaItems(client, stateItems, language),
       )
       : stateItems;
     return success({

@@ -27,13 +27,13 @@ export async function verifyAuthJwt(token: string): Promise<AuthTokenPayload> {
 }
 
 async function verifyAuthJwtWithAuthServer(token: string): Promise<AuthTokenPayload> {
-  if (!env.supabasePublishableKey) {
-    throw new Error('Missing required environment variable: SUPABASE_PUBLISHABLE_KEY');
+  if (!env.authPublishableKey) {
+    throw new Error('Missing required environment variable: AUTH_PUBLISHABLE_KEY');
   }
 
   const response = await fetch(`${env.authAdminUrl}/user`, {
     headers: {
-      apikey: env.supabasePublishableKey,
+      apikey: env.authPublishableKey,
       Authorization: `Bearer ${token}`,
     },
   });

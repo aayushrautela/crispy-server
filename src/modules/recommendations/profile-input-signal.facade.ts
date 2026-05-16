@@ -1,5 +1,5 @@
 import { withDbClient } from '../../lib/db.js';
-import { SupabaseAdminWatchReadService } from '../integrations/supabase-admin-watch-read.service.js';
+import { AdminWatchReadService } from '../integrations/admin-watch-read.service.js';
 import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
 import { EpisodicFollowService } from '../watch/episodic-follow.service.js';
 import type { ProfileInputSignalCacheService } from './profile-input-signal-cache.service.js';
@@ -24,7 +24,7 @@ export class ProfileInputSignalFacade {
     private readonly deps: {
       defaults: ProfileInputSignalLimitDefaults;
       cacheService?: ProfileInputSignalCacheService;
-      watchReadService?: SupabaseAdminWatchReadService;
+      watchReadService?: AdminWatchReadService;
       episodicFollowService?: EpisodicFollowService;
     },
   ) {}
@@ -111,7 +111,7 @@ export class ProfileInputSignalFacade {
 
     return withDbClient(async (client) => {
       const payload: ProfileInputSignalCacheSectionPayload = {};
-      const watchReadService = this.deps.watchReadService ?? new SupabaseAdminWatchReadService();
+      const watchReadService = this.deps.watchReadService ?? new AdminWatchReadService();
       const episodicFollowService = this.deps.episodicFollowService ?? new EpisodicFollowService();
 
       await Promise.all(requests.map(async (request) => {

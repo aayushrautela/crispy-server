@@ -9,9 +9,9 @@ import type {
 } from '../watch/watch-derived-item.types.js';
 import type { WatchStateResponse } from '../watch/watch-read.types.js';
 
-export type SupabaseWatchReadRow = Record<string, unknown>;
+export type WatchReadRow = Record<string, unknown>;
 
-export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): ContinueWatchingProductItem {
+export function mapContinueWatchingRow(row: WatchReadRow): ContinueWatchingProductItem {
   const titleMediaKey = stringValue(row.title_media_key);
   const progressBps = numberValue(row.progress_bps) ?? 0;
   const lastActivityAt = isoValue(row.last_activity_at);
@@ -51,7 +51,7 @@ export function mapSupabaseContinueWatchingRow(row: SupabaseWatchReadRow): Conti
   };
 }
 
-export function mapSupabaseListItemRow(row: SupabaseWatchReadRow): WatchlistProductItem {
+export function mapListItemRow(row: WatchReadRow): WatchlistProductItem {
   const mediaKey = stringValue(row.media_key);
   return {
     id: mediaKey,
@@ -68,7 +68,7 @@ export function mapSupabaseListItemRow(row: SupabaseWatchReadRow): WatchlistProd
   };
 }
 
-export function mapSupabaseRatingRow(row: SupabaseWatchReadRow): RatingProductItem {
+export function mapRatingRow(row: WatchReadRow): RatingProductItem {
   const mediaKey = stringValue(row.media_key);
   const rating = {
     value: numberValue(row.rating) ?? 0,
@@ -89,7 +89,7 @@ export function mapSupabaseRatingRow(row: SupabaseWatchReadRow): RatingProductIt
   };
 }
 
-export function mapSupabaseHistoryRow(row: SupabaseWatchReadRow): HistoryProductItem {
+export function mapHistoryRow(row: WatchReadRow): HistoryProductItem {
   const mediaKey = stringValue(row.media_key);
   const occurredAt = isoValue(row.occurred_at ?? row.watched_at);
   const id = stringValue(row.id) || `${mediaKey}:${occurredAt}`;
@@ -113,7 +113,7 @@ export function mapSupabaseHistoryRow(row: SupabaseWatchReadRow): HistoryProduct
   };
 }
 
-export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateResponse {
+export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
   const mediaKey = stringValue(row.media_key);
   const progressBps = numberValue(row.progress_bps);
   const continueProgressBps = numberValue(row.continue_progress_bps);
@@ -175,7 +175,7 @@ export function mapSupabaseWatchStateRow(row: SupabaseWatchReadRow): WatchStateR
   };
 }
 
-function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides: Partial<MediaItem> = {}): MediaItem {
+function mediaItemFromRow(mediaKey: string, row: WatchReadRow, overrides: Partial<MediaItem> = {}): MediaItem {
   const parsed = parseMediaKey(canonicalTitleMediaKey(parseMediaKey(mediaKey)));
   return watchCacheRecordToMediaItem({
     mediaKey: parsed.mediaKey,
@@ -200,7 +200,7 @@ function mediaItemFromRow(mediaKey: string, row: SupabaseWatchReadRow, overrides
   }, overrides);
 }
 
-function origins(row: SupabaseWatchReadRow): string[] {
+function origins(row: WatchReadRow): string[] {
   const sourceProvider = nullableStringValue(row.source_provider);
   if (sourceProvider) {
     return [sourceProvider];

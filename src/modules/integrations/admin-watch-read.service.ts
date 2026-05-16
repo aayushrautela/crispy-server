@@ -10,14 +10,15 @@ import type {
 } from '../watch/watch-derived-item.types.js';
 import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
 import {
-  mapSupabaseContinueWatchingRow,
-  mapSupabaseHistoryRow,
-  mapSupabaseListItemRow,
-  mapSupabaseRatingRow,
-  type SupabaseWatchReadRow,
-} from './supabase-watch-read.mapper.js';
-import { pageFromRows } from './supabase-watch-read-helpers.js';
+  mapContinueWatchingRow,
+  mapHistoryRow,
+  mapListItemRow,
+  mapRatingRow,
+  type WatchReadRow,
+} from './watch-read.mapper.js';
+import { pageFromRows } from './watch-read-helpers.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
+
 type ListPageParams = {
   accountId: string;
   profileId: string;
@@ -25,7 +26,7 @@ type ListPageParams = {
   cursor?: string | null;
 };
 
-export class SupabaseAdminWatchReadService {
+export class AdminWatchReadService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
   ) {}
@@ -48,7 +49,7 @@ export class SupabaseAdminWatchReadService {
     queryParams.push(params.limit + 1);
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as SupabaseWatchReadRow[], params.limit, (row) => ({ sortValue: String(row.last_activity_at), tieBreaker: String(row.title_media_key) }), mapSupabaseContinueWatchingRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.last_activity_at), tieBreaker: String(row.title_media_key) }), mapContinueWatchingRow);
   }
 
   async listWatchlistPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
@@ -69,7 +70,7 @@ export class SupabaseAdminWatchReadService {
     queryParams.push(params.limit + 1);
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as SupabaseWatchReadRow[], params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapSupabaseListItemRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }), mapListItemRow);
   }
 
   async assertProfileAccess(client: DbClient, params: { accountId: string; profileId: string }): Promise<void> {
@@ -94,7 +95,7 @@ export class SupabaseAdminWatchReadService {
     queryParams.push(params.limit + 1);
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as SupabaseWatchReadRow[], params.limit, (row) => ({ sortValue: String(row.rated_at), tieBreaker: String(row.media_key) }), mapSupabaseRatingRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.rated_at), tieBreaker: String(row.media_key) }), mapRatingRow);
   }
 
   async listHistoryPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<HistoryProductItem>> {
@@ -122,7 +123,6 @@ export class SupabaseAdminWatchReadService {
     const queryParams: unknown[] = [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1];
 
     const { rows } = await db.query(query, queryParams);
-    return pageFromRows(rows as SupabaseWatchReadRow[], params.limit, (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);
+    return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }), mapHistoryRow);
   }
-
 }

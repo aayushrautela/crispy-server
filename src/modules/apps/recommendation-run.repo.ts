@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import type pg from 'pg';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   RecommendationRun,
   RecommendationRunProgress,
@@ -100,66 +99,6 @@ export class SqlRecommendationRunRepo implements RecommendationRunRepo {
       throw new Error('recommendation_run_not_found');
     }
     return mapRunRow(result.rows[0] as RecommendationRunRow);
-  }
-}
-
-export class SupabaseRecommendationRunRepo implements RecommendationRunRepo {
-  constructor(private readonly deps: { supabase: SupabaseClient }) {}
-
-  async createRun(input: CreateRecommendationRunRecordInput): Promise<RecommendationRun> {
-    const { data, error } = await this.deps.supabase.rpc('service_create_run', {
-      p_input: {
-        appId: input.appId,
-        purpose: input.purpose,
-        runType: input.runType,
-        status: input.status,
-        modelVersion: input.modelVersion ?? null,
-        algorithm: input.algorithm ?? null,
-        input: input.input ?? {},
-        metadata: input.metadata ?? {},
-      },
-    });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return mapRunRow(data as RecommendationRunRow);
-  }
-
-  async getRun(input: { appId: string; runId: string }): Promise<RecommendationRun | null> {
-    const { data, error } = await this.deps.supabase
-      .schema('reco')
-      .from('runs')
-      .select('run_id, app_id, purpose, run_type, status, model_version, algorithm, input, output, metadata, error, progress, created_at, updated_at, completed_at')
-      .eq('app_id', input.appId)
-      .eq('run_id', input.runId)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data ? mapRunRow(data as RecommendationRunRow) : null;
-  }
-
-  async updateRun(input: UpdateRecommendationRunRecordInput): Promise<RecommendationRun> {
-    const { data, error } = await this.deps.supabase.rpc('service_update_run', {
-      p_run_id: input.runId,
-      p_patch: {
-        appId: input.appId,
-        status: input.status ?? null,
-        progress: input.progress ?? null,
-        output: input.output ?? null,
-        error: input.error ?? null,
-      },
-    });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return mapRunRow(data as RecommendationRunRow);
   }
 }
 

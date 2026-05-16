@@ -6,14 +6,14 @@ seedTestEnv();
 
 test('watch routes work with user actor auth subject', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
    
   const originals = {
     listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
     recordPlaybackState: LocalUserWatchService.prototype.recordPlaybackState,
     markWatched: LocalUserWatchService.prototype.markWatched,
     unmarkWatched: LocalUserWatchService.prototype.unmarkWatched,
-    enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
+    enrichContinueWatchingItems: WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems,
   };
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
@@ -23,7 +23,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     LocalUserWatchService.prototype.recordPlaybackState = originals.recordPlaybackState;
     LocalUserWatchService.prototype.markWatched = originals.markWatched;
     LocalUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
-    WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
@@ -52,7 +52,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     watchedCalls.push({ ...params, kind: 'unmark' });
   };
 
-  WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = async function (_client, items) {
+  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async function (_client, items) {
     return items;
   };
 
@@ -211,16 +211,16 @@ test('continue-watching serializes items with progress', async (t) => {
   });
 
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
 
   const originals = {
     listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
-    enrichContinueWatchingItems: WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems,
+    enrichContinueWatchingItems: WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems,
   };
 
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
-    WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
   });
 
   const now = '2026-05-13T00:00:00.000Z';
@@ -258,7 +258,7 @@ test('continue-watching serializes items with progress', async (t) => {
     pageInfo: { nextCursor: null, hasMore: false },
   });
 
-  WatchSupabaseEnrichmentService.prototype.enrichContinueWatchingItems = async (_client, items) => items;
+  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async (_client, items) => items;
 
   const { registerWatchRoutes } = await import('./watch.js');
   const app = await buildTestApp(registerWatchRoutes);
@@ -296,16 +296,16 @@ test('watch state serializes progress without status', async (t) => {
   });
 
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchSupabaseEnrichmentService } = await import('../../modules/watch/watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
 
   const originals = {
     getState: LocalUserWatchService.prototype.getState,
-    enrichRegularMediaItems: WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems,
+    enrichRegularMediaItems: WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems,
   };
 
   t.after(() => {
     LocalUserWatchService.prototype.getState = originals.getState;
-    WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems = originals.enrichRegularMediaItems;
+    WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = originals.enrichRegularMediaItems;
   });
 
   const now = '2026-05-13T00:00:00.000Z';
@@ -338,7 +338,7 @@ test('watch state serializes progress without status', async (t) => {
     playCount: 0,
   });
 
-  WatchSupabaseEnrichmentService.prototype.enrichRegularMediaItems = async (_client, items) => items;
+  WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = async (_client, items) => items;
 
   const { registerWatchRoutes } = await import('./watch.js');
   const app = await buildTestApp(registerWatchRoutes);

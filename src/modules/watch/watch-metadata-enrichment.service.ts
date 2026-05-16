@@ -17,7 +17,7 @@ type RegularMediaItem = HistoryProductItem | WatchlistProductItem | RatingProduc
 
 type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMissingCardsAndReturnRecords'>;
 
-export class WatchSupabaseEnrichmentService {
+export class WatchMetadataEnrichmentService {
   constructor(
     private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
     private readonly cacheMissRefreshService: CacheMissRefreshDependency = new WatchCacheMissRefreshService(),
@@ -65,7 +65,7 @@ export class WatchSupabaseEnrichmentService {
     const missingCount = uniqueMediaKeys.length - records.size;
     if (missingCount > 0) {
       const missingKeys = uniqueMediaKeys.filter((key) => !records.has(key));
-      logger.debug({ requestedCount: uniqueMediaKeys.length, hitCount: records.size, missingCount }, 'watch supabase metadata cache misses');
+      logger.debug({ requestedCount: uniqueMediaKeys.length, hitCount: records.size, missingCount }, 'watch metadata cache misses');
       const refreshedRecords = await this.cacheMissRefreshService.refreshMissingCardsAndReturnRecords(client, missingKeys, language);
       for (const [key, record] of refreshedRecords.entries()) {
         records.set(key, record);

@@ -1,12 +1,12 @@
 import { encodeWatchPageCursor, type WatchPageCursor } from '../watch/watch-pagination.js';
 import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
-import type { SupabaseWatchReadRow } from './supabase-watch-read.mapper.js';
+import type { WatchReadRow } from './watch-read.mapper.js';
 
 export function pageFromRows<T>(
-  rows: SupabaseWatchReadRow[],
+  rows: WatchReadRow[],
   requestedLimit: number,
-  extractCursor: (row: SupabaseWatchReadRow) => WatchPageCursor,
-  mapRow: (row: SupabaseWatchReadRow) => T,
+  extractCursor: (row: WatchReadRow) => WatchPageCursor,
+  mapRow: (row: WatchReadRow) => T,
 ): PaginatedWatchCollection<T> {
   const hasMore = rows.length > requestedLimit;
   const items = rows.slice(0, requestedLimit).map(mapRow);

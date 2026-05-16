@@ -15,13 +15,13 @@ function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
   return {
     mediaKey: 'movie:tmdb:123',
     mediaType: 'movie',
-    title: 'Supabase Fallback Title',
+    title: 'Fallback Title',
     originalTitle: null,
     subtitle: null,
     overview: null,
     images: {
-      poster: { small: 'https://supabase.test/poster.jpg', medium: 'https://supabase.test/poster.jpg', large: 'https://supabase.test/poster.jpg' },
-      backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+      poster: { small: 'https://media.test/poster.jpg', medium: 'https://media.test/poster.jpg', large: 'https://media.test/poster.jpg' },
+      backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
       logo: { small: null, medium: null, large: null },
       still: { small: null, medium: null, large: null },
     },
@@ -51,7 +51,7 @@ function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
 }
 
 test('enrichContinueWatchingItems replaces mediaItem fields from cache', async () => {
-  const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
     ['movie:tmdb:123', {
       mediaKey: 'movie:tmdb:123',
@@ -80,7 +80,7 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
@@ -134,7 +134,7 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
 });
 
 test('enrichRegularMediaItems replaces mediaItem fields for history items', async () => {
-  const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
     ['show:tmdb:789', {
       mediaKey: 'show:tmdb:789',
@@ -163,7 +163,7 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
@@ -174,10 +174,10 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
       mediaItem: createMediaItem({
         mediaKey: 'show:tmdb:789',
         mediaType: 'show',
-        title: 'Supabase Show Title',
+        title: 'Fallback Show Title',
         images: {
-          poster: { small: 'https://supabase.test/show-poster.jpg', medium: 'https://supabase.test/show-poster.jpg', large: 'https://supabase.test/show-poster.jpg' },
-          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          poster: { small: 'https://media.test/show-poster.jpg', medium: 'https://media.test/show-poster.jpg', large: 'https://media.test/show-poster.jpg' },
+          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
           logo: { small: null, medium: null, large: null },
           still: { small: null, medium: null, large: null },
         },
@@ -213,14 +213,14 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
 });
 
 test('enrichRegularMediaItems handles cache misses gracefully', async () => {
-  const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>();
 
   const watchMediaCardCacheService = {
     listCardCacheRecords: async () => cacheRecords,
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
@@ -232,8 +232,8 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
         mediaKey: 'movie:tmdb:999',
         title: 'Uncached Movie',
         images: {
-          poster: { small: 'https://supabase.test/uncached.jpg', medium: 'https://supabase.test/uncached.jpg', large: 'https://supabase.test/uncached.jpg' },
-          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          poster: { small: 'https://media.test/uncached.jpg', medium: 'https://media.test/uncached.jpg', large: 'https://media.test/uncached.jpg' },
+          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
           logo: { small: null, medium: null, large: null },
           still: { small: null, medium: null, large: null },
         },
@@ -261,12 +261,12 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.title, 'Uncached Movie');
-  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://supabase.test/uncached.jpg', medium: 'https://supabase.test/uncached.jpg', large: 'https://supabase.test/uncached.jpg' });
+  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://media.test/uncached.jpg', medium: 'https://media.test/uncached.jpg', large: 'https://media.test/uncached.jpg' });
   assert.equal(enriched[0]?.rating.value, 8);
 });
 
 test('enrichRegularMediaItems deduplicates media keys', async () => {
-  const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   let receivedMediaKeys: string[] = [];
 
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
@@ -300,7 +300,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
     },
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
@@ -312,8 +312,8 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
         mediaKey: 'movie:tmdb:111',
         title: 'Fallback',
         images: {
-          poster: { small: 'https://supabase.test/dup.jpg', medium: 'https://supabase.test/dup.jpg', large: 'https://supabase.test/dup.jpg' },
-          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          poster: { small: 'https://media.test/dup.jpg', medium: 'https://media.test/dup.jpg', large: 'https://media.test/dup.jpg' },
+          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
           logo: { small: null, medium: null, large: null },
           still: { small: null, medium: null, large: null },
         },
@@ -340,8 +340,8 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
         mediaKey: 'movie:tmdb:111',
         title: 'Fallback',
         images: {
-          poster: { small: 'https://supabase.test/dup.jpg', medium: 'https://supabase.test/dup.jpg', large: 'https://supabase.test/dup.jpg' },
-          backdrop: { small: 'https://supabase.test/backdrop.jpg', medium: 'https://supabase.test/backdrop.jpg', large: 'https://supabase.test/backdrop.jpg' },
+          poster: { small: 'https://media.test/dup.jpg', medium: 'https://media.test/dup.jpg', large: 'https://media.test/dup.jpg' },
+          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
           logo: { small: null, medium: null, large: null },
           still: { small: null, medium: null, large: null },
         },
@@ -370,12 +370,12 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
 });
 
 test('enrichRegularMediaItems handles empty items array', async () => {
-  const { WatchSupabaseEnrichmentService } = await import('./watch-supabase-enrichment.service.js');
+  const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const watchMediaCardCacheService = {
     listCardCacheRecords: async () => new Map(),
   } as unknown as WatchMediaCardCacheService;
 
-  const service = new WatchSupabaseEnrichmentService(watchMediaCardCacheService, {
+  const service = new WatchMetadataEnrichmentService(watchMediaCardCacheService, {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 

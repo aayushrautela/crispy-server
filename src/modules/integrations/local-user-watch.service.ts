@@ -7,15 +7,15 @@ import type {
   WatchlistProductItem,
 } from '../watch/watch-derived-item.types.js';
 import type { PaginatedWatchCollection, WatchStateResponse } from '../watch/watch-read.types.js';
-import { pageFromRows } from './supabase-watch-read-helpers.js';
+import { pageFromRows } from './watch-read-helpers.js';
 import {
-  mapSupabaseContinueWatchingRow,
-  mapSupabaseHistoryRow,
-  mapSupabaseListItemRow,
-  mapSupabaseRatingRow,
-  mapSupabaseWatchStateRow,
-  type SupabaseWatchReadRow,
-} from './supabase-watch-read.mapper.js';
+  mapContinueWatchingRow,
+  mapHistoryRow,
+  mapListItemRow,
+  mapRatingRow,
+  mapWatchStateRow,
+  type WatchReadRow,
+} from './watch-read.mapper.js';
 
 type RecordPlaybackParams = {
   accountId: string;
@@ -120,7 +120,7 @@ export class LocalUserWatchService {
       rows.rows as Record<string, unknown>[],
       params.limit,
       (row) => ({ sortValue: String(row.last_activity_at), tieBreaker: String(row.title_media_key) }),
-      (row) => mapSupabaseContinueWatchingRow(row),
+      (row) => mapContinueWatchingRow(row),
     );
   }
 
@@ -141,7 +141,7 @@ export class LocalUserWatchService {
       rows.rows as Record<string, unknown>[],
       params.limit,
       (row) => ({ sortValue: String(row.added_at), tieBreaker: String(row.media_key) }),
-      (row) => mapSupabaseListItemRow(row),
+      (row) => mapListItemRow(row),
     );
   }
 
@@ -162,7 +162,7 @@ export class LocalUserWatchService {
       rows.rows as Record<string, unknown>[],
       params.limit,
       (row) => ({ sortValue: String(row.rated_at), tieBreaker: String(row.media_key) }),
-      (row) => mapSupabaseRatingRow(row),
+      (row) => mapRatingRow(row),
     );
   }
 
@@ -210,7 +210,7 @@ export class LocalUserWatchService {
       result.rows as Record<string, unknown>[],
       params.limit,
       (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }),
-      (row) => mapSupabaseHistoryRow(row),
+      (row) => mapHistoryRow(row),
     );
   }
 
@@ -293,7 +293,7 @@ export class LocalUserWatchService {
         [params.profileId, mediaKeys],
       );
 
-      return result.rows.map((row) => mapSupabaseWatchStateRow(row as Record<string, unknown>));
+      return result.rows.map((row) => mapWatchStateRow(row as Record<string, unknown>));
     });
   }
 

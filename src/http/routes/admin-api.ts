@@ -28,9 +28,9 @@ import { RecommendationOutboxService } from '../../modules/outbox/recommendation
 import { ServiceOutboxRepository, type ServiceOutboxEventStatus } from '../../modules/outbox/service-outbox.repo.js';
 import { AdminBulkJobService } from '../../modules/admin-bulk-jobs/admin-bulk-job.service.js';
 import type { AdminBulkJobScope, AdminBulkJobStatus, AdminBulkJobTargetInput } from '../../modules/admin-bulk-jobs/admin-bulk-job.types.js';
-import { SupabaseAdminWatchReadService } from '../../modules/integrations/supabase-admin-watch-read.service.js';
+import { AdminWatchReadService } from '../../modules/integrations/admin-watch-read.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
-import { WatchSupabaseEnrichmentService } from '../../modules/watch/watch-supabase-enrichment.service.js';
+import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
 import { withDbClient, withTransaction, db } from '../../lib/db.js';
 import { success, mutation } from '../response.js';
 
@@ -60,9 +60,9 @@ export async function registerAdminApiRoutes(
   const recommendationOutboxService = new RecommendationOutboxService();
   const serviceOutboxRepository = new ServiceOutboxRepository();
   const adminBulkJobService = new AdminBulkJobService();
-  const supabaseAdminWatchReadService = new SupabaseAdminWatchReadService();
+  const adminWatchReadService = new AdminWatchReadService();
   const episodicFollowService = new EpisodicFollowService();
-  const watchSupabaseEnrichmentService = new WatchSupabaseEnrichmentService();
+  const watchMetadataEnrichmentService = new WatchMetadataEnrichmentService();
 
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
@@ -344,14 +344,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await supabaseAdminWatchReadService.listHistoryPage(client, {
+      const result = await adminWatchReadService.listHistoryPage(client, {
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchSupabaseEnrichmentService.enrichRegularMediaItems(client, result.items),
+        items: await watchMetadataEnrichmentService.enrichRegularMediaItems(client, result.items),
       };
     });
     return success({
@@ -370,14 +370,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await supabaseAdminWatchReadService.listContinueWatchingPage(client, {
+      const result = await adminWatchReadService.listContinueWatchingPage(client, {
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchSupabaseEnrichmentService.enrichContinueWatchingItems(client, result.items),
+        items: await watchMetadataEnrichmentService.enrichContinueWatchingItems(client, result.items),
       };
     });
     return success({
@@ -396,14 +396,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await supabaseAdminWatchReadService.listWatchlistPage(client, {
+      const result = await adminWatchReadService.listWatchlistPage(client, {
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchSupabaseEnrichmentService.enrichRegularMediaItems(client, result.items),
+        items: await watchMetadataEnrichmentService.enrichRegularMediaItems(client, result.items),
       };
     });
     return success({
@@ -422,14 +422,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await supabaseAdminWatchReadService.listRatingsPage(client, {
+      const result = await adminWatchReadService.listRatingsPage(client, {
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchSupabaseEnrichmentService.enrichRegularMediaItems(client, result.items),
+        items: await watchMetadataEnrichmentService.enrichRegularMediaItems(client, result.items),
       };
     });
     return success({
@@ -448,7 +448,7 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const items = await withDbClient(async (client) => {
-      await supabaseAdminWatchReadService.assertProfileAccess(client, params);
+      await adminWatchReadService.assertProfileAccess(client, params);
       return episodicFollowService.listForProfile(client, params.profileId, parseLimit(query.limit));
     });
     return success({

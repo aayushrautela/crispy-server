@@ -36,7 +36,31 @@ const rules: Rule[] = [
   },
   {
     pattern: 'PublicWatchReadService|PersonalMediaService|WatchExportService|WatchQueryService|WatchV2|Heartbeat|enqueueHeartbeatFlush|enqueueMetadataRefresh|enqueueRebuildProfileProjections|runMetadataRefreshJob|runRebuildProfileProjectionsJob|profile_title_projection|profile_playable_state|profile_watchlist_state|profile_rating_state|profile_play_history|profile_watch_override|watch-v2',
-    message: 'Local server watch-state/projection modules were retired after moving watch state to Supabase.',
+    message: 'Retired local watch-state/projection modules must not be reintroduced.',
+  },
+  {
+    pattern: 'getSupabaseServiceRoleClient|createSupabaseUserClient|SupabaseClient',
+    message: 'Supabase JS client layer has been removed from app-data code. Auth-only operations must not use the Supabase JS SDK.',
+  },
+  {
+    pattern: 'SupabaseRecommendationRunRepo|SupabaseRecommendationBatchRepo|service_create_run|service_update_run|service_create_batch|service_update_batch',
+    message: 'Supabase recommendation repository layer has been removed. Use local SQL repositories only.',
+  },
+  {
+    pattern: 'SupabaseAdminWatchReadService|WatchSupabaseEnrichmentService|SupabaseWatchReadRow|mapSupabase',
+    message: 'Supabase-named service/type/functions have been renamed to storage-neutral names.',
+  },
+  {
+    pattern: 'supabase-watch-read|supabase-admin-watch-read|watch-supabase-enrichment|supabase-provider-history-writer',
+    message: 'Supabase-named watch/integration files have been renamed to storage-neutral names.',
+  },
+  {
+    pattern: 'bootstrap_account|record_playback_state|replace_provider_import_history',
+    message: 'Supabase RPC app-data calls have been removed. Use local SQL queries instead.',
+  },
+  {
+    pattern: 'schema\\(.reco.\\)|\.from\\(.runs.\\)|\.from\\(.batches.\\)',
+    message: 'Supabase repo schema/client calls have been removed. Use local SQL repositories.',
   },
 ];
 

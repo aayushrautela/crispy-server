@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mapSupabaseHistoryRow } from './supabase-watch-read.mapper.js';
+import { mapHistoryRow } from './watch-read.mapper.js';
 
-test('mapSupabaseHistoryRow maps title-level show history rows', () => {
-  const item = mapSupabaseHistoryRow({
+test('mapHistoryRow maps title-level show history rows', () => {
+  const item = mapHistoryRow({
     id: '00000000-0000-4000-8000-000000000001',
     media_key: 'show:tmdb:789',
     title_media_key: 'show:tmdb:789',
