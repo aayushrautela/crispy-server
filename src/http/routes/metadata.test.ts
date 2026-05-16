@@ -95,7 +95,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', as
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
     item: makeView(),
     seasons: [],
-    episodes: [],
     nextEpisode: null,
     videos: [],
     cast: [],
@@ -131,7 +130,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', as
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/titles/movie:tmdb:694',
+    url: '/v1/metadata/titles/movie:tmdb:694?language=en-US',
     headers: { authorization: 'Bearer test' },
   });
 
@@ -150,7 +149,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) =
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
     item: makeView(),
     seasons: [],
-    episodes: [],
     nextEpisode: null,
     videos: [],
     cast: [],
@@ -178,7 +176,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) =
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/titles/movie:tmdb:694',
+    url: '/v1/metadata/titles/movie:tmdb:694?language=en-US',
     headers: { authorization: 'Bearer test' },
   });
 
@@ -222,7 +220,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
       },
     },
     seasons: [],
-    episodes: [],
     nextEpisode: {
       mediaType: 'episode',
       mediaKey: 'episode:tmdb:32726:16:1',
@@ -272,7 +269,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/titles/show:tmdb:32726',
+    url: '/v1/metadata/titles/show:tmdb:32726?language=en-US',
     headers: { authorization: 'Bearer test' },
   });
 
@@ -293,7 +290,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie with lightweight collec
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
     item: makeView(),
     seasons: [],
-    episodes: [],
     nextEpisode: null,
     videos: [],
     cast: [],
@@ -329,7 +325,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie with lightweight collec
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/titles/movie:tmdb:83533',
+    url: '/v1/metadata/titles/movie:tmdb:83533?language=en-US',
     headers: { authorization: 'Bearer test' },
   });
 
@@ -398,7 +394,7 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes movie extras', async (
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/titles/movie:tmdb:83533/extras',
+    url: '/v1/metadata/titles/movie:tmdb:83533/extras?language=en-US',
     headers: { authorization: 'Bearer test' },
   });
 
@@ -483,7 +479,7 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes show episodes', async 
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/metadata/titles/show:tmdb:32726/extras',
+    url: '/v1/metadata/titles/show:tmdb:32726/extras?language=en-US',
     headers: { authorization: 'Bearer test' },
   });
 

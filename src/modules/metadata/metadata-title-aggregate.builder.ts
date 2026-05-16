@@ -15,7 +15,6 @@ import {
   extractCollection,
   extractCreators,
   extractCrewByJob,
-  extractExtraVideos,
   extractProduction,
   extractVideos,
 } from './metadata-builder.shared.js';
@@ -47,12 +46,10 @@ export class MetadataTitleAggregateBuilder {
     return {
       item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
       seasons: buildSeasonViewFromTitleRaw(resolvedTitle, seasonIds),
-      episodes: [],
       nextEpisode: source.tmdbNextEpisode
         ? buildEpisodeView(resolvedTitle, source.tmdbNextEpisode, '', '')
         : null,
       videos: extractVideos(resolvedTitle),
-      extraVideos: extractExtraVideos(resolvedTitle),
       cast: extractCast(resolvedTitle),
       directors: extractCrewByJob(resolvedTitle, 'Director'),
       creators: extractCreators(resolvedTitle),

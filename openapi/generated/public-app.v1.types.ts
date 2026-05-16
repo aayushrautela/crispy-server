@@ -192,7 +192,6 @@ export interface paths {
          * @description Returns full metadata for a movie or show. Key video fields:
          *     - `videos` — all TMDB video results for the title.
          *     - `trailerUrl` / `trailerThumbnailUrl` — primary trailer (official YouTube trailer preferred; prefers requested/preferred language, then English, then original language, then any language).
-         *     - `extraVideos` — Behind the Scenes and Bloopers videos for client apps to use separately.
          */
         get: operations["getV1MetadataTitlesMediaKey"];
         put?: never;
