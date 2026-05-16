@@ -246,89 +246,54 @@ export class LocalUserWatchService {
   async getStates(params: GetStateParams): Promise<WatchStateResponse[]> {
     if (params.mediaKeys.length === 0) return [];
 
-    return withDbClient(async (client) => {
-      const mediaKeys = [...new Set(params.mediaKeys)];
+    const mediaKeys = [...new Set(params.mediaKeys)];
 
-    const [pbRows, liRows, rtRows, wsRows, weRows] = await Promise.all([
-        client.query(
-          `SELECT title_media_key, playable_media_key, media_type, position_seconds, duration_seconds,
-                  progress_bps, last_activity_at, dismissed_at, source_kind, source_provider
-           FROM user_state.playback_progress
-           WHERE profile_id = $1::uuid AND title_media_key = ANY($2::text[])`,
-          [params.profileId, mediaKeys],
-        ),
-        client.query(
-          `SELECT media_key, media_type, list_kind, added_at, source_kind, source_provider
-           FROM user_state.profile_list_items
-           WHERE profile_id = $1::uuid AND list_kind = 'watchlist' AND media_key = ANY($2::text[])`,
-          [params.profileId, mediaKeys],
-        ),
-        client.query(
-          `SELECT media_key, media_type, rating, rated_at, source_kind, source_provider
-           FROM user_state.profile_ratings
-           WHERE profile_id = $1::uuid AND media_key = ANY($2::text[])`,
-          [params.profileId, mediaKeys],
-        ),
-        client.query(
-          `SELECT media_key, title_media_key, media_type, effective_watched, play_count, last_watched_at
-           FROM user_state.media_watch_summary
-           WHERE profile_id = $1::uuid AND (media_key = ANY($2::text[]) OR title_media_key = ANY($2::text[]))`,
-          [params.profileId, mediaKeys],
-        ),
-        client.query(
-          `SELECT s.title_media_key, array_agg(s.media_key ORDER BY s.media_key) AS watched_episode_keys
+    return withDbClient(async (client) => {
+      const result = await client.query(
+        `WITH requested AS (
+           SELECT unnest($2::text[]) AS media_key
+         )
+         SELECT
+           req.media_key,
+           ws.media_type,
+           pb.position_seconds,
+           pb.duration_seconds,
+           pb.progress_bps,
+           pb.last_activity_at,
+           pb.title_media_key               AS continue_title_media_key,
+           pb.position_seconds               AS continue_position_seconds,
+           pb.duration_seconds               AS continue_duration_seconds,
+           pb.progress_bps                   AS continue_progress_bps,
+           pb.last_activity_at               AS continue_last_activity_at,
+           pb.dismissed_at                   AS continue_dismissed_at,
+           li.added_at                       AS watchlist_added_at,
+           rt.rating,
+           rt.rated_at,
+           ws.effective_watched,
+           ws.play_count,
+           ws.last_watched_at,
+           COALESCE(we.watched_episode_keys, ARRAY[]::text[]) AS watched_episode_keys
+         FROM requested req
+         LEFT JOIN user_state.media_watch_summary ws
+           ON ws.profile_id = $1::uuid AND ws.media_key = req.media_key
+         LEFT JOIN user_state.playback_progress pb
+           ON pb.profile_id = $1::uuid AND pb.title_media_key = req.media_key AND pb.dismissed_at IS NULL
+         LEFT JOIN user_state.profile_list_items li
+           ON li.profile_id = $1::uuid AND li.list_kind = 'watchlist' AND li.media_key = req.media_key
+         LEFT JOIN user_state.profile_ratings rt
+           ON rt.profile_id = $1::uuid AND rt.media_key = req.media_key
+         LEFT JOIN LATERAL (
+           SELECT array_agg(s.media_key ORDER BY s.media_key) AS watched_episode_keys
            FROM user_state.media_watch_summary s
            WHERE s.profile_id = $1::uuid
-             AND s.title_media_key = ANY($2::text[])
+             AND s.title_media_key = req.media_key
              AND s.media_type = 'episode'
              AND s.effective_watched = true
-           GROUP BY s.title_media_key`,
-          [params.profileId, mediaKeys],
-        ),
-      ]);
+         ) we ON true`,
+        [params.profileId, mediaKeys],
+      );
 
-      const pbByKey = new Map(pbRows.rows.map((r) => [String(r.title_media_key), r]));
-      const liByKey = new Map(liRows.rows.map((r) => [String(r.media_key), r]));
-      const rtByKey = new Map(rtRows.rows.map((r) => [String(r.media_key), r]));
-      const wsByKey = new Map(wsRows.rows.map((r) => [String(r.title_media_key), r]));
-      const weByKey = new Map(weRows.rows.map((r) => [String(r.title_media_key), r]));
-
-      return mediaKeys.map((mediaKey) => {
-        const pb = pbByKey.get(mediaKey);
-        const li = liByKey.get(mediaKey);
-        const rt = rtByKey.get(mediaKey);
-        const ws = wsByKey.get(mediaKey);
-        const we = weByKey.get(mediaKey) as { watched_episode_keys?: string[] } | undefined;
-
-        const mergedRow: Record<string, unknown> = {
-          media_key: mediaKey,
-          media_type: li?.media_type ?? ws?.media_type ?? pb?.media_type ?? '',
-          // playback_progress fields
-          position_seconds: pb?.position_seconds ?? null,
-          duration_seconds: pb?.duration_seconds ?? null,
-          progress_bps: pb?.progress_bps ?? null,
-          last_activity_at: pb?.last_activity_at ?? null,
-          // continue watching fields
-          continue_title_media_key: pb?.title_media_key ?? null,
-          continue_position_seconds: pb?.position_seconds ?? null,
-          continue_duration_seconds: pb?.duration_seconds ?? null,
-          continue_progress_bps: pb?.progress_bps ?? null,
-          continue_last_activity_at: pb?.last_activity_at ?? null,
-          continue_dismissed_at: pb?.dismissed_at ?? null,
-          // list item fields
-          watchlist_added_at: li?.added_at ?? null,
-          // rating fields
-          rating: rt?.rating ?? null,
-          rated_at: rt?.rated_at ?? null,
-          // watch summary fields
-          effective_watched: ws?.effective_watched ?? false,
-          play_count: ws?.play_count ?? 0,
-          last_watched_at: ws?.last_watched_at ?? null,
-          watched_episode_keys: Array.isArray(we?.watched_episode_keys) ? we.watched_episode_keys : [],
-        };
-
-        return mapSupabaseWatchStateRow(mergedRow);
-      });
+      return result.rows.map((row) => mapSupabaseWatchStateRow(row as Record<string, unknown>));
     });
   }
 
