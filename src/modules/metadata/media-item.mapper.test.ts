@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { metadataCardToMediaItem, metadataViewToMediaItem, watchCacheRecordToMediaItem } from './media-item.mapper.js';
+import { metadataCardToMediaItem, metadataViewToMediaItem } from './media-item.mapper.js';
 import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
-import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 
 const imageSet = (value: string | null) => ({ small: value, medium: value, large: value });
 
@@ -120,46 +119,5 @@ test('metadataViewToMediaItem maps detail-only metadata', () => {
   assert.deepEqual(item.externalIds, { tmdb: 1, imdb: 'tt1', tvdb: 2 });
 });
 
-test('watchCacheRecordToMediaItem maps cache records with fallback', () => {
-  const record: WatchMediaCardCacheRecord = {
-    mediaKey: 'episode:tmdb:1:1:2',
-    mediaType: 'episode',
-    titleProvider: 'tmdb',
-    titleProviderId: '1',
-    titleMediaType: 'show',
-    title: 'Show',
-    subtitle: 'S1 E2',
-    posterUrl: null,
-    backdropUrl: 'backdrop.jpg',
-    stillUrl: null,
-    logoUrl: 'logo.png',
-    trailerUrl: 'https://youtube.test/watch?v=abc',
-    trailerThumbnailUrl: 'https://youtube.test/thumb.jpg',
-    posterColor: '#111111',
-    backdropColor: '#222222',
-    releaseYear: 2024,
-    rating: 7.5,
-    maturityRating: 'TV-MA',
-    genres: ['Drama'],
-    language: 'en',
-  };
-
-  const item = watchCacheRecordToMediaItem(record, { seasonNumber: 1, episodeNumber: 2 });
-
-  assert.equal(item.mediaType, 'episode');
-  assert.equal(item.title, 'Show');
-  assert.deepEqual(item.images.poster, imageSet(null));
-  assert.deepEqual(item.images.backdrop, { small: 'https://image.tmdb.org/t/p/w300backdrop.jpg', medium: 'https://image.tmdb.org/t/p/w780backdrop.jpg', large: 'https://image.tmdb.org/t/p/w1280backdrop.jpg' });
-  assert.deepEqual(item.images.logo, { small: 'https://image.tmdb.org/t/p/w185logo.png', medium: 'https://image.tmdb.org/t/p/w300logo.png', large: 'https://image.tmdb.org/t/p/w500logo.png' });
-  assert.equal(item.maturityRating, 'TV-MA');
-  assert.equal(item.certification, 'TV-MA');
-  assert.equal(item.trailerUrl, 'https://youtube.test/watch?v=abc');
-  assert.equal(item.trailerThumbnailUrl, 'https://youtube.test/thumb.jpg');
-  assert.equal(item.posterColor, '#111111');
-  assert.equal(item.backdropColor, '#222222');
-  assert.deepEqual(item.genres, ['Drama']);
-  assert.equal(item.seasonNumber, 1);
-  assert.equal(item.episodeNumber, 2);
-});
 
 

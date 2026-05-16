@@ -206,6 +206,156 @@ export const responsiveImageSetSchema = {
   },
 } as const;
 
+export const mediaImageTagsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['primary', 'backdrop', 'logo', 'thumb', 'screenshot'],
+  properties: {
+    primary: {
+      anyOf: [responsiveImageSetSchema, { type: 'null' }],
+    },
+    backdrop: {
+      type: 'array',
+      items: responsiveImageSetSchema,
+    },
+    logo: {
+      anyOf: [responsiveImageSetSchema, { type: 'null' }],
+    },
+    thumb: {
+      anyOf: [responsiveImageSetSchema, { type: 'null' }],
+    },
+    screenshot: {
+      type: 'array',
+      items: responsiveImageSetSchema,
+    },
+  },
+} as const;
+
+export const parentMediaImageTagsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['primary', 'backdrop', 'logo', 'thumb'],
+  properties: {
+    primary: {
+      anyOf: [responsiveImageSetSchema, { type: 'null' }],
+    },
+    backdrop: {
+      type: 'array',
+      items: responsiveImageSetSchema,
+    },
+    logo: {
+      anyOf: [responsiveImageSetSchema, { type: 'null' }],
+    },
+    thumb: {
+      anyOf: [responsiveImageSetSchema, { type: 'null' }],
+    },
+  },
+} as const;
+
+export const providerIdsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['tmdb', 'imdb', 'tvdb'],
+  properties: {
+    tmdb: nullableStringSchema,
+    imdb: nullableStringSchema,
+    tvdb: nullableStringSchema,
+  },
+} as const;
+
+export const nullableParentMediaImageTagsSchema = {
+  anyOf: [
+    parentMediaImageTagsSchema,
+    { type: 'null' },
+  ],
+} as const;
+
+export const mediaItemDtoSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id', 'mediaKey', 'type', 'name', 'originalTitle', 'overview', 'tagline',
+    'productionYear', 'premiereDate', 'communityRating', 'officialRating',
+    'certification', 'genres', 'runTimeSeconds', 'status', 'providerIds',
+    'imageTags', 'parentImageTags', 'seriesId', 'seriesName', 'seasonId',
+    'seasonName', 'parentIndexNumber', 'indexNumber', 'absoluteIndexNumber',
+    'episodeTitle', 'airDate', 'trailerUrl', 'trailerThumbnailUrl',
+    'posterColor', 'backdropColor', 'userData',
+  ],
+  properties: {
+    id: stringSchema,
+    mediaKey: stringSchema,
+    type: {
+      type: 'string',
+      enum: ['Movie', 'Series', 'Season', 'Episode', 'Unknown'],
+    },
+    name: stringSchema,
+    originalTitle: nullableStringSchema,
+    overview: nullableStringSchema,
+    tagline: nullableStringSchema,
+    productionYear: nullableIntegerSchema,
+    premiereDate: nullableStringSchema,
+    communityRating: nullableNumberSchema,
+    officialRating: nullableStringSchema,
+    certification: nullableStringSchema,
+    genres: {
+      type: 'array',
+      items: stringSchema,
+    },
+    runTimeSeconds: nullableIntegerSchema,
+    status: nullableStringSchema,
+    providerIds: providerIdsSchema,
+    imageTags: mediaImageTagsSchema,
+    parentImageTags: nullableParentMediaImageTagsSchema,
+    seriesId: nullableStringSchema,
+    seriesName: nullableStringSchema,
+    seasonId: nullableStringSchema,
+    seasonName: nullableStringSchema,
+    parentIndexNumber: nullableIntegerSchema,
+    indexNumber: nullableIntegerSchema,
+    absoluteIndexNumber: nullableIntegerSchema,
+    episodeTitle: nullableStringSchema,
+    airDate: nullableStringSchema,
+    trailerUrl: nullableStringSchema,
+    trailerThumbnailUrl: nullableStringSchema,
+    posterColor: nullableStringSchema,
+    backdropColor: nullableStringSchema,
+    userData: {
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'itemId', 'isFavorite', 'played', 'playCount',
+            'playbackPositionSeconds', 'runtimeSeconds', 'playedPercentage',
+            'lastPlayedDate', 'rating', 'dismissedFromContinueWatching',
+          ],
+          properties: {
+            itemId: stringSchema,
+            isFavorite: { type: 'boolean' },
+            played: { type: 'boolean' },
+            playCount: { type: 'number' },
+            playbackPositionSeconds: nullableNumberSchema,
+            runtimeSeconds: nullableNumberSchema,
+            playedPercentage: nullableNumberSchema,
+            lastPlayedDate: nullableStringSchema,
+            rating: nullableNumberSchema,
+            dismissedFromContinueWatching: { type: 'boolean' },
+          },
+        },
+        { type: 'null' },
+      ],
+    },
+  },
+} as const;
+
+export const nullableMediaItemDtoSchema = {
+  anyOf: [
+    mediaItemDtoSchema,
+    { type: 'null' },
+  ],
+} as const;
+
 export const metadataArtworkSchema = {
   type: 'object',
   additionalProperties: false,

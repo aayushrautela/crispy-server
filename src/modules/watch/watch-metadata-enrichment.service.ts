@@ -1,7 +1,8 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
-import type { MediaItem } from '../metadata/media-item.types.js';
-import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
+import type { MediaItemDto, ParentMediaImageTags } from '../metadata/media-item.types.js';
+import { watchCacheRecordToMediaItemDto } from '../metadata/media-item.mapper.js';
+import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
@@ -17,6 +18,23 @@ type RegularMediaItem = HistoryProductItem | WatchlistProductItem | RatingProduc
 
 type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMissingCardsAndReturnRecords'>;
 
+function buildParentImageTags(record: WatchMediaCardCacheRecord): ParentMediaImageTags {
+  return {
+    primary: record.posterUrl
+      ? buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' })
+      : null,
+    backdrop: record.backdropUrl
+      ? [buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' })]
+      : [],
+    logo: record.logoUrl
+      ? buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' })
+      : null,
+    thumb: record.stillUrl
+      ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
+      : null,
+  };
+}
+
 export class WatchMetadataEnrichmentService {
   constructor(
     private readonly watchMediaCardCacheService = new WatchMediaCardCacheService(),
@@ -30,7 +48,8 @@ export class WatchMetadataEnrichmentService {
   ): Promise<ContinueWatchingProductItem[]> {
     const mediaKeys = items.map((item) => item.mediaItem.mediaKey);
     const parentKeys = items
-      .map((item) => item.mediaItem.parent?.mediaKey)
+      .filter((item) => item.mediaItem.type === 'Episode')
+      .map((item) => item.id)
       .filter((k): k is string => !!k);
     const allKeys = [...new Set([...mediaKeys, ...parentKeys])];
     const records = await this.loadRecords(client, allKeys, language);
@@ -41,17 +60,18 @@ export class WatchMetadataEnrichmentService {
         return acc;
       }
 
-      const parentKey = item.mediaItem.parent?.mediaKey;
+      const parentKey = item.mediaItem.type === 'Episode' ? item.id : null;
       const parentRecord = parentKey ? records.get(parentKey) : undefined;
 
-      if (item.mediaItem.mediaType === 'episode' && !parentRecord) {
+      if (item.mediaItem.type === 'Episode' && !parentRecord) {
         return acc;
       }
 
-      const enriched = mergeEnrichedMediaItem(record, item.mediaItem);
+      const enriched = mergeEnrichedMediaItemDto(record, item.mediaItem);
 
-      if (parentRecord && enriched.parent) {
-        enriched.parent = { ...enriched.parent, title: parentRecord.title };
+      if (parentRecord) {
+        enriched.seriesName = enriched.seriesName ?? parentRecord.title;
+        enriched.parentImageTags = enriched.parentImageTags ?? buildParentImageTags(parentRecord);
       }
 
       return acc.concat([{ ...item, mediaItem: enriched }]);
@@ -67,7 +87,7 @@ export class WatchMetadataEnrichmentService {
       }
       return {
         ...item,
-        mediaItem: mergeEnrichedMediaItem(record, item.mediaItem),
+        mediaItem: mergeEnrichedMediaItemDto(record, item.mediaItem),
       };
     });
   }
@@ -92,31 +112,42 @@ export class WatchMetadataEnrichmentService {
   }
 }
 
-function mergeEnrichedMediaItem(record: WatchMediaCardCacheRecord, existing: MediaItem): MediaItem {
-  const enriched = watchCacheRecordToMediaItem(record);
+function mergeEnrichedMediaItemDto(record: WatchMediaCardCacheRecord, existing: MediaItemDto): MediaItemDto {
+  const enriched = watchCacheRecordToMediaItemDto(record);
+  const still = record.stillUrl
+    ? { small: null, medium: null, large: null }
+    : null;
+
   return {
     ...enriched,
+    id: existing.id,
+    name: enriched.name || existing.name,
     originalTitle: existing.originalTitle,
     overview: existing.overview,
-    images: {
-      ...enriched.images,
-      still: existing.images.still.small ? existing.images.still : enriched.images.still,
+    imageTags: {
+      ...enriched.imageTags,
+      thumb: existing.imageTags.thumb ?? enriched.imageTags.thumb,
     },
-    releaseDate: existing.releaseDate,
+    communityRating: enriched.communityRating ?? existing.communityRating,
     genres: enriched.genres,
-    runtimeMinutes: existing.runtimeMinutes,
+    runTimeSeconds: existing.runTimeSeconds,
     status: existing.status,
+    officialRating: enriched.officialRating ?? existing.officialRating,
+    certification: enriched.certification ?? existing.certification,
     trailerUrl: enriched.trailerUrl,
     trailerThumbnailUrl: enriched.trailerThumbnailUrl,
     posterColor: enriched.posterColor,
     backdropColor: enriched.backdropColor,
-    externalIds: existing.externalIds,
-    parent: existing.parent,
-    showTmdbId: existing.showTmdbId,
-    seasonNumber: existing.seasonNumber,
-    episodeNumber: existing.episodeNumber,
-    absoluteEpisodeNumber: existing.absoluteEpisodeNumber,
-    episodeTitle: existing.episodeTitle,
+    providerIds: existing.providerIds,
+    seriesId: existing.seriesId,
+    seriesName: existing.seriesName || enriched.seriesName || null,
+    seasonId: existing.seasonId,
+    seasonName: existing.seasonName,
+    parentIndexNumber: existing.parentIndexNumber,
+    indexNumber: existing.indexNumber,
+    absoluteIndexNumber: existing.absoluteIndexNumber,
+    episodeTitle: existing.episodeTitle ?? (existing.type === 'Episode' ? enriched.name : null),
     airDate: existing.airDate,
+    parentImageTags: existing.parentImageTags ?? enriched.parentImageTags,
   };
 }

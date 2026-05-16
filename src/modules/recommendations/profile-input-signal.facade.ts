@@ -1,6 +1,6 @@
 import { withDbClient } from '../../lib/db.js';
 import { AdminWatchReadService } from '../integrations/admin-watch-read.service.js';
-import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
+import { metadataCardToMediaItem, mediaItemToMediaItemDto } from '../metadata/media-item.mapper.js';
 import { EpisodicFollowService } from '../watch/episodic-follow.service.js';
 import type { ProfileInputSignalCacheService } from './profile-input-signal-cache.service.js';
 import {
@@ -172,7 +172,7 @@ export class ProfileInputSignalFacade {
             await watchReadService.assertProfileAccess(client, { accountId: input.accountId, profileId: input.profileId });
             const items = await episodicFollowService.listForProfile(client, input.profileId, request.requestedLimit);
             payload.trackedSeries = items.map((item) => ({
-              show: item.show ? metadataCardToMediaItem(item.show) : null,
+              show: item.show ? mediaItemToMediaItemDto(metadataCardToMediaItem(item.show)) : null,
               reason: item.reason ?? 'watch_activity',
               lastInteractedAt: item.lastInteractedAt,
               nextEpisodeAirDate: item.nextEpisodeAirDate,

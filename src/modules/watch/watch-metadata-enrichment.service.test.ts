@@ -5,47 +5,53 @@ import type { WatchMediaCardCacheService } from './watch-media-card-cache.servic
 import type { ContinueWatchingProductItem, HistoryProductItem, RatingProductItem } from './watch-derived-item.types.js';
 import type { WatchStateResponse } from './watch-read.types.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
-import type { MediaItem } from '../metadata/media-item.types.js';
+import type { MediaItemDto } from '../metadata/media-item.types.js';
 
 seedTestEnv();
 
-const emptyExternalIds = { tmdb: null, imdb: null, tvdb: null };
+const emptyImageSet = () => ({ small: null, medium: null, large: null });
+const imageSet = (value: string) => ({ small: value, medium: value, large: value });
 
-function createMediaItem(overrides: Partial<MediaItem> = {}): MediaItem {
+function createMediaItemDto(overrides: Partial<MediaItemDto> = {}): MediaItemDto {
   return {
+    id: 'movie:tmdb:123',
     mediaKey: 'movie:tmdb:123',
-    mediaType: 'movie',
-    title: 'Fallback Title',
+    type: 'Movie',
+    name: 'Fallback Title',
     originalTitle: null,
-    subtitle: null,
     overview: null,
-    images: {
-      poster: { small: 'https://media.test/poster.jpg', medium: 'https://media.test/poster.jpg', large: 'https://media.test/poster.jpg' },
-      backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
-      logo: { small: null, medium: null, large: null },
-      still: { small: null, medium: null, large: null },
-    },
-    releaseDate: null,
-    releaseYear: 2023,
-    rating: 7.0,
-    genres: [],
-    runtimeMinutes: 120,
-    status: null,
-    maturityRating: null,
+    tagline: null,
+    productionYear: 2023,
+    premiereDate: null,
+    communityRating: 7.0,
+    officialRating: null,
     certification: null,
+    genres: [],
+    runTimeSeconds: null,
+    status: null,
+    providerIds: { tmdb: '123', imdb: null, tvdb: null },
+    imageTags: {
+      primary: imageSet('https://media.test/poster.jpg'),
+      backdrop: [imageSet('https://media.test/backdrop.jpg')],
+      logo: imageSet('https://media.test/logo.jpg'),
+      thumb: null,
+      screenshot: [],
+    },
+    parentImageTags: null,
+    seriesId: null,
+    seriesName: null,
+    seasonId: null,
+    seasonName: null,
+    parentIndexNumber: null,
+    indexNumber: null,
+    absoluteIndexNumber: null,
+    episodeTitle: null,
+    airDate: null,
     trailerUrl: null,
     trailerThumbnailUrl: null,
     posterColor: null,
     backdropColor: null,
-    externalIds: emptyExternalIds,
-    parent: null,
-    showTmdbId: null,
-    seasonNumber: null,
-    episodeNumber: null,
-    absoluteEpisodeNumber: null,
-    episodeTitle: null,
-    airDate: null,
-    badges: [],
+    userData: null,
     ...overrides,
   };
 }
@@ -89,7 +95,7 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
     {
       id: 'movie:tmdb:123',
       kind: 'continue_watching',
-      mediaItem: createMediaItem(),
+      mediaItem: createMediaItemDto(),
       context: {
         id: 'movie:tmdb:123',
         progress: {
@@ -118,17 +124,16 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
   const enriched = await service.enrichContinueWatchingItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.title, 'Cached Movie Title');
-  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://cache.test/poster.jpg', medium: 'https://cache.test/poster.jpg', large: 'https://cache.test/poster.jpg' });
-  assert.deepEqual(enriched[0]?.mediaItem.images.backdrop, { small: 'https://cache.test/backdrop.jpg', medium: 'https://cache.test/backdrop.jpg', large: 'https://cache.test/backdrop.jpg' });
-  assert.equal(enriched[0]?.mediaItem.releaseYear, 2024);
-  assert.equal(enriched[0]?.mediaItem.rating, 8.5);
+  assert.equal(enriched[0]?.mediaItem.name, 'Cached Movie Title');
+  assert.deepEqual(enriched[0]?.mediaItem.imageTags.primary, { small: 'https://cache.test/poster.jpg', medium: 'https://cache.test/poster.jpg', large: 'https://cache.test/poster.jpg' });
+  assert.equal(enriched[0]?.mediaItem.productionYear, 2024);
+  assert.equal(enriched[0]?.mediaItem.communityRating, 8.5);
   assert.deepEqual(enriched[0]?.mediaItem.genres, ['Action']);
   assert.equal(enriched[0]?.mediaItem.trailerUrl, 'https://youtube.test/watch?v=abc');
   assert.equal(enriched[0]?.mediaItem.trailerThumbnailUrl, 'https://youtube.test/thumb.jpg');
   assert.equal(enriched[0]?.mediaItem.posterColor, '#111111');
   assert.equal(enriched[0]?.mediaItem.backdropColor, '#222222');
-  assert.equal(enriched[0]?.mediaItem.runtimeMinutes, 120);
+  assert.equal(enriched[0]?.mediaItem.runTimeSeconds, null);
   assert.equal(enriched[0]?.progress.positionSeconds, 300);
   assert.equal(enriched[0]?.lastActivityAt, '2026-05-11T10:00:00.000Z');
   assert.deepEqual(enriched[0]?.origins, ['local']);
@@ -195,13 +200,13 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
     {
       id: 'show:tmdb:123',
       kind: 'continue_watching',
-      mediaItem: createMediaItem({
+      mediaItem: createMediaItemDto({
         mediaKey: 'episode:tmdb:123:2:5',
-        mediaType: 'episode',
-        parent: { mediaKey: 'show:tmdb:123', mediaType: 'show', title: '' },
-        showTmdbId: 123,
-        seasonNumber: 2,
-        episodeNumber: 5,
+        id: 'show:tmdb:123',
+        type: 'Episode',
+        seriesId: '123',
+        parentIndexNumber: 2,
+        indexNumber: 5,
       }),
       context: {
         id: 'show:tmdb:123',
@@ -232,16 +237,15 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
 
   assert.equal(enriched.length, 1);
   assert.equal(enriched[0]?.mediaItem.mediaKey, 'episode:tmdb:123:2:5');
-  assert.equal(enriched[0]?.mediaItem.mediaType, 'episode');
-  assert.ok(enriched[0]?.mediaItem.parent);
-  assert.equal(enriched[0]?.mediaItem.parent?.mediaKey, 'show:tmdb:123');
-  assert.equal(enriched[0]?.mediaItem.parent?.title, 'Parent Show Title');
-  assert.equal(enriched[0]?.mediaItem.title, 'Episode 5 Title');
-  assert.equal(enriched[0]?.mediaItem.showTmdbId, 123);
-  assert.equal(enriched[0]?.mediaItem.seasonNumber, 2);
-  assert.equal(enriched[0]?.mediaItem.episodeNumber, 5);
-  assert.ok(enriched[0]?.mediaItem.images.still.small);
-  assert.ok(enriched[0]?.mediaItem.images.backdrop.small);
+  assert.equal(enriched[0]?.mediaItem.type, 'Episode');
+  assert.equal(enriched[0]?.mediaItem.seriesName, 'Parent Show Title');
+  assert.equal(enriched[0]?.mediaItem.name, 'Episode 5 Title');
+  assert.equal(enriched[0]?.mediaItem.seriesId, '123');
+  assert.equal(enriched[0]?.mediaItem.parentIndexNumber, 2);
+  assert.equal(enriched[0]?.mediaItem.indexNumber, 5);
+  assert.ok(enriched[0]?.mediaItem.imageTags.thumb);
+  assert.ok(enriched[0]?.mediaItem.imageTags.backdrop.length > 0);
+  assert.equal(enriched[0]?.mediaItem.episodeTitle, 'Episode 5 Title');
 });
 
 test('enrichContinueWatchingItems drops episode items missing parent show record', async () => {
@@ -283,13 +287,13 @@ test('enrichContinueWatchingItems drops episode items missing parent show record
     {
       id: 'show:tmdb:999',
       kind: 'continue_watching',
-      mediaItem: createMediaItem({
+      mediaItem: createMediaItemDto({
         mediaKey: 'episode:tmdb:999:1:1',
-        mediaType: 'episode',
-        parent: { mediaKey: 'show:tmdb:999', mediaType: 'show', title: '' },
-        showTmdbId: 999,
-        seasonNumber: 1,
-        episodeNumber: 1,
+        id: 'show:tmdb:999',
+        type: 'Episode',
+        seriesId: '999',
+        parentIndexNumber: 1,
+        indexNumber: 1,
       }),
       context: {
         id: 'show:tmdb:999',
@@ -360,18 +364,21 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
     {
       id: 'show:tmdb:789:2026-05-11',
       kind: 'watch_history',
-      mediaItem: createMediaItem({
+      mediaItem: createMediaItemDto({
         mediaKey: 'show:tmdb:789',
-        mediaType: 'show',
-        title: 'Fallback Show Title',
-        images: {
-          poster: { small: 'https://media.test/show-poster.jpg', medium: 'https://media.test/show-poster.jpg', large: 'https://media.test/show-poster.jpg' },
-          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
-          logo: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
+        id: 'show:tmdb:789',
+        type: 'Series',
+        name: 'Fallback Show Title',
+        imageTags: {
+          primary: imageSet('https://media.test/show-poster.jpg'),
+          backdrop: [imageSet('https://media.test/backdrop.jpg')],
+          logo: null,
+          thumb: null,
+          screenshot: [],
         },
-        releaseYear: 2021,
-        rating: 8.0,
+        productionYear: 2021,
+        communityRating: 8.0,
+        providerIds: { tmdb: '789', imdb: null, tvdb: null },
       }),
       context: {
         id: 'show:tmdb:789:2026-05-11',
@@ -391,11 +398,9 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
   const enriched = await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.title, 'Cached Show Title');
-  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://cache.test/show-poster.jpg', medium: 'https://cache.test/show-poster.jpg', large: 'https://cache.test/show-poster.jpg' });
-  assert.equal(enriched[0]?.mediaItem.subtitle, 'Season 1');
-  assert.equal(enriched[0]?.mediaItem.releaseYear, 2022);
-  assert.equal(enriched[0]?.mediaItem.rating, 9.1);
+  assert.equal(enriched[0]?.mediaItem.name, 'Cached Show Title');
+  assert.deepEqual(enriched[0]?.mediaItem.imageTags.primary, { small: 'https://cache.test/show-poster.jpg', medium: 'https://cache.test/show-poster.jpg', large: 'https://cache.test/show-poster.jpg' });
+  assert.equal(enriched[0]?.mediaItem.communityRating, 9.1);
   assert.deepEqual(enriched[0]?.mediaItem.genres, ['Drama']);
   assert.equal(enriched[0]?.watchedAt, '2026-05-11T08:00:00.000Z');
   assert.deepEqual(enriched[0]?.origins, ['simkl']);
@@ -417,17 +422,21 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
     {
       id: 'movie:tmdb:999',
       kind: 'rating',
-      mediaItem: createMediaItem({
+      mediaItem: createMediaItemDto({
         mediaKey: 'movie:tmdb:999',
-        title: 'Uncached Movie',
-        images: {
-          poster: { small: 'https://media.test/uncached.jpg', medium: 'https://media.test/uncached.jpg', large: 'https://media.test/uncached.jpg' },
-          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
-          logo: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
+        id: 'movie:tmdb:999',
+        type: 'Movie',
+        name: 'Uncached Movie',
+        imageTags: {
+          primary: imageSet('https://media.test/uncached.jpg'),
+          backdrop: [imageSet('https://media.test/backdrop.jpg')],
+          logo: null,
+          thumb: null,
+          screenshot: [],
         },
-        releaseYear: 2020,
-        rating: 6.5,
+        productionYear: 2020,
+        communityRating: 6.5,
+        providerIds: { tmdb: '999', imdb: null, tvdb: null },
       }),
       context: {
         id: 'movie:tmdb:999',
@@ -449,8 +458,8 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
   const enriched = await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.title, 'Uncached Movie');
-  assert.deepEqual(enriched[0]?.mediaItem.images.poster, { small: 'https://media.test/uncached.jpg', medium: 'https://media.test/uncached.jpg', large: 'https://media.test/uncached.jpg' });
+  assert.equal(enriched[0]?.mediaItem.name, 'Uncached Movie');
+  assert.deepEqual(enriched[0]?.mediaItem.imageTags.primary, imageSet('https://media.test/uncached.jpg'));
   assert.equal(enriched[0]?.rating.value, 8);
 });
 
@@ -498,17 +507,21 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
     {
       id: 'movie:tmdb:111:1',
       kind: 'watch_history',
-      mediaItem: createMediaItem({
+      mediaItem: createMediaItemDto({
         mediaKey: 'movie:tmdb:111',
-        title: 'Fallback',
-        images: {
-          poster: { small: 'https://media.test/dup.jpg', medium: 'https://media.test/dup.jpg', large: 'https://media.test/dup.jpg' },
-          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
-          logo: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
+        id: 'movie:tmdb:111',
+        type: 'Movie',
+        name: 'Fallback',
+        imageTags: {
+          primary: imageSet('https://media.test/dup.jpg'),
+          backdrop: [imageSet('https://media.test/backdrop.jpg')],
+          logo: null,
+          thumb: null,
+          screenshot: [],
         },
-        releaseYear: 2022,
-        rating: 7.0,
+        productionYear: 2022,
+        communityRating: 7.0,
+        providerIds: { tmdb: '111', imdb: null, tvdb: null },
       }),
       context: {
         id: 'movie:tmdb:111:1',
@@ -526,17 +539,21 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
     {
       id: 'movie:tmdb:111:2',
       kind: 'watch_history',
-      mediaItem: createMediaItem({
+      mediaItem: createMediaItemDto({
         mediaKey: 'movie:tmdb:111',
-        title: 'Fallback',
-        images: {
-          poster: { small: 'https://media.test/dup.jpg', medium: 'https://media.test/dup.jpg', large: 'https://media.test/dup.jpg' },
-          backdrop: { small: 'https://media.test/backdrop.jpg', medium: 'https://media.test/backdrop.jpg', large: 'https://media.test/backdrop.jpg' },
-          logo: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
+        id: 'movie:tmdb:111',
+        type: 'Movie',
+        name: 'Fallback',
+        imageTags: {
+          primary: imageSet('https://media.test/dup.jpg'),
+          backdrop: [imageSet('https://media.test/backdrop.jpg')],
+          logo: null,
+          thumb: null,
+          screenshot: [],
         },
-        releaseYear: 2022,
-        rating: 7.0,
+        productionYear: 2022,
+        communityRating: 7.0,
+        providerIds: { tmdb: '111', imdb: null, tvdb: null },
       }),
       context: {
         id: 'movie:tmdb:111:2',

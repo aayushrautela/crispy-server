@@ -1,9 +1,9 @@
-import type { MediaItem, MediaPresentationHint } from '../metadata/media-item.types.js';
+import type { MediaItemDto, MediaPresentationHint } from '../metadata/media-item.types.js';
 import type { WatchProgressView } from './watch-state.types.js';
 
 export type WatchDerivedProductItem = {
   kind: 'watch_history' | 'watchlist' | 'rating';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: Record<string, unknown>;
   presentation: MediaPresentationHint | null;
 };
@@ -18,7 +18,7 @@ export type ContinueWatchingContext = {
 
 export type ContinueWatchingProductItem = {
   kind: 'continue_watching';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: ContinueWatchingContext;
   presentation: MediaPresentationHint | null;
   id: string;
@@ -30,7 +30,7 @@ export type ContinueWatchingProductItem = {
 
 export type HistoryProductItem = {
   kind: 'watch_history';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: {
     id: string;
     eventType: string;
@@ -48,7 +48,7 @@ export type HistoryProductItem = {
 
 export type WatchlistProductItem = {
   kind: 'watchlist';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: {
     id: string;
     addedAt: string;
@@ -62,7 +62,7 @@ export type WatchlistProductItem = {
 
 export type RatingProductItem = {
   kind: 'rating';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: {
     id: string;
     rating: { value: number; ratedAt: string };

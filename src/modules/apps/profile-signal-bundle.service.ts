@@ -82,11 +82,11 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     if (liveSignals.history) {
       bundle.history = liveSignals.history.map((item) => ({
         mediaKey: item.mediaItem.mediaKey,
-        contentType: item.mediaItem.mediaType,
+        contentType: item.mediaItem.type,
         watchedAt: new Date(item.watchedAt),
         progressPercent: readNumber(item.payload?.progressPercent, 100),
         completionState: readString(item.payload?.completionState, 'completed'),
-        durationSeconds: item.mediaItem.runtimeMinutes ? item.mediaItem.runtimeMinutes * 60 : null,
+        durationSeconds: item.mediaItem.runTimeSeconds,
       }));
     }
     if (liveSignals.ratings) {
@@ -106,8 +106,8 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     if (liveSignals.continueWatching) {
       bundle.continueWatching = liveSignals.continueWatching.map((item) => ({
         mediaKey: item.mediaItem.mediaKey,
-        seasonNumber: item.mediaItem.seasonNumber,
-        episodeNumber: item.mediaItem.episodeNumber,
+        seasonNumber: item.mediaItem.parentIndexNumber,
+        episodeNumber: item.mediaItem.indexNumber,
         progressPercent: item.progress.progressPercent,
         updatedAt: new Date(item.lastActivityAt),
       }));

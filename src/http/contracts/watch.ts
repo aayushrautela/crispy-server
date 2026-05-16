@@ -1,6 +1,6 @@
 import {
   booleanSchema,
-  mediaItemSchema,
+  mediaItemDtoSchema,
   nullableMediaPresentationHintSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
@@ -86,7 +86,7 @@ export const continueWatchingItemSchema = {
   properties: {
     id: stringSchema,
     kind: { const: 'continue_watching' },
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     context: {
       type: 'object',
       additionalProperties: false,
@@ -149,7 +149,7 @@ const watchProductItemSchema = {
   required: ['kind', 'mediaItem', 'context', 'presentation'],
   properties: {
     kind: stringSchema,
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     context: recordSchema,
     presentation: nullableMediaPresentationHintSchema,
   },
@@ -291,7 +291,7 @@ const watchStateItemSchema = {
   required: ['kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys', 'playCount'],
   properties: {
     kind: { const: 'watch_state' },
-    mediaItem: mediaItemSchema,
+    mediaItem: mediaItemDtoSchema,
     context: recordSchema,
     presentation: nullableMediaPresentationHintSchema,
     progress: watchProgressStateSchema,

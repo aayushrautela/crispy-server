@@ -15,7 +15,7 @@ This guide summarizes client-facing media identity and watch-state rules. Exact 
 
 Supporting identity fields are compatibility or convenience fields:
 
-- `mediaType` is derived from `mediaKey` and should not be treated as a separate identity source.
+- `type` is derived from `mediaKey` and should not be treated as a separate identity source.
 - `provider` and `providerId` on canonical media shapes are deprecated compatibility fields and may be removed from client-facing payloads.
 - `contentId` is a legacy alias accepted during migration only; new clients should use `mediaKey`.
 

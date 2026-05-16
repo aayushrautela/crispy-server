@@ -1,4 +1,4 @@
-import type { MediaItem, MediaPresentationHint } from '../metadata/media-item.types.js';
+import type { MediaItemDto, MediaPresentationHint } from '../metadata/media-item.types.js';
 import type {
   WatchProgressView,
   ContinueWatchingStateView,
@@ -54,7 +54,7 @@ export type WatchStatesEnvelope = {
 
 export type WatchStateResponse = {
   kind: 'watch_state';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: {
     progress: WatchProgressView | null;
     continueWatching: ContinueWatchingStateView | null;
@@ -79,12 +79,12 @@ export type CalendarBucket = 'up_next' | 'this_week' | 'upcoming' | 'recently_re
 export type CalendarItem = {
   bucket: CalendarBucket;
   kind: 'calendar_item';
-  mediaItem: MediaItem;
+  mediaItem: MediaItemDto;
   context: {
     bucket: CalendarBucket;
     airDate: string | null;
     watched: boolean;
-    relatedShow: MediaItem;
+    relatedShow: MediaItemDto;
   };
   presentation: MediaPresentationHint | null;
   airDate: string | null;

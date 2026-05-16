@@ -1,6 +1,6 @@
 import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
-import { watchCacheRecordToMediaItem } from '../metadata/media-item.mapper.js';
-import type { MediaItem } from '../metadata/media-item.types.js';
+import { watchCacheRecordToMediaItemDto } from '../metadata/media-item.mapper.js';
+import type { MediaItemDto } from '../metadata/media-item.types.js';
 import type {
   ContinueWatchingProductItem,
   HistoryProductItem,
@@ -16,7 +16,7 @@ export function mapContinueWatchingRow(row: WatchReadRow): ContinueWatchingProdu
   const playableMediaKey = stringValue(row.playable_media_key) || titleMediaKey;
   const progressBps = numberValue(row.progress_bps) ?? 0;
   const lastActivityAt = isoValue(row.last_activity_at);
-  const mediaItem = playableMediaItemFromRow(playableMediaKey, titleMediaKey, row);
+  const mediaItem = playableMediaItemDtoFromRow(playableMediaKey, titleMediaKey, row);
 
   return {
     id: titleMediaKey,
@@ -52,7 +52,7 @@ export function mapListItemRow(row: WatchReadRow): WatchlistProductItem {
   return {
     id: mediaKey,
     kind: 'watchlist',
-    mediaItem: mediaItemFromRow(mediaKey, row),
+    mediaItem: mediaItemDtoFromRow(mediaKey, row),
     context: {
       id: mediaKey,
       addedAt: isoValue(row.added_at),
@@ -73,7 +73,7 @@ export function mapRatingRow(row: WatchReadRow): RatingProductItem {
   return {
     id: mediaKey,
     kind: 'rating',
-    mediaItem: mediaItemFromRow(mediaKey, row),
+    mediaItem: mediaItemDtoFromRow(mediaKey, row),
     context: {
       id: mediaKey,
       rating,
@@ -93,7 +93,7 @@ export function mapHistoryRow(row: WatchReadRow): HistoryProductItem {
   return {
     id,
     kind: 'watch_history',
-    mediaItem: mediaItemFromRow(mediaKey, row),
+    mediaItem: mediaItemDtoFromRow(mediaKey, row),
     context: {
       id,
       eventType,
@@ -150,7 +150,7 @@ export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
 
   return {
     kind: 'watch_state',
-    mediaItem: mediaItemFromRow(mediaKey, row),
+    mediaItem: mediaItemDtoFromRow(mediaKey, row),
     context: {
       progress,
       continueWatching,
@@ -171,14 +171,12 @@ export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
   };
 }
 
-function playableMediaItemFromRow(playableMediaKey: string, titleMediaKey: string, row: WatchReadRow): MediaItem {
+function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: string, row: WatchReadRow): MediaItemDto {
   const parsed = parseMediaKey(playableMediaKey);
   const isEpisode = parsed.mediaType === 'episode';
-  const parent = isEpisode
-    ? { mediaKey: titleMediaKey, mediaType: 'show' as const, title: '' }
-    : null;
+  const seriesName = isEpisode ? stringValue(row.title) || undefined : undefined;
 
-  return watchCacheRecordToMediaItem({
+  return watchCacheRecordToMediaItemDto({
     mediaKey: playableMediaKey,
     mediaType: isEpisode ? 'episode' : parsed.mediaType,
     titleProvider: 'tmdb',
@@ -200,19 +198,22 @@ function playableMediaItemFromRow(playableMediaKey: string, titleMediaKey: strin
     genres: [],
     language: 'en',
   }, {
-    parent,
-    showTmdbId: isEpisode ? parsed.showTmdbId : null,
-    seasonNumber: isEpisode ? parsed.seasonNumber : null,
-    episodeNumber: isEpisode ? parsed.episodeNumber : null,
-    absoluteEpisodeNumber: null,
-    episodeTitle: null,
+    id: titleMediaKey,
+    seriesName: seriesName ?? null,
+    seasonId: isEpisode ? stringValue(row.season_id) || null : null,
+    seasonName: isEpisode ? nullableStringValue(row.season_name) : null,
+    seriesId: isEpisode ? String(parsed.showTmdbId ?? '') : null,
+    parentIndexNumber: isEpisode ? parsed.seasonNumber : null,
+    indexNumber: isEpisode ? parsed.episodeNumber : null,
+    absoluteIndexNumber: null,
+    episodeTitle: isEpisode ? nullableStringValue(row.title) || null : null,
     airDate: null,
   });
 }
 
-function mediaItemFromRow(mediaKey: string, row: WatchReadRow, overrides: Partial<MediaItem> = {}): MediaItem {
+function mediaItemDtoFromRow(mediaKey: string, row: WatchReadRow, overrides: Partial<MediaItemDto> = {}): MediaItemDto {
   const parsed = parseMediaKey(canonicalTitleMediaKey(parseMediaKey(mediaKey)));
-  return watchCacheRecordToMediaItem({
+  return watchCacheRecordToMediaItemDto({
     mediaKey: parsed.mediaKey,
     mediaType: parsed.mediaType,
     titleProvider: 'tmdb',

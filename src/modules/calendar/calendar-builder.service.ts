@@ -5,7 +5,7 @@ import { MetadataProjectionService } from '../metadata/metadata-projection.servi
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
 import type { CalendarItem } from '../watch/watch-read.types.js';
-import { metadataCardToMediaItem } from '../metadata/media-item.mapper.js';
+import { metadataCardToMediaItem, mediaItemToMediaItemDto } from '../metadata/media-item.mapper.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BUILD_CONCURRENCY = 4;
@@ -70,12 +70,12 @@ export class CalendarBuilderService {
         return {
           bucket,
           kind: 'calendar_item' as const,
-          mediaItem,
+          mediaItem: mediaItemToMediaItemDto(mediaItem),
           context: {
             bucket,
             airDate: nextEpisode?.airDate ?? null,
             watched,
-            relatedShow: relatedShowMediaItem,
+            relatedShow: mediaItemToMediaItemDto(relatedShowMediaItem),
           },
           presentation: { preferredSize: 'wide' as const, sectionId: null, sectionTitle: null },
           airDate: nextEpisode?.airDate ?? null,
