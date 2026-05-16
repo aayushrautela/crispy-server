@@ -54,9 +54,9 @@ test('UserRepository.listByEmail returns matched rows', async () => {
   });
   const result = await repo.listByEmail(client as never, ' Test@Example.com ');
   assert.equal(result.length, 1);
-  assert.equal(result[0].email, 'Test@Example.com');
-  assert.ok(queries[0].includes('deleted_at IS NULL'), 'query should filter deleted accounts');
-  assert.ok(queries[0].includes('lower(email) = lower($1)'), 'query should be case-insensitive');
+  assert.equal(result[0]!.email, 'Test@Example.com');
+  assert.ok(queries[0]!.includes('deleted_at IS NULL'), 'query should filter deleted accounts');
+  assert.ok(queries[0]!.includes('lower(email) = lower($1)'), 'query should be case-insensitive');
 });
 
 test('UserRepository.findByAuthSubject returns null for missing', async () => {
@@ -97,7 +97,7 @@ test('UserRepository.upsertFromAuthSubject throws 500 if row missing after upser
   });
   await assert.rejects(
     () => repo.upsertFromAuthSubject(client as never, { authSubject: 'some-uuid', email: 'test@example.com' }),
-    (err: { statusCode?: number; message?: string }) => err.statusCode === 500 && err.message.includes('Account row not found'),
+    (err: { statusCode?: number; message?: string }) => err.statusCode === 500 && (err.message ?? '').includes('Account row not found'),
   );
 });
 

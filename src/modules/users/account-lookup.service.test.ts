@@ -9,10 +9,10 @@ const fakeQueryResult: { rows: Record<string, unknown>[]; rowCount?: number | nu
 async function withMockedDb(fn: () => Promise<void>) {
   const { db } = await import('../../lib/db.js');
   const originalConnect = db.connect.bind(db);
-  db.connect = async () => ({
+  db.connect = (async () => ({
     query: async () => fakeQueryResult,
     release: () => undefined,
-  });
+  })) as never;
   try {
     await fn();
   } finally {
