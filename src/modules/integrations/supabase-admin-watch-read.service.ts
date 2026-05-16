@@ -101,18 +101,25 @@ export class SupabaseAdminWatchReadService {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
     const cursor = decodeWatchPageCursor(params.cursor);
 
-    let query = `SELECT * FROM user_state.watch_events WHERE profile_id = $1::uuid AND event_type IN ('playback_completed', 'marked_watched')`;
-    const queryParams: unknown[] = [params.profileId];
-    let paramIdx = 2;
-
-    if (cursor) {
-      query += ` AND (occurred_at < $${paramIdx} OR (occurred_at = $${paramIdx} AND id::text < $${paramIdx + 1}))`;
-      queryParams.push(cursor.sortValue, cursor.tieBreaker);
-      paramIdx += 2;
-    }
-
-    query += ` ORDER BY occurred_at DESC, id DESC LIMIT $${paramIdx}`;
-    queryParams.push(params.limit + 1);
+    const query = `WITH title_ranked AS (
+                     SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at,
+                            we.source_kind, we.source_provider,
+                            ROW_NUMBER() OVER (
+                              PARTITION BY COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                              ORDER BY we.occurred_at DESC, we.id DESC
+                            ) AS rn
+                     FROM user_state.watch_events we
+                     WHERE we.profile_id = $1::uuid
+                       AND we.event_type IN ('playback_completed', 'marked_watched')
+                   )
+                   SELECT id, media_key, media_type, event_type, occurred_at, source_kind, source_provider
+                   FROM title_ranked
+                   WHERE rn = 1
+                     AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
+                          OR (occurred_at = $2::timestamptz AND id > $3::uuid))
+                   ORDER BY occurred_at DESC, id ASC
+                   LIMIT $4`;
+    const queryParams: unknown[] = [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, params.limit + 1];
 
     const { rows } = await db.query(query, queryParams);
     return pageFromRows(rows as SupabaseWatchReadRow[], params.limit, (row) => ({ sortValue: String(row.occurred_at), tieBreaker: String(row.id) }), mapSupabaseHistoryRow);

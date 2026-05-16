@@ -175,19 +175,32 @@ export class LocalUserWatchService {
     if (params.mediaKey) {
       query = `SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider
                FROM user_state.watch_events we
-               WHERE we.profile_id = $1::uuid AND we.title_media_key = $2
+               WHERE we.profile_id = $1::uuid
+                 AND we.event_type IN ('playback_completed', 'marked_watched')
+                 AND (we.media_key = $2 OR we.title_media_key = $2)
                  AND ($3::timestamptz IS NULL OR we.occurred_at < $3::timestamptz
                       OR (we.occurred_at = $3::timestamptz AND we.id > $4::uuid))
                ORDER BY we.occurred_at DESC, we.id ASC
                LIMIT $5`;
       queryParams.push(params.mediaKey, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     } else {
-      query = `SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider
-               FROM user_state.watch_events we
-               WHERE we.profile_id = $1::uuid
-                 AND ($2::timestamptz IS NULL OR we.occurred_at < $2::timestamptz
-                      OR (we.occurred_at = $2::timestamptz AND we.id > $3::uuid))
-               ORDER BY we.occurred_at DESC, we.id ASC
+      query = `WITH title_ranked AS (
+                 SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at,
+                        we.source_kind, we.source_provider,
+                        ROW_NUMBER() OVER (
+                          PARTITION BY COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
+                          ORDER BY we.occurred_at DESC, we.id DESC
+                        ) AS rn
+                 FROM user_state.watch_events we
+                 WHERE we.profile_id = $1::uuid
+                   AND we.event_type IN ('playback_completed', 'marked_watched')
+               )
+               SELECT id, media_key, media_type, event_type, occurred_at, source_kind, source_provider
+               FROM title_ranked
+               WHERE rn = 1
+                 AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
+                      OR (occurred_at = $2::timestamptz AND id > $3::uuid))
+               ORDER BY occurred_at DESC, id ASC
                LIMIT $4`;
       queryParams.push(cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     }
@@ -236,7 +249,7 @@ export class LocalUserWatchService {
     return withDbClient(async (client) => {
       const mediaKeys = [...new Set(params.mediaKeys)];
 
-    const [pbRows, liRows, rtRows, wsRows] = await Promise.all([
+    const [pbRows, liRows, rtRows, wsRows, weRows] = await Promise.all([
         client.query(
           `SELECT title_media_key, playable_media_key, media_type, position_seconds, duration_seconds,
                   progress_bps, last_activity_at, dismissed_at, source_kind, source_provider
@@ -257,10 +270,19 @@ export class LocalUserWatchService {
           [params.profileId, mediaKeys],
         ),
         client.query(
-          `SELECT media_key, title_media_key, media_type, effective_watched, play_count, last_watched_at,
-                  watched_episode_keys
+          `SELECT media_key, title_media_key, media_type, effective_watched, play_count, last_watched_at
            FROM user_state.media_watch_summary
            WHERE profile_id = $1::uuid AND (media_key = ANY($2::text[]) OR title_media_key = ANY($2::text[]))`,
+          [params.profileId, mediaKeys],
+        ),
+        client.query(
+          `SELECT s.title_media_key, array_agg(s.media_key ORDER BY s.media_key) AS watched_episode_keys
+           FROM user_state.media_watch_summary s
+           WHERE s.profile_id = $1::uuid
+             AND s.title_media_key = ANY($2::text[])
+             AND s.media_type = 'episode'
+             AND s.effective_watched = true
+           GROUP BY s.title_media_key`,
           [params.profileId, mediaKeys],
         ),
       ]);
@@ -269,12 +291,14 @@ export class LocalUserWatchService {
       const liByKey = new Map(liRows.rows.map((r) => [String(r.media_key), r]));
       const rtByKey = new Map(rtRows.rows.map((r) => [String(r.media_key), r]));
       const wsByKey = new Map(wsRows.rows.map((r) => [String(r.title_media_key), r]));
+      const weByKey = new Map(weRows.rows.map((r) => [String(r.title_media_key), r]));
 
       return mediaKeys.map((mediaKey) => {
         const pb = pbByKey.get(mediaKey);
         const li = liByKey.get(mediaKey);
         const rt = rtByKey.get(mediaKey);
         const ws = wsByKey.get(mediaKey);
+        const we = weByKey.get(mediaKey) as { watched_episode_keys?: string[] } | undefined;
 
         const mergedRow: Record<string, unknown> = {
           media_key: mediaKey,
@@ -300,7 +324,7 @@ export class LocalUserWatchService {
           effective_watched: ws?.effective_watched ?? false,
           play_count: ws?.play_count ?? 0,
           last_watched_at: ws?.last_watched_at ?? null,
-          watched_episode_keys: Array.isArray(ws?.watched_episode_keys) ? ws.watched_episode_keys : [],
+          watched_episode_keys: Array.isArray(we?.watched_episode_keys) ? we.watched_episode_keys : [],
         };
 
         return mapSupabaseWatchStateRow(mergedRow);
