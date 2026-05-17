@@ -362,25 +362,45 @@ export class LocalUserWatchService {
            params.occurredAt ?? null, params.positionSeconds, params.durationSeconds, progressBps,
            params.clientEventId ?? null],
         );
-      }
 
-      await client.query(
-        `INSERT INTO user_state.playback_progress
-           (profile_id, title_media_key, playable_media_key, media_type,
-            position_seconds, duration_seconds, progress_bps, last_activity_at,
-            source_kind, account_id, last_actor_account_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, now(), 'local', $8::uuid, $8::uuid)
-         ON CONFLICT (profile_id, title_media_key) DO UPDATE SET
-           playable_media_key = EXCLUDED.playable_media_key,
-           position_seconds = EXCLUDED.position_seconds,
-           duration_seconds = EXCLUDED.duration_seconds,
-           progress_bps = EXCLUDED.progress_bps,
-           last_activity_at = now(),
-           dismissed_at = NULL,
-           updated_at = now()`,
-        [params.profileId, params.titleMediaKey, params.mediaKey, params.mediaType,
-         params.positionSeconds, params.durationSeconds, progressBps, params.accountId],
-      );
+        await client.query(
+          `INSERT INTO user_state.media_watch_summary
+             (profile_id, media_key, title_media_key, media_type, effective_watched, play_count,
+              last_watched_at, last_activity_at, source_kind, account_id)
+           VALUES ($1::uuid, $2, $3, $4, true, 1, now(), now(), 'local', $5::uuid)
+           ON CONFLICT (profile_id, media_key) DO UPDATE SET
+             effective_watched = true,
+             play_count = media_watch_summary.play_count + 1,
+             last_watched_at = now(),
+             last_activity_at = now(),
+             updated_at = now()`,
+          [params.profileId, params.mediaKey, params.titleMediaKey, params.mediaType, params.accountId],
+        );
+
+        await client.query(
+          `DELETE FROM user_state.playback_progress
+           WHERE profile_id = $1::uuid AND title_media_key = $2`,
+          [params.profileId, params.titleMediaKey],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO user_state.playback_progress
+             (profile_id, title_media_key, playable_media_key, media_type,
+              position_seconds, duration_seconds, progress_bps, last_activity_at,
+              source_kind, account_id, last_actor_account_id)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, now(), 'local', $8::uuid, $8::uuid)
+           ON CONFLICT (profile_id, title_media_key) DO UPDATE SET
+             playable_media_key = EXCLUDED.playable_media_key,
+             position_seconds = EXCLUDED.position_seconds,
+             duration_seconds = EXCLUDED.duration_seconds,
+             progress_bps = EXCLUDED.progress_bps,
+             last_activity_at = now(),
+             dismissed_at = NULL,
+             updated_at = now()`,
+          [params.profileId, params.titleMediaKey, params.mediaKey, params.mediaType,
+           params.positionSeconds, params.durationSeconds, progressBps, params.accountId],
+        );
+      }
     });
   }
 
@@ -443,7 +463,7 @@ export class LocalUserWatchService {
         `INSERT INTO user_state.watch_events
            (account_id, profile_id, media_key, title_media_key, media_type, event_type,
             occurred_at, source_kind, last_actor_account_id)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'playback_completed',
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'marked_watched',
                  $6::timestamptz, 'local', $1::uuid)`,
         [params.accountId, params.profileId, params.mediaKey, params.titleMediaKey, canonicalType, occurredAt],
       );
@@ -460,6 +480,12 @@ export class LocalUserWatchService {
            last_activity_at = $5::timestamptz,
            updated_at = now()`,
         [params.profileId, params.mediaKey, params.titleMediaKey, canonicalType, occurredAt, params.accountId],
+      );
+
+      await client.query(
+        `DELETE FROM user_state.playback_progress
+         WHERE profile_id = $1::uuid AND title_media_key = $2`,
+        [params.profileId, params.titleMediaKey],
       );
     });
   }
