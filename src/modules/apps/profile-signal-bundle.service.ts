@@ -81,17 +81,17 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
 
     if (liveSignals.history) {
       bundle.history = liveSignals.history.map((item) => ({
-        mediaKey: item.mediaItem.mediaKey,
-        contentType: item.mediaItem.type,
+        mediaKey: item.mediaItem.Id,
+        contentType: item.mediaItem.Type,
         watchedAt: new Date(item.watchedAt),
         progressPercent: readNumber(item.payload?.progressPercent, 100),
         completionState: readString(item.payload?.completionState, 'completed'),
-        durationSeconds: item.mediaItem.runTimeSeconds,
+        durationSeconds: item.mediaItem.RunTimeTicks !== null ? item.mediaItem.RunTimeTicks / 10_000_000 : null,
       }));
     }
     if (liveSignals.ratings) {
       bundle.ratings = liveSignals.ratings.map((item) => ({
-        mediaKey: item.mediaItem.mediaKey,
+        mediaKey: item.mediaItem.Id,
         rating: item.rating.value,
         ratedAt: new Date(item.rating.ratedAt),
         ratingSource: readOptionalString(item.payload?.ratingSource),
@@ -99,15 +99,15 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     }
     if (liveSignals.watchlist) {
       bundle.watchlist = liveSignals.watchlist.map((item) => ({
-        mediaKey: item.mediaItem.mediaKey,
+        mediaKey: item.mediaItem.Id,
         addedAt: new Date(item.addedAt),
       }));
     }
     if (liveSignals.continueWatching) {
       bundle.continueWatching = liveSignals.continueWatching.map((item) => ({
-        mediaKey: item.mediaItem.mediaKey,
-        seasonNumber: item.mediaItem.parentIndexNumber,
-        episodeNumber: item.mediaItem.indexNumber,
+        mediaKey: item.mediaItem.Id,
+        seasonNumber: item.mediaItem.ParentIndexNumber,
+        episodeNumber: item.mediaItem.IndexNumber,
         progressPercent: item.progress.progressPercent,
         updatedAt: new Date(item.lastActivityAt),
       }));

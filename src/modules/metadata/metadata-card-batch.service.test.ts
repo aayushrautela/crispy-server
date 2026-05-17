@@ -57,10 +57,10 @@ test('MetadataCardBatchService hydrates valid media keys and reports invalid key
   assert.deepEqual(receivedMediaKeys, ['movie:tmdb:222', 'episode:tmdb:456:1:2']);
   assert.equal(receivedLanguage, 'es-ES');
   assert.equal(result.items.length, 2);
-  assert.equal(result.items[1]?.mediaItem.mediaKey, 'episode:tmdb:456:1:2');
-  assert.equal(result.items[1]?.mediaItem.parentIndexNumber, 1);
-  assert.equal(result.items[1]?.mediaItem.indexNumber, 2);
-  assert.equal(result.items[1]?.mediaItem.episodeTitle, 'Episode Title');
+  assert.equal(result.items[1]?.mediaItem.Id, 'episode:tmdb:456:1:2');
+  assert.equal(result.items[1]?.mediaItem.ParentIndexNumber, 1);
+  assert.equal(result.items[1]?.mediaItem.IndexNumber, 2);
+  assert.equal(result.items[1]?.mediaItem.EpisodeTitle, 'Episode Title');
   assert.deepEqual(result.missing, [{ mediaKey: 'bad-key', reason: 'invalid_media_key' }]);
 });
 

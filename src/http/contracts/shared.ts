@@ -209,22 +209,22 @@ export const responsiveImageSetSchema = {
 export const mediaImageTagsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['primary', 'backdrop', 'logo', 'thumb', 'screenshot'],
+  required: ['Primary', 'Backdrop', 'Logo', 'Thumb', 'Screenshot'],
   properties: {
-    primary: {
+    Primary: {
       anyOf: [responsiveImageSetSchema, { type: 'null' }],
     },
-    backdrop: {
+    Backdrop: {
       type: 'array',
       items: responsiveImageSetSchema,
     },
-    logo: {
+    Logo: {
       anyOf: [responsiveImageSetSchema, { type: 'null' }],
     },
-    thumb: {
+    Thumb: {
       anyOf: [responsiveImageSetSchema, { type: 'null' }],
     },
-    screenshot: {
+    Screenshot: {
       type: 'array',
       items: responsiveImageSetSchema,
     },
@@ -234,19 +234,19 @@ export const mediaImageTagsSchema = {
 export const parentMediaImageTagsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['primary', 'backdrop', 'logo', 'thumb'],
+  required: ['Primary', 'Backdrop', 'Logo', 'Thumb'],
   properties: {
-    primary: {
+    Primary: {
       anyOf: [responsiveImageSetSchema, { type: 'null' }],
     },
-    backdrop: {
+    Backdrop: {
       type: 'array',
       items: responsiveImageSetSchema,
     },
-    logo: {
+    Logo: {
       anyOf: [responsiveImageSetSchema, { type: 'null' }],
     },
-    thumb: {
+    Thumb: {
       anyOf: [responsiveImageSetSchema, { type: 'null' }],
     },
   },
@@ -255,11 +255,11 @@ export const parentMediaImageTagsSchema = {
 export const providerIdsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['tmdb', 'imdb', 'tvdb'],
+  required: ['Tmdb', 'Imdb', 'Tvdb'],
   properties: {
-    tmdb: nullableStringSchema,
-    imdb: nullableStringSchema,
-    tvdb: nullableStringSchema,
+    Tmdb: nullableStringSchema,
+    Imdb: nullableStringSchema,
+    Tvdb: nullableStringSchema,
   },
 } as const;
 
@@ -274,73 +274,86 @@ export const mediaItemDtoSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'id', 'mediaKey', 'type', 'name', 'originalTitle', 'overview', 'tagline',
-    'productionYear', 'premiereDate', 'communityRating', 'officialRating',
-    'certification', 'genres', 'runTimeSeconds', 'status', 'providerIds',
-    'imageTags', 'parentImageTags', 'seriesId', 'seriesName', 'seasonId',
-    'seasonName', 'parentIndexNumber', 'indexNumber', 'absoluteIndexNumber',
-    'episodeTitle', 'airDate', 'trailerUrl', 'trailerThumbnailUrl',
-    'posterColor', 'backdropColor', 'userData',
+    'Id', 'Type', 'Name', 'OriginalTitle', 'Overview', 'Taglines',
+    'ProductionYear', 'PremiereDate', 'CommunityRating', 'OfficialRating',
+    'Certification', 'Genres', 'RunTimeTicks', 'Status', 'ProviderIds',
+    'ImageTags', 'ParentImageTags', 'SeriesId', 'SeriesName', 'SeasonId',
+    'SeasonName', 'ParentIndexNumber', 'IndexNumber', 'AbsoluteIndexNumber',
+    'EpisodeTitle', 'AirDate', 'RemoteTrailers', 'PosterColor', 'BackdropColor',
+    'UserData',
   ],
   properties: {
-    id: stringSchema,
-    mediaKey: stringSchema,
-    type: {
+    Id: stringSchema,
+    Type: {
       type: 'string',
       enum: ['Movie', 'Series', 'Season', 'Episode', 'Unknown'],
     },
-    name: stringSchema,
-    originalTitle: nullableStringSchema,
-    overview: nullableStringSchema,
-    tagline: nullableStringSchema,
-    productionYear: nullableIntegerSchema,
-    premiereDate: nullableStringSchema,
-    communityRating: nullableNumberSchema,
-    officialRating: nullableStringSchema,
-    certification: nullableStringSchema,
-    genres: {
+    Name: stringSchema,
+    OriginalTitle: nullableStringSchema,
+    Overview: nullableStringSchema,
+    Taglines: {
       type: 'array',
       items: stringSchema,
     },
-    runTimeSeconds: nullableIntegerSchema,
-    status: nullableStringSchema,
-    providerIds: providerIdsSchema,
-    imageTags: mediaImageTagsSchema,
-    parentImageTags: nullableParentMediaImageTagsSchema,
-    seriesId: nullableStringSchema,
-    seriesName: nullableStringSchema,
-    seasonId: nullableStringSchema,
-    seasonName: nullableStringSchema,
-    parentIndexNumber: nullableIntegerSchema,
-    indexNumber: nullableIntegerSchema,
-    absoluteIndexNumber: nullableIntegerSchema,
-    episodeTitle: nullableStringSchema,
-    airDate: nullableStringSchema,
-    trailerUrl: nullableStringSchema,
-    trailerThumbnailUrl: nullableStringSchema,
-    posterColor: nullableStringSchema,
-    backdropColor: nullableStringSchema,
-    userData: {
+    ProductionYear: nullableIntegerSchema,
+    PremiereDate: nullableStringSchema,
+    CommunityRating: nullableNumberSchema,
+    OfficialRating: nullableStringSchema,
+    Certification: nullableStringSchema,
+    Genres: {
+      type: 'array',
+      items: stringSchema,
+    },
+    RunTimeTicks: nullableIntegerSchema,
+    Status: nullableStringSchema,
+    ProviderIds: providerIdsSchema,
+    ImageTags: mediaImageTagsSchema,
+    ParentImageTags: nullableParentMediaImageTagsSchema,
+    SeriesId: nullableStringSchema,
+    SeriesName: nullableStringSchema,
+    SeasonId: nullableStringSchema,
+    SeasonName: nullableStringSchema,
+    ParentIndexNumber: nullableIntegerSchema,
+    IndexNumber: nullableIntegerSchema,
+    AbsoluteIndexNumber: nullableIntegerSchema,
+    EpisodeTitle: nullableStringSchema,
+    AirDate: nullableStringSchema,
+    RemoteTrailers: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['Name', 'Url', 'ThumbnailUrl'],
+        properties: {
+          Name: nullableStringSchema,
+          Url: stringSchema,
+          ThumbnailUrl: nullableStringSchema,
+        },
+      },
+    },
+    PosterColor: nullableStringSchema,
+    BackdropColor: nullableStringSchema,
+    UserData: {
       anyOf: [
         {
           type: 'object',
           additionalProperties: false,
           required: [
-            'itemId', 'isFavorite', 'played', 'playCount',
-            'playbackPositionSeconds', 'runtimeSeconds', 'playedPercentage',
-            'lastPlayedDate', 'rating', 'dismissedFromContinueWatching',
+            'ItemId', 'IsFavorite', 'Played', 'PlayCount',
+            'PlaybackPositionTicks', 'RuntimeTicks', 'PlayedPercentage',
+            'LastPlayedDate', 'Rating', 'DismissedFromContinueWatching',
           ],
           properties: {
-            itemId: stringSchema,
-            isFavorite: { type: 'boolean' },
-            played: { type: 'boolean' },
-            playCount: { type: 'number' },
-            playbackPositionSeconds: nullableNumberSchema,
-            runtimeSeconds: nullableNumberSchema,
-            playedPercentage: nullableNumberSchema,
-            lastPlayedDate: nullableStringSchema,
-            rating: nullableNumberSchema,
-            dismissedFromContinueWatching: { type: 'boolean' },
+            ItemId: stringSchema,
+            IsFavorite: { type: 'boolean' },
+            Played: { type: 'boolean' },
+            PlayCount: { type: 'number' },
+            PlaybackPositionTicks: nullableNumberSchema,
+            RuntimeTicks: nullableNumberSchema,
+            PlayedPercentage: nullableNumberSchema,
+            LastPlayedDate: nullableStringSchema,
+            Rating: nullableNumberSchema,
+            DismissedFromContinueWatching: { type: 'boolean' },
           },
         },
         { type: 'null' },

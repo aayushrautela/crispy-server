@@ -85,32 +85,32 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
         kind: 'search_result',
         mediaItem: {
           mediaType: 'movie',
-          mediaKey: 'movie:tmdb:1',
+          Id: 'movie:tmdb:1',
           title: 'Alpha Movie',
-          originalTitle: null,
+          OriginalTitle: null,
           subtitle: null,
-          overview: null,
+          Overview: null,
           images: { poster: { small: 'https://img.example/alpha.jpg', medium: 'https://img.example/alpha.jpg', large: 'https://img.example/alpha.jpg' }, backdrop: { small: null, medium: null, large: null }, logo: { small: null, medium: null, large: null }, still: { small: null, medium: null, large: null } },
           releaseDate: null,
           releaseYear: 2024,
           rating: 8.1,
-          genres: [],
+          Genres: [],
           runtimeMinutes: null,
-          status: null,
+          Status: null,
           maturityRating: null,
-          certification: null,
-          trailerUrl: null,
+          Certification: null,
+          RemoteTrailers: null,
           trailerThumbnailUrl: null,
-          posterColor: null,
-          backdropColor: null,
+          PosterColor: null,
+          BackdropColor: null,
           externalIds: { tmdb: 1, imdb: null, tvdb: null },
           parent: null,
           showTmdbId: null,
           seasonNumber: null,
           episodeNumber: null,
           absoluteEpisodeNumber: null,
-          episodeTitle: null,
-          airDate: null,
+          EpisodeTitle: null,
+          AirDate: null,
         },
         context: {},
         presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
@@ -133,7 +133,7 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
   assert.deepEqual(left, right);
   assert.equal(profileChecks, 1);
   assert.equal(aiCalls, 1);
-  assert.deepEqual(left.all.map((item) => item.mediaItem.name), ['Alpha Movie']);
-  assert.deepEqual(left.movies.map((item) => item.mediaItem.name), ['Alpha Movie']);
+  assert.deepEqual(left.all.map((item) => item.mediaItem.Name), ['Alpha Movie']);
+  assert.deepEqual(left.movies.map((item) => item.mediaItem.Name), ['Alpha Movie']);
   assert.deepEqual(left.series, []);
 });

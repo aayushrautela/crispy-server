@@ -577,7 +577,7 @@ paths:
         Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/titles/{mediaKey}/extras`.
         Key video fields:
         - `videos` — all TMDB video results for the title.
-        - `trailerUrl` / `trailerThumbnailUrl` — primary trailer (official YouTube trailer preferred; prefers requested/preferred language, then English, then original language, then any language).
+        - `RemoteTrailers` — primary trailer entries with `Url` and `ThumbnailUrl` on Jellyfin-style item payloads.
       security:
         - UserBearerAuth: []
       parameters:
@@ -2466,6 +2466,271 @@ components:
     GenericObject:
       type: object
       additionalProperties: true
+    ResponsiveImageSet:
+      type: object
+      additionalProperties: false
+      required: [small, medium, large]
+      properties:
+        small:
+          anyOf:
+            - type: string
+            - type: "null"
+        medium:
+          anyOf:
+            - type: string
+            - type: "null"
+        large:
+          anyOf:
+            - type: string
+            - type: "null"
+    BaseItemImageTags:
+      type: object
+      additionalProperties: false
+      required: [Primary, Backdrop, Logo, Thumb, Screenshot]
+      properties:
+        Primary:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        Backdrop:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResponsiveImageSet"
+        Logo:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        Thumb:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        Screenshot:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResponsiveImageSet"
+    ParentBaseItemImageTags:
+      type: object
+      additionalProperties: false
+      required: [Primary, Backdrop, Logo, Thumb]
+      properties:
+        Primary:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        Backdrop:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResponsiveImageSet"
+        Logo:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        Thumb:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+    ProviderIds:
+      type: object
+      additionalProperties: false
+      required: [Tmdb, Imdb, Tvdb]
+      properties:
+        Tmdb:
+          anyOf:
+            - type: string
+            - type: "null"
+        Imdb:
+          anyOf:
+            - type: string
+            - type: "null"
+        Tvdb:
+          anyOf:
+            - type: string
+            - type: "null"
+    RemoteTrailerDto:
+      type: object
+      additionalProperties: false
+      required: [Name, Url, ThumbnailUrl]
+      properties:
+        Name:
+          anyOf:
+            - type: string
+            - type: "null"
+        Url:
+          type: string
+        ThumbnailUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+    UserItemDataDto:
+      type: object
+      additionalProperties: false
+      required: [ItemId, IsFavorite, Played, PlayCount, PlaybackPositionTicks, RuntimeTicks, PlayedPercentage, LastPlayedDate, Rating, DismissedFromContinueWatching]
+      properties:
+        ItemId:
+          type: string
+        IsFavorite:
+          type: boolean
+        Played:
+          type: boolean
+        PlayCount:
+          type: number
+        PlaybackPositionTicks:
+          anyOf:
+            - type: number
+            - type: "null"
+        RuntimeTicks:
+          anyOf:
+            - type: number
+            - type: "null"
+        PlayedPercentage:
+          anyOf:
+            - type: number
+            - type: "null"
+        LastPlayedDate:
+          anyOf:
+            - type: string
+            - type: "null"
+        Rating:
+          anyOf:
+            - type: number
+            - type: "null"
+        DismissedFromContinueWatching:
+          type: boolean
+    BaseItemDto:
+      type: object
+      additionalProperties: false
+      required: [Id, Type, Name, OriginalTitle, Overview, Taglines, ProductionYear, PremiereDate, CommunityRating, OfficialRating, Certification, Genres, RunTimeTicks, Status, ProviderIds, ImageTags, ParentImageTags, SeriesId, SeriesName, SeasonId, SeasonName, ParentIndexNumber, IndexNumber, AbsoluteIndexNumber, EpisodeTitle, AirDate, RemoteTrailers, PosterColor, BackdropColor, UserData]
+      properties:
+        Id:
+          type: string
+        Type:
+          type: string
+          enum: [Movie, Series, Season, Episode, Unknown]
+        Name:
+          type: string
+        OriginalTitle:
+          anyOf:
+            - type: string
+            - type: "null"
+        Overview:
+          anyOf:
+            - type: string
+            - type: "null"
+        Taglines:
+          type: array
+          items:
+            type: string
+        ProductionYear:
+          anyOf:
+            - type: integer
+            - type: "null"
+        PremiereDate:
+          anyOf:
+            - type: string
+            - type: "null"
+        CommunityRating:
+          anyOf:
+            - type: number
+            - type: "null"
+        OfficialRating:
+          anyOf:
+            - type: string
+            - type: "null"
+        Certification:
+          anyOf:
+            - type: string
+            - type: "null"
+        Genres:
+          type: array
+          items:
+            type: string
+        RunTimeTicks:
+          anyOf:
+            - type: integer
+            - type: "null"
+        Status:
+          anyOf:
+            - type: string
+            - type: "null"
+        ProviderIds:
+          $ref: "#/components/schemas/ProviderIds"
+        ImageTags:
+          $ref: "#/components/schemas/BaseItemImageTags"
+        ParentImageTags:
+          anyOf:
+            - $ref: "#/components/schemas/ParentBaseItemImageTags"
+            - type: "null"
+        SeriesId:
+          anyOf:
+            - type: string
+            - type: "null"
+        SeriesName:
+          anyOf:
+            - type: string
+            - type: "null"
+        SeasonId:
+          anyOf:
+            - type: string
+            - type: "null"
+        SeasonName:
+          anyOf:
+            - type: string
+            - type: "null"
+        ParentIndexNumber:
+          anyOf:
+            - type: integer
+            - type: "null"
+        IndexNumber:
+          anyOf:
+            - type: integer
+            - type: "null"
+        AbsoluteIndexNumber:
+          anyOf:
+            - type: integer
+            - type: "null"
+        EpisodeTitle:
+          anyOf:
+            - type: string
+            - type: "null"
+        AirDate:
+          anyOf:
+            - type: string
+            - type: "null"
+        RemoteTrailers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RemoteTrailerDto"
+        PosterColor:
+          anyOf:
+            - type: string
+            - type: "null"
+        BackdropColor:
+          anyOf:
+            - type: string
+            - type: "null"
+        UserData:
+          anyOf:
+            - $ref: "#/components/schemas/UserItemDataDto"
+            - type: "null"
+    BaseItemDtoQueryResult:
+      type: object
+      additionalProperties: false
+      required: [Items, StartIndex, TotalRecordCount, NextCursor, HasMore]
+      properties:
+        Items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BaseItemDto"
+        StartIndex:
+          type: integer
+        TotalRecordCount:
+          type: integer
+        NextCursor:
+          anyOf:
+            - type: string
+            - type: "null"
+        HasMore:
+          type: boolean
     MetadataTitleDetailResponse:
       type: object
       required:
@@ -2478,10 +2743,10 @@ components:
         - production
       properties:
         item:
-          $ref: "#/components/schemas/GenericObject"
+          $ref: "#/components/schemas/BaseItemDto"
         nextEpisode:
           anyOf:
-            - $ref: "#/components/schemas/GenericObject"
+            - $ref: "#/components/schemas/BaseItemDto"
             - type: "null"
         videos:
           type: array
@@ -2513,11 +2778,11 @@ components:
         seasons:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
+            $ref: "#/components/schemas/BaseItemDto"
         episodes:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
+            $ref: "#/components/schemas/BaseItemDto"
         reviews:
           type: array
           items:
@@ -2525,10 +2790,10 @@ components:
         similar:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
+            $ref: "#/components/schemas/BaseItemDto"
         collection:
           anyOf:
-            - $ref: "#/components/schemas/GenericObject"
+            - $ref: "#/components/schemas/BaseItemDtoQueryResult"
             - type: "null"
     GenericArray:
       type: array

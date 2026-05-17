@@ -1,5 +1,5 @@
 import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
-import { watchCacheRecordToMediaItemDto } from '../metadata/media-item.mapper.js';
+import { secondsToTicks, watchCacheRecordToMediaItemDto } from '../metadata/media-item.mapper.js';
 import type { MediaItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
 import type {
   ContinueWatchingProductItem,
@@ -152,7 +152,7 @@ export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
 
   return {
     kind: 'watch_state',
-    mediaItem: mediaItemDtoFromRow(mediaKey, row, { userData }),
+    mediaItem: mediaItemDtoFromRow(mediaKey, row, { UserData: userData }),
     context: {
       progress,
       continueWatching,
@@ -182,16 +182,16 @@ function buildUserData(
   playCount: number,
 ): UserItemDataDto {
   return {
-    itemId: mediaKey,
-    isFavorite: false,
-    played: watched !== null,
-    playCount,
-    playbackPositionSeconds: continueWatching?.positionSeconds ?? progress?.positionSeconds ?? null,
-    runtimeSeconds: continueWatching?.durationSeconds ?? progress?.durationSeconds ?? null,
-    playedPercentage: continueWatching?.progressPercent ?? progress?.progressPercent ?? null,
-    lastPlayedDate: watched?.watchedAt ?? continueWatching?.lastActivityAt ?? progress?.lastPlayedAt ?? null,
-    rating: rating?.value ?? null,
-    dismissedFromContinueWatching: false,
+    ItemId: mediaKey,
+    IsFavorite: false,
+    Played: watched !== null,
+    PlayCount: playCount,
+    PlaybackPositionTicks: secondsToTicks(continueWatching?.positionSeconds ?? progress?.positionSeconds ?? null),
+    RuntimeTicks: secondsToTicks(continueWatching?.durationSeconds ?? progress?.durationSeconds ?? null),
+    PlayedPercentage: continueWatching?.progressPercent ?? progress?.progressPercent ?? null,
+    LastPlayedDate: watched?.watchedAt ?? continueWatching?.lastActivityAt ?? progress?.lastPlayedAt ?? null,
+    Rating: rating?.value ?? null,
+    DismissedFromContinueWatching: false,
   };
 }
 
@@ -228,16 +228,16 @@ function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: st
     episodeTitle: null,
     episodeAirDate: null,
   }, {
-    id: titleMediaKey,
-    seriesName: seriesName ?? null,
-    seasonId: isEpisode ? stringValue(row.season_id) || null : null,
-    seasonName: isEpisode ? nullableStringValue(row.season_name) : null,
-    seriesId: isEpisode ? String(parsed.showTmdbId ?? '') : null,
-    parentIndexNumber: isEpisode ? parsed.seasonNumber : null,
-    indexNumber: isEpisode ? parsed.episodeNumber : null,
-    absoluteIndexNumber: null,
-    episodeTitle: isEpisode ? nullableStringValue(row.title) || null : null,
-    airDate: null,
+    Id: playableMediaKey,
+    SeriesName: seriesName ?? null,
+    SeasonId: isEpisode ? stringValue(row.season_id) || null : null,
+    SeasonName: isEpisode ? nullableStringValue(row.season_name) : null,
+    SeriesId: isEpisode ? String(parsed.showTmdbId ?? '') : null,
+    ParentIndexNumber: isEpisode ? parsed.seasonNumber : null,
+    IndexNumber: isEpisode ? parsed.episodeNumber : null,
+    AbsoluteIndexNumber: null,
+    EpisodeTitle: isEpisode ? nullableStringValue(row.title) || null : null,
+    AirDate: null,
   });
 }
 

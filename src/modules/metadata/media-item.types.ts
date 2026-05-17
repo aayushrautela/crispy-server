@@ -61,9 +61,9 @@ export type MediaItem = {
   badges: Badge[];
 };
 
-export type MediaItemKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Unknown';
+export type BaseItemKind = 'Movie' | 'Series' | 'Season' | 'Episode' | 'Unknown';
 
-export function mediaItemTypeFromKind(kind: MediaItemKind): MediaItemType {
+export function mediaItemTypeFromKind(kind: BaseItemKind): MediaItemType {
   switch (kind) {
     case 'Movie': return 'movie';
     case 'Series': return 'show';
@@ -73,7 +73,7 @@ export function mediaItemTypeFromKind(kind: MediaItemKind): MediaItemType {
   }
 }
 
-export function mediaItemKindFromType(type: MediaItemType): MediaItemKind {
+export function mediaItemKindFromType(type: MediaItemType): BaseItemKind {
   switch (type) {
     case 'movie': return 'Movie';
     case 'show': return 'Series';
@@ -83,74 +83,92 @@ export function mediaItemKindFromType(type: MediaItemType): MediaItemKind {
   }
 }
 
-export type MediaImageTags = {
-  primary: ResponsiveImageSet | null;
-  backdrop: ResponsiveImageSet[];
-  logo: ResponsiveImageSet | null;
-  thumb: ResponsiveImageSet | null;
-  screenshot: ResponsiveImageSet[];
+export type BaseItemImageTags = {
+  Primary: ResponsiveImageSet | null;
+  Backdrop: ResponsiveImageSet[];
+  Logo: ResponsiveImageSet | null;
+  Thumb: ResponsiveImageSet | null;
+  Screenshot: ResponsiveImageSet[];
 };
 
-export type ParentMediaImageTags = {
-  primary: ResponsiveImageSet | null;
-  backdrop: ResponsiveImageSet[];
-  logo: ResponsiveImageSet | null;
-  thumb: ResponsiveImageSet | null;
+export type ParentBaseItemImageTags = {
+  Primary: ResponsiveImageSet | null;
+  Backdrop: ResponsiveImageSet[];
+  Logo: ResponsiveImageSet | null;
+  Thumb: ResponsiveImageSet | null;
 };
 
-export type ProviderIds = {
-  tmdb: string | null;
-  imdb: string | null;
-  tvdb: string | null;
+export type ProviderIdsDto = {
+  Tmdb: string | null;
+  Imdb: string | null;
+  Tvdb: string | null;
+};
+
+export type RemoteTrailerDto = {
+  Name: string | null;
+  Url: string;
+  ThumbnailUrl: string | null;
 };
 
 export type UserItemDataDto = {
-  itemId: string;
-  isFavorite: boolean;
-  played: boolean;
-  playCount: number;
-  playbackPositionSeconds: number | null;
-  runtimeSeconds: number | null;
-  playedPercentage: number | null;
-  lastPlayedDate: string | null;
-  rating: number | null;
-  dismissedFromContinueWatching: boolean;
+  ItemId: string;
+  IsFavorite: boolean;
+  Played: boolean;
+  PlayCount: number;
+  PlaybackPositionTicks: number | null;
+  RuntimeTicks: number | null;
+  PlayedPercentage: number | null;
+  LastPlayedDate: string | null;
+  Rating: number | null;
+  DismissedFromContinueWatching: boolean;
 };
 
-export type MediaItemDto = {
-  id: string;
-  mediaKey: string;
-  type: MediaItemKind;
-  name: string;
-  originalTitle: string | null;
-  overview: string | null;
-  tagline: string | null;
-  productionYear: number | null;
-  premiereDate: string | null;
-  communityRating: number | null;
-  officialRating: string | null;
-  certification: string | null;
-  genres: string[];
-  runTimeSeconds: number | null;
-  status: string | null;
-  providerIds: ProviderIds;
-  imageTags: MediaImageTags;
-  parentImageTags: ParentMediaImageTags | null;
-  seriesId: string | null;
-  seriesName: string | null;
-  seasonId: string | null;
-  seasonName: string | null;
-  parentIndexNumber: number | null;
-  indexNumber: number | null;
-  absoluteIndexNumber: number | null;
-  episodeTitle: string | null;
-  airDate: string | null;
-  trailerUrl: string | null;
-  trailerThumbnailUrl: string | null;
-  posterColor: string | null;
-  backdropColor: string | null;
-  userData: UserItemDataDto | null;
+export type BaseItemDto = {
+  Id: string;
+  Type: BaseItemKind;
+  Name: string;
+  OriginalTitle: string | null;
+  Overview: string | null;
+  Taglines: string[];
+  ProductionYear: number | null;
+  PremiereDate: string | null;
+  CommunityRating: number | null;
+  OfficialRating: string | null;
+  Certification: string | null;
+  Genres: string[];
+  RunTimeTicks: number | null;
+  Status: string | null;
+  ProviderIds: ProviderIdsDto;
+  ImageTags: BaseItemImageTags;
+  ParentImageTags: ParentBaseItemImageTags | null;
+  SeriesId: string | null;
+  SeriesName: string | null;
+  SeasonId: string | null;
+  SeasonName: string | null;
+  ParentIndexNumber: number | null;
+  IndexNumber: number | null;
+  AbsoluteIndexNumber: number | null;
+  EpisodeTitle: string | null;
+  AirDate: string | null;
+  RemoteTrailers: RemoteTrailerDto[];
+  PosterColor: string | null;
+  BackdropColor: string | null;
+  UserData: UserItemDataDto | null;
 };
+
+export type BaseItemDtoQueryResult = {
+  Items: BaseItemDto[];
+  StartIndex: number;
+  TotalRecordCount: number;
+  NextCursor: string | null;
+  HasMore: boolean;
+};
+
+export type MediaItemKind = BaseItemKind;
+export type MediaImageTags = BaseItemImageTags;
+export type ParentMediaImageTags = ParentBaseItemImageTags;
+export type ProviderIds = ProviderIdsDto;
+export type MediaItemDto = BaseItemDto;
 
 export type MobileSurfaceKind =
   | 'continue_watching'

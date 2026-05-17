@@ -20,16 +20,16 @@ type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMis
 
 function buildParentImageTags(record: WatchMediaCardCacheRecord): ParentMediaImageTags {
   return {
-    primary: record.posterUrl
+    Primary: record.posterUrl
       ? buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' })
       : null,
-    backdrop: record.backdropUrl
+    Backdrop: record.backdropUrl
       ? [buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' })]
       : [],
-    logo: record.logoUrl
+    Logo: record.logoUrl
       ? buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' })
       : null,
-    thumb: record.stillUrl
+    Thumb: record.stillUrl
       ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
       : null,
   };
@@ -46,32 +46,32 @@ export class WatchMetadataEnrichmentService {
     items: ContinueWatchingProductItem[],
     language?: string | null,
   ): Promise<ContinueWatchingProductItem[]> {
-    const mediaKeys = items.map((item) => item.mediaItem.mediaKey);
+    const mediaKeys = items.map((item) => item.mediaItem.Id);
     const parentKeys = items
-      .filter((item) => item.mediaItem.type === 'Episode')
+      .filter((item) => item.mediaItem.Type === 'Episode')
       .map((item) => item.id)
       .filter((k): k is string => !!k);
     const allKeys = [...new Set([...mediaKeys, ...parentKeys])];
     const records = await this.loadRecords(client, allKeys, language);
 
     return items.reduce<ContinueWatchingProductItem[]>((acc, item) => {
-      const record = records.get(item.mediaItem.mediaKey);
+      const record = records.get(item.mediaItem.Id);
       if (!record) {
         return acc;
       }
 
-      const parentKey = item.mediaItem.type === 'Episode' ? item.id : null;
+      const parentKey = item.mediaItem.Type === 'Episode' ? item.id : null;
       const parentRecord = parentKey ? records.get(parentKey) : undefined;
 
-      if (item.mediaItem.type === 'Episode' && !parentRecord) {
+      if (item.mediaItem.Type === 'Episode' && !parentRecord) {
         return acc;
       }
 
       const enriched = mergeEnrichedMediaItemDto(record, item.mediaItem);
 
       if (parentRecord) {
-        enriched.seriesName = enriched.seriesName ?? parentRecord.title;
-        enriched.parentImageTags = enriched.parentImageTags ?? buildParentImageTags(parentRecord);
+        enriched.SeriesName = enriched.SeriesName ?? parentRecord.title;
+        enriched.ParentImageTags = enriched.ParentImageTags ?? buildParentImageTags(parentRecord);
       }
 
       return acc.concat([{ ...item, mediaItem: enriched }]);
@@ -79,9 +79,9 @@ export class WatchMetadataEnrichmentService {
   }
 
   async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[], language?: string | null): Promise<TItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.mediaKey), language);
+    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.Id), language);
     return items.map((item) => {
-      const record = records.get(item.mediaItem.mediaKey);
+      const record = records.get(item.mediaItem.Id);
       if (!record) {
         return item;
       }
@@ -120,35 +120,34 @@ function mergeEnrichedMediaItemDto(record: WatchMediaCardCacheRecord, existing: 
 
   return {
     ...enriched,
-    id: existing.id,
-    name: enriched.name || existing.name,
-    originalTitle: existing.originalTitle,
-    overview: enriched.overview ?? existing.overview,
-    imageTags: {
-      ...enriched.imageTags,
-      thumb: existing.imageTags.thumb ?? enriched.imageTags.thumb,
+    Id: existing.Id,
+    Name: enriched.Name || existing.Name,
+    OriginalTitle: existing.OriginalTitle,
+    Overview: enriched.Overview ?? existing.Overview,
+    ImageTags: {
+      ...enriched.ImageTags,
+      Thumb: existing.ImageTags.Thumb ?? enriched.ImageTags.Thumb,
     },
-    communityRating: enriched.communityRating ?? existing.communityRating,
-    genres: enriched.genres,
-    runTimeSeconds: enriched.runTimeSeconds ?? existing.runTimeSeconds,
-    status: enriched.status ?? existing.status,
-    officialRating: enriched.officialRating ?? existing.officialRating,
-    certification: enriched.certification ?? existing.certification,
-    trailerUrl: enriched.trailerUrl,
-    trailerThumbnailUrl: enriched.trailerThumbnailUrl,
-    posterColor: enriched.posterColor,
-    backdropColor: enriched.backdropColor,
-    providerIds: existing.providerIds,
-    seriesId: existing.seriesId,
-    seriesName: existing.seriesName || enriched.seriesName || null,
-    seasonId: existing.seasonId,
-    seasonName: existing.seasonName,
-    parentIndexNumber: existing.parentIndexNumber,
-    indexNumber: existing.indexNumber,
-    absoluteIndexNumber: existing.absoluteIndexNumber,
-    episodeTitle: existing.episodeTitle ?? enriched.episodeTitle ?? null,
-    airDate: existing.airDate ?? enriched.airDate ?? null,
-    parentImageTags: existing.parentImageTags ?? enriched.parentImageTags,
-    userData: existing.userData,
+    CommunityRating: enriched.CommunityRating ?? existing.CommunityRating,
+    Genres: enriched.Genres,
+    RunTimeTicks: enriched.RunTimeTicks ?? existing.RunTimeTicks,
+    Status: enriched.Status ?? existing.Status,
+    OfficialRating: enriched.OfficialRating ?? existing.OfficialRating,
+    Certification: enriched.Certification ?? existing.Certification,
+    RemoteTrailers: enriched.RemoteTrailers,
+    PosterColor: enriched.PosterColor,
+    BackdropColor: enriched.BackdropColor,
+    ProviderIds: existing.ProviderIds,
+    SeriesId: existing.SeriesId,
+    SeriesName: existing.SeriesName || enriched.SeriesName || null,
+    SeasonId: existing.SeasonId,
+    SeasonName: existing.SeasonName,
+    ParentIndexNumber: existing.ParentIndexNumber,
+    IndexNumber: existing.IndexNumber,
+    AbsoluteIndexNumber: existing.AbsoluteIndexNumber,
+    EpisodeTitle: existing.EpisodeTitle ?? enriched.EpisodeTitle ?? null,
+    AirDate: existing.AirDate ?? enriched.AirDate ?? null,
+    ParentImageTags: existing.ParentImageTags ?? enriched.ParentImageTags,
+    UserData: existing.UserData,
   };
 }

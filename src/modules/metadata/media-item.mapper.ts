@@ -1,14 +1,20 @@
 import type { MetadataCardView } from './metadata-card.types.js';
 import type { MetadataView } from './metadata-detail.types.js';
-import type { MediaItem, MediaItemType, MediaItemDto, MediaItemKind, MediaImageTags, ParentMediaImageTags, ProviderIds, ResponsiveImageSet } from './media-item.types.js';
+import type { BaseItemDto, BaseItemImageTags, MediaItem, MediaItemType, ParentBaseItemImageTags, ProviderIdsDto, ResponsiveImageSet } from './media-item.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from './metadata-builder.shared.js';
+
+const TICKS_PER_SECOND = 10_000_000;
 
 const emptyExternalIds = {
   tmdb: null,
   imdb: null,
   tvdb: null,
 };
+
+export function secondsToTicks(seconds: number | null): number | null {
+  return seconds !== null ? Math.round(seconds * TICKS_PER_SECOND) : null;
+}
 
 export function metadataCardToMediaItem(card: MetadataCardView, overrides: Partial<MediaItem> = {}): MediaItem {
   const item: MediaItem = {
@@ -87,54 +93,62 @@ function providerIdsNumber(n: number | null): string | null {
   return n !== null ? String(n) : null;
 }
 
-export function mediaItemToMediaItemDto(item: MediaItem): MediaItemDto {
+function runtimeMinutesToTicks(minutes: number | null): number | null {
+  return minutes !== null ? minutes * 60 * TICKS_PER_SECOND : null;
+}
+
+function remoteTrailers(url: string | null, thumbnailUrl: string | null) {
+  return url ? [{ Name: null, Url: url, ThumbnailUrl: thumbnailUrl }] : [];
+}
+
+export function mediaItemToBaseItemDto(item: MediaItem): BaseItemDto {
   return {
-    id: item.mediaKey,
-    mediaKey: item.mediaKey,
-    type: item.mediaType === 'show' ? 'Series' : item.mediaType === 'movie' ? 'Movie' : item.mediaType === 'season' ? 'Season' : item.mediaType === 'episode' ? 'Episode' : 'Unknown',
-    name: item.title,
-    originalTitle: item.originalTitle,
-    overview: item.overview,
-    tagline: null,
-    productionYear: item.releaseYear,
-    premiereDate: item.releaseDate,
-    communityRating: item.rating,
-    officialRating: item.maturityRating,
-    certification: item.certification,
-    genres: item.genres,
-    runTimeSeconds: item.runtimeMinutes !== null ? item.runtimeMinutes * 60 : null,
-    status: item.status,
-    providerIds: {
-      tmdb: providerIdsNumber(item.externalIds.tmdb),
-      imdb: item.externalIds.imdb,
-      tvdb: providerIdsNumber(item.externalIds.tvdb),
+    Id: item.mediaKey,
+    Type: item.mediaType === 'show' ? 'Series' : item.mediaType === 'movie' ? 'Movie' : item.mediaType === 'season' ? 'Season' : item.mediaType === 'episode' ? 'Episode' : 'Unknown',
+    Name: item.title,
+    OriginalTitle: item.originalTitle,
+    Overview: item.overview,
+    Taglines: [],
+    ProductionYear: item.releaseYear,
+    PremiereDate: item.releaseDate,
+    CommunityRating: item.rating,
+    OfficialRating: item.maturityRating,
+    Certification: item.certification,
+    Genres: item.genres,
+    RunTimeTicks: runtimeMinutesToTicks(item.runtimeMinutes),
+    Status: item.status,
+    ProviderIds: {
+      Tmdb: providerIdsNumber(item.externalIds.tmdb),
+      Imdb: item.externalIds.imdb,
+      Tvdb: providerIdsNumber(item.externalIds.tvdb),
     },
-    imageTags: {
-      primary: singleOrEmpty(item.images.poster),
-      backdrop: [item.images.backdrop],
-      logo: singleOrEmpty(item.images.logo),
-      thumb: singleOrEmpty(item.images.still),
-      screenshot: [],
+    ImageTags: {
+      Primary: singleOrEmpty(item.images.poster),
+      Backdrop: [item.images.backdrop],
+      Logo: singleOrEmpty(item.images.logo),
+      Thumb: singleOrEmpty(item.images.still),
+      Screenshot: [],
     },
-    parentImageTags: null,
-    seriesId: item.showTmdbId !== null ? String(item.showTmdbId) : null,
-    seriesName: item.parent?.mediaType === 'show' ? item.parent.title : null,
-    seasonId: null,
-    seasonName: null,
-    parentIndexNumber: item.seasonNumber,
-    indexNumber: item.episodeNumber,
-    absoluteIndexNumber: item.absoluteEpisodeNumber,
-    episodeTitle: item.episodeTitle,
-    airDate: item.airDate,
-    trailerUrl: item.trailerUrl,
-    trailerThumbnailUrl: item.trailerThumbnailUrl,
-    posterColor: item.posterColor,
-    backdropColor: item.backdropColor,
-    userData: null,
+    ParentImageTags: null,
+    SeriesId: item.showTmdbId !== null ? String(item.showTmdbId) : null,
+    SeriesName: item.parent?.mediaType === 'show' ? item.parent.title : null,
+    SeasonId: null,
+    SeasonName: null,
+    ParentIndexNumber: item.seasonNumber,
+    IndexNumber: item.episodeNumber,
+    AbsoluteIndexNumber: item.absoluteEpisodeNumber,
+    EpisodeTitle: item.episodeTitle,
+    AirDate: item.airDate,
+    RemoteTrailers: remoteTrailers(item.trailerUrl, item.trailerThumbnailUrl),
+    PosterColor: item.posterColor,
+    BackdropColor: item.backdropColor,
+    UserData: null,
   };
 }
 
-export function watchCacheRecordToMediaItemDto(record: WatchMediaCardCacheRecord, overrides: Partial<MediaItemDto> = {}): MediaItemDto {
+export const mediaItemToMediaItemDto = mediaItemToBaseItemDto;
+
+export function watchCacheRecordToBaseItemDto(record: WatchMediaCardCacheRecord, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   const still = record.stillUrl
     ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
     : emptyResponsiveImageSet();
@@ -144,60 +158,82 @@ export function watchCacheRecordToMediaItemDto(record: WatchMediaCardCacheRecord
   const backdrop = buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' });
   const logo = buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' });
 
-  const item: MediaItemDto = {
-    id: record.mediaKey,
-    mediaKey: record.mediaKey,
-    type: record.mediaType === 'show' ? 'Series' : record.mediaType === 'movie' ? 'Movie' : record.mediaType === 'season' ? 'Season' : record.mediaType === 'episode' ? 'Episode' : 'Unknown',
-    name: record.title,
-    originalTitle: null,
-    overview: record.overview,
-    tagline: null,
-    productionYear: record.releaseYear,
-    premiereDate: record.releaseDate,
-    communityRating: record.rating,
-    officialRating: record.maturityRating,
-    certification: record.maturityRating,
-    genres: record.genres,
-    runTimeSeconds: record.runtimeMinutes !== null ? record.runtimeMinutes * 60 : null,
-    status: record.status,
-    providerIds: {
-      tmdb: record.titleProviderId ?? null,
-      imdb: null,
-      tvdb: null,
+  const item: BaseItemDto = {
+    Id: record.mediaKey,
+    Type: record.mediaType === 'show' ? 'Series' : record.mediaType === 'movie' ? 'Movie' : record.mediaType === 'season' ? 'Season' : record.mediaType === 'episode' ? 'Episode' : 'Unknown',
+    Name: record.title,
+    OriginalTitle: null,
+    Overview: record.overview,
+    Taglines: [],
+    ProductionYear: record.releaseYear,
+    PremiereDate: record.releaseDate,
+    CommunityRating: record.rating,
+    OfficialRating: record.maturityRating,
+    Certification: record.maturityRating,
+    Genres: record.genres,
+    RunTimeTicks: runtimeMinutesToTicks(record.runtimeMinutes),
+    Status: record.status,
+    ProviderIds: {
+      Tmdb: record.titleProviderId ?? null,
+      Imdb: null,
+      Tvdb: null,
     },
-    imageTags: {
-      primary: singleOrEmpty(poster),
-      backdrop: thumb?.small ? [thumb, backdrop] : [backdrop],
-      logo: singleOrEmpty(logo),
-      thumb,
-      screenshot: [],
+    ImageTags: {
+      Primary: singleOrEmpty(poster),
+      Backdrop: thumb?.small ? [thumb, backdrop] : [backdrop],
+      Logo: singleOrEmpty(logo),
+      Thumb: thumb,
+      Screenshot: [],
     },
-    parentImageTags: null,
-    seriesId: null,
-    seriesName: null,
-    seasonId: null,
-    seasonName: null,
-    parentIndexNumber: null,
-    indexNumber: null,
-    absoluteIndexNumber: null,
-    episodeTitle: record.episodeTitle,
-    airDate: record.episodeAirDate,
-    trailerUrl: record.trailerUrl,
-    trailerThumbnailUrl: record.trailerThumbnailUrl,
-    posterColor: record.posterColor,
-    backdropColor: record.backdropColor,
-    userData: null,
+    ParentImageTags: null,
+    SeriesId: null,
+    SeriesName: null,
+    SeasonId: null,
+    SeasonName: null,
+    ParentIndexNumber: null,
+    IndexNumber: null,
+    AbsoluteIndexNumber: null,
+    EpisodeTitle: record.episodeTitle,
+    AirDate: record.episodeAirDate,
+    RemoteTrailers: remoteTrailers(record.trailerUrl, record.trailerThumbnailUrl),
+    PosterColor: record.posterColor,
+    BackdropColor: record.backdropColor,
+    UserData: null,
   };
 
   return applyDtoOverrides(item, overrides);
 }
 
-function applyDtoOverrides(item: MediaItemDto, overrides: Partial<MediaItemDto>): MediaItemDto {
+export const watchCacheRecordToMediaItemDto = watchCacheRecordToBaseItemDto;
+
+function applyDtoOverrides(item: BaseItemDto, overrides: Partial<BaseItemDto>): BaseItemDto {
   return {
     ...item,
     ...overrides,
-    imageTags: overrides.imageTags ?? item.imageTags,
-    providerIds: overrides.providerIds ?? item.providerIds,
-    parentImageTags: overrides.parentImageTags === undefined ? item.parentImageTags : overrides.parentImageTags,
-  } as MediaItemDto;
+    ImageTags: overrides.ImageTags ?? item.ImageTags,
+    ProviderIds: overrides.ProviderIds ?? item.ProviderIds,
+    ParentImageTags: overrides.ParentImageTags === undefined ? item.ParentImageTags : overrides.ParentImageTags,
+    Taglines: overrides.Taglines ?? item.Taglines,
+    RemoteTrailers: overrides.RemoteTrailers ?? item.RemoteTrailers,
+  };
+}
+
+export function baseItemId(item: BaseItemDto): string {
+  return item.Id;
+}
+
+export function baseItemType(item: BaseItemDto) {
+  return item.Type;
+}
+
+export function baseItemImageTags(item: BaseItemDto): BaseItemImageTags {
+  return item.ImageTags;
+}
+
+export function baseItemParentImageTags(item: BaseItemDto): ParentBaseItemImageTags | null {
+  return item.ParentImageTags;
+}
+
+export function baseItemProviderIds(item: BaseItemDto): ProviderIdsDto {
+  return item.ProviderIds;
 }

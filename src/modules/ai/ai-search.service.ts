@@ -87,7 +87,7 @@ export class AiSearchService {
         finalCount: response.all.length,
         candidateSamples: candidates.slice(0, 8),
         unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: response.all.slice(0, 8).map((item) => `${item.mediaItem.type}:${item.mediaItem.mediaKey}`),
+        resultTitles: response.all.slice(0, 8).map((item) => `${item.mediaItem.Type}:${item.mediaItem.Id}`),
         generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
@@ -163,7 +163,7 @@ function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: Sea
       skippedAnchor = true;
       continue;
     }
-    if (kept.some((existing) => isSameTitleFamily(existing.item.mediaItem.name ?? '', suggestion.item.mediaItem.name ?? ''))) {
+    if (kept.some((existing) => isSameTitleFamily(existing.item.mediaItem.Name ?? '', suggestion.item.mediaItem.Name ?? ''))) {
       continue;
     }
     kept.push(suggestion);
@@ -180,11 +180,11 @@ function bucketResolvedItems(query: string, items: MetadataSearchResult[]): Meta
   const series: MetadataSearchResult[] = [];
 
   for (const item of items) {
-    if (item.mediaItem.type === 'Movie') {
+    if (item.mediaItem.Type === 'Movie') {
       movies.push(item);
       continue;
     }
-    if (item.mediaItem.type === 'Series') {
+    if (item.mediaItem.Type === 'Series') {
       series.push(item);
       continue;
     }
@@ -203,7 +203,7 @@ function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggest
   const seen = new Set<string>();
   const result: ResolvedSuggestion[] = [];
   for (const suggestion of items) {
-    const key = suggestion.item.mediaItem.mediaKey;
+    const key = suggestion.item.mediaItem.Id;
     if (seen.has(key)) {
       continue;
     }
@@ -289,7 +289,7 @@ function matchesAnchorSuggestion(suggestion: ResolvedSuggestion, anchorHint: str
   }
 
   return titleMatchesAnchor(suggestion.candidate.title, normalizedAnchor)
-    || titleMatchesAnchor(suggestion.item.mediaItem.name ?? '', normalizedAnchor);
+    || titleMatchesAnchor(suggestion.item.mediaItem.Name ?? '', normalizedAnchor);
 }
 
 function titleMatchesAnchor(title: string, normalizedAnchor: string): boolean {

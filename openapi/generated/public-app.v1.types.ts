@@ -188,10 +188,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get title details.
-         * @description Returns full metadata for a movie or show. Key video fields:
+         * Get title details (without extras).
+         * @description Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/titles/{mediaKey}/extras`.
+         *     Key video fields:
          *     - `videos` — all TMDB video results for the title.
-         *     - `trailerUrl` / `trailerThumbnailUrl` — primary trailer (official YouTube trailer preferred; prefers requested/preferred language, then English, then original language, then any language).
+         *     - `RemoteTrailers` — primary trailer entries with `Url` and `ThumbnailUrl` on Jellyfin-style item payloads.
          */
         get: operations["getV1MetadataTitlesMediaKey"];
         put?: never;
@@ -209,7 +210,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get optional title detail sections (episodes, reviews, similar, collection parts). */
+        /** Get optional title detail sections (seasons, episodes, reviews, similar, collection parts). */
         get: operations["getV1MetadataTitlesMediaKeyExtras"];
         put?: never;
         post?: never;
@@ -804,45 +805,101 @@ export interface components {
         GenericObject: {
             [key: string]: unknown;
         };
+        ResponsiveImageSet: {
+            small: string | null;
+            medium: string | null;
+            large: string | null;
+        };
+        BaseItemImageTags: {
+            Primary: components["schemas"]["ResponsiveImageSet"] | null;
+            Backdrop: components["schemas"]["ResponsiveImageSet"][];
+            Logo: components["schemas"]["ResponsiveImageSet"] | null;
+            Thumb: components["schemas"]["ResponsiveImageSet"] | null;
+            Screenshot: components["schemas"]["ResponsiveImageSet"][];
+        };
+        ParentBaseItemImageTags: {
+            Primary: components["schemas"]["ResponsiveImageSet"] | null;
+            Backdrop: components["schemas"]["ResponsiveImageSet"][];
+            Logo: components["schemas"]["ResponsiveImageSet"] | null;
+            Thumb: components["schemas"]["ResponsiveImageSet"] | null;
+        };
+        ProviderIds: {
+            Tmdb: string | null;
+            Imdb: string | null;
+            Tvdb: string | null;
+        };
+        RemoteTrailerDto: {
+            Name: string | null;
+            Url: string;
+            ThumbnailUrl: string | null;
+        };
+        UserItemDataDto: {
+            ItemId: string;
+            IsFavorite: boolean;
+            Played: boolean;
+            PlayCount: number;
+            PlaybackPositionTicks: number | null;
+            RuntimeTicks: number | null;
+            PlayedPercentage: number | null;
+            LastPlayedDate: string | null;
+            Rating: number | null;
+            DismissedFromContinueWatching: boolean;
+        };
+        BaseItemDto: {
+            Id: string;
+            /** @enum {string} */
+            Type: "Movie" | "Series" | "Season" | "Episode" | "Unknown";
+            Name: string;
+            OriginalTitle: string | null;
+            Overview: string | null;
+            Taglines: string[];
+            ProductionYear: number | null;
+            PremiereDate: string | null;
+            CommunityRating: number | null;
+            OfficialRating: string | null;
+            Certification: string | null;
+            Genres: string[];
+            RunTimeTicks: number | null;
+            Status: string | null;
+            ProviderIds: components["schemas"]["ProviderIds"];
+            ImageTags: components["schemas"]["BaseItemImageTags"];
+            ParentImageTags: components["schemas"]["ParentBaseItemImageTags"] | null;
+            SeriesId: string | null;
+            SeriesName: string | null;
+            SeasonId: string | null;
+            SeasonName: string | null;
+            ParentIndexNumber: number | null;
+            IndexNumber: number | null;
+            AbsoluteIndexNumber: number | null;
+            EpisodeTitle: string | null;
+            AirDate: string | null;
+            RemoteTrailers: components["schemas"]["RemoteTrailerDto"][];
+            PosterColor: string | null;
+            BackdropColor: string | null;
+            UserData: components["schemas"]["UserItemDataDto"] | null;
+        };
+        BaseItemDtoQueryResult: {
+            Items: components["schemas"]["BaseItemDto"][];
+            StartIndex: number;
+            TotalRecordCount: number;
+            NextCursor: string | null;
+            HasMore: boolean;
+        };
         MetadataTitleDetailResponse: {
-            item: {
-                [key: string]: unknown;
-            };
-            nextEpisode: {
-                [key: string]: unknown;
-            } | null;
-            videos: {
-                [key: string]: unknown;
-            }[];
-            cast: {
-                [key: string]: unknown;
-            }[];
-            directors: {
-                [key: string]: unknown;
-            }[];
-            creators: {
-                [key: string]: unknown;
-            }[];
-            production: {
-                [key: string]: unknown;
-            };
+            item: components["schemas"]["BaseItemDto"];
+            nextEpisode: components["schemas"]["BaseItemDto"] | null;
+            videos: components["schemas"]["GenericObject"][];
+            cast: components["schemas"]["GenericObject"][];
+            directors: components["schemas"]["GenericObject"][];
+            creators: components["schemas"]["GenericObject"][];
+            production: components["schemas"]["GenericObject"];
         };
         MetadataTitleExtrasResponse: {
-            seasons: {
-                [key: string]: unknown;
-            }[];
-            episodes: {
-                [key: string]: unknown;
-            }[];
-            reviews: {
-                [key: string]: unknown;
-            }[];
-            similar: {
-                [key: string]: unknown;
-            }[];
-            collection: {
-                [key: string]: unknown;
-            } | null;
+            seasons: components["schemas"]["BaseItemDto"][];
+            episodes: components["schemas"]["BaseItemDto"][];
+            reviews: components["schemas"]["GenericObject"][];
+            similar: components["schemas"]["BaseItemDto"][];
+            collection: components["schemas"]["BaseItemDtoQueryResult"] | null;
         };
         GenericArray: components["schemas"]["GenericObject"][];
     };
@@ -1406,6 +1463,17 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1MetadataTitlesMediaKeyExtras: {
+        parameters: {
+            query?: {
+                language?: string;
             };
             header?: never;
             path: {

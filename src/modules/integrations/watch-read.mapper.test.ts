@@ -21,11 +21,11 @@ test('mapHistoryRow maps title-level show history rows', () => {
 
   assert.equal(item.id, '00000000-0000-4000-8000-000000000001');
   assert.equal(item.kind, 'watch_history');
-  assert.equal(item.mediaItem.mediaKey, 'show:tmdb:789');
-  assert.equal(item.mediaItem.type, 'Series');
-  assert.equal(item.mediaItem.name, 'Cached Show Title');
-  assert.equal(item.mediaItem.productionYear, 2022);
-  assert.equal(item.mediaItem.communityRating, 9.1);
+  assert.equal(item.mediaItem.Id, 'show:tmdb:789');
+  assert.equal(item.mediaItem.Type, 'Series');
+  assert.equal(item.mediaItem.Name, 'Cached Show Title');
+  assert.equal(item.mediaItem.ProductionYear, 2022);
+  assert.equal(item.mediaItem.CommunityRating, 9.1);
   assert.equal(item.eventType, 'playback_completed');
   assert.equal(item.occurredAt, '2026-05-11T08:00:00.000Z');
   assert.deepEqual(item.origins, ['trakt']);
@@ -51,9 +51,9 @@ test('mapContinueWatchingRow maps movie progress', () => {
 
   assert.equal(item.id, 'movie:tmdb:694');
   assert.equal(item.kind, 'continue_watching');
-  assert.equal(item.mediaItem.mediaKey, 'movie:tmdb:694');
-  assert.equal(item.mediaItem.type, 'Movie');
-  assert.equal(item.mediaItem.seriesId, null);
+  assert.equal(item.mediaItem.Id, 'movie:tmdb:694');
+  assert.equal(item.mediaItem.Type, 'Movie');
+  assert.equal(item.mediaItem.SeriesId, null);
   assert.equal(item.progress.positionSeconds, 120);
   assert.equal(item.progress.progressPercent, 1.67);
   assert.equal(item.lastActivityAt, '2026-05-13T00:00:00.000Z');
@@ -82,14 +82,13 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
 
   assert.equal(item.id, 'show:tmdb:123');
   assert.equal(item.kind, 'continue_watching');
-  assert.equal(item.mediaItem.mediaKey, 'episode:tmdb:123:2:5');
-  assert.equal(item.mediaItem.type, 'Episode');
-  assert.equal(item.mediaItem.id, 'show:tmdb:123');
-  assert.equal(item.mediaItem.seriesId, '123');
-  assert.equal(item.mediaItem.seriesName, 'Cached Show Title');
-  assert.equal(item.mediaItem.parentIndexNumber, 2);
-  assert.equal(item.mediaItem.indexNumber, 5);
-  assert.equal(item.mediaItem.episodeTitle, 'Cached Show Title');
+  assert.equal(item.mediaItem.Id, 'episode:tmdb:123:2:5');
+  assert.equal(item.mediaItem.Type, 'Episode');
+  assert.equal(item.mediaItem.SeriesId, '123');
+  assert.equal(item.mediaItem.SeriesName, 'Cached Show Title');
+  assert.equal(item.mediaItem.ParentIndexNumber, 2);
+  assert.equal(item.mediaItem.IndexNumber, 5);
+  assert.equal(item.mediaItem.EpisodeTitle, 'Cached Show Title');
   assert.equal(item.progress.positionSeconds, 600);
   assert.equal(item.progress.progressPercent, 33.33);
   assert.equal(item.lastActivityAt, '2026-05-14T08:00:00.000Z');

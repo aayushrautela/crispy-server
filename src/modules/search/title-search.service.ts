@@ -317,7 +317,7 @@ function rankSearchEntries(query: string, entries: SearchBucketEntry[]): SearchB
   const seen = new Set<string>();
   return entries
     .filter(({ item }) => {
-      const key = item.mediaItem.mediaKey;
+      const key = item.mediaItem.Id;
       if (seen.has(key)) {
         return false;
       }
@@ -326,9 +326,9 @@ function rankSearchEntries(query: string, entries: SearchBucketEntry[]): SearchB
     })
     .map((entry) => ({
       ...entry,
-      normalizedTitle: normalizeSearchText(entry.item.mediaItem.name),
-      normalizedSubtitle: normalizeSearchText(entry.item.mediaItem.originalTitle ?? null),
-      sourcePriority: entry.item.mediaItem.type === 'Movie' ? 0 : 1,
+      normalizedTitle: normalizeSearchText(entry.item.mediaItem.Name),
+      normalizedSubtitle: normalizeSearchText(entry.item.mediaItem.OriginalTitle ?? null),
+      sourcePriority: entry.item.mediaItem.Type === 'Movie' ? 0 : 1,
     }))
     .sort(compareSearchEntries(query))
     .map(({ normalizedTitle: _normalizedTitle, normalizedSubtitle: _normalizedSubtitle, sourcePriority: _sourcePriority, ...entry }) => entry);
@@ -390,7 +390,7 @@ function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
 }
 
 function hasSearchPoster(item: MediaItemDto): boolean {
-  return Boolean(item.imageTags.primary?.small || item.imageTags.primary?.medium || item.imageTags.primary?.large);
+  return Boolean(item.ImageTags.Primary?.small || item.ImageTags.Primary?.medium || item.ImageTags.Primary?.large);
 }
 
 function toSearchResults(entries: SearchBucketEntry[]): MetadataSearchResult[] {
@@ -398,10 +398,10 @@ function toSearchResults(entries: SearchBucketEntry[]): MetadataSearchResult[] {
 }
 
 function bucketForMediaType(dto: MediaItemDto): keyof SearchBuckets | null {
-  if (dto.type === 'Movie') {
+  if (dto.Type === 'Movie') {
     return 'movies';
   }
-  if (dto.type === 'Series') {
+  if (dto.Type === 'Series') {
     return 'series';
   }
   return null;
@@ -416,14 +416,14 @@ function compareSearchEntries(query: string): (left: SearchEntryCandidate, right
       return leftRank - rightRank;
     }
 
-    const leftYear = left.item.mediaItem.productionYear ?? Number.MIN_SAFE_INTEGER;
-    const rightYear = right.item.mediaItem.productionYear ?? Number.MIN_SAFE_INTEGER;
+    const leftYear = left.item.mediaItem.ProductionYear ?? Number.MIN_SAFE_INTEGER;
+    const rightYear = right.item.mediaItem.ProductionYear ?? Number.MIN_SAFE_INTEGER;
     if (leftYear !== rightYear) {
       return rightYear - leftYear;
     }
 
-    const leftRating = left.item.mediaItem.communityRating ?? Number.MIN_SAFE_INTEGER;
-    const rightRating = right.item.mediaItem.communityRating ?? Number.MIN_SAFE_INTEGER;
+    const leftRating = left.item.mediaItem.CommunityRating ?? Number.MIN_SAFE_INTEGER;
+    const rightRating = right.item.mediaItem.CommunityRating ?? Number.MIN_SAFE_INTEGER;
     if (leftRating !== rightRating) {
       return rightRating - leftRating;
     }
@@ -432,7 +432,7 @@ function compareSearchEntries(query: string): (left: SearchEntryCandidate, right
       return left.sourcePriority - right.sourcePriority;
     }
 
-    return left.item.mediaItem.name.localeCompare(right.item.mediaItem.name);
+    return left.item.mediaItem.Name.localeCompare(right.item.mediaItem.Name);
   };
 }
 
