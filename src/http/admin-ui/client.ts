@@ -1437,7 +1437,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function renderCalendarRow(item) {
-    const media = item && item.media ? item.media : null;
+    const media = item && (item.media || item.mediaItem) ? (item.media || item.mediaItem) : null;
     const relatedShow = item && item.relatedShow ? item.relatedShow : null;
     const meta = [];
     const episodeBits = [];
@@ -1496,14 +1496,14 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function renderRecommendationItems(items) {
     return items.slice(0, 5).map((item) => {
-      const media = item && item.media ? item.media : null;
+      const media = item && (item.media || item.mediaItem) ? (item.media || item.mediaItem) : null;
       const reason = item && item.reason ? ' - ' + item.reason : '';
       return mediaTitle(media) + reason;
     }).join('\n');
   }
 
   function renderMediaRow(item, kind) {
-    const media = item && item.media ? item.media : null;
+    const media = item && (item.media || item.mediaItem) ? (item.media || item.mediaItem) : null;
     const meta = [];
     if (kind === 'history' && item && item.watchedAt) meta.push('watched ' + formatDate(item.watchedAt));
     if (kind === 'continue' && item && item.lastActivityAt) meta.push('last played ' + formatDate(item.lastActivityAt));
