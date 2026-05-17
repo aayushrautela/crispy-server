@@ -113,16 +113,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', as
       companies: [],
       networks: [],
     },
-    collection: {
-      id: 123,
-      provider: 'tmdb',
-      providerId: '123',
-      name: 'Test Collection',
-      poster: { small: null, medium: null, large: null },
-      backdrop: { small: null, medium: null, large: null },
-      parts: [],
-    },
-    similar: [],
   })) as any;
 
   t.after(() => {
@@ -141,9 +131,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', as
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.ok(body.data.collection);
-  assert.equal(body.data.collection.name, 'Test Collection');
-  assert.equal(body.data.collection.parts.length, 0);
+  assert.equal(body.data.collection, undefined);
 });
 
 test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) => {
@@ -166,8 +154,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) =
       companies: [],
       networks: [],
     },
-    collection: null,
-    similar: [],
   })) as any;
 
   t.after(() => {
@@ -185,7 +171,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) =
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().data.collection, null);
+  assert.equal(response.json().data.collection, undefined);
 });
 
 test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async (t) => {
@@ -258,8 +244,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
       companies: [],
       networks: [],
     },
-    collection: null,
-    similar: [],
   })) as any;
 
   t.after(() => {
@@ -285,7 +269,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
   assert.ok(body.data.item.nextEpisode.images);
 });
 
-test('GET /v1/metadata/titles/:mediaKey serializes movie with lightweight collection', async (t) => {
+test('GET /v1/metadata/titles/:mediaKey serializes movie', async (t) => {
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
 
   const original = MetadataDetailService.prototype.getTitleDetailById;
@@ -305,16 +289,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie with lightweight collec
       companies: [],
       networks: [],
     },
-    collection: {
-      id: 83533,
-      provider: 'tmdb',
-      providerId: '83533',
-      name: 'Avatar Collection',
-      poster: { small: null, medium: null, large: null },
-      backdrop: { small: null, medium: null, large: null },
-      parts: [],
-    },
-    similar: [],
   })) as any;
 
   t.after(() => {
@@ -332,11 +306,6 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie with lightweight collec
   });
 
   assert.equal(response.statusCode, 200);
-  const body = response.json();
-  assert.ok(body.data.collection);
-  assert.equal(body.data.collection.name, 'Avatar Collection');
-  assert.equal(body.data.collection.parts.length, 0);
-  assert.equal(body.data.similar.length, 0);
 });
 
 test('GET /v1/metadata/titles/:mediaKey/extras serializes movie extras', async (t) => {

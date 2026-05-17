@@ -144,8 +144,6 @@ export type MetadataTitleDetail = {
   directors: MetadataPersonRefView[];
   creators: MetadataPersonRefView[];
   production: MetadataProductionInfoView;
-  collection: MetadataCollectionView | null;
-  similar: MetadataRelatedItem[];
 };
 
 export type MetadataTitleReviewsResponse = {

@@ -10,7 +10,6 @@ import type {
 } from './metadata-detail.types.js';
 import {
   extractCast,
-  extractCollection,
   extractCreators,
   extractCrewByJob,
   extractProduction,
@@ -31,7 +30,6 @@ export class MetadataTitleAggregateBuilder {
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
 
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
-    const collection = extractCollection(resolvedTitle);
 
     return {
       item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
@@ -43,8 +41,6 @@ export class MetadataTitleAggregateBuilder {
       directors: extractCrewByJob(resolvedTitle, 'Director'),
       creators: extractCreators(resolvedTitle),
       production: extractProduction(resolvedTitle),
-      collection,
-      similar: [],
     };
   }
 

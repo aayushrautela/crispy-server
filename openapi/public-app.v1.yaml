@@ -572,9 +572,10 @@ paths:
       tags:
         - Metadata
       operationId: getV1MetadataTitlesMediaKey
-      summary: Get title details.
+      summary: Get title details (without extras).
       description: |
-        Returns full metadata for a movie or show. Key video fields:
+        Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/titles/{mediaKey}/extras`.
+        Key video fields:
         - `videos` — all TMDB video results for the title.
         - `trailerUrl` / `trailerThumbnailUrl` — primary trailer (official YouTube trailer preferred; prefers requested/preferred language, then English, then original language, then any language).
       security:
@@ -593,7 +594,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/MetadataTitleDetailResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -635,7 +636,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/MetadataTitleExtrasResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2465,6 +2466,70 @@ components:
     GenericObject:
       type: object
       additionalProperties: true
+    MetadataTitleDetailResponse:
+      type: object
+      required:
+        - item
+        - nextEpisode
+        - videos
+        - cast
+        - directors
+        - creators
+        - production
+      properties:
+        item:
+          $ref: "#/components/schemas/GenericObject"
+        nextEpisode:
+          anyOf:
+            - $ref: "#/components/schemas/GenericObject"
+            - type: "null"
+        videos:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        cast:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        directors:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        creators:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        production:
+          $ref: "#/components/schemas/GenericObject"
+    MetadataTitleExtrasResponse:
+      type: object
+      required:
+        - seasons
+        - episodes
+        - reviews
+        - similar
+        - collection
+      properties:
+        seasons:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        episodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        similar:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        collection:
+          anyOf:
+            - $ref: "#/components/schemas/GenericObject"
+            - type: "null"
     GenericArray:
       type: array
       items:

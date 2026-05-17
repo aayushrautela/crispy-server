@@ -369,7 +369,7 @@ const metadataProductionInfoViewSchema = {
 const metadataTitleDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['item', 'nextEpisode', 'videos', 'cast', 'directors', 'creators', 'production', 'collection', 'similar'],
+  required: ['item', 'nextEpisode', 'videos', 'cast', 'directors', 'creators', 'production'],
   properties: {
     item: metadataViewSchema,
     nextEpisode: {
@@ -383,13 +383,6 @@ const metadataTitleDetailResponseSchema = {
     directors: { type: 'array', items: metadataPersonRefViewSchema },
     creators: { type: 'array', items: metadataPersonRefViewSchema },
     production: metadataProductionInfoViewSchema,
-    collection: {
-      anyOf: [
-        metadataCollectionViewSchema,
-        { type: 'null' },
-      ],
-    },
-    similar: { type: 'array', items: metadataRelatedItemSchema },
   },
 } as const;
 

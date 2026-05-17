@@ -804,6 +804,46 @@ export interface components {
         GenericObject: {
             [key: string]: unknown;
         };
+        MetadataTitleDetailResponse: {
+            item: {
+                [key: string]: unknown;
+            };
+            nextEpisode: {
+                [key: string]: unknown;
+            } | null;
+            videos: {
+                [key: string]: unknown;
+            }[];
+            cast: {
+                [key: string]: unknown;
+            }[];
+            directors: {
+                [key: string]: unknown;
+            }[];
+            creators: {
+                [key: string]: unknown;
+            }[];
+            production: {
+                [key: string]: unknown;
+            };
+        };
+        MetadataTitleExtrasResponse: {
+            seasons: {
+                [key: string]: unknown;
+            }[];
+            episodes: {
+                [key: string]: unknown;
+            }[];
+            reviews: {
+                [key: string]: unknown;
+            }[];
+            similar: {
+                [key: string]: unknown;
+            }[];
+            collection: {
+                [key: string]: unknown;
+            } | null;
+        };
         GenericArray: components["schemas"]["GenericObject"][];
     };
     responses: {
@@ -1361,22 +1401,11 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["MetadataTitleDetailResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getV1MetadataTitlesMediaKeyExtras: {
-        parameters: {
-            query?: {
-                language?: string;
             };
             header?: never;
             path: {
@@ -1392,7 +1421,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["MetadataTitleExtrasResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
