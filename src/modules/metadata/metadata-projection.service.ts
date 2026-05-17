@@ -172,6 +172,9 @@ function emptyProjection(): WatchMediaProjection {
     playbackAbsoluteEpisodeNumber: null,
     detailsStillUrl: null,
     detailsReleaseYear: null,
+    detailsOverview: null,
+    detailsReleaseDate: null,
+    detailsStatus: null,
     detailsRuntimeMinutes: null,
     detailsRating: null,
     episodeTitle: null,
@@ -196,12 +199,18 @@ function toDetailsSnapshot(media: MetadataCardView): Pick<
   WatchMediaProjection,
   | 'detailsStillUrl'
   | 'detailsReleaseYear'
+  | 'detailsOverview'
+  | 'detailsReleaseDate'
+  | 'detailsStatus'
   | 'detailsRuntimeMinutes'
   | 'detailsRating'
 > {
   return {
     detailsStillUrl: media.artwork.still.medium,
     detailsReleaseYear: media.releaseYear,
+    detailsOverview: media.overview,
+    detailsReleaseDate: media.releaseDate,
+    detailsStatus: media.status,
     detailsRuntimeMinutes: media.runtimeMinutes,
     detailsRating: media.rating,
   };

@@ -221,6 +221,12 @@ function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: st
     maturityRating: null,
     genres: [],
     language: 'en',
+    overview: null,
+    runtimeMinutes: null,
+    releaseDate: null,
+    status: null,
+    episodeTitle: null,
+    episodeAirDate: null,
   }, {
     id: titleMediaKey,
     seriesName: seriesName ?? null,
@@ -258,6 +264,12 @@ function mediaItemDtoFromRow(mediaKey: string, row: WatchReadRow, overrides: Par
     maturityRating: null,
     genres: [],
     language: 'en',
+    overview: null,
+    runtimeMinutes: null,
+    releaseDate: null,
+    status: null,
+    episodeTitle: null,
+    episodeAirDate: null,
   }, overrides);
 }
 

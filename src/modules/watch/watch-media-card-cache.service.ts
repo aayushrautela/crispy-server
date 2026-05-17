@@ -25,7 +25,14 @@ export class WatchMediaCardCacheService {
     posterColor: string | null;
     backdropColor: string | null;
     detailsReleaseYear: number | null;
+    detailsOverview: string | null;
+    detailsReleaseDate: string | null;
+    detailsStatus: string | null;
+    detailsRuntimeMinutes: number | null;
     detailsRating: number | null;
+    episodeTitle: string | null;
+    episodeAirDate: string | null;
+    episodeRuntimeMinutes: number | null;
     maturityRating: string | null;
     genres: string[];
   }, language?: string | null): Promise<void> {
@@ -60,6 +67,12 @@ export class WatchMediaCardCacheService {
       maturityRating: projection.maturityRating,
       genres: projection.genres,
       language: language ?? undefined,
+      overview: projection.detailsOverview,
+      runtimeMinutes: projection.episodeRuntimeMinutes ?? projection.detailsRuntimeMinutes,
+      releaseDate: projection.detailsReleaseDate,
+      status: projection.detailsStatus,
+      episodeTitle: projection.episodeTitle,
+      episodeAirDate: projection.episodeAirDate,
     });
   }
 

@@ -23,6 +23,12 @@ export type WatchMediaCardCacheRecord = {
   maturityRating: string | null;
   genres: string[];
   language: string;
+  overview: string | null;
+  runtimeMinutes: number | null;
+  releaseDate: string | null;
+  status: string | null;
+  episodeTitle: string | null;
+  episodeAirDate: string | null;
 };
 
 export class WatchMediaCardCacheRepository {
@@ -47,6 +53,12 @@ export class WatchMediaCardCacheRepository {
     maturityRating?: string | null;
     genres?: string[] | null;
     language?: string;
+    overview?: string | null;
+    runtimeMinutes?: number | null;
+    releaseDate?: string | null;
+    status?: string | null;
+    episodeTitle?: string | null;
+    episodeAirDate?: string | null;
   }): Promise<void> {
     const effectiveLanguage = params.language ?? 'en-US';
     await client.query(
@@ -55,9 +67,10 @@ export class WatchMediaCardCacheRepository {
           media_key, media_type, title_provider, title_provider_id, title_media_type,
           title, subtitle, poster_url, backdrop_url, still_url, logo_url,
           trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
-          release_year, rating, maturity_rating, genres, language, updated_at
+          release_year, rating, maturity_rating, genres, language, updated_at,
+          overview, runtime_minutes, release_date, status, episode_title, episode_air_date
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, now(), $21, $22, $23, $24, $25, $26)
         ON CONFLICT (media_key, language)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
@@ -78,6 +91,12 @@ export class WatchMediaCardCacheRepository {
           rating = EXCLUDED.rating,
           maturity_rating = EXCLUDED.maturity_rating,
           genres = EXCLUDED.genres,
+          overview = EXCLUDED.overview,
+          runtime_minutes = EXCLUDED.runtime_minutes,
+          release_date = EXCLUDED.release_date,
+          status = EXCLUDED.status,
+          episode_title = EXCLUDED.episode_title,
+          episode_air_date = EXCLUDED.episode_air_date,
           updated_at = now()
       `,
       [
@@ -101,6 +120,12 @@ export class WatchMediaCardCacheRepository {
         params.maturityRating ?? null,
         JSON.stringify(normalizeGenres(params.genres)),
         effectiveLanguage,
+        params.overview ?? null,
+        params.runtimeMinutes ?? null,
+        params.releaseDate ?? null,
+        params.status ?? null,
+        params.episodeTitle ?? null,
+        params.episodeAirDate ?? null,
       ],
     );
   }
@@ -131,7 +156,8 @@ export class WatchMediaCardCacheRepository {
       SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
              title, subtitle, poster_url, backdrop_url, still_url, logo_url,
              trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
-             release_year, rating, maturity_rating, genres, language
+             release_year, rating, maturity_rating, genres, language,
+             overview, runtime_minutes, release_date, status, episode_title, episode_air_date
       FROM watch_media_card_cache
         WHERE media_key = ANY($1::text[])
           AND language = $2
@@ -183,6 +209,12 @@ export class WatchMediaCardCacheRepository {
             maturityRating: typeof row.maturity_rating === 'string' ? row.maturity_rating : null,
             genres: parseGenres(row.genres),
             language: typeof row.language === 'string' ? row.language : 'en',
+            overview: typeof row.overview === 'string' ? row.overview : null,
+            runtimeMinutes: row.runtime_minutes === null ? null : Number(row.runtime_minutes),
+            releaseDate: typeof row.release_date === 'string' ? row.release_date : null,
+            status: typeof row.status === 'string' ? row.status : null,
+            episodeTitle: typeof row.episode_title === 'string' ? row.episode_title : null,
+            episodeAirDate: typeof row.episode_air_date === 'string' ? row.episode_air_date : null,
           } satisfies WatchMediaCardCacheRecord,
         ]];
       }),

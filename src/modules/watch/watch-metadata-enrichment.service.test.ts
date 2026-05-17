@@ -80,6 +80,12 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
       maturityRating: 'PG-13',
       genres: ['Action'],
       language: 'en',
+      overview: null,
+      runtimeMinutes: null,
+      releaseDate: null,
+      status: null,
+      episodeTitle: null,
+      episodeAirDate: null,
     }],
   ]);
 
@@ -148,7 +154,7 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
       titleProvider: 'tmdb',
       titleProviderId: '123',
       titleMediaType: 'show',
-      title: 'Episode 5 Title',
+      title: 'Parent Show Title',
       subtitle: null,
       posterUrl: 'https://cache.test/ep-poster.jpg',
       backdropUrl: 'https://cache.test/ep-backdrop.jpg',
@@ -163,6 +169,12 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
       maturityRating: null,
       genres: ['Drama'],
       language: 'en',
+      overview: null,
+      runtimeMinutes: null,
+      releaseDate: null,
+      status: null,
+      episodeTitle: 'Episode 5 Title',
+      episodeAirDate: null,
     }],
     ['show:tmdb:123', {
       mediaKey: 'show:tmdb:123',
@@ -185,6 +197,12 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
       maturityRating: null,
       genres: ['Drama'],
       language: 'en',
+      overview: null,
+      runtimeMinutes: null,
+      releaseDate: null,
+      status: null,
+      episodeTitle: null,
+      episodeAirDate: null,
     }],
   ]);
 
@@ -239,7 +257,7 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
   assert.equal(enriched[0]?.mediaItem.mediaKey, 'episode:tmdb:123:2:5');
   assert.equal(enriched[0]?.mediaItem.type, 'Episode');
   assert.equal(enriched[0]?.mediaItem.seriesName, 'Parent Show Title');
-  assert.equal(enriched[0]?.mediaItem.name, 'Episode 5 Title');
+  assert.equal(enriched[0]?.mediaItem.name, 'Parent Show Title');
   assert.equal(enriched[0]?.mediaItem.seriesId, '123');
   assert.equal(enriched[0]?.mediaItem.parentIndexNumber, 2);
   assert.equal(enriched[0]?.mediaItem.indexNumber, 5);
@@ -272,6 +290,12 @@ test('enrichContinueWatchingItems drops episode items missing parent show record
       maturityRating: null,
       genres: [],
       language: 'en',
+      overview: null,
+      runtimeMinutes: null,
+      releaseDate: null,
+      status: null,
+      episodeTitle: null,
+      episodeAirDate: null,
     }],
   ]);
 
@@ -349,6 +373,12 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
       maturityRating: null,
       genres: ['Drama'],
       language: 'en',
+      overview: null,
+      runtimeMinutes: null,
+      releaseDate: null,
+      status: null,
+      episodeTitle: null,
+      episodeAirDate: null,
     }],
   ]);
 
@@ -489,6 +519,12 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
       maturityRating: null,
       genres: ['Comedy'],
       language: 'en',
+      overview: null,
+      runtimeMinutes: null,
+      releaseDate: null,
+      status: null,
+      episodeTitle: null,
+      episodeAirDate: null,
     }],
   ]);
 

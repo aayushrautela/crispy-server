@@ -29,6 +29,12 @@ test('refreshMissingCardsAndReturnRecords reads refreshed records in requested l
     maturityRating: null,
     genres: [],
     language: 'en-US',
+    overview: null,
+    runtimeMinutes: null,
+    releaseDate: null,
+    status: null,
+    episodeTitle: null,
+    episodeAirDate: null,
   };
 
   const projectionService = {

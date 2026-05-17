@@ -43,6 +43,9 @@ export type WatchMediaProjection = {
   playbackAbsoluteEpisodeNumber: number | null;
   detailsStillUrl: string | null;
   detailsReleaseYear: number | null;
+  detailsOverview: string | null;
+  detailsReleaseDate: string | null;
+  detailsStatus: string | null;
   detailsRuntimeMinutes: number | null;
   detailsRating: number | null;
   episodeTitle: string | null;
