@@ -149,5 +149,6 @@ function mergeEnrichedMediaItemDto(record: WatchMediaCardCacheRecord, existing: 
     episodeTitle: existing.episodeTitle ?? (existing.type === 'Episode' ? enriched.name : null),
     airDate: existing.airDate,
     parentImageTags: existing.parentImageTags ?? enriched.parentImageTags,
+    userData: existing.userData,
   };
 }

@@ -1,6 +1,6 @@
 import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
 import { watchCacheRecordToMediaItemDto } from '../metadata/media-item.mapper.js';
-import type { MediaItemDto } from '../metadata/media-item.types.js';
+import type { MediaItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
 import type {
   ContinueWatchingProductItem,
   HistoryProductItem,
@@ -148,9 +148,11 @@ export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
   const watchlist = watchlistAddedAt ? { addedAt: watchlistAddedAt } : null;
   const ratingState = rating !== null && ratedAt ? { value: rating, ratedAt } : null;
 
+  const userData = buildUserData(mediaKey, progress, continueWatching, watched, ratingState, playCount);
+
   return {
     kind: 'watch_state',
-    mediaItem: mediaItemDtoFromRow(mediaKey, row),
+    mediaItem: mediaItemDtoFromRow(mediaKey, row, { userData }),
     context: {
       progress,
       continueWatching,
@@ -168,6 +170,28 @@ export function mapWatchStateRow(row: WatchReadRow): WatchStateResponse {
     rating: ratingState,
     watchedEpisodeKeys,
     playCount,
+  };
+}
+
+function buildUserData(
+  mediaKey: string,
+  progress: WatchStateResponse['progress'],
+  continueWatching: WatchStateResponse['continueWatching'],
+  watched: WatchStateResponse['watched'],
+  rating: WatchStateResponse['rating'],
+  playCount: number,
+): UserItemDataDto {
+  return {
+    itemId: mediaKey,
+    isFavorite: false,
+    played: watched !== null,
+    playCount,
+    playbackPositionSeconds: continueWatching?.positionSeconds ?? progress?.positionSeconds ?? null,
+    runtimeSeconds: continueWatching?.durationSeconds ?? progress?.durationSeconds ?? null,
+    playedPercentage: continueWatching?.progressPercent ?? progress?.progressPercent ?? null,
+    lastPlayedDate: watched?.watchedAt ?? continueWatching?.lastActivityAt ?? progress?.lastPlayedAt ?? null,
+    rating: rating?.value ?? null,
+    dismissedFromContinueWatching: false,
   };
 }
 
