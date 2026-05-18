@@ -66,7 +66,7 @@ export class AiInsightsService {
       this.metadataTitlePageService.getTitlePage(mediaKey),
       this.metadataReviewsService.getTitleReviews(userId, profileId, mediaKey),
     ]);
-    const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.reviews);
+    const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.Reviews);
     if (!titleContext) {
       throw new HttpError(404, 'Unable to load title data for AI insights.');
     }
@@ -97,26 +97,26 @@ export class AiInsightsService {
 }
 
 function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: MetadataReviewView[]): TitleInsightsContext | null {
-  const mediaType = detail.item.mediaType;
-  if (mediaType !== 'movie' && mediaType !== 'show') {
+  const mediaType = detail.Item.Type;
+  if (mediaType !== 'Movie' && mediaType !== 'Series') {
     return null;
   }
 
-  const title = detail.item.title?.trim() ?? '';
+  const title = detail.Item.Name?.trim() ?? '';
   if (!title) {
     return null;
   }
 
   return {
-    mediaKey: detail.item.mediaKey,
-    mediaType,
+    mediaKey: detail.Item.Id,
+    mediaType: mediaType === 'Movie' ? 'movie' : 'show',
     title,
-    year: detail.item.releaseYear ? String(detail.item.releaseYear) : null,
-    description: detail.item.overview?.trim() || detail.item.summary?.trim() || null,
-    rating: typeof detail.item.rating === 'number' && Number.isFinite(detail.item.rating)
-      ? detail.item.rating.toFixed(1)
+    year: detail.Item.ProductionYear ? String(detail.Item.ProductionYear) : null,
+    description: detail.Item.Overview?.trim() || null,
+    rating: typeof detail.Item.CommunityRating === 'number' && Number.isFinite(detail.Item.CommunityRating)
+      ? detail.Item.CommunityRating.toFixed(1)
       : null,
-    genres: detail.item.genres,
+    genres: detail.Item.Genres,
     reviews: reviews
       .map((review) => ({
         author: review.author?.trim() || review.username?.trim() || 'Unknown',

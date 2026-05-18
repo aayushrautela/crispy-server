@@ -1,10 +1,8 @@
 import {
-  booleanSchema,
-  mediaItemDtoSchema,
-  nullableMediaPresentationHintSchema,
+  baseItemDtoQueryResultSchema,
+  baseItemDtoSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
-  nullableStringSchema,
   positiveIntegerLikeSchema,
   profileIdAndMediaKeyParamsSchema,
   profileIdParamsSchema,
@@ -69,297 +67,18 @@ export type WatchStateBatchBody = {
   items?: WatchStateLookupContract[];
 };
 
-export const continueWatchingItemSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'id',
-    'kind',
-    'mediaItem',
-    'context',
-    'presentation',
-    'progress',
-    'lastActivityAt',
-    'origins',
-    'dismissible',
-  ],
-  properties: {
-    id: stringSchema,
-    kind: { const: 'continue_watching' },
-    mediaItem: mediaItemDtoSchema,
-    context: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id', 'progress', 'lastActivityAt', 'origins', 'dismissible'],
-      properties: {
-        id: stringSchema,
-        progress: {
-          anyOf: [
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'lastPlayedAt'],
-              properties: {
-                positionSeconds: nullableNumberSchema,
-                durationSeconds: nullableNumberSchema,
-                progressPercent: { type: 'number' },
-                lastPlayedAt: nullableStringSchema,
-              },
-            },
-            { type: 'null' },
-          ],
-        },
-        lastActivityAt: stringSchema,
-        origins: {
-          type: 'array',
-          items: stringSchema,
-        },
-        dismissible: { type: 'boolean' },
-      },
-    },
-    presentation: nullableMediaPresentationHintSchema,
-    progress: {
-      anyOf: [
-        {
-          type: 'object',
-          additionalProperties: false,
-          required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'lastPlayedAt'],
-          properties: {
-            positionSeconds: nullableNumberSchema,
-            durationSeconds: nullableNumberSchema,
-            progressPercent: { type: 'number' },
-            lastPlayedAt: nullableStringSchema,
-          },
-        },
-        { type: 'null' },
-      ],
-    },
-    lastActivityAt: stringSchema,
-    origins: {
-      type: 'array',
-      items: stringSchema,
-    },
-    dismissible: { type: 'boolean' },
-  },
-} as const;
-
-const watchProductItemSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['kind', 'mediaItem', 'context', 'presentation'],
-  properties: {
-    kind: stringSchema,
-    mediaItem: mediaItemDtoSchema,
-    context: recordSchema,
-    presentation: nullableMediaPresentationHintSchema,
-  },
-} as const;
-
-const historyItemSchema = {
-  ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'id', 'eventType', 'occurredAt', 'watchedAt', 'origins'],
-    properties: {
-      ...watchProductItemSchema.properties,
-      id: stringSchema,
-      eventType: stringSchema,
-      occurredAt: nullableStringSchema,
-      watchedAt: nullableStringSchema,
-      origins: {
-      type: 'array',
-      items: stringSchema,
-    },
-  },
-} as const;
-
-const watchlistItemSchema = {
-  ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'id', 'addedAt', 'origins'],
-  properties: {
-    ...watchProductItemSchema.properties,
-    id: stringSchema,
-    addedAt: stringSchema,
-    origins: {
-      type: 'array',
-      items: stringSchema,
-    },
-  },
-} as const;
-
-const ratingItemSchema = {
-  ...watchProductItemSchema,
-  required: [...watchProductItemSchema.required, 'id', 'rating', 'origins'],
-  properties: {
-    ...watchProductItemSchema.properties,
-    id: stringSchema,
-    rating: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['value', 'ratedAt'],
-      properties: {
-        value: { type: 'number' },
-        ratedAt: stringSchema,
-      },
-    },
-    origins: {
-      type: 'array',
-      items: stringSchema,
-    },
-  },
-} as const;
-
-const watchProgressStateSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['positionSeconds', 'durationSeconds', 'progressPercent', 'lastPlayedAt'],
-      properties: {
-        positionSeconds: nullableNumberSchema,
-        durationSeconds: nullableNumberSchema,
-        progressPercent: { type: 'number' },
-        lastPlayedAt: stringSchema,
-      },
-    },
-    { type: 'null' },
-  ],
-} as const;
-
-const continueWatchingStateSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id', 'positionSeconds', 'durationSeconds', 'progressPercent', 'lastActivityAt'],
-      properties: {
-        id: stringSchema,
-        positionSeconds: nullableNumberSchema,
-        durationSeconds: nullableNumberSchema,
-        progressPercent: { type: 'number' },
-        lastActivityAt: stringSchema,
-      },
-    },
-    { type: 'null' },
-  ],
-} as const;
-
-const watchedStateSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['watchedAt'],
-      properties: {
-        watchedAt: stringSchema,
-      },
-    },
-    { type: 'null' },
-  ],
-} as const;
-
-const watchlistStateSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['addedAt'],
-      properties: {
-        addedAt: stringSchema,
-      },
-    },
-    { type: 'null' },
-  ],
-} as const;
-
-const ratingStateSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['value', 'ratedAt'],
-      properties: {
-        value: { type: 'number' },
-        ratedAt: stringSchema,
-      },
-    },
-    { type: 'null' },
-  ],
-} as const;
-
-const watchStateItemSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['kind', 'mediaItem', 'context', 'presentation', 'progress', 'continueWatching', 'watched', 'watchlist', 'rating', 'watchedEpisodeKeys', 'playCount'],
-  properties: {
-    kind: { const: 'watch_state' },
-    mediaItem: mediaItemDtoSchema,
-    context: recordSchema,
-    presentation: nullableMediaPresentationHintSchema,
-    progress: watchProgressStateSchema,
-    continueWatching: continueWatchingStateSchema,
-    watched: watchedStateSchema,
-    watchlist: watchlistStateSchema,
-    rating: ratingStateSchema,
-    watchedEpisodeKeys: {
-      type: 'array',
-      items: stringSchema,
-    },
-    playCount: { type: 'number' },
-  },
-} as const;
-
-const watchStateEnvelopeSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['profileId', 'source', 'generatedAt', 'item'],
-  properties: {
-    profileId: stringSchema,
-    source: { const: 'canonical_watch' },
-    generatedAt: stringSchema,
-    item: watchStateItemSchema,
-  },
-} as const;
-
-const watchStatesEnvelopeSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['profileId', 'source', 'generatedAt', 'items'],
-  properties: {
-    profileId: stringSchema,
-    source: { const: 'canonical_watch' },
-    generatedAt: stringSchema,
-    items: {
-      type: 'array',
-      items: watchStateItemSchema,
-    },
-  },
-} as const;
-
-function buildWatchCollectionResponseSchema(kind: 'continue-watching' | 'history' | 'watchlist' | 'ratings', itemSchema: Record<string, unknown>) {
-  return {
+const watchListRouteSchema = withDefaultErrorResponses({
+  params: profileIdParamsSchema,
+  querystring: {
     type: 'object',
     additionalProperties: false,
-    required: ['profileId', 'kind', 'source', 'generatedAt', 'items', 'pageInfo'],
     properties: {
-      profileId: stringSchema,
-      kind: { const: kind },
-      source: { const: 'canonical_watch' },
-      generatedAt: stringSchema,
-      items: {
-        type: 'array',
-        items: itemSchema,
-      },
-      pageInfo: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['nextCursor', 'hasMore'],
-        properties: {
-          nextCursor: nullableStringSchema,
-          hasMore: booleanSchema,
-        },
-      },
+      limit: positiveIntegerLikeSchema,
+      cursor: stringSchema,
+      mediaKey: stringSchema,
     },
-  } as const;
-}
+  },
+});
 
 export const watchEventsRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
@@ -403,18 +122,6 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const watchListRouteSchema = withDefaultErrorResponses({
-  params: profileIdParamsSchema,
-  querystring: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      limit: positiveIntegerLikeSchema,
-      cursor: stringSchema,
-    },
-  },
-});
-
 export const historyListRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   querystring: {
@@ -427,28 +134,28 @@ export const historyListRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: successEnvelope(buildWatchCollectionResponseSchema('history', historyItemSchema)),
+    200: successEnvelope(baseItemDtoQueryResultSchema),
   },
 });
 
 export const continueWatchingListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: successEnvelope(buildWatchCollectionResponseSchema('continue-watching', continueWatchingItemSchema)),
+    200: successEnvelope(baseItemDtoQueryResultSchema),
   },
 });
 
 export const watchlistListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: successEnvelope(buildWatchCollectionResponseSchema('watchlist', watchlistItemSchema)),
+    200: successEnvelope(baseItemDtoQueryResultSchema),
   },
 });
 
 export const ratingsListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: successEnvelope(buildWatchCollectionResponseSchema('ratings', ratingItemSchema)),
+    200: successEnvelope(baseItemDtoQueryResultSchema),
   },
 });
 
@@ -475,9 +182,18 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: successEnvelope(watchStateEnvelopeSchema),
+    200: successEnvelope(baseItemDtoSchema),
   },
 });
+
+const baseItemDtoListSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: { type: 'array', items: baseItemDtoSchema },
+  },
+} as const;
 
 export const watchStatesRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
@@ -500,7 +216,7 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: successEnvelope(watchStatesEnvelopeSchema),
+    200: successEnvelope(baseItemDtoListSchema),
   },
 });
 

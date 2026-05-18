@@ -4,10 +4,9 @@ import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import { parseMediaKey, showTmdbIdForIdentity, type MediaIdentity } from '../identity/media-key.js';
-import type { CalendarItem } from '../watch/watch-read.types.js';
-import { metadataCardToMediaItem, mediaItemToMediaItemDto } from '../metadata/media-item.mapper.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
+import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const BUILD_CONCURRENCY = 4;
 
 type Candidate = {
@@ -21,10 +20,9 @@ export class CalendarBuilderService {
     private readonly metadataProjectionService = new MetadataProjectionService(),
   ) {}
 
-  async build(client: DbClient, profileId: string, limit: number): Promise<CalendarItem[]> {
+  async build(client: DbClient, profileId: string, limit: number): Promise<BaseItemDto[]> {
     const candidates = await this.loadCandidates(profileId, Math.max(limit * 4, 50));
-    const items: CalendarItem[] = [];
-    const nowMs = Date.now();
+    const items: BaseItemDto[] = [];
 
     for (let i = 0; i < candidates.length && items.length < limit; i += BUILD_CONCURRENCY) {
       const batch = candidates.slice(i, i + BUILD_CONCURRENCY);
@@ -51,7 +49,6 @@ export class CalendarBuilderService {
           return null;
         }
 
-        const bucket = this.bucketForAirDate(nextEpisode?.airDate ?? null, nowMs);
         const poster = mediaCard.images.poster ?? showCard.images.poster;
         const backdrop = mediaCard.images.backdrop ?? poster;
 
@@ -65,22 +62,22 @@ export class CalendarBuilderService {
           airDate: nextEpisode?.airDate ?? null,
           episodeTitle: mediaCard.title,
         });
-        const relatedShowMediaItem = metadataCardToMediaItem(showCard);
 
-        return {
-          bucket,
-          kind: 'calendar_item' as const,
-          mediaItem: mediaItemToMediaItemDto(mediaItem),
-          context: {
-            bucket,
-            airDate: nextEpisode?.airDate ?? null,
-            watched,
-            relatedShow: mediaItemToMediaItemDto(relatedShowMediaItem),
-          },
-          presentation: { preferredSize: 'wide' as const, sectionId: null, sectionTitle: null },
-          airDate: nextEpisode?.airDate ?? null,
-          watched,
+        const dto = mediaItemToBaseItemDto(mediaItem);
+        dto.UserData = {
+          ItemId: dto.Id,
+          IsFavorite: false,
+          Played: watched,
+          PlayCount: watched ? 1 : 0,
+          PlaybackPositionTicks: null,
+          RuntimeTicks: dto.RunTimeTicks,
+          PlayedPercentage: null,
+          LastPlayedDate: null,
+          Rating: null,
+          DismissedFromContinueWatching: false,
         };
+
+        return dto;
       }));
 
       for (const result of batchResults) {
@@ -174,29 +171,6 @@ export class CalendarBuilderService {
     return result.rows;
   }
 
-  private bucketForAirDate(airDate: string | null, nowMs: number): CalendarItem['bucket'] {
-    const airDateMs = airDate ? Date.parse(airDate) : null;
-    if (airDateMs === null || !Number.isFinite(airDateMs)) {
-      return 'no_scheduled';
-    }
-
-    const now = new Date(nowMs);
-    const startOfToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const day = now.getUTCDay();
-    const startOfWeek = startOfToday - day * DAY_MS;
-    const endOfWeek = startOfWeek + 7 * DAY_MS;
-
-    if (airDateMs >= startOfWeek && airDateMs < endOfWeek) {
-      return 'this_week';
-    }
-    if (airDateMs > endOfWeek) {
-      return 'upcoming';
-    }
-    if (airDateMs >= startOfToday - 7 * DAY_MS) {
-      return 'recently_released';
-    }
-    return 'up_next';
-  }
 }
 
 function showMediaKeyFromMediaKey(mediaKey: string): string | null {

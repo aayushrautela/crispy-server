@@ -3,16 +3,13 @@ import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import type { SupportedMediaType } from '../identity/media-key.js';
 import { inferMediaIdentity, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
-import { buildSeasonViewFromRecord } from './metadata-detail.builders.js';
+import { buildSeasonBaseItemDto } from './metadata-detail.builders.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { MetadataDetailCoreService } from './metadata-detail-core.service.js';
 import { TmdbExternalIdResolverService } from './providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
-import type {
-  MetadataSeasonView,
-  MetadataView,
-  PlaybackResolveResponse,
-} from './metadata-detail.types.js';
+import type { BaseItemDto } from './media-item.types.js';
+import type { PlaybackResolveResponse } from './metadata-detail.types.js';
 
 export type ResolveMetadataInput = {
   mediaKey?: string;
@@ -36,8 +33,8 @@ export class PlaybackResolveService {
     return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
       const item = await this.metadataDetailCoreService.buildMetadataView(client, identity, input.language ?? null);
-      let show: MetadataView | null = null;
-      let season: MetadataSeasonView | null = null;
+      let show: BaseItemDto | null = null;
+      let season: BaseItemDto | null = null;
 
       if (identity.mediaType === 'episode' && identity.showTmdbId) {
         const showIdentity = inferMediaIdentity({
@@ -49,23 +46,23 @@ export class PlaybackResolveService {
         show = await this.metadataDetailCoreService.buildMetadataView(client, showIdentity, input.language ?? null);
 
         if (identity.seasonNumber !== null) {
-          const seasonRecord = await this.tmdbCacheService.ensureSeasonCached(client, identity.showTmdbId, identity.seasonNumber);
-          if (seasonRecord) {
+          const showTitle = await this.tmdbCacheService.getTitle(client, 'tv', identity.showTmdbId, input.language ?? null);
+          if (showTitle) {
             const seasonId = await this.contentIdentityService.ensureSeasonContentId(client, {
               parentMediaType: 'show',
               provider: 'tmdb',
               parentProviderId: identity.showTmdbId,
               seasonNumber: identity.seasonNumber,
             });
-            season = buildSeasonViewFromRecord(identity.showTmdbId, seasonRecord, seasonId, '');
+            season = buildSeasonBaseItemDto(showTitle, identity.seasonNumber, seasonId);
           }
         }
       }
 
       return {
-        item,
-        show,
-        season,
+        Item: item,
+        Show: show,
+        Season: season,
       };
     });
   }

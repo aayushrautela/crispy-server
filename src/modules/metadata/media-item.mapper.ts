@@ -1,5 +1,5 @@
 import type { MetadataCardView } from './metadata-card.types.js';
-import type { MetadataView } from './metadata-detail.types.js';
+
 import type { BaseItemDto, BaseItemImageTags, MediaItem, MediaItemType, ParentBaseItemImageTags, ProviderIdsDto, ResponsiveImageSet } from './media-item.types.js';
 import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from './metadata-builder.shared.js';
@@ -54,16 +54,6 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
   return applyOverrides(item, overrides);
 }
 
-export function metadataViewToMediaItem(view: MetadataView, overrides: Partial<MediaItem> = {}): MediaItem {
-  const item = metadataCardToMediaItem(view, {
-    maturityRating: view.certification,
-    certification: view.certification,
-    externalIds: view.externalIds,
-    ...overrides,
-  });
-
-  return item;
-}
 
 function applyOverrides(item: MediaItem, overrides: Partial<MediaItem>): MediaItem {
   return {
@@ -146,8 +136,6 @@ export function mediaItemToBaseItemDto(item: MediaItem): BaseItemDto {
   };
 }
 
-export const mediaItemToMediaItemDto = mediaItemToBaseItemDto;
-
 export function watchCacheRecordToBaseItemDto(record: WatchMediaCardCacheRecord, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   const still = record.stillUrl
     ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
@@ -203,8 +191,6 @@ export function watchCacheRecordToBaseItemDto(record: WatchMediaCardCacheRecord,
 
   return applyDtoOverrides(item, overrides);
 }
-
-export const watchCacheRecordToMediaItemDto = watchCacheRecordToBaseItemDto;
 
 function applyDtoOverrides(item: BaseItemDto, overrides: Partial<BaseItemDto>): BaseItemDto {
   return {

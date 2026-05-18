@@ -22,7 +22,6 @@ import {
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { canonicalTitleMediaKey, canonicalTitleMediaType, inferMediaIdentity, parseMediaKey } from '../../modules/identity/media-key.js';
 import { HttpError } from '../../lib/errors.js';
-import { nowIso } from '../../lib/time.js';
 import type { WatchStateLookupInput } from '../../modules/watch/watch-read.types.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
@@ -67,7 +66,6 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
-    const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await localUserWatchService.listContinueWatchingPage({
       accountId: actor.authSubject!,
@@ -81,12 +79,11 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       )
       : page.items;
     return success({
-      profileId,
-      kind: 'continue-watching' as const,
-      source: 'canonical_watch' as const,
-      generatedAt,
-      items: enrichedItems,
-      pageInfo: page.pageInfo,
+      Items: enrichedItems,
+      StartIndex: 0,
+      TotalRecordCount: enrichedItems.length,
+      NextCursor: page.pageInfo.nextCursor,
+      HasMore: page.pageInfo.hasMore,
     });
   });
 
@@ -110,7 +107,6 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 100);
-    const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await localUserWatchService.listHistoryPage({
       accountId: actor.authSubject!,
@@ -125,12 +121,11 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       )
       : page.items;
     return success({
-      profileId,
-      kind: 'history' as const,
-      source: 'canonical_watch' as const,
-      generatedAt,
-      items: enrichedItems,
-      pageInfo: page.pageInfo,
+      Items: enrichedItems,
+      StartIndex: 0,
+      TotalRecordCount: enrichedItems.length,
+      NextCursor: page.pageInfo.nextCursor,
+      HasMore: page.pageInfo.hasMore,
     });
   });
 
@@ -140,7 +135,6 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
-    const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await localUserWatchService.listWatchlistPage({
       accountId: actor.authSubject!,
@@ -154,12 +148,11 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       )
       : page.items;
     return success({
-      profileId,
-      kind: 'watchlist' as const,
-      source: 'canonical_watch' as const,
-      generatedAt,
-      items: enrichedItems,
-      pageInfo: page.pageInfo,
+      Items: enrichedItems,
+      StartIndex: 0,
+      TotalRecordCount: enrichedItems.length,
+      NextCursor: page.pageInfo.nextCursor,
+      HasMore: page.pageInfo.hasMore,
     });
   });
 
@@ -169,7 +162,6 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const profileId = getProfileIdFromParams(request.params);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
-    const generatedAt = nowIso();
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const page = await localUserWatchService.listRatingsPage({
       accountId: actor.authSubject!,
@@ -183,12 +175,11 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
       )
       : page.items;
     return success({
-      profileId,
-      kind: 'ratings' as const,
-      source: 'canonical_watch' as const,
-      generatedAt,
-      items: enrichedItems,
-      pageInfo: page.pageInfo,
+      Items: enrichedItems,
+      StartIndex: 0,
+      TotalRecordCount: enrichedItems.length,
+      NextCursor: page.pageInfo.nextCursor,
+      HasMore: page.pageInfo.hasMore,
     });
   });
 
@@ -206,12 +197,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const enrichedItem = await withDbClient((client) =>
       watchMetadataEnrichmentService.enrichRegularMediaItems(client, [item], language),
     );
-    return success({
-      profileId,
-      source: 'canonical_watch' as const,
-      generatedAt: nowIso(),
-      item: enrichedItem[0] ?? item,
-    });
+    return success(enrichedItem[0] ?? item);
   });
 
   app.post('/v1/profiles/:profileId/watch/states', { schema: watchStatesRouteSchema }, async (request) => {
@@ -232,12 +218,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
         watchMetadataEnrichmentService.enrichRegularMediaItems(client, stateItems, language),
       )
       : stateItems;
-    return success({
-      profileId,
-      source: 'canonical_watch' as const,
-      generatedAt: nowIso(),
-      items: enrichedItems,
-    });
+    return success({ items: enrichedItems });
   });
 
   app.post('/v1/profiles/:profileId/watch/mark-watched', { schema: watchMutationRouteSchema }, async (request) => {

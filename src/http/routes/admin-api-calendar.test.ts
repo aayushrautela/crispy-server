@@ -8,6 +8,49 @@ setTestEnv({
   ADMIN_UI_SESSION_SECRET: 'admin-session-secret-for-tests',
 });
 
+async function makeBaseItemDto(overrides: Record<string, unknown>) {
+  const mediaKey = overrides.mediaKey as string ?? 'episode:tmdb:500:1:3';
+  const tmdbId = mediaKey.split(':')[2] ?? '0';
+  return {
+    Id: mediaKey,
+    Type: 'Episode',
+    Name: overrides.name as string ?? 'Example Show',
+    OriginalTitle: null,
+    Overview: null,
+    Taglines: [],
+    ProductionYear: overrides.productionYear as number ?? 2026,
+    PremiereDate: null,
+    CommunityRating: overrides.communityRating as number ?? 8.5,
+    OfficialRating: null,
+    Certification: null,
+    Genres: [],
+    RunTimeTicks: (overrides.runTimeSeconds as number | null ?? 2640) * 10_000_000,
+    Status: null,
+    ProviderIds: { Tmdb: tmdbId, Imdb: null, Tvdb: null },
+    ImageTags: {
+      Primary: { small: overrides.posterSmall as string ?? 'https://img.test/poster.jpg', medium: overrides.posterMedium as string ?? 'https://img.test/poster.jpg', large: overrides.posterLarge as string ?? 'https://img.test/poster.jpg' },
+      Backdrop: [{ small: overrides.backdropSmall as string ?? 'https://img.test/backdrop.jpg', medium: overrides.backdropMedium as string ?? 'https://img.test/backdrop.jpg', large: overrides.backdropLarge as string ?? 'https://img.test/backdrop.jpg' }],
+      Logo: null,
+      Thumb: null,
+      Screenshot: [],
+    },
+    ParentImageTags: null,
+    SeriesId: overrides.seriesId as string ?? null,
+    SeriesName: overrides.seriesName as string ?? null,
+    SeasonId: null,
+    SeasonName: null,
+    ParentIndexNumber: overrides.parentIndexNumber as number | null ?? 1,
+    IndexNumber: overrides.indexNumber as number | null ?? 3,
+    AbsoluteIndexNumber: null,
+    EpisodeTitle: overrides.episodeTitle as string | null ?? 'Third Episode',
+    AirDate: overrides.airDate as string | null ?? '2026-04-17T00:00:00.000Z',
+    RemoteTrailers: [],
+    PosterColor: null,
+    BackdropColor: null,
+    UserData: null,
+  } as const;
+}
+
 test('admin calendar route returns canonical envelope fields for authenticated admin session', async (t) => {
   const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
@@ -18,96 +61,24 @@ test('admin calendar route returns canonical envelope fields for authenticated a
 
   const original = CalendarService.prototype.getCalendarForAccountService;
   CalendarService.prototype.getCalendarForAccountService = async function (_accountId, profileId) {
+    const mediaItem = await makeBaseItemDto({
+      mediaKey: 'episode:tmdb:500:1:3',
+      name: 'Example Show',
+      productionYear: 2026,
+      communityRating: 8.5,
+      runTimeSeconds: 2640,
+      seriesId: 'show:tmdb:500',
+      seriesName: 'Example Show',
+      parentIndexNumber: 1,
+      indexNumber: 3,
+      episodeTitle: 'Third Episode',
+      airDate: '2026-04-17T00:00:00.000Z',
+    });
     return {
       profileId,
       source: 'canonical_calendar',
       generatedAt: '2026-04-15T00:00:00.000Z',
-      items: [
-        {
-          bucket: 'this_week',
-          kind: 'calendar_item',
-          mediaItem: {
-            mediaType: 'episode',
-            mediaKey: 'episode:tmdb:500:1:3',
-            provider: 'tmdb',
-            providerId: '500:1:3',
-            title: 'Example Show',
-            originalTitle: null,
-            subtitle: null,
-            overview: null,
-            images: {
-              poster: { small: 'https://img.test/poster.jpg', medium: 'https://img.test/poster.jpg', large: 'https://img.test/poster.jpg' },
-              backdrop: { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' },
-              logo: { small: null, medium: null, large: null },
-              still: { small: null, medium: null, large: null },
-            },
-            releaseDate: null,
-            releaseYear: 2026,
-            rating: 8.5,
-            genres: [],
-            runtimeMinutes: 44,
-            status: null,
-            maturityRating: null,
-            certification: null,
-            trailerUrl: null,
-            trailerThumbnailUrl: null,
-            posterColor: null,
-            backdropColor: null,
-            externalIds: { tmdb: 500, imdb: null, tvdb: null },
-            parent: null,
-            showTmdbId: 500,
-            seasonNumber: 1,
-            episodeNumber: 3,
-            absoluteEpisodeNumber: null,
-            episodeTitle: 'Third Episode',
-            airDate: '2026-04-17T00:00:00.000Z',
-          },
-          context: {
-            bucket: 'this_week',
-            airDate: '2026-04-17T00:00:00.000Z',
-            watched: false,
-            relatedShow: {
-              mediaType: 'show',
-              mediaKey: 'show:tmdb:500',
-              provider: 'tmdb',
-              providerId: '500',
-              title: 'Example Show',
-              originalTitle: null,
-              subtitle: null,
-              overview: null,
-              images: {
-                poster: { small: 'https://img.test/show-poster.jpg', medium: 'https://img.test/show-poster.jpg', large: 'https://img.test/show-poster.jpg' },
-                backdrop: { small: null, medium: null, large: null },
-                logo: { small: null, medium: null, large: null },
-                still: { small: null, medium: null, large: null },
-              },
-              releaseDate: null,
-              releaseYear: 2026,
-              rating: 8.5,
-              genres: [],
-              runtimeMinutes: null,
-              status: null,
-              maturityRating: null,
-              certification: null,
-              trailerUrl: null,
-              trailerThumbnailUrl: null,
-              posterColor: null,
-              backdropColor: null,
-              externalIds: { tmdb: 500, imdb: null, tvdb: null },
-              parent: null,
-              showTmdbId: 500,
-              seasonNumber: null,
-              episodeNumber: null,
-              absoluteEpisodeNumber: null,
-              episodeTitle: null,
-              airDate: null,
-            },
-          },
-          presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-          airDate: '2026-04-17T00:00:00.000Z',
-          watched: false,
-        },
-      ],
+      items: [mediaItem],
     } as never;
   };
 
@@ -134,97 +105,16 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json().data, {
-    profileId: 'profile-1',
-    source: 'canonical_calendar',
-    generatedAt: '2026-04-15T00:00:00.000Z',
-    items: [
-      {
-        bucket: 'this_week',
-        kind: 'calendar_item',
-        mediaItem: {
-          mediaType: 'episode',
-          mediaKey: 'episode:tmdb:500:1:3',
-          provider: 'tmdb',
-          providerId: '500:1:3',
-          title: 'Example Show',
-          originalTitle: null,
-          subtitle: null,
-          overview: null,
-          images: {
-            poster: { small: 'https://img.test/poster.jpg', medium: 'https://img.test/poster.jpg', large: 'https://img.test/poster.jpg' },
-            backdrop: { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' },
-            logo: { small: null, medium: null, large: null },
-            still: { small: null, medium: null, large: null },
-          },
-          releaseDate: null,
-          releaseYear: 2026,
-          rating: 8.5,
-          genres: [],
-          runtimeMinutes: 44,
-          status: null,
-          maturityRating: null,
-          certification: null,
-          trailerUrl: null,
-          trailerThumbnailUrl: null,
-          posterColor: null,
-          backdropColor: null,
-          externalIds: { tmdb: 500, imdb: null, tvdb: null },
-          parent: null,
-          showTmdbId: 500,
-          seasonNumber: 1,
-          episodeNumber: 3,
-          absoluteEpisodeNumber: null,
-          episodeTitle: 'Third Episode',
-          airDate: '2026-04-17T00:00:00.000Z',
-        },
-        context: {
-          bucket: 'this_week',
-          airDate: '2026-04-17T00:00:00.000Z',
-          watched: false,
-          relatedShow: {
-            mediaType: 'show',
-            mediaKey: 'show:tmdb:500',
-            provider: 'tmdb',
-            providerId: '500',
-            title: 'Example Show',
-            originalTitle: null,
-            subtitle: null,
-            overview: null,
-            images: {
-              poster: { small: 'https://img.test/show-poster.jpg', medium: 'https://img.test/show-poster.jpg', large: 'https://img.test/show-poster.jpg' },
-              backdrop: { small: null, medium: null, large: null },
-              logo: { small: null, medium: null, large: null },
-              still: { small: null, medium: null, large: null },
-            },
-            releaseDate: null,
-            releaseYear: 2026,
-            rating: 8.5,
-            genres: [],
-            runtimeMinutes: null,
-            status: null,
-            maturityRating: null,
-            certification: null,
-            trailerUrl: null,
-            trailerThumbnailUrl: null,
-            posterColor: null,
-            backdropColor: null,
-            externalIds: { tmdb: 500, imdb: null, tvdb: null },
-            parent: null,
-            showTmdbId: 500,
-            seasonNumber: null,
-            episodeNumber: null,
-            absoluteEpisodeNumber: null,
-            episodeTitle: null,
-            airDate: null,
-          },
-        },
-        presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-        airDate: '2026-04-17T00:00:00.000Z',
-        watched: false,
-      },
-    ],
-  });
+  const data = response.json().data;
+  assert.equal(data.profileId, 'profile-1');
+  assert.equal(data.source, 'canonical_calendar');
+  assert.equal(data.items.length, 1);
+  assert.equal(data.items[0].Id, 'episode:tmdb:500:1:3');
+  assert.equal(data.items[0].Type, 'Episode');
+  assert.equal(data.items[0].Name, 'Example Show');
+  assert.equal(data.items[0].ParentIndexNumber, 1);
+  assert.equal(data.items[0].IndexNumber, 3);
+  assert.equal(data.items[0].EpisodeTitle, 'Third Episode');
 });
 
 test('admin calendar this-week route returns narrowed canonical envelope fields for authenticated admin session', async (t) => {
@@ -237,97 +127,24 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
 
   const original = CalendarService.prototype.getThisWeekForAccountService;
   CalendarService.prototype.getThisWeekForAccountService = async function (_accountId, profileId) {
+    const mediaItem = await makeBaseItemDto({
+      mediaKey: 'episode:tmdb:501:2:1',
+      name: 'Next Week Show',
+      productionYear: 2026,
+      communityRating: 8.3,
+      runTimeSeconds: 2760,
+      seriesId: 'show:tmdb:501',
+      seriesName: 'Next Week Show',
+      parentIndexNumber: 2,
+      indexNumber: 1,
+      episodeTitle: 'Season Premiere',
+      airDate: '2026-04-18T00:00:00.000Z',
+    });
     return {
       profileId,
       source: 'canonical_calendar',
-      kind: 'this-week',
       generatedAt: '2026-04-15T00:00:00.000Z',
-      items: [
-        {
-          bucket: 'this_week',
-          kind: 'calendar_item',
-          mediaItem: {
-            mediaType: 'episode',
-            mediaKey: 'episode:tmdb:501:2:1',
-            provider: 'tmdb',
-            providerId: '501:2:1',
-            title: 'Next Week Show',
-            originalTitle: null,
-            subtitle: null,
-            overview: null,
-            images: {
-              poster: { small: 'https://img.test/next-poster.jpg', medium: 'https://img.test/next-poster.jpg', large: 'https://img.test/next-poster.jpg' },
-              backdrop: { small: 'https://img.test/next-backdrop.jpg', medium: 'https://img.test/next-backdrop.jpg', large: 'https://img.test/next-backdrop.jpg' },
-              logo: { small: null, medium: null, large: null },
-              still: { small: null, medium: null, large: null },
-            },
-            releaseDate: null,
-            releaseYear: 2026,
-            rating: 8.3,
-            genres: [],
-            runtimeMinutes: 46,
-            status: null,
-            maturityRating: null,
-            certification: null,
-            trailerUrl: null,
-            trailerThumbnailUrl: null,
-            posterColor: null,
-            backdropColor: null,
-            externalIds: { tmdb: 501, imdb: null, tvdb: null },
-            parent: null,
-            showTmdbId: 501,
-            seasonNumber: 2,
-            episodeNumber: 1,
-            absoluteEpisodeNumber: null,
-            episodeTitle: 'Season Premiere',
-            airDate: '2026-04-18T00:00:00.000Z',
-          },
-          context: {
-            bucket: 'this_week',
-            airDate: '2026-04-18T00:00:00.000Z',
-            watched: false,
-            relatedShow: {
-              mediaType: 'show',
-              mediaKey: 'show:tmdb:501',
-              provider: 'tmdb',
-              providerId: '501',
-              title: 'Next Week Show',
-              originalTitle: null,
-              subtitle: null,
-              overview: null,
-              images: {
-                poster: { small: 'https://img.test/next-show-poster.jpg', medium: 'https://img.test/next-show-poster.jpg', large: 'https://img.test/next-show-poster.jpg' },
-                backdrop: { small: null, medium: null, large: null },
-                logo: { small: null, medium: null, large: null },
-                still: { small: null, medium: null, large: null },
-              },
-              releaseDate: null,
-              releaseYear: 2026,
-              rating: 8.3,
-              genres: [],
-              runtimeMinutes: null,
-              status: null,
-              maturityRating: null,
-              certification: null,
-              trailerUrl: null,
-              trailerThumbnailUrl: null,
-              posterColor: null,
-              backdropColor: null,
-              externalIds: { tmdb: 501, imdb: null, tvdb: null },
-              parent: null,
-              showTmdbId: 501,
-              seasonNumber: null,
-              episodeNumber: null,
-              absoluteEpisodeNumber: null,
-              episodeTitle: null,
-              airDate: null,
-            },
-          },
-          presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-          airDate: '2026-04-18T00:00:00.000Z',
-          watched: false,
-        },
-      ],
+      items: [mediaItem],
     } as never;
   };
 
@@ -354,98 +171,14 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json().data, {
-    profileId: 'profile-1',
-    source: 'canonical_calendar',
-    kind: 'this-week',
-    generatedAt: '2026-04-15T00:00:00.000Z',
-    items: [
-      {
-        bucket: 'this_week',
-        kind: 'calendar_item',
-        mediaItem: {
-          mediaType: 'episode',
-          mediaKey: 'episode:tmdb:501:2:1',
-          provider: 'tmdb',
-          providerId: '501:2:1',
-          title: 'Next Week Show',
-          originalTitle: null,
-          subtitle: null,
-          overview: null,
-          images: {
-            poster: { small: 'https://img.test/next-poster.jpg', medium: 'https://img.test/next-poster.jpg', large: 'https://img.test/next-poster.jpg' },
-            backdrop: { small: 'https://img.test/next-backdrop.jpg', medium: 'https://img.test/next-backdrop.jpg', large: 'https://img.test/next-backdrop.jpg' },
-            logo: { small: null, medium: null, large: null },
-            still: { small: null, medium: null, large: null },
-          },
-          releaseDate: null,
-          releaseYear: 2026,
-          rating: 8.3,
-          genres: [],
-          runtimeMinutes: 46,
-          status: null,
-          maturityRating: null,
-          certification: null,
-          trailerUrl: null,
-          trailerThumbnailUrl: null,
-          posterColor: null,
-          backdropColor: null,
-          externalIds: { tmdb: 501, imdb: null, tvdb: null },
-          parent: null,
-          showTmdbId: 501,
-          seasonNumber: 2,
-          episodeNumber: 1,
-          absoluteEpisodeNumber: null,
-          episodeTitle: 'Season Premiere',
-          airDate: '2026-04-18T00:00:00.000Z',
-        },
-        context: {
-          bucket: 'this_week',
-          airDate: '2026-04-18T00:00:00.000Z',
-          watched: false,
-          relatedShow: {
-            mediaType: 'show',
-            mediaKey: 'show:tmdb:501',
-            provider: 'tmdb',
-            providerId: '501',
-            title: 'Next Week Show',
-            originalTitle: null,
-            subtitle: null,
-            overview: null,
-            images: {
-              poster: { small: 'https://img.test/next-show-poster.jpg', medium: 'https://img.test/next-show-poster.jpg', large: 'https://img.test/next-show-poster.jpg' },
-              backdrop: { small: null, medium: null, large: null },
-              logo: { small: null, medium: null, large: null },
-              still: { small: null, medium: null, large: null },
-            },
-            releaseDate: null,
-            releaseYear: 2026,
-            rating: 8.3,
-            genres: [],
-            runtimeMinutes: null,
-            status: null,
-            maturityRating: null,
-            certification: null,
-            trailerUrl: null,
-            trailerThumbnailUrl: null,
-            posterColor: null,
-            backdropColor: null,
-            externalIds: { tmdb: 501, imdb: null, tvdb: null },
-            parent: null,
-            showTmdbId: 501,
-            seasonNumber: null,
-            episodeNumber: null,
-            absoluteEpisodeNumber: null,
-            episodeTitle: null,
-            airDate: null,
-          },
-        },
-        presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-        airDate: '2026-04-18T00:00:00.000Z',
-        watched: false,
-      },
-    ],
-  });
+  const data = response.json().data;
+  assert.equal(data.items.length, 1);
+  assert.equal(data.items[0].Id, 'episode:tmdb:501:2:1');
+  assert.equal(data.items[0].Type, 'Episode');
+  assert.equal(data.items[0].Name, 'Next Week Show');
+  assert.equal(data.items[0].ParentIndexNumber, 2);
+  assert.equal(data.items[0].IndexNumber, 1);
+  assert.equal(data.items[0].EpisodeTitle, 'Season Premiere');
 });
 
 async function loginAsAdmin(app: import('fastify').FastifyInstance): Promise<string> {

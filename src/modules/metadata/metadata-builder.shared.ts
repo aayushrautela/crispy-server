@@ -1,7 +1,6 @@
 import { appConfig } from '../../config/app-config.js';
 import type { SupportedProvider } from '../identity/media-key.js';
 import type {
-  MetadataCollectionView,
   MetadataCompanyView,
   MetadataPersonRefView,
   MetadataProductionInfoView,
@@ -385,7 +384,15 @@ export function extractProduction(title: TmdbTitleRecord | null): MetadataProduc
   };
 }
 
-export function extractCollection(title: TmdbTitleRecord | null): MetadataCollectionView | null {
+export function extractCollection(title: TmdbTitleRecord | null): {
+  id: number;
+  provider: string;
+  providerId: string;
+  name: string;
+  poster: ResponsiveImageSet;
+  backdrop: ResponsiveImageSet;
+  parts: TmdbTitleRecord[];
+} | null {
   const collection = asRecord(title?.raw.belongs_to_collection);
   if (!collection) {
     return null;

@@ -910,7 +910,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/CalendarResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -947,7 +947,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/CalendarResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1612,7 +1612,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1752,7 +1752,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1931,7 +1931,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1962,13 +1962,18 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
+        - name: mediaKey
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2004,14 +2009,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              type: object
+              required:
+                - items
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - mediaKey
+                    properties:
+                      mediaKey:
+                        type: string
       responses:
         "201":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoArrayEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2101,7 +2118,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2260,7 +2277,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/MetadataSearchResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2313,7 +2330,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/GenericArrayEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2354,7 +2371,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2734,68 +2751,400 @@ components:
     MetadataTitleDetailResponse:
       type: object
       required:
-        - item
-        - nextEpisode
-        - videos
-        - cast
-        - directors
-        - creators
-        - production
+        - Item
+        - NextEpisode
+        - Videos
+        - Cast
+        - Directors
+        - Creators
+        - Production
       properties:
-        item:
+        Item:
           $ref: "#/components/schemas/BaseItemDto"
-        nextEpisode:
+        NextEpisode:
           anyOf:
             - $ref: "#/components/schemas/BaseItemDto"
             - type: "null"
-        videos:
+        Videos:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
-        cast:
+            $ref: "#/components/schemas/MetadataVideoView"
+        Cast:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
-        directors:
+            $ref: "#/components/schemas/MetadataPersonRefView"
+        Directors:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
-        creators:
+            $ref: "#/components/schemas/MetadataPersonRefView"
+        Creators:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
-        production:
-          $ref: "#/components/schemas/GenericObject"
+            $ref: "#/components/schemas/MetadataPersonRefView"
+        Production:
+          $ref: "#/components/schemas/MetadataProductionInfoView"
+    MetadataVideoView:
+      type: object
+      additionalProperties: false
+      required: [id, key, name, site, type, official, publishedAt, url, thumbnailUrl]
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          anyOf:
+            - type: string
+            - type: "null"
+        site:
+          anyOf:
+            - type: string
+            - type: "null"
+        type:
+          anyOf:
+            - type: string
+            - type: "null"
+        official:
+          type: boolean
+        publishedAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        url:
+          anyOf:
+            - type: string
+            - type: "null"
+        thumbnailUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+    MetadataPersonRefView:
+      type: object
+      additionalProperties: false
+      required: [id, provider, providerId, tmdbPersonId, name, role, department, profileUrl]
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        providerId:
+          type: string
+        tmdbPersonId:
+          anyOf:
+            - type: integer
+            - type: "null"
+        name:
+          type: string
+        role:
+          anyOf:
+            - type: string
+            - type: "null"
+        department:
+          anyOf:
+            - type: string
+            - type: "null"
+        profileUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+    MetadataCompanyView:
+      type: object
+      additionalProperties: false
+      required: [id, provider, providerId, name, logo, originCountry]
+      properties:
+        id:
+          anyOf:
+            - type: integer
+            - type: string
+        provider:
+          type: string
+        providerId:
+          type: string
+        name:
+          type: string
+        logo:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        originCountry:
+          anyOf:
+            - type: string
+            - type: "null"
+    MetadataProductionInfoView:
+      type: object
+      additionalProperties: false
+      required: [originalLanguage, originCountries, spokenLanguages, productionCountries, companies, networks]
+      properties:
+        originalLanguage:
+          anyOf:
+            - type: string
+            - type: "null"
+        originCountries:
+          type: array
+          items:
+            type: string
+        spokenLanguages:
+          type: array
+          items:
+            type: string
+        productionCountries:
+          type: array
+          items:
+            type: string
+        companies:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataCompanyView"
+        networks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataCompanyView"
     MetadataTitleExtrasResponse:
       type: object
       required:
-        - seasons
-        - episodes
-        - reviews
-        - similar
-        - collection
+        - Seasons
+        - Episodes
+        - Reviews
+        - Similar
+        - Collection
       properties:
-        seasons:
+        Seasons:
           type: array
           items:
             $ref: "#/components/schemas/BaseItemDto"
-        episodes:
+        Episodes:
           type: array
           items:
             $ref: "#/components/schemas/BaseItemDto"
-        reviews:
+        Reviews:
           type: array
           items:
-            $ref: "#/components/schemas/GenericObject"
-        similar:
+            $ref: "#/components/schemas/MetadataReviewView"
+        Similar:
           type: array
           items:
             $ref: "#/components/schemas/BaseItemDto"
-        collection:
+        Collection:
           anyOf:
             - $ref: "#/components/schemas/BaseItemDtoQueryResult"
+            - type: "null"
+    MetadataReviewView:
+      type: object
+      additionalProperties: false
+      required: [id, provider, author, username, content, createdAt, updatedAt, url, rating, avatarUrl]
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        author:
+          anyOf:
+            - type: string
+            - type: "null"
+        username:
+          anyOf:
+            - type: string
+            - type: "null"
+        content:
+          type: string
+        createdAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        updatedAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        url:
+          anyOf:
+            - type: string
+            - type: "null"
+        rating:
+          anyOf:
+            - type: number
+            - type: "null"
+        avatarUrl:
+          anyOf:
+            - type: string
             - type: "null"
     GenericArray:
       type: array
       items:
         $ref: "#/components/schemas/GenericObject"
+    BaseItemDtoQueryResultEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/BaseItemDtoQueryResult"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ResponseMeta:
+      type: object
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+    BaseItemDtoEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/BaseItemDto"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    BaseItemDtoArrayEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/BaseItemDto"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    CalendarResponse:
+      type: object
+      required:
+        - profileId
+        - source
+        - generatedAt
+        - items
+      properties:
+        profileId:
+          type: string
+        source:
+          type: string
+          enum: [canonical_calendar]
+        generatedAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BaseItemDto"
+    CalendarResponseEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/CalendarResponse"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    MetadataSearchResponse:
+      type: object
+      required:
+        - query
+        - all
+        - movies
+        - series
+        - people
+      properties:
+        query:
+          type: string
+        all:
+          type: array
+          items:
+            $ref: "#/components/schemas/BaseItemDto"
+        movies:
+          type: array
+          items:
+            $ref: "#/components/schemas/BaseItemDto"
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/BaseItemDto"
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataPersonSearchResult"
+    GenericArrayEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchSuggestionItem"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    SearchSuggestionItem:
+      type: object
+      required:
+        - Id
+        - Type
+        - Name
+      properties:
+        Id:
+          type: string
+        Type:
+          type: string
+        Name:
+          type: string
+        ProductionYear:
+          anyOf:
+            - type: integer
+            - type: "null"
+        ImageTags:
+          type: object
+          properties:
+            Primary:
+              anyOf:
+                - $ref: "#/components/schemas/ResponsiveImageSet"
+                - type: "null"
+        ProviderIds:
+          anyOf:
+            - $ref: "#/components/schemas/ProviderIds"
+            - type: "null"
+    MetadataPersonSearchResult:
+      type: object
+      required:
+        - kind
+        - tmdbPersonId
+        - name
+        - knownForDepartment
+        - profileUrl
+        - knownForTitles
+      properties:
+        kind:
+          type: string
+          enum: ["person_search_result"]
+        tmdbPersonId:
+          type: integer
+        name:
+          type: string
+        knownForDepartment:
+          anyOf:
+            - type: string
+            - type: "null"
+        profileUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+        knownForTitles:
+          type: array
+          items:
+            type: string
+    MetadataSearchResponseEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/MetadataSearchResponse"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"

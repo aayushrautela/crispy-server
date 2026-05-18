@@ -1,143 +1,151 @@
 import type { MediaIdentity } from '../identity/media-key.js';
 import {
-  buildMetadataCardView,
   buildEpisodePreview,
+  buildMetadataCardView,
 } from './metadata-card.builders.js';
-import type {
-  MetadataEpisodeView,
-  MetadataSeasonView,
-  MetadataView,
-} from './metadata-detail.types.js';
+import type { MetadataCardView } from './metadata-card.types.js';
 import {
   buildMetadataImages,
-  deriveRuntimeMinutes,
   extractCertification,
   extractExternalIds,
   extractGenres,
+  extractPrimaryTrailer,
   extractReleaseYear,
 } from './metadata-builder.shared.js';
+import {
+  mediaItemToBaseItemDto,
+  metadataCardToMediaItem,
+} from './media-item.mapper.js';
+import type { BaseItemDto } from './media-item.types.js';
 import type {
   TmdbEpisodeRecord,
-  TmdbSeasonRecord,
   TmdbTitleRecord,
 } from './providers/tmdb.types.js';
 
-export function buildMetadataView(params: {
+export function buildDetailBaseItemDto(params: {
   identity: MediaIdentity;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
   nextEpisode?: TmdbEpisodeRecord | null;
   language?: string | null;
-}): MetadataView {
+}): BaseItemDto {
   const card = buildMetadataCardView(params);
-  const { identity, title, language } = params;
-  const currentEpisode = params.currentEpisode ?? null;
-
-  return {
-    ...card,
-    runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
-    maturityRating: extractCertification(title),
-    certification: extractCertification(title),
-    genres: extractGenres(title),
-    externalIds: extractExternalIds(title),
-    seasonCount: title?.numberOfSeasons ?? null,
-    episodeCount: title?.numberOfEpisodes ?? null,
-    nextEpisode: title && params.nextEpisode
-      ? buildEpisodePreview(title, params.nextEpisode, language)
-      : null,
-  };
+  const mediaItem = metadataCardToMediaItem(card, {
+    externalIds: extractExternalIds(params.title),
+  });
+  return mediaItemToBaseItemDto(mediaItem);
 }
 
-export function buildSeasonViewFromTitleRaw(
-  title: TmdbTitleRecord,
-  seasonIds: Map<number, string>,
-): MetadataSeasonView[] {
-  const seasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
-
-  const items: MetadataSeasonView[] = [];
-  for (const entry of seasons) {
-    if (typeof entry !== 'object' || entry === null) {
-      continue;
-    }
-
-    const season = entry as Record<string, unknown>;
-    const seasonNumber = typeof season.season_number === 'number' ? season.season_number : null;
-    if (seasonNumber === null || seasonNumber < 0 || !seasonIds.get(seasonNumber)) {
-      continue;
-    }
-
-    items.push({
-      mediaKey: `season:tmdb:${title.tmdbId}:${seasonNumber}`,
-      parentMediaType: 'show',
-      showTmdbId: title.tmdbId,
-      seasonNumber,
-      title: typeof season.name === 'string' ? season.name : null,
-      summary: typeof season.overview === 'string' ? season.overview : null,
-      airDate: typeof season.air_date === 'string' ? season.air_date : null,
-      episodeCount: typeof season.episode_count === 'number' ? season.episode_count : null,
-      images: {
-        poster: buildMetadataImages({
-          ...title,
-          posterPath: typeof season.poster_path === 'string' ? season.poster_path : null,
-        }, null).poster,
-      },
-    });
-  }
-
-  return items.sort((left, right) => left.seasonNumber - right.seasonNumber);
-}
-
-export function buildSeasonViewFromRecord(
-  showTmdbId: number,
-  season: TmdbSeasonRecord,
-  _seasonId: string,
-  _showId: string,
-): MetadataSeasonView {
-  return {
-    mediaKey: `season:tmdb:${showTmdbId}:${season.seasonNumber}`,
-    parentMediaType: 'show',
-    showTmdbId,
-    seasonNumber: season.seasonNumber,
-    title: season.name,
-    summary: season.overview,
-    airDate: season.airDate,
-    episodeCount: season.episodeCount,
-      images: {
-        poster: buildMetadataImages({
-          mediaType: 'tv',
-          tmdbId: showTmdbId,
-          language: 'en',
-          name: null,
-          originalName: null,
-          overview: null,
-          releaseDate: null,
-          firstAirDate: null,
-          status: null,
-          posterPath: season.posterPath,
-          backdropPath: null,
-          runtime: null,
-          episodeRunTime: [],
-          numberOfSeasons: null,
-          numberOfEpisodes: null,
-          externalIds: {},
-          raw: {},
-          hydrationLevel: 'detail',
-          fetchedAt: season.fetchedAt,
-          expiresAt: season.expiresAt,
-        }, null).poster,
-      },
-  };
-}
-
-export function buildEpisodeView(
+export function buildEpisodeBaseItemDto(
   title: TmdbTitleRecord,
   episode: TmdbEpisodeRecord,
   _contentId: string,
   _showId: string,
-): MetadataEpisodeView {
+): BaseItemDto {
+  const preview = buildEpisodePreview(title, episode);
+  const images = buildMetadataImages(title, episode);
+  const card: MetadataCardView = {
+    mediaType: 'episode',
+    kind: 'episode',
+    mediaKey: preview.mediaKey,
+    parentMediaType: 'show',
+    tmdbId: preview.tmdbId,
+    showTmdbId: preview.showTmdbId,
+    seasonNumber: preview.seasonNumber,
+    episodeNumber: preview.episodeNumber,
+    absoluteEpisodeNumber: preview.absoluteEpisodeNumber,
+    title: preview.title,
+    subtitle: title.name ?? title.originalName,
+    summary: preview.summary,
+    overview: preview.summary,
+    artwork: { poster: images.poster, backdrop: images.backdrop, still: images.still },
+    images,
+    releaseDate: preview.airDate,
+    releaseYear: extractReleaseYear(preview.airDate),
+    runtimeMinutes: preview.runtimeMinutes,
+    rating: preview.rating,
+    status: title.status,
+    maturityRating: extractCertification(title),
+    trailerUrl: extractPrimaryTrailer(title)?.url ?? null,
+    trailerThumbnailUrl: extractPrimaryTrailer(title)?.thumbnailUrl ?? null,
+    posterColor: null,
+    backdropColor: null,
+    genres: extractGenres(title),
+  };
+
+  const mediaItem = metadataCardToMediaItem(card, {
+    externalIds: extractExternalIds(title),
+    parent: {
+      mediaKey: `show:tmdb:${title.tmdbId}`,
+      mediaType: 'show',
+      title: title.name ?? title.originalName ?? 'Untitled',
+    },
+  });
+  return mediaItemToBaseItemDto(mediaItem);
+}
+
+export function buildSeasonBaseItemDto(
+  title: TmdbTitleRecord,
+  seasonNumber: number,
+  seasonId: string,
+): BaseItemDto {
+  const rawSeasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
+  const rawSeason = rawSeasons.find(
+    (s) => typeof s === 'object' && s !== null && (s as Record<string, unknown>).season_number === seasonNumber,
+  ) as Record<string, unknown> | undefined;
+
+  const seasonName = rawSeason && typeof rawSeason.name === 'string' ? rawSeason.name : null;
+  const seasonOverview = rawSeason && typeof rawSeason.overview === 'string' ? rawSeason.overview : null;
+  const seasonPosterPath = rawSeason && typeof rawSeason.poster_path === 'string' ? rawSeason.poster_path : null;
+  const seasonAirDate = rawSeason && typeof rawSeason.air_date === 'string' ? rawSeason.air_date : null;
+  const images = buildMetadataImages({
+    ...title,
+    posterPath: seasonPosterPath ?? title.posterPath,
+  }, null);
+
+  const mediaKey = `season:tmdb:${title.tmdbId}:${seasonNumber}`;
+
+  const card = {
+    mediaType: 'season',
+    kind: 'title',
+    mediaKey,
+    parentMediaType: 'show',
+    tmdbId: title.tmdbId,
+    showTmdbId: title.tmdbId,
+    seasonNumber,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+    title: seasonName ?? `Season ${seasonNumber}`,
+    subtitle: null,
+    summary: seasonOverview,
+    overview: seasonOverview,
+    artwork: { poster: images.poster, backdrop: images.backdrop, still: images.still },
+    images,
+    releaseDate: seasonAirDate,
+    releaseYear: extractReleaseYear(seasonAirDate),
+    runtimeMinutes: null,
+    rating: null,
+    status: null,
+    maturityRating: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
+    genres: [],
+  } as unknown as MetadataCardView;
+
+  const mediaItem = metadataCardToMediaItem(card, {
+    parent: {
+      mediaKey: `show:tmdb:${title.tmdbId}`,
+      mediaType: 'show',
+      title: title.name ?? title.originalName ?? 'Untitled',
+    },
+  });
+  const dto = mediaItemToBaseItemDto(mediaItem);
+
   return {
-    ...buildEpisodePreview(title, episode),
-    showTitle: title.name ?? title.originalName,
-    showExternalIds: extractExternalIds(title),
+    ...dto,
+    SeasonId: seasonId,
+    SeasonName: seasonName ?? `Season ${seasonNumber}`,
   };
 }

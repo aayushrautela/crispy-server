@@ -1,6 +1,6 @@
 import { withDbClient } from '../../lib/db.js';
 import { AdminWatchReadService } from '../integrations/admin-watch-read.service.js';
-import { metadataCardToMediaItem, mediaItemToMediaItemDto } from '../metadata/media-item.mapper.js';
+import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 import { EpisodicFollowService } from '../watch/episodic-follow.service.js';
 import type { ProfileInputSignalCacheService } from './profile-input-signal-cache.service.js';
 import {
@@ -125,46 +125,44 @@ export class ProfileInputSignalFacade {
           case 'history': {
             const page = await watchReadService.listHistoryPage(client, params);
             payload.history = page.items.map((item) => ({
-              id: item.id,
-              mediaItem: item.mediaItem,
-              watchedAt: item.watchedAt,
-              payload: {
-                eventType: item.eventType,
-                occurredAt: item.occurredAt,
-                origins: item.origins,
-              },
+              id: item.Id,
+              Item: item,
+              watchedAt: item.UserData?.LastPlayedDate ?? '',
+              payload: null,
             }));
             break;
           }
           case 'ratings': {
             const page = await watchReadService.listRatingsPage(client, params);
-            payload.ratings = page.items.map((item) => ({
-              id: item.id,
-              mediaItem: item.mediaItem,
-              rating: item.rating,
-              payload: { origins: item.origins },
-            }));
+            payload.ratings = page.items
+              .filter((item) => item.UserData?.Rating != null)
+              .map((item) => ({
+                id: item.Id,
+                Item: item,
+                rating: { value: item.UserData!.Rating!, ratedAt: item.UserData!.LastPlayedDate ?? '' },
+                payload: null,
+              }));
             break;
           }
           case 'watchlist': {
             const page = await watchReadService.listWatchlistPage(client, params);
             payload.watchlist = page.items.map((item) => ({
-              id: item.id,
-              mediaItem: item.mediaItem,
-              addedAt: item.addedAt,
-              payload: { origins: item.origins },
+              id: item.Id,
+              Item: item,
+              addedAt: item.UserData?.LastPlayedDate ?? '',
+              payload: null,
             }));
             break;
           }
           case 'continueWatching': {
             const page = await watchReadService.listContinueWatchingPage(client, params);
             payload.continueWatching = page.items.map((item) => ({
-              id: item.id,
-              mediaItem: item.mediaItem,
+              id: item.Id,
+              Item: item,
               progress: {
-                progressPercent: item.progress.progressPercent,
+                progressPercent: item.UserData?.PlayedPercentage ?? 0,
               },
-              lastActivityAt: item.lastActivityAt,
+              lastActivityAt: item.UserData?.LastPlayedDate ?? '',
             }));
             break;
           }
@@ -172,7 +170,7 @@ export class ProfileInputSignalFacade {
             await watchReadService.assertProfileAccess(client, { accountId: input.accountId, profileId: input.profileId });
             const items = await episodicFollowService.listForProfile(client, input.profileId, request.requestedLimit);
             payload.trackedSeries = items.map((item) => ({
-              show: item.show ? mediaItemToMediaItemDto(metadataCardToMediaItem(item.show)) : null,
+              Show: item.show ? mediaItemToBaseItemDto(metadataCardToMediaItem(item.show)) : null,
               reason: item.reason ?? 'watch_activity',
               lastInteractedAt: item.lastInteractedAt,
               nextEpisodeAirDate: item.nextEpisodeAirDate,

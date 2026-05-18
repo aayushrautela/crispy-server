@@ -1,12 +1,7 @@
 import { db, withDbClient } from '../../lib/db.js';
 import { decodeWatchPageCursor } from '../watch/watch-pagination.js';
-import type {
-  ContinueWatchingProductItem,
-  HistoryProductItem,
-  RatingProductItem,
-  WatchlistProductItem,
-} from '../watch/watch-derived-item.types.js';
-import type { PaginatedWatchCollection, WatchStateResponse } from '../watch/watch-read.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
+import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
 import { pageFromRows } from './watch-read-helpers.js';
 import {
   mapContinueWatchingRow,
@@ -101,7 +96,7 @@ type GetStateParams = {
 };
 
 export class LocalUserWatchService {
-  async listContinueWatchingPage(params: ListPageParams): Promise<PaginatedWatchCollection<ContinueWatchingProductItem>> {
+  async listContinueWatchingPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -124,7 +119,7 @@ export class LocalUserWatchService {
     );
   }
 
-  async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
+  async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -145,7 +140,7 @@ export class LocalUserWatchService {
     );
   }
 
-  async listRatingsPage(params: ListPageParams): Promise<PaginatedWatchCollection<RatingProductItem>> {
+  async listRatingsPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -166,7 +161,7 @@ export class LocalUserWatchService {
     );
   }
 
-  async listHistoryPage(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<HistoryProductItem>> {
+  async listHistoryPage(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     let query: string;
@@ -234,59 +229,49 @@ export class LocalUserWatchService {
     );
   }
 
-  async getState(params: GetStateParams): Promise<WatchStateResponse> {
+  async getState(params: GetStateParams): Promise<BaseItemDto> {
     const states = await this.getStates(params);
     return states[0] ?? {
-      kind: 'watch_state' as const,
-      mediaItem: {
-        Id: params.mediaKeys[0] ?? '',
-        Type: 'Unknown' as const,
-        Name: params.mediaKeys[0] ?? '',
-        OriginalTitle: null,
-        Overview: null,
-        Taglines: [],
-        ProductionYear: null,
-        PremiereDate: null,
-        CommunityRating: null,
-        OfficialRating: null,
-        Certification: null,
-        Genres: [],
-        RunTimeTicks: null,
-        Status: null,
-        ProviderIds: { Tmdb: null, Imdb: null, Tvdb: null },
-        ImageTags: {
-          Primary: null,
-          Backdrop: [],
-          Logo: null,
-          Thumb: null,
-          Screenshot: [],
-        },
-        ParentImageTags: null,
-        SeriesId: null,
-        SeriesName: null,
-        SeasonId: null,
-        SeasonName: null,
-        ParentIndexNumber: null,
-        IndexNumber: null,
-        AbsoluteIndexNumber: null,
-        EpisodeTitle: null,
-        AirDate: null,
-        RemoteTrailers: [],
-        PosterColor: null,
-        BackdropColor: null,
-        UserData: null,
+      Id: params.mediaKeys[0] ?? '',
+      Type: 'Unknown' as const,
+      Name: params.mediaKeys[0] ?? '',
+      OriginalTitle: null,
+      Overview: null,
+      Taglines: [],
+      ProductionYear: null,
+      PremiereDate: null,
+      CommunityRating: null,
+      OfficialRating: null,
+      Certification: null,
+      Genres: [],
+      RunTimeTicks: null,
+      Status: null,
+      ProviderIds: { Tmdb: null, Imdb: null, Tvdb: null },
+      ImageTags: {
+        Primary: null,
+        Backdrop: [],
+        Logo: null,
+        Thumb: null,
+        Screenshot: [],
       },
-      context: {
-        progress: null, continueWatching: null, watched: null,
-        watchlist: null, rating: null, watchedEpisodeKeys: [], playCount: 0,
-      },
-      presentation: null,
-      progress: null, continueWatching: null, watched: null,
-      watchlist: null, rating: null, watchedEpisodeKeys: [], playCount: 0,
+      ParentImageTags: null,
+      SeriesId: null,
+      SeriesName: null,
+      SeasonId: null,
+      SeasonName: null,
+      ParentIndexNumber: null,
+      IndexNumber: null,
+      AbsoluteIndexNumber: null,
+      EpisodeTitle: null,
+      AirDate: null,
+      RemoteTrailers: [],
+      PosterColor: null,
+      BackdropColor: null,
+      UserData: null,
     };
   }
 
-  async getStates(params: GetStateParams): Promise<WatchStateResponse[]> {
+  async getStates(params: GetStateParams): Promise<BaseItemDto[]> {
     if (params.mediaKeys.length === 0) return [];
 
     const mediaKeys = [...new Set(params.mediaKeys)];

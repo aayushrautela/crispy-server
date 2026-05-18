@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
-import type { TmdbTitleRecord } from './providers/tmdb.types.js';
+import type { MediaIdentity } from '../identity/media-key.js';
+import type { TmdbTitleRecord, TmdbEpisodeRecord } from './providers/tmdb.types.js';
 
 seedTestEnv();
 
@@ -15,111 +16,254 @@ test('buildImageUrl constructs full TMDB URL', async () => {
   assert.equal(buildImageUrl('/poster.jpg', 'w500'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
 });
 
-test('buildMetadataView for show extracts provider-based detail fields', async () => {
-  const { buildMetadataView } = await import('./metadata-detail.builders.js');
+test('buildDetailBaseItemDto for show extracts provider-based detail fields', async () => {
+  const { buildDetailBaseItemDto } = await import('./metadata-detail.builders.js');
 
-  const view = buildMetadataView({
-    identity: { mediaKey: 'show:tmdb:42', mediaType: 'show', tmdbId: 42, showTmdbId: 42, seasonNumber: null, episodeNumber: null },
-    title: {
-      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Breaking Point', originalName: 'Breaking Point',
-      overview: 'A thrilling drama.', releaseDate: null, firstAirDate: '2024-01-01',
-      status: 'Returning Series', posterPath: '/poster.jpg', backdropPath: '/backdrop.jpg',
-      runtime: null, episodeRunTime: [45, 42], numberOfSeasons: 3, numberOfEpisodes: 30,
-      externalIds: { imdb_id: 'tt1234567', tvdb_id: 98765 },
-      raw: {
-        genres: [{ id: 18, name: 'Drama' }, { id: 80, name: 'Crime' }],
-        vote_average: 8.4,
-        images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] },
-        content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
-      },
-      hydrationLevel: 'detail',
-      fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
+  const identity: MediaIdentity = {
+    mediaKey: 'show:tmdb:42',
+    mediaType: 'show',
+    tmdbId: 42,
+    showTmdbId: 42,
+    seasonNumber: null,
+    episodeNumber: null,
+  };
+
+  const title: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 42,
+    language: 'en',
+    name: 'Breaking Point',
+    originalName: 'Breaking Point',
+    overview: 'A thrilling drama.',
+    releaseDate: null,
+    firstAirDate: '2024-01-01',
+    status: 'Returning Series',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: null,
+    episodeRunTime: [45, 42],
+    numberOfSeasons: 3,
+    numberOfEpisodes: 30,
+    externalIds: { imdb_id: 'tt1234567', tvdb_id: 98765 },
+    raw: {
+      genres: [{ id: 18, name: 'Drama' }, { id: 80, name: 'Crime' }],
+      vote_average: 8.4,
+      images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] },
+      content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
     },
-  });
+    hydrationLevel: 'detail',
+    fetchedAt: '2026-03-22T00:00:00.000Z',
+    expiresAt: '2026-03-23T00:00:00.000Z',
+  };
 
-  assert.equal(view.mediaType, 'show');
-  assert.equal(view.mediaKey, 'show:tmdb:42');
-  assert.equal(view.kind, 'title');
-  assert.equal(view.title, 'Breaking Point');
-  assert.equal(view.overview, 'A thrilling drama.');
-  assert.equal(view.artwork.poster.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
-  assert.equal(view.artwork.backdrop.medium, 'https://image.tmdb.org/t/p/w780/backdrop.jpg');
-  assert.equal(view.images.logo.large, 'https://image.tmdb.org/t/p/w500/logo.png');
-  assert.equal(view.rating, 8.4);
-  assert.deepEqual(view.genres, ['Drama', 'Crime']);
-  assert.equal(view.certification, 'TV-MA');
-  assert.equal(view.seasonCount, 3);
-  assert.equal(view.episodeCount, 30);
-  assert.equal(view.externalIds.imdb, 'tt1234567');
-  assert.equal(view.externalIds.tvdb, 98765);
+  const dto = buildDetailBaseItemDto({ identity, title });
+
+  assert.equal(dto.Id, 'show:tmdb:42');
+  assert.equal(dto.Type, 'Series');
+  assert.equal(dto.Name, 'Breaking Point');
+  assert.equal(dto.Overview, 'A thrilling drama.');
+  assert.equal(dto.ProductionYear, 2024);
+  assert.equal(dto.PremiereDate, '2024-01-01');
+  assert.equal(dto.CommunityRating, 8.4);
+  assert.equal(dto.OfficialRating, 'TV-MA');
+  assert.equal(dto.Certification, 'TV-MA');
+  assert.deepEqual(dto.Genres, ['Drama', 'Crime']);
+  assert.equal(dto.Status, 'Returning Series');
+  assert.equal(dto.ProviderIds.Tmdb, '42');
+  assert.equal(dto.ProviderIds.Imdb, 'tt1234567');
+  assert.equal(dto.ProviderIds.Tvdb, '98765');
+  assert.equal(dto.ImageTags.Primary?.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  assert.equal(dto.ImageTags.Backdrop[0]?.medium, 'https://image.tmdb.org/t/p/w780/backdrop.jpg');
+  assert.equal(dto.ImageTags.Logo?.medium, 'https://image.tmdb.org/t/p/w300/logo.png');
+  assert.equal(dto.SeriesId, '42');
+  assert.equal(dto.SeriesName, null);
+  assert.equal(dto.SeasonId, null);
+  assert.equal(dto.SeasonName, null);
+  assert.equal(dto.ParentIndexNumber, null);
+  assert.equal(dto.IndexNumber, null);
+  assert.equal(dto.EpisodeTitle, null);
+  assert.equal(dto.AirDate, null);
 });
 
-test('buildSeasonViewFromTitleRaw builds provider-based seasons', async () => {
-  const { buildSeasonViewFromTitleRaw } = await import('./metadata-detail.builders.js');
+test('buildDetailBaseItemDto with null title returns minimal item', async () => {
+  const { buildDetailBaseItemDto } = await import('./metadata-detail.builders.js');
 
-  const seasons = buildSeasonViewFromTitleRaw(
-    {
-      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Test Show', originalName: 'Test Show',
-      overview: null, releaseDate: null, firstAirDate: null, status: null,
-      posterPath: null, backdropPath: null, runtime: null, episodeRunTime: [],
-      numberOfSeasons: null, numberOfEpisodes: null, externalIds: {},
-      hydrationLevel: 'detail',
-      raw: {
-        seasons: [
-          { season_number: 0, name: 'Specials', poster_path: '/season0.jpg' },
-          { season_number: 1, name: 'Season 1', episode_count: 10, air_date: '2024-01-01', overview: 'S1 overview', poster_path: '/season1.jpg' },
-        ],
-      },
-      fetchedAt: '', expiresAt: '',
-    },
-    new Map([[0, 'uuid-season-42-0'], [1, 'uuid-season-42-1']]),
-  );
+  const identity: MediaIdentity = {
+    mediaKey: 'movie:tmdb:99',
+    mediaType: 'movie',
+    tmdbId: 99,
+    showTmdbId: null,
+    seasonNumber: null,
+    episodeNumber: null,
+  };
 
-  assert.equal(seasons.length, 2);
-  assert.equal(seasons[0]?.mediaKey, 'season:tmdb:42:0');
-  assert.equal(seasons[1]?.mediaKey, 'season:tmdb:42:1');
-  assert.equal(seasons[1]?.images.poster.medium, 'https://image.tmdb.org/t/p/w500/season1.jpg');
+  const dto = buildDetailBaseItemDto({ identity, title: null });
+
+  assert.equal(dto.Id, 'movie:tmdb:99');
+  assert.equal(dto.Type, 'Movie');
+  assert.equal(dto.Name, 'Untitled');
+  assert.equal(dto.ProviderIds.Tmdb, null);
+  assert.equal(dto.Genres.length, 0);
 });
 
-test('buildSeasonViewFromRecord produces clean payload', async () => {
-  const { buildSeasonViewFromRecord } = await import('./metadata-detail.builders.js');
+test('buildEpisodeBaseItemDto populates episode fields', async () => {
+  const { buildEpisodeBaseItemDto } = await import('./metadata-detail.builders.js');
 
-  const view = buildSeasonViewFromRecord(42, {
-    showTmdbId: 42, seasonNumber: 2, name: 'Season 2',
-    overview: 'The second season.', airDate: '2025-01-01',
-    posterPath: '/season2.jpg', episodeCount: 8, raw: {},
-    fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
-  }, 'uuid-season-42-2', 'uuid-show-42');
+  const title: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 42,
+    language: 'en',
+    name: 'Breaking Point',
+    originalName: 'Breaking Point',
+    overview: null,
+    releaseDate: null,
+    firstAirDate: null,
+    status: 'Returning Series',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: null,
+    episodeRunTime: [45],
+    numberOfSeasons: 3,
+    numberOfEpisodes: 30,
+    externalIds: { imdb_id: 'tt1234567' },
+    hydrationLevel: 'detail',
+    raw: {
+      genres: [{ id: 18, name: 'Drama' }],
+      content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
+    },
+    fetchedAt: '',
+    expiresAt: '',
+  };
 
-  assert.equal(view.mediaKey, 'season:tmdb:42:2');
-  assert.equal(view.title, 'Season 2');
-  assert.equal(view.episodeCount, 8);
-  assert.equal(view.images.poster.medium, 'https://image.tmdb.org/t/p/w500/season2.jpg');
+  const episode: TmdbEpisodeRecord = {
+    showTmdbId: 42,
+    seasonNumber: 1,
+    episodeNumber: 3,
+    tmdbId: 555,
+    name: 'Episode 3',
+    overview: 'The third episode.',
+    airDate: '2024-01-15',
+    runtime: 45,
+    stillPath: '/still.jpg',
+    voteAverage: 7.5,
+    raw: {},
+    fetchedAt: '',
+    expiresAt: '',
+  };
+
+  const dto = buildEpisodeBaseItemDto(title, episode, 'uuid-episode-42-1-3', 'uuid-show-42');
+
+  assert.equal(dto.Id, 'episode:tmdb:42:1:3');
+  assert.equal(dto.Type, 'Episode');
+  assert.equal(dto.Name, 'Episode 3');
+  assert.equal(dto.Overview, 'The third episode.');
+  assert.equal(dto.SeriesName, 'Breaking Point');
+  assert.equal(dto.ParentIndexNumber, 1);
+  assert.equal(dto.IndexNumber, 3);
+  assert.equal(dto.EpisodeTitle, 'Episode 3');
+  assert.equal(dto.AirDate, '2024-01-15');
+  assert.equal(dto.ProductionYear, 2024);
+  assert.equal(dto.CommunityRating, 7.5);
+  assert.equal(dto.ProviderIds.Tmdb, '42');
+  assert.equal(dto.ProviderIds.Imdb, 'tt1234567');
+  assert.equal(dto.ImageTags.Primary?.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  assert.equal(dto.ImageTags.Backdrop[0]?.medium, 'https://image.tmdb.org/t/p/w780/still.jpg');
+  assert.equal(dto.ImageTags.Thumb?.medium, 'https://image.tmdb.org/t/p/w300/still.jpg');
+  assert.equal(dto.Genres.length, 1);
+  assert.equal(dto.PremiereDate, '2024-01-15');
 });
 
-test('buildEpisodeView includes provider-based show context', async () => {
-  const { buildEpisodeView } = await import('./metadata-detail.builders.js');
+test('buildSeasonBaseItemDto populates season fields', async () => {
+  const { buildSeasonBaseItemDto } = await import('./metadata-detail.builders.js');
 
-  const view = buildEpisodeView(
-    {
-      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Breaking Point', originalName: 'Breaking Point',
-      overview: null, releaseDate: null, firstAirDate: null, status: null,
-      posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
-      numberOfSeasons: null, numberOfEpisodes: null, externalIds: { imdb_id: 'tt1234567' },
-      hydrationLevel: 'detail', raw: {}, fetchedAt: '', expiresAt: '',
+  const title: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 42,
+    language: 'en',
+    name: 'Breaking Point',
+    originalName: 'Breaking Point',
+    overview: 'A thrilling drama.',
+    releaseDate: null,
+    firstAirDate: '2024-01-01',
+    status: 'Returning Series',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: null,
+    episodeRunTime: [45],
+    numberOfSeasons: 3,
+    numberOfEpisodes: 30,
+    externalIds: { imdb_id: 'tt1234567' },
+    hydrationLevel: 'detail',
+    raw: {
+      seasons: [
+        { season_number: 1, name: 'Season 1', episode_count: 10, air_date: '2024-01-01', overview: 'S1 overview', poster_path: '/season1.jpg' },
+        { season_number: 2, name: 'Season 2', episode_count: 8, air_date: '2025-01-01', overview: 'The second season.', poster_path: '/season2.jpg' },
+      ],
+      genres: [{ id: 18, name: 'Drama' }],
+      content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
     },
-    {
-      showTmdbId: 42, seasonNumber: 1, episodeNumber: 3, tmdbId: 555,
-      name: 'Episode 3', overview: null, airDate: null, runtime: null,
-      stillPath: null, voteAverage: null, raw: {}, fetchedAt: '', expiresAt: '',
-    },
-    'uuid-episode-42-1-3', 'uuid-show-42',
-  );
+    fetchedAt: '',
+    expiresAt: '',
+  };
 
-  assert.equal(view.mediaKey, 'episode:tmdb:42:1:3');
-  assert.equal(view.showTmdbId, 42);
-  assert.equal(view.showTitle, 'Breaking Point');
-  assert.equal(view.showExternalIds.imdb, 'tt1234567');
+  const dto = buildSeasonBaseItemDto(title, 2, 'uuid-season-42-2');
+
+  assert.equal(dto.Id, 'season:tmdb:42:2');
+  assert.equal(dto.Type, 'Season');
+  assert.equal(dto.Name, 'Season 2');
+  assert.equal(dto.Overview, 'The second season.');
+  assert.equal(dto.SeriesName, 'Breaking Point');
+  assert.equal(dto.SeasonId, 'uuid-season-42-2');
+  assert.equal(dto.SeasonName, 'Season 2');
+  assert.equal(dto.ParentIndexNumber, 2);
+  assert.equal(dto.IndexNumber, null);
+  assert.equal(dto.EpisodeTitle, null);
+  assert.equal(dto.AirDate, null);
+  assert.equal(dto.PremiereDate, '2025-01-01');
+  assert.equal(dto.ProductionYear, 2025);
+  assert.equal(dto.ImageTags.Primary?.medium, 'https://image.tmdb.org/t/p/w500/season2.jpg');
+  assert.equal(dto.ImageTags.Backdrop[0]?.medium, 'https://image.tmdb.org/t/p/w780/backdrop.jpg');
+  assert.equal(dto.ProviderIds.Tmdb, '42');
+});
+
+test('buildSeasonBaseItemDto uses fallback when raw season missing', async () => {
+  const { buildSeasonBaseItemDto } = await import('./metadata-detail.builders.js');
+
+  const title: TmdbTitleRecord = {
+    mediaType: 'tv',
+    tmdbId: 42,
+    language: 'en',
+    name: 'Breaking Point',
+    originalName: 'Breaking Point',
+    overview: null,
+    releaseDate: null,
+    firstAirDate: null,
+    status: null,
+    posterPath: '/poster.jpg',
+    backdropPath: null,
+    runtime: null,
+    episodeRunTime: [],
+    numberOfSeasons: null,
+    numberOfEpisodes: null,
+    externalIds: {},
+    hydrationLevel: 'detail',
+    raw: {},
+    fetchedAt: '',
+    expiresAt: '',
+  };
+
+  const dto = buildSeasonBaseItemDto(title, 1, 'uuid-season-42-1');
+
+  assert.equal(dto.Id, 'season:tmdb:42:1');
+  assert.equal(dto.Type, 'Season');
+  assert.equal(dto.Name, 'Season 1');
+  assert.equal(dto.SeasonName, 'Season 1');
+  assert.equal(dto.Overview, null);
+  assert.equal(dto.PremiereDate, null);
+  assert.equal(dto.ProductionYear, null);
+  assert.equal(dto.ImageTags.Primary?.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  assert.equal(dto.ImageTags.Primary?.small, 'https://image.tmdb.org/t/p/w342/poster.jpg');
+  assert.equal(dto.ImageTags.Primary?.large, 'https://image.tmdb.org/t/p/w780/poster.jpg');
 });
 
 test('extractReleaseYear returns year from date string', async () => {
@@ -203,6 +347,6 @@ test('rich detail extractors map videos, people, reviews, production, and collec
   assert.equal(extractCollection(title)?.name, 'Saga Collection');
   assert.equal(extractCollectionParts(title.raw)[0]?.tmdbId, 101);
   assert.equal(extractCollectionParts(title.raw)[1]?.name, 'Saga Collection: Part II');
-assert.equal(extractSimilarTitles(title)[0]?.tmdbId, 77);
+  assert.equal(extractSimilarTitles(title)[0]?.tmdbId, 77);
   assert.equal(extractSimilarTitles(title)[0]?.name, 'Breaking Point: Aftermath');
 });

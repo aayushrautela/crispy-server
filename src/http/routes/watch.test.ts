@@ -231,31 +231,19 @@ test('continue-watching serializes items with progress', async (t) => {
   LocalUserWatchService.prototype.listContinueWatchingPage = async () => ({
     items: [
       {
-        id: 'movie:tmdb:694',
-        kind: 'continue_watching',
-        mediaItem: makeMediaItem('movie:tmdb:694'),
-        context: {
-          id: 'movie:tmdb:694',
-          progress: {
-            positionSeconds: 120,
-            durationSeconds: 7200,
-            progressPercent: 1.67,
-            lastPlayedAt: now,
-          },
-          lastActivityAt: now,
-          origins: ['test'],
-          dismissible: true,
+        ...makeMediaItem('movie:tmdb:694'),
+        UserData: {
+          ItemId: 'movie:tmdb:694',
+          IsFavorite: false,
+          Played: false,
+          PlayCount: 0,
+          PlaybackPositionTicks: 1_200_000_000,
+          RuntimeTicks: 72_000_000_000,
+          PlayedPercentage: 1.67,
+          LastPlayedDate: now,
+          Rating: null,
+          DismissedFromContinueWatching: false,
         },
-        presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-        progress: {
-          positionSeconds: 120,
-          durationSeconds: 7200,
-          progressPercent: 1.67,
-          lastPlayedAt: now,
-        },
-        lastActivityAt: now,
-        origins: ['test'],
-        dismissible: true,
       },
     ],
     pageInfo: { nextCursor: null, hasMore: false },
@@ -275,17 +263,14 @@ test('continue-watching serializes items with progress', async (t) => {
 
   const body = response.json();
   assert.equal(response.statusCode, 200, JSON.stringify(body, null, 2));
-  assert.ok(Array.isArray(body.data.items));
-  assert.equal(body.data.items.length, 1);
-  const item = body.data.items[0];
-  assert.equal(item.id, 'movie:tmdb:694');
-  assert.equal(item.kind, 'continue_watching');
-  assert.ok(item.progress);
-  assert.equal(item.progress.positionSeconds, 120);
-  assert.equal(item.progress.durationSeconds, 7200);
-  assert.equal(item.progress.progressPercent, 1.67);
-  assert.equal(item.progress.lastPlayedAt, now);
-  assert.equal(item.context.progress.lastPlayedAt, now);
+  assert.ok(Array.isArray(body.data.Items));
+  assert.equal(body.data.Items.length, 1);
+  const item = body.data.Items[0];
+  assert.equal(item.Id, 'movie:tmdb:694');
+  assert.equal(item.Type, 'Movie');
+  assert.equal(item.UserData.PlaybackPositionTicks, 1_200_000_000);
+  assert.equal(item.UserData.RuntimeTicks, 72_000_000_000);
+  assert.equal(item.UserData.LastPlayedDate, now);
 });
 
 test('watch state serializes progress without status', async (t) => {
@@ -320,25 +305,19 @@ test('watch state serializes progress without status', async (t) => {
   };
 
   LocalUserWatchService.prototype.getState = async () => ({
-    kind: 'watch_state',
-    mediaItem: makeMediaItem('movie:tmdb:694'),
-    context: {
-      progress,
-      continueWatching: null,
-      watched: null,
-      watchlist: null,
-      rating: null,
-      watchedEpisodeKeys: [],
-      playCount: 0,
+    ...makeMediaItem('movie:tmdb:694'),
+    UserData: {
+      ItemId: 'movie:tmdb:694',
+      IsFavorite: false,
+      Played: false,
+      PlayCount: 0,
+      PlaybackPositionTicks: 1_200_000_000,
+      RuntimeTicks: 72_000_000_000,
+      PlayedPercentage: 1.67,
+      LastPlayedDate: now,
+      Rating: null,
+      DismissedFromContinueWatching: false,
     },
-    presentation: null,
-    progress,
-    continueWatching: null,
-    watched: null,
-    watchlist: null,
-    rating: null,
-    watchedEpisodeKeys: [],
-    playCount: 0,
   });
 
   WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = async (_client, items) => items;
@@ -355,7 +334,8 @@ test('watch state serializes progress without status', async (t) => {
 
   const body = response.json();
   assert.equal(response.statusCode, 200, JSON.stringify(body, null, 2));
-  assert.equal(body.data.item.kind, 'watch_state');
-  assert.deepEqual(body.data.item.progress, progress);
-  assert.deepEqual(body.data.item.context.progress, progress);
+  assert.equal(body.data.Id, 'movie:tmdb:694');
+  assert.equal(body.data.UserData.PlaybackPositionTicks, 1_200_000_000);
+  assert.equal(body.data.UserData.RuntimeTicks, 72_000_000_000);
+  assert.equal(body.data.UserData.LastPlayedDate, now);
 });

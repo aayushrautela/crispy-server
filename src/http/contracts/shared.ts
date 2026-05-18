@@ -270,7 +270,7 @@ export const nullableParentMediaImageTagsSchema = {
   ],
 } as const;
 
-export const mediaItemDtoSchema = {
+export const baseItemDtoSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
@@ -362,11 +362,24 @@ export const mediaItemDtoSchema = {
   },
 } as const;
 
-export const nullableMediaItemDtoSchema = {
+export const nullableBaseItemDtoSchema = {
   anyOf: [
-    mediaItemDtoSchema,
+    baseItemDtoSchema,
     { type: 'null' },
   ],
+} as const;
+
+export const baseItemDtoQueryResultSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['Items', 'StartIndex', 'TotalRecordCount', 'NextCursor', 'HasMore'],
+  properties: {
+    Items: { type: 'array', items: baseItemDtoSchema },
+    StartIndex: { type: 'integer' },
+    TotalRecordCount: { type: 'integer' },
+    NextCursor: { type: ['string', 'null'] },
+    HasMore: { type: 'boolean' },
+  },
 } as const;
 
 export const metadataArtworkSchema = {

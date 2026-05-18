@@ -60,12 +60,12 @@ export class MetadataRatingsService {
       }
 
       const mediaType = identity.mediaType === 'movie' ? 'movie' : 'show';
-      const ratings = await this.mdblistService.getTitleRatings(apiKey, mediaType, lookup);
-      if (!ratings) {
+      const mdblistResult = await this.mdblistService.getTitleRatings(apiKey, mediaType, lookup);
+      if (!mdblistResult) {
         throw new HttpError(404, 'MDBList ratings not found for this title.');
       }
 
-      return ratings;
+      return { Ratings: mdblistResult.ratings };
     });
   }
 }

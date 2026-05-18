@@ -2,8 +2,8 @@ import type { DbClient } from '../../lib/db.js';
 import { assertPresent } from '../../lib/errors.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import {
-  buildEpisodeView,
-  buildMetadataView,
+  buildDetailBaseItemDto,
+  buildEpisodeBaseItemDto,
 } from './metadata-detail.builders.js';
 import type {
   MetadataTitleDetail,
@@ -32,15 +32,15 @@ export class MetadataTitleAggregateBuilder {
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
 
     return {
-      item: buildMetadataView({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
-      nextEpisode: source.tmdbNextEpisode
-        ? buildEpisodeView(resolvedTitle, source.tmdbNextEpisode, '', '')
+      Item: buildDetailBaseItemDto({ identity, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
+      NextEpisode: source.tmdbNextEpisode
+        ? buildEpisodeBaseItemDto(resolvedTitle, source.tmdbNextEpisode, '', '')
         : null,
-      videos: extractVideos(resolvedTitle),
-      cast: extractCast(resolvedTitle),
-      directors: extractCrewByJob(resolvedTitle, 'Director'),
-      creators: extractCreators(resolvedTitle),
-      production: extractProduction(resolvedTitle),
+      Videos: extractVideos(resolvedTitle),
+      Cast: extractCast(resolvedTitle),
+      Directors: extractCrewByJob(resolvedTitle, 'Director'),
+      Creators: extractCreators(resolvedTitle),
+      Production: extractProduction(resolvedTitle),
     };
   }
 

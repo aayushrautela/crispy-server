@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { metadataCardToMediaItem, metadataViewToMediaItem } from './media-item.mapper.js';
+import { metadataCardToMediaItem } from './media-item.mapper.js';
 import type { MetadataCardView } from './metadata-card.types.js';
-import type { MetadataView } from './metadata-detail.types.js';
 
 const imageSet = (value: string | null) => ({ small: value, medium: value, large: value });
 
@@ -98,25 +97,6 @@ test('metadataCardToMediaItem maps episode fields', () => {
   assert.equal(item.showTmdbId, 1);
   assert.equal(item.seasonNumber, 1);
   assert.equal(item.episodeNumber, 2);
-});
-
-test('metadataViewToMediaItem maps detail-only metadata', () => {
-  const view: MetadataView = {
-    ...baseCard,
-    certification: 'PG-13',
-    genres: ['Drama'],
-    externalIds: { tmdb: 1, imdb: 'tt1', tvdb: 2 },
-    seasonCount: null,
-    episodeCount: null,
-    nextEpisode: null,
-  };
-
-  const item = metadataViewToMediaItem(view);
-
-  assert.equal(item.maturityRating, 'PG-13');
-  assert.equal(item.certification, 'PG-13');
-  assert.deepEqual(item.genres, ['Drama']);
-  assert.deepEqual(item.externalIds, { tmdb: 1, imdb: 'tt1', tvdb: 2 });
 });
 
 

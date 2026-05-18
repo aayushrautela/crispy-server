@@ -1,8 +1,5 @@
 import {
-  booleanSchema,
-  mediaItemDtoSchema,
-  nullableMediaPresentationHintSchema,
-  nullableStringSchema,
+  baseItemDtoSchema,
   profileIdParamsSchema,
   stringSchema,
   successEnvelope,
@@ -12,35 +9,6 @@ import {
 export type CalendarProfileParams = {
   profileId: string;
 };
-
-export const calendarItemSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['bucket', 'kind', 'mediaItem', 'context', 'presentation', 'airDate', 'watched'],
-  properties: {
-    bucket: {
-      enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
-    },
-    kind: { const: 'calendar_item' },
-    mediaItem: mediaItemDtoSchema,
-    context: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['bucket', 'airDate', 'watched', 'relatedShow'],
-      properties: {
-        bucket: {
-          enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
-        },
-        airDate: nullableStringSchema,
-        watched: booleanSchema,
-        relatedShow: mediaItemDtoSchema,
-      },
-    },
-    presentation: nullableMediaPresentationHintSchema,
-    airDate: nullableStringSchema,
-    watched: booleanSchema,
-  },
-} as const;
 
 const profileCalendarBaseResponseSchema = {
   type: 'object',
@@ -52,7 +20,7 @@ const profileCalendarBaseResponseSchema = {
     generatedAt: stringSchema,
     items: {
       type: 'array',
-      items: calendarItemSchema,
+      items: baseItemDtoSchema,
     },
   },
 } as const;
@@ -63,11 +31,6 @@ const profileCalendarResponseSchema = {
 
 const profileThisWeekResponseSchema = {
   ...profileCalendarBaseResponseSchema,
-  required: ['profileId', 'source', 'kind', 'generatedAt', 'items'],
-  properties: {
-    ...profileCalendarBaseResponseSchema.properties,
-    kind: { const: 'this-week' },
-  },
 } as const;
 
 export const profileCalendarRouteSchema = withDefaultErrorResponses({

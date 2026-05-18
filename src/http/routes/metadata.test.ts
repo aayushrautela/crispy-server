@@ -7,89 +7,84 @@ seedTestEnv();
 function makeMediaItem(key = 'movie:tmdb:694') {
   const [, mediaType] = key.split(':');
   return {
-    id: key,
-    mediaKey: key,
-    type: mediaType === 'show' ? 'Series' : mediaType === 'movie' ? 'Movie' : mediaType === 'season' ? 'Season' : mediaType === 'episode' ? 'Episode' : 'Movie',
-    name: 'Test Movie',
-    originalTitle: null,
-    overview: null,
-    tagline: null,
-    productionYear: null,
-    premiereDate: null,
-    communityRating: null,
-    officialRating: null,
-    certification: null,
-    genres: [],
-    runTimeSeconds: null,
-    status: null,
-    providerIds: { tmdb: '694', imdb: null, tvdb: null },
-    imageTags: {
-      primary: null,
-      backdrop: [],
-      logo: null,
-      thumb: null,
-      screenshot: [],
+    Id: key,
+    Type: mediaType === 'show' ? 'Series' : mediaType === 'movie' ? 'Movie' : mediaType === 'season' ? 'Season' : mediaType === 'episode' ? 'Episode' : 'Movie',
+    Name: 'Test Movie',
+    OriginalTitle: null,
+    Overview: null,
+    Taglines: [],
+    ProductionYear: null,
+    PremiereDate: null,
+    CommunityRating: null,
+    OfficialRating: null,
+    Certification: null,
+    Genres: [],
+    RunTimeTicks: null,
+    Status: null,
+    ProviderIds: { Tmdb: '694', Imdb: null, Tvdb: null },
+    ImageTags: {
+      Primary: null,
+      Backdrop: [],
+      Logo: null,
+      Thumb: null,
+      Screenshot: [],
     },
-    parentImageTags: null,
-    seriesId: null,
-    seriesName: null,
-    seasonId: null,
-    seasonName: null,
-    parentIndexNumber: null,
-    indexNumber: null,
-    absoluteIndexNumber: null,
-    episodeTitle: null,
-    airDate: null,
-    trailerUrl: null,
-    trailerThumbnailUrl: null,
-    posterColor: null,
-    backdropColor: null,
-    userData: null,
+    ParentImageTags: null,
+    SeriesId: null,
+    SeriesName: null,
+    SeasonId: null,
+    SeasonName: null,
+    ParentIndexNumber: null,
+    IndexNumber: null,
+    AbsoluteIndexNumber: null,
+    EpisodeTitle: null,
+    AirDate: null,
+    RemoteTrailers: [],
+    PosterColor: null,
+    BackdropColor: null,
+    UserData: null,
   };
 }
 
-function makeView() {
+function makeEpisodeBaseItemDto(overrides?: Record<string, unknown>) {
   return {
-    mediaType: 'movie',
-    kind: 'title',
-    mediaKey: 'movie:tmdb:694',
-    parentMediaType: null,
-    tmdbId: 694,
-    showTmdbId: null,
-    seasonNumber: null,
-    episodeNumber: null,
-    absoluteEpisodeNumber: null,
-    title: 'The Shining',
-    subtitle: null,
-    summary: null,
-    overview: null,
-    artwork: {
-      poster: { small: null, medium: null, large: null },
-      backdrop: { small: null, medium: null, large: null },
-      still: { small: null, medium: null, large: null },
+    Id: 'episode:tmdb:32726:16:1',
+    Type: 'Episode',
+    Name: 'Episode Title',
+    OriginalTitle: null,
+    Overview: null,
+    Taglines: [],
+    ProductionYear: null,
+    PremiereDate: null,
+    CommunityRating: null,
+    OfficialRating: null,
+    Certification: null,
+    Genres: [],
+    RunTimeTicks: null,
+    Status: null,
+    ProviderIds: { Tmdb: '32726', Imdb: null, Tvdb: null },
+    ImageTags: {
+      Primary: null,
+      Backdrop: [],
+      Logo: null,
+      Thumb: null,
+      Screenshot: [],
     },
-    images: {
-      poster: { small: null, medium: null, large: null },
-      backdrop: { small: null, medium: null, large: null },
-      still: { small: null, medium: null, large: null },
-      logo: { small: null, medium: null, large: null },
-    },
-    releaseDate: null,
-    releaseYear: null,
-    runtimeMinutes: null,
-    rating: null,
-    status: null,
-    maturityRating: null,
-    certification: null,
-    trailerUrl: null,
-    trailerThumbnailUrl: null,
-    posterColor: null,
-    backdropColor: null,
-    genres: [],
-    externalIds: { tmdb: 694, imdb: 'tt0081505', tvdb: null },
-    seasonCount: null,
-    episodeCount: null,
-    nextEpisode: null,
+    ParentImageTags: { Primary: null, Backdrop: [], Logo: null, Thumb: null },
+    SeriesId: null,
+    SeriesName: null,
+    SeasonId: null,
+    SeasonName: null,
+    ParentIndexNumber: 16,
+    IndexNumber: 1,
+    AbsoluteIndexNumber: null,
+    EpisodeTitle: 'Episode Title',
+    AirDate: '2025-09-28',
+    RemoteTrailers: [],
+    PosterColor: null,
+    BackdropColor: null,
+    UserData: null,
+    ...overrides,
   };
 }
 
@@ -99,13 +94,13 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', as
   const original = MetadataDetailService.prototype.getTitleDetailById;
 
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
-    item: makeView(),
-    nextEpisode: null,
-    videos: [],
-    cast: [],
-    directors: [],
-    creators: [],
-    production: {
+    Item: makeMediaItem(),
+    NextEpisode: null,
+    Videos: [],
+    Cast: [],
+    Directors: [],
+    Creators: [],
+    Production: {
       originalLanguage: null,
       originCountries: [],
       spokenLanguages: [],
@@ -140,13 +135,13 @@ test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) =
   const original = MetadataDetailService.prototype.getTitleDetailById;
 
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
-    item: makeView(),
-    nextEpisode: null,
-    videos: [],
-    cast: [],
-    directors: [],
-    creators: [],
-    production: {
+    Item: makeMediaItem(),
+    NextEpisode: null,
+    Videos: [],
+    Cast: [],
+    Directors: [],
+    Creators: [],
+    Production: {
       originalLanguage: null,
       originCountries: [],
       spokenLanguages: [],
@@ -180,63 +175,15 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
   const original = MetadataDetailService.prototype.getTitleDetailById;
 
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
-    item: {
-      ...makeView(),
-      mediaType: 'show',
-      mediaKey: 'show:tmdb:32726',
-      tmdbId: 32726,
-      showTmdbId: 32726,
-      title: 'Bob\'s Burgers',
-      nextEpisode: {
-        mediaType: 'episode',
-        mediaKey: 'episode:tmdb:32726:16:1',
-        parentMediaType: 'show',
-        tmdbId: 123456,
-        showTmdbId: 32726,
-        seasonNumber: 16,
-        episodeNumber: 1,
-        absoluteEpisodeNumber: null,
-        title: 'Episode Title',
-        summary: 'Episode summary',
-        airDate: '2025-09-28',
-        runtimeMinutes: 22,
-        rating: 8.5,
-        images: {
-          poster: { small: null, medium: null, large: null },
-          backdrop: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
-          logo: { small: null, medium: null, large: null },
-        },
-      },
+    Item: {
+      ...makeEpisodeBaseItemDto({ Id: 'show:tmdb:32726', Type: 'Series', Name: "Bob's Burgers", EpisodeTitle: null, AirDate: null, ParentIndexNumber: null, IndexNumber: null }),
     },
-    nextEpisode: {
-      mediaType: 'episode',
-      mediaKey: 'episode:tmdb:32726:16:1',
-      parentMediaType: 'show',
-      tmdbId: 123456,
-      showTmdbId: 32726,
-      seasonNumber: 16,
-      episodeNumber: 1,
-      absoluteEpisodeNumber: null,
-      title: 'Episode Title',
-      summary: 'Episode summary',
-      airDate: '2025-09-28',
-      runtimeMinutes: 22,
-      rating: 8.5,
-      images: {
-        poster: { small: null, medium: null, large: null },
-        backdrop: { small: null, medium: null, large: null },
-        still: { small: null, medium: null, large: null },
-        logo: { small: null, medium: null, large: null },
-      },
-      showTitle: 'Bob\'s Burgers',
-      showExternalIds: { tmdb: 32726, imdb: 'tt1561755', tvdb: null },
-    },
-    videos: [],
-    cast: [],
-    directors: [],
-    creators: [],
-    production: {
+    NextEpisode: makeEpisodeBaseItemDto(),
+    Videos: [],
+    Cast: [],
+    Directors: [],
+    Creators: [],
+    Production: {
       originalLanguage: null,
       originCountries: [],
       spokenLanguages: [],
@@ -262,11 +209,11 @@ test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.ok(body.data.item.nextEpisode);
-  assert.equal(body.data.item.nextEpisode.mediaKey, 'episode:tmdb:32726:16:1');
-  assert.equal(body.data.item.nextEpisode.seasonNumber, 16);
-  assert.equal(body.data.item.nextEpisode.episodeNumber, 1);
-  assert.ok(body.data.item.nextEpisode.images);
+  assert.ok(body.data.NextEpisode);
+  assert.equal(body.data.NextEpisode.Id, 'episode:tmdb:32726:16:1');
+  assert.equal(body.data.NextEpisode.ParentIndexNumber, 16);
+  assert.equal(body.data.NextEpisode.IndexNumber, 1);
+  assert.ok(body.data.NextEpisode.ImageTags);
 });
 
 test('GET /v1/metadata/titles/:mediaKey serializes movie', async (t) => {
@@ -275,13 +222,13 @@ test('GET /v1/metadata/titles/:mediaKey serializes movie', async (t) => {
   const original = MetadataDetailService.prototype.getTitleDetailById;
 
   MetadataDetailService.prototype.getTitleDetailById = (async () => ({
-    item: makeView(),
-    nextEpisode: null,
-    videos: [],
-    cast: [],
-    directors: [],
-    creators: [],
-    production: {
+    Item: makeMediaItem(),
+    NextEpisode: null,
+    Videos: [],
+    Cast: [],
+    Directors: [],
+    Creators: [],
+    Production: {
       originalLanguage: null,
       originCountries: [],
       spokenLanguages: [],
@@ -314,9 +261,9 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes movie extras', async (
   const original = MetadataTitleExtrasService.prototype.getTitleExtras;
 
   MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
-    seasons: [],
-    episodes: [],
-    reviews: [
+    Seasons: [],
+    Episodes: [],
+    Reviews: [
       {
         id: 'rev-1',
         provider: 'tmdb',
@@ -330,29 +277,15 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes movie extras', async (
         avatarUrl: null,
       },
     ],
-    similar: [
-      {
-        kind: 'metadata_detail',
-        mediaItem: makeMediaItem('movie:tmdb:10195'),
-        context: {},
-        presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      },
+    Similar: [
+      makeMediaItem('movie:tmdb:10195'),
     ],
-    collection: {
-      id: 83533,
-      provider: 'tmdb',
-      providerId: '83533',
-      name: 'Avatar Collection',
-      poster: { small: null, medium: null, large: null },
-      backdrop: { small: null, medium: null, large: null },
-      parts: [
-        {
-          kind: 'metadata_detail',
-          mediaItem: makeMediaItem('movie:tmdb:19995'),
-          context: {},
-          presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-        },
-      ],
+    Collection: {
+      Items: [makeMediaItem('movie:tmdb:19995')],
+      StartIndex: 0,
+      TotalRecordCount: 1,
+      NextCursor: null,
+      HasMore: false,
     },
   })) as any;
 
@@ -372,14 +305,13 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes movie extras', async (
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.equal(body.data.episodes.length, 0);
-  assert.equal(body.data.reviews.length, 1);
-  assert.equal(body.data.reviews[0].id, 'rev-1');
-  assert.equal(body.data.similar.length, 1);
-  assert.equal(body.data.similar[0].mediaItem.mediaKey, 'movie:tmdb:10195');
-  assert.ok(body.data.collection);
-  assert.equal(body.data.collection.name, 'Avatar Collection');
-  assert.equal(body.data.collection.parts.length, 1);
+  assert.equal(body.data.Episodes.length, 0);
+  assert.equal(body.data.Reviews.length, 1);
+  assert.equal(body.data.Reviews[0].id, 'rev-1');
+  assert.equal(body.data.Similar.length, 1);
+  assert.equal(body.data.Similar[0].Id, 'movie:tmdb:10195');
+  assert.ok(body.data.Collection);
+  assert.equal(body.data.Collection.Items.length, 1);
 });
 
 test('GET /v1/metadata/titles/:mediaKey/extras serializes show episodes', async (t) => {
@@ -388,58 +320,14 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes show episodes', async 
   const original = MetadataTitleExtrasService.prototype.getTitleExtras;
 
   MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
-    seasons: [],
-    episodes: [
-      {
-        mediaType: 'episode',
-        mediaKey: 'episode:tmdb:32726:1:1',
-        parentMediaType: 'show',
-        tmdbId: 1001,
-        showTmdbId: 32726,
-        seasonNumber: 1,
-        episodeNumber: 1,
-        absoluteEpisodeNumber: null,
-        title: 'Pilot',
-        summary: 'The first episode',
-        airDate: '2024-01-01',
-        runtimeMinutes: 30,
-        rating: 8.0,
-        images: {
-          poster: { small: null, medium: null, large: null },
-          backdrop: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
-          logo: { small: null, medium: null, large: null },
-        },
-        showTitle: 'Test Show',
-        showExternalIds: { tmdb: 32726, imdb: 'tt1234567', tvdb: null },
-      },
-      {
-        mediaType: 'episode',
-        mediaKey: 'episode:tmdb:32726:1:2',
-        parentMediaType: 'show',
-        tmdbId: 1002,
-        showTmdbId: 32726,
-        seasonNumber: 1,
-        episodeNumber: 2,
-        absoluteEpisodeNumber: null,
-        title: 'Second Episode',
-        summary: 'The second episode',
-        airDate: '2024-01-08',
-        runtimeMinutes: 30,
-        rating: 7.5,
-        images: {
-          poster: { small: null, medium: null, large: null },
-          backdrop: { small: null, medium: null, large: null },
-          still: { small: null, medium: null, large: null },
-          logo: { small: null, medium: null, large: null },
-        },
-        showTitle: 'Test Show',
-        showExternalIds: { tmdb: 32726, imdb: 'tt1234567', tvdb: null },
-      },
+    Seasons: [],
+    Episodes: [
+      makeEpisodeBaseItemDto({ Id: 'episode:tmdb:32726:1:1', Name: 'Pilot', EpisodeTitle: 'Pilot', AirDate: '2024-01-01', ParentIndexNumber: 1, IndexNumber: 1 }),
+      makeEpisodeBaseItemDto({ Id: 'episode:tmdb:32726:1:2', Name: 'Second Episode', EpisodeTitle: 'Second Episode', AirDate: '2024-01-08', ParentIndexNumber: 1, IndexNumber: 2 }),
     ],
-    reviews: [],
-    similar: [],
-    collection: null,
+    Reviews: [],
+    Similar: [],
+    Collection: null,
   })) as any;
 
   t.after(() => {
@@ -458,11 +346,10 @@ test('GET /v1/metadata/titles/:mediaKey/extras serializes show episodes', async 
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.equal(body.data.episodes.length, 2);
-  assert.equal(body.data.episodes[0].episodeNumber, 1);
-  assert.equal(body.data.episodes[1].episodeNumber, 2);
-  assert.equal(body.data.episodes[0].showTitle, 'Test Show');
-  assert.equal(body.data.reviews.length, 0);
-  assert.equal(body.data.similar.length, 0);
-  assert.equal(body.data.collection, null);
+  assert.equal(body.data.Episodes.length, 2);
+  assert.equal(body.data.Episodes[0].IndexNumber, 1);
+  assert.equal(body.data.Episodes[1].IndexNumber, 2);
+  assert.equal(body.data.Reviews.length, 0);
+  assert.equal(body.data.Similar.length, 0);
+  assert.equal(body.data.Collection, null);
 });

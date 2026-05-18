@@ -1,13 +1,6 @@
-import { logger } from '../../config/logger.js';
-import { HttpError } from '../../lib/errors.js';
 import { db, type DbClient } from '../../lib/db.js';
 import { decodeWatchPageCursor } from '../watch/watch-pagination.js';
-import type {
-  ContinueWatchingProductItem,
-  HistoryProductItem,
-  RatingProductItem,
-  WatchlistProductItem,
-} from '../watch/watch-derived-item.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
 import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
 import {
   mapContinueWatchingRow,
@@ -31,7 +24,7 @@ export class AdminWatchReadService {
     private readonly profileAccessService = new ProfileAccessService(),
   ) {}
 
-  async listContinueWatchingPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<ContinueWatchingProductItem>> {
+  async listContinueWatchingPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
     const cursor = decodeWatchPageCursor(params.cursor);
 
@@ -52,7 +45,7 @@ export class AdminWatchReadService {
     return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.title_media_key) }), mapContinueWatchingRow);
   }
 
-  async listWatchlistPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<WatchlistProductItem>> {
+  async listWatchlistPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
     const cursor = decodeWatchPageCursor(params.cursor);
 
@@ -77,7 +70,7 @@ export class AdminWatchReadService {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
   }
 
-  async listRatingsPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<RatingProductItem>> {
+  async listRatingsPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
     const cursor = decodeWatchPageCursor(params.cursor);
 
@@ -98,7 +91,7 @@ export class AdminWatchReadService {
     return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.media_key) }), mapRatingRow);
   }
 
-  async listHistoryPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<HistoryProductItem>> {
+  async listHistoryPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
     const cursor = decodeWatchPageCursor(params.cursor);
 

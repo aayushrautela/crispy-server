@@ -29,7 +29,7 @@ export class MetadataReviewsService {
     return withDbClient(async (client) => {
       const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, mediaKey);
       const reviews = await this.loadTitleReviews(client, userId, profileId, identity, language ?? null);
-      return { reviews };
+      return { Reviews: reviews };
     });
   }
 

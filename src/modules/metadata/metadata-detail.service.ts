@@ -29,7 +29,7 @@ export class MetadataDetailService {
     return withDbClient(async (client) => {
       const identity = await this.resolveIdentity(client, input);
       return {
-        item: await this.metadataDetailCoreService.buildMetadataView(client, identity, input.language ?? null),
+        Item: await this.metadataDetailCoreService.buildMetadataView(client, identity, input.language ?? null),
       };
     });
   }

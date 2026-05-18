@@ -886,22 +886,133 @@ export interface components {
             HasMore: boolean;
         };
         MetadataTitleDetailResponse: {
-            item: components["schemas"]["BaseItemDto"];
-            nextEpisode: components["schemas"]["BaseItemDto"] | null;
-            videos: components["schemas"]["GenericObject"][];
-            cast: components["schemas"]["GenericObject"][];
-            directors: components["schemas"]["GenericObject"][];
-            creators: components["schemas"]["GenericObject"][];
-            production: components["schemas"]["GenericObject"];
+            Item: components["schemas"]["BaseItemDto"];
+            NextEpisode: components["schemas"]["BaseItemDto"] | null;
+            Videos: components["schemas"]["MetadataVideoView"][];
+            Cast: components["schemas"]["MetadataPersonRefView"][];
+            Directors: components["schemas"]["MetadataPersonRefView"][];
+            Creators: components["schemas"]["MetadataPersonRefView"][];
+            Production: components["schemas"]["MetadataProductionInfoView"];
+        };
+        MetadataVideoView: {
+            id: string;
+            key: string;
+            name: string | null;
+            site: string | null;
+            type: string | null;
+            official: boolean;
+            publishedAt: string | null;
+            url: string | null;
+            thumbnailUrl: string | null;
+        };
+        MetadataPersonRefView: {
+            id: string;
+            provider: string;
+            providerId: string;
+            tmdbPersonId: number | null;
+            name: string;
+            role: string | null;
+            department: string | null;
+            profileUrl: string | null;
+        };
+        MetadataCompanyView: {
+            id: number | string;
+            provider: string;
+            providerId: string;
+            name: string;
+            logo: components["schemas"]["ResponsiveImageSet"];
+            originCountry: string | null;
+        };
+        MetadataProductionInfoView: {
+            originalLanguage: string | null;
+            originCountries: string[];
+            spokenLanguages: string[];
+            productionCountries: string[];
+            companies: components["schemas"]["MetadataCompanyView"][];
+            networks: components["schemas"]["MetadataCompanyView"][];
         };
         MetadataTitleExtrasResponse: {
-            seasons: components["schemas"]["BaseItemDto"][];
-            episodes: components["schemas"]["BaseItemDto"][];
-            reviews: components["schemas"]["GenericObject"][];
-            similar: components["schemas"]["BaseItemDto"][];
-            collection: components["schemas"]["BaseItemDtoQueryResult"] | null;
+            Seasons: components["schemas"]["BaseItemDto"][];
+            Episodes: components["schemas"]["BaseItemDto"][];
+            Reviews: components["schemas"]["MetadataReviewView"][];
+            Similar: components["schemas"]["BaseItemDto"][];
+            Collection: components["schemas"]["BaseItemDtoQueryResult"] | null;
+        };
+        MetadataReviewView: {
+            id: string;
+            provider: string;
+            author: string | null;
+            username: string | null;
+            content: string;
+            createdAt: string | null;
+            updatedAt: string | null;
+            url: string | null;
+            rating: number | null;
+            avatarUrl: string | null;
         };
         GenericArray: components["schemas"]["GenericObject"][];
+        BaseItemDtoQueryResultEnvelope: {
+            data: components["schemas"]["BaseItemDtoQueryResult"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        ResponseMeta: {
+            requestId: string;
+        };
+        BaseItemDtoEnvelope: {
+            data: components["schemas"]["BaseItemDto"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        BaseItemDtoArrayEnvelope: {
+            data: {
+                items: components["schemas"]["BaseItemDto"][];
+            };
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        CalendarResponse: {
+            profileId: string;
+            /** @enum {string} */
+            source: "canonical_calendar";
+            generatedAt: string;
+            items: components["schemas"]["BaseItemDto"][];
+        };
+        CalendarResponseEnvelope: {
+            data: components["schemas"]["CalendarResponse"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        MetadataSearchResponse: {
+            query: string;
+            all: components["schemas"]["BaseItemDto"][];
+            movies: components["schemas"]["BaseItemDto"][];
+            series: components["schemas"]["BaseItemDto"][];
+            people: components["schemas"]["MetadataPersonSearchResult"][];
+        };
+        GenericArrayEnvelope: {
+            data: components["schemas"]["SearchSuggestionItem"][];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        SearchSuggestionItem: {
+            Id: string;
+            Type: string;
+            Name: string;
+            ProductionYear?: number | null;
+            ImageTags?: {
+                Primary?: components["schemas"]["ResponsiveImageSet"] | null;
+            };
+            ProviderIds?: components["schemas"]["ProviderIds"] | null;
+        };
+        MetadataPersonSearchResult: {
+            /** @enum {string} */
+            kind: "person_search_result";
+            tmdbPersonId: number;
+            name: string;
+            knownForDepartment: string | null;
+            profileUrl: string | null;
+            knownForTitles: string[];
+        };
+        MetadataSearchResponseEnvelope: {
+            data: components["schemas"]["MetadataSearchResponse"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
     };
     responses: {
         /** @description Invalid request. */
@@ -1706,7 +1817,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["CalendarResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -1735,7 +1846,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["CalendarResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2210,7 +2321,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2306,7 +2417,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2433,7 +2544,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2447,7 +2558,9 @@ export interface operations {
     };
     getV1ProfilesProfileIdWatchState: {
         parameters: {
-            query?: never;
+            query: {
+                mediaKey: string;
+            };
             header?: never;
             path: {
                 profileId: string;
@@ -2462,7 +2575,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2485,7 +2598,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    items: {
+                        mediaKey: string;
+                    }[];
+                };
             };
         };
         responses: {
@@ -2495,7 +2612,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoArrayEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2560,7 +2677,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2660,7 +2777,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["MetadataSearchResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2692,7 +2809,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["GenericArrayEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2726,7 +2843,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];

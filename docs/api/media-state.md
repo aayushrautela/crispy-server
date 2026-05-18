@@ -35,9 +35,9 @@ Search and metadata routes resolve TMDB-backed identities:
 - There is no `anime` search bucket.
 - Metadata resolve/detail/playback routes should be called with `mediaKey` or the identity fields documented in OpenAPI.
 - Clients should not construct provider-routed identities from deprecated `provider`/`providerId` fields when `mediaKey` is available.
-- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `name`, `imageTags.primary`, `imageTags.backdrop`, `imageTags.logo`, `imageTags.thumb`, `communityRating`, `productionYear`, and nullable `officialRating`.
+- Primary card/list surfaces should expose canonical `BaseItemDto` presentation fields from the server: `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
 - Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
-- `imageTags.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- `ImageTags.Logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 
 ## Watch state
 

@@ -1,4 +1,5 @@
 import {
+  baseItemDtoSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
   profileIdParamsSchema,
@@ -6,7 +7,7 @@ import {
   successEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
-import { metadataSearchResultSchema, metadataPersonSearchResultSchema } from './metadata.js';
+import { metadataPersonSearchResultSchema } from './metadata.js';
 
 const aiSearchResponseSchema = {
   type: 'object',
@@ -16,15 +17,15 @@ const aiSearchResponseSchema = {
     query: stringSchema,
     all: {
       type: 'array',
-      items: metadataSearchResultSchema,
+      items: baseItemDtoSchema,
     },
     movies: {
       type: 'array',
-      items: metadataSearchResultSchema,
+      items: baseItemDtoSchema,
     },
     series: {
       type: 'array',
-      items: metadataSearchResultSchema,
+      items: baseItemDtoSchema,
     },
     people: {
       type: 'array',

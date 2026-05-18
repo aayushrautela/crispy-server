@@ -164,12 +164,6 @@ export type BaseItemDtoQueryResult = {
   HasMore: boolean;
 };
 
-export type MediaItemKind = BaseItemKind;
-export type MediaImageTags = BaseItemImageTags;
-export type ParentMediaImageTags = ParentBaseItemImageTags;
-export type ProviderIds = ProviderIdsDto;
-export type MediaItemDto = BaseItemDto;
-
 export type MobileSurfaceKind =
   | 'continue_watching'
   | 'recommendation'

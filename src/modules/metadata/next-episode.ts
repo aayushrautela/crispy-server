@@ -1,4 +1,4 @@
-import type { MetadataEpisodeView } from './metadata-detail.types.js';
+import type { BaseItemDto } from './media-item.types.js';
 
 type EpisodeLike = {
   seasonNumber: number;
@@ -44,12 +44,12 @@ export function findNextEpisode<T extends EpisodeLike>(params: {
   return null;
 }
 
-export function episodeViewToLookup(episode: MetadataEpisodeView): EpisodeLike {
+export function episodeViewToLookup(episode: BaseItemDto): EpisodeLike {
   return {
-    seasonNumber: episode.seasonNumber,
-    episodeNumber: episode.episodeNumber,
-    title: episode.title,
-    releaseDate: episode.airDate,
+    seasonNumber: episode.ParentIndexNumber ?? 0,
+    episodeNumber: episode.IndexNumber ?? 0,
+    title: episode.Name,
+    releaseDate: episode.AirDate,
   };
 }
 

@@ -203,9 +203,9 @@ export function mapInputContinueWatchingItem(item: ProfileInputContinueWatchingI
   return {
     id: item.id,
     media: {
-      mediaType: item.mediaItem.Type,
-      mediaKey: item.mediaItem.Id,
-      title: item.mediaItem.Name,
+      mediaType: item.Item.Type,
+      mediaKey: item.Item.Id,
+      title: item.Item.Name,
     },
     progress: {
       positionSeconds: null,

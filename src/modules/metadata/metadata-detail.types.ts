@@ -1,67 +1,6 @@
 import type { SupportedProvider } from '../identity/media-key.js';
-import type { MediaItemDto, MediaPresentationHint } from './media-item.types.js';
-import type {
-  MetadataExternalIds,
-  MetadataEpisodePreview,
-  MetadataImages,
-  MetadataParentMediaType,
-  MetadataTitleMediaType,
-  MetadataViewMediaType,
-  ResponsiveImageSet,
-} from './metadata-card.types.js';
-
-export type MetadataView = {
-  mediaType: MetadataViewMediaType;
-  kind: 'title' | 'episode';
-  mediaKey: string;
-  parentMediaType: MetadataParentMediaType | null;
-  tmdbId: number | null;
-  showTmdbId: number | null;
-  seasonNumber: number | null;
-  episodeNumber: number | null;
-  absoluteEpisodeNumber: number | null;
-  title: string | null;
-  subtitle: string | null;
-  summary: string | null;
-  overview: string | null;
-  artwork: import('./metadata-card.types.js').MetadataArtwork;
-  images: MetadataImages;
-  releaseDate: string | null;
-  releaseYear: number | null;
-  runtimeMinutes: number | null;
-  rating: number | null;
-  maturityRating: string | null;
-  certification: string | null;
-  trailerUrl: string | null;
-  trailerThumbnailUrl: string | null;
-  posterColor: string | null;
-  backdropColor: string | null;
-  status: string | null;
-  genres: string[];
-  externalIds: MetadataExternalIds;
-  seasonCount: number | null;
-  episodeCount: number | null;
-  nextEpisode: MetadataEpisodePreview | null;
-};
-
-export type MetadataSeasonView = {
-  mediaKey: string;
-  parentMediaType: MetadataParentMediaType;
-  showTmdbId: number | null;
-  seasonNumber: number;
-  title: string | null;
-  summary: string | null;
-  airDate: string | null;
-  episodeCount: number | null;
-  images: {
-    poster: ResponsiveImageSet;
-  };
-};
-
-export type MetadataEpisodeView = MetadataEpisodePreview & {
-  showTitle: string | null;
-  showExternalIds: MetadataExternalIds;
-};
+import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
+import type { MetadataTitleMediaType, ResponsiveImageSet } from './metadata-card.types.js';
 
 export type MetadataVideoView = {
   id: string;
@@ -110,23 +49,6 @@ export type MetadataCompanyView = {
   originCountry: string | null;
 };
 
-export type MetadataRelatedItem = {
-  kind: 'metadata_detail';
-  mediaItem: MediaItemDto;
-  context: Record<string, unknown>;
-  presentation: MediaPresentationHint | null;
-};
-
-export type MetadataCollectionView = {
-  id: number | string;
-  provider: SupportedProvider;
-  providerId: string;
-  name: string;
-  poster: ResponsiveImageSet;
-  backdrop: ResponsiveImageSet;
-  parts: MetadataRelatedItem[];
-};
-
 export type MetadataProductionInfoView = {
   originalLanguage: string | null;
   originCountries: string[];
@@ -137,21 +59,21 @@ export type MetadataProductionInfoView = {
 };
 
 export type MetadataTitleDetail = {
-  item: MetadataView;
-  nextEpisode: MetadataEpisodeView | null;
-  videos: MetadataVideoView[];
-  cast: MetadataPersonRefView[];
-  directors: MetadataPersonRefView[];
-  creators: MetadataPersonRefView[];
-  production: MetadataProductionInfoView;
+  Item: BaseItemDto;
+  NextEpisode: BaseItemDto | null;
+  Videos: MetadataVideoView[];
+  Cast: MetadataPersonRefView[];
+  Directors: MetadataPersonRefView[];
+  Creators: MetadataPersonRefView[];
+  Production: MetadataProductionInfoView;
 };
 
 export type MetadataTitleReviewsResponse = {
-  reviews: MetadataReviewView[];
+  Reviews: MetadataReviewView[];
 };
 
 export type MetadataTitleRatingsResponse = {
-  ratings: {
+  Ratings: {
     imdb: number | null;
     tmdb: number | null;
     trakt: number | null;
@@ -164,38 +86,42 @@ export type MetadataTitleRatingsResponse = {
 };
 
 export type MetadataTitleExtras = {
-  seasons: MetadataSeasonView[];
-  episodes: MetadataEpisodeView[];
-  reviews: MetadataReviewView[];
-  similar: MetadataRelatedItem[];
-  collection: MetadataCollectionView | null;
+  Seasons: BaseItemDto[];
+  Episodes: BaseItemDto[];
+  Reviews: MetadataReviewView[];
+  Similar: BaseItemDto[];
+  Collection: BaseItemDtoQueryResult | null;
 };
 
-export type MetadataSeasonDetail = {
-  show: MetadataView;
-  season: MetadataSeasonView;
-  episodes: MetadataEpisodeView[];
-};
-
-export type MetadataEpisodeListResponse = {
-  show: MetadataView;
-  requestedSeasonNumber: number | null;
-  effectiveSeasonNumber: number;
-  includedSeasonNumbers: number[];
-  episodes: MetadataEpisodeView[];
-};
-
-export type MetadataNextEpisodeResponse = {
-  show: MetadataView;
-  currentSeasonNumber: number;
-  currentEpisodeNumber: number;
-  item: MetadataEpisodeView | null;
+export type MetadataResolveResponse = {
+  Item: BaseItemDto;
 };
 
 export type PlaybackResolveResponse = {
-  item: MetadataView;
-  show: MetadataView | null;
-  season: MetadataSeasonView | null;
+  Item: BaseItemDto;
+  Show: BaseItemDto | null;
+  Season: BaseItemDto | null;
+};
+
+export type MetadataSeasonDetail = {
+  Show: BaseItemDto;
+  Season: BaseItemDto;
+  Episodes: BaseItemDto[];
+};
+
+export type MetadataEpisodeListResponse = {
+  Show: BaseItemDto;
+  RequestedSeasonNumber: number | null;
+  EffectiveSeasonNumber: number;
+  IncludedSeasonNumbers: number[];
+  Episodes: BaseItemDto[];
+};
+
+export type MetadataNextEpisodeResponse = {
+  Show: BaseItemDto;
+  CurrentSeasonNumber: number;
+  CurrentEpisodeNumber: number;
+  Item: BaseItemDto | null;
 };
 
 export type MetadataPersonKnownForItem = {
@@ -228,12 +154,7 @@ export type MetadataPersonDetail = {
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'people';
 
-export type MetadataSearchResult = {
-  kind: 'search_result';
-  mediaItem: MediaItemDto;
-  context: Record<string, unknown>;
-  presentation: MediaPresentationHint | null;
-};
+export type MetadataSearchResult = BaseItemDto;
 
 export type MetadataPersonSearchResult = {
   kind: 'person_search_result';
@@ -245,23 +166,22 @@ export type MetadataPersonSearchResult = {
 };
 
 export type SearchSuggestionItem = {
-  tmdbId: number;
-  mediaType: 'movie' | 'tv';
-  title: string;
-  year: number | null;
-  posterPath: string | null;
-  popularity: number;
-  overview: string | null;
+  Id: string;
+  Type: 'Movie' | 'Series';
+  Name: string;
+  ProductionYear: number | null;
+  ImageTags: {
+    Primary: ResponsiveImageSet | null;
+  } | null;
+  ProviderIds: {
+    Tmdb: string | null;
+  };
 };
 
 export type MetadataSearchResponse = {
   query: string;
-  all: MetadataSearchResult[];
-  movies: MetadataSearchResult[];
-  series: MetadataSearchResult[];
+  all: BaseItemDto[];
+  movies: BaseItemDto[];
+  series: BaseItemDto[];
   people: MetadataPersonSearchResult[];
-};
-
-export type MetadataResolveResponse = {
-  item: MetadataView;
 };

@@ -1,5 +1,5 @@
 import type { CollectionCardView, HeroCardView } from '../metadata/metadata-card.types.js';
-import type { MediaItemDto, MediaPresentationHint } from '../metadata/media-item.types.js';
+import type { BaseItemDto, MediaPresentationHint } from '../metadata/media-item.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;
@@ -30,7 +30,7 @@ export type RecommendationItemContext = {
 
 export type RecommendationSectionItem = {
   kind: 'recommendation';
-  mediaItem: MediaItemDto;
+  Item: BaseItemDto;
   context: RecommendationItemContext;
   presentation: MediaPresentationHint | null;
   reason: string | null;

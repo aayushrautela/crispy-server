@@ -513,18 +513,24 @@ export class TmdbCacheService {
         : toNullableString(item.first_air_date);
       const year = dateStr ? new Date(dateStr).getFullYear() : null;
 
+      const posterPath = toNullableString(item.poster_path);
+      const primary = posterPath ? {
+        small: `https://image.tmdb.org/t/p/w185${posterPath}`,
+        medium: `https://image.tmdb.org/t/p/w342${posterPath}`,
+        large: `https://image.tmdb.org/t/p/w500${posterPath}`,
+      } : null;
+
       suggestions.push({
-        tmdbId,
-        mediaType,
-        title,
-        year,
-        posterPath: toNullableString(item.poster_path),
-        popularity: typeof item.popularity === 'number' ? item.popularity : 0,
-        overview: toNullableString(item.overview),
+        Id: String(tmdbId),
+        Type: mediaType === 'movie' ? 'Movie' : 'Series',
+        Name: title,
+        ProductionYear: year,
+        ImageTags: primary ? { Primary: primary } : null,
+        ProviderIds: { Tmdb: String(tmdbId) },
       });
     }
 
-    suggestions.sort((a, b) => b.popularity - a.popularity);
+    suggestions.sort((a, b) => (b.ProductionYear ?? 0) - (a.ProductionYear ?? 0));
     return suggestions.slice(0, limit);
   }
 

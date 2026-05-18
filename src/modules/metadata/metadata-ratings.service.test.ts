@@ -44,8 +44,8 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
   );
 
   const result = await service.getTitleRatings('user-1', 'profile-1', 'movie:tmdb:222');
-  assert.equal(result.ratings.tmdb, 7.8);
-  assert.equal(result.ratings.letterboxd, 3.9);
+  assert.equal(result.Ratings.tmdb, 7.8);
+  assert.equal(result.Ratings.letterboxd, 3.9);
 });
 
 test('MetadataRatingsService throws 412 when MDBList key is unavailable', async () => {

@@ -10,7 +10,7 @@ const { mapContinueWatchingItem } = await import('./recommendation-generation.se
 test('mapContinueWatchingItem maps continue-watching items into explicit worker DTOs', () => {
   const item: ProfileInputContinueWatchingItem = {
     id: 'cw_1',
-    mediaItem: {
+    Item: {
       Id: 'show:tmdb:1396',
       Type: 'Episode',
       Name: 'Breaking Bad',

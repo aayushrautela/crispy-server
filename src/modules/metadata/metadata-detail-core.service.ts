@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
-import { buildMetadataView } from './metadata-detail.builders.js';
-import type { MetadataView } from './metadata-detail.types.js';
+import { buildDetailBaseItemDto } from './metadata-detail.builders.js';
+import type { BaseItemDto } from './media-item.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 
 export class MetadataDetailCoreService {
@@ -9,9 +9,9 @@ export class MetadataDetailCoreService {
     private readonly titleSourceService = new MetadataTitleSourceService(),
   ) {}
 
-  async buildMetadataView(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataView> {
+  async buildMetadataView(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<BaseItemDto> {
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
-    return buildMetadataView({
+    return buildDetailBaseItemDto({
       identity,
       title: source.tmdbTitle,
       currentEpisode: null,

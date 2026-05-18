@@ -2,17 +2,9 @@ import type { DbClient } from '../../lib/db.js';
 import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
-import { buildMetadataCardView } from './metadata-card.builders.js';
-import { buildSeasonViewFromTitleRaw } from './metadata-detail.builders.js';
-import { metadataCardToMediaItem, mediaItemToMediaItemDto } from './media-item.mapper.js';
-import { buildEpisodeView } from './metadata-detail.builders.js';
-import type {
-  MetadataCollectionView,
-  MetadataEpisodeView,
-  MetadataRelatedItem,
-  MetadataSeasonView,
-  MetadataTitleExtras,
-} from './metadata-detail.types.js';
+import { buildSeasonBaseItemDto, buildEpisodeBaseItemDto, buildDetailBaseItemDto } from './metadata-detail.builders.js';
+import type { MetadataTitleExtras } from './metadata-detail.types.js';
+import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
 import {
   extractCollection,
   extractCollectionParts,
@@ -51,10 +43,10 @@ export class MetadataTitleExtrasBuilder {
       this.buildFullCollection(client, resolvedTitle, effectiveLanguage),
     ]);
 
-    return { seasons, episodes, reviews, similar, collection };
+    return { Seasons: seasons, Episodes: episodes, Reviews: reviews, Similar: similar, Collection: collection };
   }
 
-  private async buildAllSeasons(client: DbClient, title: TmdbTitleRecord): Promise<MetadataSeasonView[]> {
+  private async buildAllSeasons(client: DbClient, title: TmdbTitleRecord): Promise<BaseItemDto[]> {
     if (title.mediaType !== 'tv') {
       return [];
     }
@@ -70,10 +62,15 @@ export class MetadataTitleExtrasBuilder {
       parentProviderId: String(title.tmdbId),
     }, seasonNumbers);
 
-    return buildSeasonViewFromTitleRaw(title, seasonIds);
+    return seasonNumbers
+      .map((seasonNumber) => {
+        const seasonId = seasonIds.get(seasonNumber);
+        return seasonId ? buildSeasonBaseItemDto(title, seasonNumber, seasonId) : null;
+      })
+      .filter((item): item is BaseItemDto => item !== null);
   }
 
-  private async buildAllEpisodes(client: DbClient, title: TmdbTitleRecord): Promise<MetadataEpisodeView[]> {
+  private async buildAllEpisodes(client: DbClient, title: TmdbTitleRecord): Promise<BaseItemDto[]> {
     if (title.mediaType !== 'tv') {
       return [];
     }
@@ -102,7 +99,7 @@ export class MetadataTitleExtrasBuilder {
         episode.episodeNumber,
         null,
       ));
-      return contentId ? [buildEpisodeView(title, episode, contentId, '')] : [];
+      return contentId ? [buildEpisodeBaseItemDto(title, episode, contentId, '')] : [];
     });
   }
 
@@ -111,7 +108,7 @@ export class MetadataTitleExtrasBuilder {
     title: TmdbTitleRecord,
     extrasRaw: Record<string, unknown> | null,
     language?: string | null,
-  ): Promise<MetadataRelatedItem[]> {
+  ): Promise<BaseItemDto[]> {
     const similarTitles = extractSimilarFromRaw(extrasRaw, title.mediaType);
     if (similarTitles.length === 0) {
       return [];
@@ -131,7 +128,7 @@ export class MetadataTitleExtrasBuilder {
     return related.filter((item): item is NonNullable<typeof item> => item !== null);
   }
 
-  private async buildFullCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<MetadataCollectionView | null> {
+  private async buildFullCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<BaseItemDtoQueryResult | null> {
     const collection = extractCollection(title);
     if (!collection || typeof collection.id !== 'number') {
       return null;
@@ -139,7 +136,7 @@ export class MetadataTitleExtrasBuilder {
 
     const collectionRaw = await this.tmdbCacheService.getCollection(client, collection.id, language).catch(() => null);
     if (!collectionRaw) {
-      return collection;
+      return null;
     }
 
     const collectionParts = extractCollectionParts(collectionRaw);
@@ -150,9 +147,14 @@ export class MetadataTitleExtrasBuilder {
       collectionParts.map((t) => this.buildRelatedItem(client, t, collectionContentIds, language)),
     );
 
+    const validParts = parts.filter((item): item is NonNullable<typeof item> => item !== null);
+
     return {
-      ...collection,
-      parts: parts.filter((item): item is NonNullable<typeof item> => item !== null),
+      Items: validParts,
+      StartIndex: 0,
+      TotalRecordCount: validParts.length,
+      NextCursor: null,
+      HasMore: false,
     };
   }
 
@@ -161,7 +163,7 @@ export class MetadataTitleExtrasBuilder {
     titleRecord: TmdbTitleRecord,
     contentIds: Map<string, string>,
     language?: string | null,
-  ): Promise<MetadataRelatedItem | null> {
+  ): Promise<BaseItemDto | null> {
     const mediaType = titleRecord.mediaType === 'movie' ? 'movie' : 'show';
     const identity = inferMediaIdentity({ mediaType, tmdbId: titleRecord.tmdbId });
     const contentId = contentIds.get(identity.mediaKey);
@@ -174,17 +176,7 @@ export class MetadataTitleExtrasBuilder {
       return null;
     }
 
-    const card = buildMetadataCardView({ identity, title: hydrated, language });
-    if (!card.title) {
-      return null;
-    }
-
-    return {
-      kind: 'metadata_detail' as const,
-      mediaItem: mediaItemToMediaItemDto(metadataCardToMediaItem(card)),
-      context: {},
-      presentation: { preferredSize: 'poster' as const, sectionId: null, sectionTitle: null },
-    };
+    return buildDetailBaseItemDto({ identity, title: hydrated, language });
   }
 }
 

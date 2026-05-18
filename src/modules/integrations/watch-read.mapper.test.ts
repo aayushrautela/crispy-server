@@ -19,16 +19,13 @@ test('mapHistoryRow maps title-level show history rows', () => {
     metadata_rating: 9.1,
   });
 
-  assert.equal(item.id, '00000000-0000-4000-8000-000000000001');
-  assert.equal(item.kind, 'watch_history');
-  assert.equal(item.mediaItem.Id, 'show:tmdb:789');
-  assert.equal(item.mediaItem.Type, 'Series');
-  assert.equal(item.mediaItem.Name, 'Cached Show Title');
-  assert.equal(item.mediaItem.ProductionYear, 2022);
-  assert.equal(item.mediaItem.CommunityRating, 9.1);
-  assert.equal(item.eventType, 'playback_completed');
-  assert.equal(item.occurredAt, '2026-05-11T08:00:00.000Z');
-  assert.deepEqual(item.origins, ['trakt']);
+  assert.equal(item.Id, 'show:tmdb:789');
+  assert.equal(item.Type, 'Series');
+  assert.equal(item.Name, 'Cached Show Title');
+  assert.equal(item.ProductionYear, 2022);
+  assert.equal(item.CommunityRating, 9.1);
+  assert.equal(item.UserData!.Played, true);
+  assert.equal(item.UserData!.LastPlayedDate, '2026-05-11T08:00:00.000Z');
 });
 
 test('mapContinueWatchingRow maps movie progress', () => {
@@ -49,16 +46,12 @@ test('mapContinueWatchingRow maps movie progress', () => {
     metadata_rating: null,
   });
 
-  assert.equal(item.id, 'movie:tmdb:694');
-  assert.equal(item.kind, 'continue_watching');
-  assert.equal(item.mediaItem.Id, 'movie:tmdb:694');
-  assert.equal(item.mediaItem.Type, 'Movie');
-  assert.equal(item.mediaItem.SeriesId, null);
-  assert.equal(item.progress.positionSeconds, 120);
-  assert.equal(item.progress.progressPercent, 1.67);
-  assert.equal(item.lastActivityAt, '2026-05-13T00:00:00.000Z');
-  assert.deepEqual(item.origins, ['local']);
-  assert.equal(item.dismissible, true);
+  assert.equal(item.Id, 'movie:tmdb:694');
+  assert.equal(item.Type, 'Movie');
+  assert.equal(item.UserData!.PlaybackPositionTicks, 1_200_000_000);
+  assert.equal(item.UserData!.RuntimeTicks, 72_000_000_000);
+  assert.equal(item.UserData!.LastPlayedDate, '2026-05-13T00:00:00.000Z');
+  assert.equal(item.UserData!.Played, false);
 });
 
 test('mapContinueWatchingRow maps episode progress with playable key', () => {
@@ -80,17 +73,13 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
     metadata_rating: 8.0,
   });
 
-  assert.equal(item.id, 'show:tmdb:123');
-  assert.equal(item.kind, 'continue_watching');
-  assert.equal(item.mediaItem.Id, 'episode:tmdb:123:2:5');
-  assert.equal(item.mediaItem.Type, 'Episode');
-  assert.equal(item.mediaItem.SeriesId, '123');
-  assert.equal(item.mediaItem.SeriesName, 'Cached Show Title');
-  assert.equal(item.mediaItem.ParentIndexNumber, 2);
-  assert.equal(item.mediaItem.IndexNumber, 5);
-  assert.equal(item.mediaItem.EpisodeTitle, 'Cached Show Title');
-  assert.equal(item.progress.positionSeconds, 600);
-  assert.equal(item.progress.progressPercent, 33.33);
-  assert.equal(item.lastActivityAt, '2026-05-14T08:00:00.000Z');
-  assert.deepEqual(item.origins, ['trakt']);
+  assert.equal(item.Id, 'episode:tmdb:123:2:5');
+  assert.equal(item.Type, 'Episode');
+  assert.equal(item.SeriesId, '123');
+  assert.equal(item.SeriesName, 'Cached Show Title');
+  assert.equal(item.ParentIndexNumber, 2);
+  assert.equal(item.IndexNumber, 5);
+  assert.equal(item.EpisodeTitle, 'Cached Show Title');
+  assert.equal(item.UserData!.PlaybackPositionTicks, 6_000_000_000);
+  assert.equal(item.UserData!.LastPlayedDate, '2026-05-14T08:00:00.000Z');
 });

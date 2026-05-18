@@ -1,5 +1,5 @@
 import type { ProfileInputSignalCacheDiagnostics } from './profile-input-signal-cache.types.js';
-import type { MediaItemDto } from '../metadata/media-item.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
 
 export type ProfileInputSignalInclude = 'history' | 'ratings' | 'watchlist' | 'continue' | 'trackedSeries';
 
@@ -34,14 +34,14 @@ export type AppliedProfileInputSignalLimits = {
 
 export type ProfileInputWatchHistoryItem = {
   id: string;
-  mediaItem: MediaItemDto;
+  Item: BaseItemDto;
   watchedAt: string;
   payload: Record<string, unknown> | null;
 };
 
 export type ProfileInputRatingItem = {
   id: string;
-  mediaItem: MediaItemDto;
+  Item: BaseItemDto;
   rating: {
     value: number;
     ratedAt: string;
@@ -51,14 +51,14 @@ export type ProfileInputRatingItem = {
 
 export type ProfileInputWatchlistItem = {
   id: string;
-  mediaItem: MediaItemDto;
+  Item: BaseItemDto;
   addedAt: string;
   payload: Record<string, unknown> | null;
 };
 
 export type ProfileInputContinueWatchingItem = {
   id: string;
-  mediaItem: MediaItemDto;
+  Item: BaseItemDto;
   progress: {
     progressPercent: number;
   };
@@ -66,7 +66,7 @@ export type ProfileInputContinueWatchingItem = {
 };
 
 export type ProfileInputTrackedSeriesItem = {
-  show: MediaItemDto | null;
+  Show: BaseItemDto | null;
   reason: string;
   lastInteractedAt: string | null;
   nextEpisodeAirDate: string | null;

@@ -1,24 +1,18 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
-import type { MediaItemDto, ParentMediaImageTags } from '../metadata/media-item.types.js';
-import { watchCacheRecordToMediaItemDto } from '../metadata/media-item.mapper.js';
+import type { BaseItemDto, ParentBaseItemImageTags } from '../metadata/media-item.types.js';
+import { watchCacheRecordToBaseItemDto } from '../metadata/media-item.mapper.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
+import { parseMediaKey } from '../identity/media-key.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
-import type {
-  ContinueWatchingProductItem,
-  HistoryProductItem,
-  RatingProductItem,
-  WatchlistProductItem,
-} from './watch-derived-item.types.js';
-import type { WatchStateResponse } from './watch-read.types.js';
 
-type RegularMediaItem = HistoryProductItem | WatchlistProductItem | RatingProductItem | WatchStateResponse;
+type RegularMediaItem = BaseItemDto;
 
 type CacheMissRefreshDependency = Pick<WatchCacheMissRefreshService, 'refreshMissingCardsAndReturnRecords'>;
 
-function buildParentImageTags(record: WatchMediaCardCacheRecord): ParentMediaImageTags {
+function buildParentImageTags(record: WatchMediaCardCacheRecord): ParentBaseItemImageTags {
   return {
     Primary: record.posterUrl
       ? buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' })
@@ -43,52 +37,49 @@ export class WatchMetadataEnrichmentService {
 
   async enrichContinueWatchingItems(
     client: DbClient,
-    items: ContinueWatchingProductItem[],
+    items: BaseItemDto[],
     language?: string | null,
-  ): Promise<ContinueWatchingProductItem[]> {
-    const mediaKeys = items.map((item) => item.mediaItem.Id);
+  ): Promise<BaseItemDto[]> {
+    const mediaKeys = items.map((item) => item.Id);
     const parentKeys = items
-      .filter((item) => item.mediaItem.Type === 'Episode')
-      .map((item) => item.id)
+      .filter((item) => item.Type === 'Episode')
+      .map((item) => showKeyFromEpisodeKey(item.Id))
       .filter((k): k is string => !!k);
     const allKeys = [...new Set([...mediaKeys, ...parentKeys])];
     const records = await this.loadRecords(client, allKeys, language);
 
-    return items.reduce<ContinueWatchingProductItem[]>((acc, item) => {
-      const record = records.get(item.mediaItem.Id);
+    return items.reduce<BaseItemDto[]>((acc, item) => {
+      const record = records.get(item.Id);
       if (!record) {
         return acc;
       }
 
-      const parentKey = item.mediaItem.Type === 'Episode' ? item.id : null;
+      const parentKey = item.Type === 'Episode' ? showKeyFromEpisodeKey(item.Id) : null;
       const parentRecord = parentKey ? records.get(parentKey) : undefined;
 
-      if (item.mediaItem.Type === 'Episode' && !parentRecord) {
+      if (item.Type === 'Episode' && !parentRecord) {
         return acc;
       }
 
-      const enriched = mergeEnrichedMediaItemDto(record, item.mediaItem);
+      const enriched = mergeEnrichedMediaItemDto(record, item);
 
       if (parentRecord) {
         enriched.SeriesName = enriched.SeriesName ?? parentRecord.title;
         enriched.ParentImageTags = enriched.ParentImageTags ?? buildParentImageTags(parentRecord);
       }
 
-      return acc.concat([{ ...item, mediaItem: enriched }]);
+      return acc.concat([enriched]);
     }, []);
   }
 
-  async enrichRegularMediaItems<TItem extends RegularMediaItem>(client: DbClient, items: TItem[], language?: string | null): Promise<TItem[]> {
-    const records = await this.loadRecords(client, items.map((item) => item.mediaItem.Id), language);
+  async enrichRegularMediaItems<TItem extends BaseItemDto>(client: DbClient, items: TItem[], language?: string | null): Promise<TItem[]> {
+    const records = await this.loadRecords(client, items.map((item) => item.Id), language);
     return items.map((item) => {
-      const record = records.get(item.mediaItem.Id);
+      const record = records.get(item.Id);
       if (!record) {
         return item;
       }
-      return {
-        ...item,
-        mediaItem: mergeEnrichedMediaItemDto(record, item.mediaItem),
-      };
+      return mergeEnrichedMediaItemDto(record, item) as TItem;
     });
   }
 
@@ -112,8 +103,20 @@ export class WatchMetadataEnrichmentService {
   }
 }
 
-function mergeEnrichedMediaItemDto(record: WatchMediaCardCacheRecord, existing: MediaItemDto): MediaItemDto {
-  const enriched = watchCacheRecordToMediaItemDto(record);
+function showKeyFromEpisodeKey(episodeKey: string): string | null {
+  try {
+    const parsed = parseMediaKey(episodeKey);
+    if (parsed.mediaType === 'episode' && parsed.showTmdbId) {
+      return `show:tmdb:${parsed.showTmdbId}`;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null;
+}
+
+function mergeEnrichedMediaItemDto(record: WatchMediaCardCacheRecord, existing: BaseItemDto): BaseItemDto {
+  const enriched = watchCacheRecordToBaseItemDto(record);
   const still = record.stillUrl
     ? { small: null, medium: null, large: null }
     : null;

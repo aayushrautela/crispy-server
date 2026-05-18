@@ -2,16 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
 import type { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
-import type { ContinueWatchingProductItem, HistoryProductItem, RatingProductItem } from './watch-derived-item.types.js';
-import type { WatchStateResponse } from './watch-read.types.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
-import type { MediaItemDto } from '../metadata/media-item.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
 
 seedTestEnv();
 
 const imageSet = (value: string) => ({ small: value, medium: value, large: value });
 
-function createMediaItemDto(overrides: Partial<MediaItemDto> = {}): MediaItemDto {
+function createBaseItemDto(overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   return {
     Id: 'movie:tmdb:123',
     Type: 'Movie',
@@ -104,52 +102,38 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const items: ContinueWatchingProductItem[] = [
+  const items: BaseItemDto[] = [
     {
-      id: 'movie:tmdb:123',
-      kind: 'continue_watching',
-      mediaItem: createMediaItemDto(),
-      context: {
-        id: 'movie:tmdb:123',
-        progress: {
-          positionSeconds: 300,
-          durationSeconds: 7200,
-          progressPercent: 4.17,
-          lastPlayedAt: '2026-05-11T10:00:00.000Z',
-        },
-        lastActivityAt: '2026-05-11T10:00:00.000Z',
-        origins: ['local'],
-        dismissible: true,
+      ...createBaseItemDto(),
+      Id: 'movie:tmdb:123',
+      UserData: {
+        ItemId: 'movie:tmdb:123',
+        IsFavorite: false,
+        Played: false,
+        PlayCount: 0,
+        PlaybackPositionTicks: 3_000_000_000,
+        RuntimeTicks: 72_000_000_000,
+        PlayedPercentage: 4.17,
+        LastPlayedDate: '2026-05-11T10:00:00.000Z',
+        Rating: null,
+        DismissedFromContinueWatching: false,
       },
-      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-      progress: {
-        positionSeconds: 300,
-        durationSeconds: 7200,
-        progressPercent: 4.17,
-        lastPlayedAt: '2026-05-11T10:00:00.000Z',
-      },
-      lastActivityAt: '2026-05-11T10:00:00.000Z',
-      origins: ['local'],
-      dismissible: true,
     },
   ];
 
   const enriched = await service.enrichContinueWatchingItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.Name, 'Cached Movie Title');
-  assert.deepEqual(enriched[0]?.mediaItem.ImageTags.Primary, imageSet('https://cache.test/poster.jpg'));
-  assert.equal(enriched[0]?.mediaItem.ProductionYear, 2024);
-  assert.equal(enriched[0]?.mediaItem.CommunityRating, 8.5);
-  assert.deepEqual(enriched[0]?.mediaItem.Genres, ['Action']);
-  assert.equal(enriched[0]?.mediaItem.RemoteTrailers[0]?.Url, 'https://youtube.test/watch?v=abc');
-  assert.equal(enriched[0]?.mediaItem.RemoteTrailers[0]?.ThumbnailUrl, 'https://youtube.test/thumb.jpg');
-  assert.equal(enriched[0]?.mediaItem.PosterColor, '#111111');
-  assert.equal(enriched[0]?.mediaItem.BackdropColor, '#222222');
-  assert.equal(enriched[0]?.mediaItem.RunTimeTicks, null);
-  assert.equal(enriched[0]?.progress.positionSeconds, 300);
-  assert.equal(enriched[0]?.lastActivityAt, '2026-05-11T10:00:00.000Z');
-  assert.deepEqual(enriched[0]?.origins, ['local']);
+  assert.equal(enriched[0]?.Name, 'Cached Movie Title');
+  assert.deepEqual(enriched[0]?.ImageTags.Primary, imageSet('https://cache.test/poster.jpg'));
+  assert.equal(enriched[0]?.ProductionYear, 2024);
+  assert.equal(enriched[0]?.CommunityRating, 8.5);
+  assert.deepEqual(enriched[0]?.Genres, ['Action']);
+  assert.equal(enriched[0]?.RemoteTrailers[0]?.Url, 'https://youtube.test/watch?v=abc');
+  assert.equal(enriched[0]?.RemoteTrailers[0]?.ThumbnailUrl, 'https://youtube.test/thumb.jpg');
+  assert.equal(enriched[0]?.PosterColor, '#111111');
+  assert.equal(enriched[0]?.BackdropColor, '#222222');
+  assert.equal(enriched[0]?.RunTimeTicks, null);
 });
 
 test('enrichContinueWatchingItems enriches parent title for episode items', async () => {
@@ -193,55 +177,43 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const items: ContinueWatchingProductItem[] = [
+  const items: BaseItemDto[] = [
     {
-      id: 'show:tmdb:123',
-      kind: 'continue_watching',
-      mediaItem: createMediaItemDto({
+      ...createBaseItemDto({
         Id: 'episode:tmdb:123:2:5',
         Type: 'Episode',
         SeriesId: '123',
         ParentIndexNumber: 2,
         IndexNumber: 5,
       }),
-      context: {
-        id: 'show:tmdb:123',
-        progress: {
-          positionSeconds: 600,
-          durationSeconds: 1800,
-          progressPercent: 33.33,
-          lastPlayedAt: '2026-05-14T08:00:00.000Z',
-        },
-        lastActivityAt: '2026-05-14T08:00:00.000Z',
-        origins: ['local'],
-        dismissible: true,
+      UserData: {
+        ItemId: 'episode:tmdb:123:2:5',
+        IsFavorite: false,
+        Played: false,
+        PlayCount: 0,
+        PlaybackPositionTicks: 6_000_000_000,
+        RuntimeTicks: 18_000_000_000,
+        PlayedPercentage: 33.33,
+        LastPlayedDate: '2026-05-14T08:00:00.000Z',
+        Rating: null,
+        DismissedFromContinueWatching: false,
       },
-      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-      progress: {
-        positionSeconds: 600,
-        durationSeconds: 1800,
-        progressPercent: 33.33,
-        lastPlayedAt: '2026-05-14T08:00:00.000Z',
-      },
-      lastActivityAt: '2026-05-14T08:00:00.000Z',
-      origins: ['local'],
-      dismissible: true,
     },
   ];
 
   const enriched = await service.enrichContinueWatchingItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.Id, 'episode:tmdb:123:2:5');
-  assert.equal(enriched[0]?.mediaItem.Type, 'Episode');
-  assert.equal(enriched[0]?.mediaItem.SeriesName, 'Parent Show Title');
-  assert.equal(enriched[0]?.mediaItem.Name, 'Parent Show Title');
-  assert.equal(enriched[0]?.mediaItem.SeriesId, '123');
-  assert.equal(enriched[0]?.mediaItem.ParentIndexNumber, 2);
-  assert.equal(enriched[0]?.mediaItem.IndexNumber, 5);
-  assert.ok(enriched[0]?.mediaItem.ImageTags.Thumb);
-  assert.ok(enriched[0]?.mediaItem.ImageTags.Backdrop.length > 0);
-  assert.equal(enriched[0]?.mediaItem.EpisodeTitle, 'Episode 5 Title');
+  assert.equal(enriched[0]?.Id, 'episode:tmdb:123:2:5');
+  assert.equal(enriched[0]?.Type, 'Episode');
+  assert.equal(enriched[0]?.SeriesName, 'Parent Show Title');
+  assert.equal(enriched[0]?.Name, 'Parent Show Title');
+  assert.equal(enriched[0]?.SeriesId, '123');
+  assert.equal(enriched[0]?.ParentIndexNumber, 2);
+  assert.equal(enriched[0]?.IndexNumber, 5);
+  assert.ok(enriched[0]?.ImageTags.Thumb);
+  assert.ok(enriched[0]?.ImageTags.Backdrop.length > 0);
+  assert.equal(enriched[0]?.EpisodeTitle, 'Episode 5 Title');
 });
 
 test('enrichContinueWatchingItems drops episode items missing parent show record', async () => {
@@ -272,39 +244,27 @@ test('enrichContinueWatchingItems drops episode items missing parent show record
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const items: ContinueWatchingProductItem[] = [
+  const items: BaseItemDto[] = [
     {
-      id: 'show:tmdb:999',
-      kind: 'continue_watching',
-      mediaItem: createMediaItemDto({
+      ...createBaseItemDto({
         Id: 'episode:tmdb:999:1:1',
         Type: 'Episode',
         SeriesId: '999',
         ParentIndexNumber: 1,
         IndexNumber: 1,
       }),
-      context: {
-        id: 'show:tmdb:999',
-        progress: {
-          positionSeconds: 100,
-          durationSeconds: 1800,
-          progressPercent: 5.56,
-          lastPlayedAt: '2026-05-14T10:00:00.000Z',
-        },
-        lastActivityAt: '2026-05-14T10:00:00.000Z',
-        origins: ['local'],
-        dismissible: true,
+      UserData: {
+        ItemId: 'episode:tmdb:999:1:1',
+        IsFavorite: false,
+        Played: false,
+        PlayCount: 0,
+        PlaybackPositionTicks: 1_000_000_000,
+        RuntimeTicks: 18_000_000_000,
+        PlayedPercentage: 5.56,
+        LastPlayedDate: '2026-05-14T10:00:00.000Z',
+        Rating: null,
+        DismissedFromContinueWatching: false,
       },
-      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-      progress: {
-        positionSeconds: 100,
-        durationSeconds: 1800,
-        progressPercent: 5.56,
-        lastPlayedAt: '2026-05-14T10:00:00.000Z',
-      },
-      lastActivityAt: '2026-05-14T10:00:00.000Z',
-      origins: ['local'],
-      dismissible: true,
     },
   ];
 
@@ -341,11 +301,9 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const items: HistoryProductItem[] = [
+  const items: BaseItemDto[] = [
     {
-      id: 'show:tmdb:789:2026-05-11',
-      kind: 'watch_history',
-      mediaItem: createMediaItemDto({
+      ...createBaseItemDto({
         Id: 'show:tmdb:789',
         Type: 'Series',
         Name: 'Fallback Show Title',
@@ -360,30 +318,17 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
         CommunityRating: 8.0,
         ProviderIds: { Tmdb: '789', Imdb: null, Tvdb: null },
       }),
-      context: {
-        id: 'show:tmdb:789:2026-05-11',
-        eventType: 'playback_completed',
-        occurredAt: '2026-05-11T08:00:00.000Z',
-        watchedAt: '2026-05-11T08:00:00.000Z',
-        origins: ['simkl'],
-      },
-      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      eventType: 'playback_completed',
-      occurredAt: '2026-05-11T08:00:00.000Z',
-      watchedAt: '2026-05-11T08:00:00.000Z',
-      origins: ['simkl'],
+      UserData: null,
     },
   ];
 
   const enriched = await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.Name, 'Cached Show Title');
-  assert.deepEqual(enriched[0]?.mediaItem.ImageTags.Primary, imageSet('https://cache.test/show-poster.jpg'));
-  assert.equal(enriched[0]?.mediaItem.CommunityRating, 9.1);
-  assert.deepEqual(enriched[0]?.mediaItem.Genres, ['Drama']);
-  assert.equal(enriched[0]?.watchedAt, '2026-05-11T08:00:00.000Z');
-  assert.deepEqual(enriched[0]?.origins, ['simkl']);
+  assert.equal(enriched[0]?.Name, 'Cached Show Title');
+  assert.deepEqual(enriched[0]?.ImageTags.Primary, imageSet('https://cache.test/show-poster.jpg'));
+  assert.equal(enriched[0]?.CommunityRating, 9.1);
+  assert.deepEqual(enriched[0]?.Genres, ['Drama']);
 });
 
 test('enrichRegularMediaItems handles cache misses gracefully', async () => {
@@ -398,11 +343,9 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const items: RatingProductItem[] = [
+  const items: BaseItemDto[] = [
     {
-      id: 'movie:tmdb:999',
-      kind: 'rating',
-      mediaItem: createMediaItemDto({
+      ...createBaseItemDto({
         Id: 'movie:tmdb:999',
         Type: 'Movie',
         Name: 'Uncached Movie',
@@ -417,29 +360,15 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
         CommunityRating: 6.5,
         ProviderIds: { Tmdb: '999', Imdb: null, Tvdb: null },
       }),
-      context: {
-        id: 'movie:tmdb:999',
-        rating: {
-          value: 8,
-          ratedAt: '2026-05-10T15:00:00.000Z',
-        },
-        origins: ['local'],
-      },
-      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      rating: {
-        value: 8,
-        ratedAt: '2026-05-10T15:00:00.000Z',
-      },
-      origins: ['local'],
+      UserData: null,
     },
   ];
 
   const enriched = await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.mediaItem.Name, 'Uncached Movie');
-  assert.deepEqual(enriched[0]?.mediaItem.ImageTags.Primary, imageSet('https://media.test/uncached.jpg'));
-  assert.equal(enriched[0]?.rating.value, 8);
+  assert.equal(enriched[0]?.Name, 'Uncached Movie');
+  assert.deepEqual(enriched[0]?.ImageTags.Primary, imageSet('https://media.test/uncached.jpg'));
 });
 
 test('enrichRegularMediaItems deduplicates media keys', async () => {
@@ -472,11 +401,9 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const items: HistoryProductItem[] = [
+  const items: BaseItemDto[] = [
     {
-      id: 'movie:tmdb:111:1',
-      kind: 'watch_history',
-      mediaItem: createMediaItemDto({
+      ...createBaseItemDto({
         Id: 'movie:tmdb:111',
         Type: 'Movie',
         Name: 'Fallback',
@@ -491,23 +418,10 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
         CommunityRating: 7.0,
         ProviderIds: { Tmdb: '111', Imdb: null, Tvdb: null },
       }),
-      context: {
-        id: 'movie:tmdb:111:1',
-        eventType: 'playback_completed',
-        occurredAt: '2026-05-11T10:00:00.000Z',
-        watchedAt: '2026-05-11T10:00:00.000Z',
-        origins: ['local'],
-      },
-      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      eventType: 'playback_completed',
-      occurredAt: '2026-05-11T10:00:00.000Z',
-      watchedAt: '2026-05-11T10:00:00.000Z',
-      origins: ['local'],
+      UserData: null,
     },
     {
-      id: 'movie:tmdb:111:2',
-      kind: 'watch_history',
-      mediaItem: createMediaItemDto({
+      ...createBaseItemDto({
         Id: 'movie:tmdb:111',
         Type: 'Movie',
         Name: 'Fallback',
@@ -522,18 +436,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
         CommunityRating: 7.0,
         ProviderIds: { Tmdb: '111', Imdb: null, Tvdb: null },
       }),
-      context: {
-        id: 'movie:tmdb:111:2',
-        eventType: 'playback_completed',
-        occurredAt: '2026-05-11T11:00:00.000Z',
-        watchedAt: '2026-05-11T11:00:00.000Z',
-        origins: ['local'],
-      },
-      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      eventType: 'playback_completed',
-      occurredAt: '2026-05-11T11:00:00.000Z',
-      watchedAt: '2026-05-11T11:00:00.000Z',
-      origins: ['local'],
+      UserData: null,
     },
   ];
 
@@ -553,7 +456,7 @@ test('enrichRegularMediaItems handles empty items array', async () => {
     refreshMissingCardsAndReturnRecords: async () => new Map(),
   });
 
-  const enriched = await service.enrichRegularMediaItems<WatchStateResponse>({} as never, []);
+  const enriched = await service.enrichRegularMediaItems<BaseItemDto>({} as never, []);
 
   assert.equal(enriched.length, 0);
 });

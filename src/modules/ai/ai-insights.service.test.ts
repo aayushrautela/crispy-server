@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { NOOP_TRANSACTION, createMockMetadataView, seedTestEnv } from '../../test-helpers.js';
+import { NOOP_TRANSACTION, seedTestEnv } from '../../test-helpers.js';
 
 test('AiInsightsService loads reviews from MetadataReviewsService and bumps cache generation version', async () => {
   seedTestEnv();
@@ -55,22 +55,49 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
     } as never,
     {
       getTitlePage: async () => ({
-        item: createMockMetadataView({ mediaKey: 'movie:tmdb:1', title: 'The Movie', overview: 'A good film.', releaseYear: 2024, rating: 7.3, genres: ['Drama'] }),
-        seasons: [],
-        episodes: [],
-        nextEpisode: null,
-        videos: [],
-        cast: [],
-        directors: [],
-        creators: [],
-        production: { originalLanguage: 'en', originCountries: [], spokenLanguages: [], productionCountries: [], companies: [], networks: [] },
-        collection: null,
-        similar: [],
+        Item: {
+          Id: 'movie:tmdb:1',
+          Type: 'Movie',
+          Name: 'The Movie',
+          OriginalTitle: null,
+          Overview: 'A good film.',
+          Taglines: [],
+          ProductionYear: 2024,
+          PremiereDate: null,
+          CommunityRating: 7.3,
+          OfficialRating: null,
+          Certification: null,
+          Genres: ['Drama'],
+          RunTimeTicks: null,
+          Status: null,
+          ProviderIds: { Tmdb: '1', Imdb: null, Tvdb: null },
+          ImageTags: { Primary: null, Backdrop: [], Logo: null, Thumb: null, Screenshot: [] },
+          ParentImageTags: null,
+          SeriesId: null,
+          SeriesName: null,
+          SeasonId: null,
+          SeasonName: null,
+          ParentIndexNumber: null,
+          IndexNumber: null,
+          AbsoluteIndexNumber: null,
+          EpisodeTitle: null,
+          AirDate: null,
+          RemoteTrailers: [],
+          PosterColor: null,
+          BackdropColor: null,
+          UserData: null,
+        },
+        NextEpisode: null,
+        Videos: [],
+        Cast: [],
+        Directors: [],
+        Creators: [],
+        Production: { originalLanguage: 'en', originCountries: [], spokenLanguages: [], productionCountries: [], companies: [], networks: [] },
       }),
     } as never,
     {
       getTitleReviews: async () => ({
-        reviews: [{ id: 'r1', author: 'Critic', username: 'critic', content: 'Great pacing and payoff.', createdAt: null, updatedAt: null, url: null, rating: 9, avatarUrl: null }],
+        Reviews: [{ id: 'r1', author: 'Critic', username: 'critic', content: 'Great pacing and payoff.', createdAt: null, updatedAt: null, url: null, rating: 9, avatarUrl: null }],
       }),
     } as never,
     NOOP_TRANSACTION,

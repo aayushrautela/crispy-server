@@ -2,7 +2,7 @@ import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
-import { metadataCardToMediaItem, mediaItemToMediaItemDto } from '../metadata/media-item.mapper.js';
+import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { inferMediaIdentity, parseMediaKey } from '../identity/media-key.js';
 import type {
@@ -321,11 +321,11 @@ export class RecommendationOutputService {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
     const card = await this.metadataCardService.buildCardView(client, identity);
-    const mediaItem = mediaItemToMediaItemDto(metadataCardToMediaItem(card));
+    const Item = mediaItemToBaseItemDto(metadataCardToMediaItem(card));
 
     return {
       kind: 'recommendation',
-      mediaItem,
+      Item,
       context: {
         reason: typeof row.reason === 'string' ? row.reason : null,
         reasonCodes: [],
@@ -345,11 +345,11 @@ export class RecommendationOutputService {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
     const card = await this.metadataCardService.buildCardView(client, identity);
-    const mediaItem = mediaItemToMediaItemDto(metadataCardToMediaItem(card));
+    const Item = mediaItemToBaseItemDto(metadataCardToMediaItem(card));
 
     return {
       kind: 'recommendation',
-      mediaItem,
+      Item,
       context: {
         reason: typeof row.reason === 'string' ? row.reason : null,
         reasonCodes: [],
