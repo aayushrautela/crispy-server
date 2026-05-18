@@ -56,11 +56,11 @@ Watch-state routes are `mediaKey`-based and express product intent rather than s
 
 Continue-watching items represent active resume state only.
 
-- **`id`** is the title-level key (`movie:tmdb:X` or `show:tmdb:X`). Use this when calling the dismiss endpoint.
-- **`mediaItem.mediaKey`** is the playable unit: `movie:tmdb:X` for movies, `episode:tmdb:showId:season:episode` for episode progress.
-- **`mediaItem.seriesName`** and **`mediaItem.seriesId`** are populated for episodes. Clients should use `seriesId` for show-level navigation from episode items.
-- **`mediaItem.parentIndexNumber`** is the season number, **`mediaItem.indexNumber`** is the episode number.
-- **`mediaItem.episodeTitle`** is the episode name (also available in `mediaItem.name`).
+- **`Id`** is the title-level key (`movie:tmdb:X` or `show:tmdb:X`). Use this when calling the dismiss endpoint.
+- **`Id`** is the playable unit: `movie:tmdb:X` for movies, `episode:tmdb:showId:season:episode` for episode progress (also serves as `mediaKey`).
+- **`SeriesName`** and **`SeriesId`** are populated for episodes. Clients should use `SeriesId` for show-level navigation from episode items.
+- **`ParentIndexNumber`** is the season number, **`IndexNumber`** is the episode number.
+- **`EpisodeTitle`** is the episode name (also available in `Name`).
 
 Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 
@@ -70,9 +70,9 @@ Recommendation read payloads should follow canonical media identity rules:
 
 - Use `mediaKey` where a recommendation item is navigable.
 - Treat `type` as derived convenience data.
-- Primary card/list surfaces should expose canonical `mediaItem` presentation fields from the server: `name`, `imageTags.primary`, `imageTags.backdrop`, `imageTags.logo`, `imageTags.thumb`, `communityRating`, `productionYear`, and nullable `officialRating`.
+- Primary card/list surfaces should expose canonical `BaseItemDto` presentation fields from the server: `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
 - Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
-- `imageTags.logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- `ImageTags.Logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 - Do not depend on deprecated `provider`/`providerId` fields for navigation.
 
 Recommendation write payloads for service-owned lists use ordered TMDB references as documented in OpenAPI and `docs/api/recommendations.md`; writers should not submit enriched card metadata or legacy identity aliases.

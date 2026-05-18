@@ -1,37 +1,48 @@
-# Jellyfin-Style Unified Item DTO Spec
+# Jellyfin-First Public Media API Spec
 
 ## Status
 
-- Applied to all public media item responses.
-- All surfaces (continue watching, history, ratings, watchlist, watch state, calendar, search, recommendations, metadata detail/extras, AI search) return the canonical `BaseItemDto`.
-- Legacy aliases (`MediaItemDto`, `mediaItemToMediaItemDto`) removed.
+Planned replacement for any SurfaceItem-style API direction.
 
 ## Goal
 
-Use one predictable media item shape across the app, matching Jellyfin's `BaseItemDto` model. Every surface that represents media returns the same item DTO.
+Keep Crispy's public media API as close to Jellyfin as practical:
+
+- Media objects are `BaseItemDto`.
+- Media lists use `BaseItemDtoQueryResult`.
+- User-specific playback, favorite, played, rating, and progress state lives in `UserData`.
+- Search uses Jellyfin-style item query/search-hint shapes.
+- Recommendations use Jellyfin-style recommendation groups containing `Items: BaseItemDto[]`.
+
+The API must not introduce a universal `{ mediaItem, context, presentation }` wrapper.
+
+## Non-goals
+
+- Do not create a cross-surface `SurfaceItem` response shape.
+- Do not rename media fields to camelCase in public responses.
+- Do not move watch state out of `UserData` into endpoint-specific context objects.
+- Do not require every endpoint to expose layout/card rendering instructions.
+- Do not preserve custom recommendation item wrappers as the long-term public contract.
 
 ## Core principles
 
-1. Do not create endpoint-specific media shapes.
-2. Do not create special one-off fields.
-3. Return the playable item when the surface is about playback progress.
-4. Return the title-level item when the surface is about title-level lists or discovery.
-5. Keep media metadata separate from user state in `UserData`.
-6. Preserve typed image roles instead of flattening or losing artwork.
-7. Use nullable or omitted type-specific fields rather than inventing different DTOs per media type.
+1. Match Jellyfin DTO names and casing unless Crispy has a clear product reason not to.
+2. Keep media identity, metadata, artwork, provider IDs, and user state on `BaseItemDto`.
+3. Keep endpoint context at the outer response level, not inside each media item.
+4. Use route/query parameters to communicate filters and source, not per-item wrappers.
+5. Keep recommendation explanation metadata at the recommendation group level where possible.
+6. If a Crispy-only feature must remain, add it as a small explicit extension to the closest Jellyfin-style DTO.
 
-## Canonical DTO
+## Canonical media item
 
 ```ts
 type BaseItemDto = {
   Id: string;
   Type: 'Movie' | 'Series' | 'Season' | 'Episode' | 'Unknown';
-
   Name: string;
   OriginalTitle: string | null;
   Overview: string | null;
   Taglines: string[];
-
   ProductionYear: number | null;
   PremiereDate: string | null;
   CommunityRating: number | null;
@@ -40,74 +51,16 @@ type BaseItemDto = {
   Genres: string[];
   RunTimeTicks: number | null;
   Status: string | null;
-
-  ProviderIds: {
-    Tmdb: string | null;
-    Imdb: string | null;
-    Tvdb: string | null;
-  };
-
+  ProviderIds: Record<string, string | null>;
   ImageTags: BaseItemImageTags;
   ParentImageTags: ParentBaseItemImageTags | null;
-
-  SeriesId: string | null;
-  SeriesName: string | null;
-  SeasonId: string | null;
-  SeasonName: string | null;
-  ParentIndexNumber: number | null;
-  IndexNumber: number | null;
-  AbsoluteIndexNumber: number | null;
-  EpisodeTitle: string | null;
-  AirDate: string | null;
-
-  RemoteTrailers: RemoteTrailerDto[];
-
-  PosterColor: string | null;
-  BackdropColor: string | null;
-
   UserData: UserItemDataDto | null;
 };
 ```
 
-All properties in the canonical DTO use **PascalCase** to match Jellyfin conventions. Internal adapter types (`MediaItem`) use camelCase.
+Public media fields stay PascalCase.
 
-## Image model
-
-```ts
-type ResponsiveImageSet = {
-  small: string | null;
-  medium: string | null;
-  large: string | null;
-};
-
-type BaseItemImageTags = {
-  Primary: ResponsiveImageSet | null;
-  Backdrop: ResponsiveImageSet[];
-  Logo: ResponsiveImageSet | null;
-  Thumb: ResponsiveImageSet | null;
-  Screenshot: ResponsiveImageSet[];
-};
-
-type ParentBaseItemImageTags = {
-  Primary: ResponsiveImageSet | null;
-  Backdrop: ResponsiveImageSet[];
-  Logo: ResponsiveImageSet | null;
-  Thumb: ResponsiveImageSet | null;
-};
-```
-
-### Image meaning
-
-| Role | Meaning | Current equivalent |
-| --- | --- | --- |
-| `Primary` | Main poster or portrait artwork | `images.poster` |
-| `Backdrop` | Wide fanart/background artwork | `images.backdrop` |
-| `Logo` | Transparent logo/clearlogo | `images.logo` |
-| `Thumb` | Item thumbnail; for episodes this is the episode still | `images.still` for episodes |
-| `Screenshot` | Additional stills/screenshots | future expansion |
-| `ParentImageTags` | Show/season artwork available while rendering an episode | current parent + enriched show artwork |
-
-## User data model
+## User data
 
 ```ts
 type UserItemDataDto = {
@@ -124,38 +77,137 @@ type UserItemDataDto = {
 };
 ```
 
-### User data rules
+Rules:
 
-- `PlaybackPositionTicks`, `RuntimeTicks`, `PlayedPercentage`, and `LastPlayedDate` represent resume/progress state.
-- `Played`, `PlayCount`, and `LastPlayedDate` represent watched history state.
-- `IsFavorite` represents watchlist/favorite membership.
-- `Rating` represents the profile's rating.
-- `DismissedFromContinueWatching` is user state, not media metadata.
+- Continue watching progress is represented by `PlaybackPositionTicks`, `RuntimeTicks`, and `PlayedPercentage`.
+- Watch history is represented by `Played`, `PlayCount`, and `LastPlayedDate`.
+- Watchlist/favorite state is represented by `IsFavorite`.
+- User rating is represented by `Rating`.
 
-## Query result shape
+## List response
 
 ```ts
 type BaseItemDtoQueryResult = {
   Items: BaseItemDto[];
   StartIndex: number;
   TotalRecordCount: number;
-  NextCursor: string | null;
-  HasMore: boolean;
+  NextCursor?: string | null;
+  HasMore?: boolean;
 };
 ```
 
-## Migration progress
+Use this shape for media-item lists such as:
 
-| Step | Status |
-| --- | --- |
-| Add canonical `BaseItemDto`, image tags, provider ids, `UserItemDataDto` | Done |
-| Add `mediaItemToBaseItemDto()`, `watchCacheRecordToBaseItemDto()` mappers | Done |
-| Remove legacy `MediaItemDto`, aliases, and camelCase re-exports | Done |
-| Rename all `mediaItemDtoSchema` → `baseItemDtoSchema` in contracts | Done |
-| Migrate watch surfaces (continue-watching, history, ratings, watchlist, state, calendar) | Done |
-| Migrate metadata detail/extras/resolve/playback-resolve | Done |
-| Migrate search and suggestions to `BaseItemDto` | Done |
-| Migrate recommendations output and profile input signals | Done |
-| Migrate AI search response | Done |
-| Update OpenAPI YAML to PascalCase response shapes | Done |
-| Update guard script | Done |
+- continue watching
+- watch history
+- watchlist
+- ratings
+- generic item discovery
+- suggestions
+- next-up style rows
+
+## Search
+
+Crispy can support two Jellyfin-like search paths.
+
+### Full item search
+
+For full media results, return `BaseItemDtoQueryResult` or a response whose media arrays are directly `BaseItemDto[]`.
+
+```ts
+type TitleSearchResponse = {
+  Query: string;
+  Items: BaseItemDto[];
+  TotalRecordCount: number;
+  StartIndex: number;
+};
+```
+
+If buckets are kept for product convenience, bucket values must still be raw `BaseItemDto[]`:
+
+```ts
+type BucketedTitleSearchResponse = {
+  Query: string;
+  All: BaseItemDto[];
+  Movies: BaseItemDto[];
+  Series: BaseItemDto[];
+  People: PersonSearchResult[];
+};
+```
+
+Do not wrap search results as `{ mediaItem, context, presentation }`.
+
+### Search hints
+
+For autocomplete/lightweight search, use a Jellyfin-like search hint result:
+
+```ts
+type SearchHintResult = {
+  SearchHints: SearchHint[];
+  TotalRecordCount: number;
+};
+```
+
+`SearchHint` is a lightweight result and does not need the full `BaseItemDto` shape.
+
+## Recommendations
+
+Use Jellyfin's recommendation model as the base shape:
+
+```ts
+type RecommendationDto = {
+  Items: BaseItemDto[];
+  RecommendationType: RecommendationType;
+  BaselineItemName: string | null;
+  CategoryId: string;
+};
+```
+
+Allowed Crispy extensions, if the app still needs them:
+
+```ts
+type CrispyRecommendationDto = RecommendationDto & {
+  Title?: string;
+  Layout?: 'regular' | 'landscape' | 'hero' | 'collection';
+  Reason?: string | null;
+  Rank?: number | null;
+};
+```
+
+Rules:
+
+- `Items` must be `BaseItemDto[]`.
+- Do not use per-item `Item`, `mediaItem`, `context`, or `presentation` wrappers as the long-term contract.
+- Recommendation reason text should describe the group, for example "Because you watched Interstellar".
+- Ranking should be expressed by array order first. `Rank` is optional metadata for debugging or analytics.
+- Layout is optional Crispy UI metadata. If possible, clients should infer card layout from section type or app design instead of depending on server-driven presentation hints.
+
+## Existing Crispy-only fields
+
+| Old concept | User-visible meaning | Jellyfin-first destination |
+| --- | --- | --- |
+| `context.reason` | Why a row/item was recommended | `RecommendationDto.BaselineItemName`, `RecommendationType`, or optional group `Reason` |
+| `context.score` | Hidden ranking confidence | Do not expose publicly unless needed for diagnostics |
+| `context.rank` | Ordering | Array order; optional group `Rank` only if needed |
+| `presentation.preferredSize` | Card shape/layout | Optional group `Layout`; otherwise client-owned UI |
+| `kind/source` per item | Which endpoint produced item | Route/query context, not item payload |
+
+## Migration plan
+
+1. Keep existing `BaseItemDto` and `BaseItemDtoQueryResult` as the canonical media response types.
+2. Reject any plan that changes `BaseItemDtoQueryResult.Items` away from `BaseItemDto[]`.
+3. Update recommendation public contract toward `RecommendationDto[]` or `CrispyRecommendationDto[]`.
+4. Preserve temporary compatibility aliases only where needed for a client migration window.
+5. Move any truly needed recommendation explanation/layout data to the recommendation group level.
+6. Keep search and AI search media arrays as raw `BaseItemDto[]` or move to `BaseItemDtoQueryResult`.
+7. Remove unused `MobileSurfaceItem`/SurfaceItem-style public schema if no runtime code depends on it.
+8. Update OpenAPI/contracts endpoint by endpoint with runtime changes.
+9. Add contract tests to assert no public media list returns `{ mediaItem, context, presentation }` wrappers.
+
+## Acceptance criteria
+
+- Public media items are `BaseItemDto`.
+- Public media list containers keep `Items: BaseItemDto[]` or direct `BaseItemDto[]` buckets.
+- Recommendations expose groups with `Items: BaseItemDto[]`.
+- No public contract defines a universal `SurfaceItem` wrapper.
+- No endpoint requires the client to unwrap `mediaItem` before accessing `Id`, `Name`, `Type`, `ImageTags`, or `UserData`.

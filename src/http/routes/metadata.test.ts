@@ -126,7 +126,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes collection with no parts', as
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.equal(body.data.collection, undefined);
+  assert.equal(body.data.Collection, undefined);
 });
 
 test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) => {
@@ -166,7 +166,7 @@ test('GET /v1/metadata/titles/:mediaKey serializes null collection', async (t) =
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().data.collection, undefined);
+  assert.equal(response.json().data.Collection, undefined);
 });
 
 test('GET /v1/metadata/titles/:mediaKey serializes show with nextEpisode', async (t) => {
