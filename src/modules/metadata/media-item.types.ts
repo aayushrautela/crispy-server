@@ -163,28 +163,3 @@ export type BaseItemDtoQueryResult = {
   NextCursor: string | null;
   HasMore: boolean;
 };
-
-export type MobileSurfaceKind =
-  | 'continue_watching'
-  | 'recommendation'
-  | 'watch_history'
-  | 'watchlist'
-  | 'rating'
-  | 'watch_state'
-  | 'calendar_item'
-  | 'featured'
-  | 'search_result'
-  | 'metadata_detail';
-
-export type MediaPresentationHint = {
-  preferredSize: 'poster' | 'wide' | 'hero' | 'compact' | null;
-  sectionId: string | null;
-  sectionTitle: string | null;
-};
-
-export type MobileSurfaceItem<TContext extends Record<string, unknown>> = {
-  kind: MobileSurfaceKind;
-  media: MediaItem;
-  context: TContext;
-  presentation: MediaPresentationHint | null;
-};

@@ -16,7 +16,7 @@
 
 3. Fill `.env`.
 
-   Auth is external. Application data is split by trust boundary: Fastify remains the default API/data boundary, local Postgres stores backend-owned operational data, and Supabase Postgres/RPC/RLS is the target store for user interaction state behind Fastify. JWT verification and optional upstream user deletion use the `AUTH_*`/Supabase variables.
+   Auth is external through Supabase. Fastify remains the API/data boundary, and local Postgres stores product data, operational data, metadata caches, and recommendation data. JWT verification and optional upstream user deletion use the `AUTH_*`/Supabase variables.
 
    Product defaults live in `config/app-config.json.example` (committed template). The loader looks for `config/app-config.json` first; if absent, it falls back to the example template. To customize, copy the template:
    ```bash

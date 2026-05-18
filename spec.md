@@ -428,8 +428,6 @@ Files to review/update:
 - `architecture.md`
 - `docs/README.md`
 - `docs/api/README.md`
-- `docs/supabase-fastify-rls-target-architecture-plan.md`
-- `docs/specs/user-data-supabase-residency.md`
 - `supabase/README.md`
 - `.env.example`
 - `.env.production.example`

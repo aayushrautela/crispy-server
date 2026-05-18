@@ -14,8 +14,7 @@ This directory contains current Crispy Server documentation.
 | `api/media-state.md` | Client media identity and watch-state behavior guide |
 | `api/recommendations.md` | Recommendation API behavior and operator guidance |
 | `architecture/recommendation-engine.md` | Current MAIN/RECO boundary and security model |
-| `supabase-fastify-rls-target-architecture-plan.md` | Current Supabase/Fastify/RLS architecture and watch-domain storage model |
-| `specs/user-data-supabase-residency.md` | User-data Supabase residency migration spec and local/Supabase data-boundary rules |
+| `specs/jellyfin-style-unified-item-dto.md` | Jellyfin-first public media API response strategy |
 
 ## Contract ownership
 

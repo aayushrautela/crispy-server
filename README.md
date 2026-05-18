@@ -4,20 +4,19 @@ Crispy Server is the backend for the Crispy app. It runs the API, internal backe
 
 ## What this service owns
 
-Supabase is the external auth provider and the RLS-backed store for user interaction state, but Fastify remains the default application data API.
+Supabase is the external auth provider. Fastify remains the application data API, and product data lives in local Postgres.
 
 - Supabase Auth provides the JWT issuer and JWKS used to verify user bearer tokens.
-- Supabase Postgres/RPC/RLS stores profile watch state, history, continue watching, watchlist, ratings, and provider-import interaction facts behind Fastify.
-- Fastify verifies user JWTs, preserves the original access token, and calls Supabase user RPC/Data API with the user's JWT for normal user operations.
-- Supabase service-role credentials are server-only and limited to trusted backend jobs, imports, admin repair, and upstream auth admin calls.
+- Fastify verifies user JWTs and authorizes access to local account/profile data.
+- Local Postgres stores profile watch state, history, continue watching, watchlist, ratings, provider-import interaction facts, metadata caches, recommendation outputs, taste profiles, outbox/admin state, and other product data.
+- Supabase service-role credentials are server-only and limited to upstream auth admin calls when required.
 - Metadata, provider secrets, AI vendor calls, admin/ops, queues, and recommendation orchestration remain backend-owned.
 
-Application data and business logic are split by trust boundary:
+Application data and business logic are owned by:
 
 - Fastify API runtime
 - Internal BullMQ worker runtime
-- Local Postgres for backend-owned operational data, metadata caches, outbox/admin state, and transition-era tables
-- Supabase Postgres/RPC/RLS for user interaction state behind Fastify
+- Local Postgres for product data, operational data, metadata caches, outbox/admin state, and recommendation data
 - Redis for queues and cached read surfaces
 
 ## Stack
@@ -28,7 +27,7 @@ Application data and business logic are split by trust boundary:
 - TMDB for canonical metadata
 - Trakt and Simkl for provider imports
 - OpenAI-compatible endpoints for AI features
-- Supabase Auth plus Supabase Postgres/RPC/RLS for user interaction state behind Fastify
+- Supabase Auth for external identity/session
 
 ## Runtime components
 
@@ -100,7 +99,7 @@ npm run test
 | Generated API artifacts | `openapi/generated/`, `docs/api/generated/` |
 | Recommendation API guide | `docs/api/recommendations.md` |
 | Recommendation-engine boundary and security contract | `docs/architecture/recommendation-engine.md` |
-| Supabase/Fastify/RLS architecture | `docs/supabase-fastify-rls-target-architecture-plan.md` |
+| Supabase auth-only boundary | `supabase/README.md` |
 | Client media identity/watch-state guidance | `docs/api/media-state.md` |
 
 The README intentionally does not maintain an endpoint inventory. OpenAPI is the canonical API contract; use `docs/api/README.md` for the workflow and run the contract checks before merging API changes.

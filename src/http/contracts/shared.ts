@@ -520,45 +520,6 @@ export const mediaItemSchema = {
   },
 } as const;
 
-export const mobileSurfaceKindSchema = {
-  type: 'string',
-  enum: [
-    'continue_watching',
-    'recommendation',
-    'watch_history',
-    'watchlist',
-    'rating',
-    'watch_state',
-    'calendar_item',
-    'featured',
-    'search_result',
-    'metadata_detail',
-  ],
-} as const;
-
-export const mediaPresentationHintSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['preferredSize', 'sectionId', 'sectionTitle'],
-  properties: {
-    preferredSize: {
-      anyOf: [
-        { type: 'string', enum: ['poster', 'wide', 'hero', 'compact'] },
-        { type: 'null' },
-      ],
-    },
-    sectionId: nullableStringSchema,
-    sectionTitle: nullableStringSchema,
-  },
-} as const;
-
-export const nullableMediaPresentationHintSchema = {
-  anyOf: [
-    mediaPresentationHintSchema,
-    { type: 'null' },
-  ],
-} as const;
-
 export const metadataCardViewSchema = {
   type: 'object',
   additionalProperties: false,

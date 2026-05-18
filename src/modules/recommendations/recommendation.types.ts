@@ -1,5 +1,5 @@
+import type { BaseItemDto } from '../metadata/media-item.types.js';
 import type { CollectionCardView, HeroCardView } from '../metadata/metadata-card.types.js';
-import type { BaseItemDto, MediaPresentationHint } from '../metadata/media-item.types.js';
 
 export type TasteProfilePayload = {
   profileId: string;
@@ -20,30 +20,11 @@ export type TasteProfilePayload = {
   updatedAt: string;
 };
 
-export type RecommendationItemContext = {
-  reason: string | null;
-  reasonCodes: string[];
-  score: number | null;
-  rank: number | null;
-  payload: Record<string, unknown>;
-};
-
-export type RecommendationSectionItem = {
-  kind: 'recommendation';
-  Item: BaseItemDto;
-  context: RecommendationItemContext;
-  presentation: MediaPresentationHint | null;
-  reason: string | null;
-  score: number | null;
-  rank: number | null;
-  payload: Record<string, unknown>;
-};
-
 export type RecommendationRegularSection = {
   id: string;
   title: string;
   layout: 'regular';
-  items: RecommendationSectionItem[];
+  items: BaseItemDto[];
   meta: Record<string, unknown>;
 };
 
@@ -51,7 +32,7 @@ export type RecommendationLandscapeSection = {
   id: string;
   title: string;
   layout: 'landscape';
-  items: RecommendationSectionItem[];
+  items: BaseItemDto[];
   meta: Record<string, unknown>;
 };
 

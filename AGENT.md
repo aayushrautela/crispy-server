@@ -19,7 +19,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
   - clients may use Supabase Auth directly for login/session
   - Fastify verifies bearer JWTs through Supabase issuer/JWKS discovery
   - Fastify may use the upstream auth admin API for deleting Supabase auth users
-- Supabase Postgres/RPC/RLS is the store and authorization substrate for all durable user/account/profile-scoped data behind Fastify:
+- Local Postgres is the store for durable product data behind Fastify:
   - accounts, profiles, memberships, preferences, and entitlements
   - account/profile secrets, token metadata, provider credentials, and PAT hashes
   - profile watch state
@@ -29,14 +29,13 @@ This repository is easy to misread if you only scan env vars. Read this first be
   - ratings
   - provider-import interaction facts
   - recommendation outputs, taste profiles, idempotency, and copied profile signals
-- Normal app data calls must go through Fastify by default. Fastify passes the original user access token to Supabase user-scoped RPC/Data API calls so RLS applies.
-- Supabase service-role credentials are server-only and limited to trusted backend jobs, imports, admin repair, auth admin, and other explicitly audited privileged paths.
-- Supabase is not used here as the metadata authority, AI execution layer, queue system, or default direct client data API.
-- Local Postgres is metadata/cache-only, except temporary explicitly allowlisted operational outbox/admin delivery state. It must not become durable source-of-truth for user/account/profile data.
+- Normal app data calls must go through Fastify by default.
+- Supabase service-role credentials are server-only and limited to upstream auth admin calls when required.
+- Supabase is not used here as the app-data store, metadata authority, AI execution layer, queue system, or direct client data API.
 - Core backend logic remains on our server:
   - Fastify API
   - BullMQ worker
-  - local Postgres for backend-owned metadata/cache tables and temporary explicitly allowlisted operational outbox/admin delivery state
+  - local Postgres for product data, metadata/cache tables, outbox/admin state, and recommendation data
   - Redis accessed directly with `ioredis`
 
 ## Auth model
@@ -100,31 +99,28 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/http/routes/` - actual endpoint definitions
 - `src/http/plugins/auth.ts` - user JWT and PAT auth flow
 - `src/modules/auth/external-auth-admin.service.ts` - optional upstream auth user deletion
-- `src/modules/users/user.service.ts` - account bootstrap from auth subject; target persistence is Supabase
-- `src/modules/users/account-settings.service.ts` - account-shared settings and secrets; target persistence is Supabase
+- `src/modules/users/user.service.ts` - account bootstrap from auth subject into local account/profile records
+- `src/modules/users/account-settings.service.ts` - account-shared settings and secrets
 - `docker-compose.yml` - local runtime topology
 - `DEPLOY.md` - deployment and hosted service auth notes
-- `docs/supabase-fastify-rls-target-architecture-plan.md` - canonical Supabase/Fastify/RLS migration plan
-- `docs/specs/user-data-supabase-residency.md` - user-data residency spec and local/Supabase boundary rules
+- `docs/specs/jellyfin-style-unified-item-dto.md` - Jellyfin-first public media API response strategy
 
 ## User data residency guardrails
 
-- Do not create local Postgres tables that store durable user/account/profile data.
-- Do not add local Postgres columns such as `account_id`, `profile_id`, `user_id`, `app_user_id`, `auth_subject`, `email`, `settings_json`, `secrets_json`, or `token_hash` unless the table is an explicitly documented operational exception.
-- If a feature needs durable user persistence, add a Supabase migration/RLS/RPC/service-role path instead of a local migration.
-- Local Postgres may keep metadata/cache tables and temporary operational delivery/admin tables such as `service_outbox_events` and `admin_bulk_jobs*`.
-- Operational exception rows must stay minimal and must not contain secrets or copied user signal snapshots.
+- Supabase is the external auth provider only; do not add Supabase app-data repositories, RPCs, RLS policies, or PostgREST data paths.
+- Durable product data lives in local Postgres through local repositories/services.
+- Use local migrations for product schema changes.
 - Redis/BullMQ may be used for transient work, locks, queues, and cache invalidation, but not as durable user-data source-of-truth.
-- Do not add local fallback repositories for user-scoped Supabase data.
-- Check `docs/specs/user-data-supabase-residency.md` before changing identity, profile, settings, secrets, PAT, provider integration, recommendation, or signal storage.
+- Do not introduce local compatibility wrappers that preserve retired Supabase app-data boundaries.
+- Check `architecture.md` before changing identity, profile, settings, secrets, PAT, provider integration, recommendation, or signal storage.
 
 ## Writing guidance for AI agents
 
-- Do not describe this system as Supabase-auth-only.
+- Do not describe this system as using Supabase for app data.
 - Do not assume clients should call Supabase data APIs directly; normal app data calls go through Fastify.
-- When explaining data flow, say Fastify is the default API boundary and Supabase user data is accessed through user-JWT/RLS-backed server calls or audited service-role backend paths.
-- When explaining background work or caching, say Redis and BullMQ run on our server and local Postgres is metadata/cache-only except temporary operational outbox/admin state.
-- If you see Supabase mentioned in env values, distinguish publishable user-JWT/RLS paths from service-role trusted backend paths.
+- When explaining data flow, say Fastify is the API boundary and local Postgres is the product data source of truth.
+- When explaining background work or caching, say Redis and BullMQ run on our server and local Postgres stores app data and metadata/cache data.
+- If you see Supabase mentioned in env values, treat it as auth-provider compatibility naming unless current code proves app-data usage.
 - Do not claim profiles have separate auth credentials; they are targets under an authenticated account.
 - Do not move Trakt or Simkl to account scope when discussing current product rules.
 - If documenting endpoints, prefer exhaustive grouped lists over vague summaries.

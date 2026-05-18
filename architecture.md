@@ -9,8 +9,8 @@ If implementation, README examples, or older planning docs disagree, this file w
 - current architecture contract
 - TMDB-only canonical metadata identity
 - no first-class backend `anime` type
-- Supabase Auth plus Supabase Postgres/RPC/RLS is the user-data substrate behind Fastify
-- local Postgres is metadata/cache-only, except temporary explicitly allowlisted operational outbox/admin delivery state
+- Supabase Auth is the external identity/session provider
+- local Postgres is the product data and metadata/cache store
 
 ## System Boundary
 
@@ -18,8 +18,7 @@ Crispy Server owns application API/business behavior and remains the default dat
 
 - API runtime: Fastify
 - Worker runtime: internal BullMQ worker for backend queue jobs
-- local operational database: Postgres
-- user data store: Supabase Postgres/RPC/RLS behind Fastify
+- local product database: Postgres
 - queue and cache: Redis
 - external auth provider: Supabase Auth
 - canonical metadata provider: TMDB
@@ -30,12 +29,10 @@ Crispy Server owns application API/business behavior and remains the default dat
 Boundary rules:
 
 - Clients may use Supabase Auth directly for login/session.
-- Normal app data calls go through Fastify, not directly to Supabase tables/RPCs.
-- Fastify verifies Supabase JWTs and passes the original user access token to Supabase user-scoped RPC/Data API calls so RLS applies.
-- Supabase owns persistence and RLS enforcement for all durable user/account/profile-scoped data, including identity/profile rows, preferences, secrets, PATs, provider credentials, profile watch state, history, continue watching, watchlist, ratings, provider-import interaction facts, recommendation outputs, taste profiles, and copied profile signals.
-- Supabase service-role credentials are server-only and allowed only for trusted backend jobs, imports, admin repair, user-data bootstrap, private secret/token access, and upstream auth admin calls.
-- Local Postgres is metadata/cache-only. It must not be the source of truth for durable user/account/profile data.
-- Temporary exception: local Postgres may keep explicitly allowlisted operational delivery/admin state such as `service_outbox_events` and `admin_bulk_jobs*`; these rows must stay minimal, contain no secrets or copied signal snapshots, and are not product source-of-truth.
+- Normal app data calls go through Fastify.
+- Fastify verifies Supabase JWTs and authorizes access to local account/profile data.
+- Local Postgres owns persistence for durable product data, including identity/profile rows, preferences, secrets, PATs, provider credentials, profile watch state, history, continue watching, watchlist, ratings, provider-import interaction facts, recommendation outputs, taste profiles, and copied profile signals.
+- Supabase service-role credentials are server-only and allowed only for upstream auth admin calls when required.
 - Metadata authority, provider OAuth/API calls, AI vendor calls, queues, admin/ops, and recommendation orchestration stay on backend services.
 - Trakt and Simkl are import sources, not canonical metadata authorities.
 - The external recommendation engine receives durable recompute events from MAIN's outbox, then calls authenticated Crispy API endpoints for source data; it is not the internal BullMQ worker and does not read the application database or Supabase directly by default.
@@ -149,7 +146,7 @@ Rules:
 
 Recommendation generation is delegated to an external event-driven recommendation engine. MAIN emits durable recompute events through its outbox; the engine receives those events, calls authenticated Crispy API endpoints to retrieve authorized source data and configuration, and writes generated outputs back through internal app APIs. It is not this repository's internal BullMQ worker and does not read local Postgres, Redis, or Supabase directly by default.
 
-Crispy Server owns account/profile authorization, public/internal API contracts, canonical TMDB-backed media identity, recommendation orchestration, and recommendation read/write APIs served to clients. Supabase is the persistence/RLS substrate for user data including account/profile state, interaction signals, recommendation outputs, and taste profiles. The external engine owns recommendation-generation strategy and model behavior.
+Crispy Server owns account/profile authorization, public/internal API contracts, canonical TMDB-backed media identity, recommendation orchestration, and recommendation read/write APIs served to clients. Local Postgres is the persistence substrate for product data including account/profile state, interaction signals, recommendation outputs, and taste profiles. Supabase is the external auth provider only. The external engine owns recommendation-generation strategy and model behavior.
 
 ## AI Model
 
@@ -165,8 +162,8 @@ Rules:
 
 - prefer deletion of dead provider-only runtime branches over keeping inert compatibility code in the hot path
 - do not rewrite historical migrations in place; add forward cleanup migrations instead
-- local Postgres must not gain new durable user/account/profile-scoped tables; add Supabase migrations/RLS/RPCs instead
-- local operational outbox/admin exceptions are temporary and must stay explicitly allowlisted
+- product schema changes belong in the local migration workflow
+- do not reintroduce Supabase app-data repositories, RPCs, RLS policies, or PostgREST paths
 
 ## Documentation Rules
 
@@ -176,10 +173,9 @@ Rules:
 - `docs/api/README.md` owns API contract workflow, classification, and quality gates.
 - `docs/architecture/recommendation-engine.md` owns the recommendation-engine boundary/security narrative.
 - `docs/api/media-state.md` owns client media identity guidance.
-- `docs/supabase-fastify-rls-target-architecture-plan.md` owns the Supabase/Fastify/RLS architecture and watch-domain storage model.
-- `docs/specs/user-data-supabase-residency.md` owns the user-data residency migration spec and local/Supabase data-boundary acceptance criteria.
+- `docs/specs/jellyfin-style-unified-item-dto.md` owns the Jellyfin-first public media API response strategy.
 - `migrations/*.sql` define the local Postgres DB contract.
-- `supabase/migrations/*.sql` define the Supabase DB/RLS/RPC contract when present.
+- `supabase/README.md` documents the remaining Supabase auth-only boundary.
 - old planning docs are historical unless explicitly marked current.
 
 ## Verification

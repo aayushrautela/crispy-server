@@ -23,6 +23,7 @@ The API must not introduce a universal `{ mediaItem, context, presentation }` wr
 - Do not move watch state out of `UserData` into endpoint-specific context objects.
 - Do not require every endpoint to expose layout/card rendering instructions.
 - Do not preserve custom recommendation item wrappers as the long-term public contract.
+- Do not provide legacy compatibility aliases, dual response shapes, or migration-window fields for this change.
 
 ## Core principles
 
@@ -196,8 +197,8 @@ Rules:
 
 1. Keep existing `BaseItemDto` and `BaseItemDtoQueryResult` as the canonical media response types.
 2. Reject any plan that changes `BaseItemDtoQueryResult.Items` away from `BaseItemDto[]`.
-3. Update recommendation public contract toward `RecommendationDto[]` or `CrispyRecommendationDto[]`.
-4. Preserve temporary compatibility aliases only where needed for a client migration window.
+3. Update recommendation public contract directly to `RecommendationDto[]` or `CrispyRecommendationDto[]`.
+4. Hard cutoff: remove legacy recommendation item wrappers and aliases in the same change. Do not ship dual response shapes.
 5. Move any truly needed recommendation explanation/layout data to the recommendation group level.
 6. Keep search and AI search media arrays as raw `BaseItemDto[]` or move to `BaseItemDtoQueryResult`.
 7. Remove unused `MobileSurfaceItem`/SurfaceItem-style public schema if no runtime code depends on it.
@@ -211,3 +212,4 @@ Rules:
 - Recommendations expose groups with `Items: BaseItemDto[]`.
 - No public contract defines a universal `SurfaceItem` wrapper.
 - No endpoint requires the client to unwrap `mediaItem` before accessing `Id`, `Name`, `Type`, `ImageTags`, or `UserData`.
+- No legacy compatibility response aliases remain for removed wrapper fields such as `Item`, `mediaItem`, `context`, or `presentation`.

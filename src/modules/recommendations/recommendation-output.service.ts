@@ -11,6 +11,7 @@ import type {
   HeroCardView,
   MetadataCardView,
 } from '../metadata/metadata-card.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -19,7 +20,6 @@ import {
 import { recommendationConfig } from './recommendation-config.js';
 import type {
   RecommendationSection,
-  RecommendationSectionItem,
   RecommendationSnapshotPayload,
   TasteProfilePayload,
 } from './recommendation.types.js';
@@ -297,8 +297,8 @@ export class RecommendationOutputService {
     }
 
     if (layout === 'landscape') {
-      const items = (await Promise.all(rawItems.map((item, index) => this.mapLandscapeRecommendationItem(client, item, index))))
-        .filter((item): item is RecommendationSectionItem => item !== null);
+      const items = (await Promise.all(rawItems.map((item) => this.mapLandscapeRecommendationItem(client, item))))
+        .filter((item): item is BaseItemDto => item !== null);
       return {
         id,
         title,
@@ -312,57 +312,26 @@ export class RecommendationOutputService {
       id,
       title,
       layout: 'regular',
-      items: await Promise.all(rawItems.map((item, index) => this.mapRecommendationItem(client, item, index))),
+      items: (await Promise.all(rawItems.map((item) => this.mapRecommendationItem(client, item))))
+        .filter((item): item is BaseItemDto => item !== null),
       meta,
     };
   }
 
-  private async mapRecommendationItem(client: DbClient, value: unknown, index: number): Promise<RecommendationSectionItem> {
+  private async mapRecommendationItem(client: DbClient, value: unknown): Promise<BaseItemDto | null> {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
     const card = await this.metadataCardService.buildCardView(client, identity);
-    const Item = mediaItemToBaseItemDto(metadataCardToMediaItem(card));
-
-    return {
-      kind: 'recommendation',
-      Item,
-      context: {
-        reason: typeof row.reason === 'string' ? row.reason : null,
-        reasonCodes: [],
-        score: typeof row.score === 'number' ? row.score : null,
-        rank: typeof row.rank === 'number' ? row.rank : index + 1,
-        payload: asRecord(row.payload),
-      },
-      presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
-      reason: typeof row.reason === 'string' ? row.reason : null,
-      score: typeof row.score === 'number' ? row.score : null,
-      rank: typeof row.rank === 'number' ? row.rank : index + 1,
-      payload: asRecord(row.payload),
-    };
+    if (!card) { return null; }
+    return mediaItemToBaseItemDto(metadataCardToMediaItem(card));
   }
 
-  private async mapLandscapeRecommendationItem(client: DbClient, value: unknown, index: number): Promise<RecommendationSectionItem | null> {
+  private async mapLandscapeRecommendationItem(client: DbClient, value: unknown): Promise<BaseItemDto | null> {
     const row = asRecord(value);
     const identity = recommendationIdentityFromRow(row);
     const card = await this.metadataCardService.buildCardView(client, identity);
-    const Item = mediaItemToBaseItemDto(metadataCardToMediaItem(card));
-
-    return {
-      kind: 'recommendation',
-      Item,
-      context: {
-        reason: typeof row.reason === 'string' ? row.reason : null,
-        reasonCodes: [],
-        score: typeof row.score === 'number' ? row.score : null,
-        rank: typeof row.rank === 'number' ? row.rank : index + 1,
-        payload: asRecord(row.payload),
-      },
-      presentation: { preferredSize: 'wide', sectionId: null, sectionTitle: null },
-      reason: typeof row.reason === 'string' ? row.reason : null,
-      score: typeof row.score === 'number' ? row.score : null,
-      rank: typeof row.rank === 'number' ? row.rank : index + 1,
-      payload: asRecord(row.payload),
-    };
+    if (!card) { return null; }
+    return mediaItemToBaseItemDto(metadataCardToMediaItem(card));
   }
 
   private mapCollectionCard(value: unknown): CollectionCardView | null {
