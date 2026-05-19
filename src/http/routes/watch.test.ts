@@ -215,15 +215,18 @@ test('continue-watching serializes items with progress', async (t) => {
 
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originals = {
     listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
     enrichContinueWatchingItems: WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems,
   };
+  const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
     WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+    MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
   const now = '2026-05-13T00:00:00.000Z';
@@ -250,6 +253,10 @@ test('continue-watching serializes items with progress', async (t) => {
   });
 
   WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async (_client, items) => items;
+
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en-US';
+  };
 
   const { registerWatchRoutes } = await import('./watch.js');
   const app = await buildTestApp(registerWatchRoutes);
@@ -285,15 +292,19 @@ test('watch state serializes progress without status', async (t) => {
 
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originals = {
     getState: LocalUserWatchService.prototype.getState,
     enrichRegularMediaItems: WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems,
   };
 
+  const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
+
   t.after(() => {
     LocalUserWatchService.prototype.getState = originals.getState;
     WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = originals.enrichRegularMediaItems;
+    MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
   const now = '2026-05-13T00:00:00.000Z';
@@ -321,6 +332,10 @@ test('watch state serializes progress without status', async (t) => {
   });
 
   WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = async (_client, items) => items;
+
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en-US';
+  };
 
   const { registerWatchRoutes } = await import('./watch.js');
   const app = await buildTestApp(registerWatchRoutes);

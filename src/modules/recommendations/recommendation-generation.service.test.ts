@@ -5,13 +5,16 @@ import type { ProfileInputContinueWatchingItem } from './profile-input-signal.ty
 
 seedTestEnv();
 
+const ITEM_ID = '00000000000000000000000000001396';
+const SERIES_ITEM_ID = '00000000000000000000000000001397';
+
 const { mapContinueWatchingItem } = await import('./recommendation-generation.service.js');
 
 test('mapContinueWatchingItem maps continue-watching items into explicit worker DTOs', () => {
   const item: ProfileInputContinueWatchingItem = {
     id: 'cw_1',
     Item: {
-      Id: 'show:tmdb:1396',
+      Id: ITEM_ID,
       Type: 'Episode',
       Name: 'Breaking Bad',
       OriginalTitle: null,
@@ -34,7 +37,7 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
         Screenshot: [],
       },
       ParentImageTags: null,
-      SeriesId: '1396',
+      SeriesId: SERIES_ITEM_ID,
       SeriesName: null,
       SeasonId: null,
       SeasonName: null,
@@ -60,7 +63,7 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
     id: 'cw_1',
     media: {
       mediaType: 'Episode',
-      mediaKey: 'show:tmdb:1396',
+      itemId: ITEM_ID,
       title: 'Breaking Bad',
     },
     progress: {

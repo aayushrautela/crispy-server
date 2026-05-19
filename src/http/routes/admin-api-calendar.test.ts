@@ -9,10 +9,10 @@ setTestEnv({
 });
 
 async function makeBaseItemDto(overrides: Record<string, unknown>) {
-  const mediaKey = overrides.mediaKey as string ?? 'episode:tmdb:500:1:3';
-  const tmdbId = mediaKey.split(':')[2] ?? '0';
+  const itemId = overrides.itemId as string ?? '00000000000000000000000000000503';
+  const tmdbId = overrides.tmdbId as string ?? '500';
   return {
-    Id: mediaKey,
+    Id: itemId,
     Type: 'Episode',
     Name: overrides.name as string ?? 'Example Show',
     OriginalTitle: null,
@@ -59,15 +59,18 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   const { registerAdminApiRoutes } = await import('./admin-api.js');
   const { CalendarService } = await import('../../modules/calendar/calendar.service.js');
 
+  const itemKey = '00000000000000000000000000000503';
+  const seriesItemId = '00000000000000000000000000000500';
   const original = CalendarService.prototype.getCalendarForAccountService;
   CalendarService.prototype.getCalendarForAccountService = async function (_accountId, profileId) {
     const mediaItem = await makeBaseItemDto({
-      mediaKey: 'episode:tmdb:500:1:3',
+      itemId: itemKey,
+      tmdbId: '500',
       name: 'Example Show',
       productionYear: 2026,
       communityRating: 8.5,
       runTimeSeconds: 2640,
-      seriesId: 'show:tmdb:500',
+      seriesId: seriesItemId,
       seriesName: 'Example Show',
       parentIndexNumber: 1,
       indexNumber: 3,
@@ -109,7 +112,7 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   assert.equal(data.profileId, 'profile-1');
   assert.equal(data.source, 'canonical_calendar');
   assert.equal(data.items.length, 1);
-  assert.equal(data.items[0].Id, 'episode:tmdb:500:1:3');
+  assert.equal(data.items[0].Id, itemKey);
   assert.equal(data.items[0].Type, 'Episode');
   assert.equal(data.items[0].Name, 'Example Show');
   assert.equal(data.items[0].ParentIndexNumber, 1);
@@ -125,15 +128,18 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   const { registerAdminApiRoutes } = await import('./admin-api.js');
   const { CalendarService } = await import('../../modules/calendar/calendar.service.js');
 
+  const itemKey = '00000000000000000000000000000521';
+  const seriesItemId = '00000000000000000000000000000501';
   const original = CalendarService.prototype.getThisWeekForAccountService;
   CalendarService.prototype.getThisWeekForAccountService = async function (_accountId, profileId) {
     const mediaItem = await makeBaseItemDto({
-      mediaKey: 'episode:tmdb:501:2:1',
+      itemId: itemKey,
+      tmdbId: '501',
       name: 'Next Week Show',
       productionYear: 2026,
       communityRating: 8.3,
       runTimeSeconds: 2760,
-      seriesId: 'show:tmdb:501',
+      seriesId: seriesItemId,
       seriesName: 'Next Week Show',
       parentIndexNumber: 2,
       indexNumber: 1,
@@ -173,7 +179,7 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   assert.equal(response.statusCode, 200);
   const data = response.json().data;
   assert.equal(data.items.length, 1);
-  assert.equal(data.items[0].Id, 'episode:tmdb:501:2:1');
+  assert.equal(data.items[0].Id, itemKey);
   assert.equal(data.items[0].Type, 'Episode');
   assert.equal(data.items[0].Name, 'Next Week Show');
   assert.equal(data.items[0].ParentIndexNumber, 2);

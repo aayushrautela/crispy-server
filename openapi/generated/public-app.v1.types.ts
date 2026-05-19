@@ -170,7 +170,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Resolve metadata identifier. */
+        /** Resolve metadata item. */
         get: operations["getV1MetadataResolve"];
         put?: never;
         post?: never;
@@ -180,7 +180,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/metadata/titles/{mediaKey}": {
+    "/v1/metadata/items/{itemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -188,13 +188,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get title details (without extras).
-         * @description Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/titles/{mediaKey}/extras`.
+         * Get item details (without extras).
+         * @description Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`.
+         *     Item IDs are dashless lowercase UUID hex strings.
          *     Key video fields:
          *     - `videos` — all TMDB video results for the title.
          *     - `RemoteTrailers` — primary trailer entries with `Url` and `ThumbnailUrl` on Jellyfin-style item payloads.
          */
-        get: operations["getV1MetadataTitlesMediaKey"];
+        get: operations["getV1MetadataItemsItemId"];
         put?: never;
         post?: never;
         delete?: never;
@@ -203,15 +204,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/metadata/titles/{mediaKey}/extras": {
+    "/v1/metadata/items/{itemId}/extras": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get optional title detail sections (seasons, episodes, reviews, similar, collection parts). */
-        get: operations["getV1MetadataTitlesMediaKeyExtras"];
+        /** Get optional item detail sections (seasons, episodes, reviews, similar, collection parts). */
+        get: operations["getV1MetadataItemsItemIdExtras"];
         put?: never;
         post?: never;
         delete?: never;
@@ -425,15 +426,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/profiles/{profileId}/metadata/titles/{mediaKey}/ratings": {
+    "/v1/profiles/{profileId}/metadata/items/{itemId}/ratings": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get title ratings. */
-        get: operations["getV1ProfilesProfileIdMetadataTitlesMediaKeyRatings"];
+        /** Get item ratings. */
+        get: operations["getV1ProfilesProfileIdMetadataItemsItemIdRatings"];
         put?: never;
         post?: never;
         delete?: never;
@@ -442,15 +443,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/profiles/{profileId}/metadata/titles/{mediaKey}/reviews": {
+    "/v1/profiles/{profileId}/metadata/items/{itemId}/reviews": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get title reviews. */
-        get: operations["getV1ProfilesProfileIdMetadataTitlesMediaKeyReviews"];
+        /** Get item reviews. */
+        get: operations["getV1ProfilesProfileIdMetadataItemsItemIdReviews"];
         put?: never;
         post?: never;
         delete?: never;
@@ -823,6 +824,7 @@ export interface components {
             Logo: components["schemas"]["ResponsiveImageSet"] | null;
             Thumb: components["schemas"]["ResponsiveImageSet"] | null;
         };
+        PublicItemId: string;
         ProviderIds: {
             Tmdb: string | null;
             Imdb: string | null;
@@ -834,7 +836,7 @@ export interface components {
             ThumbnailUrl: string | null;
         };
         UserItemDataDto: {
-            ItemId: string;
+            ItemId: components["schemas"]["PublicItemId"] | null;
             IsFavorite: boolean;
             Played: boolean;
             PlayCount: number;
@@ -846,7 +848,7 @@ export interface components {
             DismissedFromContinueWatching: boolean;
         };
         BaseItemDto: {
-            Id: string;
+            Id: components["schemas"]["PublicItemId"];
             /** @enum {string} */
             Type: "Movie" | "Series" | "Season" | "Episode" | "Unknown";
             Name: string;
@@ -864,9 +866,9 @@ export interface components {
             ProviderIds: components["schemas"]["ProviderIds"];
             ImageTags: components["schemas"]["BaseItemImageTags"];
             ParentImageTags: components["schemas"]["ParentBaseItemImageTags"] | null;
-            SeriesId: string | null;
+            SeriesId: components["schemas"]["PublicItemId"] | null;
             SeriesName: string | null;
-            SeasonId: string | null;
+            SeasonId: components["schemas"]["PublicItemId"] | null;
             SeasonName: string | null;
             ParentIndexNumber: number | null;
             IndexNumber: number | null;
@@ -1523,10 +1525,9 @@ export interface operations {
     };
     getV1MetadataResolve: {
         parameters: {
-            query?: {
-                mediaType?: string;
-                tmdbId?: string;
-                mediaKey?: string;
+            query: {
+                itemId: components["schemas"]["PublicItemId"];
+                language?: string;
             };
             header?: never;
             path?: never;
@@ -1552,12 +1553,14 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getV1MetadataTitlesMediaKey: {
+    getV1MetadataItemsItemId: {
         parameters: {
-            query?: never;
+            query?: {
+                language?: string;
+            };
             header?: never;
             path: {
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -1581,14 +1584,14 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getV1MetadataTitlesMediaKeyExtras: {
+    getV1MetadataItemsItemIdExtras: {
         parameters: {
             query?: {
                 language?: string;
             };
             header?: never;
             path: {
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -1614,10 +1617,9 @@ export interface operations {
     };
     getV1PlaybackResolve: {
         parameters: {
-            query?: {
-                mediaType?: string;
-                tmdbId?: string;
-                mediaKey?: string;
+            query: {
+                itemId: components["schemas"]["PublicItemId"];
+                language?: string;
             };
             header?: never;
             path?: never;
@@ -1860,9 +1862,7 @@ export interface operations {
     };
     getV1ProfilesProfileIdImportConnections: {
         parameters: {
-            query?: {
-                limit?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 profileId: string;
@@ -2011,16 +2011,13 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getV1ProfilesProfileIdMetadataTitlesMediaKeyRatings: {
+    getV1ProfilesProfileIdMetadataItemsItemIdRatings: {
         parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 profileId: string;
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -2044,13 +2041,15 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getV1ProfilesProfileIdMetadataTitlesMediaKeyReviews: {
+    getV1ProfilesProfileIdMetadataItemsItemIdReviews: {
         parameters: {
-            query?: never;
+            query?: {
+                language?: string;
+            };
             header?: never;
             path: {
                 profileId: string;
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };

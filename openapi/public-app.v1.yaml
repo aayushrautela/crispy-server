@@ -527,21 +527,16 @@ paths:
       tags:
         - Metadata
       operationId: getV1MetadataResolve
-      summary: Resolve metadata identifier.
+      summary: Resolve metadata item.
       security:
         - UserBearerAuth: []
       parameters:
-        - name: mediaType
+        - name: itemId
           in: query
-          required: false
+          required: true
           schema:
-            type: string
-        - name: tmdbId
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: mediaKey
+            $ref: "#/components/schemas/PublicItemId"
+        - name: language
           in: query
           required: false
           schema:
@@ -567,27 +562,31 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/metadata/titles/{mediaKey}:
+  /v1/metadata/items/{itemId}:
     get:
       tags:
         - Metadata
-      operationId: getV1MetadataTitlesMediaKey
-      summary: Get title details (without extras).
+      operationId: getV1MetadataItemsItemId
+      summary: Get item details (without extras).
       description: |
-        Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/titles/{mediaKey}/extras`.
+        Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`.
+        Item IDs are dashless lowercase UUID hex strings.
         Key video fields:
         - `videos` — all TMDB video results for the title.
         - `RemoteTrailers` — primary trailer entries with `Url` and `ThumbnailUrl` on Jellyfin-style item payloads.
       security:
         - UserBearerAuth: []
       parameters:
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
+            $ref: "#/components/schemas/PublicItemId"
+        - name: language
+          in: query
+          required: false
+          schema:
             type: string
-            minLength: 1
-            maxLength: 512
       responses:
         "200":
           description: Successful response.
@@ -609,22 +608,20 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/metadata/titles/{mediaKey}/extras:
+  /v1/metadata/items/{itemId}/extras:
     get:
       tags:
         - Metadata
-      operationId: getV1MetadataTitlesMediaKeyExtras
-      summary: Get optional title detail sections (seasons, episodes, reviews, similar, collection parts).
+      operationId: getV1MetadataItemsItemIdExtras
+      summary: Get optional item detail sections (seasons, episodes, reviews, similar, collection parts).
       security:
         - UserBearerAuth: []
       parameters:
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
+            $ref: "#/components/schemas/PublicItemId"
         - name: language
           in: query
           required: false
@@ -660,17 +657,12 @@ paths:
       security:
         - UserBearerAuth: []
       parameters:
-        - name: mediaType
+        - name: itemId
           in: query
-          required: false
+          required: true
           schema:
-            type: string
-        - name: tmdbId
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: mediaKey
+            $ref: "#/components/schemas/PublicItemId"
+        - name: language
           in: query
           required: false
           schema:
@@ -978,11 +970,6 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: string
       responses:
         "200":
           description: Successful response.
@@ -1173,12 +1160,12 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/profiles/{profileId}/metadata/titles/{mediaKey}/ratings:
+  /v1/profiles/{profileId}/metadata/items/{itemId}/ratings:
     get:
       tags:
         - Metadata
-      operationId: getV1ProfilesProfileIdMetadataTitlesMediaKeyRatings
-      summary: Get title ratings.
+      operationId: getV1ProfilesProfileIdMetadataItemsItemIdRatings
+      summary: Get item ratings.
       security:
         - UserBearerAuth: []
       parameters:
@@ -1189,23 +1176,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
@@ -1227,12 +1202,12 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/profiles/{profileId}/metadata/titles/{mediaKey}/reviews:
+  /v1/profiles/{profileId}/metadata/items/{itemId}/reviews:
     get:
       tags:
         - Metadata
-      operationId: getV1ProfilesProfileIdMetadataTitlesMediaKeyReviews
-      summary: Get title reviews.
+      operationId: getV1ProfilesProfileIdMetadataItemsItemIdReviews
+      summary: Get item reviews.
       security:
         - UserBearerAuth: []
       parameters:
@@ -1243,13 +1218,16 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
+            $ref: "#/components/schemas/PublicItemId"
+        - name: language
+          in: query
+          required: false
+          schema:
             type: string
-            minLength: 1
-            maxLength: 512
       responses:
         "200":
           description: Successful response.
@@ -2546,6 +2524,11 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ResponsiveImageSet"
             - type: "null"
+    PublicItemId:
+      type: string
+      pattern: ^[0-9a-f]{32}$
+      minLength: 32
+      maxLength: 32
     ProviderIds:
       type: object
       additionalProperties: false
@@ -2584,7 +2567,9 @@ components:
       required: [ItemId, IsFavorite, Played, PlayCount, PlaybackPositionTicks, RuntimeTicks, PlayedPercentage, LastPlayedDate, Rating, DismissedFromContinueWatching]
       properties:
         ItemId:
-          type: string
+          anyOf:
+            - $ref: "#/components/schemas/PublicItemId"
+            - type: "null"
         IsFavorite:
           type: boolean
         Played:
@@ -2619,7 +2604,7 @@ components:
       required: [Id, Type, Name, OriginalTitle, Overview, Taglines, ProductionYear, PremiereDate, CommunityRating, OfficialRating, Certification, Genres, RunTimeTicks, Status, ProviderIds, ImageTags, ParentImageTags, SeriesId, SeriesName, SeasonId, SeasonName, ParentIndexNumber, IndexNumber, AbsoluteIndexNumber, EpisodeTitle, AirDate, RemoteTrailers, PosterColor, BackdropColor, UserData]
       properties:
         Id:
-          type: string
+          $ref: "#/components/schemas/PublicItemId"
         Type:
           type: string
           enum: [Movie, Series, Season, Episode, Unknown]
@@ -2679,7 +2664,7 @@ components:
             - type: "null"
         SeriesId:
           anyOf:
-            - type: string
+            - $ref: "#/components/schemas/PublicItemId"
             - type: "null"
         SeriesName:
           anyOf:
@@ -2687,7 +2672,7 @@ components:
             - type: "null"
         SeasonId:
           anyOf:
-            - type: string
+            - $ref: "#/components/schemas/PublicItemId"
             - type: "null"
         SeasonName:
           anyOf:

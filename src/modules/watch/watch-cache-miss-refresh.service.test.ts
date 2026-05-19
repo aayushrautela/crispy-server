@@ -7,9 +7,9 @@ seedTestEnv();
 
 test('refreshMissingCardsAndReturnRecords reads refreshed records in requested language', async () => {
   const { WatchCacheMissRefreshService } = await import('./watch-cache-miss-refresh.service.js');
-  const calls: Array<{ mediaKeys: string[]; language?: string | null }> = [];
+  const calls: Array<{ itemIds: string[]; language?: string | null }> = [];
   const localizedRecord: WatchMediaCardCacheRecord = {
-    mediaKey: 'movie:tmdb:123',
+    itemId: 'movie:tmdb:123',
     mediaType: 'movie',
     titleProvider: 'tmdb',
     titleProviderId: '123',
@@ -59,8 +59,8 @@ test('refreshMissingCardsAndReturnRecords reads refreshed records in requested l
   };
   const cacheService = {
     upsertFromProjection: async () => undefined,
-    listCardCacheRecords: async (_client: unknown, mediaKeys: string[], language?: string | null) => {
-      calls.push({ mediaKeys, language });
+    listCardCacheRecords: async (_client: unknown, itemIds: string[], language?: string | null) => {
+      calls.push({ itemIds, language });
       return language === 'en-US'
         ? new Map([['movie:tmdb:123', localizedRecord]])
         : new Map<string, WatchMediaCardCacheRecord>();

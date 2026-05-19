@@ -31,7 +31,7 @@ describe('recommendation-ai-plan.prompt', () => {
     signals: {
       watchHistory: [
         {
-          mediaKey: 'movie:tmdb:550',
+          itemId: '00000000000000000000000000000550',
           title: 'Fight Club',
           mediaType: 'movie',
           provider: 'tmdb',
@@ -46,7 +46,7 @@ describe('recommendation-ai-plan.prompt', () => {
     },
     candidatePool: [
       {
-        mediaKey: 'movie:tmdb:603',
+        itemId: '00000000000000000000000000000603',
         title: 'The Matrix',
         mediaType: 'movie',
         provider: 'tmdb',
@@ -69,7 +69,7 @@ describe('recommendation-ai-plan.prompt', () => {
     const result = buildRecommendationAiPlanPrompt(request);
     assert.ok(result.userPrompt.includes('CANDIDATE POOL'));
     assert.ok(result.userPrompt.includes('The Matrix'));
-    assert.ok(result.userPrompt.includes('movie:tmdb:603'));
+    assert.ok(result.userPrompt.includes('00000000000000000000000000000603'));
   });
 
   it('should include constraints', () => {

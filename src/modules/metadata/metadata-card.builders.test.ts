@@ -36,22 +36,24 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
 test('buildEpisodePreview produces provider-based payload', async () => {
   const { buildEpisodePreview } = await import('./metadata-card.builders.js');
 
-  const preview = buildEpisodePreview(
-    {
+  const preview = buildEpisodePreview({
+    title: {
       mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Test Show', originalName: 'Test Show',
       overview: null, releaseDate: null, firstAirDate: null, status: null,
       posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
       numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: {},
       hydrationLevel: 'detail', fetchedAt: '', expiresAt: '',
     },
-    {
+    episode: {
       showTmdbId: 42, seasonNumber: 1, episodeNumber: 3, tmdbId: 555,
       name: 'Episode 3', overview: 'Overview.', airDate: '2024-01-15',
       runtime: 47, stillPath: '/still.jpg', voteAverage: 8.1, raw: {},
       fetchedAt: '2026-03-22T00:00:00.000Z', expiresAt: '2026-03-23T00:00:00.000Z',
     },
-  );
+    itemId: 'uuid-for-test',
+  });
 
+  assert.equal(preview.itemId, 'uuid-for-test');
   assert.equal(preview.mediaType, 'episode');
   assert.equal(preview.showTmdbId, 42);
   assert.equal(preview.seasonNumber, 1);

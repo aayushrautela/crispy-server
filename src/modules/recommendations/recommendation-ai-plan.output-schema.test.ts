@@ -7,7 +7,7 @@ import type { RecommendationAiPlanCandidate } from './recommendation-ai-plan.typ
 describe('recommendation-ai-plan.output-schema', () => {
   const candidatePool: RecommendationAiPlanCandidate[] = [
     {
-      mediaKey: 'movie:tmdb:603',
+      itemId: '00000000000000000000000000000603',
       title: 'The Matrix',
       mediaType: 'movie',
       provider: 'tmdb',
@@ -15,7 +15,7 @@ describe('recommendation-ai-plan.output-schema', () => {
       year: 1999,
     },
     {
-      mediaKey: 'movie:tmdb:550',
+      itemId: '00000000000000000000000000000550',
       title: 'Fight Club',
       mediaType: 'movie',
       provider: 'tmdb',
@@ -28,7 +28,7 @@ describe('recommendation-ai-plan.output-schema', () => {
     summary: 'Prioritize high-confidence sci-fi titles.',
     items: [
       {
-        mediaKey: 'movie:tmdb:603',
+        itemId: '00000000000000000000000000000603',
         score: 0.94,
         confidence: 0.88,
         reason: 'Matches high-concept sci-fi preferences.',
@@ -42,7 +42,7 @@ describe('recommendation-ai-plan.output-schema', () => {
       const result = validateAiPlanOutput(validOutput, candidatePool, 20);
       assert.strictEqual(result.summary, validOutput.summary);
       assert.strictEqual(result.items.length, 1);
-      assert.strictEqual(result.items[0]?.mediaKey, 'movie:tmdb:603');
+      assert.strictEqual(result.items[0]?.itemId, '00000000000000000000000000000603');
     });
 
     it('should reject non-object output', () => {
@@ -84,8 +84,8 @@ describe('recommendation-ai-plan.output-schema', () => {
       const invalid = {
         summary: 'Test',
         items: [
-          { ...validOutput.items[0], mediaKey: 'movie:tmdb:603' },
-          { ...validOutput.items[0], mediaKey: 'movie:tmdb:550' },
+          { ...validOutput.items[0], itemId: '00000000000000000000000000000603' },
+          { ...validOutput.items[0], itemId: '00000000000000000000000000000550' },
         ],
       };
       assert.throws(
@@ -98,12 +98,12 @@ describe('recommendation-ai-plan.output-schema', () => {
       );
     });
 
-    it('should reject item with mediaKey not in candidate pool', () => {
+    it('should reject item with itemId not in candidate pool', () => {
       const invalid = {
         summary: 'Test',
         items: [
           {
-            mediaKey: 'movie:tmdb:999',
+            itemId: '00000000000000000000000000000999',
             score: 0.9,
             confidence: 0.8,
             reason: 'Test',
@@ -121,7 +121,7 @@ describe('recommendation-ai-plan.output-schema', () => {
       );
     });
 
-    it('should reject duplicate mediaKey', () => {
+    it('should reject duplicate itemId', () => {
       const invalid = {
         summary: 'Test',
         items: [

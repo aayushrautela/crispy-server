@@ -1,9 +1,10 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MetadataTitleMediaType } from '../metadata/metadata-card.types.js';
 import type { SupportedProvider } from '../identity/media-key.js';
+import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
 
 export type WatchMediaCardCacheRecord = {
-  mediaKey: string;
+  itemId: string;
   mediaType: string;
   titleProvider: SupportedProvider;
   titleProviderId: string;
@@ -33,7 +34,7 @@ export type WatchMediaCardCacheRecord = {
 
 export class WatchMediaCardCacheRepository {
   async upsert(client: DbClient, params: {
-    mediaKey: string;
+    itemId: string;
     mediaType: string;
     titleProvider: SupportedProvider;
     titleProviderId: string;
@@ -64,14 +65,14 @@ export class WatchMediaCardCacheRepository {
     await client.query(
       `
         INSERT INTO watch_media_card_cache (
-          media_key, media_type, title_provider, title_provider_id, title_media_type,
+          item_id, media_type, title_provider, title_provider_id, title_media_type,
           title, subtitle, poster_url, backdrop_url, still_url, logo_url,
           trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
           release_year, rating, maturity_rating, genres, language, updated_at,
           overview, runtime_minutes, release_date, status, episode_title, episode_air_date
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, now(), $21, $22, $23, $24, $25, $26)
-        ON CONFLICT (media_key, language)
+        ON CONFLICT (item_id, language)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
           title_provider = EXCLUDED.title_provider,
@@ -100,7 +101,7 @@ export class WatchMediaCardCacheRepository {
           updated_at = now()
       `,
       [
-        params.mediaKey,
+        params.itemId,
         params.mediaType,
         params.titleProvider,
         params.titleProviderId,
@@ -130,45 +131,47 @@ export class WatchMediaCardCacheRepository {
     );
   }
 
-  async getByMediaKeys(client: DbClient, mediaKeys: string[], language?: string): Promise<Map<string, WatchMediaCardCacheRecord>> {
-    if (!mediaKeys.length) {
+  async getByItemIds(client: DbClient, itemIds: string[], language?: string): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    if (!itemIds.length) {
       return new Map();
     }
 
     const effectiveLanguage = language ?? 'en-US';
-    const requestedRecords = await this.getByMediaKeysForLanguage(client, mediaKeys, effectiveLanguage);
-    if (effectiveLanguage === 'en-US' || requestedRecords.size === mediaKeys.length) {
+    const requestedRecords = await this.getByItemIdsForLanguage(client, itemIds, effectiveLanguage);
+    if (effectiveLanguage === 'en-US' || requestedRecords.size === itemIds.length) {
       return requestedRecords;
     }
 
-    const missingMediaKeys = mediaKeys.filter((mediaKey) => !requestedRecords.has(mediaKey));
-    const fallbackRecords = await this.getByMediaKeysForLanguage(client, missingMediaKeys, 'en-US');
+    const missingItemIds = itemIds.filter((id) => !requestedRecords.has(id));
+    const fallbackRecords = await this.getByItemIdsForLanguage(client, missingItemIds, 'en-US');
     return new Map([...fallbackRecords, ...requestedRecords]);
   }
 
-  private async getByMediaKeysForLanguage(client: DbClient, mediaKeys: string[], language: string): Promise<Map<string, WatchMediaCardCacheRecord>> {
-    if (!mediaKeys.length) {
+  private async getByItemIdsForLanguage(client: DbClient, itemIds: string[], language: string): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    if (!itemIds.length) {
       return new Map();
     }
 
+    const internalUuids = itemIds.map((id) => assertPublicItemId(id));
+
     const result = await client.query(
       `
-      SELECT media_key, media_type, title_provider, title_provider_id, title_media_type,
+      SELECT item_id, media_type, title_provider, title_provider_id, title_media_type,
              title, subtitle, poster_url, backdrop_url, still_url, logo_url,
              trailer_url, trailer_thumbnail_url, poster_color, backdrop_color,
              release_year, rating, maturity_rating, genres, language,
              overview, runtime_minutes, release_date, status, episode_title, episode_air_date
       FROM watch_media_card_cache
-        WHERE media_key = ANY($1::text[])
+        WHERE item_id = ANY($1::uuid[])
           AND language = $2
       `,
-      [mediaKeys, language],
+      [internalUuids, language],
     );
 
     return new Map(
       result.rows.flatMap((row) => {
         if (
-          typeof row.media_key !== 'string'
+          typeof row.item_id !== 'string'
           || typeof row.media_type !== 'string'
           || typeof row.title_provider !== 'string'
           || typeof row.title_provider_id !== 'string'
@@ -186,10 +189,12 @@ export class WatchMediaCardCacheRepository {
           return [];
         }
 
+        const publicItemId = encodePublicItemId(row.item_id);
+
         return [[
-          row.media_key,
+          publicItemId,
           {
-            mediaKey: row.media_key,
+            itemId: publicItemId,
             mediaType: row.media_type,
             titleProvider: row.title_provider,
             titleProviderId: row.title_provider_id,

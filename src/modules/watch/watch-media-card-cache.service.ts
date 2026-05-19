@@ -47,7 +47,7 @@ export class WatchMediaCardCacheService {
     }
 
     await this.repository.upsert(client, {
-      mediaKey: identity.mediaKey,
+      itemId: identity.contentId ?? identity.mediaKey,
       mediaType: identity.mediaType,
       titleProvider: 'tmdb',
       titleProviderId,
@@ -76,22 +76,22 @@ export class WatchMediaCardCacheService {
     });
   }
 
-  async listRegularCards(client: DbClient, mediaKeys: string[], language?: string | null): Promise<Map<string, RegularCardView>> {
-    const records = await this.repository.getByMediaKeys(client, mediaKeys, language ?? undefined);
+  async listRegularCards(client: DbClient, itemIds: string[], language?: string | null): Promise<Map<string, RegularCardView>> {
+    const records = await this.repository.getByItemIds(client, itemIds, language ?? undefined);
     return new Map(
-      Array.from(records.entries()).map(([mediaKey, record]) => [mediaKey, toRegularCard(record)]),
+      Array.from(records.entries()).map(([id, record]) => [id, toRegularCard(record)]),
     );
   }
 
-  async listCardCacheRecords(client: DbClient, mediaKeys: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {
-    return this.repository.getByMediaKeys(client, mediaKeys, language ?? undefined);
+  async listCardCacheRecords(client: DbClient, itemIds: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    return this.repository.getByItemIds(client, itemIds, language ?? undefined);
   }
 }
 
 function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
   return {
     mediaType: record.titleMediaType,
-    mediaKey: record.mediaKey,
+    itemId: record.itemId,
     title: record.title,
     poster: buildResponsiveImageSet(record.posterUrl, {
       small: 'w342',

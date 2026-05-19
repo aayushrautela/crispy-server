@@ -5,11 +5,11 @@ import { buildTestApp, seedTestEnv } from '../../test-helpers.js';
 seedTestEnv();
 
 async function makeDto(overrides: Record<string, unknown>) {
-  const mediaKey = overrides.mediaKey as string ?? 'show:tmdb:694';
-  const tmdbId = mediaKey.split(':')[2] ?? '0';
+  const itemId = overrides.itemId as string ?? '00000000000000000000000000000694';
+  const tmdbId = overrides.tmdbId as string ?? '694';
   const imageTags = overrides.imageTags as Record<string, unknown> | undefined;
   return {
-    Id: mediaKey,
+    Id: itemId,
     Type: 'Series',
     Name: overrides.name as string ?? 'Test Show',
     OriginalTitle: null,
@@ -51,7 +51,7 @@ async function makeDto(overrides: Record<string, unknown>) {
 test('calendar route returns canonical envelope fields', async (t) => {
   const { CalendarService } = await import('../../modules/calendar/calendar.service.js');
   const original = CalendarService.prototype.getCalendar;
-  const itemKey = 'show:tmdb:500';
+  const itemKey = '00000000000000000000000000000500';
 
   t.after(() => {
     CalendarService.prototype.getCalendar = original;
@@ -59,7 +59,8 @@ test('calendar route returns canonical envelope fields', async (t) => {
 
   CalendarService.prototype.getCalendar = async function (_userId, profileId) {
     const mediaItem = await makeDto({
-      mediaKey: 'show:tmdb:500',
+      itemId: itemKey,
+      tmdbId: '500',
       name: 'Example Show',
       productionYear: 2024,
       communityRating: 8.5,
@@ -97,7 +98,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
 test('calendar this-week route returns narrowed canonical envelope fields', async (t) => {
   const { CalendarService } = await import('../../modules/calendar/calendar.service.js');
   const original = CalendarService.prototype.getThisWeek;
-  const itemKey = 'show:tmdb:501';
+  const itemKey = '00000000000000000000000000000501';
 
   t.after(() => {
     CalendarService.prototype.getThisWeek = original;
@@ -105,7 +106,8 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
 
   CalendarService.prototype.getThisWeek = async function (_userId, profileId) {
     const mediaItem = await makeDto({
-      mediaKey: 'show:tmdb:501',
+      itemId: itemKey,
+      tmdbId: '501',
       name: 'Next Week Show',
       productionYear: 2024,
       communityRating: 8.3,

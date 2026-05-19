@@ -35,7 +35,7 @@ OUTPUT SCHEMA:
   "summary": "Brief strategy summary (1-2 sentences)",
   "items": [
     {
-      "mediaKey": "exact mediaKey from candidate pool",
+      "itemId": "exact itemId from candidate pool",
       "score": 0.0-1.0,
       "confidence": 0.0-1.0,
       "reason": "Concise human-readable reason (max 100 chars)",
@@ -123,7 +123,7 @@ function buildUserPrompt(request: RecommendationAiPlanRequest): string {
 }
 
 function formatMediaItem(item: RecommendationAiPlanMediaItem): string {
-  let line = `- ${item.title} (${item.year || 'N/A'}) [${item.mediaKey}]`;
+  let line = `- ${item.title} (${item.year || 'N/A'}) [${item.itemId}]`;
   if (item.overview) {
     line += ` - ${item.overview.slice(0, 100)}`;
   }
@@ -135,7 +135,7 @@ function formatMediaItem(item: RecommendationAiPlanMediaItem): string {
 }
 
 function formatCandidate(candidate: RecommendationAiPlanCandidate): string {
-  let line = `- ${candidate.title} (${candidate.year || 'N/A'}) [${candidate.mediaKey}]`;
+  let line = `- ${candidate.title} (${candidate.year || 'N/A'}) [${candidate.itemId}]`;
   if (candidate.overview) {
     line += ` - ${candidate.overview.slice(0, 100)}`;
   }

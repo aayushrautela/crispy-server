@@ -26,7 +26,7 @@ export type MetadataExternalIds = {
 
 export type MetadataEpisodePreview = {
   mediaType: 'episode';
-  mediaKey: string;
+  itemId: string;
   parentMediaType: MetadataParentMediaType;
   tmdbId: number | null;
   showTmdbId: number | null;
@@ -44,8 +44,10 @@ export type MetadataEpisodePreview = {
 export type MetadataCardView = {
   mediaType: MetadataViewMediaType;
   kind: 'title' | 'episode';
-  mediaKey: string;
+  itemId: string;
   parentMediaType: MetadataParentMediaType | null;
+  seriesItemId: string | null;
+  seasonItemId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;
   seasonNumber: number | null;
@@ -72,7 +74,7 @@ export type MetadataCardView = {
 
 export type RegularCardView = {
   mediaType: MetadataViewMediaType;
-  mediaKey: string;
+  itemId: string;
   title: string;
   poster: ResponsiveImageSet;
   releaseYear: number | null;
@@ -85,7 +87,7 @@ export type CatalogItem = RegularCardView;
 
 export type LandscapeCardView = {
   mediaType: MetadataViewMediaType;
-  mediaKey: string;
+  itemId: string;
   title: string;
   poster: ResponsiveImageSet;
   backdrop: ResponsiveImageSet;
@@ -114,7 +116,7 @@ export type CollectionCardView = {
 };
 
 export type HeroCardView = {
-  mediaKey: string;
+  itemId: string;
   mediaType: MetadataViewMediaType;
   title: string;
   description: string;

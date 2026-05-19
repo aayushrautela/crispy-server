@@ -14,15 +14,15 @@ export class MetadataTitleCacheService {
     return JSON.parse(cached) as T;
   }
 
-  async set<T>(cacheKey: string, payload: T, mediaKey?: string, ttlSeconds = TITLE_PAGE_TTL_SECONDS): Promise<T> {
+  async set<T>(cacheKey: string, payload: T, itemId?: string, ttlSeconds = TITLE_PAGE_TTL_SECONDS): Promise<T> {
     await redis.set(cacheKey, JSON.stringify(payload), 'EX', ttlSeconds);
-    if (mediaKey) {
-      await redis.sadd(metadataTitlePageCacheIndexKey(mediaKey), cacheKey);
+    if (itemId) {
+      await redis.sadd(metadataTitlePageCacheIndexKey(itemId), cacheKey);
     }
     return payload;
   }
 
-  async getOrSet<T>(cacheKey: string, mediaKey: string, build: () => Promise<T>, ttlSeconds = TITLE_PAGE_TTL_SECONDS): Promise<T> {
+  async getOrSet<T>(cacheKey: string, itemId: string, build: () => Promise<T>, ttlSeconds = TITLE_PAGE_TTL_SECONDS): Promise<T> {
     const cached = await this.get<T>(cacheKey);
     if (cached) {
       return cached;
@@ -36,7 +36,7 @@ export class MetadataTitleCacheService {
     const promise = (async () => {
       try {
         const value = await build();
-        await this.set(cacheKey, value, mediaKey, ttlSeconds);
+        await this.set(cacheKey, value, itemId, ttlSeconds);
         return value;
       } finally {
         inFlightRequests.delete(cacheKey);
@@ -52,8 +52,8 @@ export class MetadataTitleCacheService {
     await redis.del(cacheKey);
   }
 
-  async invalidateByMediaKey(mediaKey: string): Promise<void> {
-    const indexKey = metadataTitlePageCacheIndexKey(mediaKey);
+  async invalidateByItemId(itemId: string): Promise<void> {
+    const indexKey = metadataTitlePageCacheIndexKey(itemId);
     const cacheKeys = await redis.smembers(indexKey);
     if (!cacheKeys.length) {
       return;

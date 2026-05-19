@@ -7,7 +7,8 @@ import {
   nullableStringSchema,
   nonEmptyStringSchema,
   positiveIntegerLikeSchema,
-  profileIdAndMediaKeyParamsSchema,
+  profileIdAndItemIdParamsSchema,
+  publicItemIdSchema,
   responsiveImageSetSchema,
   stringSchema,
   successEnvelope,
@@ -15,22 +16,17 @@ import {
 } from './shared.js';
 
 export type MetadataResolveQuery = {
-  mediaKey?: string;
-  tmdbId?: number | string;
-  imdbId?: string;
-  mediaType?: string;
-  seasonNumber?: number | string;
-  episodeNumber?: number | string;
+  itemId: string;
   language?: string;
 };
 
-export type MetadataTitleParams = {
-  mediaKey: string;
+export type MetadataPlaybackResolveQuery = {
+  itemId: string;
+  language?: string;
 };
 
-export type MetadataSeasonParams = {
-  mediaKey: string;
-  seasonNumber: number | string;
+export type MetadataItemParams = {
+  itemId: string;
 };
 
 export type MetadataPersonParams = {
@@ -38,20 +34,6 @@ export type MetadataPersonParams = {
 };
 
 export type MetadataPersonQuery = {
-  language?: string;
-};
-
-export type MetadataEpisodesQuery = {
-  seasonNumber?: number | string;
-  language?: string;
-};
-
-export type MetadataNextEpisodeQuery = {
-  currentSeasonNumber?: number | string;
-  currentEpisodeNumber?: number | string;
-  watchedKeys?: string | string[];
-  showMediaKey?: string;
-  nowMs?: number | string;
   language?: string;
 };
 
@@ -71,20 +53,16 @@ export type MetadataSearchSuggestionsQuery = {
 };
 
 export type MetadataCardsBatchBody = {
-  mediaKeys?: string[];
+  itemIds?: string[];
   language?: string;
 };
 
 const metadataResolveQuerystringSchema = {
   type: 'object',
   additionalProperties: false,
+  required: ['itemId'],
   properties: {
-    mediaKey: stringSchema,
-    tmdbId: positiveIntegerLikeSchema,
-    imdbId: stringSchema,
-    mediaType: stringSchema,
-    seasonNumber: positiveIntegerLikeSchema,
-    episodeNumber: positiveIntegerLikeSchema,
+    itemId: publicItemIdSchema,
     language: stringSchema,
   },
 } as const;
@@ -97,22 +75,22 @@ const metadataLanguageQuerystringSchema = {
   },
 } as const;
 
-const metadataTitleParamsSchema = {
+const metadataItemParamsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey'],
+  required: ['itemId'],
   properties: {
-    mediaKey: nonEmptyStringSchema,
+    itemId: publicItemIdSchema,
   },
 } as const;
 
-const metadataSeasonParamsSchema = {
+const playbackResolveQuerystringSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'seasonNumber'],
+  required: ['itemId'],
   properties: {
-    mediaKey: nonEmptyStringSchema,
-    seasonNumber: positiveIntegerLikeSchema,
+    itemId: publicItemIdSchema,
+    language: stringSchema,
   },
 } as const;
 
@@ -363,13 +341,13 @@ const metadataSearchResponseSchema = {
 const metadataCardsBatchBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKeys'],
+  required: ['itemIds'],
   properties: {
-    mediaKeys: {
+    itemIds: {
       type: 'array',
       minItems: 1,
       maxItems: 100,
-      items: nonEmptyStringSchema,
+      items: publicItemIdSchema,
     },
     language: stringSchema,
   },
@@ -384,24 +362,24 @@ export const metadataResolveRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const metadataTitleDetailRouteSchema = withDefaultErrorResponses({
-  params: metadataTitleParamsSchema,
+export const metadataItemDetailRouteSchema = withDefaultErrorResponses({
+  params: metadataItemParamsSchema,
   querystring: metadataLanguageQuerystringSchema,
   response: {
     200: successEnvelope(metadataTitleDetailResponseSchema),
   },
 });
 
-export const metadataTitleReviewsRouteSchema = withDefaultErrorResponses({
-  params: profileIdAndMediaKeyParamsSchema,
+export const metadataItemReviewsRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndItemIdParamsSchema,
   querystring: metadataLanguageQuerystringSchema,
   response: {
     200: successEnvelope(metadataTitleReviewsResponseSchema),
   },
 });
 
-export const metadataTitleRatingsRouteSchema = withDefaultErrorResponses({
-  params: profileIdAndMediaKeyParamsSchema,
+export const metadataItemRatingsRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndItemIdParamsSchema,
   response: {
     200: successEnvelope(metadataTitleRatingsResponseSchema),
   },
@@ -429,7 +407,7 @@ export const metadataPersonRouteSchema = withDefaultErrorResponses({
 });
 
 export const playbackResolveRouteSchema = withDefaultErrorResponses({
-  querystring: metadataResolveQuerystringSchema,
+  querystring: playbackResolveQuerystringSchema,
   response: {
     200: successEnvelope(playbackResolveResponseSchema),
   },
@@ -531,8 +509,8 @@ const metadataTitleExtrasResponseSchema = {
   },
 } as const;
 
-export const metadataTitleExtrasRouteSchema = withDefaultErrorResponses({
-  params: metadataTitleParamsSchema,
+export const metadataItemExtrasRouteSchema = withDefaultErrorResponses({
+  params: metadataItemParamsSchema,
   querystring: metadataLanguageQuerystringSchema,
   response: {
     200: successEnvelope(metadataTitleExtrasResponseSchema),

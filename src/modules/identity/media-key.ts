@@ -1,6 +1,6 @@
 import { HttpError } from '../../lib/errors.js';
 
-export type SupportedProvider = 'tmdb';
+export type SupportedProvider = 'tmdb' | 'tvdb' | 'imdb' | 'kitsu';
 
 export type SupportedMediaType = 'movie' | 'show' | 'season' | 'episode';
 
@@ -502,10 +502,6 @@ function deriveShowTmdbId(
   return null;
 }
 
-function assertProviderSupportsMediaType(mediaType: SupportedMediaType, provider: SupportedProvider): void {
-  if (provider === 'tmdb') {
-    return;
-  }
-
-  throw new HttpError(400, `Unsupported ${mediaType} provider.`);
+function assertProviderSupportsMediaType(_mediaType: SupportedMediaType, _provider: SupportedProvider): void {
+  return;
 }

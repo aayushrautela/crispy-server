@@ -3,6 +3,7 @@ import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
 import { buildMetadataCardView } from '../metadata/metadata-card.builders.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 import type { BaseItemDto } from '../metadata/media-item.types.js';
@@ -124,13 +125,15 @@ export class TitleSearchService {
           return null;
         }
 
+        const itemId = encodePublicItemId(contentId);
         const card = buildMetadataCardView({
           identity,
+          itemId,
           title: hydrated,
           language: locale,
         });
         return {
-          item: mediaItemToBaseItemDto(metadataCardToMediaItem(card)),
+          item: mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId })),
           noisy: isNoisyTmdbMatch(hydrated),
         };
       });
@@ -182,8 +185,9 @@ export class TitleSearchService {
         return null;
       }
 
-      const card = buildMetadataCardView({ identity, title: hydrated, language: locale });
-      return mediaItemToBaseItemDto(metadataCardToMediaItem(card));
+      const itemId = encodePublicItemId(contentId);
+      const card = buildMetadataCardView({ identity, itemId, title: hydrated, language: locale });
+      return mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId }));
     });
   }
 

@@ -5,7 +5,7 @@ import { FeatureEntitlementService } from '../entitlements/feature-entitlement.s
 import { MdbListClient } from '../integrations/mdblist.client.js';
 import { MdbListService } from '../integrations/mdblist.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { resolveTitleRouteIdentity } from './metadata-route-identity.js';
+import { resolveTitleItemIdentity } from './metadata-route-identity.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import type { MetadataTitleRatingsResponse } from './metadata-detail.types.js';
 import type { MetadataTitleSourceSnapshot } from './metadata-title-source.types.js';
@@ -41,16 +41,16 @@ export class MetadataRatingsService {
     private readonly runWithDb: DbRunner = withDbClient,
   ) {}
 
-  async getTitleRatings(userId: string, _profileId: string, mediaKey: string): Promise<MetadataTitleRatingsResponse> {
+  async getTitleRatings(userId: string, _profileId: string, itemId: string): Promise<MetadataTitleRatingsResponse> {
     const apiKey = await this.entitlementService.resolveMdbListApiKeyForUser(userId);
     if (!apiKey) {
       throw new HttpError(412, 'MDBList is not configured. Add your MDBList API key or set MDBLIST_API_KEY in your environment.');
     }
 
     return this.runWithDb(async (client) => {
-      const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, mediaKey);
+      const identity = await resolveTitleItemIdentity(client, this.contentIdentityService, itemId);
       if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
-        throw new HttpError(400, 'Title ratings require a title mediaKey.');
+        throw new HttpError(400, 'Title ratings require a title itemId.');
       }
 
       const source = await this.titleSourceService.loadTitleSource(client, identity);

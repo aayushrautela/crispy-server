@@ -5,6 +5,8 @@ import { NOOP_TRANSACTION, seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
+const MOVIE_ITEM_ID = '550e8400e29b41d4a716446655440000';
+
 test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings', async () => {
   const { MetadataRatingsService } = await import('./metadata-ratings.service.js');
 
@@ -20,7 +22,12 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
         tmdbNextEpisode: null,
       }),
     } as never,
-    {} as never,
+    {
+      resolveMediaIdentity: async (_client: unknown, itemId: string) => {
+        assert.equal(itemId, MOVIE_ITEM_ID);
+        return { tmdbId: 222, mediaType: 'movie', itemId: MOVIE_ITEM_ID };
+      },
+    } as never,
     { resolveMdbListApiKeyForUser: async () => 'user-mdb-key' } as never,
     {
       getTitleRatings: async (_apiKey: string, mediaType: 'movie' | 'show', lookup: { provider: 'tmdb' | 'imdb'; id: number | string }) => {
@@ -43,7 +50,7 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
     NOOP_TRANSACTION,
   );
 
-  const result = await service.getTitleRatings('user-1', 'profile-1', 'movie:tmdb:222');
+  const result = await service.getTitleRatings('user-1', 'profile-1', MOVIE_ITEM_ID);
   assert.equal(result.Ratings.tmdb, 7.8);
   assert.equal(result.Ratings.letterboxd, 3.9);
 });
@@ -60,7 +67,7 @@ test('MetadataRatingsService throws 412 when MDBList key is unavailable', async 
   );
 
   await assert.rejects(
-    () => service.getTitleRatings('user-1', 'profile-1', 'movie:tmdb:222'),
+    () => service.getTitleRatings('user-1', 'profile-1', MOVIE_ITEM_ID),
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 412);

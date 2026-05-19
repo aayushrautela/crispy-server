@@ -88,6 +88,20 @@ export const nonEmptyStringSchema = {
   minLength: 1,
 } as const;
 
+export const publicItemIdSchema = {
+  type: 'string',
+  pattern: '^[0-9a-f]{32}$',
+  minLength: 32,
+  maxLength: 32,
+} as const;
+
+export const nullablePublicItemIdSchema = {
+  anyOf: [
+    publicItemIdSchema,
+    { type: 'null' },
+  ],
+} as const;
+
 export const integerLikeSchema = {
   anyOf: [
     { type: 'integer' },
@@ -152,6 +166,16 @@ export const profileIdParamsSchema = {
   required: ['profileId'],
   properties: {
     profileId: nonEmptyStringSchema,
+  },
+} as const;
+
+export const profileIdAndItemIdParamsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['profileId', 'itemId'],
+  properties: {
+    profileId: nonEmptyStringSchema,
+    itemId: publicItemIdSchema,
   },
 } as const;
 
@@ -283,7 +307,7 @@ export const baseItemDtoSchema = {
     'UserData',
   ],
   properties: {
-    Id: stringSchema,
+    Id: publicItemIdSchema,
     Type: {
       type: 'string',
       enum: ['Movie', 'Series', 'Season', 'Episode', 'Unknown'],
@@ -309,9 +333,9 @@ export const baseItemDtoSchema = {
     ProviderIds: providerIdsSchema,
     ImageTags: mediaImageTagsSchema,
     ParentImageTags: nullableParentMediaImageTagsSchema,
-    SeriesId: nullableStringSchema,
+    SeriesId: nullablePublicItemIdSchema,
     SeriesName: nullableStringSchema,
-    SeasonId: nullableStringSchema,
+    SeasonId: nullablePublicItemIdSchema,
     SeasonName: nullableStringSchema,
     ParentIndexNumber: nullableIntegerSchema,
     IndexNumber: nullableIntegerSchema,
@@ -344,7 +368,7 @@ export const baseItemDtoSchema = {
             'LastPlayedDate', 'Rating', 'DismissedFromContinueWatching',
           ],
           properties: {
-            ItemId: stringSchema,
+            ItemId: nullablePublicItemIdSchema,
             IsFavorite: { type: 'boolean' },
             Played: { type: 'boolean' },
             PlayCount: { type: 'number' },

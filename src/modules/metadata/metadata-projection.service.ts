@@ -2,6 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { MetadataCardService } from './metadata-card.service.js';
 import type { MetadataCardView, MetadataTitleMediaType } from './metadata-card.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import {
   inferMediaIdentity,
   parentMediaTypeForIdentity,
@@ -45,6 +46,7 @@ export class MetadataProjectionService {
       : null;
     if (tmdbNextEpisode && source.tmdbNextEpisode) {
       return this.toCanonicalNextEpisodeRef(tmdbNextEpisode, {
+        itemId: encodePublicItemId(await this.contentIdentityService.ensureContentId(client, tmdbNextEpisode)),
         airDate: source.tmdbNextEpisode.airDate,
         title: source.tmdbNextEpisode.name,
       });
@@ -146,9 +148,10 @@ export class MetadataProjectionService {
 
   private toCanonicalNextEpisodeRef(
     episodeIdentity: MediaIdentity,
-    params: { airDate: string | null; title: string | null },
+    params: { itemId: string; airDate: string | null; title: string | null },
   ): CanonicalNextEpisodeRef {
     return {
+      itemId: params.itemId,
       mediaKey: episodeIdentity.mediaKey,
       airDate: params.airDate,
       seasonNumber: episodeIdentity.seasonNumber,

@@ -6,19 +6,26 @@ import type { MetadataCardView } from './metadata-card.types.js';
 
 seedTestEnv();
 
-test('MetadataCardBatchService hydrates valid media keys and reports invalid keys', async () => {
+const MOVIE_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a805';
+const EPISODE_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a807';
+const SERIES_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a806';
+const SEASON_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a808';
+
+test('MetadataCardBatchService hydrates valid item ids and reports invalid ids', async () => {
   const { MetadataCardBatchService } = await import('./metadata-card-batch.service.js');
   let receivedLanguage: string | null = null;
-  let receivedMediaKeys: string[] = [];
+  let receivedMediaTypes: string[] = [];
   const metadataCardService = {
     async buildCardViews(_client, identities, language) {
       receivedLanguage = language ?? null;
-      receivedMediaKeys = identities.map((identity) => identity.mediaKey);
-      return identities.map((identity): MetadataCardView => ({
+      receivedMediaTypes = identities.map((identity) => identity.mediaType);
+      return identities.map((identity, index): MetadataCardView => ({
         mediaType: identity.mediaType === 'season' ? 'show' : identity.mediaType,
         kind: identity.mediaType === 'episode' ? 'episode' : 'title',
-        mediaKey: identity.mediaKey,
+        itemId: index === 0 ? MOVIE_ITEM_ID : EPISODE_ITEM_ID,
         parentMediaType: identity.mediaType === 'episode' ? 'show' : null,
+        seriesItemId: identity.mediaType === 'episode' ? SERIES_ITEM_ID : null,
+        seasonItemId: identity.mediaType === 'episode' ? SEASON_ITEM_ID : null,
         tmdbId: identity.tmdbId,
         showTmdbId: identity.showTmdbId,
         seasonNumber: identity.seasonNumber,
@@ -44,31 +51,36 @@ test('MetadataCardBatchService hydrates valid media keys and reports invalid key
       }));
     },
   } satisfies Pick<MetadataCardService, 'buildCardViews'>;
+  const contentIdentityService = {
+    resolveMediaIdentity: async (_client: unknown, contentId: string) => ({
+      contentId,
+      mediaType: contentId.endsWith('807') ? 'episode' : 'movie',
+      mediaKey: contentId.endsWith('807') ? 'episode:tmdb:456:1:2' : 'movie:tmdb:222',
+      tmdbId: contentId.endsWith('807') ? null : 222,
+      showTmdbId: contentId.endsWith('807') ? 456 : null,
+      seasonNumber: contentId.endsWith('807') ? 1 : null,
+      episodeNumber: contentId.endsWith('807') ? 2 : null,
+    }),
+  };
   const service = new MetadataCardBatchService(
     metadataCardService as MetadataCardService,
     async (work) => work({} as never),
+    contentIdentityService as never,
   );
 
   const result = await service.hydrate({
-    mediaKeys: ['movie:tmdb:222', 'episode:tmdb:456:1:2', 'bad-key'],
+    itemIds: [MOVIE_ITEM_ID, EPISODE_ITEM_ID, 'bad-key'],
     language: 'es-ES',
   });
 
-  assert.deepEqual(receivedMediaKeys, ['movie:tmdb:222', 'episode:tmdb:456:1:2']);
+  assert.deepEqual(receivedMediaTypes, ['movie', 'episode']);
   assert.equal(receivedLanguage, 'es-ES');
   assert.equal(result.items.length, 2);
-  assert.equal(result.items[1]?.mediaItem.Id, 'episode:tmdb:456:1:2');
+  assert.equal(result.items[1]?.mediaItem.Id, EPISODE_ITEM_ID);
+  assert.equal(result.items[1]?.mediaItem.SeriesId, SERIES_ITEM_ID);
+  assert.equal(result.items[1]?.mediaItem.SeasonId, SEASON_ITEM_ID);
   assert.equal(result.items[1]?.mediaItem.ParentIndexNumber, 1);
   assert.equal(result.items[1]?.mediaItem.IndexNumber, 2);
   assert.equal(result.items[1]?.mediaItem.EpisodeTitle, 'Episode Title');
-  assert.deepEqual(result.missing, [{ mediaKey: 'bad-key', reason: 'invalid_media_key' }]);
-});
-
-test('parseMediaKey preserves episode identity in media key', async () => {
-  const { parseMediaKey } = await import('../identity/media-key.js');
-  const identity = parseMediaKey('episode:tmdb:456:1:2');
-
-  assert.equal(identity.showTmdbId, 456);
-  assert.equal(identity.seasonNumber, 1);
-  assert.equal(identity.episodeNumber, 2);
+  assert.deepEqual(result.missing, [{ itemId: 'bad-key', reason: 'invalid_item_id' }]);
 });

@@ -8,8 +8,10 @@ const imageSet = (value: string | null) => ({ small: value, medium: value, large
 const baseCard: MetadataCardView = {
   mediaType: 'movie',
   kind: 'title',
-  mediaKey: 'movie:tmdb:1',
+  itemId: 'f137a2dd21bbc1b99aa5c0f6bf02a805',
   parentMediaType: null,
+  seriesItemId: null,
+  seasonItemId: null,
   tmdbId: 1,
   showTmdbId: null,
   seasonNumber: null,
@@ -46,7 +48,7 @@ const baseCard: MetadataCardView = {
 test('metadataCardToMediaItem maps common metadata with artwork fallbacks', () => {
   const item = metadataCardToMediaItem(baseCard);
 
-  assert.equal(item.mediaKey, 'movie:tmdb:1');
+  assert.equal(item.itemId, 'f137a2dd21bbc1b99aa5c0f6bf02a805');
   assert.equal(item.mediaType, 'movie');
   assert.equal(item.title, 'Movie');
   assert.equal(item.overview, 'Summary');
@@ -84,9 +86,10 @@ test('metadataCardToMediaItem maps episode fields', () => {
     ...baseCard,
     mediaType: 'episode',
     kind: 'episode',
-    mediaKey: 'episode:tmdb:1:1:2',
+    itemId: 'f137a2dd21bbc1b99aa5c0f6bf02a807',
     title: 'Episode title',
-    showTmdbId: 1,
+    seriesItemId: 'f137a2dd21bbc1b99aa5c0f6bf02a806',
+    seasonItemId: 'f137a2dd21bbc1b99aa5c0f6bf02a808',
     seasonNumber: 1,
     episodeNumber: 2,
     absoluteEpisodeNumber: 2,
@@ -94,7 +97,8 @@ test('metadataCardToMediaItem maps episode fields', () => {
 
   assert.equal(item.episodeTitle, 'Episode title');
   assert.equal(item.airDate, '2024-01-01');
-  assert.equal(item.showTmdbId, 1);
+  assert.equal(item.seriesItemId, 'f137a2dd21bbc1b99aa5c0f6bf02a806');
+  assert.equal(item.seasonItemId, 'f137a2dd21bbc1b99aa5c0f6bf02a808');
   assert.equal(item.seasonNumber, 1);
   assert.equal(item.episodeNumber, 2);
 });

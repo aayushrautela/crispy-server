@@ -69,7 +69,7 @@ test('all filter combines movie and series TMDB results', async () => {
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
           ensuredMediaKeys.push(...identities.map((identity) => identity.mediaKey));
-          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
         },
         ensureContentId: async () => null,
       } as never,
@@ -118,7 +118,7 @@ test('searchTitles drops results without posters', async () => {
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
-          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
         },
         ensureContentId: async () => null,
       } as never,
@@ -164,7 +164,7 @@ test('searchTitles moves noisy series results to the end without disturbing clea
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
-          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
         },
         ensureContentId: async () => null,
       } as never,
@@ -214,7 +214,7 @@ test('searchTitles coalesces identical in-flight requests', async () => {
       } as never,
       {
         ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
-          return new Map(identities.map((identity) => [identity.mediaKey, `${identity.mediaKey}:content`]));
+          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
         },
         ensureContentId: async () => null,
       } as never,

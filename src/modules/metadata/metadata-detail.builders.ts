@@ -24,6 +24,9 @@ import type {
 
 export function buildDetailBaseItemDto(params: {
   identity: MediaIdentity;
+  itemId: string;
+  seriesItemId?: string | null;
+  seasonItemId?: string | null;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
   nextEpisode?: TmdbEpisodeRecord | null;
@@ -39,16 +42,19 @@ export function buildDetailBaseItemDto(params: {
 export function buildEpisodeBaseItemDto(
   title: TmdbTitleRecord,
   episode: TmdbEpisodeRecord,
-  _contentId: string,
-  _showId: string,
+  itemId: string,
+  seriesItemId: string,
+  seasonItemId: string | null = null,
 ): BaseItemDto {
-  const preview = buildEpisodePreview(title, episode);
+  const preview = buildEpisodePreview({ title, episode, itemId });
   const images = buildMetadataImages(title, episode);
   const card: MetadataCardView = {
     mediaType: 'episode',
     kind: 'episode',
-    mediaKey: preview.mediaKey,
+    itemId: preview.itemId,
     parentMediaType: 'show',
+    seriesItemId,
+    seasonItemId,
     tmdbId: preview.tmdbId,
     showTmdbId: preview.showTmdbId,
     seasonNumber: preview.seasonNumber,
@@ -76,7 +82,7 @@ export function buildEpisodeBaseItemDto(
   const mediaItem = metadataCardToMediaItem(card, {
     externalIds: extractExternalIds(title),
     parent: {
-      mediaKey: `show:tmdb:${title.tmdbId}`,
+      itemId: seriesItemId,
       mediaType: 'show',
       title: title.name ?? title.originalName ?? 'Untitled',
     },
@@ -88,6 +94,7 @@ export function buildSeasonBaseItemDto(
   title: TmdbTitleRecord,
   seasonNumber: number,
   seasonId: string,
+  seriesItemId: string,
 ): BaseItemDto {
   const rawSeasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
   const rawSeason = rawSeasons.find(
@@ -103,13 +110,13 @@ export function buildSeasonBaseItemDto(
     posterPath: seasonPosterPath ?? title.posterPath,
   }, null);
 
-  const mediaKey = `season:tmdb:${title.tmdbId}:${seasonNumber}`;
-
   const card = {
     mediaType: 'season',
     kind: 'title',
-    mediaKey,
+    itemId: seasonId,
     parentMediaType: 'show',
+    seriesItemId,
+    seasonItemId: null,
     tmdbId: title.tmdbId,
     showTmdbId: title.tmdbId,
     seasonNumber,
@@ -136,7 +143,7 @@ export function buildSeasonBaseItemDto(
 
   const mediaItem = metadataCardToMediaItem(card, {
     parent: {
-      mediaKey: `show:tmdb:${title.tmdbId}`,
+      itemId: seriesItemId,
       mediaType: 'show',
       title: title.name ?? title.originalName ?? 'Untitled',
     },

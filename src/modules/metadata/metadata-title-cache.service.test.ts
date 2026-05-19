@@ -4,7 +4,7 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('invalidateByMediaKey removes all cached language variants', async (t) => {
+test('invalidateByItemId removes all cached language variants', async (t) => {
   const { MetadataTitleCacheService } = await import('./metadata-title-cache.service.js');
   const { redis } = await import('../../lib/redis.js');
   const { metadataTitlePageCacheIndexKey } = await import('./metadata-title-cache-keys.js');
@@ -56,7 +56,7 @@ test('invalidateByMediaKey removes all cached language variants', async (t) => {
 
   assert.equal(sets.get(metadataTitlePageCacheIndexKey('show:tmdb:100'))?.size, 2);
 
-  await service.invalidateByMediaKey('show:tmdb:100');
+  await service.invalidateByItemId('show:tmdb:100');
 
   assert.deepEqual(deleted, [[
     'meta:v2:title-page:en:show:tmdb:100',

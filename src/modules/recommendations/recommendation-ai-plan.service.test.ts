@@ -56,7 +56,7 @@ describe('RecommendationAiPlanService', () => {
     },
     candidatePool: [
       {
-        mediaKey: 'movie:tmdb:603',
+        itemId: '00000000000000000000000000000603',
         title: 'The Matrix',
         mediaType: 'movie',
         provider: 'tmdb',
@@ -64,7 +64,7 @@ describe('RecommendationAiPlanService', () => {
         year: 1999,
       },
       {
-        mediaKey: 'movie:tmdb:550',
+        itemId: '00000000000000000000000000000550',
         title: 'Fight Club',
         mediaType: 'movie',
         provider: 'tmdb',
@@ -96,7 +96,7 @@ describe('RecommendationAiPlanService', () => {
         summary: 'Prioritize sci-fi and action titles.',
         items: [
           {
-            mediaKey: 'movie:tmdb:603',
+            itemId: '00000000000000000000000000000603',
             score: 0.94,
             confidence: 0.88,
             reason: 'Matches high-concept sci-fi preferences.',
@@ -116,7 +116,7 @@ describe('RecommendationAiPlanService', () => {
     assert.strictEqual(response.plan.summary, 'Prioritize sci-fi and action titles.');
     assert.strictEqual(response.plan.items.length, 1);
     assert.strictEqual(response.plan.items[0]?.rank, 1);
-    assert.strictEqual(response.plan.items[0]?.mediaKey, 'movie:tmdb:603');
+    assert.strictEqual(response.plan.items[0]?.itemId, '00000000000000000000000000000603');
     assert.strictEqual(response.plan.items[0]?.title, 'The Matrix');
     assert.strictEqual(response.plan.items[0]?.provider, 'tmdb');
     assert.strictEqual(response.plan.items[0]?.providerId, '603');
@@ -131,14 +131,14 @@ describe('RecommendationAiPlanService', () => {
         summary: 'Test summary',
         items: [
           {
-            mediaKey: 'movie:tmdb:550',
+            itemId: '00000000000000000000000000000550',
             score: 0.9,
             confidence: 0.8,
             reason: 'Test reason 1',
             reasonCodes: ['genre_match'],
           },
           {
-            mediaKey: 'movie:tmdb:603',
+            itemId: '00000000000000000000000000000603',
             score: 0.8,
             confidence: 0.7,
             reason: 'Test reason 2',
@@ -162,7 +162,7 @@ describe('RecommendationAiPlanService', () => {
         summary: 'Test summary',
         items: [
           {
-            mediaKey: 'movie:tmdb:999',
+            itemId: '00000000000000000000000000000999',
             score: 0.9,
             confidence: 0.8,
             reason: 'Test reason',

@@ -138,7 +138,7 @@ function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: st
   const seriesName = isEpisode ? stringValue(row.title) || undefined : undefined;
 
   return watchCacheRecordToBaseItemDto({
-    mediaKey: playableMediaKey,
+    itemId: playableMediaKey,
     mediaType: isEpisode ? 'episode' : parsed.mediaType,
     titleProvider: 'tmdb',
     titleProviderId: isEpisode ? String(parsed.showTmdbId ?? '') : String(parsed.tmdbId ?? ''),
@@ -181,7 +181,7 @@ function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: st
 function mediaItemDtoFromRow(mediaKey: string, row: WatchReadRow, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   const parsed = parseMediaKey(canonicalTitleMediaKey(parseMediaKey(mediaKey)));
   return watchCacheRecordToBaseItemDto({
-    mediaKey: parsed.mediaKey,
+    itemId: parsed.mediaKey,
     mediaType: parsed.mediaType,
     titleProvider: 'tmdb',
     titleProviderId: String(parsed.tmdbId ?? parsed.showTmdbId ?? parsed.mediaKey),

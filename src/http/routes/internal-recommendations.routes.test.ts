@@ -148,7 +148,7 @@ const validRequest: RecommendationAiPlanRequest = {
   },
   candidatePool: [
     {
-      mediaKey: 'movie:tmdb:603',
+      itemId: '00000000000000000000000000000603',
       title: 'The Matrix',
       mediaType: 'movie',
       provider: 'tmdb',

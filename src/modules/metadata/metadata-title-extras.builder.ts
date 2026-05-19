@@ -2,6 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import { buildSeasonBaseItemDto, buildEpisodeBaseItemDto, buildDetailBaseItemDto } from './metadata-detail.builders.js';
 import type { MetadataTitleExtras } from './metadata-detail.types.js';
 import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
@@ -61,11 +62,17 @@ export class MetadataTitleExtrasBuilder {
       provider: 'tmdb',
       parentProviderId: String(title.tmdbId),
     }, seasonNumbers);
+    const seriesContentId = await this.contentIdentityService.ensureTitleContentId(client, {
+      mediaType: 'show',
+      provider: 'tmdb',
+      providerId: String(title.tmdbId),
+    });
+    const seriesItemId = encodePublicItemId(seriesContentId);
 
     return seasonNumbers
       .map((seasonNumber) => {
         const seasonId = seasonIds.get(seasonNumber);
-        return seasonId ? buildSeasonBaseItemDto(title, seasonNumber, seasonId) : null;
+        return seasonId ? buildSeasonBaseItemDto(title, seasonNumber, encodePublicItemId(seasonId), seriesItemId) : null;
       })
       .filter((item): item is BaseItemDto => item !== null);
   }
@@ -92,15 +99,22 @@ export class MetadataTitleExtrasBuilder {
       })),
     );
 
-    return episodes.flatMap((episode) => {
+    const episodeItems = await Promise.all(episodes.map(async (episode) => {
       const contentId = episodeIds.get(episodeRefMapKey(
         String(title.tmdbId),
         episode.seasonNumber,
         episode.episodeNumber,
         null,
       ));
-      return contentId ? [buildEpisodeBaseItemDto(title, episode, contentId, '')] : [];
-    });
+      if (!contentId) {
+        return null;
+      }
+      const itemId = encodePublicItemId(contentId);
+      const parentIds = await this.contentIdentityService.resolveParentItemIdsForEpisode(client, itemId);
+      return parentIds.seriesItemId ? buildEpisodeBaseItemDto(title, episode, itemId, parentIds.seriesItemId, parentIds.seasonItemId) : null;
+    }));
+
+    return episodeItems.filter((item): item is BaseItemDto => item !== null);
   }
 
   private async buildSimilar(
@@ -176,7 +190,7 @@ export class MetadataTitleExtrasBuilder {
       return null;
     }
 
-    return buildDetailBaseItemDto({ identity, title: hydrated, language });
+    return buildDetailBaseItemDto({ identity, itemId: encodePublicItemId(contentId), title: hydrated, language });
   }
 }
 

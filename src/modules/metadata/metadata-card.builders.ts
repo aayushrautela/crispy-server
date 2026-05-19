@@ -38,7 +38,7 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
 
   return {
     mediaType: card.mediaType,
-    mediaKey: card.mediaKey,
+    itemId: card.itemId,
     title: card.title,
     poster,
     releaseYear: card.releaseYear,
@@ -48,10 +48,16 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
   };
 }
 
-export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisodeRecord, language?: string | null): MetadataEpisodePreview {
+export function buildEpisodePreview(params: {
+  title: TmdbTitleRecord;
+  episode: TmdbEpisodeRecord;
+  itemId: string;
+  language?: string | null;
+}): MetadataEpisodePreview {
+  const { title, episode, itemId, language } = params;
   return {
     mediaType: 'episode',
-    mediaKey: `episode:tmdb:${episode.showTmdbId}:${episode.seasonNumber}:${episode.episodeNumber}`,
+    itemId,
     parentMediaType: 'show',
     tmdbId: episode.tmdbId,
     showTmdbId: episode.showTmdbId,
@@ -69,6 +75,9 @@ export function buildEpisodePreview(title: TmdbTitleRecord, episode: TmdbEpisode
 
 export function buildMetadataCardView(params: {
   identity: MediaIdentity;
+  itemId?: string;
+  seriesItemId?: string | null;
+  seasonItemId?: string | null;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
   titleOverride?: string | null;
@@ -102,8 +111,10 @@ export function buildMetadataCardView(params: {
   return {
     mediaType: resolvedMediaType,
     kind: resolvedMediaType === 'episode' ? 'episode' : 'title',
-    mediaKey: identity.mediaKey,
+    itemId: params.itemId ?? '',
     parentMediaType: resolveProviderParentMediaType(identity),
+    seriesItemId: params.seriesItemId ?? null,
+    seasonItemId: params.seasonItemId ?? null,
     tmdbId: identity.tmdbId ?? null,
     showTmdbId: identity.showTmdbId ?? null,
     seasonNumber: identity.seasonNumber ?? null,

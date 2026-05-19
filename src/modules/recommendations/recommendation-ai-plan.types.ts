@@ -30,7 +30,7 @@ export type RecommendationAiPlanProfileContext = {
 };
 
 export type RecommendationAiPlanMediaItem = {
-  mediaKey: string;
+  itemId: string;
   title: string;
   mediaType: string;
   provider: string;
@@ -73,7 +73,7 @@ export type RecommendationAiPlanRequest = {
 
 export type RecommendationAiPlanItem = {
   rank: number;
-  mediaKey: string;
+  itemId: string;
   mediaType: string;
   provider: string;
   providerId: string;

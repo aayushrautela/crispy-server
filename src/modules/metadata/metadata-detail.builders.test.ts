@@ -1,10 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { seedTestEnv } from '../../test-helpers.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import type { TmdbTitleRecord, TmdbEpisodeRecord } from './providers/tmdb.types.js';
-
-seedTestEnv();
 
 test('buildImageUrl returns null for null path', async () => {
   const { buildImageUrl } = await import('./metadata-builder.shared.js');
@@ -56,9 +53,9 @@ test('buildDetailBaseItemDto for show extracts provider-based detail fields', as
     expiresAt: '2026-03-23T00:00:00.000Z',
   };
 
-  const dto = buildDetailBaseItemDto({ identity, title });
+  const dto = buildDetailBaseItemDto({ identity, itemId: 'uuid-for-test', title });
 
-  assert.equal(dto.Id, 'show:tmdb:42');
+  assert.equal(dto.Id, 'uuid-for-test');
   assert.equal(dto.Type, 'Series');
   assert.equal(dto.Name, 'Breaking Point');
   assert.equal(dto.Overview, 'A thrilling drama.');
@@ -75,7 +72,7 @@ test('buildDetailBaseItemDto for show extracts provider-based detail fields', as
   assert.equal(dto.ImageTags.Primary?.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
   assert.equal(dto.ImageTags.Backdrop[0]?.medium, 'https://image.tmdb.org/t/p/w780/backdrop.jpg');
   assert.equal(dto.ImageTags.Logo?.medium, 'https://image.tmdb.org/t/p/w300/logo.png');
-  assert.equal(dto.SeriesId, '42');
+  assert.equal(dto.SeriesId, null);
   assert.equal(dto.SeriesName, null);
   assert.equal(dto.SeasonId, null);
   assert.equal(dto.SeasonName, null);
@@ -97,9 +94,9 @@ test('buildDetailBaseItemDto with null title returns minimal item', async () => 
     episodeNumber: null,
   };
 
-  const dto = buildDetailBaseItemDto({ identity, title: null });
+  const dto = buildDetailBaseItemDto({ identity, itemId: 'uuid-for-test', title: null });
 
-  assert.equal(dto.Id, 'movie:tmdb:99');
+  assert.equal(dto.Id, 'uuid-for-test');
   assert.equal(dto.Type, 'Movie');
   assert.equal(dto.Name, 'Untitled');
   assert.equal(dto.ProviderIds.Tmdb, null);
@@ -153,7 +150,7 @@ test('buildEpisodeBaseItemDto populates episode fields', async () => {
 
   const dto = buildEpisodeBaseItemDto(title, episode, 'uuid-episode-42-1-3', 'uuid-show-42');
 
-  assert.equal(dto.Id, 'episode:tmdb:42:1:3');
+  assert.equal(dto.Id, 'uuid-episode-42-1-3');
   assert.equal(dto.Type, 'Episode');
   assert.equal(dto.Name, 'Episode 3');
   assert.equal(dto.Overview, 'The third episode.');
@@ -206,9 +203,9 @@ test('buildSeasonBaseItemDto populates season fields', async () => {
     expiresAt: '',
   };
 
-  const dto = buildSeasonBaseItemDto(title, 2, 'uuid-season-42-2');
+  const dto = buildSeasonBaseItemDto(title, 2, 'uuid-season-42-2', 'uuid-series-42');
 
-  assert.equal(dto.Id, 'season:tmdb:42:2');
+  assert.equal(dto.Id, 'uuid-season-42-2');
   assert.equal(dto.Type, 'Season');
   assert.equal(dto.Name, 'Season 2');
   assert.equal(dto.Overview, 'The second season.');
@@ -252,9 +249,9 @@ test('buildSeasonBaseItemDto uses fallback when raw season missing', async () =>
     expiresAt: '',
   };
 
-  const dto = buildSeasonBaseItemDto(title, 1, 'uuid-season-42-1');
+  const dto = buildSeasonBaseItemDto(title, 1, 'uuid-season-42-1', 'uuid-series-42');
 
-  assert.equal(dto.Id, 'season:tmdb:42:1');
+  assert.equal(dto.Id, 'uuid-season-42-1');
   assert.equal(dto.Type, 'Season');
   assert.equal(dto.Name, 'Season 1');
   assert.equal(dto.SeasonName, 'Season 1');

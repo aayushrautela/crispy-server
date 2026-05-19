@@ -14,30 +14,44 @@ import {
   type ContentEntityType,
   type ContentProviderRefInput,
   type ContentProviderRefRecord,
+  type ContentRelationshipRecord,
+  type ContentRelationshipType,
 } from './content-identity.repo.js';
+import { assertPublicItemId, encodePublicItemId } from './public-item-id.js';
 
 type TitleMediaType = 'movie' | 'show';
 type ParentMediaType = 'show';
 
+type ReferenceEntityType = TitleMediaType | 'episode' | 'season' | 'person';
+
 export type CanonicalContentReference =
   | {
       contentId: string;
+      itemId: string;
       entityType: TitleMediaType | 'episode';
       mediaIdentity: MediaIdentity;
+      providerRefs: ContentProviderRefRecord[];
+      authorityRef: ContentProviderRefRecord;
     }
   | {
       contentId: string;
+      itemId: string;
       entityType: 'season';
       parentMediaType: ParentMediaType;
       provider: SupportedProvider;
       providerId: string;
       parentProviderId: string;
       seasonNumber: number;
+      providerRefs: ContentProviderRefRecord[];
+      authorityRef: ContentProviderRefRecord;
     }
   | {
       contentId: string;
+      itemId: string;
       entityType: 'person';
       tmdbPersonId: number;
+      providerRefs: ContentProviderRefRecord[];
+      authorityRef: ContentProviderRefRecord;
     };
 
 export type TitleIdentityInput = {
@@ -64,7 +78,12 @@ export type SeasonIdentityInput = {
   metadata?: Record<string, unknown>;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export type EpisodeParentItemIds = {
+  seriesItemId: string | null;
+  seasonItemId: string | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ContentIdentityService {
   constructor(private readonly repository = new ContentIdentityRepository()) {}
@@ -149,18 +168,147 @@ export class ContentIdentityService {
   }
 
   async ensureEpisodeContentId(client: DbClient, input: EpisodeIdentityInput): Promise<string> {
-    const [record] = await this.ensureProviderRefRecords(client, [toEpisodeRef(input)]);
-    return assertContentId(record);
+    const contentIds = await this.ensureEpisodeContentIds(client, [input]);
+    const contentId = contentIds.get(episodeRefMapKey(
+      input.parentProviderId,
+      input.seasonNumber ?? null,
+      input.episodeNumber ?? null,
+    ));
+    if (!contentId) {
+      throw new HttpError(500, 'Unable to resolve canonical content id.');
+    }
+    return contentId;
   }
 
   async ensureEpisodeContentIds(client: DbClient, inputs: EpisodeIdentityInput[]): Promise<Map<string, string>> {
-    const records = await this.ensureProviderRefRecords(client, inputs.map((input) => toEpisodeRef(input)));
-    return new Map(records.map((record) => [record.externalId, record.contentId]));
+    const normalizedInputs = inputs.map((input) => ({
+      ...input,
+      provider: input.provider ?? authorityProviderForEntityType('episode', input.parentMediaType),
+      parentProviderId: normalizeIdentifier(input.parentProviderId, 'Invalid provider id.'),
+      seasonNumber: input.seasonNumber ?? null,
+      episodeNumber: input.episodeNumber ?? null,
+    }));
+    const episodeRefs = normalizedInputs.map((input) => toEpisodeRef(input));
+    const parentRefs = normalizedInputs.map((input) => toTitleRef({
+      mediaType: input.parentMediaType,
+      provider: input.provider,
+      providerId: input.parentProviderId,
+      metadata: { parentProviderId: input.parentProviderId },
+    }));
+    const seasonRefs = normalizedInputs.flatMap((input) => (
+      input.seasonNumber !== null
+        ? [toSeasonRef({
+          parentMediaType: input.parentMediaType,
+          provider: input.provider,
+          parentProviderId: input.parentProviderId,
+          seasonNumber: input.seasonNumber,
+        })]
+        : []
+    ));
+
+    const allRecords = await this.ensureProviderRefRecords(client, [...episodeRefs, ...parentRefs, ...seasonRefs]);
+    const recordByKey = new Map(allRecords.map((record) => [
+      providerRefKey(record.provider, record.entityType, record.externalId),
+      record,
+    ]));
+
+    const relationships = normalizedInputs.flatMap((input) => {
+      const episodeRef = toEpisodeRef(input);
+      const parentRef = toTitleRef({
+        mediaType: input.parentMediaType,
+        provider: input.provider,
+        providerId: input.parentProviderId,
+        metadata: { parentProviderId: input.parentProviderId },
+      });
+      const episodeRecord = recordByKey.get(providerRefKey(episodeRef.provider, episodeRef.entityType, episodeRef.externalId));
+      const parentRecord = recordByKey.get(providerRefKey(parentRef.provider, parentRef.entityType, parentRef.externalId));
+      if (!episodeRecord || !parentRecord) {
+        return [];
+      }
+
+      const baseRelationships = [{
+        childContentId: episodeRecord.contentId,
+        parentContentId: parentRecord.contentId,
+        relationshipType: 'series' as const,
+        metadata: {
+          provider: input.provider,
+          parentMediaType: input.parentMediaType,
+          parentProviderId: input.parentProviderId,
+        },
+      }];
+
+      if (input.seasonNumber === null) {
+        return baseRelationships;
+      }
+
+      const seasonRef = toSeasonRef({
+        parentMediaType: input.parentMediaType,
+        provider: input.provider,
+        parentProviderId: input.parentProviderId,
+        seasonNumber: input.seasonNumber,
+      });
+      const seasonRecord = recordByKey.get(providerRefKey(seasonRef.provider, seasonRef.entityType, seasonRef.externalId));
+      if (!seasonRecord) {
+        return baseRelationships;
+      }
+
+      return [
+        ...baseRelationships,
+        {
+          childContentId: episodeRecord.contentId,
+          parentContentId: seasonRecord.contentId,
+          relationshipType: 'season' as const,
+          metadata: {
+            provider: input.provider,
+            parentMediaType: input.parentMediaType,
+            parentProviderId: input.parentProviderId,
+            seasonNumber: input.seasonNumber,
+          },
+        },
+        {
+          childContentId: seasonRecord.contentId,
+          parentContentId: parentRecord.contentId,
+          relationshipType: 'series' as const,
+          metadata: {
+            provider: input.provider,
+            parentMediaType: input.parentMediaType,
+            parentProviderId: input.parentProviderId,
+            seasonNumber: input.seasonNumber,
+          },
+        },
+      ];
+    });
+
+    await this.repository.upsertContentRelationships(client, relationships);
+
+    return new Map(episodeRefs.flatMap((ref) => {
+      const record = recordByKey.get(providerRefKey(ref.provider, ref.entityType, ref.externalId));
+      return record ? [[record.externalId, record.contentId] as const] : [];
+    }));
   }
 
   async ensureSeasonContentId(client: DbClient, input: SeasonIdentityInput): Promise<string> {
-    const [record] = await this.ensureProviderRefRecords(client, [toSeasonRef(input)]);
-    return assertContentId(record);
+    const parentRef = toTitleRef({
+      mediaType: input.parentMediaType,
+      provider: input.provider ?? authorityProviderForEntityType('season', input.parentMediaType),
+      providerId: input.parentProviderId,
+      metadata: { parentProviderId: normalizeIdentifier(input.parentProviderId, 'Invalid provider id.') },
+    });
+    const seasonRef = toSeasonRef(input);
+    const [parentRecord, seasonRecord] = await this.ensureProviderRefRecords(client, [parentRef, seasonRef]);
+    const seasonContentId = assertContentId(seasonRecord);
+    await this.repository.upsertContentRelationship(client, {
+      childContentId: seasonContentId,
+      parentContentId: assertContentId(parentRecord),
+      relationshipType: 'series',
+      metadata: {
+        provider: seasonRef.provider,
+        parentMediaType: input.parentMediaType,
+        parentProviderId: normalizeIdentifier(input.parentProviderId, 'Invalid provider id.'),
+        seasonNumber: input.seasonNumber,
+      },
+    });
+    return seasonContentId;
   }
 
   async ensureSeasonContentIds(
@@ -168,18 +316,54 @@ export class ContentIdentityService {
     input: Omit<SeasonIdentityInput, 'seasonNumber'>,
     seasonNumbers: number[],
   ): Promise<Map<number, string>> {
-    const records = await this.ensureProviderRefRecords(
-      client,
-      seasonNumbers.map((seasonNumber) => toSeasonRef({
-        ...input,
-        seasonNumber,
-      })),
-    );
+    const normalizedInput = {
+      ...input,
+      provider: input.provider ?? authorityProviderForEntityType('season', input.parentMediaType),
+      parentProviderId: normalizeIdentifier(input.parentProviderId, 'Invalid provider id.'),
+    };
+    const parentRef = toTitleRef({
+      mediaType: normalizedInput.parentMediaType,
+      provider: normalizedInput.provider,
+      providerId: normalizedInput.parentProviderId,
+      metadata: { parentProviderId: normalizedInput.parentProviderId },
+    });
+    const seasonRefs = seasonNumbers.map((seasonNumber) => toSeasonRef({
+      ...normalizedInput,
+      seasonNumber,
+    }));
+    const records = await this.ensureProviderRefRecords(client, [parentRef, ...seasonRefs]);
+    const recordByKey = new Map(records.map((record) => [providerRefKey(record.provider, record.entityType, record.externalId), record]));
+    const parentRecord = recordByKey.get(providerRefKey(parentRef.provider, parentRef.entityType, parentRef.externalId));
+
+    if (parentRecord) {
+      await this.repository.upsertContentRelationships(client, seasonRefs.flatMap((seasonRef) => {
+        const seasonRecord = recordByKey.get(providerRefKey(seasonRef.provider, seasonRef.entityType, seasonRef.externalId));
+        if (!seasonRecord) {
+          return [];
+        }
+        const { seasonNumber } = parseSeasonExternalId(seasonRef.externalId, seasonRef.metadata ?? {});
+        return [{
+          childContentId: seasonRecord.contentId,
+          parentContentId: parentRecord.contentId,
+          relationshipType: 'series' as const,
+          metadata: {
+            provider: seasonRef.provider,
+            parentMediaType: normalizedInput.parentMediaType,
+            parentProviderId: normalizedInput.parentProviderId,
+            seasonNumber,
+          },
+        }];
+      }));
+    }
 
     return new Map(
-      records.map((record) => {
+      seasonRefs.flatMap((ref) => {
+        const record = recordByKey.get(providerRefKey(ref.provider, ref.entityType, ref.externalId));
+        if (!record) {
+          return [];
+        }
         const { seasonNumber } = parseSeasonExternalId(record.externalId, record.metadata);
-        return [seasonNumber, record.contentId] as const;
+        return [[seasonNumber, record.contentId] as const];
       }),
     );
   }
@@ -187,6 +371,62 @@ export class ContentIdentityService {
   async ensurePersonContentId(client: DbClient, tmdbPersonId: number): Promise<string> {
     const [record] = await this.ensureProviderRefRecords(client, [toPersonRef(tmdbPersonId)]);
     return assertContentId(record);
+  }
+
+  async resolveProviderRefsForItemId(client: DbClient, itemId: string): Promise<ContentProviderRefRecord[]> {
+    const contentId = assertPublicItemId(itemId);
+    const item = await this.repository.findContentItemById(client, contentId);
+    if (!item) {
+      throw new HttpError(404, 'Metadata not found.');
+    }
+
+    const refs = await this.repository.listProviderRefsByContentId(client, contentId);
+    if (!refs.length) {
+      throw new HttpError(404, 'Metadata not found.');
+    }
+
+    return refs;
+  }
+
+  async resolveParentItemIdsForEpisode(client: DbClient, itemId: string): Promise<EpisodeParentItemIds> {
+    const contentId = assertPublicItemId(itemId);
+    const item = await this.repository.findContentItemById(client, contentId);
+    if (!item) {
+      throw new HttpError(404, 'Metadata not found.');
+    }
+    if (toReferenceEntityType(item.entityType) !== 'episode') {
+      throw new HttpError(400, 'Invalid episode id.');
+    }
+
+    const relationships = await this.repository.listParentRelationships(client, contentId, ['series', 'season']);
+    return {
+      seriesItemId: encodeRelationshipParent(relationships, 'series'),
+      seasonItemId: encodeRelationshipParent(relationships, 'season'),
+    };
+  }
+
+  async resolveTitleItemIdForPlayableItemId(client: DbClient, itemId: string): Promise<string> {
+    const contentId = assertPublicItemId(itemId);
+    const item = await this.repository.findContentItemById(client, contentId);
+    if (!item) {
+      throw new HttpError(404, 'Metadata not found.');
+    }
+
+    const entityType = toReferenceEntityType(item.entityType);
+    if (entityType === 'movie' || entityType === 'show') {
+      return encodePublicItemId(contentId);
+    }
+
+    if (entityType !== 'episode') {
+      throw new HttpError(400, 'Invalid playable item id.');
+    }
+
+    const relationship = await this.repository.findParentRelationship(client, contentId, 'series');
+    if (!relationship) {
+      throw new HttpError(404, 'Metadata not found.');
+    }
+
+    return encodePublicItemId(relationship.parentContentId);
   }
 
   private async ensureProviderRefRecords(
@@ -262,60 +502,76 @@ export class ContentIdentityService {
       throw new HttpError(404, 'Metadata not found.');
     }
 
-    const authorityRef = selectAuthorityRef(item.entityType, refs);
+    const entityType = toReferenceEntityType(item.entityType);
+    const authorityRef = selectAuthorityRef(entityType, refs);
     if (!authorityRef) {
       throw new HttpError(404, 'Metadata not found.');
     }
+    const authorityEntityType = toReferenceEntityType(authorityRef.entityType);
 
-    if (authorityRef.entityType === 'movie' || authorityRef.entityType === 'show') {
+    if (authorityEntityType === 'movie' || authorityEntityType === 'show') {
       return {
         contentId: normalized,
-        entityType: authorityRef.entityType,
+        itemId: encodePublicItemId(normalized),
+        entityType: authorityEntityType,
         mediaIdentity: inferMediaIdentity({
           contentId: normalized,
-          mediaType: authorityRef.entityType,
-          provider: 'tmdb',
+          mediaType: authorityEntityType,
+          provider: authorityRef.provider as SupportedProvider,
           providerId: authorityRef.externalId,
           providerMetadata: authorityRef.metadata,
         }),
+        providerRefs: refs,
+        authorityRef,
       };
     }
 
-    if (authorityRef.entityType === 'episode') {
+    if (authorityEntityType === 'episode') {
       const parsed = parseEpisodeExternalId(authorityRef.externalId, authorityRef.metadata);
+      const seriesRelationship = await this.repository.findParentRelationship(client, normalized, 'series');
       return {
         contentId: normalized,
+        itemId: encodePublicItemId(normalized),
         entityType: 'episode',
         mediaIdentity: inferMediaIdentity({
           contentId: normalized,
           mediaType: 'episode',
-          provider: 'tmdb',
-          parentProvider: 'tmdb',
+          provider: authorityRef.provider as SupportedProvider,
+          parentProvider: authorityRef.provider as SupportedProvider,
           parentProviderId: parsed.parentProviderId,
+          parentContentId: seriesRelationship?.parentContentId ?? null,
           seasonNumber: parsed.seasonNumber,
           episodeNumber: parsed.episodeNumber,
           providerMetadata: authorityRef.metadata,
         }),
+        providerRefs: refs,
+        authorityRef,
       };
     }
 
-    if (authorityRef.entityType === 'season') {
+    if (authorityEntityType === 'season') {
       const parsed = parseSeasonExternalId(authorityRef.externalId, authorityRef.metadata);
       return {
         contentId: normalized,
+        itemId: encodePublicItemId(normalized),
         entityType: 'season',
         parentMediaType: parsed.parentMediaType,
-        provider: 'tmdb',
+        provider: authorityRef.provider as SupportedProvider,
         providerId: authorityRef.externalId,
         parentProviderId: parsed.parentProviderId,
         seasonNumber: parsed.seasonNumber,
+        providerRefs: refs,
+        authorityRef,
       };
     }
 
     return {
       contentId: normalized,
+      itemId: encodePublicItemId(normalized),
       entityType: 'person',
       tmdbPersonId: parsePositiveInteger(authorityRef.externalId, 'Invalid person id.'),
+      providerRefs: refs,
+      authorityRef,
     };
   }
 }
@@ -395,11 +651,11 @@ function toTitleRef(input: TitleIdentityInput): ContentProviderRefInput {
     provider,
     entityType: input.mediaType,
     externalId: providerId,
-    metadata: {
+    metadata: removeNullishProperties({
       ...(input.metadata ?? {}),
       providerId,
-      tmdbId: Number(providerId),
-    },
+      tmdbId: provider === 'tmdb' ? parseOptionalPositiveInteger(providerId) : undefined,
+    }),
   };
 }
 
@@ -416,14 +672,14 @@ function toEpisodeRef(input: EpisodeIdentityInput): ContentProviderRefInput {
     provider,
     entityType: 'episode',
     externalId,
-    metadata: {
+    metadata: removeNullishProperties({
       ...(input.metadata ?? {}),
       parentMediaType: input.parentMediaType,
       parentProviderId,
       seasonNumber: input.seasonNumber ?? null,
       episodeNumber: input.episodeNumber ?? null,
-      showTmdbId: parsePositiveInteger(parentProviderId, 'Invalid provider id.'),
-    },
+      showTmdbId: provider === 'tmdb' ? parseOptionalPositiveInteger(parentProviderId) : undefined,
+    }),
   };
 }
 
@@ -434,13 +690,13 @@ function toSeasonRef(input: SeasonIdentityInput): ContentProviderRefInput {
     provider,
     entityType: 'season',
     externalId: buildSeasonProviderId(parentProviderId, input.seasonNumber),
-    metadata: {
+    metadata: removeNullishProperties({
       ...(input.metadata ?? {}),
       parentMediaType: input.parentMediaType,
       parentProviderId,
       seasonNumber: input.seasonNumber,
-      showTmdbId: parsePositiveInteger(parentProviderId, 'Invalid provider id.'),
-    },
+      showTmdbId: provider === 'tmdb' ? parseOptionalPositiveInteger(parentProviderId) : undefined,
+    }),
   };
 }
 
@@ -459,6 +715,11 @@ function parsePositiveInteger(value: string, message: string): number {
     throw new HttpError(400, message);
   }
   return parsed;
+}
+
+function parseOptionalPositiveInteger(value: string): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseNonNegativeInteger(value: string, message: string): number {
@@ -571,11 +832,50 @@ function inferParentMediaType(metadata: Record<string, unknown>): ParentMediaTyp
   return 'show';
 }
 
-function selectAuthorityRef(entityType: ContentEntityType, refs: ContentProviderRefRecord[]): ContentProviderRefRecord | null {
-  const matchingRefs = refs.filter((record) => record.entityType === entityType);
+function selectAuthorityRef(entityType: ReferenceEntityType, refs: ContentProviderRefRecord[]): ContentProviderRefRecord | null {
+  const matchingRefs = refs.filter((record) => toReferenceEntityType(record.entityType) === entityType);
   if (!matchingRefs.length) {
     return null;
   }
 
-  return matchingRefs.find((record) => record.provider === 'tmdb') ?? null;
+  return [...matchingRefs].sort(compareProviderRefsByAuthority)[0] ?? null;
+}
+
+function compareProviderRefsByAuthority(left: ContentProviderRefRecord, right: ContentProviderRefRecord): number {
+  return providerPriority(left.provider) - providerPriority(right.provider)
+    || left.provider.localeCompare(right.provider)
+    || left.entityType.localeCompare(right.entityType)
+    || left.externalId.localeCompare(right.externalId);
+}
+
+function providerPriority(provider: string): number {
+  if (provider === 'tmdb') {
+    return 0;
+  }
+  if (provider === 'tvdb') {
+    return 1;
+  }
+  if (provider === 'imdb') {
+    return 2;
+  }
+  if (provider === 'kitsu') {
+    return 3;
+  }
+  return 100;
+}
+
+function toReferenceEntityType(entityType: ContentEntityType): ReferenceEntityType {
+  return entityType === 'anime' ? 'show' : entityType;
+}
+
+function encodeRelationshipParent(
+  relationships: ContentRelationshipRecord[],
+  relationshipType: ContentRelationshipType,
+): string | null {
+  const relationship = relationships.find((entry) => entry.relationshipType === relationshipType);
+  return relationship ? encodePublicItemId(relationship.parentContentId) : null;
+}
+
+function removeNullishProperties(values: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
 }

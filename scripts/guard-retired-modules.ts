@@ -62,6 +62,18 @@ const rules: Rule[] = [
     pattern: 'schema\\(.reco.\\)|\.from\\(.runs.\\)|\.from\\(.batches.\\)',
     message: 'Supabase repo schema/client calls have been removed. Use local SQL repositories.',
   },
+  {
+    pattern: 'profileIdAndMediaKeyParamsSchema|watchMediaKeyMutationRouteSchema|watchMediaKeyParamsRouteSchema|WatchMediaKeyParams',
+    message: 'Retired public media-key route schemas and types must not be reintroduced. Use itemId-based schemas instead.',
+    filter: (line) => {
+      const allowed = [
+        'src/http/contracts/shared.ts',
+        'src/http/contracts/watch.ts',
+        'src/http/routes/watch.ts',
+      ];
+      return !allowed.some((p) => line.includes(p));
+    },
+  },
 ];
 
 function runGrep(rule: Rule) {

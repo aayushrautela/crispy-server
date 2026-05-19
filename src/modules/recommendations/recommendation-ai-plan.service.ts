@@ -44,13 +44,13 @@ export class RecommendationAiPlanService {
       request.constraints.maxItems,
     );
 
-    const candidateMap = new Map(request.candidatePool.map((c) => [c.mediaKey, c]));
+    const candidateMap = new Map(request.candidatePool.map((c) => [c.itemId, c]));
 
     const items: RecommendationAiPlanItem[] = validatedOutput.items.map((item, index) => {
-      const candidate = candidateMap.get(item.mediaKey)!;
+      const candidate = candidateMap.get(item.itemId)!;
       return {
         rank: index + 1,
-        mediaKey: item.mediaKey,
+        itemId: item.itemId,
         mediaType: candidate.mediaType,
         provider: candidate.provider,
         providerId: candidate.providerId,

@@ -1,6 +1,7 @@
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 
 export type CanonicalNextEpisodeRef = {
+  itemId: string;
   mediaKey: string;
   airDate: string | null;
   seasonNumber: number | null;

@@ -7,7 +7,7 @@ import { ProviderTokenAccessService } from '../integrations/provider-token-acces
 import type { MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { extractExternalIds, extractReviewsFromRaw } from './metadata-builder.shared.js';
-import { resolveTitleRouteIdentity } from './metadata-route-identity.js';
+import { resolveTitleItemIdentity } from './metadata-route-identity.js';
 import type { MetadataReviewView, MetadataTitleReviewsResponse } from './metadata-detail.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
@@ -25,9 +25,9 @@ export class MetadataReviewsService {
     private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
-  async getTitleReviews(userId: string, profileId: string, mediaKey: string, language?: string | null): Promise<MetadataTitleReviewsResponse> {
+  async getTitleReviews(userId: string, profileId: string, itemId: string, language?: string | null): Promise<MetadataTitleReviewsResponse> {
     return withDbClient(async (client) => {
-      const identity = await resolveTitleRouteIdentity(client, this.contentIdentityService, mediaKey);
+      const identity = await resolveTitleItemIdentity(client, this.contentIdentityService, itemId);
       const reviews = await this.loadTitleReviews(client, userId, profileId, identity, language ?? null);
       return { Reviews: reviews };
     });
@@ -41,7 +41,7 @@ export class MetadataReviewsService {
     language?: string | null,
   ): Promise<MetadataReviewView[]> {
     if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
-      throw new HttpError(400, 'Title reviews require a title mediaKey.');
+      throw new HttpError(400, 'Title reviews require a title itemId.');
     }
 
     const source = await this.loadPrimaryReviewSource(client, identity, language ?? null);
@@ -59,7 +59,7 @@ export class MetadataReviewsService {
         err: error,
         userId,
         profileId,
-        mediaKey: identity.mediaKey,
+        itemId: identity.contentId ?? null,
         mediaType: traktMediaType,
         externalIds: source.externalIds,
       }, 'failed to fetch trakt fallback reviews');

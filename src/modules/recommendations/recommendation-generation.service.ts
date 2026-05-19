@@ -204,7 +204,7 @@ export function mapInputContinueWatchingItem(item: ProfileInputContinueWatchingI
     id: item.id,
     media: {
       mediaType: item.Item.Type,
-      mediaKey: item.Item.Id,
+      itemId: item.Item.Id,
       title: item.Item.Name,
     },
     progress: {
@@ -342,14 +342,14 @@ function normalizeSection(value: unknown): Record<string, unknown> | null {
 
 function normalizeMediaItem(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const mediaKey = readOptionalString(row.mediaKey);
-  if (!mediaKey) {
+  const itemId = readOptionalString(row.itemId);
+  if (!itemId) {
     return null;
   }
 
   return {
     ...row,
-    mediaKey,
+    itemId,
     reason: readOptionalString(row.reason),
     score: readOptionalNumber(row.score),
     rank: readOptionalNumber(row.rank),

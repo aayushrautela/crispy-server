@@ -37,9 +37,18 @@ export { titleRefMapKey, episodeRefMapKey } from './content-identity.service.js'
 
 export { ContentIdentityRepository } from './content-identity.repo.js';
 
+export {
+  encodePublicItemId,
+  decodePublicItemId,
+  assertPublicItemId,
+} from './public-item-id.js';
+
 export type {
   ContentEntityType,
   ContentProviderRefInput,
   ContentProviderRefRecord,
   ContentItemRecord,
+  ContentRelationshipType,
+  ContentRelationshipInput,
+  ContentRelationshipRecord,
 } from './content-identity.repo.js';

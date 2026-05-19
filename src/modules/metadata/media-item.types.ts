@@ -7,7 +7,7 @@ export type MediaExternalIds = {
 };
 
 export type MediaItemParent = {
-  mediaKey: string;
+  itemId: string;
   mediaType: MediaItemType;
   title: string;
 };
@@ -31,7 +31,7 @@ export type Badge = {
 };
 
 export type MediaItem = {
-  mediaKey: string;
+  itemId: string;
   mediaType: MediaItemType;
   title: string;
   originalTitle: string | null;
@@ -52,7 +52,8 @@ export type MediaItem = {
   backdropColor: string | null;
   externalIds: MediaExternalIds;
   parent: MediaItemParent | null;
-  showTmdbId: number | null;
+  seriesItemId: string | null;
+  seasonItemId: string | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
   absoluteEpisodeNumber: number | null;

@@ -17,8 +17,13 @@ export function secondsToTicks(seconds: number | null): number | null {
 }
 
 export function metadataCardToMediaItem(card: MetadataCardView, overrides: Partial<MediaItem> = {}): MediaItem {
+  const itemId = overrides.itemId ?? card.itemId;
+  if (!itemId) {
+    throw new Error('Metadata card is missing itemId.');
+  }
+
   const item: MediaItem = {
-    mediaKey: card.mediaKey,
+    itemId,
     mediaType: toMediaItemType(card.mediaType),
     title: card.title ?? 'Untitled',
     originalTitle: null,
@@ -42,7 +47,8 @@ export function metadataCardToMediaItem(card: MetadataCardView, overrides: Parti
       tmdb: card.tmdbId,
     },
     parent: null,
-    showTmdbId: card.showTmdbId,
+    seriesItemId: overrides.seriesItemId === undefined ? card.seriesItemId : overrides.seriesItemId,
+    seasonItemId: overrides.seasonItemId === undefined ? card.seasonItemId : overrides.seasonItemId,
     seasonNumber: card.seasonNumber,
     episodeNumber: card.episodeNumber,
     absoluteEpisodeNumber: card.absoluteEpisodeNumber,
@@ -93,7 +99,7 @@ function remoteTrailers(url: string | null, thumbnailUrl: string | null) {
 
 export function mediaItemToBaseItemDto(item: MediaItem): BaseItemDto {
   return {
-    Id: item.mediaKey,
+    Id: item.itemId,
     Type: item.mediaType === 'show' ? 'Series' : item.mediaType === 'movie' ? 'Movie' : item.mediaType === 'season' ? 'Season' : item.mediaType === 'episode' ? 'Episode' : 'Unknown',
     Name: item.title,
     OriginalTitle: item.originalTitle,
@@ -120,9 +126,9 @@ export function mediaItemToBaseItemDto(item: MediaItem): BaseItemDto {
       Screenshot: [],
     },
     ParentImageTags: null,
-    SeriesId: item.showTmdbId !== null ? String(item.showTmdbId) : null,
+    SeriesId: item.seriesItemId,
     SeriesName: item.parent?.mediaType === 'show' ? item.parent.title : null,
-    SeasonId: null,
+    SeasonId: item.seasonItemId,
     SeasonName: null,
     ParentIndexNumber: item.seasonNumber,
     IndexNumber: item.episodeNumber,
@@ -136,7 +142,16 @@ export function mediaItemToBaseItemDto(item: MediaItem): BaseItemDto {
   };
 }
 
-export function watchCacheRecordToBaseItemDto(record: WatchMediaCardCacheRecord, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
+type WatchCacheRecordWithItemIds = WatchMediaCardCacheRecord & {
+  itemId?: string | null;
+  item_id?: string | null;
+  seriesItemId?: string | null;
+  series_item_id?: string | null;
+  seasonItemId?: string | null;
+  season_item_id?: string | null;
+};
+
+export function watchCacheRecordToBaseItemDto(record: WatchCacheRecordWithItemIds, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   const still = record.stillUrl
     ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
     : emptyResponsiveImageSet();
@@ -146,8 +161,13 @@ export function watchCacheRecordToBaseItemDto(record: WatchMediaCardCacheRecord,
   const backdrop = buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' });
   const logo = buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' });
 
+  const itemId = record.itemId ?? record.item_id ?? overrides.Id;
+  if (!itemId) {
+    throw new Error('Watch media card cache record is missing item_id.');
+  }
+
   const item: BaseItemDto = {
-    Id: record.mediaKey,
+    Id: itemId,
     Type: record.mediaType === 'show' ? 'Series' : record.mediaType === 'movie' ? 'Movie' : record.mediaType === 'season' ? 'Season' : record.mediaType === 'episode' ? 'Episode' : 'Unknown',
     Name: record.title,
     OriginalTitle: null,
@@ -174,9 +194,9 @@ export function watchCacheRecordToBaseItemDto(record: WatchMediaCardCacheRecord,
       Screenshot: [],
     },
     ParentImageTags: null,
-    SeriesId: null,
+    SeriesId: record.seriesItemId ?? record.series_item_id ?? null,
     SeriesName: null,
-    SeasonId: null,
+    SeasonId: record.seasonItemId ?? record.season_item_id ?? null,
     SeasonName: null,
     ParentIndexNumber: null,
     IndexNumber: null,

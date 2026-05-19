@@ -4,7 +4,7 @@ import type { RecommendationAiPlanCandidate } from './recommendation-ai-plan.typ
 export type AiPlanRawOutput = {
   summary: string;
   items: Array<{
-    mediaKey: string;
+    itemId: string;
     score: number;
     confidence: number;
     reason: string;
@@ -49,10 +49,10 @@ export function validateAiPlanOutput(
 
   const candidateMap = new Map<string, RecommendationAiPlanCandidate>();
   for (const candidate of candidatePool) {
-    candidateMap.set(candidate.mediaKey, candidate);
+    candidateMap.set(candidate.itemId, candidate);
   }
 
-  const seenMediaKeys = new Set<string>();
+  const seenItemIds = new Set<string>();
   const validatedItems: AiPlanRawOutput['items'] = [];
 
   for (let i = 0; i < obj.items.length; i++) {
@@ -67,23 +67,23 @@ export function validateAiPlanOutput(
 
     const itemObj = item as Record<string, unknown>;
 
-    if (typeof itemObj.mediaKey !== 'string' || !itemObj.mediaKey) {
-      throw new HttpError(502, `AI output item ${i} missing valid mediaKey`, {
+    if (typeof itemObj.itemId !== 'string' || !itemObj.itemId) {
+      throw new HttpError(502, `AI output item ${i} missing valid itemId`, {
         code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
         retryable: true,
       });
     }
 
-    if (seenMediaKeys.has(itemObj.mediaKey)) {
-      throw new HttpError(502, `AI output contains duplicate mediaKey: ${itemObj.mediaKey}`, {
+    if (seenItemIds.has(itemObj.itemId)) {
+      throw new HttpError(502, `AI output contains duplicate itemId: ${itemObj.itemId}`, {
         code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
         retryable: true,
       });
     }
-    seenMediaKeys.add(itemObj.mediaKey);
+    seenItemIds.add(itemObj.itemId);
 
-    if (!candidateMap.has(itemObj.mediaKey)) {
-      throw new HttpError(502, `AI output mediaKey not in candidate pool: ${itemObj.mediaKey}`, {
+    if (!candidateMap.has(itemObj.itemId)) {
+      throw new HttpError(502, `AI output itemId not in candidate pool: ${itemObj.itemId}`, {
         code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
         retryable: true,
       });
@@ -127,7 +127,7 @@ export function validateAiPlanOutput(
     }
 
     validatedItems.push({
-      mediaKey: itemObj.mediaKey,
+      itemId: itemObj.itemId,
       score: itemObj.score,
       confidence: itemObj.confidence,
       reason: itemObj.reason,

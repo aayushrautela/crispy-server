@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 
-export type ContentEntityType = 'movie' | 'show' | 'episode' | 'season' | 'person';
+export type ContentEntityType = 'movie' | 'show' | 'anime' | 'episode' | 'season' | 'person';
 
 export type ContentProviderRefInput = {
   provider: string;
@@ -22,12 +22,37 @@ export type ContentItemRecord = {
   entityType: ContentEntityType;
 };
 
+export type ContentRelationshipType = 'series' | 'season';
+
+export type ContentRelationshipInput = {
+  childContentId: string;
+  parentContentId: string;
+  relationshipType: ContentRelationshipType;
+  metadata?: Record<string, unknown>;
+};
+
+export type ContentRelationshipRecord = {
+  childContentId: string;
+  parentContentId: string;
+  relationshipType: ContentRelationshipType;
+  metadata: Record<string, unknown>;
+};
+
 function mapProviderRef(row: Record<string, unknown>): ContentProviderRefRecord {
   return {
     contentId: String(row.content_id),
     provider: String(row.provider),
     entityType: String(row.entity_type) as ContentEntityType,
     externalId: String(row.external_id),
+    metadata: (row.metadata as Record<string, unknown> | undefined) ?? {},
+  };
+}
+
+function mapRelationship(row: Record<string, unknown>): ContentRelationshipRecord {
+  return {
+    childContentId: String(row.child_content_id),
+    parentContentId: String(row.parent_content_id),
+    relationshipType: String(row.relationship_type) as ContentRelationshipType,
     metadata: (row.metadata as Record<string, unknown> | undefined) ?? {},
   };
 }
@@ -124,6 +149,130 @@ export class ContentIdentityRepository {
       entityType: String(row.entity_type) as ContentEntityType,
     };
   }
+
+  async upsertContentRelationship(
+    client: DbClient,
+    relationship: ContentRelationshipInput,
+  ): Promise<ContentRelationshipRecord> {
+    const [record] = await this.upsertContentRelationships(client, [relationship]);
+    if (!record) {
+      throw new Error('Unable to upsert content relationship.');
+    }
+    return record;
+  }
+
+  async upsertContentRelationships(
+    client: DbClient,
+    relationships: ContentRelationshipInput[],
+  ): Promise<ContentRelationshipRecord[]> {
+    const deduped = dedupeRelationships(relationships);
+    if (!deduped.length) {
+      return [];
+    }
+
+    const values: unknown[] = [];
+    const tuples = deduped.map((relationship, index) => {
+      const base = index * 5;
+      values.push(
+        index + 1,
+        relationship.childContentId,
+        relationship.parentContentId,
+        relationship.relationshipType,
+        JSON.stringify(relationship.metadata ?? {}),
+      );
+      return `($${base + 1}::integer, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::text, $${base + 5}::jsonb)`;
+    });
+
+    const result = await client.query(
+      `
+        WITH incoming(ord, child_content_id, parent_content_id, relationship_type, metadata) AS (
+          VALUES ${tuples.join(', ')}
+        ),
+        upserted AS (
+          INSERT INTO content_item_relationships (child_content_id, parent_content_id, relationship_type, metadata)
+          SELECT child_content_id, parent_content_id, relationship_type, metadata
+          FROM incoming
+          ON CONFLICT (child_content_id, relationship_type)
+          DO UPDATE SET
+            parent_content_id = EXCLUDED.parent_content_id,
+            metadata = content_item_relationships.metadata || EXCLUDED.metadata,
+            updated_at = now()
+          RETURNING child_content_id, parent_content_id, relationship_type, metadata
+        )
+        SELECT upserted.child_content_id, upserted.parent_content_id, upserted.relationship_type, upserted.metadata
+        FROM incoming
+        JOIN upserted
+          ON upserted.child_content_id = incoming.child_content_id
+         AND upserted.relationship_type = incoming.relationship_type
+        ORDER BY incoming.ord ASC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => mapRelationship(row));
+  }
+
+  async findParentRelationship(
+    client: DbClient,
+    childContentId: string,
+    relationshipType: ContentRelationshipType,
+  ): Promise<ContentRelationshipRecord | null> {
+    const result = await client.query(
+      `
+        SELECT child_content_id, parent_content_id, relationship_type, metadata
+        FROM content_item_relationships
+        WHERE child_content_id = $1::uuid
+          AND relationship_type = $2::text
+        LIMIT 1
+      `,
+      [childContentId, relationshipType],
+    );
+
+    const row = result.rows[0];
+    return row ? mapRelationship(row) : null;
+  }
+
+  async listParentRelationships(
+    client: DbClient,
+    childContentId: string,
+    relationshipTypes?: ContentRelationshipType[],
+  ): Promise<ContentRelationshipRecord[]> {
+    const result = await client.query(
+      `
+        SELECT child_content_id, parent_content_id, relationship_type, metadata
+        FROM content_item_relationships
+        WHERE child_content_id = $1::uuid
+          AND ($2::text[] IS NULL OR relationship_type = ANY($2::text[]))
+        ORDER BY relationship_type ASC, parent_content_id ASC
+      `,
+      [childContentId, relationshipTypes?.length ? relationshipTypes : null],
+    );
+
+    return result.rows.map((row) => mapRelationship(row));
+  }
+
+  async listParentRelationshipsBatch(
+    client: DbClient,
+    childContentIds: string[],
+    relationshipTypes?: ContentRelationshipType[],
+  ): Promise<ContentRelationshipRecord[]> {
+    if (!childContentIds.length) {
+      return [];
+    }
+
+    const result = await client.query(
+      `
+        SELECT child_content_id, parent_content_id, relationship_type, metadata
+        FROM content_item_relationships
+        WHERE child_content_id = ANY($1::uuid[])
+          AND ($2::text[] IS NULL OR relationship_type = ANY($2::text[]))
+        ORDER BY child_content_id ASC, relationship_type ASC, parent_content_id ASC
+      `,
+      [childContentIds, relationshipTypes?.length ? relationshipTypes : null],
+    );
+
+    return result.rows.map((row) => mapRelationship(row));
+  }
 }
 
 function dedupeRefs(refs: ContentProviderRefInput[]): ContentProviderRefInput[] {
@@ -133,6 +282,15 @@ function dedupeRefs(refs: ContentProviderRefInput[]): ContentProviderRefInput[] 
     if (!deduped.has(key)) {
       deduped.set(key, ref);
     }
+  }
+  return [...deduped.values()];
+}
+
+function dedupeRelationships(relationships: ContentRelationshipInput[]): ContentRelationshipInput[] {
+  const deduped = new Map<string, ContentRelationshipInput>();
+  for (const relationship of relationships) {
+    const key = `${relationship.childContentId}:${relationship.relationshipType}`;
+    deduped.set(key, relationship);
   }
   return [...deduped.values()];
 }

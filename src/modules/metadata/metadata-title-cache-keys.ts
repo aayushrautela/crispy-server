@@ -1,13 +1,13 @@
-export function metadataTitlePageCacheKey(mediaKey: string, language?: string | null): string {
+export function metadataTitlePageCacheKey(itemId: string, language?: string | null): string {
   const normalizedLanguage = typeof language === 'string' && language.trim() ? language.trim() : 'default';
-  return `meta:v2:title-page:${normalizedLanguage}:${mediaKey}`;
+  return `meta:v2:title-page:${normalizedLanguage}:${itemId}`;
 }
 
-export function metadataTitlePageCacheIndexKey(mediaKey: string): string {
-  return `meta:v2:title-page:index:${mediaKey}`;
+export function metadataTitlePageCacheIndexKey(itemId: string): string {
+  return `meta:v2:title-page:index:${itemId}`;
 }
 
-export function metadataTitleExtrasCacheKey(mediaKey: string, language?: string | null): string {
+export function metadataTitleExtrasCacheKey(itemId: string, language?: string | null): string {
   const normalizedLanguage = typeof language === 'string' && language.trim() ? language.trim() : 'default';
-  return `meta:v2:title-extras:${normalizedLanguage}:${mediaKey}`;
+  return `meta:v2:title-extras:${normalizedLanguage}:${itemId}`;
 }
