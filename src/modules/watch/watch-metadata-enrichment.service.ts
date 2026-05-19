@@ -3,7 +3,6 @@ import { logger } from '../../config/logger.js';
 import type { BaseItemDto, ParentBaseItemImageTags } from '../metadata/media-item.types.js';
 import { watchCacheRecordToBaseItemDto } from '../metadata/media-item.mapper.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
-import { parseMediaKey } from '../identity/media-key.js';
 import type { WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 import { WatchMediaCardCacheService } from './watch-media-card-cache.service.js';
 import { WatchCacheMissRefreshService } from './watch-cache-miss-refresh.service.js';
@@ -43,7 +42,7 @@ export class WatchMetadataEnrichmentService {
     const mediaKeys = items.map((item) => item.Id);
     const parentKeys = items
       .filter((item) => item.Type === 'Episode')
-      .map((item) => showKeyFromEpisodeKey(item.Id))
+      .map((item) => item.SeriesId)
       .filter((k): k is string => !!k);
     const allKeys = [...new Set([...mediaKeys, ...parentKeys])];
     const records = await this.loadRecords(client, allKeys, language);
@@ -54,7 +53,7 @@ export class WatchMetadataEnrichmentService {
         return acc;
       }
 
-      const parentKey = item.Type === 'Episode' ? showKeyFromEpisodeKey(item.Id) : null;
+      const parentKey = item.Type === 'Episode' ? item.SeriesId : null;
       const parentRecord = parentKey ? records.get(parentKey) : undefined;
 
       if (item.Type === 'Episode' && !parentRecord) {
@@ -101,18 +100,6 @@ export class WatchMetadataEnrichmentService {
     }
     return records;
   }
-}
-
-function showKeyFromEpisodeKey(episodeKey: string): string | null {
-  try {
-    const parsed = parseMediaKey(episodeKey);
-    if (parsed.mediaType === 'episode' && parsed.showTmdbId) {
-      return `show:tmdb:${parsed.showTmdbId}`;
-    }
-  } catch {
-    // ignore parse errors
-  }
-  return null;
 }
 
 function mergeEnrichedMediaItemDto(record: WatchMediaCardCacheRecord, existing: BaseItemDto): BaseItemDto {

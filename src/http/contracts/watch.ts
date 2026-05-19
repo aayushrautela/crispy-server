@@ -4,8 +4,9 @@ import {
   nonEmptyStringSchema,
   nullableNumberSchema,
   positiveIntegerLikeSchema,
-  profileIdAndMediaKeyParamsSchema,
+  profileIdAndItemIdParamsSchema,
   profileIdParamsSchema,
+  publicItemIdSchema,
   recordSchema,
   stringSchema,
   successEnvelope,
@@ -22,29 +23,20 @@ export type WatchContinueWatchingDismissParams = {
   id: string;
 };
 
-export type WatchMediaKeyParams = {
-  profileId: string;
-  mediaKey: string;
-};
-
 export type WatchPaginationQuery = {
   limit?: number | string;
   cursor?: string;
-  mediaKey?: string;
+  itemId?: string;
 };
 
 export type WatchStateLookupContract = {
-  mediaKey?: string;
+  itemId?: string;
 };
 
 export type WatchEventBody = {
   clientEventId?: string;
   eventType?: string;
-  mediaKey?: string;
-  mediaType?: string;
-  seasonNumber?: number | string | null;
-  episodeNumber?: number | string | null;
-  absoluteEpisodeNumber?: number | string | null;
+  itemId?: string;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
   rating?: number | null;
@@ -53,11 +45,7 @@ export type WatchEventBody = {
 };
 
 export type WatchMutationBody = {
-  mediaKey?: string;
-  mediaType?: string;
-  seasonNumber?: number | string | null;
-  episodeNumber?: number | string | null;
-  absoluteEpisodeNumber?: number | string | null;
+  itemId?: string;
   occurredAt?: string | null;
   rating?: number | null;
   payload?: Record<string, unknown>;
@@ -75,7 +63,7 @@ const watchListRouteSchema = withDefaultErrorResponses({
     properties: {
       limit: positiveIntegerLikeSchema,
       cursor: stringSchema,
-      mediaKey: stringSchema,
+      itemId: publicItemIdSchema,
     },
   },
 });
@@ -88,26 +76,7 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
     properties: {
       clientEventId: stringSchema,
       eventType: stringSchema,
-      mediaKey: stringSchema,
-      mediaType: stringSchema,
-      seasonNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      episodeNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      absoluteEpisodeNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
+      itemId: publicItemIdSchema,
       positionSeconds: nullableNumberSchema,
       durationSeconds: nullableNumberSchema,
       rating: nullableNumberSchema,
@@ -130,7 +99,7 @@ export const historyListRouteSchema = withDefaultErrorResponses({
     properties: {
       limit: positiveIntegerLikeSchema,
       cursor: stringSchema,
-      mediaKey: stringSchema,
+      itemId: publicItemIdSchema,
     },
   },
   response: {
@@ -176,9 +145,9 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
   querystring: {
     type: 'object',
     additionalProperties: false,
-    required: ['mediaKey'],
+    required: ['itemId'],
     properties: {
-      mediaKey: stringSchema,
+      itemId: publicItemIdSchema,
     },
   },
   response: {
@@ -207,9 +176,9 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['mediaKey'],
+          required: ['itemId'],
           properties: {
-            mediaKey: stringSchema,
+            itemId: publicItemIdSchema,
           },
         },
       },
@@ -226,26 +195,7 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
     type: 'object',
     additionalProperties: false,
     properties: {
-      mediaKey: stringSchema,
-      mediaType: stringSchema,
-      seasonNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      episodeNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      absoluteEpisodeNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
+      itemId: publicItemIdSchema,
       occurredAt: {
         anyOf: [
           stringSchema,
@@ -258,32 +208,12 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const watchMediaKeyMutationRouteSchema = withDefaultErrorResponses({
-  params: profileIdAndMediaKeyParamsSchema,
+export const watchItemIdMutationRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndItemIdParamsSchema,
   body: {
     type: 'object',
     additionalProperties: false,
     properties: {
-      mediaKey: stringSchema,
-      mediaType: stringSchema,
-      seasonNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      episodeNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
-      absoluteEpisodeNumber: {
-        anyOf: [
-          positiveIntegerLikeSchema,
-          { type: 'null' },
-        ],
-      },
       occurredAt: {
         anyOf: [
           stringSchema,
@@ -296,6 +226,6 @@ export const watchMediaKeyMutationRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const watchMediaKeyParamsRouteSchema = withDefaultErrorResponses({
-  params: profileIdAndMediaKeyParamsSchema,
+export const watchItemIdParamsRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndItemIdParamsSchema,
 });

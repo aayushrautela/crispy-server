@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.content_item_relationships (
   PRIMARY KEY (child_content_id, relationship_type)
 );
 
-CREATE INDEX IF NOT EXISTS public.idx_content_item_relationships_parent_type
+CREATE INDEX IF NOT EXISTS idx_content_item_relationships_parent_type
   ON public.content_item_relationships (parent_content_id, relationship_type);
 
 COMMENT ON TABLE public.content_item_relationships IS 'Canonical parent relationships between content_items, e.g. episode to series/season and season to series.';
@@ -683,10 +683,10 @@ ALTER TABLE user_state.watch_events
 DROP INDEX IF EXISTS user_state.idx_watch_events_profile_title;
 DROP INDEX IF EXISTS user_state.idx_watch_events_profile_media;
 
-CREATE INDEX user_state.idx_watch_events_profile_title_item
+CREATE INDEX idx_watch_events_profile_title_item
   ON user_state.watch_events (profile_id, title_item_id, occurred_at DESC);
 
-CREATE INDEX user_state.idx_watch_events_profile_item
+CREATE INDEX idx_watch_events_profile_item
   ON user_state.watch_events (profile_id, item_id, occurred_at DESC);
 
 ALTER TABLE user_state.watch_events
@@ -705,7 +705,7 @@ ALTER TABLE user_state.playback_progress
 ALTER TABLE user_state.playback_progress
   ADD PRIMARY KEY (profile_id, title_item_id);
 
-CREATE INDEX user_state.idx_playback_progress_playable_item
+CREATE INDEX idx_playback_progress_playable_item
   ON user_state.playback_progress (profile_id, playable_item_id);
 
 ALTER TABLE user_state.playback_progress
@@ -726,7 +726,7 @@ ALTER TABLE user_state.media_watch_summary
 
 DROP INDEX IF EXISTS user_state.idx_watch_summary_profile_title;
 
-CREATE INDEX user_state.idx_watch_summary_profile_title_item
+CREATE INDEX idx_watch_summary_profile_title_item
   ON user_state.media_watch_summary (profile_id, title_item_id);
 
 ALTER TABLE user_state.media_watch_summary
@@ -737,7 +737,7 @@ ALTER TABLE user_state.watch_sessions
   ALTER COLUMN title_item_id SET NOT NULL,
   ADD CONSTRAINT watch_sessions_title_item_id_fkey FOREIGN KEY (title_item_id) REFERENCES public.content_items(id);
 
-CREATE INDEX user_state.idx_watch_sessions_profile_title_item
+CREATE INDEX idx_watch_sessions_profile_title_item
   ON user_state.watch_sessions (profile_id, title_item_id, started_at DESC);
 
 ALTER TABLE user_state.watch_sessions
@@ -788,7 +788,7 @@ ALTER TABLE recommendation.recommendation_list_items
 DROP INDEX IF EXISTS recommendation.idx_recommendation_list_items_media_key;
 DROP INDEX IF EXISTS public.idx_recommendation_list_items_media_key;
 
-CREATE INDEX recommendation.idx_recommendation_list_items_item_id
+CREATE INDEX idx_recommendation_list_items_item_id
   ON recommendation.recommendation_list_items (item_id)
   WHERE item_id IS NOT NULL;
 

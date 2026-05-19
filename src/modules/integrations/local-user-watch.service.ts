@@ -15,8 +15,8 @@ import {
 type RecordPlaybackParams = {
   accountId: string;
   profileId: string;
-  mediaKey: string;
-  titleMediaKey: string;
+  itemId: string;
+  titleItemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
   positionSeconds: number | null;
   durationSeconds: number | null;
@@ -28,14 +28,14 @@ type RecordPlaybackParams = {
 type DismissContinueWatchingParams = {
   accountId: string;
   profileId: string;
-  titleMediaKey: string;
+  titleItemId: string;
 };
 
 type SetListItemParams = {
   accountId: string;
   profileId: string;
   listKind: 'watchlist';
-  mediaKey: string;
+  itemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
 };
 
@@ -43,13 +43,13 @@ type DeleteListItemParams = {
   accountId: string;
   profileId: string;
   listKind: 'watchlist';
-  mediaKey: string;
+  itemId: string;
 };
 
 type SetRatingParams = {
   accountId: string;
   profileId: string;
-  mediaKey: string;
+  itemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
   rating: number;
 };
@@ -57,14 +57,14 @@ type SetRatingParams = {
 type DeleteRatingParams = {
   accountId: string;
   profileId: string;
-  mediaKey: string;
+  itemId: string;
 };
 
 type MarkWatchedParams = {
   accountId: string;
   profileId: string;
-  mediaKey: string;
-  titleMediaKey: string;
+  itemId: string;
+  titleItemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
   occurredAt?: string;
 };
@@ -72,8 +72,8 @@ type MarkWatchedParams = {
 type UnmarkWatchedParams = {
   accountId: string;
   profileId: string;
-  mediaKey: string;
-  titleMediaKey: string;
+  itemId: string;
+  titleItemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
   occurredAt?: string;
 };
@@ -86,13 +86,13 @@ type ListPageParams = {
 };
 
 type ListHistoryPageParams = ListPageParams & {
-  mediaKey?: string | null;
+  itemId?: string | null;
 };
 
 type GetStateParams = {
   accountId: string;
   profileId: string;
-  mediaKeys: string[];
+  itemIds: string[];
 };
 
 export class LocalUserWatchService {
@@ -100,21 +100,21 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT pp.title_media_key, pp.playable_media_key, pp.media_type,
+      `SELECT pp.title_item_id, pp.playable_item_id, pp.media_type,
               pp.position_seconds, pp.duration_seconds, pp.progress_bps,
               pp.last_activity_at, pp.source_kind, pp.source_provider
        FROM user_state.playback_progress pp
        WHERE pp.profile_id = $1::uuid AND pp.dismissed_at IS NULL
          AND ($2::timestamptz IS NULL OR pp.last_activity_at < $2::timestamptz
-              OR (pp.last_activity_at = $2::timestamptz AND pp.title_media_key > $3))
-       ORDER BY pp.last_activity_at DESC, pp.title_media_key ASC
+              OR (pp.last_activity_at = $2::timestamptz AND pp.title_item_id > $3::uuid))
+       ORDER BY pp.last_activity_at DESC, pp.title_item_id ASC
        LIMIT $4`,
-      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? '', limit],
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.title_media_key) }),
+      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.title_item_id) }),
       (row) => mapContinueWatchingRow(row),
     );
   }
@@ -123,19 +123,19 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT pli.media_key, pli.media_type, pli.added_at, pli.source_kind, pli.source_provider
+      `SELECT pli.item_id, pli.media_type, pli.added_at, pli.source_kind, pli.source_provider
        FROM user_state.profile_list_items pli
        WHERE pli.profile_id = $1::uuid AND pli.list_kind = 'watchlist'
          AND ($2::timestamptz IS NULL OR pli.added_at < $2::timestamptz
-              OR (pli.added_at = $2::timestamptz AND pli.media_key > $3))
-       ORDER BY pli.added_at DESC, pli.media_key ASC
+              OR (pli.added_at = $2::timestamptz AND pli.item_id > $3::uuid))
+       ORDER BY pli.added_at DESC, pli.item_id ASC
        LIMIT $4`,
-      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? '', limit],
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: row.added_at as Date, tieBreaker: String(row.media_key) }),
+      (row) => ({ sortValue: row.added_at as Date, tieBreaker: String(row.item_id) }),
       (row) => mapListItemRow(row),
     );
   }
@@ -144,19 +144,19 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT pr.media_key, pr.media_type, pr.rating, pr.rated_at, pr.source_kind, pr.source_provider
+      `SELECT pr.item_id, pr.media_type, pr.rating, pr.rated_at, pr.source_kind, pr.source_provider
        FROM user_state.profile_ratings pr
        WHERE pr.profile_id = $1::uuid
          AND ($2::timestamptz IS NULL OR pr.rated_at < $2::timestamptz
-              OR (pr.rated_at = $2::timestamptz AND pr.media_key > $3))
-       ORDER BY pr.rated_at DESC, pr.media_key ASC
+              OR (pr.rated_at = $2::timestamptz AND pr.item_id > $3::uuid))
+       ORDER BY pr.rated_at DESC, pr.item_id ASC
        LIMIT $4`,
-      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? '', limit],
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.media_key) }),
+      (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.item_id) }),
       (row) => mapRatingRow(row),
     );
   }
@@ -167,35 +167,21 @@ export class LocalUserWatchService {
     let query: string;
     const queryParams: unknown[] = [params.profileId];
 
-    if (params.mediaKey) {
-      query = `SELECT we.id, we.media_key, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider
+    if (params.itemId) {
+      query = `SELECT we.id, we.item_id, we.title_item_id, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider
                FROM user_state.watch_events we
                WHERE we.profile_id = $1::uuid
                  AND we.event_type IN ('playback_completed', 'marked_watched')
-                 AND (
-                   we.media_key = $2
-                   OR we.title_media_key = $2
-                   OR CASE
-                        WHEN we.media_type = 'movie' THEN COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
-                        WHEN COALESCE(NULLIF(we.title_media_key, ''), '') LIKE 'show:%' THEN we.title_media_key
-                        WHEN we.media_key LIKE 'episode:%:%:%' OR we.media_key LIKE 'season:%:%' THEN concat('show:', split_part(we.media_key, ':', 2), ':', split_part(we.media_key, ':', 3))
-                        ELSE COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
-                      END = $2
-                 )
+                 AND we.title_item_id = $2::uuid
                  AND ($3::timestamptz IS NULL OR we.occurred_at < $3::timestamptz
                       OR (we.occurred_at = $3::timestamptz AND we.id < $4::uuid))
-                ORDER BY we.occurred_at DESC, we.id DESC
+               ORDER BY we.occurred_at DESC, we.id DESC
                LIMIT $5`;
-      queryParams.push(params.mediaKey, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
+      queryParams.push(params.itemId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     } else {
       query = `WITH event_rows AS (
                  SELECT we.id,
-                        CASE
-                          WHEN we.media_type = 'movie' THEN COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
-                          WHEN COALESCE(NULLIF(we.title_media_key, ''), '') LIKE 'show:%' THEN we.title_media_key
-                          WHEN we.media_key LIKE 'episode:%:%:%' OR we.media_key LIKE 'season:%:%' THEN concat('show:', split_part(we.media_key, ':', 2), ':', split_part(we.media_key, ':', 3))
-                          ELSE COALESCE(NULLIF(we.title_media_key, ''), we.media_key)
-                        END AS history_media_key,
+                        we.title_item_id AS history_item_id,
                         CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END AS history_media_type,
                         we.event_type, we.occurred_at, we.source_kind, we.source_provider
                  FROM user_state.watch_events we
@@ -205,12 +191,12 @@ export class LocalUserWatchService {
                title_ranked AS (
                  SELECT er.*,
                         ROW_NUMBER() OVER (
-                          PARTITION BY er.history_media_key, date_trunc('month', er.occurred_at)
+                          PARTITION BY er.history_item_id, date_trunc('month', er.occurred_at)
                           ORDER BY er.occurred_at DESC, er.id DESC
                         ) AS rn
                  FROM event_rows er
                )
-               SELECT id, history_media_key AS media_key, history_media_type AS media_type, event_type, occurred_at, source_kind, source_provider
+               SELECT id, history_item_id AS item_id, history_media_type AS media_type, event_type, occurred_at, source_kind, source_provider
                FROM title_ranked
                WHERE rn = 1
                   AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
@@ -232,9 +218,9 @@ export class LocalUserWatchService {
   async getState(params: GetStateParams): Promise<BaseItemDto> {
     const states = await this.getStates(params);
     return states[0] ?? {
-      Id: params.mediaKeys[0] ?? '',
+      Id: params.itemIds[0] ?? '',
       Type: 'Unknown' as const,
-      Name: params.mediaKeys[0] ?? '',
+      Name: params.itemIds[0] ?? '',
       OriginalTitle: null,
       Overview: null,
       Taglines: [],
@@ -272,23 +258,23 @@ export class LocalUserWatchService {
   }
 
   async getStates(params: GetStateParams): Promise<BaseItemDto[]> {
-    if (params.mediaKeys.length === 0) return [];
+    if (params.itemIds.length === 0) return [];
 
-    const mediaKeys = [...new Set(params.mediaKeys)];
+    const itemIds = [...new Set(params.itemIds)];
 
     return withDbClient(async (client) => {
       const result = await client.query(
         `WITH requested AS (
-           SELECT unnest($2::text[]) AS media_key
+           SELECT unnest($2::uuid[]) AS item_id
          )
          SELECT
-           req.media_key,
+           req.item_id,
            ws.media_type,
            pb.position_seconds,
            pb.duration_seconds,
            pb.progress_bps,
            pb.last_activity_at,
-           pb.title_media_key               AS continue_title_media_key,
+           pb.title_item_id               AS continue_title_item_id,
            pb.position_seconds               AS continue_position_seconds,
            pb.duration_seconds               AS continue_duration_seconds,
            pb.progress_bps                   AS continue_progress_bps,
@@ -300,25 +286,25 @@ export class LocalUserWatchService {
            ws.effective_watched,
            ws.play_count,
            ws.last_watched_at,
-           COALESCE(we.watched_episode_keys, ARRAY[]::text[]) AS watched_episode_keys
+           COALESCE(we.watched_episode_keys, ARRAY[]::uuid[]) AS watched_episode_keys
          FROM requested req
          LEFT JOIN user_state.media_watch_summary ws
-           ON ws.profile_id = $1::uuid AND ws.media_key = req.media_key
+           ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id
          LEFT JOIN user_state.playback_progress pb
-           ON pb.profile_id = $1::uuid AND pb.title_media_key = req.media_key AND pb.dismissed_at IS NULL
+           ON pb.profile_id = $1::uuid AND pb.title_item_id = req.item_id AND pb.dismissed_at IS NULL
          LEFT JOIN user_state.profile_list_items li
-           ON li.profile_id = $1::uuid AND li.list_kind = 'watchlist' AND li.media_key = req.media_key
+           ON li.profile_id = $1::uuid AND li.list_kind = 'watchlist' AND li.item_id = req.item_id
          LEFT JOIN user_state.profile_ratings rt
-           ON rt.profile_id = $1::uuid AND rt.media_key = req.media_key
+           ON rt.profile_id = $1::uuid AND rt.item_id = req.item_id
          LEFT JOIN LATERAL (
-           SELECT array_agg(s.media_key ORDER BY s.media_key) AS watched_episode_keys
+           SELECT array_agg(s.item_id ORDER BY s.item_id) AS watched_episode_keys
            FROM user_state.media_watch_summary s
            WHERE s.profile_id = $1::uuid
-             AND s.title_media_key = req.media_key
+             AND s.title_item_id = req.item_id
              AND s.media_type = 'episode'
              AND s.effective_watched = true
          ) we ON true`,
-        [params.profileId, mediaKeys],
+        [params.profileId, itemIds],
       );
 
       return result.rows.map((row) => mapWatchStateRow(row as Record<string, unknown>));
@@ -334,53 +320,53 @@ export class LocalUserWatchService {
       if (params.eventKind === 'playback_completed') {
         await client.query(
           `INSERT INTO user_state.watch_events
-             (account_id, profile_id, media_key, title_media_key, media_type, event_type,
+             (account_id, profile_id, item_id, title_item_id, media_type, event_type,
               occurred_at, position_seconds, duration_seconds, progress_bps,
               source_kind, last_actor_account_id, client_event_id)
-           VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'playback_completed',
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'playback_completed',
                    COALESCE($6::timestamptz, now()), $7, $8, $9,
                    'local', $1::uuid, $10)
            RETURNING id`,
-          [params.accountId, params.profileId, params.mediaKey, params.titleMediaKey, params.mediaType,
+          [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType,
            params.occurredAt ?? null, params.positionSeconds, params.durationSeconds, progressBps,
            params.clientEventId ?? null],
         );
 
         await client.query(
           `INSERT INTO user_state.media_watch_summary
-             (profile_id, media_key, title_media_key, media_type, effective_watched, play_count,
+             (profile_id, item_id, title_item_id, media_type, effective_watched, play_count,
               last_watched_at, last_activity_at, source_kind, account_id)
-           VALUES ($1::uuid, $2, $3, $4, true, 1, now(), now(), 'local', $5::uuid)
-           ON CONFLICT (profile_id, media_key) DO UPDATE SET
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, true, 1, now(), now(), 'local', $5::uuid)
+           ON CONFLICT (profile_id, item_id) DO UPDATE SET
              effective_watched = true,
              play_count = media_watch_summary.play_count + 1,
              last_watched_at = now(),
              last_activity_at = now(),
              updated_at = now()`,
-          [params.profileId, params.mediaKey, params.titleMediaKey, params.mediaType, params.accountId],
+          [params.profileId, params.itemId, params.titleItemId, params.mediaType, params.accountId],
         );
 
         await client.query(
           `DELETE FROM user_state.playback_progress
-           WHERE profile_id = $1::uuid AND title_media_key = $2`,
-          [params.profileId, params.titleMediaKey],
+           WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
+          [params.profileId, params.titleItemId],
         );
       } else {
         await client.query(
           `INSERT INTO user_state.playback_progress
-             (profile_id, title_media_key, playable_media_key, media_type,
+             (profile_id, title_item_id, playable_item_id, media_type,
               position_seconds, duration_seconds, progress_bps, last_activity_at,
               source_kind, account_id, last_actor_account_id)
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, now(), 'local', $8::uuid, $8::uuid)
-           ON CONFLICT (profile_id, title_media_key) DO UPDATE SET
-             playable_media_key = EXCLUDED.playable_media_key,
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, now(), 'local', $8::uuid, $8::uuid)
+           ON CONFLICT (profile_id, title_item_id) DO UPDATE SET
+             playable_item_id = EXCLUDED.playable_item_id,
              position_seconds = EXCLUDED.position_seconds,
              duration_seconds = EXCLUDED.duration_seconds,
              progress_bps = EXCLUDED.progress_bps,
              last_activity_at = now(),
              dismissed_at = NULL,
              updated_at = now()`,
-          [params.profileId, params.titleMediaKey, params.mediaKey, params.mediaType,
+          [params.profileId, params.titleItemId, params.itemId, params.mediaType,
            params.positionSeconds, params.durationSeconds, progressBps, params.accountId],
         );
       }
@@ -391,8 +377,8 @@ export class LocalUserWatchService {
     await db.query(
       `UPDATE user_state.playback_progress
        SET dismissed_at = now(), updated_at = now()
-       WHERE profile_id = $1::uuid AND title_media_key = $2`,
-      [params.profileId, params.titleMediaKey],
+       WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
+      [params.profileId, params.titleItemId],
     );
   }
 
@@ -400,19 +386,19 @@ export class LocalUserWatchService {
     const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
     await db.query(
       `INSERT INTO user_state.profile_list_items
-         (account_id, profile_id, list_kind, media_key, media_type, added_at, source_kind, last_actor_account_id)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5, now(), 'local', $1::uuid)
-       ON CONFLICT (profile_id, list_kind, media_key) DO UPDATE SET
+         (account_id, profile_id, list_kind, item_id, media_type, added_at, source_kind, last_actor_account_id)
+       VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, now(), 'local', $1::uuid)
+       ON CONFLICT (profile_id, list_kind, item_id) DO UPDATE SET
          updated_at = now(), source_kind = 'local', last_actor_account_id = $1::uuid`,
-      [params.accountId, params.profileId, params.listKind, params.mediaKey, canonicalType],
+      [params.accountId, params.profileId, params.listKind, params.itemId, canonicalType],
     );
   }
 
   async deleteListItem(params: DeleteListItemParams): Promise<void> {
     await db.query(
       `DELETE FROM user_state.profile_list_items
-       WHERE profile_id = $1::uuid AND list_kind = $2 AND media_key = $3`,
-      [params.profileId, params.listKind, params.mediaKey],
+       WHERE profile_id = $1::uuid AND list_kind = $2 AND item_id = $3::uuid`,
+      [params.profileId, params.listKind, params.itemId],
     );
   }
 
@@ -420,20 +406,20 @@ export class LocalUserWatchService {
     const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
     await db.query(
       `INSERT INTO user_state.profile_ratings
-         (account_id, profile_id, media_key, media_type, rating, rated_at, source_kind, last_actor_account_id)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5, now(), 'local', $1::uuid)
-       ON CONFLICT (profile_id, media_key) DO UPDATE SET
+         (account_id, profile_id, item_id, media_type, rating, rated_at, source_kind, last_actor_account_id)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, now(), 'local', $1::uuid)
+       ON CONFLICT (profile_id, item_id) DO UPDATE SET
          rating = EXCLUDED.rating, rated_at = now(),
          source_kind = 'local', last_actor_account_id = $1::uuid, updated_at = now()`,
-      [params.accountId, params.profileId, params.mediaKey, canonicalType, params.rating],
+      [params.accountId, params.profileId, params.itemId, canonicalType, params.rating],
     );
   }
 
   async deleteRating(params: DeleteRatingParams): Promise<void> {
     await db.query(
       `DELETE FROM user_state.profile_ratings
-       WHERE profile_id = $1::uuid AND media_key = $2`,
-      [params.profileId, params.mediaKey],
+       WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
+      [params.profileId, params.itemId],
     );
   }
 
@@ -444,31 +430,31 @@ export class LocalUserWatchService {
     await withDbClient(async (client) => {
       await client.query(
         `INSERT INTO user_state.watch_events
-           (account_id, profile_id, media_key, title_media_key, media_type, event_type,
+           (account_id, profile_id, item_id, title_item_id, media_type, event_type,
             occurred_at, source_kind, last_actor_account_id)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'marked_watched',
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_watched',
                  $6::timestamptz, 'local', $1::uuid)`,
-        [params.accountId, params.profileId, params.mediaKey, params.titleMediaKey, canonicalType, occurredAt],
+        [params.accountId, params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt],
       );
 
       await client.query(
         `INSERT INTO user_state.media_watch_summary
-           (profile_id, media_key, title_media_key, media_type, effective_watched, play_count,
+           (profile_id, item_id, title_item_id, media_type, effective_watched, play_count,
             last_watched_at, last_activity_at, source_kind, account_id)
-         VALUES ($1::uuid, $2, $3, $4, true, 1, $5::timestamptz, $5::timestamptz, 'local', $6::uuid)
-         ON CONFLICT (profile_id, media_key) DO UPDATE SET
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, true, 1, $5::timestamptz, $5::timestamptz, 'local', $6::uuid)
+         ON CONFLICT (profile_id, item_id) DO UPDATE SET
            effective_watched = true,
            play_count = media_watch_summary.play_count + 1,
            last_watched_at = $5::timestamptz,
            last_activity_at = $5::timestamptz,
            updated_at = now()`,
-        [params.profileId, params.mediaKey, params.titleMediaKey, canonicalType, occurredAt, params.accountId],
+        [params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt, params.accountId],
       );
 
       await client.query(
         `DELETE FROM user_state.playback_progress
-         WHERE profile_id = $1::uuid AND title_media_key = $2`,
-        [params.profileId, params.titleMediaKey],
+         WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
+        [params.profileId, params.titleItemId],
       );
     });
   }
@@ -480,19 +466,19 @@ export class LocalUserWatchService {
     await withDbClient(async (client) => {
       await client.query(
         `INSERT INTO user_state.watch_events
-           (account_id, profile_id, media_key, title_media_key, media_type, event_type,
+           (account_id, profile_id, item_id, title_item_id, media_type, event_type,
             occurred_at, source_kind, last_actor_account_id)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'marked_unwatched',
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_unwatched',
                  $6::timestamptz, 'local', $1::uuid)`,
-        [params.accountId, params.profileId, params.mediaKey, params.titleMediaKey, canonicalType, occurredAt],
+        [params.accountId, params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt],
       );
 
       await client.query(
         `UPDATE user_state.media_watch_summary
          SET effective_watched = false, last_unwatched_at = $3::timestamptz,
              last_activity_at = $3::timestamptz, updated_at = now()
-         WHERE profile_id = $1::uuid AND media_key = $2`,
-        [params.profileId, params.mediaKey, occurredAt],
+         WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
+        [params.profileId, params.itemId, occurredAt],
       );
     });
   }

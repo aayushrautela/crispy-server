@@ -4,6 +4,9 @@ import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
 seedTestEnv();
 
+const testItemId = '00000000000040008000000000000001';
+const testTitleItemId = '00000000000040008000000000000002';
+
 test('watch routes work with user actor auth subject', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
@@ -15,6 +18,8 @@ test('watch routes work with user actor auth subject', async (t) => {
     unmarkWatched: LocalUserWatchService.prototype.unmarkWatched,
     enrichContinueWatchingItems: WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems,
   };
+  const { ContentIdentityService } = await import('../../modules/identity/content-identity.service.js');
+  const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
@@ -56,9 +61,26 @@ test('watch routes work with user actor auth subject', async (t) => {
     return items;
   };
 
+  ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
+    return itemId;
+  };
+
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'movie' as const };
+  };
+
   MetadataLanguageService.prototype.resolveForProfile = async function () {
     return 'en-US';
   };
+
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
 
   const { registerWatchRoutes } = await import('./watch.js');
   const app = await buildTestApp(registerWatchRoutes);
@@ -81,8 +103,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     url: '/v1/profiles/profile-1/watch/events',
     headers: auth,
     payload: {
-      mediaKey: 'movie:tmdb:1',
-      mediaType: 'movie',
+      itemId: testItemId,
       eventType: 'playback_progress',
       positionSeconds: 120,
       durationSeconds: 7200,
@@ -98,8 +119,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     url: '/v1/profiles/profile-1/watch/mark-watched',
     headers: auth,
     payload: {
-      mediaKey: 'movie:tmdb:1',
-      mediaType: 'movie',
+      itemId: testItemId,
       occurredAt: '2026-05-11T10:00:00.000Z',
     },
   });
@@ -111,8 +131,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     url: '/v1/profiles/profile-1/watch/unmark-watched',
     headers: auth,
     payload: {
-      mediaKey: 'movie:tmdb:1',
-      mediaType: 'movie',
+      itemId: testItemId,
     },
   });
   assert.equal(unmarkResponse.statusCode, 200);
@@ -121,8 +140,8 @@ test('watch routes work with user actor auth subject', async (t) => {
     {
       accountId: 'auth-subject',
       profileId: 'profile-1',
-      mediaKey: 'movie:tmdb:1',
-      titleMediaKey: 'movie:tmdb:1',
+      itemId: '00000000-0000-4000-8000-000000000001',
+      titleItemId: '00000000-0000-4000-8000-000000000001',
       mediaType: 'movie',
       occurredAt: '2026-05-11T10:00:00.000Z',
       kind: 'mark',
@@ -130,8 +149,8 @@ test('watch routes work with user actor auth subject', async (t) => {
     {
       accountId: 'auth-subject',
       profileId: 'profile-1',
-      mediaKey: 'movie:tmdb:1',
-      titleMediaKey: 'movie:tmdb:1',
+      itemId: '00000000-0000-4000-8000-000000000001',
+      titleItemId: '00000000-0000-4000-8000-000000000001',
       mediaType: 'movie',
       occurredAt: undefined,
       kind: 'unmark',
@@ -162,9 +181,9 @@ test('watch routes reject requests without access token', async (t) => {
   assert.equal(body.error.message, 'Missing bearer token.');
 });
 
-function makeMediaItem(key: string) {
+function makeMediaItem(id: string) {
   return {
-    Id: key,
+    Id: id,
     Type: 'Movie' as const,
     Name: 'Test Movie',
     OriginalTitle: null,
@@ -234,9 +253,9 @@ test('continue-watching serializes items with progress', async (t) => {
   LocalUserWatchService.prototype.listContinueWatchingPage = async () => ({
     items: [
       {
-        ...makeMediaItem('movie:tmdb:694'),
+        ...makeMediaItem(testItemId),
         UserData: {
-          ItemId: 'movie:tmdb:694',
+          ItemId: testItemId,
           IsFavorite: false,
           Played: false,
           PlayCount: 0,
@@ -273,7 +292,7 @@ test('continue-watching serializes items with progress', async (t) => {
   assert.ok(Array.isArray(body.data.Items));
   assert.equal(body.data.Items.length, 1);
   const item = body.data.Items[0];
-  assert.equal(item.Id, 'movie:tmdb:694');
+  assert.equal(item.Id, testItemId);
   assert.equal(item.Type, 'Movie');
   assert.equal(item.UserData.PlaybackPositionTicks, 1_200_000_000);
   assert.equal(item.UserData.RuntimeTicks, 72_000_000_000);
@@ -308,17 +327,11 @@ test('watch state serializes progress without status', async (t) => {
   });
 
   const now = '2026-05-13T00:00:00.000Z';
-  const progress = {
-    positionSeconds: 120,
-    durationSeconds: 7200,
-    progressPercent: 1.67,
-    lastPlayedAt: now,
-  };
 
   LocalUserWatchService.prototype.getState = async () => ({
-    ...makeMediaItem('movie:tmdb:694'),
+    ...makeMediaItem(testItemId),
     UserData: {
-      ItemId: 'movie:tmdb:694',
+      ItemId: testItemId,
       IsFavorite: false,
       Played: false,
       PlayCount: 0,
@@ -343,13 +356,13 @@ test('watch state serializes progress without status', async (t) => {
 
   const response = await app.inject({
     method: 'GET',
-    url: '/v1/profiles/profile-1/watch/state?mediaKey=movie:tmdb:694',
+    url: `/v1/profiles/profile-1/watch/state?itemId=${testItemId}`,
     headers: { authorization: 'Bearer test' },
   });
 
   const body = response.json();
   assert.equal(response.statusCode, 200, JSON.stringify(body, null, 2));
-  assert.equal(body.data.Id, 'movie:tmdb:694');
+  assert.equal(body.data.Id, testItemId);
   assert.equal(body.data.UserData.PlaybackPositionTicks, 1_200_000_000);
   assert.equal(body.data.UserData.RuntimeTicks, 72_000_000_000);
   assert.equal(body.data.UserData.LastPlayedDate, now);

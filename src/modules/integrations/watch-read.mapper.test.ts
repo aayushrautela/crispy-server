@@ -1,12 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import { mapContinueWatchingRow, mapHistoryRow } from './watch-read.mapper.js';
+
+const showId = '00000000-0000-4000-8000-000000000001';
+const movieId = '00000000-0000-4000-8000-000000000002';
+const episodeId = '00000000-0000-4000-8000-000000000003';
+const seasonId = '00000000-0000-4000-8000-000000000004';
 
 test('mapHistoryRow maps title-level show history rows', () => {
   const item = mapHistoryRow({
-    id: '00000000-0000-4000-8000-000000000001',
-    media_key: 'show:tmdb:789',
-    title_media_key: 'show:tmdb:789',
+    id: '00000000-0000-4000-8000-000000000010',
+    item_id: showId,
     media_type: 'show',
     event_type: 'playback_completed',
     occurred_at: '2026-05-11T08:00:00.000Z',
@@ -19,7 +24,7 @@ test('mapHistoryRow maps title-level show history rows', () => {
     metadata_rating: 9.1,
   });
 
-  assert.equal(item.Id, 'show:tmdb:789');
+  assert.equal(item.Id, encodePublicItemId(showId));
   assert.equal(item.Type, 'Series');
   assert.equal(item.Name, 'Cached Show Title');
   assert.equal(item.ProductionYear, 2022);
@@ -30,8 +35,8 @@ test('mapHistoryRow maps title-level show history rows', () => {
 
 test('mapContinueWatchingRow maps movie progress', () => {
   const item = mapContinueWatchingRow({
-    title_media_key: 'movie:tmdb:694',
-    playable_media_key: 'movie:tmdb:694',
+    title_item_id: movieId,
+    playable_item_id: movieId,
     media_type: 'movie',
     position_seconds: 120,
     duration_seconds: 7200,
@@ -46,7 +51,7 @@ test('mapContinueWatchingRow maps movie progress', () => {
     metadata_rating: null,
   });
 
-  assert.equal(item.Id, 'movie:tmdb:694');
+  assert.equal(item.Id, encodePublicItemId(movieId));
   assert.equal(item.Type, 'Movie');
   assert.equal(item.UserData!.PlaybackPositionTicks, 1_200_000_000);
   assert.equal(item.UserData!.RuntimeTicks, 72_000_000_000);
@@ -56,8 +61,8 @@ test('mapContinueWatchingRow maps movie progress', () => {
 
 test('mapContinueWatchingRow maps episode progress with playable key', () => {
   const item = mapContinueWatchingRow({
-    title_media_key: 'show:tmdb:123',
-    playable_media_key: 'episode:tmdb:123:2:5',
+    title_item_id: showId,
+    playable_item_id: episodeId,
     media_type: 'episode',
     position_seconds: 600,
     duration_seconds: 1800,
@@ -73,12 +78,12 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
     metadata_rating: 8.0,
   });
 
-  assert.equal(item.Id, 'episode:tmdb:123:2:5');
+  assert.equal(item.Id, encodePublicItemId(episodeId));
   assert.equal(item.Type, 'Episode');
-  assert.equal(item.SeriesId, '123');
+  assert.equal(item.SeriesId, encodePublicItemId(showId));
   assert.equal(item.SeriesName, 'Cached Show Title');
-  assert.equal(item.ParentIndexNumber, 2);
-  assert.equal(item.IndexNumber, 5);
+  assert.equal(item.ParentIndexNumber, null);
+  assert.equal(item.IndexNumber, null);
   assert.equal(item.EpisodeTitle, 'Cached Show Title');
   assert.equal(item.UserData!.PlaybackPositionTicks, 6_000_000_000);
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-14T08:00:00.000Z');

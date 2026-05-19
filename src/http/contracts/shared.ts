@@ -179,15 +179,7 @@ export const profileIdAndItemIdParamsSchema = {
   },
 } as const;
 
-export const profileIdAndMediaKeyParamsSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['profileId', 'mediaKey'],
-  properties: {
-    profileId: nonEmptyStringSchema,
-    mediaKey: nonEmptyStringSchema,
-  },
-} as const;
+// LEGACY: profileIdAndMediaKeyParamsSchema removed in Identity v2
 
 type RouteSchema = Record<string, unknown> & {
   response?: Record<number, unknown>;

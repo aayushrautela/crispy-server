@@ -1,8 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
-import type { MediaIdentity } from '../identity/media-key.js';
-import { showTmdbIdForIdentity } from '../identity/media-key.js';
 import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import type { MetadataTitleMediaType, RegularCardView } from '../metadata/metadata-card.types.js';
+import type { SupportedProvider } from '../identity/media-key.js';
 import { WatchMediaCardCacheRepository, type WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
 
 export class WatchMediaCardCacheService {
@@ -10,7 +9,13 @@ export class WatchMediaCardCacheService {
     private readonly repository = new WatchMediaCardCacheRepository(),
   ) {}
 
-  async upsertFromProjection(client: DbClient, identity: MediaIdentity, projection: {
+  async upsertFromProjection(client: DbClient, params: {
+    itemId: string;
+    mediaType: 'movie' | 'show' | 'season' | 'episode';
+    titleProvider: SupportedProvider;
+    titleProviderId: string | null;
+    titleMediaType: MetadataTitleMediaType | null;
+  }, projection: {
     detailsTitleMediaType: MetadataTitleMediaType | null;
     playbackParentProvider: string | null;
     playbackParentProviderId: string | null;
@@ -40,16 +45,16 @@ export class WatchMediaCardCacheService {
       return;
     }
 
-    const titleProviderId = resolveTitleProviderId(identity, projection.playbackParentProviderId);
-    const titleMediaType = resolveTitleMediaType(identity, projection.detailsTitleMediaType);
+    const titleProviderId = params.titleProviderId ?? null;
+    const titleMediaType = resolveTitleMediaType(params.mediaType, params.titleMediaType);
     if (!titleProviderId || !titleMediaType) {
       return;
     }
 
     await this.repository.upsert(client, {
-      itemId: identity.contentId ?? identity.mediaKey,
-      mediaType: identity.mediaType,
-      titleProvider: 'tmdb',
+      itemId: params.itemId,
+      mediaType: params.mediaType,
+      titleProvider: params.titleProvider,
       titleProviderId,
       titleMediaType,
       title: projection.title,
@@ -105,30 +110,9 @@ function toRegularCard(record: WatchMediaCardCacheRecord): RegularCardView {
   };
 }
 
-function resolveTitleProviderId(identity: MediaIdentity, playbackParentProviderId: string | null): string | null {
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
-    return identity.tmdbId ? String(identity.tmdbId) : null;
-  }
-
-  const showTmdbId = showTmdbIdForIdentity(identity);
-  return showTmdbId ? String(showTmdbId) : playbackParentProviderId;
-}
-
-function resolveTitleMediaType(
-  identity: MediaIdentity,
-  projectionMediaType: MetadataTitleMediaType | null,
-): MetadataTitleMediaType | null {
-  if (projectionMediaType === 'movie' || projectionMediaType === 'show') {
-    return projectionMediaType;
-  }
-
-  if (identity.mediaType === 'movie' || identity.mediaType === 'show') {
-    return identity.mediaType;
-  }
-
-  if (identity.mediaType === 'episode' || identity.mediaType === 'season') {
-    return 'show';
-  }
-
+function resolveTitleMediaType(mediaType: string, projectionMediaType: MetadataTitleMediaType | null): MetadataTitleMediaType | null {
+  if (projectionMediaType === 'movie' || projectionMediaType === 'show') return projectionMediaType;
+  if (mediaType === 'movie' || mediaType === 'show') return mediaType;
+  if (mediaType === 'episode' || mediaType === 'season') return 'show';
   return null;
 }

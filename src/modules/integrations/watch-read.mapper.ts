@@ -1,21 +1,21 @@
-import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import { secondsToTicks, watchCacheRecordToBaseItemDto } from '../metadata/media-item.mapper.js';
 import type { BaseItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
 
 export type WatchReadRow = Record<string, unknown>;
 
 export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
-  const titleMediaKey = stringValue(row.title_media_key);
-  const playableMediaKey = stringValue(row.playable_media_key) || titleMediaKey;
+  const titleItemId = encodePublicItemId(stringValue(row.title_item_id));
+  const playableItemId = encodePublicItemId(stringValue(row.playable_item_id) || stringValue(row.title_item_id));
   const positionSeconds = numberValue(row.position_seconds);
   const durationSeconds = numberValue(row.duration_seconds);
   const lastActivityAt = isoValue(row.last_activity_at);
-  const mediaItem = playableMediaItemDtoFromRow(playableMediaKey, titleMediaKey, row);
+  const mediaItem = playableMediaItemDtoFromRow(playableItemId, titleItemId, row);
 
   return {
     ...mediaItem,
     UserData: {
-      ItemId: playableMediaKey,
+      ItemId: playableItemId,
       IsFavorite: false,
       Played: false,
       PlayCount: 0,
@@ -30,12 +30,12 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
 }
 
 export function mapListItemRow(row: WatchReadRow): BaseItemDto {
-  const mediaKey = stringValue(row.media_key);
+  const itemId = encodePublicItemId(stringValue(row.item_id));
   const addedAt = isoValue(row.added_at);
   return {
-    ...mediaItemDtoFromRow(mediaKey, row),
+    ...mediaItemDtoFromRow(itemId, row),
     UserData: {
-      ItemId: mediaKey,
+      ItemId: itemId,
       IsFavorite: false,
       Played: false,
       PlayCount: 0,
@@ -50,13 +50,13 @@ export function mapListItemRow(row: WatchReadRow): BaseItemDto {
 }
 
 export function mapRatingRow(row: WatchReadRow): BaseItemDto {
-  const mediaKey = stringValue(row.media_key);
+  const itemId = encodePublicItemId(stringValue(row.item_id));
   const ratedAt = isoValue(row.rated_at);
   const ratingValue = numberValue(row.rating) ?? 0;
   return {
-    ...mediaItemDtoFromRow(mediaKey, row),
+    ...mediaItemDtoFromRow(itemId, row),
     UserData: {
-      ItemId: mediaKey,
+      ItemId: itemId,
       IsFavorite: false,
       Played: false,
       PlayCount: 0,
@@ -71,12 +71,12 @@ export function mapRatingRow(row: WatchReadRow): BaseItemDto {
 }
 
 export function mapHistoryRow(row: WatchReadRow): BaseItemDto {
-  const mediaKey = stringValue(row.media_key);
+  const itemId = encodePublicItemId(stringValue(row.item_id));
   const occurredAt = isoValue(row.occurred_at ?? row.watched_at);
   return {
-    ...mediaItemDtoFromRow(mediaKey, row),
+    ...mediaItemDtoFromRow(itemId, row),
     UserData: {
-      ItemId: mediaKey,
+      ItemId: itemId,
       IsFavorite: false,
       Played: true,
       PlayCount: 1,
@@ -91,7 +91,7 @@ export function mapHistoryRow(row: WatchReadRow): BaseItemDto {
 }
 
 export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
-  const mediaKey = stringValue(row.media_key);
+  const itemId = encodePublicItemId(stringValue(row.item_id));
   const progressBps = numberValue(row.progress_bps);
   const continueProgressBps = numberValue(row.continue_progress_bps);
   const lastActivityAt = nullableIsoValue(row.last_activity_at);
@@ -115,7 +115,7 @@ export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
   const ratingValue = rating !== null && ratedAt ? rating : null;
 
   const userData: UserItemDataDto = {
-    ItemId: mediaKey,
+    ItemId: itemId,
     IsFavorite: false,
     Played: effectiveWatched,
     PlayCount: playCount,
@@ -128,22 +128,21 @@ export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
   };
 
   return {
-    ...mediaItemDtoFromRow(mediaKey, row, { UserData: userData }),
+    ...mediaItemDtoFromRow(itemId, row, { UserData: userData }),
   };
 }
 
-function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: string, row: WatchReadRow): BaseItemDto {
-  const parsed = parseMediaKey(playableMediaKey);
-  const isEpisode = parsed.mediaType === 'episode';
+function playableMediaItemDtoFromRow(playableItemId: string, titleItemId: string, row: WatchReadRow): BaseItemDto {
+  const isEpisode = stringValue(row.media_type) === 'episode';
   const seriesName = isEpisode ? stringValue(row.title) || undefined : undefined;
 
   return watchCacheRecordToBaseItemDto({
-    itemId: playableMediaKey,
-    mediaType: isEpisode ? 'episode' : parsed.mediaType,
+    itemId: playableItemId,
+    mediaType: stringValue(row.media_type) || (isEpisode ? 'episode' : 'movie'),
     titleProvider: 'tmdb',
-    titleProviderId: isEpisode ? String(parsed.showTmdbId ?? '') : String(parsed.tmdbId ?? ''),
-    titleMediaType: canonicalTitleMediaType(parsed),
-    title: stringValue(row.title) || playableMediaKey,
+    titleProviderId: stringValue(row.title_provider_id) || stringValue(row.tmdb_id) || '',
+    titleMediaType: isEpisode ? 'show' : (row.media_type === 'movie' ? 'movie' : 'show'),
+    title: stringValue(row.title) || playableItemId,
     subtitle: nullableStringValue(row.subtitle),
     posterUrl: nullableStringValue(row.poster_url),
     backdropUrl: nullableStringValue(row.backdrop_url),
@@ -165,28 +164,27 @@ function playableMediaItemDtoFromRow(playableMediaKey: string, titleMediaKey: st
     episodeTitle: null,
     episodeAirDate: null,
   }, {
-    Id: playableMediaKey,
+    Id: playableItemId,
     SeriesName: seriesName ?? null,
     SeasonId: isEpisode ? stringValue(row.season_id) || null : null,
     SeasonName: isEpisode ? nullableStringValue(row.season_name) : null,
-    SeriesId: isEpisode ? String(parsed.showTmdbId ?? '') : null,
-    ParentIndexNumber: isEpisode ? parsed.seasonNumber : null,
-    IndexNumber: isEpisode ? parsed.episodeNumber : null,
+    SeriesId: isEpisode ? titleItemId : null,
+    ParentIndexNumber: isEpisode ? numberValue(row.season_number) : null,
+    IndexNumber: isEpisode ? numberValue(row.episode_number) : null,
     AbsoluteIndexNumber: null,
     EpisodeTitle: isEpisode ? nullableStringValue(row.title) || null : null,
     AirDate: null,
   });
 }
 
-function mediaItemDtoFromRow(mediaKey: string, row: WatchReadRow, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
-  const parsed = parseMediaKey(canonicalTitleMediaKey(parseMediaKey(mediaKey)));
+function mediaItemDtoFromRow(itemId: string, row: WatchReadRow, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   return watchCacheRecordToBaseItemDto({
-    itemId: parsed.mediaKey,
-    mediaType: parsed.mediaType,
+    itemId: itemId,
+    mediaType: stringValue(row.media_type) || 'movie',
     titleProvider: 'tmdb',
-    titleProviderId: String(parsed.tmdbId ?? parsed.showTmdbId ?? parsed.mediaKey),
-    titleMediaType: canonicalTitleMediaType(parsed),
-    title: stringValue(row.title) || parsed.mediaKey,
+    titleProviderId: stringValue(row.title_provider_id) || stringValue(row.tmdb_id) || itemId,
+    titleMediaType: stringValue(row.media_type) === 'movie' ? 'movie' : 'show',
+    title: stringValue(row.title) || itemId,
     subtitle: nullableStringValue(row.subtitle),
     posterUrl: nullableStringValue(row.poster_url),
     backdropUrl: nullableStringValue(row.backdrop_url),
@@ -207,7 +205,10 @@ function mediaItemDtoFromRow(mediaKey: string, row: WatchReadRow, overrides: Par
     status: null,
     episodeTitle: null,
     episodeAirDate: null,
-  }, overrides);
+  }, {
+    Id: itemId,
+    ...overrides,
+  });
 }
 
 function origins(row: WatchReadRow): string[] {

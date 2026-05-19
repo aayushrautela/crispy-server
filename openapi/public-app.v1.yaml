@@ -1676,7 +1676,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              type: object
+              additionalProperties: false
+              required:
+                - itemId
+              properties:
+                itemId:
+                  $ref: "#/components/schemas/PublicItemId"
       responses:
         "201":
           description: Successful response.
@@ -1766,7 +1772,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              type: object
+              additionalProperties: false
+              required:
+                - itemId
+              properties:
+                itemId:
+                  $ref: "#/components/schemas/PublicItemId"
       responses:
         "201":
           description: Successful response.
@@ -1788,7 +1800,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/profiles/{profileId}/watch/rating/{mediaKey}:
+  /v1/profiles/{profileId}/watch/rating/{itemId}:
     put:
       tags:
         - Watch
@@ -1804,13 +1816,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
+            $ref: "#/components/schemas/PublicItemId"
       requestBody:
         required: true
         content:
@@ -1853,13 +1863,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "204":
           description: Resource deleted or cleared.
@@ -1940,11 +1948,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: query
           required: true
           schema:
-            type: string
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
@@ -1996,10 +2004,10 @@ paths:
                   items:
                     type: object
                     required:
-                      - mediaKey
+                      - itemId
                     properties:
-                      mediaKey:
-                        type: string
+                      itemId:
+                        $ref: "#/components/schemas/PublicItemId"
       responses:
         "201":
           description: Successful response.
@@ -2042,7 +2050,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              type: object
+              additionalProperties: false
+              required:
+                - itemId
+              properties:
+                itemId:
+                  $ref: "#/components/schemas/PublicItemId"
       responses:
         "201":
           description: Successful response.
@@ -2111,7 +2125,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/profiles/{profileId}/watch/watchlist/{mediaKey}:
+  /v1/profiles/{profileId}/watch/watchlist/{itemId}:
     put:
       tags:
         - Watch
@@ -2127,13 +2141,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
+            $ref: "#/components/schemas/PublicItemId"
         - name: limit
           in: query
           required: false
@@ -2186,13 +2198,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 512
-        - name: mediaKey
+        - name: itemId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
+            $ref: "#/components/schemas/PublicItemId"
         - name: limit
           in: query
           required: false

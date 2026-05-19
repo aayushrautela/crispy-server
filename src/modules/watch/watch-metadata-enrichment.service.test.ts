@@ -7,11 +7,18 @@ import type { BaseItemDto } from '../metadata/media-item.types.js';
 
 seedTestEnv();
 
+const movieItemId = '00000000000040008000000000000001';
+const showItemId = '00000000000040008000000000000002';
+const episodeItemId = '00000000000040008000000000000003';
+const orphanEpisodeId = '00000000000040008000000000000004';
+const duplicateMovieId = '00000000000040008000000000000005';
+const uncachedMovieId = '00000000000040008000000000000006';
+
 const imageSet = (value: string) => ({ small: value, medium: value, large: value });
 
 function createBaseItemDto(overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   return {
-    Id: 'movie:tmdb:123',
+    Id: movieItemId,
     Type: 'Movie',
     Name: 'Fallback Title',
     OriginalTitle: null,
@@ -53,7 +60,7 @@ function createBaseItemDto(overrides: Partial<BaseItemDto> = {}): BaseItemDto {
 
 function createCacheRecord(overrides: Partial<WatchMediaCardCacheRecord> = {}): WatchMediaCardCacheRecord {
   return {
-    itemId: 'movie:tmdb:123',
+    itemId: movieItemId,
     mediaType: 'movie',
     titleProvider: 'tmdb',
     titleProviderId: '123',
@@ -86,7 +93,7 @@ function createCacheRecord(overrides: Partial<WatchMediaCardCacheRecord> = {}): 
 test('enrichContinueWatchingItems replaces mediaItem fields from cache', async () => {
   const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
-    ['movie:tmdb:123', createCacheRecord({
+    [movieItemId, createCacheRecord({
       trailerUrl: 'https://youtube.test/watch?v=abc',
       trailerThumbnailUrl: 'https://youtube.test/thumb.jpg',
       posterColor: '#111111',
@@ -105,9 +112,9 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
   const items: BaseItemDto[] = [
     {
       ...createBaseItemDto(),
-      Id: 'movie:tmdb:123',
+      Id: movieItemId,
       UserData: {
-        ItemId: 'movie:tmdb:123',
+        ItemId: movieItemId,
         IsFavorite: false,
         Played: false,
         PlayCount: 0,
@@ -139,9 +146,10 @@ test('enrichContinueWatchingItems replaces mediaItem fields from cache', async (
 test('enrichContinueWatchingItems enriches parent title for episode items', async () => {
   const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
-    ['episode:tmdb:123:2:5', createCacheRecord({
-      itemId: 'episode:tmdb:123:2:5',
+    [episodeItemId, createCacheRecord({
+      itemId: episodeItemId,
       mediaType: 'episode',
+      titleProviderId: '123',
       titleMediaType: 'show',
       title: 'Parent Show Title',
       posterUrl: 'https://cache.test/ep-poster.jpg',
@@ -154,9 +162,10 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
       releaseYear: 2023,
       episodeTitle: 'Episode 5 Title',
     })],
-    ['show:tmdb:123', createCacheRecord({
-      itemId: 'show:tmdb:123',
+    [showItemId, createCacheRecord({
+      itemId: showItemId,
       mediaType: 'show',
+      titleProviderId: '123',
       titleMediaType: 'show',
       title: 'Parent Show Title',
       posterUrl: 'https://cache.test/show-poster.jpg',
@@ -180,14 +189,14 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
   const items: BaseItemDto[] = [
     {
       ...createBaseItemDto({
-        Id: 'episode:tmdb:123:2:5',
+        Id: episodeItemId,
         Type: 'Episode',
-        SeriesId: '123',
+        SeriesId: showItemId,
         ParentIndexNumber: 2,
         IndexNumber: 5,
       }),
       UserData: {
-        ItemId: 'episode:tmdb:123:2:5',
+        ItemId: episodeItemId,
         IsFavorite: false,
         Played: false,
         PlayCount: 0,
@@ -204,11 +213,11 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
   const enriched = await service.enrichContinueWatchingItems({} as never, items);
 
   assert.equal(enriched.length, 1);
-  assert.equal(enriched[0]?.Id, 'episode:tmdb:123:2:5');
+  assert.equal(enriched[0]?.Id, episodeItemId);
   assert.equal(enriched[0]?.Type, 'Episode');
   assert.equal(enriched[0]?.SeriesName, 'Parent Show Title');
   assert.equal(enriched[0]?.Name, 'Parent Show Title');
-  assert.equal(enriched[0]?.SeriesId, '123');
+  assert.equal(enriched[0]?.SeriesId, showItemId);
   assert.equal(enriched[0]?.ParentIndexNumber, 2);
   assert.equal(enriched[0]?.IndexNumber, 5);
   assert.ok(enriched[0]?.ImageTags.Thumb);
@@ -219,8 +228,8 @@ test('enrichContinueWatchingItems enriches parent title for episode items', asyn
 test('enrichContinueWatchingItems drops episode items missing parent show record', async () => {
   const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
-    ['episode:tmdb:999:1:1', createCacheRecord({
-      itemId: 'episode:tmdb:999:1:1',
+    [orphanEpisodeId, createCacheRecord({
+      itemId: orphanEpisodeId,
       mediaType: 'episode',
       titleProviderId: '999',
       titleMediaType: 'show',
@@ -247,14 +256,14 @@ test('enrichContinueWatchingItems drops episode items missing parent show record
   const items: BaseItemDto[] = [
     {
       ...createBaseItemDto({
-        Id: 'episode:tmdb:999:1:1',
+        Id: orphanEpisodeId,
         Type: 'Episode',
-        SeriesId: '999',
+        SeriesId: showItemId,
         ParentIndexNumber: 1,
         IndexNumber: 1,
       }),
       UserData: {
-        ItemId: 'episode:tmdb:999:1:1',
+        ItemId: orphanEpisodeId,
         IsFavorite: false,
         Played: false,
         PlayCount: 0,
@@ -276,8 +285,8 @@ test('enrichContinueWatchingItems drops episode items missing parent show record
 test('enrichRegularMediaItems replaces mediaItem fields for history items', async () => {
   const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
-    ['show:tmdb:789', createCacheRecord({
-      itemId: 'show:tmdb:789',
+    [showItemId, createCacheRecord({
+      itemId: showItemId,
       mediaType: 'show',
       titleProviderId: '789',
       titleMediaType: 'show',
@@ -304,7 +313,7 @@ test('enrichRegularMediaItems replaces mediaItem fields for history items', asyn
   const items: BaseItemDto[] = [
     {
       ...createBaseItemDto({
-        Id: 'show:tmdb:789',
+        Id: showItemId,
         Type: 'Series',
         Name: 'Fallback Show Title',
         ImageTags: {
@@ -346,7 +355,7 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
   const items: BaseItemDto[] = [
     {
       ...createBaseItemDto({
-        Id: 'movie:tmdb:999',
+        Id: uncachedMovieId,
         Type: 'Movie',
         Name: 'Uncached Movie',
         ImageTags: {
@@ -371,13 +380,13 @@ test('enrichRegularMediaItems handles cache misses gracefully', async () => {
   assert.deepEqual(enriched[0]?.ImageTags.Primary, imageSet('https://media.test/uncached.jpg'));
 });
 
-test('enrichRegularMediaItems deduplicates media keys', async () => {
+test('enrichRegularMediaItems deduplicates item ids', async () => {
   const { WatchMetadataEnrichmentService } = await import('./watch-metadata-enrichment.service.js');
   let receivedItemIds: string[] = [];
 
   const cacheRecords = new Map<string, WatchMediaCardCacheRecord>([
-    ['movie:tmdb:111', createCacheRecord({
-      itemId: 'movie:tmdb:111',
+    [duplicateMovieId, createCacheRecord({
+      itemId: duplicateMovieId,
       titleProviderId: '111',
       title: 'Duplicate Movie',
       posterUrl: 'https://cache.test/dup.jpg',
@@ -404,7 +413,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
   const items: BaseItemDto[] = [
     {
       ...createBaseItemDto({
-        Id: 'movie:tmdb:111',
+        Id: duplicateMovieId,
         Type: 'Movie',
         Name: 'Fallback',
         ImageTags: {
@@ -422,7 +431,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
     },
     {
       ...createBaseItemDto({
-        Id: 'movie:tmdb:111',
+        Id: duplicateMovieId,
         Type: 'Movie',
         Name: 'Fallback',
         ImageTags: {
@@ -443,7 +452,7 @@ test('enrichRegularMediaItems deduplicates media keys', async () => {
   await service.enrichRegularMediaItems({} as never, items);
 
   assert.equal(receivedItemIds.length, 1);
-  assert.equal(receivedItemIds[0], 'movie:tmdb:111');
+  assert.equal(receivedItemIds[0], duplicateMovieId);
 });
 
 test('enrichRegularMediaItems handles empty items array', async () => {

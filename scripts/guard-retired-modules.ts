@@ -65,14 +65,6 @@ const rules: Rule[] = [
   {
     pattern: 'profileIdAndMediaKeyParamsSchema|watchMediaKeyMutationRouteSchema|watchMediaKeyParamsRouteSchema|WatchMediaKeyParams',
     message: 'Retired public media-key route schemas and types must not be reintroduced. Use itemId-based schemas instead.',
-    filter: (line) => {
-      const allowed = [
-        'src/http/contracts/shared.ts',
-        'src/http/contracts/watch.ts',
-        'src/http/routes/watch.ts',
-      ];
-      return !allowed.some((p) => line.includes(p));
-    },
   },
 ];
 

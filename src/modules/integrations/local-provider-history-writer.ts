@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
-import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey } from '../identity/media-key.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import type { ProfileRecord } from '../profiles/profile.repo.js';
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderSessionRecord } from './provider-sessions.repo.js';
@@ -46,6 +47,10 @@ export type LocalProviderImportSyncResult = {
 };
 
 export class LocalProviderHistoryWriter {
+  constructor(
+    private readonly contentIdentityService = new ContentIdentityService(),
+  ) {}
+
   async replaceImportedInteractions(
     client: DbClient,
     params: {
@@ -87,15 +92,16 @@ export class LocalProviderHistoryWriter {
         );
 
         for (const item of params.watchlistItems) {
+          const itemId = await this.contentIdentityService.ensureContentId(client, parseMediaKey(item.mediaKey));
           await client.query(
-            `INSERT INTO user_state.profile_list_items (account_id, profile_id, list_kind, media_key, media_type, added_at, source_kind, source_provider)
-             VALUES ($1::uuid, $2::uuid, 'watchlist', $3, $4, $5::timestamptz, 'provider_import', $6)
-             ON CONFLICT (profile_id, list_kind, media_key) DO UPDATE SET
+            `INSERT INTO user_state.profile_list_items (account_id, profile_id, list_kind, item_id, media_type, added_at, source_kind, source_provider)
+             VALUES ($1::uuid, $2::uuid, 'watchlist', $3::uuid, $4, $5::timestamptz, 'provider_import', $6)
+             ON CONFLICT (profile_id, list_kind, item_id) DO UPDATE SET
                added_at = EXCLUDED.added_at,
                source_kind = EXCLUDED.source_kind,
                source_provider = EXCLUDED.source_provider,
                updated_at = now()`,
-            [accountId, profileId, item.mediaKey, item.mediaType, item.addedAt, provider],
+            [accountId, profileId, itemId, item.mediaType, item.addedAt, provider],
           );
         }
         watchlistInserted = params.watchlistItems.length;
@@ -109,16 +115,17 @@ export class LocalProviderHistoryWriter {
         );
 
         for (const r of params.ratings) {
+          const ratingItemId = await this.contentIdentityService.ensureContentId(client, parseMediaKey(r.mediaKey));
           await client.query(
-            `INSERT INTO user_state.profile_ratings (account_id, profile_id, media_key, media_type, rating, rated_at, source_kind, source_provider)
-             VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::timestamptz, 'provider_import', $7)
-             ON CONFLICT (profile_id, media_key) DO UPDATE SET
+            `INSERT INTO user_state.profile_ratings (account_id, profile_id, item_id, media_type, rating, rated_at, source_kind, source_provider)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::timestamptz, 'provider_import', $7)
+             ON CONFLICT (profile_id, item_id) DO UPDATE SET
                rating = EXCLUDED.rating,
                rated_at = EXCLUDED.rated_at,
                source_kind = EXCLUDED.source_kind,
                source_provider = EXCLUDED.source_provider,
                updated_at = now()`,
-            [accountId, profileId, r.mediaKey, r.mediaType, r.rating, r.ratedAt, provider],
+            [accountId, profileId, ratingItemId, r.mediaType, r.rating, r.ratedAt, provider],
           );
         }
         ratingsInserted = params.ratings.length;
@@ -132,13 +139,15 @@ export class LocalProviderHistoryWriter {
         );
 
         for (const s of params.playbackStates) {
+          const titleItemId = await this.contentIdentityService.ensureContentId(client, parseMediaKey(s.titleMediaKey));
+          const playableItemId = await this.contentIdentityService.ensureContentId(client, parseMediaKey(s.mediaKey));
           await client.query(
             `INSERT INTO user_state.playback_progress
-               (profile_id, title_media_key, playable_media_key, media_type, position_seconds, duration_seconds, progress_bps,
+               (profile_id, title_item_id, playable_item_id, media_type, position_seconds, duration_seconds, progress_bps,
                 last_activity_at, source_kind, source_provider, account_id)
-             VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::timestamptz, 'provider_import', $9, $10::uuid)
-             ON CONFLICT (profile_id, title_media_key) DO UPDATE SET
-               playable_media_key = EXCLUDED.playable_media_key,
+             VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::timestamptz, 'provider_import', $9, $10::uuid)
+             ON CONFLICT (profile_id, title_item_id) DO UPDATE SET
+               playable_item_id = EXCLUDED.playable_item_id,
                position_seconds = EXCLUDED.position_seconds,
                duration_seconds = EXCLUDED.duration_seconds,
                progress_bps = EXCLUDED.progress_bps,
@@ -147,7 +156,7 @@ export class LocalProviderHistoryWriter {
                source_provider = EXCLUDED.source_provider,
                dismissed_at = CASE WHEN EXCLUDED.dismissed_at IS NOT NULL THEN EXCLUDED.dismissed_at ELSE NULL END,
                updated_at = now()`,
-            [profileId, s.titleMediaKey, s.mediaKey, s.mediaType, s.positionSeconds, s.durationSeconds, s.progressBps,
+            [profileId, titleItemId, playableItemId, s.mediaType, s.positionSeconds, s.durationSeconds, s.progressBps,
              s.occurredAt, provider, accountId],
           );
         }
@@ -156,7 +165,7 @@ export class LocalProviderHistoryWriter {
 
       await client.query('COMMIT');
     } catch (error) {
-      await client.query('ROLLBACK');
+      try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
       logger.error({ error, profileId, provider }, 'local provider import write failed');
       return {
         historyInserted: 0,
@@ -206,12 +215,15 @@ export class LocalProviderHistoryWriter {
     let inserted = 0;
     for (const entry of params.historyEntries) {
       const identity = parseMediaKey(entry.mediaKey);
+      const contentId = await this.contentIdentityService.ensureContentId(client, identity);
+      const titleIdentity = parseMediaKey(canonicalTitleMediaKey(identity));
+      const titleContentId = await this.contentIdentityService.ensureContentId(client, titleIdentity);
       await client.query(
         `INSERT INTO user_state.watch_events
-           (account_id, profile_id, media_key, title_media_key, media_type, event_type,
+           (account_id, profile_id, item_id, title_item_id, media_type, event_type,
             occurred_at, source_kind, source_provider)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'playback_completed', $6::timestamptz, 'provider_import', $7)`,
-        [accountId, profileId, entry.mediaKey, canonicalTitleMediaKey(identity), canonicalTitleMediaType(identity), entry.watchedAt, provider],
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'playback_completed', $6::timestamptz, 'provider_import', $7)`,
+        [accountId, profileId, contentId, titleContentId, canonicalTitleMediaType(identity), entry.watchedAt, provider],
       );
       inserted++;
     }
