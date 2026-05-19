@@ -43,7 +43,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     }, request);
   });
 
-  app.get('/v1/profiles/:profileId/recommendations', async (request) => {
+  app.get('/v1/profiles/:profileId/home', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:read']);
@@ -60,7 +60,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     }, request);
   });
 
-  app.put('/v1/profiles/:profileId/recommendations', async (request) => {
+  app.put('/v1/profiles/:profileId/home', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:write']);

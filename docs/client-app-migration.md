@@ -59,7 +59,7 @@ Sections now hold `BaseItemDto[]` directly:
 
 - The server will **never** include `Item`, `context`, `presentation`, `reason`, `score`, `rank`, or `payload` fields in public recommendation items.
 - There is no migration window, no dual response shape, no feature flag. This is a hard break.
-- The `BaseItemDto` shape is the only item shape for public media lists (continue-watching, history, watchlist, ratings, search results, recommendations).
+- The `BaseItemDto` shape is the only item shape for public media lists (continue-watching, history, watchlist, ratings, search results, home recommendations).
 
 ## Reference
 

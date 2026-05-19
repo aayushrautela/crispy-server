@@ -16,18 +16,19 @@ Public recommendation endpoints operate on a profile that belongs to the authent
 | `GET /v1/profiles/:profileId/taste-profiles` | List stored taste profiles across sources. |
 | `GET /v1/profiles/:profileId/taste-profile` | Read one taste profile, defaulting to the configured recommendation source when `sourceKey` is omitted or invalid. |
 | `PUT /v1/profiles/:profileId/taste-profile` | Create or replace a taste profile for the resolved source. |
-| `GET /v1/profiles/:profileId/recommendations` | Read one stored recommendation snapshot, defaulting source and algorithm version from server configuration when omitted or invalid. |
-| `PUT /v1/profiles/:profileId/recommendations` | Create or replace a stored recommendation snapshot. |
+| `GET /v1/profiles/:profileId/home` | Read one stored home recommendation snapshot, defaulting source and algorithm version from server configuration when omitted or invalid. |
+| `PUT /v1/profiles/:profileId/home` | Create or replace a stored home recommendation snapshot. |
 
 Common behavior:
 
 - `profileId` selects a persona under the authenticated account; profiles are not separate auth actors.
 - Missing or inaccessible profiles are authorization/not-found failures.
 - A profile may have no recommendation signals yet; empty signal arrays are valid input for generation.
-- `GET /recommendations` returns a successful response with a null recommendation snapshot when no snapshot exists for the resolved profile/source/algorithm version. This differs from an existing snapshot whose item arrays are empty.
+- `GET /home` returns a successful response shaped as `{ data: { recommendations }, meta: { requestId } }`, where `recommendations` is either a stored home snapshot or `null` when no snapshot exists for the resolved profile/source/algorithm version. This differs from an existing snapshot whose item arrays are empty.
+- Home snapshots contain `profileId`, `sourceKey`, `historyGeneration`, `algorithmVersion`, `sourceCursor`, `generatedAt`, `expiresAt`, `source`, `updatedByKind`, `updatedById`, `sections`, and `updatedAt`. Each section has `id`, `title`, `layout`, `items`, and `meta`.
 - Recommendation read items use canonical server-enriched `BaseItemDto` presentation data, including `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, and `ImageTags.Thumb` responsive sets with `small`, `medium`, and `large` nullable URLs, plus `CommunityRating`, `ProductionYear`, and `OfficialRating`.
 - Scalar legacy image fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned. `ImageTags.Logo` is best-effort TMDB artwork and may contain null sizes even when posters/backdrops exist.
-- Legacy public account recommendation endpoints (`GET /api/account/v1/profiles/:profileId/recommendations/current` and `PUT/DELETE /api/account/v1/profiles/:profileId/recommendations/:listKey`) have been retired; clients should use `GET /v1/profiles/:profileId/recommendations` and `PUT /v1/profiles/:profileId/recommendations`.
+- Legacy public account recommendation endpoints (`GET /api/account/v1/profiles/:profileId/recommendations/current` and `PUT/DELETE /api/account/v1/profiles/:profileId/recommendations/:listKey`) have been retired; clients should use `GET /v1/profiles/:profileId/home` and `PUT /v1/profiles/:profileId/home`.
 
 ## Recommendation writes
 

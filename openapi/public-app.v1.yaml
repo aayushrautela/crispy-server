@@ -1249,12 +1249,12 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/profiles/{profileId}/recommendations:
+  /v1/profiles/{profileId}/home:
     get:
       tags:
         - Recommendations
-      operationId: getV1ProfilesProfileIdRecommendations
-      summary: Get recommendations.
+      operationId: getV1ProfilesProfileIdHome
+      summary: Get profile home.
       security:
         - UserBearerAuth: []
       parameters:
@@ -1281,7 +1281,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/ProfileHomeResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1299,8 +1299,8 @@ paths:
     put:
       tags:
         - Recommendations
-      operationId: putV1ProfilesProfileIdRecommendations
-      summary: Upsert recommendations.
+      operationId: putV1ProfilesProfileIdHome
+      summary: Upsert profile home.
       security:
         - UserBearerAuth: []
       parameters:
@@ -1326,14 +1326,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              $ref: "#/components/schemas/ProfileHomeSnapshotInput"
       responses:
         "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/ProfileHomeResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3064,6 +3064,224 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MetadataPersonSearchResult"
+    ProfileHomeResponseEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - recommendations
+          properties:
+            recommendations:
+              anyOf:
+                - $ref: "#/components/schemas/ProfileHomeSnapshot"
+                - type: "null"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ProfileHomeSnapshotInput:
+      type: object
+      additionalProperties: true
+      required:
+        - historyGeneration
+        - generatedAt
+        - sections
+      properties:
+        sourceKey:
+          type: string
+        historyGeneration:
+          type: integer
+          minimum: 0
+        algorithmVersion:
+          type: string
+        sourceCursor:
+          anyOf:
+            - type: string
+            - type: "null"
+        generatedAt:
+          type: string
+        expiresAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        source:
+          type: string
+        updatedById:
+          anyOf:
+            - type: string
+            - type: "null"
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileHomeSectionInput"
+    ProfileHomeSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - profileId
+        - sourceKey
+        - historyGeneration
+        - algorithmVersion
+        - sourceCursor
+        - generatedAt
+        - expiresAt
+        - source
+        - updatedByKind
+        - updatedById
+        - sections
+        - updatedAt
+      properties:
+        profileId:
+          type: string
+        sourceKey:
+          type: string
+        historyGeneration:
+          type: integer
+          minimum: 0
+        algorithmVersion:
+          type: string
+        sourceCursor:
+          anyOf:
+            - type: string
+            - type: "null"
+        generatedAt:
+          type: string
+        expiresAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        source:
+          type: string
+        updatedByKind:
+          type: string
+        updatedById:
+          anyOf:
+            - type: string
+            - type: "null"
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileHomeSection"
+        updatedAt:
+          type: string
+    ProfileHomeSectionInput:
+      type: object
+      additionalProperties: true
+      required:
+        - id
+        - title
+        - layout
+        - items
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        layout:
+          type: string
+          enum: [regular, landscape, collection, hero]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        meta:
+          type: object
+          additionalProperties: true
+    ProfileHomeSection:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - layout
+        - items
+        - meta
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        layout:
+          type: string
+          enum: [regular, landscape, collection, hero]
+        items:
+          type: array
+          items:
+            anyOf:
+              - $ref: "#/components/schemas/BaseItemDto"
+              - $ref: "#/components/schemas/ProfileHomeCollectionCard"
+              - $ref: "#/components/schemas/ProfileHomeHeroCard"
+        meta:
+          type: object
+          additionalProperties: true
+    ProfileHomeCollectionCard:
+      type: object
+      additionalProperties: false
+      required: [title, logo, items]
+      properties:
+        title:
+          type: string
+        logo:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        items:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/ProfileHomeCollectionCardItem"
+    ProfileHomeCollectionCardItem:
+      type: object
+      additionalProperties: false
+      required: [mediaType, title, poster, releaseYear, rating]
+      properties:
+        mediaType:
+          type: string
+        title:
+          type: string
+        poster:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        releaseYear:
+          anyOf:
+            - type: integer
+            - type: "null"
+        rating:
+          anyOf:
+            - type: number
+            - type: "null"
+    ProfileHomeHeroCard:
+      type: object
+      additionalProperties: false
+      required: [itemId, mediaType, title, description, backdrop, poster, logo, releaseYear, rating, genre]
+      properties:
+        itemId:
+          $ref: "#/components/schemas/PublicItemId"
+        mediaType:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        backdrop:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        poster:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        logo:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        releaseYear:
+          anyOf:
+            - type: integer
+            - type: "null"
+        rating:
+          anyOf:
+            - type: number
+            - type: "null"
+        genre:
+          anyOf:
+            - type: string
+            - type: "null"
     GenericArrayEnvelope:
       type: object
       required:
@@ -3084,7 +3302,7 @@ components:
         - Name
       properties:
         Id:
-          type: string
+          $ref: "#/components/schemas/PublicItemId"
         Type:
           type: string
         Name:

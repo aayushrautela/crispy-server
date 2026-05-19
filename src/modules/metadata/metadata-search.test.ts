@@ -236,6 +236,53 @@ test('searchTitles coalesces identical in-flight requests', async () => {
   }
 });
 
+test('suggestTitles returns public item ids without title hydration', async () => {
+  const { db } = await import('../../lib/db.js');
+  const originalConnect = db.connect.bind(db);
+  db.connect = async () => ({
+    release() {
+      return undefined;
+    },
+  }) as never;
+
+  try {
+    const pkg = await import('../search/title-search.service.js');
+    let getTitlesCalls = 0;
+    const svc = new pkg.TitleSearchService(
+      {
+        searchTitles: async () => [],
+        discoverTitlesByGenre: async () => [],
+        searchPeople: async () => [],
+        getTitles: async () => {
+          getTitlesCalls += 1;
+          return new Map();
+        },
+        searchSuggestions: async () => [{
+          Id: '101',
+          Type: 'Movie',
+          Name: 'Alpha Movie',
+          ProductionYear: 2024,
+          ImageTags: null,
+          ProviderIds: { Tmdb: '101' },
+        }],
+      } as never,
+      {
+        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
+          return new Map(identities.map((identity) => [identity.mediaKey, '00000000-0000-0000-0000-000000000101']));
+        },
+        ensureContentId: async () => null,
+      } as never,
+    );
+
+    const suggestions = await svc.suggestTitles({ query: 'Alpha', filter: 'all', limit: 8, locale: 'en-US' });
+
+    assert.equal(suggestions[0]?.Id, '00000000000000000000000000000101');
+    assert.equal(suggestions[0]?.ProviderIds.Tmdb, '101');
+    assert.equal(getTitlesCalls, 0);
+  } finally {
+    db.connect = originalConnect;
+  }
+});
 function hydrateSearchRecord(record: TmdbTitleRecord): TmdbTitleRecord {
   return {
     ...record,

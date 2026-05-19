@@ -208,9 +208,33 @@ export class TitleSearchService {
     const suggestionKey = [normalizedQuery, normalizedFilter, locale ?? '', String(limit)].join('|');
 
     return this.suggestionCoalescer.run(suggestionKey, () =>
-      withDbClient((client) =>
-        this.tmdbCacheService.searchSuggestions(client, normalizedQuery, limit, normalizedFilter, locale),
-      ),
+      withDbClient(async (client) => {
+        const suggestions = await this.tmdbCacheService.searchSuggestions(client, normalizedQuery, limit, normalizedFilter, locale);
+        const identities = suggestions.flatMap((suggestion) => {
+          const tmdbId = Number(suggestion.ProviderIds.Tmdb);
+          if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+            return [];
+          }
+          return [inferMediaIdentity({
+            mediaType: suggestion.Type === 'Movie' ? 'movie' : 'show',
+            tmdbId,
+          })];
+        });
+        const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
+
+        return suggestions.map((suggestion) => {
+          const tmdbId = Number(suggestion.ProviderIds.Tmdb);
+          if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+            return suggestion;
+          }
+          const identity = inferMediaIdentity({
+            mediaType: suggestion.Type === 'Movie' ? 'movie' : 'show',
+            tmdbId,
+          });
+          const contentId = contentIds.get(identity.mediaKey);
+          return contentId ? { ...suggestion, Id: encodePublicItemId(contentId) } : suggestion;
+        });
+      }),
     );
   }
 }

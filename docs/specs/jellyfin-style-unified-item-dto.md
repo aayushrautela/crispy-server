@@ -149,7 +149,7 @@ type SearchHintResult = {
 };
 ```
 
-`SearchHint` is a lightweight result and does not need the full `BaseItemDto` shape.
+`SearchHint` is a lightweight result and does not need the full `BaseItemDto` shape. If a hint is selectable, its `Id` should be the canonical public item ID; provider identifiers such as TMDB IDs stay in `ProviderIds`.
 
 ## Recommendations
 
