@@ -27,7 +27,7 @@ test('search prompt prefers reliable catalog titles for mixed results', () => {
 
 test('insights prompt treats anime-origin titles as shows in TMDB-only mode', () => {
   const prompt = buildInsightsPrompt({
-    mediaKey: 'show:tmdb:5114',
+    itemId: '00000000000040008000000000005114',
     mediaType: 'show',
     title: 'Fullmetal Alchemist: Brotherhood',
     year: '2009',
@@ -44,7 +44,7 @@ test('insights prompt treats anime-origin titles as shows in TMDB-only mode', ()
 
 test('insights prompt adds show-specific guidance', () => {
   const prompt = buildInsightsPrompt({
-    mediaKey: 'show:tmdb:1',
+    itemId: '00000000000040008000000000000001',
     mediaType: 'show',
     title: 'His Dark Materials',
     year: '2019',

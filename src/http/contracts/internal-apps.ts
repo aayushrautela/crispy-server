@@ -6,6 +6,7 @@ import {
   numberSchema,
   nullableNumberSchema,
   nullableIntegerSchema,
+  publicItemIdSchema,
   recordSchema,
   successEnvelope,
   responseMetaSchema,
@@ -414,9 +415,9 @@ export const profileTasteSignalsSchema = {
 export const profileHistorySignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'contentType', 'watchedAt', 'progressPercent', 'completionState'],
+  required: ['itemId', 'contentType', 'watchedAt', 'progressPercent', 'completionState'],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     contentType: stringSchema,
     watchedAt: dateTimeSchema,
     progressPercent: numberSchema,
@@ -428,9 +429,9 @@ export const profileHistorySignalSchema = {
 export const profileRatingSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'rating', 'ratedAt'],
+  required: ['itemId', 'rating', 'ratedAt'],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     rating: numberSchema,
     ratedAt: dateTimeSchema,
     ratingSource: nullableStringSchema,
@@ -440,9 +441,9 @@ export const profileRatingSignalSchema = {
 export const profileWatchlistSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'addedAt'],
+  required: ['itemId', 'addedAt'],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     addedAt: dateTimeSchema,
   },
 } as const;
@@ -450,9 +451,9 @@ export const profileWatchlistSignalSchema = {
 export const profileContinueWatchingSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'progressPercent', 'updatedAt'],
+  required: ['itemId', 'progressPercent', 'updatedAt'],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     seasonNumber: nullableNumberSchema,
     episodeNumber: nullableNumberSchema,
     progressPercent: numberSchema,
@@ -463,9 +464,9 @@ export const profileContinueWatchingSignalSchema = {
 export const profileNegativeSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'reason', 'createdAt'],
+  required: ['itemId', 'reason', 'createdAt'],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     reason: stringSchema,
     createdAt: dateTimeSchema,
   },
@@ -474,10 +475,10 @@ export const profileNegativeSignalSchema = {
 export const profileRecentImpressionSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['listKey', 'mediaKey', 'shownAt'],
+  required: ['listKey', 'itemId', 'shownAt'],
   properties: {
     listKey: stringSchema,
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     shownAt: dateTimeSchema,
   },
 } as const;

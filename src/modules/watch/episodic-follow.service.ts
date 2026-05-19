@@ -46,7 +46,7 @@ export class EpisodicFollowService {
         reason: candidate.reason,
         lastInteractedAt: candidate.lastInteractedAt,
         nextEpisodeAirDate: nextEpisode?.airDate ?? null,
-        nextEpisodeMediaKey: nextEpisode?.mediaKey ?? null,
+        nextEpisodeItemId: nextEpisode?.itemId ?? null,
         nextEpisodeSeasonNumber: nextEpisode?.seasonNumber ?? null,
         nextEpisodeEpisodeNumber: nextEpisode?.episodeNumber ?? null,
         nextEpisodeAbsoluteEpisodeNumber: nextEpisode?.absoluteEpisodeNumber ?? null,

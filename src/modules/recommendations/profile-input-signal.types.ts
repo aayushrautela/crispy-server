@@ -70,7 +70,7 @@ export type ProfileInputTrackedSeriesItem = {
   reason: string;
   lastInteractedAt: string | null;
   nextEpisodeAirDate: string | null;
-  nextEpisodeMediaKey: string | null;
+  nextEpisodeItemId: string | null;
   nextEpisodeSeasonNumber: number | null;
   nextEpisodeEpisodeNumber: number | null;
   nextEpisodeAbsoluteEpisodeNumber: number | null;

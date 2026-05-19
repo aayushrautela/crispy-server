@@ -25,7 +25,7 @@
   "signals": {
     "watchHistory": [
       {
-        "mediaKey": "movie:tmdb:550",
+        "itemId": "8a1f7c852e864e2a9c0b77d9efc50001",
         "title": "Fight Club",
         "mediaType": "movie",
         "provider": "tmdb",
@@ -42,7 +42,7 @@
   },
   "candidatePool": [
     {
-      "mediaKey": "movie:tmdb:680",
+      "itemId": "8a1f7c852e864e2a9c0b77d9efc50002",
       "title": "Pulp Fiction",
       "mediaType": "movie",
       "provider": "tmdb",
@@ -53,7 +53,7 @@
       "popularity": 92.5
     },
     {
-      "mediaKey": "tv:tmdb:1399",
+      "itemId": "8a1f7c852e864e2a9c0b77d9efc50003",
       "title": "Game of Thrones",
       "mediaType": "tv",
       "provider": "tmdb",

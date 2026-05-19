@@ -244,10 +244,10 @@ const metadataResolveResponseSchema = {
 const metadataPersonKnownForItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaType', 'mediaKey', 'tmdbId', 'title', 'poster', 'rating', 'releaseYear'],
+  required: ['mediaType', 'itemId', 'tmdbId', 'title', 'poster', 'rating', 'releaseYear'],
   properties: {
     mediaType: stringSchema,
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     tmdbId: { type: 'integer' },
     title: stringSchema,
     poster: responsiveImageSetSchema,

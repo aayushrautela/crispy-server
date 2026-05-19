@@ -1,8 +1,8 @@
 import {
   baseItemDtoSchema,
   nonEmptyStringSchema,
-  nullableNumberSchema,
   profileIdParamsSchema,
+  publicItemIdSchema,
   stringSchema,
   successEnvelope,
   withDefaultErrorResponses,
@@ -79,9 +79,9 @@ export const aiInsightsRouteSchema = withDefaultErrorResponses({
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['mediaKey'],
+    required: ['itemId'],
     properties: {
-      mediaKey: nonEmptyStringSchema,
+      itemId: publicItemIdSchema,
       locale: stringSchema,
     },
   },

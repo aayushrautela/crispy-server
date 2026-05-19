@@ -152,7 +152,6 @@ export class MetadataProjectionService {
   ): CanonicalNextEpisodeRef {
     return {
       itemId: params.itemId,
-      mediaKey: episodeIdentity.mediaKey,
       airDate: params.airDate,
       seasonNumber: episodeIdentity.seasonNumber,
       episodeNumber: episodeIdentity.episodeNumber,

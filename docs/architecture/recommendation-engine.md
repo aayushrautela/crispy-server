@@ -110,7 +110,7 @@ Generated outputs are published back through internal app recommendation write e
 { "type": "movie", "tmdbId": 550 }
 ```
 
-MAIN derives source, rank from array order, canonical media keys, write mode, eligibility version, and storage/policy metadata. Writers must not send enriched card payloads, `contentId`, `mediaKey`, rank, score, provider fragments, eligibility version, signals version, or arbitrary metadata unless the OpenAPI contract explicitly allows it.
+MAIN derives source, rank from array order, canonical item IDs, write mode, eligibility version, and storage/policy metadata. Writers must not send enriched card payloads, `contentId`, `itemId`, rank, score, provider fragments beyond the documented write reference, eligibility version, signals version, or arbitrary metadata unless the OpenAPI contract explicitly allows it.
 
 Result ingestion is idempotent by profile, list key, and idempotency key where documented.
 

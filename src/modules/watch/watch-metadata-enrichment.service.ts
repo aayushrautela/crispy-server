@@ -39,13 +39,13 @@ export class WatchMetadataEnrichmentService {
     items: BaseItemDto[],
     language?: string | null,
   ): Promise<BaseItemDto[]> {
-    const mediaKeys = items.map((item) => item.Id);
-    const parentKeys = items
+    const itemIds = items.map((item) => item.Id);
+    const parentIds = items
       .filter((item) => item.Type === 'Episode')
       .map((item) => item.SeriesId)
-      .filter((k): k is string => !!k);
-    const allKeys = [...new Set([...mediaKeys, ...parentKeys])];
-    const records = await this.loadRecords(client, allKeys, language);
+      .filter((id): id is string => !!id);
+    const allIds = [...new Set([...itemIds, ...parentIds])];
+    const records = await this.loadRecords(client, allIds, language);
 
     return items.reduce<BaseItemDto[]>((acc, item) => {
       const record = records.get(item.Id);
@@ -53,8 +53,8 @@ export class WatchMetadataEnrichmentService {
         return acc;
       }
 
-      const parentKey = item.Type === 'Episode' ? item.SeriesId : null;
-      const parentRecord = parentKey ? records.get(parentKey) : undefined;
+      const parentId = item.Type === 'Episode' ? item.SeriesId : null;
+      const parentRecord = parentId ? records.get(parentId) : undefined;
 
       if (item.Type === 'Episode' && !parentRecord) {
         return acc;
@@ -82,18 +82,18 @@ export class WatchMetadataEnrichmentService {
     });
   }
 
-  private async loadRecords(client: DbClient, mediaKeys: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {
-    const uniqueMediaKeys = [...new Set(mediaKeys.filter((mediaKey) => mediaKey.trim()))];
-    if (!uniqueMediaKeys.length) {
+  private async loadRecords(client: DbClient, itemIds: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {
+    const uniqueItemIds = [...new Set(itemIds.filter((itemId) => itemId.trim()))];
+    if (!uniqueItemIds.length) {
       return new Map();
     }
 
-    const records = await this.watchMediaCardCacheService.listCardCacheRecords(client, uniqueMediaKeys, language);
-    const missingCount = uniqueMediaKeys.length - records.size;
+    const records = await this.watchMediaCardCacheService.listCardCacheRecords(client, uniqueItemIds, language);
+    const missingCount = uniqueItemIds.length - records.size;
     if (missingCount > 0) {
-      const missingKeys = uniqueMediaKeys.filter((key) => !records.has(key));
-      logger.debug({ requestedCount: uniqueMediaKeys.length, hitCount: records.size, missingCount }, 'watch metadata cache misses');
-      const refreshedRecords = await this.cacheMissRefreshService.refreshMissingCardsAndReturnRecords(client, missingKeys, language);
+      const missingIds = uniqueItemIds.filter((id) => !records.has(id));
+      logger.debug({ requestedCount: uniqueItemIds.length, hitCount: records.size, missingCount }, 'watch metadata cache misses');
+      const refreshedRecords = await this.cacheMissRefreshService.refreshMissingCardsAndReturnRecords(client, missingIds, language);
       for (const [key, record] of refreshedRecords.entries()) {
         records.set(key, record);
       }

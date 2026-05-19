@@ -2,7 +2,6 @@ import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 
 export type CanonicalNextEpisodeRef = {
   itemId: string;
-  mediaKey: string;
   airDate: string | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
@@ -13,7 +12,7 @@ export type CanonicalNextEpisodeRef = {
 export type EpisodicFollowStateInput = {
   profileId: string;
   titleContentId: string;
-  titleMediaKey: string;
+  titleItemId: string;
   nextEpisode: CanonicalNextEpisodeRef | null;
   metadataRefreshedAt: string | null;
   payload: Record<string, unknown>;
@@ -24,7 +23,7 @@ export type EpisodicFollowView = {
   reason: string | null;
   lastInteractedAt: string;
   nextEpisodeAirDate: string | null;
-  nextEpisodeMediaKey: string | null;
+  nextEpisodeItemId: string | null;
   nextEpisodeSeasonNumber: number | null;
   nextEpisodeEpisodeNumber: number | null;
   nextEpisodeAbsoluteEpisodeNumber: number | null;

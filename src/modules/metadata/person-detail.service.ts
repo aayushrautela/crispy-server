@@ -6,6 +6,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { TmdbClient } from './providers/tmdb.client.js';
 import { TmdbResponseCacheService } from './providers/tmdb-response-cache.service.js';
 import type { MetadataPersonDetail, MetadataPersonKnownForItem } from './metadata-detail.types.js';
+import type { MetadataTitleMediaType } from './metadata-card.types.js';
 import { normalizeMetadataLanguage, toTmdbLanguageQuery } from './metadata-language.js';
 
 export class PersonDetailService {
@@ -61,15 +62,16 @@ export class PersonDetailService {
         imdbId: normalizeImdbId(asString(externalIds?.imdb_id)),
         instagramId: asString(externalIds?.instagram_id),
         twitterId: asString(externalIds?.twitter_id),
-        knownFor: await buildKnownForItems(client, payload),
+        knownFor: await buildKnownForItems(client, payload, this.contentIdentityService),
       };
     });
   }
 }
 
 async function buildKnownForItems(
-  _client: DbClient,
+  client: DbClient,
   payload: Record<string, unknown>,
+  contentIdentityService: ContentIdentityService,
 ): Promise<MetadataPersonKnownForItem[]> {
   const cast = asArray(asRecord(payload.combined_credits)?.cast);
   const seen = new Set<string>();
@@ -103,7 +105,7 @@ async function buildKnownForItems(
     const releaseDate = mediaType === 'movie' ? asString(record.release_date) : asString(record.first_air_date);
     items.push({
       mediaType,
-      mediaKey: `${mediaType}:tmdb:${tmdbId}`,
+      itemId: await ensureKnownForItemId(client, contentIdentityService, mediaType, tmdbId),
       provider: 'tmdb',
       providerId: String(tmdbId),
       tmdbId,
@@ -123,6 +125,21 @@ async function buildKnownForItems(
     .sort((left, right) => right.popularity - left.popularity)
     .slice(0, 20)
     .map(({ popularity: _popularity, ...item }) => item);
+}
+
+async function ensureKnownForItemId(client: DbClient, contentIdentityService: ContentIdentityService, mediaType: MetadataTitleMediaType, tmdbId: number): Promise<string> {
+  const contentId = await contentIdentityService.ensureContentId(client, {
+    mediaKey: `${mediaType}:tmdb:${tmdbId}`,
+    mediaType,
+    provider: 'tmdb',
+    providerId: String(tmdbId),
+    tmdbId,
+    showTmdbId: mediaType === 'show' ? tmdbId : null,
+    seasonNumber: null,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+  });
+  return contentId.replaceAll('-', '').toLowerCase();
 }
 
 function parseYear(value: string): number | null {

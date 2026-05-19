@@ -9,7 +9,7 @@ export type SearchPromptCandidateShape = {
 };
 
 export type TitleInsightsContext = {
-  mediaKey: string;
+  itemId: string;
   mediaType: 'movie' | 'show';
   title: string;
   year: string | null;

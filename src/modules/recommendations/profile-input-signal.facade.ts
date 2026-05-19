@@ -174,7 +174,7 @@ export class ProfileInputSignalFacade {
               reason: item.reason ?? 'watch_activity',
               lastInteractedAt: item.lastInteractedAt,
               nextEpisodeAirDate: item.nextEpisodeAirDate,
-              nextEpisodeMediaKey: item.nextEpisodeMediaKey,
+              nextEpisodeItemId: item.nextEpisodeItemId,
               nextEpisodeSeasonNumber: item.nextEpisodeSeasonNumber,
               nextEpisodeEpisodeNumber: item.nextEpisodeEpisodeNumber,
               nextEpisodeAbsoluteEpisodeNumber: item.nextEpisodeAbsoluteEpisodeNumber,

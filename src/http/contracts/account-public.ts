@@ -21,7 +21,7 @@ export interface PublicProfileDto extends PublicProfileSummaryDto {
 }
 
 export interface PublicMediaItemDto {
-  mediaKey: string;
+  itemId: string;
   mediaType: PublicMediaType;
   title: string;
   subtitle: string | null;

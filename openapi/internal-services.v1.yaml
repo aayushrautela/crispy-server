@@ -1191,7 +1191,7 @@ components:
       not:
         anyOf:
           - required: [contentId]
-          - required: [mediaKey]
+          - required: [itemId]
           - required: [rank]
           - required: [score]
           - required: [reason]
@@ -1484,9 +1484,9 @@ components:
     RecommendationAiPlanMediaItem:
       type: object
       additionalProperties: false
-      required: [mediaKey, title, mediaType, provider, providerId]
+      required: [itemId, title, mediaType, provider, providerId]
       properties:
-        mediaKey: { type: string, minLength: 1, maxLength: 256 }
+        itemId: { type: string, pattern: '^[0-9a-f]{32}$', minLength: 32, maxLength: 32 }
         title: { type: string, minLength: 1, maxLength: 300 }
         mediaType: { type: string, enum: [movie, tv] }
         provider: { type: string, minLength: 1, maxLength: 64, description: Public metadata provider such as tmdb; not an AI provider. }
@@ -1527,10 +1527,10 @@ components:
     RecommendationAiPlanItem:
       type: object
       additionalProperties: false
-      required: [rank, mediaKey, mediaType, provider, providerId, title, score, confidence, reason, reasonCodes]
+      required: [rank, itemId, mediaType, provider, providerId, title, score, confidence, reason, reasonCodes]
       properties:
         rank: { type: integer, minimum: 1 }
-        mediaKey: { type: string, minLength: 1, maxLength: 256 }
+        itemId: { type: string, pattern: '^[0-9a-f]{32}$', minLength: 32, maxLength: 32 }
         mediaType: { type: string, enum: [movie, tv] }
         provider: { type: string, minLength: 1, maxLength: 64 }
         providerId: { type: string, minLength: 1, maxLength: 128 }

@@ -179,8 +179,6 @@ export const profileIdAndItemIdParamsSchema = {
   },
 } as const;
 
-// LEGACY: profileIdAndMediaKeyParamsSchema removed in Identity v2
-
 type RouteSchema = Record<string, unknown> & {
   response?: Record<number, unknown>;
 };
@@ -440,9 +438,9 @@ export const mediaExternalIdsSchema = {
 export const mediaItemParentSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaKey', 'mediaType', 'title'],
+  required: ['itemId', 'mediaType', 'title'],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     mediaType: mediaItemTypeSchema,
     title: stringSchema,
   },
@@ -469,7 +467,7 @@ export const mediaItemSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'mediaKey',
+    'itemId',
     'mediaType',
     'title',
     'originalTitle',
@@ -499,7 +497,7 @@ export const mediaItemSchema = {
     'badges',
   ],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     mediaType: mediaItemTypeSchema,
     title: stringSchema,
     originalTitle: nullableStringSchema,
@@ -540,7 +538,7 @@ export const metadataCardViewSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'mediaKey',
+    'itemId',
     'mediaType',
     'kind',
     'parentMediaType',
@@ -567,7 +565,7 @@ export const metadataCardViewSchema = {
     'backdropColor',
   ],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     mediaType: stringSchema,
     kind: stringSchema,
     parentMediaType: nullableStringSchema,
@@ -598,10 +596,10 @@ export const metadataCardViewSchema = {
 export const regularCardViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaType', 'mediaKey', 'title', 'poster', 'releaseYear', 'rating', 'genre', 'subtitle'],
+  required: ['mediaType', 'itemId', 'title', 'poster', 'releaseYear', 'rating', 'genre', 'subtitle'],
   properties: {
     mediaType: stringSchema,
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     title: stringSchema,
     poster: responsiveImageSetSchema,
     releaseYear: nullableIntegerSchema,
@@ -616,7 +614,7 @@ export const landscapeCardViewSchema = {
   additionalProperties: false,
   required: [
     'mediaType',
-    'mediaKey',
+    'itemId',
     'title',
     'poster',
     'backdrop',
@@ -631,7 +629,7 @@ export const landscapeCardViewSchema = {
   ],
   properties: {
     mediaType: stringSchema,
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     title: stringSchema,
     poster: responsiveImageSetSchema,
     backdrop: responsiveImageSetSchema,
@@ -679,7 +677,7 @@ export const heroCardViewSchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'mediaKey',
+    'itemId',
     'mediaType',
     'title',
     'description',
@@ -691,7 +689,7 @@ export const heroCardViewSchema = {
     'genre',
   ],
   properties: {
-    mediaKey: stringSchema,
+    itemId: publicItemIdSchema,
     mediaType: stringSchema,
     title: stringSchema,
     description: stringSchema,

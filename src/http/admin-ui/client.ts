@@ -1370,7 +1370,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     return sectionCard('Episodic Follow (Diagnostic)', '<div class="item-list">' + items.map((item) => {
       const media = item && item.show ? item.show : null;
-      const hasCanonicalNextEpisode = Boolean(item && item.nextEpisodeMediaKey);
+      const hasCanonicalNextEpisode = Boolean(item && item.nextEpisodeItemId);
       const hasSeasonEpisode = item && item.nextEpisodeSeasonNumber != null && item.nextEpisodeEpisodeNumber != null;
       const episodeLabel =
         hasSeasonEpisode
@@ -1521,7 +1521,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function mediaTitle(media) {
     if (!media) return 'Unknown title';
-    return media.title || media.subtitle || media.mediaKey || 'Unknown title';
+    return media.title || media.subtitle || media.itemId || 'Unknown title';
   }
 
   function mediaSubtitle(media) {

@@ -2,7 +2,7 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { parseMediaKey } from '../identity/media-key.js';
+import { assertPublicItemId, decodePublicItemId } from '../identity/public-item-id.js';
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
 import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
@@ -30,24 +30,23 @@ export class AiInsightsService {
   ) {}
 
   async getInsights(userId: string, input: {
-    mediaKey: string;
+    itemId: string;
     profileId: string;
     locale?: string | null;
   }): Promise<AiInsightsPayload> {
-    const mediaKey = normalizeString(input.mediaKey);
+    const itemId = normalizeString(input.itemId);
     const profileId = normalizeString(input.profileId);
     const locale = normalizeLocale(input.locale);
 
-    if (!mediaKey) {
-      throw new HttpError(400, 'mediaKey is required.');
+    if (!itemId) {
+      throw new HttpError(400, 'itemId is required.');
     }
+    assertPublicItemId(itemId);
     if (!profileId) {
       throw new HttpError(400, 'Profile is required.');
     }
     await this.profileLocalService.requireOwnedProfile(userId, profileId);
-    const contentId = await this.runInTransaction(async (client) => {
-      return this.contentIdentityService.ensureContentId(client, parseMediaKey(mediaKey));
-    });
+    const contentId = decodePublicItemId(itemId);
     const request = await this.entitlementService.resolveAiRequestForUser(userId, 'insights');
     const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
@@ -63,8 +62,8 @@ export class AiInsightsService {
     }
 
     const [titleDetail, titleReviews] = await Promise.all([
-      this.metadataTitlePageService.getTitlePage(mediaKey),
-      this.metadataReviewsService.getTitleReviews(userId, profileId, mediaKey),
+      this.metadataTitlePageService.getTitlePage(itemId),
+      this.metadataReviewsService.getTitleReviews(userId, profileId, itemId),
     ]);
     const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.Reviews);
     if (!titleContext) {
@@ -108,7 +107,7 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: Metadat
   }
 
   return {
-    mediaKey: detail.Item.Id,
+    itemId: detail.Item.Id,
     mediaType: mediaType === 'Movie' ? 'movie' : 'show',
     title,
     year: detail.Item.ProductionYear ? String(detail.Item.ProductionYear) : null,

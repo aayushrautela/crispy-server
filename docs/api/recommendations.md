@@ -31,7 +31,7 @@ Common behavior:
 
 ## Recommendation writes
 
-Recommendation write requests use ordered TMDB references. Writers submit the minimal item identity needed for MAIN to derive stored data, ranking, and canonical media keys.
+Recommendation write requests use ordered TMDB references. Writers submit the minimal provider reference needed for MAIN to derive stored data, ranking, and canonical item IDs.
 
 ```json
 { "type": "movie", "tmdbId": 550 }
@@ -41,8 +41,8 @@ Rules:
 
 - Allowed item media types are the values defined in OpenAPI for the endpoint.
 - Array order is the recommendation rank.
-- MAIN derives source, rank, canonical `mediaKey`, write mode, storage metadata, and eligibility policy.
-- Active writers must not send enriched card payloads, `contentId`, `mediaKey`, provider fragments, rank fields, score fields, write-mode fields, eligibility versions, or arbitrary stored metadata unless the OpenAPI contract explicitly adds those fields.
+- MAIN derives source, rank, canonical `itemId`, write mode, storage metadata, and eligibility policy.
+- Active writers must not send enriched card payloads, `contentId`, `itemId`, provider fragments beyond the documented write reference, rank fields, score fields, write-mode fields, eligibility versions, or arbitrary stored metadata unless the OpenAPI contract explicitly adds those fields.
 
 ## Generation model
 

@@ -26,7 +26,7 @@ export async function registerAiRoutes(app: FastifyInstance): Promise<void> {
     const body = (request.body ?? {}) as Record<string, unknown>;
     const params = request.params as { profileId: string };
     return success(await aiInsightsService.getInsights(actor.appUserId, {
-      mediaKey: typeof body.mediaKey === 'string' ? body.mediaKey : '',
+      itemId: typeof body.itemId === 'string' ? body.itemId : '',
       profileId: params.profileId,
       locale: typeof body.locale === 'string' ? body.locale : null,
     }), request);

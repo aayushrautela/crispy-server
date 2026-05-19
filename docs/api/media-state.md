@@ -4,7 +4,9 @@ This guide summarizes client-facing media identity and watch-state rules. Exact 
 
 ## Canonical public identity
 
-`mediaKey` is the canonical public navigation and watch-domain identity. Clients should use `mediaKey` for:
+`itemId` is the only canonical public navigation and watch-domain identity. It is a 32-character lowercase dashless UUID hex string from `content_items.id`.
+
+Clients should use `itemId` for:
 
 - title navigation
 - playback resolution
@@ -13,66 +15,69 @@ This guide summarizes client-facing media identity and watch-state rules. Exact 
 - rating mutations
 - recommendation item navigation when a payload is navigable
 
-Supporting identity fields are compatibility or convenience fields:
+Clients must treat item IDs as opaque. Do not parse them, derive provider IDs from them, or construct them from TMDB/Trakt/TVDB values.
 
-- `type` is derived from `mediaKey` and should not be treated as a separate identity source.
-- `provider` and `providerId` on canonical media shapes are deprecated compatibility fields and may be removed from client-facing payloads.
-- `contentId` is a legacy alias accepted during migration only; new clients should use `mediaKey`.
+Supporting identity fields are convenience fields only:
+
+- `Type` / `mediaType` are derived presentation fields and are not identity sources.
+- `ProviderIds` carries external references where exposed.
+- `SeriesId`, `SeasonId`, and `UserData.ItemId` are also public item IDs.
 
 ## Media types and provider model
 
-Canonical media identity is TMDB-backed. Public title/card flows primarily expose movies, shows, and episodes; metadata internals may also use season and person identities where documented in OpenAPI.
+Canonical public item IDs are provider-independent. TMDB, TVDB, IMDb, Trakt, and other provider references are stored as external refs and may appear only in provider/reference fields documented in OpenAPI.
 
 There is no first-class backend `anime` media type. Anime-origin titles are modeled as normal TMDB movies or shows.
 
-Provider connection endpoints still refer to Trakt and Simkl as import providers. That is separate from canonical metadata identity, which remains TMDB-backed.
+Provider connection endpoints still refer to Trakt and Simkl as import providers. That is separate from canonical public identity.
 
 ## Search and metadata
 
-Search and metadata routes resolve TMDB-backed identities:
+Search and metadata routes use item IDs:
 
 - Search buckets are `movies`, `series`, and `all`.
 - There is no `anime` search bucket.
-- Metadata resolve/detail/playback routes should be called with `mediaKey` or the identity fields documented in OpenAPI.
-- Clients should not construct provider-routed identities from deprecated `provider`/`providerId` fields when `mediaKey` is available.
-- Primary card/list surfaces should expose canonical `BaseItemDto` presentation fields from the server: `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
+- Metadata resolve/detail/playback routes should be called with `itemId` or `/items/{itemId}` paths documented in OpenAPI.
+- Clients should not construct provider-routed identities from `provider`/`providerId` fields.
+- Primary card/list surfaces expose canonical `BaseItemDto` presentation fields from the server: `Id`, `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
 - Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
 - `ImageTags.Logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
 
 ## Watch state
 
-Watch-state routes are `mediaKey`-based and express product intent rather than storage details:
+Watch-state routes are item-ID based and express product intent rather than storage details:
 
-- Single-item state lookup receives one media identity.
-- Batch state lookup receives a bounded list of media identities.
-- Watchlist and rating mutations should target the canonical media key path value documented in OpenAPI.
+- Single-item state lookup receives one `itemId`.
+- Batch state lookup receives a bounded list of `itemId` values.
+- Watchlist and rating mutations target the item ID path value documented in OpenAPI.
 - Playback progress updates incomplete resume state.
 - Completed playback records a chronological history event and removes active resume state for that title.
 - Manual mark watched records watched state and removes active resume state.
 - Manual unwatch records a new watched-state event that can make effective watched state false.
 - Full watch history returns chronological watched events and preserves rewatches.
-- Media-specific history can be requested for a movie, episode, or show media key.
-- Show state includes `watchedEpisodeKeys` derived from watched episode summaries.
+- Media-specific history can be requested for a movie, episode, or show item ID.
+- Show state includes watched episode item IDs derived from watched episode summaries.
 
 Continue-watching items represent active resume state only.
 
-- **`Id`** is the title-level key (`movie:tmdb:X` or `show:tmdb:X`). Use this when calling the dismiss endpoint.
-- **`Id`** is the playable unit: `movie:tmdb:X` for movies, `episode:tmdb:showId:season:episode` for episode progress (also serves as `mediaKey`).
-- **`SeriesName`** and **`SeriesId`** are populated for episodes. Clients should use `SeriesId` for show-level navigation from episode items.
-- **`ParentIndexNumber`** is the season number, **`IndexNumber`** is the episode number.
-- **`EpisodeTitle`** is the episode name (also available in `Name`).
+- `Id` is a public item ID.
+- For movies, `Id` is the movie item ID.
+- For episode progress, `Id` is the episode item ID and `SeriesId` is the parent show item ID.
+- `SeriesName` and `SeriesId` are populated for episodes. Clients should use `SeriesId` for show-level navigation from episode items.
+- `ParentIndexNumber` is the season number, `IndexNumber` is the episode number.
+- `EpisodeTitle` is the episode name, also available in `Name`.
 
 Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 
 ## Recommendations
 
-Recommendation read payloads should follow canonical media identity rules:
+Recommendation read payloads follow canonical item ID identity rules:
 
-- Use `mediaKey` where a recommendation item is navigable.
-- Treat `type` as derived convenience data.
-- Primary card/list surfaces should expose canonical `BaseItemDto` presentation fields from the server: `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
+- Use `Id` / `itemId` where a recommendation item is navigable.
+- Treat `Type` / `mediaType` as derived convenience data.
+- Primary card/list surfaces expose canonical `BaseItemDto` presentation fields from the server: `Id`, `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
 - Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
 - `ImageTags.Logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
-- Do not depend on deprecated `provider`/`providerId` fields for navigation.
+- Do not depend on provider fields for navigation.
 
 Recommendation write payloads for service-owned lists use ordered TMDB references as documented in OpenAPI and `docs/api/recommendations.md`; writers should not submit enriched card metadata or legacy identity aliases.

@@ -338,14 +338,14 @@ test('/v1/playback/resolve requires itemId only', async (t) => {
     url: '/v1/playback/resolve',
     headers: { authorization: 'Bearer test' },
   });
-  const oldMediaKey = await app.inject({
+  const invalidItemId = await app.inject({
     method: 'GET',
-    url: '/v1/playback/resolve?mediaKey=movie%3Atmdb%3A694',
+    url: '/v1/playback/resolve?itemId=not-a-public-item-id',
     headers: { authorization: 'Bearer test' },
   });
 
   assert.equal(successResponse.statusCode, 200);
   assert.equal(seenItemId, MOVIE_ITEM_ID);
   assert.equal(missingItemId.statusCode, 400);
-  assert.equal(oldMediaKey.statusCode, 400);
+  assert.equal(invalidItemId.statusCode, 400);
 });

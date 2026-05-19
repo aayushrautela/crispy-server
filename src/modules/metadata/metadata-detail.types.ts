@@ -126,7 +126,7 @@ export type MetadataNextEpisodeResponse = {
 
 export type MetadataPersonKnownForItem = {
   mediaType: MetadataTitleMediaType;
-  mediaKey: string;
+  itemId: string;
   provider: SupportedProvider;
   providerId: string;
   tmdbId: number;

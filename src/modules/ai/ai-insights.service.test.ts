@@ -9,10 +9,9 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
   let capturedPrompt = '';
   let capturedGenerationVersion = '';
   let capturedContentId = '';
-  let ensuredMediaKey = '';
 
   const service = new AiInsightsService(
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    { requireOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
     {
       findByKey: async () => null,
       upsert: async (_client: unknown, params: { contentId: string; generationVersion: string; payload: { insights: Array<Record<string, unknown>>; trivia: string } }) => {
@@ -21,12 +20,7 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
         return params.payload;
       },
     } as never,
-    {
-      ensureContentId: async (_client: unknown, identity: { mediaKey: string }) => {
-        ensuredMediaKey = identity.mediaKey;
-        return '11111111-1111-4111-8111-111111111111';
-      },
-    } as never,
+    {} as never,
     {
       resolveAiRequestForUser: async () => ({
         providerId: 'openai',
@@ -56,7 +50,7 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
     {
       getTitlePage: async () => ({
         Item: {
-          Id: 'movie:tmdb:1',
+          Id: '11111111111141118111111111111111',
           Type: 'Movie',
           Name: 'The Movie',
           OriginalTitle: null,
@@ -104,13 +98,12 @@ test('AiInsightsService loads reviews from MetadataReviewsService and bumps cach
   );
 
   const payload = await service.getInsights('user-1', {
-    mediaKey: 'movie:tmdb:1',
+    itemId: '11111111111141118111111111111111',
     profileId: 'profile-1',
     locale: 'en-US',
   });
 
   assert.equal(payload.insights.length, 1);
-  assert.equal(ensuredMediaKey, 'movie:tmdb:1');
   assert.equal(capturedContentId, '11111111-1111-4111-8111-111111111111');
   assert.match(capturedPrompt, /Great pacing and payoff\./);
   assert.match(capturedGenerationVersion, /^v4:/);

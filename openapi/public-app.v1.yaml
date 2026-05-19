@@ -1804,7 +1804,7 @@ paths:
     put:
       tags:
         - Watch
-      operationId: putV1ProfilesProfileIdWatchRatingMediaKey
+      operationId: putV1ProfilesProfileIdWatchRatingItemId
       summary: Set media rating.
       security:
         - UserBearerAuth: []
@@ -1851,7 +1851,7 @@ paths:
     delete:
       tags:
         - Watch
-      operationId: deleteV1ProfilesProfileIdWatchRatingMediaKey
+      operationId: deleteV1ProfilesProfileIdWatchRatingItemId
       summary: Clear media rating.
       security:
         - UserBearerAuth: []
@@ -2129,7 +2129,7 @@ paths:
     put:
       tags:
         - Watch
-      operationId: putV1ProfilesProfileIdWatchWatchlistMediaKey
+      operationId: putV1ProfilesProfileIdWatchWatchlistItemId
       summary: Add media to watchlist.
       security:
         - UserBearerAuth: []
@@ -2186,7 +2186,7 @@ paths:
     delete:
       tags:
         - Watch
-      operationId: deleteV1ProfilesProfileIdWatchWatchlistMediaKey
+      operationId: deleteV1ProfilesProfileIdWatchWatchlistItemId
       summary: Remove media from watchlist.
       security:
         - UserBearerAuth: []
@@ -2345,12 +2345,12 @@ paths:
               type: object
               additionalProperties: true
               required:
-                - mediaKeys
+                - itemIds
               properties:
-                mediaKeys:
+                itemIds:
                   type: array
                   items:
-                    type: string
+                    $ref: "#/components/schemas/PublicItemId"
                 language:
                   type: string
       responses:
