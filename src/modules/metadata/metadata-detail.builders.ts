@@ -154,5 +154,7 @@ export function buildSeasonBaseItemDto(
     ...dto,
     SeasonId: seasonId,
     SeasonName: seasonName ?? `Season ${seasonNumber}`,
+    ParentIndexNumber: null,
+    IndexNumber: seasonNumber,
   };
 }

@@ -212,8 +212,8 @@ test('buildSeasonBaseItemDto populates season fields', async () => {
   assert.equal(dto.SeriesName, 'Breaking Point');
   assert.equal(dto.SeasonId, 'uuid-season-42-2');
   assert.equal(dto.SeasonName, 'Season 2');
-  assert.equal(dto.ParentIndexNumber, 2);
-  assert.equal(dto.IndexNumber, null);
+  assert.equal(dto.ParentIndexNumber, null);
+  assert.equal(dto.IndexNumber, 2);
   assert.equal(dto.EpisodeTitle, null);
   assert.equal(dto.AirDate, null);
   assert.equal(dto.PremiereDate, '2025-01-01');
@@ -255,6 +255,8 @@ test('buildSeasonBaseItemDto uses fallback when raw season missing', async () =>
   assert.equal(dto.Type, 'Season');
   assert.equal(dto.Name, 'Season 1');
   assert.equal(dto.SeasonName, 'Season 1');
+  assert.equal(dto.ParentIndexNumber, null);
+  assert.equal(dto.IndexNumber, 1);
   assert.equal(dto.Overview, null);
   assert.equal(dto.PremiereDate, null);
   assert.equal(dto.ProductionYear, null);

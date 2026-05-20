@@ -231,7 +231,9 @@ test('GET /v1/metadata/items/:itemId/extras serializes show episodes', async (t)
   const original = MetadataTitleExtrasService.prototype.getTitleExtras;
 
   MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
-    Seasons: [],
+    Seasons: [
+      makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a801', Type: 'Season', Name: 'Season 1', ParentIndexNumber: null, IndexNumber: 1 }),
+    ],
     Episodes: [
       makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a80b', Name: 'Pilot', EpisodeTitle: 'Pilot', AirDate: '2024-01-01', ParentIndexNumber: 1, IndexNumber: 1 }),
       makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a80c', Name: 'Second Episode', EpisodeTitle: 'Second Episode', AirDate: '2024-01-08', ParentIndexNumber: 1, IndexNumber: 2 }),
@@ -256,6 +258,9 @@ test('GET /v1/metadata/items/:itemId/extras serializes show episodes', async (t)
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
+  assert.equal(body.data.Seasons.length, 1);
+  assert.equal(body.data.Seasons[0].ParentIndexNumber, null);
+  assert.equal(body.data.Seasons[0].IndexNumber, 1);
   assert.equal(body.data.Episodes.length, 2);
   assert.equal(body.data.Episodes[0].IndexNumber, 1);
   assert.equal(body.data.Episodes[1].IndexNumber, 2);
