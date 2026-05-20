@@ -16,10 +16,10 @@ export class MetadataTitleExtrasService {
 
   async getTitleExtras(itemId: string, language?: string | null): Promise<MetadataTitleExtras> {
     const publicItemId = itemId.trim();
-    const contentId = assertPublicItemId(publicItemId);
+    assertPublicItemId(publicItemId);
     const cacheKey = metadataTitleExtrasCacheKey(publicItemId, language ?? null);
     return this.cacheService.getOrSet(cacheKey, publicItemId, async () => withDbClient(async (client) => {
-      const identity = await resolveTitleItemIdentity(client, this.contentIdentityService, contentId);
+      const identity = await resolveTitleItemIdentity(client, this.contentIdentityService, publicItemId);
       return this.extrasBuilder.buildTitleExtras(client, identity, language ?? null);
     }));
   }

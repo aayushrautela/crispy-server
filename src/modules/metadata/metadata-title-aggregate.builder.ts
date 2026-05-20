@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { logger } from '../../config/logger.js';
 import { assertPresent } from '../../lib/errors.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
@@ -34,31 +35,47 @@ export class MetadataTitleAggregateBuilder {
 
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const itemId = encodePublicItemId(identity.contentId ?? await this.contentIdentityService.ensureContentId(client, identity));
-    const nextEpisodeContentId = source.tmdbNextEpisode
-      ? await this.contentIdentityService.ensureEpisodeContentId(client, {
-        parentMediaType: 'show',
-        provider: 'tmdb',
-        parentProviderId: String(resolvedTitle.tmdbId),
-        seasonNumber: source.tmdbNextEpisode.seasonNumber,
-        episodeNumber: source.tmdbNextEpisode.episodeNumber,
-      })
-      : null;
-    const nextEpisodeItemId = nextEpisodeContentId ? encodePublicItemId(nextEpisodeContentId) : null;
-    const nextEpisodeParents = nextEpisodeItemId
-      ? await this.contentIdentityService.resolveParentItemIdsForEpisode(client, nextEpisodeItemId)
-      : null;
+    const nextEpisode = await this.buildNextEpisode(client, resolvedTitle, source.tmdbNextEpisode);
 
     return {
       Item: buildDetailBaseItemDto({ identity, itemId, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
-      NextEpisode: source.tmdbNextEpisode && nextEpisodeItemId && nextEpisodeParents?.seriesItemId
-        ? buildEpisodeBaseItemDto(resolvedTitle, source.tmdbNextEpisode, nextEpisodeItemId, nextEpisodeParents.seriesItemId, nextEpisodeParents.seasonItemId)
-        : null,
+      NextEpisode: nextEpisode,
       Videos: extractVideos(resolvedTitle),
       Cast: extractCast(resolvedTitle),
       Directors: extractCrewByJob(resolvedTitle, 'Director'),
       Creators: extractCreators(resolvedTitle),
       Production: extractProduction(resolvedTitle),
     };
+  }
+
+  private async buildNextEpisode(client: DbClient, title: NonNullable<Awaited<ReturnType<MetadataTitleSourceService['loadTitleSource']>>['tmdbTitle']>, nextEpisode: Awaited<ReturnType<MetadataTitleSourceService['loadTitleSource']>>['tmdbNextEpisode']): Promise<MetadataTitleDetail['NextEpisode']> {
+    if (!nextEpisode) {
+      return null;
+    }
+
+    try {
+      const nextEpisodeContentId = await this.contentIdentityService.ensureEpisodeContentId(client, {
+        parentMediaType: 'show',
+        provider: 'tmdb',
+        parentProviderId: String(title.tmdbId),
+        seasonNumber: nextEpisode.seasonNumber,
+        episodeNumber: nextEpisode.episodeNumber,
+      });
+      const nextEpisodeItemId = encodePublicItemId(nextEpisodeContentId);
+      const nextEpisodeParents = await this.contentIdentityService.resolveParentItemIdsForEpisode(client, nextEpisodeItemId);
+      return nextEpisodeParents.seriesItemId
+        ? buildEpisodeBaseItemDto(title, nextEpisode, nextEpisodeItemId, nextEpisodeParents.seriesItemId, nextEpisodeParents.seasonItemId)
+        : null;
+    } catch (error) {
+      logger.warn({
+        err: error,
+        tmdbId: title.tmdbId,
+        seasonNumber: nextEpisode.seasonNumber,
+        episodeNumber: nextEpisode.episodeNumber,
+        episodeTmdbId: nextEpisode.tmdbId,
+      }, 'failed to build title next episode');
+      return null;
+    }
   }
 
 }
