@@ -4,7 +4,6 @@ import {
   metadataItemDetailRouteSchema,
   metadataItemExtrasRouteSchema,
   metadataItemRatingsRouteSchema,
-  metadataItemReviewsRouteSchema,
   metadataPersonRouteSchema,
   metadataResolveRouteSchema,
   metadataSearchRouteSchema,
@@ -25,7 +24,6 @@ import { MetadataTitleExtrasService } from '../../modules/metadata/metadata-titl
 import { PersonDetailService } from '../../modules/metadata/person-detail.service.js';
 import { PlaybackResolveService } from '../../modules/metadata/playback-resolve.service.js';
 import { MetadataRatingsService } from '../../modules/metadata/metadata-ratings.service.js';
-import { MetadataReviewsService } from '../../modules/metadata/metadata-reviews.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
 import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-batch.service.js';
@@ -37,7 +35,6 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const metadataTitleExtrasService = new MetadataTitleExtrasService();
   const titleSearchService = new TitleSearchService();
   const metadataRatingsService = new MetadataRatingsService();
-  const metadataReviewsService = new MetadataReviewsService();
   const personDetailService = new PersonDetailService();
   const playbackResolveService = new PlaybackResolveService();
   const metadataCardBatchService = new MetadataCardBatchService();
@@ -72,15 +69,6 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
     return success(await metadataTitleExtrasService.getTitleExtras(params.itemId, language));
-  });
-
-  app.get('/v1/profiles/:profileId/metadata/items/:itemId/reviews', { schema: metadataItemReviewsRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserActor(request) as { appUserId: string };
-    const params = request.params as { profileId: string; itemId: string };
-    const query = (request.query ?? {}) as MetadataPersonQuery;
-    const language = await metadataLanguageService.resolveForProfile(params.profileId, actor.appUserId, asOptionalString(query.language));
-    return success(await metadataReviewsService.getTitleReviews(actor.appUserId, params.profileId, params.itemId, language));
   });
 
   app.get('/v1/profiles/:profileId/metadata/items/:itemId/ratings', { schema: metadataItemRatingsRouteSchema }, async (request) => {

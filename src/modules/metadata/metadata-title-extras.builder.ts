@@ -16,12 +16,14 @@ import {
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
+import { MetadataReviewAggregator } from './metadata-review-aggregator.js';
 
 export class MetadataTitleExtrasBuilder {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly titleSourceService = new MetadataTitleSourceService(),
+    private readonly reviewAggregator = new MetadataReviewAggregator(),
   ) {}
 
   async buildTitleExtras(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataTitleExtras> {
@@ -42,7 +44,8 @@ export class MetadataTitleExtrasBuilder {
       () => this.tmdbCacheService.fetchTitleExtrasPayload(client, resolvedTitle.mediaType, resolvedTitle.tmdbId, effectiveLanguage),
       null,
     );
-    const reviews = extrasRaw ? extractReviewsFromRaw(extrasRaw) : [];
+    const tmdbReviews = extrasRaw ? extractReviewsFromRaw(extrasRaw) : [];
+    const reviews = await this.reviewAggregator.mergeTitleReviews(resolvedTitle, identity.mediaType, tmdbReviews, effectiveLanguage);
     const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildSimilar(client, resolvedTitle, extrasRaw), []);
     const collection = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollection(client, resolvedTitle, effectiveLanguage), null);
 

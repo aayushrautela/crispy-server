@@ -45,6 +45,7 @@ function buildFallbackReview(id: string, content: string): MetadataReviewView {
 
 test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under threshold', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
+  const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
 
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'movie',
@@ -82,34 +83,36 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
 
   const traktCalls: Array<{ mediaType: 'movie' | 'show'; accessToken?: string; externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null } }> = [];
   const service = new MetadataReviewsService(
-    {
-      loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
-        language: null,
-        tmdbTitle,
-        tmdbNextEpisode: null,
-      }),
-    } as never,
+    new MetadataReviewAggregator(
+      {
+        loadTitleSource: async () => ({
+          identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
+          language: null,
+          tmdbTitle,
+          tmdbNextEpisode: null,
+        }),
+      } as never,
+      {
+        isConfigured: () => true,
+        fetchTitleReviews: async (
+          mediaType: 'movie' | 'show',
+          externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null },
+          _limit: number,
+          options?: { accessToken?: string },
+        ) => {
+          traktCalls.push({ mediaType, externalIds, accessToken: options?.accessToken });
+          return [
+            buildFallbackReview('trakt-1', 'Trakt review 1'),
+            buildFallbackReview('trakt-2', 'Trakt review 2'),
+          ];
+        },
+      } as never,
+      {
+        getAccessTokenForAccountProfile: async () => ({ accessToken: 'user-trakt-token' }),
+      } as never,
+      buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
+    ),
     {} as never,
-    {
-      isConfigured: () => true,
-      fetchTitleReviews: async (
-        mediaType: 'movie' | 'show',
-        externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null },
-        _limit: number,
-        options?: { accessToken?: string },
-      ) => {
-        traktCalls.push({ mediaType, externalIds, accessToken: options?.accessToken });
-        return [
-          buildFallbackReview('trakt-1', 'Trakt review 1'),
-          buildFallbackReview('trakt-2', 'Trakt review 2'),
-        ];
-      },
-    } as never,
-    {
-      getAccessTokenForAccountProfile: async () => ({ accessToken: 'user-trakt-token' }),
-    } as never,
-    buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
   );
 
   const reviews = await service.loadTitleReviews(
@@ -128,6 +131,7 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
 
 test('MetadataReviewsService tops up TMDB show reviews from Trakt when under threshold', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
+  const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
 
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'tv',
@@ -165,30 +169,32 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
 
   let traktMediaType: 'movie' | 'show' | null = null;
   const service = new MetadataReviewsService(
-    {
-      loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'show', tmdbId: 555 }),
-        language: null,
-        tmdbTitle,
-        tmdbNextEpisode: null,
-      }),
-    } as never,
+    new MetadataReviewAggregator(
+      {
+        loadTitleSource: async () => ({
+          identity: inferMediaIdentity({ mediaType: 'show', tmdbId: 555 }),
+          language: null,
+          tmdbTitle,
+          tmdbNextEpisode: null,
+        }),
+      } as never,
+      {
+        isConfigured: () => true,
+        fetchTitleReviews: async (mediaType: 'movie' | 'show', externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }) => {
+          traktMediaType = mediaType;
+          assert.deepEqual(externalIds, { imdb: null, tmdb: 555, tvdb: null });
+          return [
+            buildFallbackReview('trakt-a', 'Trakt show review 1'),
+            buildFallbackReview('trakt-b', 'Trakt show review 2'),
+          ];
+        },
+      } as never,
+      {
+        getAccessTokenForAccountProfile: async () => ({ accessToken: 'show-token' }),
+      } as never,
+      buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
+    ),
     {} as never,
-    {
-      isConfigured: () => true,
-      fetchTitleReviews: async (mediaType: 'movie' | 'show', externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }) => {
-        traktMediaType = mediaType;
-        assert.deepEqual(externalIds, { imdb: null, tmdb: 555, tvdb: null });
-        return [
-          buildFallbackReview('trakt-a', 'Trakt show review 1'),
-          buildFallbackReview('trakt-b', 'Trakt show review 2'),
-        ];
-      },
-    } as never,
-    {
-      getAccessTokenForAccountProfile: async () => ({ accessToken: 'show-token' }),
-    } as never,
-    buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
   );
 
   const reviews = await service.loadTitleReviews(
@@ -205,6 +211,7 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
 
 test('MetadataReviewsService skips Trakt fallback when three primary reviews already exist', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
+  const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
 
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'tv',
@@ -248,28 +255,30 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
 
   let traktCalled = false;
   const service = new MetadataReviewsService(
-    {
-      loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'show', tmdbId: 1396 }),
-        language: null,
-        tmdbTitle,
-        tmdbNextEpisode: null,
-      }),
-    } as never,
+    new MetadataReviewAggregator(
+      {
+        loadTitleSource: async () => ({
+          identity: inferMediaIdentity({ mediaType: 'show', tmdbId: 1396 }),
+          language: null,
+          tmdbTitle,
+          tmdbNextEpisode: null,
+        }),
+      } as never,
+      {
+        isConfigured: () => true,
+        fetchTitleReviews: async () => {
+          traktCalled = true;
+          return [];
+        },
+      } as never,
+      {} as never,
+      buildMockTmdbCache([
+        buildTmdbReview('provider-1', 'Provider review 1'),
+        buildTmdbReview('provider-2', 'Provider review 2'),
+        buildTmdbReview('provider-3', 'Provider review 3'),
+      ]),
+    ),
     {} as never,
-    {
-      isConfigured: () => true,
-      fetchTitleReviews: async () => {
-        traktCalled = true;
-        return [];
-      },
-    } as never,
-    {} as never,
-    buildMockTmdbCache([
-      buildTmdbReview('provider-1', 'Provider review 1'),
-      buildTmdbReview('provider-2', 'Provider review 2'),
-      buildTmdbReview('provider-3', 'Provider review 3'),
-    ]),
   );
 
   const reviews = await service.loadTitleReviews(
@@ -285,6 +294,7 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
 
 test('MetadataReviewsService falls back to app-key Trakt when profile token is unavailable', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
+  const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
 
   const tmdbTitle: TmdbTitleRecord = {
     mediaType: 'movie',
@@ -322,29 +332,31 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
 
   let usedAccessToken: string | undefined;
   const service = new MetadataReviewsService(
-    {
-      loadTitleSource: async () => ({
-        identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 7 }),
-        language: null,
-        tmdbTitle,
-        tmdbNextEpisode: null,
-      }),
-    } as never,
+    new MetadataReviewAggregator(
+      {
+        loadTitleSource: async () => ({
+          identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 7 }),
+          language: null,
+          tmdbTitle,
+          tmdbNextEpisode: null,
+        }),
+      } as never,
+      {
+        isConfigured: () => true,
+        fetchTitleReviews: async (_mediaType: 'movie' | 'show', _externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }, _limit: number, options?: { accessToken?: string }) => {
+          usedAccessToken = options?.accessToken;
+          return [buildFallbackReview('trakt-fallback', 'Fallback review')];
+        },
+      } as never,
+      {
+        getAccessTokenForAccountProfile: async () => {
+          const { HttpError } = await import('../../lib/errors.js');
+          throw new HttpError(404, 'Provider connection not found.');
+        },
+      } as never,
+      buildMockTmdbCache([buildTmdbReview('tmdb-7', 'Primary review')]),
+    ),
     {} as never,
-    {
-      isConfigured: () => true,
-      fetchTitleReviews: async (_mediaType: 'movie' | 'show', _externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }, _limit: number, options?: { accessToken?: string }) => {
-        usedAccessToken = options?.accessToken;
-        return [buildFallbackReview('trakt-fallback', 'Fallback review')];
-      },
-    } as never,
-    {
-      getAccessTokenForAccountProfile: async () => {
-        const { HttpError } = await import('../../lib/errors.js');
-        throw new HttpError(404, 'Provider connection not found.');
-      },
-    } as never,
-    buildMockTmdbCache([buildTmdbReview('tmdb-7', 'Primary review')]),
   );
 
   const reviews = await service.loadTitleReviews(

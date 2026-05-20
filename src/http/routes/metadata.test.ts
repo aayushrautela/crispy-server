@@ -269,23 +269,16 @@ test('GET /v1/metadata/items/:itemId/extras serializes show episodes', async (t)
   assert.equal(body.data.Collection, null);
 });
 
-test('profile metadata reviews and ratings use itemId route params', async (t) => {
-  const { MetadataReviewsService } = await import('../../modules/metadata/metadata-reviews.service.js');
+test('profile metadata ratings use itemId route params', async (t) => {
   const { MetadataRatingsService } = await import('../../modules/metadata/metadata-ratings.service.js');
-  const originalReviews = MetadataReviewsService.prototype.getTitleReviews;
   const originalRatings = MetadataRatingsService.prototype.getTitleRatings;
   const seen: string[] = [];
 
-  MetadataReviewsService.prototype.getTitleReviews = (async (_userId: string, _profileId: string, itemId: string) => {
-    seen.push(`reviews:${itemId}`);
-    return { Reviews: [] };
-  }) as any;
   MetadataRatingsService.prototype.getTitleRatings = (async (_userId: string, _profileId: string, itemId: string) => {
     seen.push(`ratings:${itemId}`);
     return { Ratings: { imdb: null, tmdb: null, trakt: null, metacritic: null, rottenTomatoes: null, audience: null, letterboxd: null, rogerEbert: null } };
   }) as any;
   t.after(() => {
-    MetadataReviewsService.prototype.getTitleReviews = originalReviews;
     MetadataRatingsService.prototype.getTitleRatings = originalRatings;
   });
 
@@ -293,21 +286,14 @@ test('profile metadata reviews and ratings use itemId route params', async (t) =
   const app = await buildTestApp(registerMetadataRoutes);
   t.after(async () => { await app.close(); });
 
-  const reviews = await app.inject({
-    method: 'GET',
-    url: `/v1/profiles/profile-1/metadata/items/${MOVIE_ITEM_ID}/reviews?language=en-US`,
-    headers: { authorization: 'Bearer test' },
-  });
   const ratings = await app.inject({
     method: 'GET',
     url: `/v1/profiles/profile-1/metadata/items/${MOVIE_ITEM_ID}/ratings`,
     headers: { authorization: 'Bearer test' },
   });
 
-  assert.equal(reviews.statusCode, 200);
   assert.equal(ratings.statusCode, 200);
   assert.deepEqual(seen, [
-    `reviews:${MOVIE_ITEM_ID}`,
     `ratings:${MOVIE_ITEM_ID}`,
   ]);
 });

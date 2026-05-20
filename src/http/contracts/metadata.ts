@@ -200,15 +200,6 @@ const metadataTitleDetailResponseSchema = {
   },
 } as const;
 
-const metadataTitleReviewsResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['Reviews'],
-  properties: {
-    Reviews: { type: 'array', items: metadataReviewViewSchema },
-  },
-} as const;
-
 const metadataTitleRatingsResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -367,14 +358,6 @@ export const metadataItemDetailRouteSchema = withDefaultErrorResponses({
   querystring: metadataLanguageQuerystringSchema,
   response: {
     200: successEnvelope(metadataTitleDetailResponseSchema),
-  },
-});
-
-export const metadataItemReviewsRouteSchema = withDefaultErrorResponses({
-  params: profileIdAndItemIdParamsSchema,
-  querystring: metadataLanguageQuerystringSchema,
-  response: {
-    200: successEnvelope(metadataTitleReviewsResponseSchema),
   },
 });
 
