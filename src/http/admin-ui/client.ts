@@ -1437,18 +1437,19 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function renderCalendarRow(item) {
-    const media = item && (item.media || item.mediaItem) ? (item.media || item.mediaItem) : null;
-    const relatedShow = item && item.relatedShow ? item.relatedShow : null;
     const meta = [];
     const episodeBits = [];
-    if (media && media.seasonNumber != null) episodeBits.push('S' + media.seasonNumber);
-    if (media && media.episodeNumber != null) episodeBits.push('E' + media.episodeNumber);
-    if (item && item.airDate) meta.push('airs ' + formatDate(item.airDate));
-    meta.push('watched ' + ((item && item.watched) ? 'yes' : 'no'));
+    if (item.ParentIndexNumber != null) episodeBits.push('S' + item.ParentIndexNumber);
+    if (item.IndexNumber != null) episodeBits.push('E' + item.IndexNumber);
+    if (item.AirDate) meta.push('airs ' + formatDate(item.AirDate));
+    const watched = item.UserData && item.UserData.Played;
+    meta.push('watched ' + (watched ? 'yes' : 'no'));
+
+    const primaryName = item.SeriesName || mediaTitle(item);
 
     return '<div class="item-row">'
-      + '<strong>' + escapeHtml(mediaTitle(relatedShow || media)) + '</strong>'
-      + '<div class="muted">' + escapeHtml([episodeBits.join(' '), media && media.episodeTitle ? media.episodeTitle : mediaSubtitle(media)].filter(Boolean).join(' • ') || 'No extra metadata') + '</div>'
+      + '<strong>' + escapeHtml(primaryName) + '</strong>'
+      + '<div class="muted">' + escapeHtml([episodeBits.join(' '), item.EpisodeTitle ? item.EpisodeTitle : mediaSubtitle(item)].filter(Boolean).join(' • ') || 'No extra metadata') + '</div>'
       + '<div class="item-meta">' + meta.map((value) => '<span>' + escapeHtml(value) + '</span>').join('') + '</div>'
     + '</div>';
   }
@@ -1496,53 +1497,54 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function renderRecommendationItems(items) {
     return items.slice(0, 5).map((item) => {
-      const media = item && (item.media || item.mediaItem) ? (item.media || item.mediaItem) : null;
-      const reason = item && item.reason ? ' - ' + item.reason : '';
-      return mediaTitle(media) + reason;
+      return mediaTitle(item) + (item.reason ? ' - ' + item.reason : '');
     }).join('\n');
   }
 
   function renderMediaRow(item, kind) {
-    const media = item && (item.media || item.mediaItem) ? (item.media || item.mediaItem) : null;
     const meta = [];
-    if (kind === 'history' && item && item.watchedAt) meta.push('watched ' + formatDate(item.watchedAt));
-    if (kind === 'continue' && item && item.lastActivityAt) meta.push('last played ' + formatDate(item.lastActivityAt));
-    if (kind === 'watchlist' && item && item.addedAt) meta.push('added ' + formatDate(item.addedAt));
-    if (kind === 'ratings' && item && item.rating && item.rating.ratedAt) meta.push('rated ' + formatDate(item.rating.ratedAt));
-    if (kind === 'ratings' && item && item.rating) meta.push('score ' + String(item.rating.value));
-    if (kind === 'continue' && item && item.progress) meta.push('progress ' + formatProgress(item.progress));
+    if (kind === 'history' && item.UserData && item.UserData.LastPlayedDate) meta.push('watched ' + formatDate(item.UserData.LastPlayedDate));
+    if (kind === 'continue' && item.UserData && item.UserData.LastPlayedDate) meta.push('last played ' + formatDate(item.UserData.LastPlayedDate));
+    if (kind === 'watchlist' && item.UserData && item.UserData.LastPlayedDate) meta.push('added ' + formatDate(item.UserData.LastPlayedDate));
+    if (kind === 'ratings' && item.UserData && item.UserData.LastPlayedDate) meta.push('rated ' + formatDate(item.UserData.LastPlayedDate));
+    if (kind === 'ratings' && item.UserData && item.UserData.Rating != null) meta.push('score ' + String(item.UserData.Rating));
+    if (kind === 'continue' && item.UserData && item.UserData.PlaybackPositionTicks != null && item.UserData.RuntimeTicks != null && item.UserData.RuntimeTicks > 0) {
+      meta.push('progress ' + Math.round((item.UserData.PlaybackPositionTicks / item.UserData.RuntimeTicks) * 100) + '%');
+    }
 
     return '<div class="item-row">'
-      + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
-      + '<div class="muted">' + escapeHtml(mediaSubtitle(media)) + '</div>'
+      + '<strong>' + escapeHtml(mediaTitle(item)) + '</strong>'
+      + '<div class="muted">' + escapeHtml(mediaSubtitle(item)) + '</div>'
       + '<div class="item-meta">' + meta.map((value) => '<span>' + escapeHtml(value) + '</span>').join('') + '</div>'
     + '</div>';
   }
 
+  function renderRecommendationItems(items) {
+    return items.slice(0, 5).map((item) => {
+      return mediaTitle(item) + (item.reason ? ' - ' + item.reason : '');
+    }).join('\n');
+  }
+
   function mediaTitle(media) {
     if (!media) return 'Unknown title';
-    return media.title || media.subtitle || media.itemId || 'Unknown title';
+    return media.Name || media.title || media.subtitle || media.Id || media.itemId || 'Unknown title';
   }
 
   function mediaSubtitle(media) {
     if (!media) return 'No metadata available';
     const parts = [];
     if (media.subtitle) parts.push(media.subtitle);
+    else if (media.EpisodeTitle) parts.push(media.EpisodeTitle);
     if (media.releaseYear) parts.push(String(media.releaseYear));
+    else if (media.ProductionYear) parts.push(String(media.ProductionYear));
     else if (media.releaseDate) parts.push(String(media.releaseDate).slice(0, 10));
+    else if (media.PremiereDate) parts.push(String(media.PremiereDate).slice(0, 10));
     if (media.runtimeMinutes) parts.push(String(media.runtimeMinutes) + ' min');
+    else if (media.RunTimeTicks) {
+      const mins = Math.round(media.RunTimeTicks / 600000000);
+      if (mins > 0) parts.push(String(mins) + ' min');
+    }
     return parts.length ? parts.join(' · ') : 'No extra metadata';
-  }
-
-  function formatProgress(progress) {
-    if (!progress) return 'n/a';
-    if (typeof progress.progressPercent === 'number') {
-      return Math.round(progress.progressPercent) + '%';
-    }
-    if (typeof progress.positionSeconds === 'number' && typeof progress.durationSeconds === 'number' && progress.durationSeconds > 0) {
-      return Math.round((progress.positionSeconds / progress.durationSeconds) * 100) + '%';
-    }
-    return 'n/a';
   }
 
   function sectionCard(title, body) {
