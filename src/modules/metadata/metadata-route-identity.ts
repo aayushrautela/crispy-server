@@ -2,13 +2,14 @@ import type { DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { assertPublicItemId } from '../identity/public-item-id.js';
 
 export async function resolveTitleItemIdentity(
   client: DbClient,
   contentIdentityService: ContentIdentityService,
   itemId: string,
 ): Promise<MediaIdentity> {
-  const identity = await contentIdentityService.resolveMediaIdentity(client, itemId);
+  const identity = await contentIdentityService.resolveMediaIdentity(client, assertPublicItemId(itemId));
   if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
     throw new HttpError(400, 'Title routes require a title itemId.');
   }

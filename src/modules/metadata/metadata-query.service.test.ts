@@ -8,8 +8,32 @@ seedTestEnv();
 const { resolveTitleItemIdentity, resolveShowItemIdentity } = await import('./metadata-route-identity.js');
 
 function mockContentIdentityService(resolveMediaIdentity: (itemId: string) => Promise<unknown>) {
-  return { resolveMediaIdentity } as never;
+  return {
+    resolveMediaIdentity: async (_client: unknown, itemId: string) => resolveMediaIdentity(itemId),
+  } as never;
 }
+
+const PUBLIC_ITEM_ID = '00000000000000000000000000000000';
+const CONTENT_ID = '00000000-0000-0000-0000-000000000000';
+
+test('resolveTitleItemIdentity decodes public itemId before resolving identity', async () => {
+  let resolvedItemId: string | null = null;
+  const service = mockContentIdentityService(async (itemId) => {
+    resolvedItemId = itemId;
+    return {
+      mediaKey: 'movie:tmdb:487672',
+      mediaType: 'movie',
+      provider: 'tmdb',
+      providerId: '487672',
+      tmdbId: 487672,
+      showTmdbId: null,
+      seasonNumber: null,
+      episodeNumber: null,
+    };
+  });
+  await resolveTitleItemIdentity({} as never, service, PUBLIC_ITEM_ID);
+  assert.equal(resolvedItemId, CONTENT_ID);
+});
 
 test('resolveTitleItemIdentity returns identity for show itemId via ContentIdentityService', async () => {
   const service = mockContentIdentityService(async () => ({
@@ -22,7 +46,7 @@ test('resolveTitleItemIdentity returns identity for show itemId via ContentIdent
     seasonNumber: null,
     episodeNumber: null,
   }));
-  const identity = await resolveTitleItemIdentity({} as never, service, '00000000-0000-0000-0000-000000000000');
+  const identity = await resolveTitleItemIdentity({} as never, service, PUBLIC_ITEM_ID);
   assert.equal(identity.mediaType, 'show');
   assert.equal(identity.provider, 'tmdb');
   assert.equal(identity.providerId, '1396');
@@ -39,7 +63,7 @@ test('resolveTitleItemIdentity returns identity for movie itemId via ContentIden
     seasonNumber: null,
     episodeNumber: null,
   }));
-  const identity = await resolveTitleItemIdentity({} as never, service, '00000000-0000-0000-0000-000000000000');
+  const identity = await resolveTitleItemIdentity({} as never, service, PUBLIC_ITEM_ID);
   assert.equal(identity.mediaType, 'movie');
   assert.equal(identity.provider, 'tmdb');
   assert.equal(identity.providerId, '487672');
@@ -58,7 +82,7 @@ test('resolveTitleItemIdentity rejects non-title itemId', async () => {
     episodeNumber: null,
   }));
   await assert.rejects(
-    () => resolveTitleItemIdentity({} as never, service, '00000000-0000-0000-0000-000000000000'),
+    () => resolveTitleItemIdentity({} as never, service, PUBLIC_ITEM_ID),
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);
@@ -79,7 +103,7 @@ test('resolveShowItemIdentity returns identity for show itemId via ContentIdenti
     seasonNumber: null,
     episodeNumber: null,
   }));
-  const identity = await resolveShowItemIdentity({} as never, service, '00000000-0000-0000-0000-000000000000');
+  const identity = await resolveShowItemIdentity({} as never, service, PUBLIC_ITEM_ID);
   assert.equal(identity.mediaType, 'show');
   assert.equal(identity.provider, 'tmdb');
   assert.equal(identity.providerId, '1396');
@@ -97,7 +121,7 @@ test('resolveShowItemIdentity rejects movie itemId', async () => {
     episodeNumber: null,
   }));
   await assert.rejects(
-    () => resolveShowItemIdentity({} as never, service, '00000000-0000-0000-0000-000000000000'),
+    () => resolveShowItemIdentity({} as never, service, PUBLIC_ITEM_ID),
     (error: unknown) => {
       assert.ok(error instanceof HttpError);
       assert.equal(error.statusCode, 400);

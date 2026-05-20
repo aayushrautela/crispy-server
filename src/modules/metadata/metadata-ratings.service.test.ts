@@ -6,6 +6,7 @@ import { NOOP_TRANSACTION, seedTestEnv } from '../../test-helpers.js';
 seedTestEnv();
 
 const MOVIE_ITEM_ID = '550e8400e29b41d4a716446655440000';
+const MOVIE_CONTENT_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings', async () => {
   const { MetadataRatingsService } = await import('./metadata-ratings.service.js');
@@ -24,7 +25,7 @@ test('MetadataRatingsService prefers tmdb lookup and returns normalized ratings'
     } as never,
     {
       resolveMediaIdentity: async (_client: unknown, itemId: string) => {
-        assert.equal(itemId, MOVIE_ITEM_ID);
+        assert.equal(itemId, MOVIE_CONTENT_ID);
         return { tmdbId: 222, mediaType: 'movie', itemId: MOVIE_ITEM_ID };
       },
     } as never,
