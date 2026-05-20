@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { logger } from '../../config/logger.js';
 import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
@@ -32,19 +33,52 @@ export class MetadataTitleExtrasBuilder {
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const effectiveLanguage = language ?? null;
 
-    const [episodes, seasons, extrasRaw] = await Promise.all([
-      this.buildAllEpisodes(client, resolvedTitle),
-      this.buildAllSeasons(client, resolvedTitle),
-      this.tmdbCacheService.fetchTitleExtrasPayload(client, resolvedTitle.mediaType, resolvedTitle.tmdbId, effectiveLanguage),
-    ]);
+    const episodes = await this.buildExtrasSection('episodes', resolvedTitle, effectiveLanguage, () => this.buildAllEpisodes(client, resolvedTitle), []);
+    const seasons = await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildAllSeasons(client, resolvedTitle), []);
+    const extrasRaw = await this.buildExtrasSection(
+      'tmdbExtras',
+      resolvedTitle,
+      effectiveLanguage,
+      () => this.tmdbCacheService.fetchTitleExtrasPayload(client, resolvedTitle.mediaType, resolvedTitle.tmdbId, effectiveLanguage),
+      null,
+    );
+    const reviews = extrasRaw ? extractReviewsFromRaw(extrasRaw) : [];
+    const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildSimilar(client, resolvedTitle, extrasRaw), []);
+    const collection = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollection(client, resolvedTitle, effectiveLanguage), null);
 
-    const [reviews, similar, collection] = await Promise.all([
-      Promise.resolve(extrasRaw ? extractReviewsFromRaw(extrasRaw) : []),
-      this.buildSimilar(client, resolvedTitle, extrasRaw),
-      this.buildFullCollection(client, resolvedTitle, effectiveLanguage),
-    ]);
+    logger.info({
+      tmdbId: resolvedTitle.tmdbId,
+      mediaType: resolvedTitle.mediaType,
+      language: effectiveLanguage,
+      seasons: seasons.length,
+      episodes: episodes.length,
+      reviews: reviews.length,
+      similar: similar.length,
+      collectionItems: collection?.Items.length ?? 0,
+    }, 'metadata title extras built');
 
     return { Seasons: seasons, Episodes: episodes, Reviews: reviews, Similar: similar, Collection: collection };
+  }
+
+  private async buildExtrasSection<T>(
+    section: string,
+    title: TmdbTitleRecord,
+    language: string | null,
+    build: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> {
+    try {
+      return await build();
+    } catch (error) {
+      logger.warn({
+        err: error,
+        section,
+        tmdbId: title.tmdbId,
+        mediaType: title.mediaType,
+        language,
+      }, 'metadata title extras section failed');
+      return fallback;
+    }
   }
 
   private async buildAllSeasons(client: DbClient, title: TmdbTitleRecord): Promise<BaseItemDto[]> {
