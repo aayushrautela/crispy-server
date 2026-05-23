@@ -296,6 +296,7 @@ test('continue-watching serializes items with progress', async (t) => {
   assert.equal(item.Type, 'Movie');
   assert.equal(item.UserData.PlaybackPositionTicks, 1_200_000_000);
   assert.equal(item.UserData.RuntimeTicks, 72_000_000_000);
+  assert.equal(item.UserData.PlayedPercentage, 1.67);
   assert.equal(item.UserData.LastPlayedDate, now);
 });
 

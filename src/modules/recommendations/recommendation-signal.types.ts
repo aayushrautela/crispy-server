@@ -1,4 +1,10 @@
 import type { AiCredentialSource } from '../ai/ai.types.js';
+import type {
+  ProfileInputWatchHistoryItem,
+  ProfileInputRatingItem,
+  ProfileInputWatchlistItem,
+  ProfileInputTrackedSeriesItem,
+} from './profile-input-signal.types.js';
 
 export type RecommendationSignalDisplayMedia = {
   mediaType: string;
@@ -33,9 +39,9 @@ export type RecommendationSignalBundle = {
     sourceCursor?: string | null;
     ttlSeconds?: number;
   };
-  watchHistory: unknown[];
-  ratings: unknown[];
-  watchlist: unknown[];
+  watchHistory: ProfileInputWatchHistoryItem[];
+  ratings: ProfileInputRatingItem[];
+  watchlist: ProfileInputWatchlistItem[];
   profileContext: {
     profileName: string;
     isKids: boolean;
@@ -52,7 +58,7 @@ export type RecommendationSignalBundle = {
   };
   optionalExtras?: {
     continueWatching?: RecommendationSignalContinueWatchingItem[];
-    trackedSeries?: unknown[];
+    trackedSeries?: ProfileInputTrackedSeriesItem[];
     limits?: {
       watchHistory: number;
       ratings: number;

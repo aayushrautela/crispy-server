@@ -81,8 +81,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
 
     if (liveSignals.history) {
       bundle.history = liveSignals.history.map((item) => ({
-        itemId: item.Item.Id,
-        contentType: item.Item.Type,
+        Item: item.Item,
         watchedAt: new Date(item.watchedAt),
         progressPercent: readNumber(item.payload?.progressPercent, 100),
         completionState: readString(item.payload?.completionState, 'completed'),
@@ -91,7 +90,7 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     }
     if (liveSignals.ratings) {
       bundle.ratings = liveSignals.ratings.map((item) => ({
-        itemId: item.Item.Id,
+        Item: item.Item,
         rating: item.rating.value,
         ratedAt: new Date(item.rating.ratedAt),
         ratingSource: readOptionalString(item.payload?.ratingSource),
@@ -99,15 +98,13 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     }
     if (liveSignals.watchlist) {
       bundle.watchlist = liveSignals.watchlist.map((item) => ({
-        itemId: item.Item.Id,
+        Item: item.Item,
         addedAt: new Date(item.addedAt),
       }));
     }
     if (liveSignals.continueWatching) {
       bundle.continueWatching = liveSignals.continueWatching.map((item) => ({
-        itemId: item.Item.Id,
-        seasonNumber: item.Item.ParentIndexNumber,
-        episodeNumber: item.Item.IndexNumber,
+        Item: item.Item,
         progressPercent: item.progress.progressPercent,
         updatedAt: new Date(item.lastActivityAt),
       }));

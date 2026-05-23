@@ -55,6 +55,7 @@ test('mapContinueWatchingRow maps movie progress', () => {
   assert.equal(item.Type, 'Movie');
   assert.equal(item.UserData!.PlaybackPositionTicks, 1_200_000_000);
   assert.equal(item.UserData!.RuntimeTicks, 72_000_000_000);
+  assert.equal(item.UserData!.PlayedPercentage, 1.67);
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-13T00:00:00.000Z');
   assert.equal(item.UserData!.Played, false);
 });
@@ -86,5 +87,33 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
   assert.equal(item.IndexNumber, null);
   assert.equal(item.EpisodeTitle, 'Cached Show Title');
   assert.equal(item.UserData!.PlaybackPositionTicks, 6_000_000_000);
+  assert.equal(item.UserData!.PlayedPercentage, 33.33);
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-14T08:00:00.000Z');
+});
+
+test('mapContinueWatchingRow maps percentage-only imported progress (no seconds)', () => {
+  const item = mapContinueWatchingRow({
+    title_item_id: movieId,
+    playable_item_id: movieId,
+    media_type: 'movie',
+    position_seconds: 0,
+    duration_seconds: 0,
+    progress_bps: 4889,
+    last_activity_at: '2026-05-15T00:00:00.000Z',
+    source_kind: 'provider_import',
+    title: 'Imported Movie',
+    subtitle: null,
+    poster_url: null,
+    backdrop_url: null,
+    release_year: null,
+    metadata_rating: null,
+  });
+
+  assert.equal(item.Id, encodePublicItemId(movieId));
+  assert.equal(item.Type, 'Movie');
+  assert.equal(item.UserData!.PlaybackPositionTicks, 0);
+  assert.equal(item.UserData!.RuntimeTicks, 0);
+  assert.equal(item.UserData!.PlayedPercentage, 48.89);
+  assert.equal(item.UserData!.LastPlayedDate, '2026-05-15T00:00:00.000Z');
+  assert.equal(item.UserData!.Played, false);
 });

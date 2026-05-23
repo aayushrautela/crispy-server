@@ -1,4 +1,5 @@
 import {
+  baseItemDtoSchema,
   stringSchema,
   nonEmptyStringSchema,
   nullableStringSchema,
@@ -6,7 +7,6 @@ import {
   numberSchema,
   nullableNumberSchema,
   nullableIntegerSchema,
-  publicItemIdSchema,
   recordSchema,
   successEnvelope,
   responseMetaSchema,
@@ -415,10 +415,9 @@ export const profileTasteSignalsSchema = {
 export const profileHistorySignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['itemId', 'contentType', 'watchedAt', 'progressPercent', 'completionState'],
+  required: ['Item', 'watchedAt', 'progressPercent', 'completionState'],
   properties: {
-    itemId: publicItemIdSchema,
-    contentType: stringSchema,
+    Item: baseItemDtoSchema,
     watchedAt: dateTimeSchema,
     progressPercent: numberSchema,
     completionState: stringSchema,
@@ -429,9 +428,9 @@ export const profileHistorySignalSchema = {
 export const profileRatingSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['itemId', 'rating', 'ratedAt'],
+  required: ['Item', 'rating', 'ratedAt'],
   properties: {
-    itemId: publicItemIdSchema,
+    Item: baseItemDtoSchema,
     rating: numberSchema,
     ratedAt: dateTimeSchema,
     ratingSource: nullableStringSchema,
@@ -441,9 +440,9 @@ export const profileRatingSignalSchema = {
 export const profileWatchlistSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['itemId', 'addedAt'],
+  required: ['Item', 'addedAt'],
   properties: {
-    itemId: publicItemIdSchema,
+    Item: baseItemDtoSchema,
     addedAt: dateTimeSchema,
   },
 } as const;
@@ -451,11 +450,9 @@ export const profileWatchlistSignalSchema = {
 export const profileContinueWatchingSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['itemId', 'progressPercent', 'updatedAt'],
+  required: ['Item', 'progressPercent', 'updatedAt'],
   properties: {
-    itemId: publicItemIdSchema,
-    seasonNumber: nullableNumberSchema,
-    episodeNumber: nullableNumberSchema,
+    Item: baseItemDtoSchema,
     progressPercent: numberSchema,
     updatedAt: dateTimeSchema,
   },
@@ -464,9 +461,9 @@ export const profileContinueWatchingSignalSchema = {
 export const profileNegativeSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['itemId', 'reason', 'createdAt'],
+  required: ['Item', 'reason', 'createdAt'],
   properties: {
-    itemId: publicItemIdSchema,
+    Item: baseItemDtoSchema,
     reason: stringSchema,
     createdAt: dateTimeSchema,
   },
@@ -475,10 +472,10 @@ export const profileNegativeSignalSchema = {
 export const profileRecentImpressionSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['listKey', 'itemId', 'shownAt'],
+  required: ['listKey', 'Item', 'shownAt'],
   properties: {
     listKey: stringSchema,
-    itemId: publicItemIdSchema,
+    Item: baseItemDtoSchema,
     shownAt: dateTimeSchema,
   },
 } as const;

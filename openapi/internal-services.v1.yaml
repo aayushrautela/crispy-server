@@ -985,6 +985,165 @@ components:
     Metadata:
       type: object
       additionalProperties: true
+    ResponsiveImageSet:
+      type: object
+      additionalProperties: false
+      required: [small, medium, large]
+      properties:
+        small: { type: [string, 'null'] }
+        medium: { type: [string, 'null'] }
+        large: { type: [string, 'null'] }
+    ProviderIds:
+      type: object
+      additionalProperties: false
+      required: [Tmdb, Imdb, Tvdb]
+      properties:
+        Tmdb: { type: [string, 'null'] }
+        Imdb: { type: [string, 'null'] }
+        Tvdb: { type: [string, 'null'] }
+    BaseItemImageTags:
+      type: object
+      additionalProperties: false
+      required: [Primary, Backdrop, Logo, Thumb, Screenshot]
+      properties:
+        Primary:
+          oneOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
+        Backdrop:
+          type: array
+          items: { $ref: '#/components/schemas/ResponsiveImageSet' }
+        Logo:
+          oneOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
+        Thumb:
+          oneOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
+        Screenshot:
+          type: array
+          items: { $ref: '#/components/schemas/ResponsiveImageSet' }
+    ParentBaseItemImageTags:
+      type: object
+      additionalProperties: false
+      required: [Primary, Backdrop, Logo, Thumb]
+      properties:
+        Primary:
+          oneOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
+        Backdrop:
+          type: array
+          items: { $ref: '#/components/schemas/ResponsiveImageSet' }
+        Logo:
+          oneOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
+        Thumb:
+          oneOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
+    RemoteTrailer:
+      type: object
+      additionalProperties: false
+      required: [Name, Url, ThumbnailUrl]
+      properties:
+        Name: { type: [string, 'null'] }
+        Url: { type: string }
+        ThumbnailUrl: { type: [string, 'null'] }
+    UserItemData:
+      type: object
+      additionalProperties: false
+      required: [ItemId, IsFavorite, Played, PlayCount, PlaybackPositionTicks, RuntimeTicks, PlayedPercentage, LastPlayedDate, Rating, DismissedFromContinueWatching]
+      properties:
+        ItemId: { type: [string, 'null'], pattern: '^[0-9a-f]{32}$' }
+        IsFavorite: { type: boolean }
+        Played: { type: boolean }
+        PlayCount: { type: number }
+        PlaybackPositionTicks: { type: [number, 'null'] }
+        RuntimeTicks: { type: [number, 'null'] }
+        PlayedPercentage: { type: [number, 'null'] }
+        LastPlayedDate: { type: [string, 'null'] }
+        Rating: { type: [number, 'null'] }
+        DismissedFromContinueWatching: { type: boolean }
+    BaseItemDto:
+      type: object
+      additionalProperties: false
+      required: [Id, Type, Name, OriginalTitle, Overview, Taglines, ProductionYear, PremiereDate, CommunityRating, OfficialRating, Certification, Genres, RunTimeTicks, Status, ProviderIds, ImageTags, ParentImageTags, SeriesId, SeriesName, SeasonId, SeasonName, ParentIndexNumber, IndexNumber, AbsoluteIndexNumber, EpisodeTitle, AirDate, RemoteTrailers, PosterColor, BackdropColor, UserData]
+      properties:
+        Id: { type: string, pattern: '^[0-9a-f]{32}$', minLength: 32, maxLength: 32 }
+        Type: { type: string, enum: [Movie, Series, Season, Episode, Unknown] }
+        Name: { type: string }
+        OriginalTitle: { type: [string, 'null'] }
+        Overview: { type: [string, 'null'] }
+        Taglines: { type: array, items: { type: string } }
+        ProductionYear: { type: [integer, 'null'] }
+        PremiereDate: { type: [string, 'null'] }
+        CommunityRating: { type: [number, 'null'] }
+        OfficialRating: { type: [string, 'null'] }
+        Certification: { type: [string, 'null'] }
+        Genres: { type: array, items: { type: string } }
+        RunTimeTicks: { type: [integer, 'null'] }
+        Status: { type: [string, 'null'] }
+        ProviderIds: { $ref: '#/components/schemas/ProviderIds' }
+        ImageTags: { $ref: '#/components/schemas/BaseItemImageTags' }
+        ParentImageTags:
+          oneOf:
+            - $ref: '#/components/schemas/ParentBaseItemImageTags'
+            - type: 'null'
+        SeriesId: { type: [string, 'null'], pattern: '^[0-9a-f]{32}$' }
+        SeriesName: { type: [string, 'null'] }
+        SeasonId: { type: [string, 'null'], pattern: '^[0-9a-f]{32}$' }
+        SeasonName: { type: [string, 'null'] }
+        ParentIndexNumber: { type: [integer, 'null'] }
+        IndexNumber: { type: [integer, 'null'] }
+        AbsoluteIndexNumber: { type: [integer, 'null'] }
+        EpisodeTitle: { type: [string, 'null'] }
+        AirDate: { type: [string, 'null'] }
+        RemoteTrailers:
+          type: array
+          items: { $ref: '#/components/schemas/RemoteTrailer' }
+        PosterColor: { type: [string, 'null'] }
+        BackdropColor: { type: [string, 'null'] }
+        UserData:
+          oneOf:
+            - $ref: '#/components/schemas/UserItemData'
+            - type: 'null'
+    ProfileHistorySignal:
+      type: object
+      additionalProperties: false
+      required: [Item, watchedAt, progressPercent, completionState]
+      properties:
+        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        watchedAt: { type: string, format: date-time }
+        progressPercent: { type: number }
+        completionState: { type: string }
+        durationSeconds: { type: [number, 'null'] }
+    ProfileRatingSignal:
+      type: object
+      additionalProperties: false
+      required: [Item, rating, ratedAt]
+      properties:
+        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        rating: { type: number }
+        ratedAt: { type: string, format: date-time }
+        ratingSource: { type: [string, 'null'] }
+    ProfileWatchlistSignal:
+      type: object
+      additionalProperties: false
+      required: [Item, addedAt]
+      properties:
+        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        addedAt: { type: string, format: date-time }
+    ProfileContinueWatchingSignal:
+      type: object
+      additionalProperties: false
+      required: [Item, progressPercent, updatedAt]
+      properties:
+        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        progressPercent: { type: number }
+        updatedAt: { type: string, format: date-time }
     AppSelfResponse:
       type: object
       additionalProperties: false
@@ -1130,11 +1289,11 @@ components:
             signalsVersion: { type: integer, minimum: 0 }
             generatedAt: { type: string, format: date-time }
             profileContext: { $ref: '#/components/schemas/Metadata' }
-            history: { type: array, items: { $ref: '#/components/schemas/Metadata' } }
-            watchHistory: { type: array, items: { $ref: '#/components/schemas/Metadata' } }
-            ratings: { type: array, items: { $ref: '#/components/schemas/Metadata' } }
-            watchlist: { type: array, items: { $ref: '#/components/schemas/Metadata' } }
-            continueWatching: { type: array, items: { $ref: '#/components/schemas/Metadata' } }
+            history: { type: array, items: { $ref: '#/components/schemas/ProfileHistorySignal' } }
+            watchHistory: { type: array, items: { $ref: '#/components/schemas/ProfileHistorySignal' } }
+            ratings: { type: array, items: { $ref: '#/components/schemas/ProfileRatingSignal' } }
+            watchlist: { type: array, items: { $ref: '#/components/schemas/ProfileWatchlistSignal' } }
+            continueWatching: { type: array, items: { $ref: '#/components/schemas/ProfileContinueWatchingSignal' } }
         limits:
           type: object
           additionalProperties: true

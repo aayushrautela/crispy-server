@@ -9,6 +9,7 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
   const playableItemId = encodePublicItemId(stringValue(row.playable_item_id) || stringValue(row.title_item_id));
   const positionSeconds = numberValue(row.position_seconds);
   const durationSeconds = numberValue(row.duration_seconds);
+  const progressBps = numberValue(row.progress_bps);
   const lastActivityAt = isoValue(row.last_activity_at);
   const mediaItem = playableMediaItemDtoFromRow(playableItemId, titleItemId, row);
 
@@ -21,7 +22,7 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
       PlayCount: 0,
       PlaybackPositionTicks: secondsToTicks(positionSeconds),
       RuntimeTicks: secondsToTicks(durationSeconds),
-      PlayedPercentage: null,
+      PlayedPercentage: progressBps !== null ? progressBps / 100 : null,
       LastPlayedDate: lastActivityAt,
       Rating: null,
       DismissedFromContinueWatching: false,

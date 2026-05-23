@@ -34,7 +34,7 @@ Example:
 - Public routes accept `itemId` only for content identity.
 - Request and response contracts use `itemId`, `Id`, `SeriesId`, or `SeasonId` for content identity.
 - Batch card hydration accepts `itemIds`.
-- Watch state, watchlist, ratings, playback, AI insights, metadata cards, profile signal bundles, and recommendation-facing outputs use item IDs.
+- Watch state, watchlist, ratings, playback, AI insights, metadata cards, profile signal bundle `Item.Id` fields, and recommendation-facing outputs use item IDs.
 - Raw provider IDs are never accepted as public content identity.
 - Provider-derived route identities are not a compatibility layer.
 

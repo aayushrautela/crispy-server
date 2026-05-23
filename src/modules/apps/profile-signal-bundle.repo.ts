@@ -37,74 +37,20 @@ export class SqlProfileSignalBundleRepo implements ProfileSignalBundleRepo {
     return result.rows[0]?.signals_version ?? 0;
   }
 
-  async listHistory(input: SignalListInput): Promise<ProfileHistorySignal[]> {
-    const result = await this.deps.db.query(
-      `SELECT content_id, content_type, watched_at, progress_percent, completion_state, duration_seconds
-       FROM app_profile_history_signals
-       WHERE account_id = $1::uuid AND profile_id = $2::uuid
-         AND ($3::timestamptz IS NULL OR watched_at >= $3)
-       ORDER BY watched_at DESC
-       LIMIT $4`,
-      [input.accountId, input.profileId, input.since ?? null, input.limit],
-    );
-    return result.rows.map((row) => ({
-      itemId: row.content_id,
-      contentType: row.content_type,
-      watchedAt: row.watched_at,
-      progressPercent: row.progress_percent,
-      completionState: row.completion_state,
-      durationSeconds: row.duration_seconds,
-    }));
+  async listHistory(_input: SignalListInput): Promise<ProfileHistorySignal[]> {
+    return [];
   }
 
-  async listRatings(input: SignalListInput): Promise<ProfileRatingSignal[]> {
-    const result = await this.deps.db.query(
-      `SELECT content_id, rating, rated_at, rating_source
-       FROM app_profile_rating_signals
-       WHERE account_id = $1::uuid AND profile_id = $2::uuid
-         AND ($3::timestamptz IS NULL OR rated_at >= $3)
-       ORDER BY rated_at DESC
-       LIMIT $4`,
-      [input.accountId, input.profileId, input.since ?? null, input.limit],
-    );
-    return result.rows.map((row) => ({
-      itemId: row.content_id,
-      rating: row.rating,
-      ratedAt: row.rated_at,
-      ratingSource: row.rating_source,
-    }));
+  async listRatings(_input: SignalListInput): Promise<ProfileRatingSignal[]> {
+    return [];
   }
 
-  async listWatchlist(input: SignalListInput): Promise<ProfileWatchlistSignal[]> {
-    const result = await this.deps.db.query(
-      `SELECT content_id, added_at
-       FROM app_profile_watchlist_signals
-       WHERE account_id = $1::uuid AND profile_id = $2::uuid
-         AND ($3::timestamptz IS NULL OR added_at >= $3)
-       ORDER BY added_at DESC
-       LIMIT $4`,
-      [input.accountId, input.profileId, input.since ?? null, input.limit],
-    );
-    return result.rows.map((row) => ({ itemId: row.content_id, addedAt: row.added_at }));
+  async listWatchlist(_input: SignalListInput): Promise<ProfileWatchlistSignal[]> {
+    return [];
   }
 
-  async listContinueWatching(input: SignalListInput): Promise<ProfileContinueWatchingSignal[]> {
-    const result = await this.deps.db.query(
-      `SELECT content_id, season_number, episode_number, progress_percent, updated_at
-       FROM app_profile_continue_watching_signals
-       WHERE account_id = $1::uuid AND profile_id = $2::uuid
-         AND ($3::timestamptz IS NULL OR updated_at >= $3)
-       ORDER BY updated_at DESC
-       LIMIT $4`,
-      [input.accountId, input.profileId, input.since ?? null, input.limit],
-    );
-    return result.rows.map((row) => ({
-      itemId: row.content_id,
-      seasonNumber: row.season_number,
-      episodeNumber: row.episode_number,
-      progressPercent: row.progress_percent,
-      updatedAt: row.updated_at,
-    }));
+  async listContinueWatching(_input: SignalListInput): Promise<ProfileContinueWatchingSignal[]> {
+    return [];
   }
 
   async getLanguageSignals(input: SignalBaseInput): Promise<ProfileLanguageSignals | null> {

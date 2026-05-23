@@ -1508,8 +1508,12 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (kind === 'watchlist' && item.UserData && item.UserData.LastPlayedDate) meta.push('added ' + formatDate(item.UserData.LastPlayedDate));
     if (kind === 'ratings' && item.UserData && item.UserData.LastPlayedDate) meta.push('rated ' + formatDate(item.UserData.LastPlayedDate));
     if (kind === 'ratings' && item.UserData && item.UserData.Rating != null) meta.push('score ' + String(item.UserData.Rating));
-    if (kind === 'continue' && item.UserData && item.UserData.PlaybackPositionTicks != null && item.UserData.RuntimeTicks != null && item.UserData.RuntimeTicks > 0) {
-      meta.push('progress ' + Math.round((item.UserData.PlaybackPositionTicks / item.UserData.RuntimeTicks) * 100) + '%');
+    if (kind === 'continue' && item.UserData) {
+      if (item.UserData.PlayedPercentage != null) {
+        meta.push('progress ' + Math.round(item.UserData.PlayedPercentage) + '%');
+      } else if (item.UserData.PlaybackPositionTicks != null && item.UserData.RuntimeTicks != null && item.UserData.RuntimeTicks > 0) {
+        meta.push('progress ' + Math.round((item.UserData.PlaybackPositionTicks / item.UserData.RuntimeTicks) * 100) + '%');
+      }
     }
 
     return '<div class="item-row">'

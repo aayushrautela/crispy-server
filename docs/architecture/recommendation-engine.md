@@ -90,7 +90,7 @@ Diagnostics expose MAIN service-outbox delivery state only (`pending`, `processi
 
 ## Source data and AI-plan flow
 
-RECO retrieves bounded, authorized business inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from authorized profile context plus canonical watch history, ratings, watchlist, and continue-watching state; MAIN may also include episodic follow state and other derived context. Storage details remain hidden behind the Fastify internal API contract.
+RECO retrieves bounded, authorized business inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from authorized profile context plus canonical watch history, ratings, watchlist, and continue-watching state. Signal records carry `Item: BaseItemDto` plus signal-specific fields, so canonical item identity is `Item.Id` and provider references such as TMDB are available at `Item.ProviderIds.Tmdb`. MAIN may also include episodic follow state and other derived context. Storage details remain hidden behind the Fastify internal API contract.
 
 When AI assistance is needed:
 
