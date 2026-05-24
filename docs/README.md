@@ -14,8 +14,7 @@ This directory contains current Crispy Server documentation.
 | `api/media-state.md` | Client media identity and watch-state behavior guide |
 | `api/recommendations.md` | Recommendation API behavior and operator guidance |
 | `architecture/recommendation-engine.md` | Current MAIN/RECO boundary and security model |
-| `specs/client-reco-pipeline-spec.md` | Target client recommendation and RECO contract split |
-| `specs/client-reco-pipeline-implementation-plan.md` | Hard-cutover implementation plan for recommendation cleanup |
+| `specs/client-reco-pipeline-spec.md` | Client home and RECO DTO contract split |
 
 ## Contract ownership
 

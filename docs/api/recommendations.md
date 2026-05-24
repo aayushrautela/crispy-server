@@ -7,10 +7,7 @@ This guide explains recommendation behavior for integrators and operators. Exact
 - MAIN-to-RECO event ingestion: `openapi/internal-recommender.v1.yaml`
 - Admin recompute and diagnostics: `openapi/admin-ops.v1.yaml`
 
-Target DTOs and the implementation plan live in:
-
-- `docs/specs/client-reco-pipeline-spec.md`
-- `docs/specs/client-reco-pipeline-implementation-plan.md`
+Target DTOs are defined in `docs/specs/client-reco-pipeline-spec.md`.
 
 ## Public profile recommendation endpoints
 
