@@ -103,7 +103,8 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/modules/users/account-settings.service.ts` - account-shared settings and secrets
 - `docker-compose.yml` - local runtime topology
 - `DEPLOY.md` - deployment and hosted service auth notes
-- `docs/specs/jellyfin-style-unified-item-dto.md` - Jellyfin-first public media API response strategy
+- `docs/specs/client-reco-pipeline-spec.md` - target client recommendation and RECO contract split
+- `docs/specs/client-reco-pipeline-implementation-plan.md` - hard-cutover recommendation cleanup plan
 
 ## User data residency guardrails
 

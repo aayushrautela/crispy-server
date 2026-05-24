@@ -92,6 +92,21 @@ const eligibilityService: ProfileEligibilityService = {
   async recomputeAndStore() { throw new Error('not used'); },
 };
 
+const ITEM_101 = '00000000000040008000000000000101';
+const ITEM_102 = '00000000000040008000000000000102';
+const ITEM_103 = '00000000000040008000000000000103';
+
+function buildWriteRequest(itemIds: string[] = [ITEM_101]) {
+  return {
+    title: 'For You',
+    subtitle: null,
+    layout: 'regular' as const,
+    items: itemIds.map((itemId) => ({ item: { itemId }, score: null, reason: null, reasonCodes: [], metadata: {} })),
+    model: null,
+    context: {},
+  };
+}
+
 function buildService() {
   const serviceListRepo = new FakeServiceListRepo();
   const recommendationListWriteService = new FakeRecommendationListWriteService();
@@ -109,7 +124,7 @@ function buildService() {
   return { service, serviceListRepo, recommendationListWriteService, appAuditRepo };
 }
 
-test('upsertList normalizes simplified refs and derives internal write fields', async () => {
+test('upsertList normalizes item refs and derives internal write fields', async () => {
   const { service, recommendationListWriteService } = buildService();
 
   const result = await service.upsertList({
@@ -118,7 +133,7 @@ test('upsertList normalizes simplified refs and derives internal write fields', 
     profileId: 'prof-1',
     listKey: 'for-you',
     idempotencyKey: 'idem-1',
-    request: { items: [{ type: 'movie', tmdbId: 550 }, { type: 'tv', tmdbId: 1399 }] },
+    request: buildWriteRequest([ITEM_101, ITEM_102]),
   });
 
   assert.equal(result.itemCount, 2);
@@ -128,8 +143,14 @@ test('upsertList normalizes simplified refs and derives internal write fields', 
   assert.ok(write);
   assert.equal(write.purpose, 'recommendation-generation');
   assert.equal(write.writeMode, 'replace');
-  assert.deepEqual(write.inputVersions, { eligibilityVersion: 42 });
-  assert.deepEqual(write.items, [{ contentId: 'movie:tmdb:550', rank: 1 }, { contentId: 'tv:tmdb:1399', rank: 2 }]);
+  assert.equal(write.title, 'For You');
+  assert.equal(write.subtitle, null);
+  assert.equal(write.layout, 'regular');
+  assert.deepEqual(write.inputVersions, { eligibilityVersion: 42, modelVersion: null, algorithm: null });
+  assert.deepEqual(write.items, [
+    { itemId: ITEM_101, sourceRef: null, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} },
+    { itemId: ITEM_102, sourceRef: null, rank: 2, score: null, reason: null, reasonCodes: [], metadata: {} },
+  ]);
 });
 
 test('upsertList rejects legacy writer-supplied fields', async () => {
@@ -142,7 +163,7 @@ test('upsertList rejects legacy writer-supplied fields', async () => {
       profileId: 'prof-1',
       listKey: 'for-you',
       idempotencyKey: 'idem-1',
-      request: { items: [{ type: 'movie', tmdbId: 550, rank: 1 }] } as never,
+      request: { ...buildWriteRequest(), items: [{ item: { itemId: ITEM_101 }, rank: 1 }] } as never,
     }),
     (error: unknown) => error instanceof HttpError && error.code === 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD',
   );
@@ -155,7 +176,7 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
     principal: buildPrincipal(),
     idempotencyKey: 'batch-1',
     request: {
-      profiles: [{ accountId: 'acc-1', profileId: 'prof-1', lists: [{ listKey: 'for-you', items: [{ type: 'movie', tmdbId: 603 }] }] }],
+      profiles: [{ accountId: 'acc-1', profileId: 'prof-1', lists: [{ listKey: 'for-you', ...buildWriteRequest([ITEM_103]) }] }],
     },
   });
 
@@ -167,7 +188,7 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
   const batchWrite = recommendationListWriteService.writes[0];
   assert.ok(batchWrite);
   assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1:for-you');
-  assert.deepEqual(batchWrite.items, [{ contentId: 'movie:tmdb:603', rank: 1 }]);
+  assert.deepEqual(batchWrite.items, [{ itemId: ITEM_103, sourceRef: null, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} }]);
 });
 
 test('authorization allows wildcard owned list keys', () => {

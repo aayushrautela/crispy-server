@@ -7,6 +7,11 @@ This guide explains recommendation behavior for integrators and operators. Exact
 - MAIN-to-RECO event ingestion: `openapi/internal-recommender.v1.yaml`
 - Admin recompute and diagnostics: `openapi/admin-ops.v1.yaml`
 
+Target DTOs and the implementation plan live in:
+
+- `docs/specs/client-reco-pipeline-spec.md`
+- `docs/specs/client-reco-pipeline-implementation-plan.md`
+
 ## Public profile recommendation endpoints
 
 Public recommendation endpoints operate on a profile that belongs to the authenticated account. Requests use the same user bearer/session auth or PAT behavior documented in the OpenAPI contract.
@@ -19,31 +24,69 @@ Public recommendation endpoints operate on a profile that belongs to the authent
 | `GET /v1/profiles/:profileId/home` | Read one stored home recommendation snapshot, defaulting source and algorithm version from server configuration when omitted or invalid. |
 | `PUT /v1/profiles/:profileId/home` | Create or replace a stored home recommendation snapshot. |
 
-Common behavior:
+Target public home behavior:
 
-- `profileId` selects a persona under the authenticated account; profiles are not separate auth actors.
-- Missing or inaccessible profiles are authorization/not-found failures.
-- A profile may have no recommendation signals yet; empty signal arrays are valid input for generation.
-- `GET /home` returns a successful response shaped as `{ data: { recommendations }, meta: { requestId } }`, where `recommendations` is either a stored home snapshot or `null` when no snapshot exists for the resolved profile/source/algorithm version. This differs from an existing snapshot whose item arrays are empty.
-- Home snapshots contain `profileId`, `sourceKey`, `historyGeneration`, `algorithmVersion`, `sourceCursor`, `generatedAt`, `expiresAt`, `source`, `updatedByKind`, `updatedById`, `sections`, and `updatedAt`. Each section has `id`, `title`, `layout`, `items`, and `meta`.
-- Recommendation read items use canonical server-enriched `BaseItemDto` presentation data, including `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, and `ImageTags.Thumb` responsive sets with `small`, `medium`, and `large` nullable URLs, plus `CommunityRating`, `ProductionYear`, and `OfficialRating`.
-- Scalar legacy image fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned. `ImageTags.Logo` is best-effort TMDB artwork and may contain null sizes even when posters/backdrops exist.
-- Legacy public account recommendation endpoints (`GET /api/account/v1/profiles/:profileId/recommendations/current` and `PUT/DELETE /api/account/v1/profiles/:profileId/recommendations/:listKey`) have been retired; clients should use `GET /v1/profiles/:profileId/home` and `PUT /v1/profiles/:profileId/home`.
+- `GET /home` returns `{ data: { recommendations }, meta: { requestId } }`.
+- `recommendations` is either a stored home response or `null`.
+- A home response contains `profileId`, `generatedAt`, `expiresAt`, and `sections`.
+- Each section contains `listKey`, `title`, `subtitle`, `layout`, `items`, and `meta`.
+- Section `title` is required.
+- Section `subtitle` is nullable and present as `null` when absent.
+- Items are UI-ready client cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, and progress.
+- Public recommendation cards do not expose provider refs, model scores, reason codes, storage `contentId`, media keys, or RECO internals.
+- `BaseItemDto` is not the target shape for public recommendation home sections.
 
 ## Recommendation writes
 
-Recommendation write requests use ordered TMDB references. Writers submit the minimal provider reference needed for MAIN to derive stored data, ranking, and canonical item IDs.
+RECO writes list metadata plus ordered item identities. MAIN derives rank from array order, canonicalizes item identity, applies policy/idempotency, persists list metadata, and enriches public client responses at read time.
+
+Preferred single-list write target:
 
 ```json
-{ "type": "movie", "tmdbId": 550 }
+{
+  "title": "Because you watched The Matrix",
+  "subtitle": "Mind-bending sci-fi picks",
+  "layout": "regular",
+  "items": [
+    {
+      "item": { "itemId": "8a1f7c852e864e2a9c0b77d9efc5a901" },
+      "score": 0.98,
+      "reason": "Similar tone and themes",
+      "reasonCodes": ["similar_history"],
+      "metadata": {}
+    },
+    {
+      "item": {
+        "ref": {
+          "provider": "tvdb",
+          "type": "tv",
+          "providerId": "79168"
+        }
+      },
+      "score": null,
+      "reason": null,
+      "reasonCodes": [],
+      "metadata": {}
+    }
+  ],
+  "model": {
+    "runId": "rec-run-123",
+    "algorithmVersion": "home-v3",
+    "modelVersion": "ranker-2026-05"
+  },
+  "context": {}
+}
 ```
 
 Rules:
 
-- Allowed item media types are the values defined in OpenAPI for the endpoint.
-- Array order is the recommendation rank.
-- MAIN derives source, rank, canonical `itemId`, write mode, storage metadata, and eligibility policy.
-- Active writers must not send enriched card payloads, `contentId`, `itemId`, provider fragments beyond the documented write reference, rank fields, score fields, write-mode fields, eligibility versions, or arbitrary stored metadata unless the OpenAPI contract explicitly adds those fields.
+- `title`, `subtitle`, `layout`, and `items` belong to the list/section layer.
+- Item identity is either public `itemId` or a generic provider ref.
+- Provider refs may be TMDB, TVDB, IMDb, Kitsu, or another provider explicitly supported by MAIN.
+- Rank is array order.
+- RECO may send bounded scoring/explanation metadata for diagnostics and explainability.
+- RECO must not send enriched card payloads, posters, backdrops, logos, descriptions, storage `contentId`, media keys, or client DTOs.
+- MAIN resolves all item identities to canonical item IDs before storage.
 
 ## Generation model
 
@@ -51,10 +94,12 @@ Recommendation generation is event-driven:
 
 1. MAIN emits durable `recommendation.recompute_requested` events through `service_outbox_events`.
 2. The MAIN outbox dispatcher posts those envelopes to RECO's inbound `POST /internal/recommender/v1/events` endpoint with service auth.
-3. RECO authenticates to MAIN as an internal app principal and reads bounded business inputs from `/internal/apps/v1` endpoints. The recommendation bundle is hydrated from MAIN-owned profile context plus canonical watch history, ratings, watchlist, and continue-watching state exposed through Fastify. Signal records carry `Item: BaseItemDto` plus signal-specific fields, so `Item.Id` is the canonical item identity and `Item.ProviderIds.Tmdb` is available for TMDB-based recommendation generation. Storage remains hidden behind the internal API contract.
-4. When AI assistance is needed, RECO calls MAIN's internal AI-plan endpoint with business inputs and a bounded candidate pool.
-5. MAIN owns AI provider selection, model selection, credentials, prompt construction, vendor protocol, response parsing, and typed-plan validation.
-6. RECO publishes final stored outputs back through internal app recommendation write endpoints.
+3. RECO authenticates to MAIN as an internal app principal and reads bounded machine inputs from `/internal/apps/v1` endpoints.
+4. Signal bundles contain interaction records and `RecoItemRef` values: public `itemId`, provider refs, and lightweight features.
+5. Signal bundles do not contain `BaseItemDto`, posters, artwork, trailers, or client `UserData`.
+6. When AI assistance is needed, RECO calls MAIN's internal AI-plan endpoint with business inputs and a bounded candidate pool.
+7. MAIN owns AI provider selection, model selection, credentials, prompt construction, vendor protocol, response parsing, and typed-plan validation.
+8. RECO publishes final lists back through internal app recommendation write endpoints.
 
 RECO must not receive, cache, log, or forward raw account BYOK keys, server-funded AI keys, provider/model routing config, proxy URLs, raw prompts, or raw vendor chat-completions payloads.
 

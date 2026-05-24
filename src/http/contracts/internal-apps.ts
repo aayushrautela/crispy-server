@@ -1,5 +1,4 @@
 import {
-  baseItemDtoSchema,
   stringSchema,
   nonEmptyStringSchema,
   nullableStringSchema,
@@ -8,6 +7,7 @@ import {
   nullableNumberSchema,
   nullableIntegerSchema,
   recordSchema,
+  publicItemIdSchema,
   successEnvelope,
   responseMetaSchema,
   withDefaultErrorResponses,
@@ -412,15 +412,59 @@ export const profileTasteSignalsSchema = {
   },
 } as const;
 
+export const recoProviderSchema = { type: 'string', enum: ['tmdb', 'tvdb', 'imdb', 'kitsu'] } as const;
+export const recoMediaTypeSchema = { type: 'string', enum: ['movie', 'tv', 'season', 'episode'] } as const;
+export const recoLayoutSchema = { type: 'string', enum: ['regular', 'landscape', 'hero', 'collection'] } as const;
+
+export const recoProviderRefSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['provider', 'providerId'],
+  properties: {
+    provider: recoProviderSchema,
+    providerId: nonEmptyStringSchema,
+  },
+} as const;
+
+export const recoItemFeaturesSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'originalTitle', 'year', 'releaseDate', 'genres', 'runtimeSeconds', 'maturityRating', 'language', 'country', 'popularity'],
+  properties: {
+    title: stringSchema,
+    originalTitle: nullableStringSchema,
+    year: nullableIntegerSchema,
+    releaseDate: nullableStringSchema,
+    genres: { type: 'array', items: stringSchema },
+    runtimeSeconds: nullableNumberSchema,
+    maturityRating: nullableStringSchema,
+    language: nullableStringSchema,
+    country: nullableStringSchema,
+    popularity: nullableNumberSchema,
+  },
+} as const;
+
+export const recoItemRefSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['itemId', 'type', 'providerRefs', 'features'],
+  properties: {
+    itemId: publicItemIdSchema,
+    type: recoMediaTypeSchema,
+    providerRefs: { type: 'array', items: recoProviderRefSchema },
+    features: recoItemFeaturesSchema,
+  },
+} as const;
+
 export const profileHistorySignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Item', 'watchedAt', 'progressPercent', 'completionState'],
+  required: ['item', 'watchedAt', 'progressPercent', 'completionState', 'durationSeconds'],
   properties: {
-    Item: baseItemDtoSchema,
+    item: recoItemRefSchema,
     watchedAt: dateTimeSchema,
     progressPercent: numberSchema,
-    completionState: stringSchema,
+    completionState: { type: 'string', enum: ['completed', 'partial', 'unknown'] },
     durationSeconds: nullableNumberSchema,
   },
 } as const;
@@ -428,9 +472,9 @@ export const profileHistorySignalSchema = {
 export const profileRatingSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Item', 'rating', 'ratedAt'],
+  required: ['item', 'rating', 'ratedAt', 'ratingSource'],
   properties: {
-    Item: baseItemDtoSchema,
+    item: recoItemRefSchema,
     rating: numberSchema,
     ratedAt: dateTimeSchema,
     ratingSource: nullableStringSchema,
@@ -440,9 +484,9 @@ export const profileRatingSignalSchema = {
 export const profileWatchlistSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Item', 'addedAt'],
+  required: ['item', 'addedAt'],
   properties: {
-    Item: baseItemDtoSchema,
+    item: recoItemRefSchema,
     addedAt: dateTimeSchema,
   },
 } as const;
@@ -450,9 +494,9 @@ export const profileWatchlistSignalSchema = {
 export const profileContinueWatchingSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Item', 'progressPercent', 'updatedAt'],
+  required: ['item', 'progressPercent', 'updatedAt'],
   properties: {
-    Item: baseItemDtoSchema,
+    item: recoItemRefSchema,
     progressPercent: numberSchema,
     updatedAt: dateTimeSchema,
   },
@@ -461,9 +505,9 @@ export const profileContinueWatchingSignalSchema = {
 export const profileNegativeSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Item', 'reason', 'createdAt'],
+  required: ['item', 'reason', 'createdAt'],
   properties: {
-    Item: baseItemDtoSchema,
+    item: recoItemRefSchema,
     reason: stringSchema,
     createdAt: dateTimeSchema,
   },
@@ -472,10 +516,10 @@ export const profileNegativeSignalSchema = {
 export const profileRecentImpressionSignalSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['listKey', 'Item', 'shownAt'],
+  required: ['listKey', 'item', 'shownAt'],
   properties: {
     listKey: stringSchema,
-    Item: baseItemDtoSchema,
+    item: recoItemRefSchema,
     shownAt: dateTimeSchema,
   },
 } as const;
@@ -596,22 +640,74 @@ export const serviceRecommendationListsRouteSchema = withDefaultErrorResponses({
 
 // ── Upsert Service Recommendation List ────────────────────────
 
-export const serviceRecommendationItemRefSchema = {
+export const recoWriteItemIdentitySchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['itemId'],
+      properties: { itemId: publicItemIdSchema },
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ref'],
+      properties: {
+        ref: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['provider', 'providerId', 'type'],
+          properties: {
+            provider: recoProviderSchema,
+            providerId: nonEmptyStringSchema,
+            type: recoMediaTypeSchema,
+          },
+        },
+      },
+    },
+  ],
+} as const;
+
+export const serviceRecommendationWriteItemSchema = {
   type: 'object',
   additionalProperties: true,
-  required: ['type', 'tmdbId'],
+  required: ['item'],
   properties: {
-    type: { type: 'string', enum: ['movie', 'tv'] },
-    tmdbId: integerSchema,
+    item: recoWriteItemIdentitySchema,
+    score: nullableNumberSchema,
+    reason: nullableStringSchema,
+    reasonCodes: { type: 'array', items: stringSchema },
+    metadata: recordSchema,
   },
+} as const;
+
+export const recoModelInfoSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: ['runId', 'algorithmVersion', 'modelVersion'],
+      properties: {
+        runId: nullableStringSchema,
+        algorithmVersion: nonEmptyStringSchema,
+        modelVersion: nullableStringSchema,
+      },
+    },
+    { type: 'null' },
+  ],
 } as const;
 
 export const upsertServiceRecommendationListBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['items'],
+  required: ['title', 'subtitle', 'layout', 'items', 'model', 'context'],
   properties: {
-    items: { type: 'array', items: serviceRecommendationItemRefSchema },
+    title: nonEmptyStringSchema,
+    subtitle: nullableStringSchema,
+    layout: recoLayoutSchema,
+    items: { type: 'array', items: serviceRecommendationWriteItemSchema },
+    model: recoModelInfoSchema,
+    context: recordSchema,
   },
 } as const;
 
@@ -654,17 +750,6 @@ export const upsertServiceRecommendationListResultSchema = {
   },
 } as const;
 export const upsertServiceRecommendationListResponseSchema = successEnvelope(upsertServiceRecommendationListResultSchema);
-export const upsertServiceRecommendationListRouteSchema = withDefaultErrorResponses({
-  params: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['profileId'],
-    properties: { profileId: nonEmptyStringSchema },
-  },
-  body: upsertServiceRecommendationListBodySchema,
-  response: { 200: upsertServiceRecommendationListResponseSchema, 201: upsertServiceRecommendationListResponseSchema },
-});
-
 // ── Account-level Upsert Service Recommendation List ─────────
 
 export const accountListUpsertRouteSchema = withDefaultErrorResponses({
@@ -765,10 +850,15 @@ export const batchUpsertServiceRecommendationListsBodySchema = {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['listKey', 'items'],
+              required: ['listKey', 'title', 'subtitle', 'layout', 'items', 'model', 'context'],
               properties: {
                 listKey: stringSchema,
-                items: { type: 'array', items: serviceRecommendationItemRefSchema },
+                title: nonEmptyStringSchema,
+                subtitle: nullableStringSchema,
+                layout: recoLayoutSchema,
+                items: { type: 'array', items: serviceRecommendationWriteItemSchema },
+                model: recoModelInfoSchema,
+                context: recordSchema,
               },
             },
           },

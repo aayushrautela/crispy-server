@@ -2,9 +2,11 @@ export type RecommendationWriteSource = 'account_api' | 'reco' | string;
 export type RecommendationWriteMode = 'replace' | 'append' | 'clear';
 
 export interface RecommendationListItemInput {
-  contentId: string;
+  itemId: string;
   rank: number;
+  sourceRef?: { provider: string; providerId: string } | null;
   score?: number | null;
+  reason?: string | null;
   reasonCodes?: string[];
   metadata?: Record<string, unknown>;
 }
@@ -22,13 +24,16 @@ export interface RecommendationListWriteInput {
   runId?: string;
   batchId?: string;
   writeMode: RecommendationWriteMode;
+  layout: 'regular' | 'landscape' | 'hero' | 'collection';
+  title: string;
+  subtitle: string | null;
   items: RecommendationListItemInput[];
   idempotencyKey: string;
   inputVersions?: {
     eligibilityVersion?: number;
     signalsVersion?: number;
-    modelVersion?: string;
-    algorithm?: string;
+    modelVersion?: string | null;
+    algorithm?: string | null;
   };
   actor: RecommendationWriteActor;
 }

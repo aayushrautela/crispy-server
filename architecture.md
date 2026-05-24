@@ -173,7 +173,8 @@ Rules:
 - `docs/api/README.md` owns API contract workflow, classification, and quality gates.
 - `docs/architecture/recommendation-engine.md` owns the recommendation-engine boundary/security narrative.
 - `docs/api/media-state.md` owns client media identity guidance.
-- `docs/specs/jellyfin-style-unified-item-dto.md` owns the Jellyfin-first public media API response strategy.
+- `docs/specs/client-reco-pipeline-spec.md` owns the target client recommendation and RECO contract split.
+- `docs/specs/client-reco-pipeline-implementation-plan.md` owns the hard-cutover recommendation cleanup plan.
 - `migrations/*.sql` define the local Postgres DB contract.
 - `supabase/README.md` documents the remaining Supabase auth-only boundary.
 - old planning docs are historical unless explicitly marked current.

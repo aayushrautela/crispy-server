@@ -2,7 +2,7 @@
 
 ## Status
 
-Current architecture and security contract for integration between Crispy Server (MAIN) and the external recommendation engine (RECO).
+Target architecture and security contract for integration between Crispy Server (MAIN) and the external recommendation engine (RECO).
 
 OpenAPI remains the machine-readable source of truth for exact endpoint shapes, status codes, examples, and error envelopes:
 
@@ -10,15 +10,17 @@ OpenAPI remains the machine-readable source of truth for exact endpoint shapes, 
 - `openapi/internal-recommender.v1.yaml` for MAIN service-outbox calls into RECO event ingestion.
 - `openapi/admin-ops.v1.yaml` for admin recompute and diagnostics.
 - `docs/api/recommendations.md` for human-facing recommendation API and operator guidance.
+- `docs/specs/client-reco-pipeline-spec.md` for target DTO shapes.
 
 ## Ownership boundary
 
 | Area | Owner |
 | --- | --- |
-| Account/profile ownership and authorization | Crispy API Server + Supabase RLS behind Fastify |
-| Watch history, ratings, watchlist, continue watching, episodic follow | Supabase user-interaction state behind Crispy API Server |
-| Canonical media identity and metadata projections | Crispy API Server |
-| Stored recommendation snapshots served to clients | Crispy API Server |
+| Account/profile ownership and authorization | Crispy API Server + Supabase auth boundary behind Fastify |
+| Watch history, ratings, watchlist, continue watching, episodic follow | Crispy API Server |
+| Canonical media identity and provider refs | Crispy API Server |
+| Public client recommendation cards | Crispy API Server |
+| Stored recommendation lists and snapshots | Crispy API Server |
 | Recommendation model logic and generation strategy | External recommendation engine |
 | Pulling eligible source data after recompute events | External recommendation engine through Crispy API |
 | Internal queue jobs in this repository | Crispy Server BullMQ worker |
@@ -82,15 +84,17 @@ Dispatcher response handling:
 
 The current RECO ingestion response acknowledges acceptance and may include only a RECO event id. It does not return generation progress or a durable generation job id to MAIN.
 
-## Admin recompute MVP
-
-Admin recompute endpoints enqueue service-outbox events and return asynchronous acceptance. The exact endpoint contracts live in `openapi/admin-ops.v1.yaml` and are summarized in `docs/api/recommendations.md`.
-
-Diagnostics expose MAIN service-outbox delivery state only (`pending`, `processing`, `dispatched`, `failed`). A dispatched event means MAIN delivered the envelope to RECO ingestion; it does not prove recommendation generation completed or that new stored snapshots are available.
-
 ## Source data and AI-plan flow
 
-RECO retrieves bounded, authorized business inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from authorized profile context plus canonical watch history, ratings, watchlist, and continue-watching state. Signal records carry `Item: BaseItemDto` plus signal-specific fields, so canonical item identity is `Item.Id` and provider references such as TMDB are available at `Item.ProviderIds.Tmdb`. MAIN may also include episodic follow state and other derived context. Storage details remain hidden behind the Fastify internal API contract.
+RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from profile context plus canonical watch history, ratings, watchlist, continue-watching state, negative signals, and impressions.
+
+Signal records carry `RecoItemRef` values:
+
+- public `itemId` when MAIN knows the item
+- provider refs such as TMDB, TVDB, IMDb, or Kitsu
+- lightweight item features useful for ranking
+
+Signal records do not carry `BaseItemDto`, client `UserData`, posters, backdrops, logos, trailers, or enriched display card payloads.
 
 When AI assistance is needed:
 
@@ -104,15 +108,66 @@ RECO must not request, receive, cache, log, or forward raw account BYOK keys, se
 
 ## Result publication
 
-Generated outputs are published back through internal app recommendation write endpoints. RECO writes ordered arrays of minimal TMDB references only, for example:
+Generated outputs are published back through internal app recommendation write endpoints. RECO writes list metadata plus ordered item identities.
+
+Target body shape:
 
 ```json
-{ "type": "movie", "tmdbId": 550 }
+{
+  "title": "Because you watched The Matrix",
+  "subtitle": "Mind-bending sci-fi picks",
+  "layout": "regular",
+  "items": [
+    {
+      "item": { "itemId": "8a1f7c852e864e2a9c0b77d9efc5a901" },
+      "score": 0.98,
+      "reason": "Similar tone and themes",
+      "reasonCodes": ["similar_history"],
+      "metadata": {}
+    },
+    {
+      "item": {
+        "ref": {
+          "provider": "tvdb",
+          "type": "tv",
+          "providerId": "79168"
+        }
+      },
+      "score": null,
+      "reason": null,
+      "reasonCodes": [],
+      "metadata": {}
+    }
+  ],
+  "model": {
+    "runId": "rec-run-123",
+    "algorithmVersion": "home-v3",
+    "modelVersion": "ranker-2026-05"
+  },
+  "context": {}
+}
 ```
 
-MAIN derives source, rank from array order, canonical item IDs, write mode, eligibility version, and storage/policy metadata. Writers must not send enriched card payloads, `contentId`, `itemId`, rank, score, provider fragments beyond the documented write reference, eligibility version, signals version, or arbitrary metadata unless the OpenAPI contract explicitly allows it.
+MAIN derives rank from array order, resolves every identity to canonical item IDs, applies eligibility and policy checks, persists list metadata, and enriches public client cards at read time.
+
+RECO must not send enriched card payloads, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata.
 
 Result ingestion is idempotent by profile, list key, and idempotency key where documented.
+
+## Public client output
+
+Public recommendation home responses are client-card responses, not RECO payloads and not `BaseItemDto` lists.
+
+Each section has:
+
+- `listKey`
+- `title`
+- `subtitle`
+- `layout`
+- `items`
+- `meta`
+
+Each item is a UI-ready card with canonical `itemId`, display fields, artwork, and watch progress. Normal client cards do not expose provider refs, provider IDs, scores, reason codes, model details, or storage internals.
 
 ## Sensitive data and logging
 
@@ -128,6 +183,7 @@ This contract does not define:
 - RECO's internal queue implementation.
 - Ranking algorithms or model internals.
 - Direct database, Supabase, Redis, or admin-UI scraping access by RECO.
+- A compatibility layer for old BaseItemDto recommendation sections or TMDB-only write bodies.
 
 ## Future lifecycle gaps
 

@@ -1,18 +1,10 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
-import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
-import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
-import type {
-  CollectionCardItemView,
-  CollectionCardView,
-  HeroCardView,
-  MetadataCardView,
-} from '../metadata/metadata-card.types.js';
-import type { BaseItemDto } from '../metadata/media-item.types.js';
+import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -20,10 +12,17 @@ import {
 } from './recommendation-snapshots.repo.js';
 import { recommendationConfig } from './recommendation-config.js';
 import type {
+  RecommendationHomePayload,
   RecommendationSection,
   RecommendationSnapshotPayload,
   TasteProfilePayload,
 } from './recommendation.types.js';
+import type {
+  ClientHomeLayout,
+  ClientHomeSection,
+  ClientMediaCard,
+  ClientMediaType,
+} from './client-home.types.js';
 
 export type RecommendationTasteProfileInput = {
   sourceKey: string;
@@ -96,6 +95,14 @@ export class RecommendationOutputService {
       return mapTasteProfile(row);
     });
   }
+  async upsertHomeForAccount(
+    accountId: string,
+    profileId: string,
+    input: RecommendationSnapshotInput,
+  ): Promise<RecommendationHomePayload> {
+    const snapshot = await this.upsertRecommendationsForAccount(accountId, profileId, input);
+    return toHomePayload(profileId, snapshot);
+  }
 
 
   async getTasteProfileForAccountService(accountId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
@@ -151,6 +158,15 @@ export class RecommendationOutputService {
       const row = await this.snapshotsRepository.findByProfileSourceAndAlgorithm(client, profileId, sourceKey, algorithmVersion);
       return row ? this.mapRecommendationSnapshot(client, row) : null;
     });
+  }
+  async getHomeForAccount(
+    accountId: string,
+    profileId: string,
+    sourceKey: string,
+    algorithmVersion: string,
+  ): Promise<RecommendationHomePayload> {
+    const snapshot = await this.getRecommendationsForAccount(accountId, profileId, sourceKey, algorithmVersion);
+    return toHomePayload(profileId, snapshot);
   }
 
 
@@ -270,150 +286,95 @@ export class RecommendationOutputService {
 
   private async mapRecommendationSection(client: DbClient, value: unknown): Promise<RecommendationSection> {
     const row = asRecord(value);
-    const layout = row.layout === 'landscape' || row.layout === 'collection' || row.layout === 'hero'
-      ? row.layout
-      : 'regular';
+    const layout = readClientHomeLayout(row.layout);
     const rawItems = Array.isArray(row.items) ? row.items : [];
     const id = typeof row.id === 'string' ? row.id : 'recommended';
     const title = typeof row.title === 'string' ? row.title : 'Recommended';
     const meta = asRecord(row.meta);
 
-    if (layout === 'collection') {
+    if (layout === 'hero' || layout === 'landscape' || layout === 'collection') {
       return {
-        id,
+        listKey: id,
         title,
+        subtitle: readNullableText(row.subtitle),
         layout,
-        items: rawItems.map((item) => this.mapCollectionCard(item)).filter((item): item is CollectionCardView => item !== null),
-        meta,
-      };
-    }
-
-    if (layout === 'hero') {
-      return {
-        id,
-        title,
-        layout,
-        items: (await Promise.all(rawItems.map((item) => this.mapHeroCard(client, item)))).filter((item): item is HeroCardView => item !== null),
-        meta,
-      };
-    }
-
-    if (layout === 'landscape') {
-      const items = (await Promise.all(rawItems.map((item) => this.mapLandscapeRecommendationItem(client, item))))
-        .filter((item): item is BaseItemDto => item !== null);
-      return {
-        id,
-        title,
-        layout,
-        items,
+        items: (await Promise.all(rawItems.map((item) => this.mapClientMediaCard(client, item))))
+          .filter((item): item is ClientMediaCard => item !== null),
         meta,
       };
     }
 
     return {
-      id,
+      listKey: id,
       title,
+      subtitle: readNullableText(row.subtitle),
       layout: 'regular',
-      items: (await Promise.all(rawItems.map((item) => this.mapRecommendationItem(client, item))))
-        .filter((item): item is BaseItemDto => item !== null),
+      items: (await Promise.all(rawItems.map((item) => this.mapClientMediaCard(client, item))))
+        .filter((item): item is ClientMediaCard => item !== null),
       meta,
     };
   }
 
-  private async mapRecommendationItem(client: DbClient, value: unknown): Promise<BaseItemDto | null> {
+  private async mapClientMediaCard(client: DbClient, value: unknown): Promise<ClientMediaCard | null> {
     const row = asRecord(value);
     const itemId = readPublicItemId(row.itemId);
     if (!itemId) { return null; }
     const identity = await this.contentIdentityService.resolveMediaIdentity(client, assertPublicItemId(itemId));
     const card = await this.metadataCardService.buildCardView(client, identity);
-    if (!card) { return null; }
-    return mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId }));
-  }
-
-  private async mapLandscapeRecommendationItem(client: DbClient, value: unknown): Promise<BaseItemDto | null> {
-    const row = asRecord(value);
-    const itemId = readPublicItemId(row.itemId);
-    if (!itemId) { return null; }
-    const identity = await this.contentIdentityService.resolveMediaIdentity(client, assertPublicItemId(itemId));
-    const card = await this.metadataCardService.buildCardView(client, identity);
-    if (!card) { return null; }
-    return mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId }));
-  }
-
-  private mapCollectionCard(value: unknown): CollectionCardView | null {
-    const row = asRecord(value);
-    const title = typeof row.title === 'string' && row.title.trim() ? row.title : null;
-    const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim() ? row.logoUrl : null;
-    const rawItems = Array.isArray(row.items) ? row.items : [];
-    const items = rawItems.map((item) => this.mapCollectionCardItem(item)).filter((item): item is CollectionCardItemView => item !== null);
-    if (!title || !logoUrl || items.length < 3) {
-      return null;
-    }
-
-    return {
-      title,
-      logo: buildResponsiveImageSet(logoUrl, {
-        small: 'w185',
-        medium: 'w300',
-        large: 'w500',
-      }),
-      items: [items[0]!, items[1]!, items[2]!],
-    };
-  }
-
-  private mapCollectionCardItem(value: unknown): CollectionCardItemView | null {
-    const row = asRecord(value);
-    const mediaType = typeof row.mediaType === 'string' ? row.mediaType : null;
-    const title = typeof row.title === 'string' ? row.title : null;
-    const posterUrl = typeof row.posterUrl === 'string' ? row.posterUrl : null;
-    if (!mediaType || !title || !posterUrl) {
-      return null;
-    }
-
-    return {
-      mediaType: mediaType as CollectionCardItemView['mediaType'],
-      title,
-      poster: buildResponsiveImageSet(posterUrl, {
-        small: 'w342',
-        medium: 'w500',
-        large: 'w780',
-      }),
-      releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : null,
-      rating: typeof row.rating === 'number' ? row.rating : null,
-    };
-  }
-
-  private async mapHeroCard(client: DbClient, value: unknown): Promise<HeroCardView | null> {
-    const row = asRecord(value);
-    const itemId = readPublicItemId(row.itemId);
-    if (!itemId) { return null; }
-    const identity = await this.contentIdentityService.resolveMediaIdentity(client, assertPublicItemId(itemId));
-    const media = await this.metadataCardService.buildCardView(client, identity);
-    return toHeroCard(media, row);
+    return card ? toClientMediaCard(card, row) : null;
   }
 }
 
-function toHeroCard(card: MetadataCardView, row: Record<string, unknown>): HeroCardView | null {
-  const backdrop = card.images.backdrop;
-  const description = typeof row.description === 'string' && row.description.trim()
-    ? row.description
-    : card.overview ?? card.summary ?? null;
-  if (!card.title || (!backdrop.small && !backdrop.medium && !backdrop.large) || !description) {
+function toHomePayload(profileId: string, snapshot: RecommendationSnapshotPayload | null): RecommendationHomePayload {
+  return {
+    profileId,
+    generatedAt: snapshot?.generatedAt ?? new Date(0).toISOString(),
+    expiresAt: snapshot?.expiresAt ?? null,
+    sections: snapshot?.sections ?? [],
+  };
+}
+
+function toClientMediaCard(card: MetadataCardView, row: Record<string, unknown>): ClientMediaCard | null {
+  if (!card.title) {
     return null;
   }
-
   return {
     itemId: card.itemId,
-    mediaType: card.mediaType,
+    mediaType: toClientMediaType(card.mediaType),
     title: card.title,
-    description,
-    backdrop,
-    poster: card.images.poster,
-    logo: card.images.logo,
-    releaseYear: card.releaseYear,
+    subtitle: readNullableText(row.subtitle) ?? card.subtitle,
+    overview: readNullableText(row.description) ?? card.overview ?? card.summary,
+    year: card.releaseYear,
+    releaseDate: card.releaseDate,
     rating: card.rating,
-    genre: null,
+    maturityRating: card.maturityRating,
+    genres: card.genres,
+    runtimeSeconds: typeof card.runtimeMinutes === 'number' ? card.runtimeMinutes * 60 : null,
+    images: {
+      poster: card.images.poster,
+      backdrop: card.images.backdrop,
+      logo: card.images.logo,
+      still: card.images.still,
+    },
+    progress: null,
+    parent: card.seriesItemId || card.seasonItemId || card.seasonNumber !== null || card.episodeNumber !== null
+      ? {
+          seriesItemId: card.seriesItemId ?? undefined,
+          seasonItemId: card.seasonItemId ?? undefined,
+          seasonNumber: card.seasonNumber,
+          episodeNumber: card.episodeNumber,
+        }
+      : null,
   };
+}
+
+function toClientMediaType(mediaType: MetadataCardView['mediaType']): ClientMediaType {
+  if (mediaType === 'show') return 'tv';
+  return mediaType;
+}
+
+function readNullableText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function sanitizeRecommendationSections(value: unknown[]): unknown[] {
@@ -422,17 +383,14 @@ function sanitizeRecommendationSections(value: unknown[]): unknown[] {
 
 function sanitizeRecommendationSection(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const layout = row.layout === 'landscape' || row.layout === 'collection' || row.layout === 'hero'
-    ? row.layout
-    : 'regular';
+  const layout = readClientHomeLayout(row.layout);
   const items = Array.isArray(row.items) ? row.items : [];
-  const sanitizedItems = layout === 'collection'
-    ? items.map((item) => sanitizeCollectionCard(item)).filter((item): item is Record<string, unknown> => item !== null)
-    : items.map((item) => sanitizeRecommendationMediaItem(item)).filter((item): item is Record<string, unknown> => item !== null);
+  const sanitizedItems = items.map((item) => sanitizeRecommendationMediaItem(item)).filter((item): item is Record<string, unknown> => item !== null);
 
   return {
-    id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : 'recommended',
+    id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : typeof row.listKey === 'string' && row.listKey.trim() ? row.listKey.trim() : 'recommended',
     title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : 'Recommended',
+    subtitle: readNullableText(row.subtitle),
     layout,
     meta: asRecord(row.meta),
     items: sanitizedItems,
@@ -456,41 +414,8 @@ function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown
   };
 }
 
-function sanitizeCollectionCard(value: unknown): Record<string, unknown> | null {
-  const row = asRecord(value);
-  const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
-  const logoUrl = typeof row.logoUrl === 'string' && row.logoUrl.trim() ? row.logoUrl.trim() : null;
-  const items = Array.isArray(row.items) ? row.items : [];
-  const sanitizedItems = items.map((item) => sanitizeCollectionCardItem(item)).filter((item): item is Record<string, unknown> => item !== null);
-  if (!title || !logoUrl || sanitizedItems.length < 3) {
-    return null;
-  }
-
-  return {
-    ...row,
-    title,
-    logoUrl,
-    items: sanitizedItems,
-  };
-}
-
-function sanitizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
-  const row = asRecord(value);
-  const mediaType = typeof row.mediaType === 'string' ? row.mediaType : null;
-  const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null;
-  const posterUrl = typeof row.posterUrl === 'string' && row.posterUrl.trim() ? row.posterUrl.trim() : null;
-  if (!mediaType || !title || !posterUrl) {
-    return null;
-  }
-
-  return {
-    ...row,
-    mediaType,
-    title,
-    posterUrl,
-    releaseYear: typeof row.releaseYear === 'number' ? row.releaseYear : null,
-    rating: typeof row.rating === 'number' ? row.rating : null,
-  };
+function readClientHomeLayout(value: unknown): ClientHomeLayout {
+  return value === 'landscape' || value === 'collection' || value === 'hero' ? value : 'regular';
 }
 
 function readPublicItemId(value: unknown): string | null {

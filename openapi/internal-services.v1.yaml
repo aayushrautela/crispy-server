@@ -258,45 +258,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFoundError' }
         '429': { $ref: '#/components/responses/RateLimitedError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  /internal/apps/v1/profiles/{profileId}/recommendations:
-    put:
-      deprecated: true
-      tags: [Recommendation Lists]
-      operationId: upsertLegacyInternalProfileRecommendations
-      summary: Upsert recommendations for a profile (legacy compatibility)
-      description: Legacy compatibility route for profile-rooted recommendation writes. Prefer service-owned list writes at `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}`.
-      x-internal: true
-      x-owner: crispy-server
-      x-consumers: [crispy-recommendation-engine]
-      parameters:
-        - $ref: '#/components/parameters/ProfileId'
-        - $ref: '#/components/parameters/Authorization'
-        - $ref: '#/components/parameters/ServiceId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/CorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RecommendationListUpsertRequest' }
-      responses:
-        '200':
-          description: Recommendation write accepted or idempotently replayed.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RecommendationListUpsertResponse' }
-        '201':
-          description: A new recommendation version was written.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RecommendationListUpsertResponse' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/UnauthorizedError' }
-        '403': { $ref: '#/components/responses/ForbiddenError' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-        '429': { $ref: '#/components/responses/RateLimitedError' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
   /internal/apps/v1/recommendations/service-lists:
     get:
       tags: [Recommendation Lists]
@@ -328,9 +289,10 @@ paths:
       operationId: upsertInternalRecommendationList
       summary: Upsert a service-owned recommendation list
       description: |
-        Publishes an ordered recommendation list for a profile. The caller sends
-        only TMDB media references. Crispy Server derives content IDs, canonical
-        media keys, rank, source, write mode, policy metadata, and timestamps.
+        Publishes an ordered home list for a profile. The caller sends list display
+        metadata plus item identities as public item IDs or provider references.
+        Crispy Server canonicalizes identities, derives rank from array order, and
+        owns enrichment, policy metadata, storage, and timestamps.
       x-internal: true
       x-owner: crispy-server
       x-consumers: [crispy-recommendation-engine]
@@ -993,6 +955,53 @@ components:
         small: { type: [string, 'null'] }
         medium: { type: [string, 'null'] }
         large: { type: [string, 'null'] }
+    PublicItemId:
+      type: string
+      pattern: '^[0-9a-f]{32}$'
+      minLength: 32
+      maxLength: 32
+    RecoProvider:
+      type: string
+      enum: [tmdb, tvdb, imdb, kitsu]
+    RecoMediaType:
+      type: string
+      enum: [movie, tv, season, episode]
+    RecoLayout:
+      type: string
+      enum: [regular, landscape, hero, collection]
+    RecoProviderRef:
+      type: object
+      additionalProperties: false
+      required: [provider, providerId]
+      properties:
+        provider: { $ref: '#/components/schemas/RecoProvider' }
+        providerId: { type: string, minLength: 1 }
+    RecoItemFeatures:
+      type: object
+      additionalProperties: false
+      required: [title, originalTitle, year, releaseDate, genres, runtimeSeconds, maturityRating, language, country, popularity]
+      properties:
+        title: { type: [string, 'null'] }
+        originalTitle: { type: [string, 'null'] }
+        year: { type: [integer, 'null'] }
+        releaseDate: { type: [string, 'null'] }
+        genres: { type: array, items: { type: string } }
+        runtimeSeconds: { type: [number, 'null'] }
+        maturityRating: { type: [string, 'null'] }
+        language: { type: [string, 'null'] }
+        country: { type: [string, 'null'] }
+        popularity: { type: [number, 'null'] }
+    RecoItemRef:
+      type: object
+      additionalProperties: false
+      required: [itemId, type, providerRefs, features]
+      properties:
+        itemId: { $ref: '#/components/schemas/PublicItemId' }
+        type: { $ref: '#/components/schemas/RecoMediaType' }
+        providerRefs:
+          type: array
+          items: { $ref: '#/components/schemas/RecoProviderRef' }
+        features: { $ref: '#/components/schemas/RecoItemFeatures' }
     ProviderIds:
       type: object
       additionalProperties: false
@@ -1113,35 +1122,35 @@ components:
     ProfileHistorySignal:
       type: object
       additionalProperties: false
-      required: [Item, watchedAt, progressPercent, completionState]
+      required: [item, watchedAt, progressPercent, completionState, durationSeconds]
       properties:
-        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        item: { $ref: '#/components/schemas/RecoItemRef' }
         watchedAt: { type: string, format: date-time }
         progressPercent: { type: number }
-        completionState: { type: string }
+        completionState: { type: string, enum: [completed, partial, unknown] }
         durationSeconds: { type: [number, 'null'] }
     ProfileRatingSignal:
       type: object
       additionalProperties: false
-      required: [Item, rating, ratedAt]
+      required: [item, rating, ratedAt, ratingSource]
       properties:
-        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        item: { $ref: '#/components/schemas/RecoItemRef' }
         rating: { type: number }
         ratedAt: { type: string, format: date-time }
         ratingSource: { type: [string, 'null'] }
     ProfileWatchlistSignal:
       type: object
       additionalProperties: false
-      required: [Item, addedAt]
+      required: [item, addedAt]
       properties:
-        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        item: { $ref: '#/components/schemas/RecoItemRef' }
         addedAt: { type: string, format: date-time }
     ProfileContinueWatchingSignal:
       type: object
       additionalProperties: false
-      required: [Item, progressPercent, updatedAt]
+      required: [item, progressPercent, updatedAt]
       properties:
-        Item: { $ref: '#/components/schemas/BaseItemDto' }
+        item: { $ref: '#/components/schemas/RecoItemRef' }
         progressPercent: { type: number }
         updatedAt: { type: string, format: date-time }
     AppSelfResponse:
@@ -1327,39 +1336,61 @@ components:
     RecommendationListUpsertRequest:
       type: object
       additionalProperties: false
-      required: [items]
+      required: [title, subtitle, layout, items, model, context]
       properties:
+        title: { type: string, minLength: 1 }
+        subtitle: { type: [string, 'null'] }
+        layout: { $ref: '#/components/schemas/RecoLayout' }
         items:
           type: array
           minItems: 0
           maxItems: 100
           items:
             $ref: '#/components/schemas/RecommendationListWriteItem'
+        model:
+          oneOf:
+            - $ref: '#/components/schemas/RecoModelInfo'
+            - type: 'null'
+        context: { $ref: '#/components/schemas/Metadata' }
+    RecoWriteItemIdentity:
+      anyOf:
+        - type: object
+          additionalProperties: false
+          required: [itemId]
+          properties:
+            itemId: { $ref: '#/components/schemas/PublicItemId' }
+        - type: object
+          additionalProperties: false
+          required: [ref]
+          properties:
+            ref:
+              type: object
+              additionalProperties: false
+              required: [provider, providerId, type]
+              properties:
+                provider: { $ref: '#/components/schemas/RecoProvider' }
+                providerId: { type: string, minLength: 1 }
+                type: { $ref: '#/components/schemas/RecoMediaType' }
     RecommendationListWriteItem:
       type: object
-      additionalProperties: false
-      required: [type, tmdbId]
+      additionalProperties: true
+      required: [item]
       properties:
-        type:
-          type: string
-          enum: [movie, tv]
-        tmdbId:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-      not:
-        anyOf:
-          - required: [contentId]
-          - required: [itemId]
-          - required: [rank]
-          - required: [score]
-          - required: [reason]
-          - required: [reasonCodes]
-          - required: [metadata]
-          - required: [media]
-          - required: [payload]
-          - required: [provider]
-          - required: [providerItemId]
+        item: { $ref: '#/components/schemas/RecoWriteItemIdentity' }
+        score: { type: [number, 'null'] }
+        reason: { type: [string, 'null'] }
+        reasonCodes:
+          type: array
+          items: { type: string }
+        metadata: { $ref: '#/components/schemas/Metadata' }
+    RecoModelInfo:
+      type: object
+      additionalProperties: false
+      required: [runId, algorithmVersion, modelVersion]
+      properties:
+        runId: { type: [string, 'null'] }
+        algorithmVersion: { type: string, minLength: 1 }
+        modelVersion: { type: [string, 'null'] }
     RecommendationListUpsertResponse:
       type: object
       additionalProperties: false
@@ -1410,12 +1441,20 @@ components:
                 items:
                   type: object
                   additionalProperties: false
-                  required: [listKey, items]
+                  required: [listKey, title, subtitle, layout, items, model, context]
                   properties:
                     listKey: { type: string }
+                    title: { type: string, minLength: 1 }
+                    subtitle: { type: [string, 'null'] }
+                    layout: { $ref: '#/components/schemas/RecoLayout' }
                     items:
                       type: array
                       items: { $ref: '#/components/schemas/RecommendationListWriteItem' }
+                    model:
+                      oneOf:
+                        - $ref: '#/components/schemas/RecoModelInfo'
+                        - type: 'null'
+                    context: { $ref: '#/components/schemas/Metadata' }
     RecommendationBatchUpsertResponse:
       type: object
       additionalProperties: true

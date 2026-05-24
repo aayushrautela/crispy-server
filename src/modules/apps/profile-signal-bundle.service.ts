@@ -14,6 +14,8 @@ import type {
   ProfileSignalInclude,
 } from './profile-signal-bundle.types.js';
 import type { ProfileInputSignalInclude } from '../recommendations/profile-input-signal.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
+import type { RecoItemRef, RecoMediaType, RecoProviderRef } from '../recommendations/reco-contract.types.js';
 
 const DEFAULT_INCLUDES: ProfileSignalInclude[] = ['profileContext', 'history', 'ratings', 'watchlist', 'continue', 'language', 'taste'];
 
@@ -81,16 +83,16 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
 
     if (liveSignals.history) {
       bundle.history = liveSignals.history.map((item) => ({
-        Item: item.Item,
+        item: toRecoItemRef(item.Item),
         watchedAt: new Date(item.watchedAt),
         progressPercent: readNumber(item.payload?.progressPercent, 100),
-        completionState: readString(item.payload?.completionState, 'completed'),
+        completionState: readCompletionState(item.payload?.completionState),
         durationSeconds: item.Item.RunTimeTicks !== null ? item.Item.RunTimeTicks / 10_000_000 : null,
       }));
     }
     if (liveSignals.ratings) {
       bundle.ratings = liveSignals.ratings.map((item) => ({
-        Item: item.Item,
+        item: toRecoItemRef(item.Item),
         rating: item.rating.value,
         ratedAt: new Date(item.rating.ratedAt),
         ratingSource: readOptionalString(item.payload?.ratingSource),
@@ -98,13 +100,13 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     }
     if (liveSignals.watchlist) {
       bundle.watchlist = liveSignals.watchlist.map((item) => ({
-        Item: item.Item,
+        item: toRecoItemRef(item.Item),
         addedAt: new Date(item.addedAt),
       }));
     }
     if (liveSignals.continueWatching) {
       bundle.continueWatching = liveSignals.continueWatching.map((item) => ({
-        Item: item.Item,
+        item: toRecoItemRef(item.Item),
         progressPercent: item.progress.progressPercent,
         updatedAt: new Date(item.lastActivityAt),
       }));
@@ -183,10 +185,49 @@ function readNumber(value: unknown, fallback: number): number {
   return fallback;
 }
 
-function readString(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value.trim() ? value : fallback;
+function readCompletionState(value: unknown): 'completed' | 'partial' | 'unknown' {
+  if (value === 'completed' || value === 'partial' || value === 'unknown') return value;
+  return 'completed';
 }
 
 function readOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function toRecoItemRef(item: BaseItemDto): RecoItemRef {
+  return {
+    itemId: item.Id,
+    type: toRecoMediaType(item.Type),
+    providerRefs: toProviderRefs(item),
+    features: {
+      title: item.Name,
+      originalTitle: item.OriginalTitle,
+      year: item.ProductionYear,
+      releaseDate: item.PremiereDate,
+      genres: item.Genres,
+      runtimeSeconds: item.RunTimeTicks !== null ? item.RunTimeTicks / 10_000_000 : null,
+      maturityRating: item.OfficialRating ?? item.Certification,
+      language: null,
+      country: null,
+      popularity: item.CommunityRating,
+    },
+  };
+}
+
+function toRecoMediaType(type: BaseItemDto['Type']): RecoMediaType {
+  switch (type) {
+    case 'Movie': return 'movie';
+    case 'Series': return 'tv';
+    case 'Season': return 'season';
+    case 'Episode': return 'episode';
+    default: return 'movie';
+  }
+}
+
+function toProviderRefs(item: BaseItemDto): RecoProviderRef[] {
+  const refs: RecoProviderRef[] = [];
+  if (item.ProviderIds.Tmdb) refs.push({ provider: 'tmdb', providerId: item.ProviderIds.Tmdb });
+  if (item.ProviderIds.Tvdb) refs.push({ provider: 'tvdb', providerId: item.ProviderIds.Tvdb });
+  if (item.ProviderIds.Imdb) refs.push({ provider: 'imdb', providerId: item.ProviderIds.Imdb });
+  return refs;
 }

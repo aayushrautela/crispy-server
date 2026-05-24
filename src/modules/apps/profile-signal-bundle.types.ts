@@ -1,5 +1,5 @@
 import type { AppPrincipal } from './app-principal.types.js';
-import type { BaseItemDto } from '../metadata/media-item.types.js';
+import type { RecoContinueSignal, RecoHistorySignal, RecoImpressionSignal, RecoNegativeSignal, RecoRatingSignal, RecoWatchlistSignal } from '../recommendations/reco-contract.types.js';
 
 export type ProfileSignalInclude = 'profileContext' | 'history' | 'ratings' | 'watchlist' | 'continue' | 'language' | 'taste' | 'negativeSignals' | 'recentImpressions';
 export interface ProfileSignalBundleQuery {
@@ -55,12 +55,12 @@ export interface ProfileSignalBundle {
 export interface ProfileContextSignal { profileName: string; isKids: boolean; watchDataOrigin: 'server_sync'; language?: string; region?: string; }
 export interface ProfileLanguageSignals { primary?: string | null; secondary: string[]; audioPreferences: string[]; subtitlePreferences: string[]; }
 export interface ProfileTasteSignals { genres: Array<{ id: string; score: number }>; people: Array<{ id: string; score: number }>; keywords: Array<{ id: string; score: number }>; maturity?: { maxAllowedRating?: string | null }; }
-export interface ProfileHistorySignal { Item: BaseItemDto; watchedAt: Date; progressPercent: number; completionState: string; durationSeconds?: number | null; }
-export interface ProfileRatingSignal { Item: BaseItemDto; rating: number; ratedAt: Date; ratingSource?: string | null; }
-export interface ProfileWatchlistSignal { Item: BaseItemDto; addedAt: Date; }
-export interface ProfileContinueWatchingSignal { Item: BaseItemDto; progressPercent: number; updatedAt: Date; }
-export interface ProfileNegativeSignal { Item: BaseItemDto; reason: string; createdAt: Date; }
-export interface ProfileRecentImpressionSignal { listKey: string; Item: BaseItemDto; shownAt: Date; }
+export interface ProfileHistorySignal extends RecoHistorySignal {}
+export interface ProfileRatingSignal extends RecoRatingSignal {}
+export interface ProfileWatchlistSignal extends RecoWatchlistSignal {}
+export interface ProfileContinueWatchingSignal extends RecoContinueSignal {}
+export interface ProfileNegativeSignal extends RecoNegativeSignal {}
+export interface ProfileRecentImpressionSignal extends RecoImpressionSignal {}
 
 export interface SignalBaseInput { accountId: string; profileId: string; }
 export interface SignalListInput extends SignalBaseInput { limit: number; since?: Date; }

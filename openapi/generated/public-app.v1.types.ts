@@ -443,34 +443,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/profiles/{profileId}/metadata/items/{itemId}/reviews": {
+    "/v1/profiles/{profileId}/home": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get item reviews. */
-        get: operations["getV1ProfilesProfileIdMetadataItemsItemIdReviews"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/profiles/{profileId}/recommendations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get recommendations. */
-        get: operations["getV1ProfilesProfileIdRecommendations"];
-        /** Upsert recommendations. */
-        put: operations["putV1ProfilesProfileIdRecommendations"];
+        /** Get profile home. */
+        get: operations["getV1ProfilesProfileIdHome"];
+        /** Upsert profile home. */
+        put: operations["putV1ProfilesProfileIdHome"];
         post?: never;
         delete?: never;
         options?: never;
@@ -616,7 +599,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/profiles/{profileId}/watch/rating/{mediaKey}": {
+    "/v1/profiles/{profileId}/watch/rating/{itemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -625,10 +608,10 @@ export interface paths {
         };
         get?: never;
         /** Set media rating. */
-        put: operations["putV1ProfilesProfileIdWatchRatingMediaKey"];
+        put: operations["putV1ProfilesProfileIdWatchRatingItemId"];
         post?: never;
         /** Clear media rating. */
-        delete: operations["deleteV1ProfilesProfileIdWatchRatingMediaKey"];
+        delete: operations["deleteV1ProfilesProfileIdWatchRatingItemId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -719,7 +702,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/profiles/{profileId}/watch/watchlist/{mediaKey}": {
+    "/v1/profiles/{profileId}/watch/watchlist/{itemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -728,10 +711,10 @@ export interface paths {
         };
         get?: never;
         /** Add media to watchlist. */
-        put: operations["putV1ProfilesProfileIdWatchWatchlistMediaKey"];
+        put: operations["putV1ProfilesProfileIdWatchWatchlistItemId"];
         post?: never;
         /** Remove media from watchlist. */
-        delete: operations["deleteV1ProfilesProfileIdWatchWatchlistMediaKey"];
+        delete: operations["deleteV1ProfilesProfileIdWatchWatchlistItemId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -988,12 +971,112 @@ export interface components {
             series: components["schemas"]["BaseItemDto"][];
             people: components["schemas"]["MetadataPersonSearchResult"][];
         };
+        ProfileHomeResponseEnvelope: {
+            data: components["schemas"]["ProfileHomeResponse"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        ProfileHomeResponse: {
+            profileId: string;
+            generatedAt: string;
+            expiresAt: string | null;
+            sections: components["schemas"]["ProfileHomeSection"][];
+        };
+        ProfileHomeSnapshotInput: {
+            sourceKey?: string;
+            historyGeneration: number;
+            algorithmVersion?: string;
+            sourceCursor?: string | null;
+            generatedAt: string;
+            expiresAt?: string | null;
+            source?: string;
+            updatedById?: string | null;
+            sections: components["schemas"]["ProfileHomeSectionInput"][];
+        } & {
+            [key: string]: unknown;
+        };
+        ProfileHomeSnapshot: {
+            profileId: string;
+            sourceKey: string;
+            historyGeneration: number;
+            algorithmVersion: string;
+            sourceCursor: string | null;
+            generatedAt: string;
+            expiresAt: string | null;
+            source: string;
+            updatedByKind: string;
+            updatedById: string | null;
+            sections: components["schemas"]["ProfileHomeSection"][];
+            updatedAt: string;
+        };
+        ProfileHomeSectionInput: {
+            id: string;
+            title: string;
+            /** @enum {string} */
+            layout: "regular" | "landscape" | "collection" | "hero";
+            items: components["schemas"]["GenericObject"][];
+            meta?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        ProfileHomeSection: {
+            listKey: string;
+            title: string;
+            subtitle: string | null;
+            /** @enum {string} */
+            layout: "regular" | "landscape" | "collection" | "hero";
+            items: components["schemas"]["ClientMediaCard"][];
+            meta: {
+                [key: string]: unknown;
+            };
+        };
+        ClientMediaCard: {
+            itemId: components["schemas"]["PublicItemId"];
+            /** @enum {string} */
+            mediaType: "movie" | "tv" | "season" | "episode";
+            title: string;
+            subtitle: string | null;
+            overview: string | null;
+            year: number | null;
+            releaseDate: string | null;
+            rating: number | null;
+            maturityRating: string | null;
+            genres: string[];
+            runtimeSeconds: number | null;
+            images: components["schemas"]["ClientImages"];
+            progress: components["schemas"]["ClientProgress"] | null;
+            parent: components["schemas"]["ClientParentRef"] | null;
+        };
+        ClientImages: {
+            poster: components["schemas"]["ResponsiveImageSet"] | null;
+            backdrop: components["schemas"]["ResponsiveImageSet"] | null;
+            logo: components["schemas"]["ResponsiveImageSet"] | null;
+            still?: components["schemas"]["ResponsiveImageSet"] | null;
+        };
+        ClientProgress: {
+            played: boolean;
+            playCount: number;
+            positionSeconds: number | null;
+            durationSeconds: number | null;
+            percent: number | null;
+            lastPlayedAt: string | null;
+            watchlisted: boolean;
+            userRating: number | null;
+        };
+        ClientParentRef: {
+            seriesItemId?: components["schemas"]["PublicItemId"];
+            seriesTitle?: string;
+            seasonItemId?: components["schemas"]["PublicItemId"];
+            seasonNumber?: number | null;
+            episodeNumber?: number | null;
+        };
         GenericArrayEnvelope: {
             data: components["schemas"]["SearchSuggestionItem"][];
             meta: components["schemas"]["ResponseMeta"];
         };
         SearchSuggestionItem: {
-            Id: string;
+            Id: components["schemas"]["PublicItemId"];
             Type: string;
             Name: string;
             ProductionYear?: number | null;
@@ -2041,39 +2124,7 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getV1ProfilesProfileIdMetadataItemsItemIdReviews: {
-        parameters: {
-            query?: {
-                language?: string;
-            };
-            header?: never;
-            path: {
-                profileId: string;
-                itemId: components["schemas"]["PublicItemId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getV1ProfilesProfileIdRecommendations: {
+    getV1ProfilesProfileIdHome: {
         parameters: {
             query?: {
                 sourceKey?: string;
@@ -2093,7 +2144,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["ProfileHomeResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2105,7 +2156,7 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    putV1ProfilesProfileIdRecommendations: {
+    putV1ProfilesProfileIdHome: {
         parameters: {
             query?: {
                 sourceKey?: string;
@@ -2119,7 +2170,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": components["schemas"]["ProfileHomeSnapshotInput"];
             };
         };
         responses: {
@@ -2129,7 +2180,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["ProfileHomeResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2374,7 +2425,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    itemId: components["schemas"]["PublicItemId"];
+                };
             };
         };
         responses: {
@@ -2439,7 +2492,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    itemId: components["schemas"]["PublicItemId"];
+                };
             };
         };
         responses: {
@@ -2461,13 +2516,13 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    putV1ProfilesProfileIdWatchRatingMediaKey: {
+    putV1ProfilesProfileIdWatchRatingItemId: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 profileId: string;
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -2495,13 +2550,13 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    deleteV1ProfilesProfileIdWatchRatingMediaKey: {
+    deleteV1ProfilesProfileIdWatchRatingItemId: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 profileId: string;
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -2558,7 +2613,7 @@ export interface operations {
     getV1ProfilesProfileIdWatchState: {
         parameters: {
             query: {
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             header?: never;
             path: {
@@ -2599,7 +2654,7 @@ export interface operations {
             content: {
                 "application/json": {
                     items: {
-                        mediaKey: string;
+                        itemId: components["schemas"]["PublicItemId"];
                     }[];
                 };
             };
@@ -2634,7 +2689,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    itemId: components["schemas"]["PublicItemId"];
+                };
             };
         };
         responses: {
@@ -2688,7 +2745,7 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    putV1ProfilesProfileIdWatchWatchlistMediaKey: {
+    putV1ProfilesProfileIdWatchWatchlistItemId: {
         parameters: {
             query?: {
                 limit?: string;
@@ -2697,7 +2754,7 @@ export interface operations {
             header?: never;
             path: {
                 profileId: string;
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -2725,7 +2782,7 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    deleteV1ProfilesProfileIdWatchWatchlistMediaKey: {
+    deleteV1ProfilesProfileIdWatchWatchlistItemId: {
         parameters: {
             query?: {
                 limit?: string;
@@ -2734,7 +2791,7 @@ export interface operations {
             header?: never;
             path: {
                 profileId: string;
-                mediaKey: string;
+                itemId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -2828,7 +2885,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    mediaKeys: string[];
+                    itemIds: components["schemas"]["PublicItemId"][];
                     language?: string;
                 } & {
                     [key: string]: unknown;

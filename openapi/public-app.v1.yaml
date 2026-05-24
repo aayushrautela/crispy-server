@@ -1202,53 +1202,6 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/profiles/{profileId}/metadata/items/{itemId}/reviews:
-    get:
-      tags:
-        - Metadata
-      operationId: getV1ProfilesProfileIdMetadataItemsItemIdReviews
-      summary: Get item reviews.
-      security:
-        - UserBearerAuth: []
-      parameters:
-        - name: profileId
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 512
-        - name: itemId
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/PublicItemId"
-        - name: language
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GenericObject"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "500":
-          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/home:
     get:
       tags:
@@ -3071,17 +3024,30 @@ components:
         - meta
       properties:
         data:
-          type: object
-          additionalProperties: false
-          required:
-            - recommendations
-          properties:
-            recommendations:
-              anyOf:
-                - $ref: "#/components/schemas/ProfileHomeSnapshot"
-                - type: "null"
+          $ref: "#/components/schemas/ProfileHomeResponse"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
+    ProfileHomeResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - profileId
+        - generatedAt
+        - expiresAt
+        - sections
+      properties:
+        profileId:
+          type: string
+        generatedAt:
+          type: string
+        expiresAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileHomeSection"
     ProfileHomeSnapshotInput:
       type: object
       additionalProperties: true
@@ -3194,93 +3160,151 @@ components:
       type: object
       additionalProperties: false
       required:
-        - id
+        - listKey
         - title
+        - subtitle
         - layout
         - items
         - meta
       properties:
-        id:
+        listKey:
           type: string
         title:
           type: string
+        subtitle:
+          anyOf:
+            - type: string
+            - type: "null"
         layout:
           type: string
           enum: [regular, landscape, collection, hero]
         items:
           type: array
           items:
-            anyOf:
-              - $ref: "#/components/schemas/BaseItemDto"
-              - $ref: "#/components/schemas/ProfileHomeCollectionCard"
-              - $ref: "#/components/schemas/ProfileHomeHeroCard"
+            $ref: "#/components/schemas/ClientMediaCard"
         meta:
           type: object
           additionalProperties: true
-    ProfileHomeCollectionCard:
+    ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [title, logo, items]
-      properties:
-        title:
-          type: string
-        logo:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        items:
-          type: array
-          minItems: 3
-          maxItems: 3
-          items:
-            $ref: "#/components/schemas/ProfileHomeCollectionCardItem"
-    ProfileHomeCollectionCardItem:
-      type: object
-      additionalProperties: false
-      required: [mediaType, title, poster, releaseYear, rating]
-      properties:
-        mediaType:
-          type: string
-        title:
-          type: string
-        poster:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        releaseYear:
-          anyOf:
-            - type: integer
-            - type: "null"
-        rating:
-          anyOf:
-            - type: number
-            - type: "null"
-    ProfileHomeHeroCard:
-      type: object
-      additionalProperties: false
-      required: [itemId, mediaType, title, description, backdrop, poster, logo, releaseYear, rating, genre]
+      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, progress, parent]
       properties:
         itemId:
           $ref: "#/components/schemas/PublicItemId"
         mediaType:
           type: string
+          enum: [movie, tv, season, episode]
         title:
           type: string
-        description:
-          type: string
-        backdrop:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        poster:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        logo:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        releaseYear:
+        subtitle:
+          anyOf:
+            - type: string
+            - type: "null"
+        overview:
+          anyOf:
+            - type: string
+            - type: "null"
+        year:
           anyOf:
             - type: integer
+            - type: "null"
+        releaseDate:
+          anyOf:
+            - type: string
             - type: "null"
         rating:
           anyOf:
             - type: number
             - type: "null"
-        genre:
+        maturityRating:
           anyOf:
             - type: string
+            - type: "null"
+        genres:
+          type: array
+          items:
+            type: string
+        runtimeSeconds:
+          anyOf:
+            - type: number
+            - type: "null"
+        images:
+          $ref: "#/components/schemas/ClientImages"
+        progress:
+          anyOf:
+            - $ref: "#/components/schemas/ClientProgress"
+            - type: "null"
+        parent:
+          anyOf:
+            - $ref: "#/components/schemas/ClientParentRef"
+            - type: "null"
+    ClientImages:
+      type: object
+      additionalProperties: false
+      required: [poster, backdrop, logo]
+      properties:
+        poster:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        backdrop:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        logo:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+        still:
+          anyOf:
+            - $ref: "#/components/schemas/ResponsiveImageSet"
+            - type: "null"
+    ClientProgress:
+      type: object
+      additionalProperties: false
+      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, userRating]
+      properties:
+        played: { type: boolean }
+        playCount: { type: integer, minimum: 0 }
+        positionSeconds:
+          anyOf:
+            - type: number
+            - type: "null"
+        durationSeconds:
+          anyOf:
+            - type: number
+            - type: "null"
+        percent:
+          anyOf:
+            - type: number
+            - type: "null"
+        lastPlayedAt:
+          anyOf:
+            - type: string
+            - type: "null"
+        watchlisted: { type: boolean }
+        userRating:
+          anyOf:
+            - type: number
+            - type: "null"
+    ClientParentRef:
+      type: object
+      additionalProperties: false
+      properties:
+        seriesItemId:
+          $ref: "#/components/schemas/PublicItemId"
+        seriesTitle:
+          type: string
+        seasonItemId:
+          $ref: "#/components/schemas/PublicItemId"
+        seasonNumber:
+          anyOf:
+            - type: integer
+            - type: "null"
+        episodeNumber:
+          anyOf:
+            - type: integer
             - type: "null"
     GenericArrayEnvelope:
       type: object

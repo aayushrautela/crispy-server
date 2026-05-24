@@ -50,14 +50,12 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const params = request.params as { profileId: string };
     const query = (request.query ?? {}) as Record<string, unknown>;
     const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
-    return success({
-      recommendations: await outputService.getRecommendationsForAccount(
-        actor.appUserId,
-        params.profileId,
-        sourceKey,
-        resolveRecommendationAlgorithmVersion(query.algorithmVersion),
-      ),
-    }, request);
+    return success(await outputService.getHomeForAccount(
+      actor.appUserId,
+      params.profileId,
+      sourceKey,
+      resolveRecommendationAlgorithmVersion(query.algorithmVersion),
+    ), request);
   });
 
   app.put('/v1/profiles/:profileId/home', async (request) => {
@@ -65,9 +63,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:write']);
     const params = request.params as { profileId: string };
-    return success({
-      recommendations: await outputService.upsertRecommendationsForAccount(actor.appUserId, params.profileId, parseRecommendationSnapshotInput(request.body)),
-    }, request);
+    return success(await outputService.upsertHomeForAccount(actor.appUserId, params.profileId, parseRecommendationSnapshotInput(request.body)), request);
   });
 }
 

@@ -112,27 +112,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/apps/v1/profiles/{profileId}/recommendations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Upsert recommendations for a profile (legacy compatibility)
-         * @deprecated
-         * @description Legacy compatibility route for profile-rooted recommendation writes. Prefer service-owned list writes at `/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}`.
-         */
-        put: operations["upsertLegacyInternalProfileRecommendations"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/apps/v1/recommendations/service-lists": {
         parameters: {
             query?: never;
@@ -160,9 +139,10 @@ export interface paths {
         get?: never;
         /**
          * Upsert a service-owned recommendation list
-         * @description Publishes an ordered recommendation list for a profile. The caller sends
-         *     only TMDB media references. Crispy Server derives content IDs, canonical
-         *     media keys, rank, source, write mode, policy metadata, and timestamps.
+         * @description Publishes an ordered home list for a profile. The caller sends list display
+         *     metadata plus item identities as public item IDs or provider references.
+         *     Crispy Server canonicalizes identities, derives rank from array order, and
+         *     owns enrichment, policy metadata, storage, and timestamps.
          */
         put: operations["upsertInternalRecommendationList"];
         post?: never;
@@ -368,6 +348,135 @@ export interface components {
         Metadata: {
             [key: string]: unknown;
         };
+        ResponsiveImageSet: {
+            small: string | null;
+            medium: string | null;
+            large: string | null;
+        };
+        PublicItemId: string;
+        /** @enum {string} */
+        RecoProvider: "tmdb" | "tvdb" | "imdb" | "kitsu";
+        /** @enum {string} */
+        RecoMediaType: "movie" | "tv" | "season" | "episode";
+        /** @enum {string} */
+        RecoLayout: "regular" | "landscape" | "hero" | "collection";
+        RecoProviderRef: {
+            provider: components["schemas"]["RecoProvider"];
+            providerId: string;
+        };
+        RecoItemFeatures: {
+            title: string | null;
+            originalTitle: string | null;
+            year: number | null;
+            releaseDate: string | null;
+            genres: string[];
+            runtimeSeconds: number | null;
+            maturityRating: string | null;
+            language: string | null;
+            country: string | null;
+            popularity: number | null;
+        };
+        RecoItemRef: {
+            itemId: components["schemas"]["PublicItemId"];
+            type: components["schemas"]["RecoMediaType"];
+            providerRefs: components["schemas"]["RecoProviderRef"][];
+            features: components["schemas"]["RecoItemFeatures"];
+        };
+        ProviderIds: {
+            Tmdb: string | null;
+            Imdb: string | null;
+            Tvdb: string | null;
+        };
+        BaseItemImageTags: {
+            Primary: components["schemas"]["ResponsiveImageSet"] | null;
+            Backdrop: components["schemas"]["ResponsiveImageSet"][];
+            Logo: components["schemas"]["ResponsiveImageSet"] | null;
+            Thumb: components["schemas"]["ResponsiveImageSet"] | null;
+            Screenshot: components["schemas"]["ResponsiveImageSet"][];
+        };
+        ParentBaseItemImageTags: {
+            Primary: components["schemas"]["ResponsiveImageSet"] | null;
+            Backdrop: components["schemas"]["ResponsiveImageSet"][];
+            Logo: components["schemas"]["ResponsiveImageSet"] | null;
+            Thumb: components["schemas"]["ResponsiveImageSet"] | null;
+        };
+        RemoteTrailer: {
+            Name: string | null;
+            Url: string;
+            ThumbnailUrl: string | null;
+        };
+        UserItemData: {
+            ItemId: string | null;
+            IsFavorite: boolean;
+            Played: boolean;
+            PlayCount: number;
+            PlaybackPositionTicks: number | null;
+            RuntimeTicks: number | null;
+            PlayedPercentage: number | null;
+            LastPlayedDate: string | null;
+            Rating: number | null;
+            DismissedFromContinueWatching: boolean;
+        };
+        BaseItemDto: {
+            Id: string;
+            /** @enum {string} */
+            Type: "Movie" | "Series" | "Season" | "Episode" | "Unknown";
+            Name: string;
+            OriginalTitle: string | null;
+            Overview: string | null;
+            Taglines: string[];
+            ProductionYear: number | null;
+            PremiereDate: string | null;
+            CommunityRating: number | null;
+            OfficialRating: string | null;
+            Certification: string | null;
+            Genres: string[];
+            RunTimeTicks: number | null;
+            Status: string | null;
+            ProviderIds: components["schemas"]["ProviderIds"];
+            ImageTags: components["schemas"]["BaseItemImageTags"];
+            ParentImageTags: components["schemas"]["ParentBaseItemImageTags"] | null;
+            SeriesId: string | null;
+            SeriesName: string | null;
+            SeasonId: string | null;
+            SeasonName: string | null;
+            ParentIndexNumber: number | null;
+            IndexNumber: number | null;
+            AbsoluteIndexNumber: number | null;
+            EpisodeTitle: string | null;
+            AirDate: string | null;
+            RemoteTrailers: components["schemas"]["RemoteTrailer"][];
+            PosterColor: string | null;
+            BackdropColor: string | null;
+            UserData: components["schemas"]["UserItemData"] | null;
+        };
+        ProfileHistorySignal: {
+            item: components["schemas"]["RecoItemRef"];
+            /** Format: date-time */
+            watchedAt: string;
+            progressPercent: number;
+            /** @enum {string} */
+            completionState: "completed" | "partial" | "unknown";
+            durationSeconds: number | null;
+        };
+        ProfileRatingSignal: {
+            item: components["schemas"]["RecoItemRef"];
+            rating: number;
+            /** Format: date-time */
+            ratedAt: string;
+            ratingSource: string | null;
+        };
+        ProfileWatchlistSignal: {
+            item: components["schemas"]["RecoItemRef"];
+            /** Format: date-time */
+            addedAt: string;
+        };
+        ProfileContinueWatchingSignal: {
+            item: components["schemas"]["RecoItemRef"];
+            progressPercent: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         AppSelfResponse: {
             appId: string;
             name: string;
@@ -488,11 +597,11 @@ export interface components {
                 /** Format: date-time */
                 generatedAt?: string;
                 profileContext: components["schemas"]["Metadata"];
-                history?: components["schemas"]["Metadata"][];
-                watchHistory?: components["schemas"]["Metadata"][];
-                ratings?: components["schemas"]["Metadata"][];
-                watchlist?: components["schemas"]["Metadata"][];
-                continueWatching?: components["schemas"]["Metadata"][];
+                history?: components["schemas"]["ProfileHistorySignal"][];
+                watchHistory?: components["schemas"]["ProfileHistorySignal"][];
+                ratings?: components["schemas"]["ProfileRatingSignal"][];
+                watchlist?: components["schemas"]["ProfileWatchlistSignal"][];
+                continueWatching?: components["schemas"]["ProfileContinueWatchingSignal"][];
             } & {
                 [key: string]: unknown;
             };
@@ -524,12 +633,35 @@ export interface components {
             })[];
         };
         RecommendationListUpsertRequest: {
+            title: string;
+            subtitle: string | null;
+            layout: components["schemas"]["RecoLayout"];
             items: components["schemas"]["RecommendationListWriteItem"][];
+            model: components["schemas"]["RecoModelInfo"] | null;
+            context: components["schemas"]["Metadata"];
+        };
+        RecoWriteItemIdentity: {
+            itemId: components["schemas"]["PublicItemId"];
+        } | {
+            ref: {
+                provider: components["schemas"]["RecoProvider"];
+                providerId: string;
+                type: components["schemas"]["RecoMediaType"];
+            };
         };
         RecommendationListWriteItem: {
-            /** @enum {string} */
-            type: "movie" | "tv";
-            tmdbId: number;
+            item: components["schemas"]["RecoWriteItemIdentity"];
+            score?: number | null;
+            reason?: string | null;
+            reasonCodes?: string[];
+            metadata?: components["schemas"]["Metadata"];
+        } & {
+            [key: string]: unknown;
+        };
+        RecoModelInfo: {
+            runId: string | null;
+            algorithmVersion: string;
+            modelVersion: string | null;
         };
         RecommendationListUpsertResponse: {
             readonly accountId: string;
@@ -559,7 +691,12 @@ export interface components {
                 profileId: string;
                 lists: {
                     listKey: string;
+                    title: string;
+                    subtitle: string | null;
+                    layout: components["schemas"]["RecoLayout"];
                     items: components["schemas"]["RecommendationListWriteItem"][];
+                    model: components["schemas"]["RecoModelInfo"] | null;
+                    context: components["schemas"]["Metadata"];
                 }[];
             }[];
         };
@@ -744,7 +881,7 @@ export interface components {
             negativeSignals: components["schemas"]["RecommendationAiPlanMediaItem"][];
         };
         RecommendationAiPlanMediaItem: {
-            mediaKey: string;
+            itemId: string;
             title: string;
             /** @enum {string} */
             mediaType: "movie" | "tv";
@@ -778,7 +915,7 @@ export interface components {
         };
         RecommendationAiPlanItem: {
             rank: number;
-            mediaKey: string;
+            itemId: string;
             /** @enum {string} */
             mediaType: "movie" | "tv";
             provider: string;
@@ -1122,58 +1259,6 @@ export interface operations {
             401: components["responses"]["UnauthorizedError"];
             403: components["responses"]["ForbiddenError"];
             404: components["responses"]["NotFoundError"];
-            429: components["responses"]["RateLimitedError"];
-            500: components["responses"]["InternalServerError"];
-        };
-    };
-    upsertLegacyInternalProfileRecommendations: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example Bearer <service-token> */
-                Authorization: components["parameters"]["Authorization"];
-                "x-service-id": components["parameters"]["ServiceId"];
-                /** @example reco-run-example-001:because-you-watched */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                /** @example req_example_01HXRECO */
-                "X-Request-Id"?: components["parameters"]["RequestId"];
-                /** @example corr_example_generation_001 */
-                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
-            };
-            path: {
-                /** @example prof_example_reco_001 */
-                profileId: components["parameters"]["ProfileId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecommendationListUpsertRequest"];
-            };
-        };
-        responses: {
-            /** @description Recommendation write accepted or idempotently replayed. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecommendationListUpsertResponse"];
-                };
-            };
-            /** @description A new recommendation version was written. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecommendationListUpsertResponse"];
-                };
-            };
-            400: components["responses"]["ValidationError"];
-            401: components["responses"]["UnauthorizedError"];
-            403: components["responses"]["ForbiddenError"];
-            409: components["responses"]["ConflictError"];
             429: components["responses"]["RateLimitedError"];
             500: components["responses"]["InternalServerError"];
         };

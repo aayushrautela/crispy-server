@@ -257,6 +257,11 @@ function buildConfidentialConfigService(appDeps: ReturnType<typeof buildInternal
 export async function buildApp() {
   const app = Fastify({
     logger: loggerOptions,
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
+      },
+    },
   });
 
   await app.register(errorHandlerPlugin);

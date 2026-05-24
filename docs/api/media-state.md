@@ -20,14 +20,14 @@ Clients must treat item IDs as opaque. Do not parse them, derive provider IDs fr
 Supporting identity fields are convenience fields only:
 
 - `Type` / `mediaType` are derived presentation fields and are not identity sources.
-- `ProviderIds` carries external references where exposed.
-- `SeriesId`, `SeasonId`, and `UserData.ItemId` are also public item IDs.
+- Provider refs are internal/RECO data unless an endpoint explicitly documents them for diagnostics/export.
+- `SeriesId`, `SeasonId`, and item-specific parent fields are also public item IDs where exposed.
 
 ## Media types and provider model
 
 Canonical public item IDs are provider-independent. TMDB, TVDB, IMDb, Trakt, and other provider references are stored as external refs and may appear only in provider/reference fields documented in OpenAPI.
 
-There is no first-class backend `anime` media type. Anime-origin titles are modeled as normal TMDB movies or shows.
+There is no first-class backend `anime` media type. Anime-origin titles are modeled as normal movies or shows.
 
 Provider connection endpoints still refer to Trakt and Simkl as import providers. That is separate from canonical public identity.
 
@@ -38,10 +38,10 @@ Search and metadata routes use item IDs:
 - Search buckets are `movies`, `series`, and `all`.
 - There is no `anime` search bucket.
 - Metadata resolve/detail/playback routes should be called with `itemId` or `/items/{itemId}` paths documented in OpenAPI.
-- Clients should not construct provider-routed identities from `provider`/`providerId` fields.
-- Primary card/list surfaces expose canonical `BaseItemDto` presentation fields from the server: `Id`, `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
-- Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
-- `ImageTags.Logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
+- Clients should not construct provider-routed identities from provider fields.
+- Card/list surfaces expose server-enriched presentation fields from the server.
+- Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs.
+- Logo artwork is nullable and sparse; clients should fall back to text titles.
 
 ## Watch state
 
@@ -60,24 +60,18 @@ Watch-state routes are item-ID based and express product intent rather than stor
 
 Continue-watching items represent active resume state only.
 
-- `Id` is a public item ID.
-- For movies, `Id` is the movie item ID.
-- For episode progress, `Id` is the episode item ID and `SeriesId` is the parent show item ID.
-- `SeriesName` and `SeriesId` are populated for episodes. Clients should use `SeriesId` for show-level navigation from episode items.
-- `ParentIndexNumber` is the season number, `IndexNumber` is the episode number.
-- `EpisodeTitle` is the episode name, also available in `Name`.
+- For movies, the item ID is the movie item ID.
+- For episode progress, the item ID is the episode item ID and the parent show item ID is exposed where documented.
+- Series title, season number, and episode number are presentation fields.
 
 Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 
 ## Recommendations
 
-Recommendation read payloads follow canonical item ID identity rules:
+Recommendation read payloads follow canonical item ID identity rules and the target client/RECO split:
 
-- Use `Id` / `itemId` where a recommendation item is navigable.
-- Treat `Type` / `mediaType` as derived convenience data.
-- Primary card/list surfaces expose canonical `BaseItemDto` presentation fields from the server: `Id`, `Name`, `ImageTags.Primary`, `ImageTags.Backdrop`, `ImageTags.Logo`, `ImageTags.Thumb`, `CommunityRating`, `ProductionYear`, and nullable `OfficialRating`.
-- Image fields are responsive sets with `small`, `medium`, and `large` nullable URLs. Scalar legacy fields such as `posterUrl`, `backdropUrl`, `logoUrl`, and `stillUrl` are not returned.
-- `ImageTags.Logo` is nullable and sparse because TMDB does not provide logos for every title; clients should fall back to text titles.
-- Do not depend on provider fields for navigation.
-
-Recommendation write payloads for service-owned lists use ordered TMDB references as documented in OpenAPI and `docs/api/recommendations.md`; writers should not submit enriched card metadata or legacy identity aliases.
+- Public recommendation cards use `itemId` for navigation.
+- Public recommendation cards expose UI-ready display fields, artwork, and progress.
+- Public recommendation cards do not expose provider refs, RECO score/reason metadata, storage `contentId`, or media keys.
+- Public recommendation sections include `title`, `subtitle`, `layout`, and ordered items.
+- RECO write payloads use either public `itemId` or generic provider refs as documented in `docs/api/recommendations.md` and `docs/specs/client-reco-pipeline-spec.md`.

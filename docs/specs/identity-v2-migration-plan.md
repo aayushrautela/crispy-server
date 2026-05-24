@@ -7,9 +7,8 @@ Crispy has moved public content identity to opaque item IDs.
 ## Completed outcome
 
 - Public DTO identity uses 32-character lowercase dashless UUID item IDs.
-- Parent fields (`SeriesId`, `SeasonId`) use item IDs.
-- `UserData.ItemId` uses the represented public item ID.
-- Watch, playback, ratings, watchlist, metadata cards, AI insights, profile signal bundle `Item.Id` fields, and recommendation-facing contracts use item IDs.
+- Parent fields (`SeriesId`, `SeasonId`) use item IDs where those fields exist.
+- Watch, playback, ratings, watchlist, metadata cards, AI insights, and recommendation-facing outputs use item IDs.
 - User-state/cache/follow/recommendation tables use UUID item columns.
 - External provider references live in `content_provider_refs`.
 - Parent links live in `content_item_relationships`.
@@ -33,13 +32,13 @@ Critical DB expectations:
 
 ## Runtime result
 
-- API route params and bodies use `itemId`.
+- API route params and bodies use `itemId` for public content identity.
 - OpenAPI schemas use `PublicItemId` for public content identity.
 - Watch/read mappers emit item IDs only.
 - Metadata enrichment and card cache lookup by item ID.
 - Admin/read services query item UUID columns.
 - AI insights accepts `itemId` and decodes it to the internal UUID.
-- Profile signal bundle records expose `Item: BaseItemDto`; canonical identity is `Item.Id` and provider references such as TMDB live in `Item.ProviderIds`.
+- Target recommendation signal bundles use dedicated RECO item refs with `itemId` plus provider refs, not `BaseItemDto`.
 
 ## Verification
 

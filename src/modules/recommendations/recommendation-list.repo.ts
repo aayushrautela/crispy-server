@@ -34,12 +34,15 @@ export interface CreateRecommendationListVersionInput {
   profileId: string;
   listKey: string;
   source: string;
+  title: string;
+  subtitle: string | null;
+  layout: 'regular' | 'landscape' | 'hero' | 'collection';
   items: RecommendationListItemInput[];
   actor: RecommendationWriteActor;
   purpose?: string;
   runId?: string;
   batchId?: string;
-  inputVersions?: { eligibilityVersion?: number; signalsVersion?: number; modelVersion?: string; algorithm?: string };
+  inputVersions?: { eligibilityVersion?: number; signalsVersion?: number; modelVersion?: string | null; algorithm?: string | null };
   createdAt: Date;
 }
 
@@ -88,15 +91,15 @@ export class SqlRecommendationListRepo implements RecommendationListRepo {
     const actorId = input.actor.type === 'app' ? input.actor.appId : input.actor.accountId;
     const actorKeyId = input.actor.type === 'app' ? input.actor.keyId : input.actor.userId ?? null;
     const result = await this.deps.db.query(
-      `WITH next_version AS (
+       `WITH next_version AS (
          SELECT COALESCE(MAX(version), 0) + 1 AS version
          FROM recommendation_list_versions
          WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3 AND list_key = $4
        )
-       INSERT INTO recommendation_list_versions (account_id, profile_id, source, list_key, version, items_json, item_count, actor_type, actor_id, actor_key_id, purpose, run_id, batch_id, input_versions, created_at)
-       SELECT $1::uuid, $2::uuid, $3, $4, version, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14 FROM next_version
+       INSERT INTO recommendation_list_versions (account_id, profile_id, source, list_key, version, title, subtitle, layout, items_json, item_count, actor_type, actor_id, actor_key_id, purpose, run_id, batch_id, input_versions, created_at)
+       SELECT $1::uuid, $2::uuid, $3, $4, version, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17 FROM next_version
        RETURNING account_id, profile_id, source, list_key, version, item_count, created_at`,
-      [input.accountId, input.profileId, input.source, input.listKey, JSON.stringify(input.items), input.items.length, input.actor.type, actorId, actorKeyId, input.purpose ?? null, input.runId ?? null, input.batchId ?? null, JSON.stringify(input.inputVersions ?? {}), input.createdAt],
+      [input.accountId, input.profileId, input.source, input.listKey, input.title, input.subtitle, input.layout, JSON.stringify(input.items), input.items.length, input.actor.type, actorId, actorKeyId, input.purpose ?? null, input.runId ?? null, input.batchId ?? null, JSON.stringify(input.inputVersions ?? {}), input.createdAt],
     );
     const row = result.rows[0];
     return { accountId: String(row.account_id), profileId: String(row.profile_id), source: String(row.source), listKey: String(row.list_key), version: Number(row.version), itemCount: Number(row.item_count), createdAt: new Date(row.created_at as string) };

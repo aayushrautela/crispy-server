@@ -25,7 +25,6 @@ import {
   profileEligibilityRouteSchema,
   profileSignalBundleRouteSchema,
   serviceRecommendationListsRouteSchema,
-  upsertServiceRecommendationListRouteSchema,
   accountListUpsertRouteSchema,
   batchUpsertRouteSchema,
   createRecommendationRunRouteSchema,
@@ -174,34 +173,6 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     return success(await deps.serviceRecommendationListService.listWritableLists({ principal }), request);
   });
 
-  app.put('/internal/apps/v1/profiles/:profileId/recommendations', { schema: upsertServiceRecommendationListRouteSchema }, async (request, reply) => {
-    const principal = await app.requireRecommenderAuth(request);
-    const params = request.params as { profileId: string };
-    const body = request.body as { listKey?: unknown; requestId?: unknown; jobId?: unknown; generatedAt?: unknown; algorithmVersion?: unknown; modelVersion?: unknown; inputBundleAsOf?: unknown; items?: Parameters<ServiceRecommendationListService['upsertList']>[0]['request']['items'] };
-    const listKey = typeof body.listKey === 'string' && body.listKey.trim() ? body.listKey : 'for-you';
-    const idempotencyKey = typeof request.headers['idempotency-key'] === 'string'
-      ? request.headers['idempotency-key']
-      : typeof body.requestId === 'string'
-        ? body.requestId
-        : '';
-    const accountId = await profileService.requireProfileOwnerAccountId(params.profileId);
-    const hasAllAccountWrite = hasScopedAllAccountAccess(principal, 'accounts:all:write');
-    if (!hasAllAccountWrite) {
-      await profileService.requireOwnedProfile(accountId, params.profileId);
-    }
-    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId, profileId: params.profileId, listKey });
-    const result = await deps.serviceRecommendationListService.upsertList({
-      principal,
-      accountId,
-      profileId: params.profileId,
-      listKey,
-      idempotencyKey,
-      request: { items: body.items ?? [] },
-    });
-    reply.code(result.idempotency.replayed ? 200 : 201);
-    return mutation(result as unknown as Record<string, unknown>, request);
-  });
-
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', { schema: accountListUpsertRouteSchema }, async (request, reply) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string; listKey: string };
@@ -211,13 +182,21 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId, listKey: params.listKey });
+    const body = request.body as Record<string, unknown>;
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    for (const [index, item] of rawItems.entries()) {
+      if (typeof item === 'object' && item !== null && 'contentId' in item) {
+        const { HttpError } = await import('../../lib/errors.js');
+        throw new HttpError(400, `items[${index}].contentId is server-derived and must not be supplied.`, { field: `items[${index}].contentId` }, 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD');
+      }
+    }
     const result = await deps.serviceRecommendationListService.upsertList({
       principal,
       accountId: params.accountId,
       profileId: params.profileId,
       listKey: params.listKey,
       idempotencyKey: idempotencyKey ?? '',
-      request: request.body as Parameters<ServiceRecommendationListService['upsertList']>[0]['request'],
+      request: body as unknown as Parameters<ServiceRecommendationListService['upsertList']>[0]['request'],
     });
     reply.code(result.idempotency.replayed ? 200 : 201);
     return mutation(result as unknown as Record<string, unknown>, request);

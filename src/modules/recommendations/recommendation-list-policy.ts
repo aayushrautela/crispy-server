@@ -66,7 +66,7 @@ export function validateRecommendationItems(items: RecommendationListItemInput[]
   if (items.length > maxItems) throw new HttpError(400, `items exceeds max of ${maxItems}.`, undefined, 'TOO_MANY_ITEMS');
   const ranks = new Set<number>();
   for (const item of items) {
-    if (!item.contentId || typeof item.contentId !== 'string') throw new HttpError(400, 'Each item requires contentId.', undefined, 'INVALID_ITEM_CONTENT_ID');
+    if (!item.itemId || typeof item.itemId !== 'string') throw new HttpError(400, 'Each item requires itemId.', undefined, 'INVALID_ITEM_ID');
     if (!Number.isInteger(item.rank) || item.rank < 1) throw new HttpError(400, 'Each item requires positive integer rank.', undefined, 'INVALID_ITEM_RANK');
     if (ranks.has(item.rank)) throw new HttpError(400, 'Duplicate item rank.', undefined, 'DUPLICATE_ITEM_RANK');
     ranks.add(item.rank);

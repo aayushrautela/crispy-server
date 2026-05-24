@@ -1,4 +1,5 @@
 import type { RecommendationListWriteResult } from '../recommendations/recommendation-list.types.js';
+import type { RecoLayout, RecoModelInfo, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
 
 export interface ServiceRecommendationListDescriptor {
   listKey: string;
@@ -17,22 +18,24 @@ export interface ServiceRecommendationListsResponse {
   lists: ServiceRecommendationListDescriptor[];
 }
 
-export type ServiceRecommendationItemType = 'movie' | 'tv';
-
-export interface ServiceRecommendationItemRef {
-  type: ServiceRecommendationItemType;
-  tmdbId: number;
-}
+export type ServiceRecommendationItemType = 'movie' | 'tv' | 'season' | 'episode';
+export type ServiceRecommendationProvider = RecoProvider;
+export type ServiceRecommendationWriteItem = RecoWriteItem;
 
 export interface UpsertServiceRecommendationListRequest {
-  items: ServiceRecommendationItemRef[];
+  title: string;
+  subtitle: string | null;
+  layout: RecoLayout;
+  items: ServiceRecommendationWriteItem[];
+  model: RecoModelInfo | null;
+  context: Record<string, unknown>;
 }
 
 export interface BatchUpsertServiceRecommendationListsRequest {
   profiles: Array<{
     accountId: string;
     profileId: string;
-    lists: Array<{ listKey: string; items: ServiceRecommendationItemRef[] }>;
+    lists: Array<UpsertServiceRecommendationListRequest & { listKey: string }>;
   }>;
 }
 
