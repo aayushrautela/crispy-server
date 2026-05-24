@@ -1,3 +1,4 @@
+import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
@@ -138,7 +139,7 @@ export class TitleSearchService {
         };
       });
 
-      const peopleItems = peopleMatches.map(buildPersonSearchResult);
+      const peopleItems = await mapWithConcurrency(peopleMatches, HYDRATION_CONCURRENCY, async (person) => buildPersonSearchResult(client, this.contentIdentityService, person));
 
       return buildBucketedSearchResponse(normalizedQuery, limit, [
         ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
@@ -258,10 +259,16 @@ function emptySearchResponse(query: string): MetadataSearchResponse {
   };
 }
 
-function buildPersonSearchResult(person: TmdbPersonRecord): MetadataPersonSearchResult {
+async function buildPersonSearchResult(client: DbClient, contentIdentityService: ContentIdentityService, person: TmdbPersonRecord): Promise<MetadataPersonSearchResult> {
+  const contentId = await contentIdentityService.ensurePersonContentId(client, {
+    provider: 'tmdb',
+    providerId: person.tmdbPersonId,
+    metadata: { name: person.name },
+  });
+
   return {
     kind: 'person_search_result',
-    tmdbPersonId: person.tmdbPersonId,
+    personId: encodePublicItemId(contentId),
     name: person.name,
     knownForDepartment: person.knownForDepartment,
     profileUrl: person.profilePath ? `https://image.tmdb.org/t/p/w185${person.profilePath}` : null,

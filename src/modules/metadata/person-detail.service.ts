@@ -18,7 +18,11 @@ export class PersonDetailService {
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
     return withDbClient(async (client) => {
-      const tmdbPersonId = await this.contentIdentityService.resolvePersonTmdbId(client, personId);
+      const personRef = await this.contentIdentityService.resolvePersonProviderRef(client, personId, 'tmdb');
+      const tmdbPersonId = Number(personRef.externalId);
+      if (!Number.isInteger(tmdbPersonId) || tmdbPersonId <= 0) {
+        throw new HttpError(404, 'Person metadata not found.');
+      }
       const normalizedLanguage = normalizeMetadataLanguage(language);
       const response = await this.responseCache.getOrFetch(
         client,
@@ -47,21 +51,14 @@ export class PersonDetailService {
         throw new HttpError(404, 'Person metadata not found.');
       }
 
-      const externalIds = asRecord(payload.external_ids);
       return {
-        id: await this.contentIdentityService.ensurePersonContentId(client, tmdbPersonId),
-        provider: 'tmdb',
-        providerId: String(tmdbPersonId),
-        tmdbPersonId,
+        personId,
         name,
         knownForDepartment: asString(payload.known_for_department),
         biography: asString(payload.biography),
         birthday: asString(payload.birthday),
         placeOfBirth: asString(payload.place_of_birth),
         profileUrl: buildImageUrl(asString(payload.profile_path), 'h632'),
-        imdbId: normalizeImdbId(asString(externalIds?.imdb_id)),
-        instagramId: asString(externalIds?.instagram_id),
-        twitterId: asString(externalIds?.twitter_id),
         knownFor: await buildKnownForItems(client, payload, this.contentIdentityService),
       };
     });
@@ -106,9 +103,6 @@ async function buildKnownForItems(
     items.push({
       mediaType,
       itemId: await ensureKnownForItemId(client, contentIdentityService, mediaType, tmdbId),
-      provider: 'tmdb',
-      providerId: String(tmdbId),
-      tmdbId,
       title,
       poster: buildResponsiveImageSet(asString(record.poster_path), {
         small: 'w342',
@@ -145,17 +139,6 @@ async function ensureKnownForItemId(client: DbClient, contentIdentityService: Co
 function parseYear(value: string): number | null {
   const year = Number(value.slice(0, 4));
   return Number.isInteger(year) && year >= 1800 && year <= 3000 ? year : null;
-}
-
-function normalizeImdbId(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (trimmed.startsWith('tt')) {
-    return trimmed;
-  }
-  return /^\d+$/.test(trimmed) ? `tt${trimmed}` : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

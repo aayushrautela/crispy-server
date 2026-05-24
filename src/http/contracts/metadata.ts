@@ -5,7 +5,6 @@ import {
   nullableIntegerSchema,
   nullableNumberSchema,
   nullableStringSchema,
-  nonEmptyStringSchema,
   positiveIntegerLikeSchema,
   profileIdAndItemIdParamsSchema,
   publicItemIdSchema,
@@ -30,7 +29,7 @@ export type MetadataItemParams = {
 };
 
 export type MetadataPersonParams = {
-  id: string;
+  personId: string;
 };
 
 export type MetadataPersonQuery = {
@@ -84,6 +83,15 @@ const metadataItemParamsSchema = {
   },
 } as const;
 
+const metadataPersonParamsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['personId'],
+  properties: {
+    personId: publicItemIdSchema,
+  },
+} as const;
+
 const playbackResolveQuerystringSchema = {
   type: 'object',
   additionalProperties: false,
@@ -114,12 +122,9 @@ const metadataVideoViewSchema = {
 const metadataPersonRefViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'provider', 'providerId', 'tmdbPersonId', 'name', 'role', 'department', 'profileUrl'],
+  required: ['personId', 'name', 'role', 'department', 'profileUrl'],
   properties: {
-    id: stringSchema,
-    provider: stringSchema,
-    providerId: stringSchema,
-    tmdbPersonId: nullableIntegerSchema,
+    personId: publicItemIdSchema,
     name: stringSchema,
     role: nullableStringSchema,
     department: nullableStringSchema,
@@ -235,11 +240,10 @@ const metadataResolveResponseSchema = {
 const metadataPersonKnownForItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['mediaType', 'itemId', 'tmdbId', 'title', 'poster', 'rating', 'releaseYear'],
+  required: ['mediaType', 'itemId', 'title', 'poster', 'rating', 'releaseYear'],
   properties: {
     mediaType: stringSchema,
     itemId: publicItemIdSchema,
-    tmdbId: { type: 'integer' },
     title: stringSchema,
     poster: responsiveImageSetSchema,
     rating: nullableNumberSchema,
@@ -250,21 +254,15 @@ const metadataPersonKnownForItemSchema = {
 const metadataPersonDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'provider', 'providerId', 'tmdbPersonId', 'name', 'knownForDepartment', 'biography', 'birthday', 'placeOfBirth', 'profileUrl', 'imdbId', 'instagramId', 'twitterId', 'knownFor'],
+  required: ['personId', 'name', 'knownForDepartment', 'biography', 'birthday', 'placeOfBirth', 'profileUrl', 'knownFor'],
   properties: {
-    id: stringSchema,
-    provider: stringSchema,
-    providerId: stringSchema,
-    tmdbPersonId: { type: 'integer' },
+    personId: publicItemIdSchema,
     name: stringSchema,
     knownForDepartment: nullableStringSchema,
     biography: nullableStringSchema,
     birthday: nullableStringSchema,
     placeOfBirth: nullableStringSchema,
     profileUrl: nullableStringSchema,
-    imdbId: nullableStringSchema,
-    instagramId: nullableStringSchema,
-    twitterId: nullableStringSchema,
     knownFor: { type: 'array', items: metadataPersonKnownForItemSchema },
   },
 } as const;
@@ -293,10 +291,10 @@ const playbackResolveResponseSchema = {
 export const metadataPersonSearchResultSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['kind', 'tmdbPersonId', 'name', 'knownForDepartment', 'profileUrl', 'knownForTitles'],
+  required: ['kind', 'personId', 'name', 'knownForDepartment', 'profileUrl', 'knownForTitles'],
   properties: {
     kind: { const: 'person_search_result' },
-    tmdbPersonId: { type: 'integer' },
+    personId: publicItemIdSchema,
     name: stringSchema,
     knownForDepartment: nullableStringSchema,
     profileUrl: nullableStringSchema,
@@ -369,14 +367,7 @@ export const metadataItemRatingsRouteSchema = withDefaultErrorResponses({
 });
 
 export const metadataPersonRouteSchema = withDefaultErrorResponses({
-  params: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['id'],
-    properties: {
-      id: nonEmptyStringSchema,
-    },
-  },
+  params: metadataPersonParamsSchema,
   querystring: {
     type: 'object',
     additionalProperties: false,

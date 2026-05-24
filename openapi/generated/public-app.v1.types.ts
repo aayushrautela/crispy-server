@@ -146,7 +146,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/metadata/people/{id}": {
+    "/v1/metadata/people/{personId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -154,7 +154,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get person details. */
-        get: operations["getV1MetadataPeopleId"];
+        get: operations["getV1MetadataPeoplePersonId"];
         put?: never;
         post?: never;
         delete?: never;
@@ -891,10 +891,7 @@ export interface components {
             thumbnailUrl: string | null;
         };
         MetadataPersonRefView: {
-            id: string;
-            provider: string;
-            providerId: string;
-            tmdbPersonId: number | null;
+            personId: components["schemas"]["PublicItemId"];
             name: string;
             role: string | null;
             department: string | null;
@@ -1088,11 +1085,33 @@ export interface components {
         MetadataPersonSearchResult: {
             /** @enum {string} */
             kind: "person_search_result";
-            tmdbPersonId: number;
+            personId: components["schemas"]["PublicItemId"];
             name: string;
             knownForDepartment: string | null;
             profileUrl: string | null;
             knownForTitles: string[];
+        };
+        MetadataPersonKnownForItem: {
+            mediaType: string;
+            itemId: components["schemas"]["PublicItemId"];
+            title: string;
+            poster: components["schemas"]["ResponsiveImageSet"];
+            rating: number | null;
+            releaseYear: number | null;
+        };
+        MetadataPersonDetail: {
+            personId: components["schemas"]["PublicItemId"];
+            name: string;
+            knownForDepartment: string | null;
+            biography: string | null;
+            birthday: string | null;
+            placeOfBirth: string | null;
+            profileUrl: string | null;
+            knownFor: components["schemas"]["MetadataPersonKnownForItem"][];
+        };
+        MetadataPersonDetailResponseEnvelope: {
+            data: components["schemas"]["MetadataPersonDetail"];
+            meta: components["schemas"]["ResponseMeta"];
         };
         MetadataSearchResponseEnvelope: {
             data: components["schemas"]["MetadataSearchResponse"];
@@ -1577,12 +1596,12 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getV1MetadataPeopleId: {
+    getV1MetadataPeoplePersonId: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                id: string;
+                personId: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
@@ -1594,7 +1613,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["MetadataPersonDetailResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -1655,7 +1674,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MetadataTitleDetailResponse"];
+                    "application/json": components["schemas"]["GenericObject"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -1686,7 +1705,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MetadataTitleExtrasResponse"];
+                    "application/json": components["schemas"]["GenericObject"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2629,7 +2648,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoEnvelope"];
+                    "application/json": components["schemas"]["GenericObject"];
                 };
             };
             400: components["responses"]["BadRequest"];

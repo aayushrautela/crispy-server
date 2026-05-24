@@ -41,9 +41,9 @@ export class MetadataTitleAggregateBuilder {
       Item: buildDetailBaseItemDto({ identity, itemId, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
       NextEpisode: nextEpisode,
       Videos: extractVideos(resolvedTitle),
-      Cast: extractCast(resolvedTitle),
-      Directors: extractCrewByJob(resolvedTitle, 'Director'),
-      Creators: extractCreators(resolvedTitle),
+      Cast: await extractCast(client, this.contentIdentityService, resolvedTitle),
+      Directors: await extractCrewByJob(client, this.contentIdentityService, resolvedTitle, 'Director'),
+      Creators: await extractCreators(client, this.contentIdentityService, resolvedTitle),
       Production: extractProduction(resolvedTitle),
     };
   }

@@ -78,13 +78,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     return success(await metadataRatingsService.getTitleRatings(actor.appUserId, params.profileId, params.itemId));
   });
 
-  app.get('/v1/metadata/people/:id', { schema: metadataPersonRouteSchema }, async (request) => {
+  app.get('/v1/metadata/people/:personId', { schema: metadataPersonRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const params = request.params as MetadataPersonParams;
     const query = (request.query ?? {}) as MetadataPersonQuery;
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
-    return success(await personDetailService.getPersonDetail(params.id, language));
+    return success(await personDetailService.getPersonDetail(params.personId, language));
   });
 
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {

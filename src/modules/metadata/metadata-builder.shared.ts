@@ -1,4 +1,7 @@
 import { appConfig } from '../../config/app-config.js';
+import type { DbClient } from '../../lib/db.js';
+import type { ContentIdentityService } from '../identity/content-identity.service.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import type { SupportedProvider } from '../identity/media-key.js';
 import type {
   MetadataCompanyView,
@@ -252,18 +255,21 @@ export function extractExtraVideos(title: TmdbTitleRecord | null): MetadataVideo
   );
 }
 
-function buildPersonRefView(record: Record<string, unknown>): MetadataPersonRefView | null {
+async function buildPersonRefView(client: DbClient, contentIdentityService: ContentIdentityService, record: Record<string, unknown>): Promise<MetadataPersonRefView | null> {
   const tmdbPersonId = asNumber(record.id);
   const name = asString(record.name);
   if (!tmdbPersonId || !name) {
     return null;
   }
 
-  return {
-    id: `person:tmdb:${tmdbPersonId}`,
+  const contentId = await contentIdentityService.ensurePersonContentId(client, {
     provider: 'tmdb',
-    providerId: String(tmdbPersonId),
-    tmdbPersonId,
+    providerId: tmdbPersonId,
+    metadata: { name },
+  });
+
+  return {
+    personId: encodePublicItemId(contentId),
     name,
     role: preferNonEmpty(asString(record.character), asString(record.job)),
     department: asString(record.known_for_department) ?? asString(record.department),
@@ -271,43 +277,45 @@ function buildPersonRefView(record: Record<string, unknown>): MetadataPersonRefV
   };
 }
 
-export function extractCast(title: TmdbTitleRecord | null): MetadataPersonRefView[] {
-  return asArray(asRecord(title?.raw.credits)?.cast)
+export async function extractCast(client: DbClient, contentIdentityService: ContentIdentityService, title: TmdbTitleRecord | null): Promise<MetadataPersonRefView[]> {
+  const people = await Promise.all(asArray(asRecord(title?.raw.credits)?.cast)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry) => buildPersonRefView(entry))
+    .map((entry) => buildPersonRefView(client, contentIdentityService, entry)));
+
+  return people
     .filter((entry): entry is MetadataPersonRefView => entry !== null)
     .slice(0, 20);
 }
 
-export function extractCrewByJob(title: TmdbTitleRecord | null, job: string): MetadataPersonRefView[] {
+export async function extractCrewByJob(client: DbClient, contentIdentityService: ContentIdentityService, title: TmdbTitleRecord | null, job: string): Promise<MetadataPersonRefView[]> {
   const normalizedJob = job.trim().toLowerCase();
   const seen = new Set<string>();
-
-  return asArray(asRecord(title?.raw.credits)?.crew)
+  const people = await Promise.all(asArray(asRecord(title?.raw.credits)?.crew)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .filter((entry) => asString(entry.job)?.toLowerCase() === normalizedJob)
-    .map((entry) => buildPersonRefView(entry))
-    .filter((entry): entry is MetadataPersonRefView => {
-      if (!entry) {
-        return false;
-      }
-      const key = `${entry.provider}:${entry.providerId}`;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
+    .map((entry) => buildPersonRefView(client, contentIdentityService, entry)));
+
+  return people.filter((entry): entry is MetadataPersonRefView => {
+    if (!entry) {
+      return false;
+    }
+    if (seen.has(entry.personId)) {
+      return false;
+    }
+    seen.add(entry.personId);
+    return true;
+  });
 }
 
-export function extractCreators(title: TmdbTitleRecord | null): MetadataPersonRefView[] {
-  return asArray(title?.raw.created_by)
+export async function extractCreators(client: DbClient, contentIdentityService: ContentIdentityService, title: TmdbTitleRecord | null): Promise<MetadataPersonRefView[]> {
+  const people = await Promise.all(asArray(title?.raw.created_by)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry) => buildPersonRefView(entry))
-    .filter((entry): entry is MetadataPersonRefView => entry !== null);
+    .map((entry) => buildPersonRefView(client, contentIdentityService, entry)));
+
+  return people.filter((entry): entry is MetadataPersonRefView => entry !== null);
 }
 
 export function extractReviewsFromRaw(raw: Record<string, unknown> | null): MetadataReviewView[] {

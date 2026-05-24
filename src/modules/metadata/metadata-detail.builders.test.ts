@@ -336,10 +336,18 @@ test('rich detail extractors map videos, people, reviews, production, and collec
     expiresAt: '2026-03-23T00:00:00.000Z',
   };
 
+  const contentIdentityService = {
+    async ensurePersonContentId(_client: unknown, input: { providerId: string | number }) {
+      return `00000000-0000-4000-8000-${String(input.providerId).padStart(12, '0')}`;
+    },
+  };
+  const client = {};
+
   assert.equal(extractVideos(title)[0]?.url, 'https://www.youtube.com/watch?v=abc123');
-  assert.equal(extractCast(title)[0]?.name, 'Lead Actor');
-  assert.equal(extractCrewByJob(title, 'Director')[0]?.name, 'Director Name');
-  assert.equal(extractCreators(title)[0]?.name, 'Creator Name');
+  assert.equal((await extractCast(client as never, contentIdentityService as never, title))[0]?.name, 'Lead Actor');
+  assert.equal((await extractCast(client as never, contentIdentityService as never, title))[0]?.personId, '00000000000040008000000000000010');
+  assert.equal((await extractCrewByJob(client as never, contentIdentityService as never, title, 'Director'))[0]?.name, 'Director Name');
+  assert.equal((await extractCreators(client as never, contentIdentityService as never, title))[0]?.name, 'Creator Name');
   assert.equal(extractReviews(title)[0]?.avatarUrl, 'https://cdn.example/avatar.png');
   assert.equal(extractProduction(title).originalLanguage, 'en');
   assert.equal(extractProduction(title).companies[0]?.name, 'Studio One');

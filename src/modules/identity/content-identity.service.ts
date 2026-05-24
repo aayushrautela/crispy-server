@@ -49,7 +49,8 @@ export type CanonicalContentReference =
       contentId: string;
       itemId: string;
       entityType: 'person';
-      tmdbPersonId: number;
+      provider: SupportedProvider;
+      providerId: string;
       providerRefs: ContentProviderRefRecord[];
       authorityRef: ContentProviderRefRecord;
     };
@@ -75,6 +76,12 @@ export type SeasonIdentityInput = {
   provider?: SupportedProvider;
   parentProviderId: string | number;
   seasonNumber: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type PersonIdentityInput = {
+  provider?: SupportedProvider;
+  providerId: string | number;
   metadata?: Record<string, unknown>;
 };
 
@@ -368,8 +375,8 @@ export class ContentIdentityService {
     );
   }
 
-  async ensurePersonContentId(client: DbClient, tmdbPersonId: number): Promise<string> {
-    const [record] = await this.ensureProviderRefRecords(client, [toPersonRef(tmdbPersonId)]);
+  async ensurePersonContentId(client: DbClient, input: PersonIdentityInput): Promise<string> {
+    const [record] = await this.ensureProviderRefRecords(client, [toPersonRef(input)]);
     return assertContentId(record);
   }
 
@@ -476,18 +483,19 @@ export class ContentIdentityService {
     };
   }
 
-  async resolvePersonTmdbId(client: DbClient, contentId: string): Promise<number> {
-    const trimmed = contentId.trim();
-    const direct = Number(trimmed);
-    if (Number.isInteger(direct) && direct > 0) {
-      return direct;
-    }
-
-    const reference = await this.resolveContentReference(client, trimmed);
+  async resolvePersonProviderRef(client: DbClient, personId: string, preferredProvider: SupportedProvider = 'tmdb'): Promise<ContentProviderRefRecord> {
+    const reference = await this.resolveContentReference(client, assertPublicItemId(personId));
     if (reference.entityType !== 'person') {
       throw new HttpError(400, 'Invalid person id.');
     }
-    return reference.tmdbPersonId;
+
+    const preferred = reference.providerRefs.find((ref) => ref.provider === preferredProvider && toReferenceEntityType(ref.entityType) === 'person');
+    const fallback = reference.providerRefs.find((ref) => toReferenceEntityType(ref.entityType) === 'person');
+    const resolved = preferred ?? fallback;
+    if (!resolved) {
+      throw new HttpError(404, 'Person metadata not found.');
+    }
+    return resolved;
   }
 
   async resolveContentReference(client: DbClient, contentId: string): Promise<CanonicalContentReference> {
@@ -569,7 +577,8 @@ export class ContentIdentityService {
       contentId: normalized,
       itemId: encodePublicItemId(normalized),
       entityType: 'person',
-      tmdbPersonId: parsePositiveInteger(authorityRef.externalId, 'Invalid person id.'),
+      provider: authorityRef.provider as SupportedProvider,
+      providerId: authorityRef.externalId,
       providerRefs: refs,
       authorityRef,
     };
@@ -700,12 +709,18 @@ function toSeasonRef(input: SeasonIdentityInput): ContentProviderRefInput {
   };
 }
 
-function toPersonRef(tmdbPersonId: number): ContentProviderRefInput {
+function toPersonRef(input: PersonIdentityInput): ContentProviderRefInput {
+  const providerId = normalizeIdentifier(input.providerId, 'Invalid person id.');
+  const provider = input.provider ?? authorityProviderForEntityType('person');
   return {
-    provider: 'tmdb',
+    provider,
     entityType: 'person',
-    externalId: String(tmdbPersonId),
-    metadata: { tmdbPersonId },
+    externalId: providerId,
+    metadata: removeNullishProperties({
+      ...(input.metadata ?? {}),
+      providerId,
+      tmdbPersonId: provider === 'tmdb' ? parseOptionalPositiveInteger(providerId) : undefined,
+    }),
   };
 }
 

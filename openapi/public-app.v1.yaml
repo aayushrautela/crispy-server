@@ -485,29 +485,27 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/metadata/people/{id}:
+  /v1/metadata/people/{personId}:
     get:
       tags:
         - Metadata
-      operationId: getV1MetadataPeopleId
+      operationId: getV1MetadataPeoplePersonId
       summary: Get person details.
       security:
         - UserBearerAuth: []
       parameters:
-        - name: id
+        - name: personId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/MetadataPersonDetailResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -593,7 +591,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MetadataTitleDetailResponse"
+                $ref: "#/components/schemas/GenericObject"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -633,7 +631,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MetadataTitleExtrasResponse"
+                $ref: "#/components/schemas/GenericObject"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1912,7 +1910,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoEnvelope"
+                $ref: "#/components/schemas/GenericObject"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2769,18 +2767,10 @@ components:
     MetadataPersonRefView:
       type: object
       additionalProperties: false
-      required: [id, provider, providerId, tmdbPersonId, name, role, department, profileUrl]
+      required: [personId, name, role, department, profileUrl]
       properties:
-        id:
-          type: string
-        provider:
-          type: string
-        providerId:
-          type: string
-        tmdbPersonId:
-          anyOf:
-            - type: integer
-            - type: "null"
+        personId:
+          $ref: "#/components/schemas/PublicItemId"
         name:
           type: string
         role:
@@ -3350,7 +3340,7 @@ components:
       type: object
       required:
         - kind
-        - tmdbPersonId
+        - personId
         - name
         - knownForDepartment
         - profileUrl
@@ -3359,8 +3349,8 @@ components:
         kind:
           type: string
           enum: ["person_search_result"]
-        tmdbPersonId:
-          type: integer
+        personId:
+          $ref: "#/components/schemas/PublicItemId"
         name:
           type: string
         knownForDepartment:
@@ -3375,6 +3365,70 @@ components:
           type: array
           items:
             type: string
+    MetadataPersonKnownForItem:
+      type: object
+      additionalProperties: false
+      required: [mediaType, itemId, title, poster, rating, releaseYear]
+      properties:
+        mediaType:
+          type: string
+        itemId:
+          $ref: "#/components/schemas/PublicItemId"
+        title:
+          type: string
+        poster:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        rating:
+          anyOf:
+            - type: number
+            - type: "null"
+        releaseYear:
+          anyOf:
+            - type: integer
+            - type: "null"
+    MetadataPersonDetail:
+      type: object
+      additionalProperties: false
+      required: [personId, name, knownForDepartment, biography, birthday, placeOfBirth, profileUrl, knownFor]
+      properties:
+        personId:
+          $ref: "#/components/schemas/PublicItemId"
+        name:
+          type: string
+        knownForDepartment:
+          anyOf:
+            - type: string
+            - type: "null"
+        biography:
+          anyOf:
+            - type: string
+            - type: "null"
+        birthday:
+          anyOf:
+            - type: string
+            - type: "null"
+        placeOfBirth:
+          anyOf:
+            - type: string
+            - type: "null"
+        profileUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+        knownFor:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataPersonKnownForItem"
+    MetadataPersonDetailResponseEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/MetadataPersonDetail"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
     MetadataSearchResponseEnvelope:
       type: object
       required:

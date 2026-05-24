@@ -15,10 +15,7 @@ export type MetadataVideoView = {
 };
 
 export type MetadataPersonRefView = {
-  id: string;
-  provider: SupportedProvider;
-  providerId: string;
-  tmdbPersonId: number | null;
+  personId: string;
   name: string;
   role: string | null;
   department: string | null;
@@ -127,9 +124,6 @@ export type MetadataNextEpisodeResponse = {
 export type MetadataPersonKnownForItem = {
   mediaType: MetadataTitleMediaType;
   itemId: string;
-  provider: SupportedProvider;
-  providerId: string;
-  tmdbId: number;
   title: string;
   poster: ResponsiveImageSet;
   rating: number | null;
@@ -137,18 +131,13 @@ export type MetadataPersonKnownForItem = {
 };
 
 export type MetadataPersonDetail = {
-  provider: 'tmdb';
-  providerId: string;
-  tmdbPersonId: number;
+  personId: string;
   name: string;
   knownForDepartment: string | null;
   biography: string | null;
   birthday: string | null;
   placeOfBirth: string | null;
   profileUrl: string | null;
-  imdbId: string | null;
-  instagramId: string | null;
-  twitterId: string | null;
   knownFor: MetadataPersonKnownForItem[];
 };
 
@@ -158,7 +147,7 @@ export type MetadataSearchResult = BaseItemDto;
 
 export type MetadataPersonSearchResult = {
   kind: 'person_search_result';
-  tmdbPersonId: number;
+  personId: string;
   name: string;
   knownForDepartment: string | null;
   profileUrl: string | null;
