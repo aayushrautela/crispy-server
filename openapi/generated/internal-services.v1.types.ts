@@ -357,30 +357,26 @@ export interface components {
         /** @enum {string} */
         RecoProvider: "tmdb" | "tvdb" | "imdb" | "kitsu";
         /** @enum {string} */
-        RecoMediaType: "movie" | "tv" | "season" | "episode";
-        /** @enum {string} */
-        RecoLayout: "regular" | "landscape" | "hero" | "collection";
+        RecoMediaType: "movie" | "tv";
+        /**
+         * @description Semantic home section type written by recommendation engines.
+         * @enum {string}
+         */
+        RecoHomeSectionType: "categoryTabs" | "heroCarousel" | "contentRail" | "collectionRail";
         RecoProviderRef: {
             provider: components["schemas"]["RecoProvider"];
             providerId: string;
         };
-        RecoItemFeatures: {
-            title: string | null;
+        RecoItemHints: {
+            title: string;
             originalTitle: string | null;
             year: number | null;
             releaseDate: string | null;
-            genres: string[];
-            runtimeSeconds: number | null;
-            maturityRating: string | null;
-            language: string | null;
-            country: string | null;
-            popularity: number | null;
         };
         RecoItemRef: {
-            itemId: components["schemas"]["PublicItemId"];
             type: components["schemas"]["RecoMediaType"];
             providerRefs: components["schemas"]["RecoProviderRef"][];
-            features: components["schemas"]["RecoItemFeatures"];
+            hints: components["schemas"]["RecoItemHints"];
         };
         ProviderIds: {
             Tmdb: string | null;
@@ -635,28 +631,18 @@ export interface components {
         RecommendationListUpsertRequest: {
             title: string;
             subtitle: string | null;
-            layout: components["schemas"]["RecoLayout"];
+            sectionType: components["schemas"]["RecoHomeSectionType"];
             items: components["schemas"]["RecommendationListWriteItem"][];
             model: components["schemas"]["RecoModelInfo"] | null;
             context: components["schemas"]["Metadata"];
         };
-        RecoWriteItemIdentity: {
-            itemId: components["schemas"]["PublicItemId"];
-        } | {
-            ref: {
-                provider: components["schemas"]["RecoProvider"];
-                providerId: string;
-                type: components["schemas"]["RecoMediaType"];
-            };
-        };
         RecommendationListWriteItem: {
-            item: components["schemas"]["RecoWriteItemIdentity"];
+            type: components["schemas"]["RecoMediaType"];
+            providerRefs: components["schemas"]["RecoProviderRef"][];
             score?: number | null;
             reason?: string | null;
             reasonCodes?: string[];
             metadata?: components["schemas"]["Metadata"];
-        } & {
-            [key: string]: unknown;
         };
         RecoModelInfo: {
             runId: string | null;
@@ -693,7 +679,7 @@ export interface components {
                     listKey: string;
                     title: string;
                     subtitle: string | null;
-                    layout: components["schemas"]["RecoLayout"];
+                    sectionType: components["schemas"]["RecoHomeSectionType"];
                     items: components["schemas"]["RecommendationListWriteItem"][];
                     model: components["schemas"]["RecoModelInfo"] | null;
                     context: components["schemas"]["Metadata"];
@@ -881,13 +867,9 @@ export interface components {
             negativeSignals: components["schemas"]["RecommendationAiPlanMediaItem"][];
         };
         RecommendationAiPlanMediaItem: {
-            itemId: string;
+            type: components["schemas"]["RecoMediaType"];
+            providerRefs: components["schemas"]["RecoProviderRef"][];
             title: string;
-            /** @enum {string} */
-            mediaType: "movie" | "tv";
-            /** @description Public metadata provider such as tmdb; not an AI provider. */
-            provider: string;
-            providerId: string;
             year?: number;
             overview?: string;
             genres?: string[];
@@ -915,10 +897,8 @@ export interface components {
         };
         RecommendationAiPlanItem: {
             rank: number;
-            itemId: string;
-            /** @enum {string} */
-            mediaType: "movie" | "tv";
-            provider: string;
+            type: components["schemas"]["RecoMediaType"];
+            provider: components["schemas"]["RecoProvider"];
             providerId: string;
             title: string;
             score: number;

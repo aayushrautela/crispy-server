@@ -25,11 +25,9 @@
   "signals": {
     "watchHistory": [
       {
-        "itemId": "8a1f7c852e864e2a9c0b77d9efc50001",
+        "type": "movie",
+        "providerRefs": [{ "provider": "tmdb", "providerId": "550" }],
         "title": "Fight Club",
-        "mediaType": "movie",
-        "provider": "tmdb",
-        "providerId": "550",
         "year": 1999,
         "genres": ["Drama"],
         "watchedAt": "2026-04-28T20:00:00.000Z",
@@ -42,22 +40,18 @@
   },
   "candidatePool": [
     {
-      "itemId": "8a1f7c852e864e2a9c0b77d9efc50002",
+      "type": "movie",
+      "providerRefs": [{ "provider": "tmdb", "providerId": "680" }],
       "title": "Pulp Fiction",
-      "mediaType": "movie",
-      "provider": "tmdb",
-      "providerId": "680",
       "year": 1994,
       "overview": "Synthetic example candidate description.",
       "genres": ["Crime", "Drama"],
       "popularity": 92.5
     },
     {
-      "itemId": "8a1f7c852e864e2a9c0b77d9efc50003",
+      "type": "tv",
+      "providerRefs": [{ "provider": "tmdb", "providerId": "1399" }],
       "title": "Game of Thrones",
-      "mediaType": "tv",
-      "provider": "tmdb",
-      "providerId": "1399",
       "year": 2011,
       "genres": ["Drama", "Fantasy"],
       "popularity": 88.1

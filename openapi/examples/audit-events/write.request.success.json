@@ -7,7 +7,7 @@
   "action": "recommendation_run_updated",
   "outcome": "success",
   "metadata": {
-    "listKeys": ["hero", "content-rails"],
+    "listKeys": ["hero-carousel", "content-rails"],
     "durationMs": 1420
   }
 }

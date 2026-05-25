@@ -6,7 +6,7 @@ import type {
   RecommendationAiPlanItem,
 } from './recommendation-ai-plan.types.js';
 import { buildRecommendationAiPlanPrompt } from './recommendation-ai-plan.prompt.js';
-import { validateAiPlanOutput } from './recommendation-ai-plan.output-schema.js';
+import { validateAiPlanOutput, providerKey } from './recommendation-ai-plan.output-schema.js';
 
 type RecommendationAiPlanExecutor = {
   generateJsonForUser(args: {
@@ -44,16 +44,20 @@ export class RecommendationAiPlanService {
       request.constraints.maxItems,
     );
 
-    const candidateMap = new Map(request.candidatePool.map((c) => [c.itemId, c]));
+    const candidateMap = new Map<string, RecommendationAiPlanRequest['candidatePool'][number]>();
+    for (const candidate of request.candidatePool) {
+      for (const ref of candidate.providerRefs) {
+        candidateMap.set(providerKey(candidate.type, ref.provider, ref.providerId), candidate);
+      }
+    }
 
     const items: RecommendationAiPlanItem[] = validatedOutput.items.map((item, index) => {
-      const candidate = candidateMap.get(item.itemId)!;
+      const candidate = candidateMap.get(providerKey(item.type, item.provider, item.providerId))!;
       return {
         rank: index + 1,
-        itemId: item.itemId,
-        mediaType: candidate.mediaType,
-        provider: candidate.provider,
-        providerId: candidate.providerId,
+        type: item.type,
+        provider: item.provider,
+        providerId: item.providerId,
         title: candidate.title,
         score: item.score,
         confidence: item.confidence,

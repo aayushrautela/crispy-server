@@ -2,7 +2,7 @@ import type { ServiceRecommendationListDescriptor } from './service-recommendati
 
 export const OFFICIAL_RECOMMENDER_APP_ID = 'official-recommender';
 export const OFFICIAL_RECOMMENDER_SOURCE = 'official-recommender';
-export const OFFICIAL_RECOMMENDER_LIST_KEYS = ['hero', 'pills', 'folders', 'franchise-rails', 'content-rails'] as const;
+export const OFFICIAL_RECOMMENDER_LIST_KEYS = ['category-tabs', 'hero-carousel', 'content-rails', 'collection-rails'] as const;
 
 export type OfficialRecommenderListKey = typeof OFFICIAL_RECOMMENDER_LIST_KEYS[number];
 

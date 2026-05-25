@@ -127,7 +127,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     profileEligibilityService: { async check() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, useOfficialRecommendationEngine: true, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async assertEligible() { throw new Error('not used'); }, async recomputeAndStore() { throw new Error('not used'); } } satisfies ProfileEligibilityService,
     eligibleProfileChangeFeedService: { async listChanges() { return { items: [], cursor: { hasMore: false, nextCursor: null } }; }, async recordProfileSignalChange() {}, async recordEligibilityChange() {} } satisfies EligibleProfileChangeFeedService,
     eligibleProfileSnapshotService: { async createSnapshot() { throw new Error('not used'); }, async listItems() { throw new Error('not used'); } } satisfies EligibleProfileSnapshotService,
-    profileSignalBundleService: { async getBundle() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligibility: { eligible: true, eligibilityVersion: 1 }, bundle: { signalsVersion: 1, generatedAt: new Date('2024-01-01T00:00:00.000Z'), profileContext: { profileName: 'Test Profile', isKids: false, watchDataOrigin: 'server_sync' }, history: [{ item: { itemId: '00000000000040008000000000000101', type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '550' }], features: { title: 'Test Movie', originalTitle: null, year: 2024, releaseDate: null, genres: [], runtimeSeconds: null, maturityRating: null, language: null, country: null, popularity: null } }, watchedAt: new Date('2024-01-01T00:00:00.000Z'), progressPercent: 100, completionState: 'completed', durationSeconds: null }], ratings: [], watchlist: [], continueWatching: [] }, limits: {} }; } } satisfies ProfileSignalBundleService,
+    profileSignalBundleService: { async getBundle() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligibility: { eligible: true, eligibilityVersion: 1 }, bundle: { signalsVersion: 1, generatedAt: new Date('2024-01-01T00:00:00.000Z'), profileContext: { profileName: 'Test Profile', isKids: false, watchDataOrigin: 'server_sync' }, history: [{ item: { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '550' }], hints: { title: 'Test Movie', originalTitle: null, year: 2024, releaseDate: null } }, watchedAt: new Date('2024-01-01T00:00:00.000Z'), progressPercent: 100, completionState: 'completed', durationSeconds: null }], ratings: [], watchlist: [], continueWatching: [] }, limits: {} }; } } satisfies ProfileSignalBundleService,
     serviceRecommendationListService: serviceRecommendationListService ?? { async listWritableLists() { return { appId: 'test-app', source: 'reco', lists: [] }; }, async upsertList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'for-you', source: 'official-recommender', version: 1, status: 'written', itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z'), eligibility: { checkedAt: new Date('2024-01-01T00:00:00.000Z'), eligible: true, eligibilityVersion: 1 } }; }, async batchUpsert() { throw new Error('not used'); } } satisfies ServiceRecommendationListService,
     recommendationRunService: { async createRun() { throw new Error('not used'); }, async updateRun() { throw new Error('not used'); } } satisfies RecommendationRunService,
     recommendationBatchService: { async createBatch() { throw new Error('not used'); }, async updateBatch() { throw new Error('not used'); } } satisfies RecommendationBatchService,
@@ -215,7 +215,7 @@ test('PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendati
     method: 'PUT',
     url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/recommendations/lists/for-you',
     headers: { 'idempotency-key': 'test-key-123' },
-    payload: { title: 'For You', subtitle: null, layout: 'regular', items: [{ item: { itemId: '00000000000040008000000000000101' } }], model: null, context: {} },
+    payload: { title: 'For You', subtitle: null, sectionType: 'contentRail', items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '550' }] }], model: null, context: {} },
   });
 
   assert.equal(response.statusCode, 404);
@@ -248,7 +248,8 @@ test('official recommender with accounts:all:read can access profile signals acr
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().data.bundle.history[0].item.itemId, '00000000000040008000000000000101');
+  assert.deepEqual(response.json().data.bundle.history[0].item.providerRefs, [{ provider: 'tmdb', providerId: '550' }]);
+  assert.equal('itemId' in response.json().data.bundle.history[0].item, false);
   assert.equal('ProviderIds' in response.json().data.bundle.history[0].item, false);
 });
 
@@ -263,51 +264,50 @@ test('official recommender with accounts:all:write can write recommendations acr
     method: 'PUT',
     url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/for-you',
     headers: { 'idempotency-key': 'test-key-123' },
-    payload: { title: 'For You', subtitle: null, layout: 'regular', items: [{ item: { itemId: '00000000000040008000000000000101' } }], model: null, context: {} },
+    payload: { title: 'For You', subtitle: null, sectionType: 'contentRail', items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '550' }] }], model: null, context: {} },
   });
 
   assert.equal(response.statusCode, 201);
 });
 
-test('official recommender with accounts:all:write can access canonical unsupported write-field envelope', async (t) => {
+test('official recommender with accounts:all:write rejects unsupported write fields', async (t) => {
   const officialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:write', 'recommendations:service-lists:write']);
   officialPrincipal.appId = 'official-recommender';
   officialPrincipal.ownedSources = ['official-recommender'];
   const writeService = new DefaultServiceRecommendationListService({
     serviceListRepo: {
       async listWritableServiceLists() { return []; },
-      async findWritableServiceList() { return { listKey: 'hero', displayName: 'Hero', ownerAppId: 'test-app', source: 'reco', itemType: 'content', maxItems: 50, writeMode: 'replace_versioned', requiresEligibilityAtWrite: true }; },
+      async findWritableServiceList() { return { listKey: 'hero-carousel', displayName: 'Hero', ownerAppId: 'test-app', source: 'reco', itemType: 'content', maxItems: 50, writeMode: 'replace_versioned', requiresEligibilityAtWrite: true }; },
       async findBatchIdempotency() { return null; },
       async saveBatchIdempotency() {},
     },
-    recommendationListWriteService: {       async writeList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'hero', source: 'reco', version: 1, status: 'written' as const, itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z') }; }, async clearList() { throw new Error('not used'); } },
+    recommendationListWriteService: {       async writeList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'hero-carousel', source: 'reco', version: 1, status: 'written' as const, itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z') }; }, async clearList() { throw new Error('not used'); } },
     profileEligibilityService: { async check() { throw new Error('not used'); }, async assertEligible() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, useOfficialRecommendationEngine: true, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async recomputeAndStore() { throw new Error('not used'); } },
     appAuthorizationService: new FakeAuthorizationService(),
     appAuditRepo: new FakeAuditRepo(),
     clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
     maxProfilesPerBatch: 100,
     maxListsPerProfile: 10,
+    contentIdentityService: { async ensureTitleContentId() { return '00000000-0000-4000-8000-000000000101'; } },
   });
   const principal = buildPrincipal(['apps:self:read', 'recommendations:service-lists:write']);
-  principal.ownedListKeys = ['hero'];
+  principal.ownedListKeys = ['hero-carousel'];
   const app = await buildServer(principal, [{ accountId: 'acc-999', profileId: 'prof-888' }], writeService);
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'PUT',
-    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/hero',
+    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/hero-carousel',
     headers: { 'idempotency-key': 'test-key-123', 'x-request-id': 'req-write-field-test' },
-    payload: { title: 'Hero', subtitle: null, layout: 'hero', items: [{ item: { itemId: '00000000000040008000000000000101' }, contentId: 'movie:tmdb:101' }], model: null, context: {} },
+    payload: { title: 'Hero', subtitle: null, sectionType: 'heroCarousel', items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }], rank: 1 }], model: null, context: {} },
   });
 
   const body = response.json();
   assert.equal(response.statusCode, 400);
-  assert.equal(body.error.code, 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD');
+  assert.equal(body.error.code, 'VALIDATION_FAILED');
   assert.equal(body.error.category, 'validation');
   assert.equal(body.error.retryable, false);
   assert.equal(body.error.requestId, 'req-write-field-test');
-  assert.equal(body.error.details.field, 'items[0].contentId');
-  assert.equal(body.error.details.code, undefined);
 });
 
 test('normal app without accounts:all:read is denied cross-account profile eligibility', async (t) => {
@@ -347,7 +347,7 @@ test('normal app without accounts:all:write is denied cross-account recommendati
     method: 'PUT',
     url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/recommendations/lists/for-you',
     headers: { 'idempotency-key': 'test-key-123' },
-    payload: { title: 'For You', subtitle: null, layout: 'regular', items: [{ item: { itemId: '00000000000040008000000000000101' } }], model: null, context: {} },
+    payload: { title: 'For You', subtitle: null, sectionType: 'contentRail', items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '550' }] }], model: null, context: {} },
   });
 
   assert.equal(response.statusCode, 404);

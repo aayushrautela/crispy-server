@@ -322,19 +322,17 @@ function readRequiredNumber(value: unknown, message: string): number {
 
 function normalizeSection(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const layout = row.layout === 'landscape' || row.layout === 'collection' || row.layout === 'hero'
-    ? row.layout
-    : 'regular';
+  const sectionType = row.sectionType === 'categoryTabs' || row.sectionType === 'heroCarousel' || row.sectionType === 'contentRail' || row.sectionType === 'collectionRail'
+    ? row.sectionType
+    : 'contentRail';
   const items = Array.isArray(row.items) ? row.items : [];
-  const normalizedItems = layout === 'collection'
-    ? items.map((item) => normalizeCollectionCard(item)).filter((item): item is Record<string, unknown> => item !== null)
-    : items.map((item) => normalizeMediaItem(item)).filter((item): item is Record<string, unknown> => item !== null);
+  const normalizedItems = items.map((item) => normalizeMediaItem(item)).filter((item): item is Record<string, unknown> => item !== null);
 
   return {
     ...row,
     id: readOptionalString(row.id) ?? 'recommended',
     title: readOptionalString(row.title) ?? 'Recommended',
-    layout,
+    sectionType,
     meta: asRecord(row.meta),
     items: normalizedItems,
   };
@@ -357,39 +355,3 @@ function normalizeMediaItem(value: unknown): Record<string, unknown> | null {
   };
 }
 
-function normalizeCollectionCard(value: unknown): Record<string, unknown> | null {
-  const row = asRecord(value);
-  const title = readOptionalString(row.title);
-  const logoUrl = readOptionalString(row.logoUrl);
-  const items = Array.isArray(row.items) ? row.items : [];
-  const normalizedItems = items.map((item) => normalizeCollectionCardItem(item)).filter((item): item is Record<string, unknown> => item !== null);
-  if (!title || !logoUrl || normalizedItems.length < 3) {
-    return null;
-  }
-
-  return {
-    ...row,
-    title,
-    logoUrl,
-    items: normalizedItems,
-  };
-}
-
-function normalizeCollectionCardItem(value: unknown): Record<string, unknown> | null {
-  const row = asRecord(value);
-  const mediaType = readOptionalString(row.mediaType);
-  const title = readOptionalString(row.title);
-  const posterUrl = readOptionalString(row.posterUrl);
-  if (!mediaType || !title || !posterUrl) {
-    return null;
-  }
-
-  return {
-    ...row,
-    mediaType,
-    title,
-    posterUrl,
-    releaseYear: readOptionalNumber(row.releaseYear),
-    rating: readOptionalNumber(row.rating),
-  };
-}

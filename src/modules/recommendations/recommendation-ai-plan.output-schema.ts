@@ -1,10 +1,13 @@
 import { HttpError } from '../../lib/errors.js';
 import type { RecommendationAiPlanCandidate } from './recommendation-ai-plan.types.js';
+import type { RecoMediaType, RecoProvider } from './reco-contract.types.js';
 
 export type AiPlanRawOutput = {
   summary: string;
   items: Array<{
-    itemId: string;
+    type: RecoMediaType;
+    provider: RecoProvider;
+    providerId: string;
     score: number;
     confidence: number;
     reason: string;
@@ -47,12 +50,14 @@ export function validateAiPlanOutput(
     });
   }
 
-  const candidateMap = new Map<string, RecommendationAiPlanCandidate>();
+  const candidateKeys = new Set<string>();
   for (const candidate of candidatePool) {
-    candidateMap.set(candidate.itemId, candidate);
+    for (const ref of candidate.providerRefs) {
+      candidateKeys.add(providerKey(candidate.type, ref.provider, ref.providerId));
+    }
   }
 
-  const seenItemIds = new Set<string>();
+  const seenKeys = new Set<string>();
   const validatedItems: AiPlanRawOutput['items'] = [];
 
   for (let i = 0; i < obj.items.length; i++) {
@@ -67,23 +72,38 @@ export function validateAiPlanOutput(
 
     const itemObj = item as Record<string, unknown>;
 
-    if (typeof itemObj.itemId !== 'string' || !itemObj.itemId) {
-      throw new HttpError(502, `AI output item ${i} missing valid itemId`, {
+    if (itemObj.type !== 'movie' && itemObj.type !== 'tv') {
+      throw new HttpError(502, `AI output item ${i} missing valid type`, {
         code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
         retryable: true,
       });
     }
 
-    if (seenItemIds.has(itemObj.itemId)) {
-      throw new HttpError(502, `AI output contains duplicate itemId: ${itemObj.itemId}`, {
+    if (itemObj.provider !== 'tmdb' && itemObj.provider !== 'tvdb' && itemObj.provider !== 'imdb' && itemObj.provider !== 'kitsu') {
+      throw new HttpError(502, `AI output item ${i} missing valid provider`, {
         code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
         retryable: true,
       });
     }
-    seenItemIds.add(itemObj.itemId);
 
-    if (!candidateMap.has(itemObj.itemId)) {
-      throw new HttpError(502, `AI output itemId not in candidate pool: ${itemObj.itemId}`, {
+    if (typeof itemObj.providerId !== 'string' || !itemObj.providerId.trim()) {
+      throw new HttpError(502, `AI output item ${i} missing valid providerId`, {
+        code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
+        retryable: true,
+      });
+    }
+
+    const key = providerKey(itemObj.type, itemObj.provider, itemObj.providerId);
+    if (seenKeys.has(key)) {
+      throw new HttpError(502, `AI output contains duplicate provider ref: ${key}`, {
+        code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
+        retryable: true,
+      });
+    }
+    seenKeys.add(key);
+
+    if (!candidateKeys.has(key)) {
+      throw new HttpError(502, `AI output provider ref not in candidate pool: ${key}`, {
         code: 'AI_PLAN_OUTPUT_VALIDATION_FAILED',
         retryable: true,
       });
@@ -127,7 +147,9 @@ export function validateAiPlanOutput(
     }
 
     validatedItems.push({
-      itemId: itemObj.itemId,
+      type: itemObj.type,
+      provider: itemObj.provider,
+      providerId: itemObj.providerId.trim(),
       score: itemObj.score,
       confidence: itemObj.confidence,
       reason: itemObj.reason,
@@ -139,4 +161,8 @@ export function validateAiPlanOutput(
     summary: obj.summary,
     items: validatedItems,
   };
+}
+
+export function providerKey(type: RecoMediaType, provider: RecoProvider | string, providerId: string): string {
+  return `${type}:${provider}:${providerId.trim()}`;
 }

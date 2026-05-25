@@ -88,27 +88,27 @@ The current RECO ingestion response acknowledges acceptance and may include only
 
 RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from profile context plus canonical watch history, ratings, watchlist, continue-watching state, negative signals, and impressions.
 
-Signal records carry `RecoItemRef` values:
+Signal records carry `RecoItemRef` values with:
 
-- public `itemId` when MAIN knows the item
+- media `type` (`movie` or `tv`)
 - provider refs such as TMDB, TVDB, IMDb, or Kitsu
-- lightweight item features useful for ranking
+- minimal title/year/release-date hints useful for ranking and debugging
 
-Signal records do not carry `BaseItemDto`, client `UserData`, posters, backdrops, logos, trailers, or enriched display card payloads.
+Signal records do not carry Crispy `itemId`, `BaseItemDto`, client `UserData`, posters, backdrops, logos, trailers, or enriched display card payloads.
 
 When AI assistance is needed:
 
-1. RECO prepares business inputs, candidate pool, list key, algorithm version, and generation context.
+1. RECO prepares business inputs, candidate pool, list key, algorithm version, and generation context using provider refs.
 2. RECO calls MAIN's internal AI-plan endpoint with service auth.
-3. MAIN validates account/profile eligibility, builds prompts, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed plan.
+3. MAIN validates account/profile eligibility, builds prompts, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed provider-ref plan.
 4. RECO uses the typed plan to assemble final recommendation lists.
 5. RECO writes generated outputs back through internal app recommendation endpoints.
 
-RECO must not request, receive, cache, log, or forward raw account BYOK keys, server-funded keys, provider keys, proxy URLs, provider IDs, model names, endpoint URLs, raw prompts, raw vendor request payloads, or raw vendor responses.
+RECO must not request, receive, cache, log, or forward raw account BYOK keys, server-funded keys, provider keys, proxy URLs, AI provider IDs, AI model names, endpoint URLs, raw prompts, raw vendor request payloads, or raw vendor responses.
 
 ## Result publication
 
-Generated outputs are published back through internal app recommendation write endpoints. RECO writes list metadata plus ordered item identities.
+Generated outputs are published back through internal app recommendation write endpoints. RECO writes list metadata plus ordered provider identities.
 
 Target body shape:
 
@@ -116,23 +116,19 @@ Target body shape:
 {
   "title": "Because you watched The Matrix",
   "subtitle": "Mind-bending sci-fi picks",
-  "layout": "regular",
+  "sectionType": "contentRail",
   "items": [
     {
-      "item": { "itemId": "8a1f7c852e864e2a9c0b77d9efc5a901" },
+      "type": "movie",
+      "providerRefs": [{ "provider": "tmdb", "providerId": "603" }],
       "score": 0.98,
       "reason": "Similar tone and themes",
       "reasonCodes": ["similar_history"],
       "metadata": {}
     },
     {
-      "item": {
-        "ref": {
-          "provider": "tvdb",
-          "type": "tv",
-          "providerId": "79168"
-        }
-      },
+      "type": "tv",
+      "providerRefs": [{ "provider": "tvdb", "providerId": "79168" }],
       "score": null,
       "reason": null,
       "reasonCodes": [],
@@ -148,9 +144,9 @@ Target body shape:
 }
 ```
 
-MAIN derives rank from array order, resolves every identity to canonical item IDs, applies eligibility and policy checks, persists list metadata, and enriches public client cards at read time.
+MAIN derives rank from array order, resolves every provider identity to canonical item IDs, applies eligibility and policy checks, persists list metadata, and enriches public client cards at read time.
 
-RECO must not send enriched card payloads, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata.
+RECO must not send Crispy `itemId`, nested identity wrappers, enriched card payloads, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata.
 
 Result ingestion is idempotent by profile, list key, and idempotency key where documented.
 
@@ -163,7 +159,7 @@ Each section has:
 - `listKey`
 - `title`
 - `subtitle`
-- `layout`
+- `sectionType`
 - `items`
 - `meta`
 
@@ -183,7 +179,7 @@ This contract does not define:
 - RECO's internal queue implementation.
 - Ranking algorithms or model internals.
 - Direct database, Supabase, Redis, or admin-UI scraping access by RECO.
-- A compatibility layer for old BaseItemDto recommendation sections or TMDB-only write bodies.
+- A compatibility layer for old BaseItemDto recommendation sections, Crispy-itemId writes, or TMDB-only write bodies.
 
 ## Future lifecycle gaps
 

@@ -45,13 +45,13 @@ export type ClientMediaCard = {
   parent: ClientParentRef | null;
 };
 
-export type ClientHomeLayout = 'regular' | 'landscape' | 'hero' | 'collection';
+export type ClientHomeSectionType = 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail';
 
 export type ClientHomeSection = {
   listKey: string;
   title: string;
   subtitle: string | null;
-  layout: ClientHomeLayout;
+  sectionType: ClientHomeSectionType;
   items: ClientMediaCard[];
   meta: Record<string, unknown>;
 };

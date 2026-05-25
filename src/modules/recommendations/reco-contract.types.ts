@@ -1,30 +1,23 @@
 export type RecoProvider = 'tmdb' | 'tvdb' | 'imdb' | 'kitsu';
-export type RecoMediaType = 'movie' | 'tv' | 'season' | 'episode';
-export type RecoLayout = 'regular' | 'landscape' | 'hero' | 'collection';
+export type RecoMediaType = 'movie' | 'tv';
+export type RecoHomeSectionType = 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail';
 
 export type RecoProviderRef = {
   provider: RecoProvider;
   providerId: string;
 };
 
-export type RecoItemFeatures = {
+export type RecoItemHints = {
   title: string;
   originalTitle: string | null;
   year: number | null;
   releaseDate: string | null;
-  genres: string[];
-  runtimeSeconds: number | null;
-  maturityRating: string | null;
-  language: string | null;
-  country: string | null;
-  popularity: number | null;
 };
 
 export type RecoItemRef = {
-  itemId: string;
   type: RecoMediaType;
   providerRefs: RecoProviderRef[];
-  features: RecoItemFeatures;
+  hints: RecoItemHints;
 };
 
 export type RecoHistorySignal = {
@@ -65,12 +58,9 @@ export type RecoImpressionSignal = {
   shownAt: Date;
 };
 
-export type RecoWriteItemIdentity =
-  | { itemId: string }
-  | { ref: RecoProviderRef & { type: RecoMediaType } };
-
 export type RecoWriteItem = {
-  item: RecoWriteItemIdentity;
+  type: RecoMediaType;
+  providerRefs: RecoProviderRef[];
   score: number | null;
   reason: string | null;
   reasonCodes: string[];

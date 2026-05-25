@@ -17,20 +17,13 @@
     "history": [
       {
         "item": {
-          "itemId": "8a1f7c852e864e2a9c0b77d9efc50001",
           "type": "movie",
           "providerRefs": [{ "provider": "tmdb", "providerId": "550" }],
-          "features": {
+          "hints": {
             "title": "Fight Club",
             "originalTitle": "Fight Club",
             "year": 1999,
-            "releaseDate": "1999-10-15",
-            "genres": ["Drama"],
-            "runtimeSeconds": 8340,
-            "maturityRating": "R",
-            "language": null,
-            "country": null,
-            "popularity": 8.4
+            "releaseDate": "1999-10-15"
           }
         },
         "watchedAt": "2026-05-01T20:00:00.000Z",
@@ -42,20 +35,13 @@
     "ratings": [
       {
         "item": {
-          "itemId": "8a1f7c852e864e2a9c0b77d9efc50003",
           "type": "movie",
           "providerRefs": [{ "provider": "tmdb", "providerId": "603" }],
-          "features": {
+          "hints": {
             "title": "The Matrix",
             "originalTitle": "The Matrix",
             "year": 1999,
-            "releaseDate": "1999-03-31",
-            "genres": ["Action", "Science Fiction"],
-            "runtimeSeconds": 8160,
-            "maturityRating": "R",
-            "language": null,
-            "country": null,
-            "popularity": 8.2
+            "releaseDate": "1999-03-31"
           }
         },
         "rating": 4.5,
@@ -66,20 +52,13 @@
     "watchlist": [
       {
         "item": {
-          "itemId": "8a1f7c852e864e2a9c0b77d9efc50002",
           "type": "tv",
           "providerRefs": [{ "provider": "tmdb", "providerId": "1396" }],
-          "features": {
+          "hints": {
             "title": "Breaking Bad",
             "originalTitle": "Breaking Bad",
             "year": 2008,
-            "releaseDate": "2008-01-20",
-            "genres": ["Drama", "Crime"],
-            "runtimeSeconds": null,
-            "maturityRating": "TV-MA",
-            "language": null,
-            "country": null,
-            "popularity": 8.9
+            "releaseDate": "2008-01-20"
           }
         },
         "addedAt": "2026-05-03T20:00:00.000Z"
@@ -88,20 +67,13 @@
     "continueWatching": [
       {
         "item": {
-          "itemId": "8a1f7c852e864e2a9c0b77d9efc50004",
-          "type": "episode",
-          "providerRefs": [{ "provider": "tmdb", "providerId": "62085" }],
-          "features": {
-            "title": "Pilot",
-            "originalTitle": "Pilot",
+          "type": "tv",
+          "providerRefs": [{ "provider": "tmdb", "providerId": "1396" }],
+          "hints": {
+            "title": "Breaking Bad",
+            "originalTitle": "Breaking Bad",
             "year": 2008,
-            "releaseDate": "2008-01-20",
-            "genres": ["Drama", "Crime"],
-            "runtimeSeconds": 3480,
-            "maturityRating": "TV-MA",
-            "language": null,
-            "country": null,
-            "popularity": 8.1
+            "releaseDate": "2008-01-20"
           }
         },
         "progressPercent": 42.5,

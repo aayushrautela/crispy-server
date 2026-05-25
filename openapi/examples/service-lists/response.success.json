@@ -3,8 +3,8 @@
   "source": "official-recommender",
   "lists": [
     {
-      "listKey": "hero",
-      "displayName": "Hero",
+      "listKey": "hero-carousel",
+      "displayName": "Hero Carousel",
       "ownerAppId": "official-recommender",
       "source": "official-recommender",
       "itemType": "content",

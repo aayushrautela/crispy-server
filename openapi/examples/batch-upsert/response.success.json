@@ -13,7 +13,7 @@
       "profileId": "prof_example_reco_001",
       "status": "written",
       "lists": [
-        { "listKey": "hero", "source": "official-recommender", "version": 101, "itemCount": 2 }
+        { "listKey": "hero-carousel", "source": "official-recommender", "version": 101, "itemCount": 2 }
       ]
     },
     {

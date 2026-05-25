@@ -1,5 +1,5 @@
 import type { QueryResult } from 'pg';
-import type { RecommendationListItemInput, RecommendationListWriteResult, RecommendationWriteActor } from './recommendation-list.types.js';
+import type { RecommendationHomeSectionType, RecommendationListItemInput, RecommendationListWriteResult, RecommendationWriteActor } from './recommendation-list.types.js';
 
 type Queryable = { query: (text: string, params?: unknown[]) => Promise<QueryResult> };
 
@@ -36,7 +36,7 @@ export interface CreateRecommendationListVersionInput {
   source: string;
   title: string;
   subtitle: string | null;
-  layout: 'regular' | 'landscape' | 'hero' | 'collection';
+  sectionType: RecommendationHomeSectionType;
   items: RecommendationListItemInput[];
   actor: RecommendationWriteActor;
   purpose?: string;
@@ -96,10 +96,10 @@ export class SqlRecommendationListRepo implements RecommendationListRepo {
          FROM recommendation_list_versions
          WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3 AND list_key = $4
        )
-       INSERT INTO recommendation_list_versions (account_id, profile_id, source, list_key, version, title, subtitle, layout, items_json, item_count, actor_type, actor_id, actor_key_id, purpose, run_id, batch_id, input_versions, created_at)
+       INSERT INTO recommendation_list_versions (account_id, profile_id, source, list_key, version, title, subtitle, section_type, items_json, item_count, actor_type, actor_id, actor_key_id, purpose, run_id, batch_id, input_versions, created_at)
        SELECT $1::uuid, $2::uuid, $3, $4, version, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17 FROM next_version
        RETURNING account_id, profile_id, source, list_key, version, item_count, created_at`,
-      [input.accountId, input.profileId, input.source, input.listKey, input.title, input.subtitle, input.layout, JSON.stringify(input.items), input.items.length, input.actor.type, actorId, actorKeyId, input.purpose ?? null, input.runId ?? null, input.batchId ?? null, JSON.stringify(input.inputVersions ?? {}), input.createdAt],
+      [input.accountId, input.profileId, input.source, input.listKey, input.title, input.subtitle, input.sectionType, JSON.stringify(input.items), input.items.length, input.actor.type, actorId, actorKeyId, input.purpose ?? null, input.runId ?? null, input.batchId ?? null, JSON.stringify(input.inputVersions ?? {}), input.createdAt],
     );
     const row = result.rows[0];
     return { accountId: String(row.account_id), profileId: String(row.profile_id), source: String(row.source), listKey: String(row.list_key), version: Number(row.version), itemCount: Number(row.item_count), createdAt: new Date(row.created_at as string) };

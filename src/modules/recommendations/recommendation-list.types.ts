@@ -1,3 +1,4 @@
+export type RecommendationHomeSectionType = 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail';
 export type RecommendationWriteSource = 'account_api' | 'reco' | string;
 export type RecommendationWriteMode = 'replace' | 'append' | 'clear';
 
@@ -24,7 +25,7 @@ export interface RecommendationListWriteInput {
   runId?: string;
   batchId?: string;
   writeMode: RecommendationWriteMode;
-  layout: 'regular' | 'landscape' | 'hero' | 'collection';
+  sectionType: RecommendationHomeSectionType;
   title: string;
   subtitle: string | null;
   items: RecommendationListItemInput[];

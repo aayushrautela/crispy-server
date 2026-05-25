@@ -3129,16 +3129,16 @@ components:
       required:
         - id
         - title
-        - layout
+        - sectionType
         - items
       properties:
         id:
           type: string
         title:
           type: string
-        layout:
+        sectionType:
           type: string
-          enum: [regular, landscape, collection, hero]
+          enum: [categoryTabs, heroCarousel, contentRail, collectionRail]
         items:
           type: array
           items:
@@ -3153,7 +3153,7 @@ components:
         - listKey
         - title
         - subtitle
-        - layout
+        - sectionType
         - items
         - meta
       properties:
@@ -3165,9 +3165,9 @@ components:
           anyOf:
             - type: string
             - type: "null"
-        layout:
+        sectionType:
           type: string
-          enum: [regular, landscape, collection, hero]
+          enum: [categoryTabs, heroCarousel, contentRail, collectionRail]
         items:
           type: array
           items:

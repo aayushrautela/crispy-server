@@ -7,7 +7,6 @@ import {
   nullableNumberSchema,
   nullableIntegerSchema,
   recordSchema,
-  publicItemIdSchema,
   successEnvelope,
   responseMetaSchema,
   withDefaultErrorResponses,
@@ -413,8 +412,8 @@ export const profileTasteSignalsSchema = {
 } as const;
 
 export const recoProviderSchema = { type: 'string', enum: ['tmdb', 'tvdb', 'imdb', 'kitsu'] } as const;
-export const recoMediaTypeSchema = { type: 'string', enum: ['movie', 'tv', 'season', 'episode'] } as const;
-export const recoLayoutSchema = { type: 'string', enum: ['regular', 'landscape', 'hero', 'collection'] } as const;
+export const recoMediaTypeSchema = { type: 'string', enum: ['movie', 'tv'] } as const;
+export const recoHomeSectionTypeSchema = { type: 'string', enum: ['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail'] } as const;
 
 export const recoProviderRefSchema = {
   type: 'object',
@@ -426,33 +425,26 @@ export const recoProviderRefSchema = {
   },
 } as const;
 
-export const recoItemFeaturesSchema = {
+export const recoItemHintsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'originalTitle', 'year', 'releaseDate', 'genres', 'runtimeSeconds', 'maturityRating', 'language', 'country', 'popularity'],
+  required: ['title', 'originalTitle', 'year', 'releaseDate'],
   properties: {
     title: stringSchema,
     originalTitle: nullableStringSchema,
     year: nullableIntegerSchema,
     releaseDate: nullableStringSchema,
-    genres: { type: 'array', items: stringSchema },
-    runtimeSeconds: nullableNumberSchema,
-    maturityRating: nullableStringSchema,
-    language: nullableStringSchema,
-    country: nullableStringSchema,
-    popularity: nullableNumberSchema,
   },
 } as const;
 
 export const recoItemRefSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['itemId', 'type', 'providerRefs', 'features'],
+  required: ['type', 'providerRefs', 'hints'],
   properties: {
-    itemId: publicItemIdSchema,
     type: recoMediaTypeSchema,
     providerRefs: { type: 'array', items: recoProviderRefSchema },
-    features: recoItemFeaturesSchema,
+    hints: recoItemHintsSchema,
   },
 } as const;
 
@@ -640,40 +632,13 @@ export const serviceRecommendationListsRouteSchema = withDefaultErrorResponses({
 
 // ── Upsert Service Recommendation List ────────────────────────
 
-export const recoWriteItemIdentitySchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['itemId'],
-      properties: { itemId: publicItemIdSchema },
-    },
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['ref'],
-      properties: {
-        ref: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['provider', 'providerId', 'type'],
-          properties: {
-            provider: recoProviderSchema,
-            providerId: nonEmptyStringSchema,
-            type: recoMediaTypeSchema,
-          },
-        },
-      },
-    },
-  ],
-} as const;
-
 export const serviceRecommendationWriteItemSchema = {
   type: 'object',
-  additionalProperties: true,
-  required: ['item'],
+  additionalProperties: false,
+  required: ['type', 'providerRefs'],
   properties: {
-    item: recoWriteItemIdentitySchema,
+    type: recoMediaTypeSchema,
+    providerRefs: { type: 'array', items: recoProviderRefSchema, minItems: 1 },
     score: nullableNumberSchema,
     reason: nullableStringSchema,
     reasonCodes: { type: 'array', items: stringSchema },
@@ -700,11 +665,11 @@ export const recoModelInfoSchema = {
 export const upsertServiceRecommendationListBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'subtitle', 'layout', 'items', 'model', 'context'],
+  required: ['title', 'subtitle', 'sectionType', 'items', 'model', 'context'],
   properties: {
     title: nonEmptyStringSchema,
     subtitle: nullableStringSchema,
-    layout: recoLayoutSchema,
+    sectionType: recoHomeSectionTypeSchema,
     items: { type: 'array', items: serviceRecommendationWriteItemSchema },
     model: recoModelInfoSchema,
     context: recordSchema,
@@ -850,12 +815,12 @@ export const batchUpsertServiceRecommendationListsBodySchema = {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['listKey', 'title', 'subtitle', 'layout', 'items', 'model', 'context'],
+              required: ['listKey', 'title', 'subtitle', 'sectionType', 'items', 'model', 'context'],
               properties: {
                 listKey: stringSchema,
                 title: nonEmptyStringSchema,
                 subtitle: nullableStringSchema,
-                layout: recoLayoutSchema,
+                sectionType: recoHomeSectionTypeSchema,
                 items: { type: 'array', items: serviceRecommendationWriteItemSchema },
                 model: recoModelInfoSchema,
                 context: recordSchema,

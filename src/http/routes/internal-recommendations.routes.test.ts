@@ -148,11 +148,9 @@ const validRequest: RecommendationAiPlanRequest = {
   },
   candidatePool: [
     {
-      itemId: '00000000000000000000000000000603',
+      type: 'movie',
+      providerRefs: [{ provider: 'tmdb', providerId: '603' }],
       title: 'The Matrix',
-      mediaType: 'movie',
-      provider: 'tmdb',
-      providerId: '603',
       year: 1999,
     },
   ],

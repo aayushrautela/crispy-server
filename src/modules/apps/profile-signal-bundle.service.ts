@@ -82,34 +82,50 @@ export class DefaultProfileSignalBundleService implements ProfileSignalBundleSer
     };
 
     if (liveSignals.history) {
-      bundle.history = liveSignals.history.map((item) => ({
-        item: toRecoItemRef(item.Item),
-        watchedAt: new Date(item.watchedAt),
-        progressPercent: readNumber(item.payload?.progressPercent, 100),
-        completionState: readCompletionState(item.payload?.completionState),
-        durationSeconds: item.Item.RunTimeTicks !== null ? item.Item.RunTimeTicks / 10_000_000 : null,
-      }));
+      bundle.history = liveSignals.history.flatMap((item) => {
+        const recoItem = toRecoItemRef(item.Item);
+        if (!recoItem) return [];
+        return [{
+          item: recoItem,
+          watchedAt: new Date(item.watchedAt),
+          progressPercent: readNumber(item.payload?.progressPercent, 100),
+          completionState: readCompletionState(item.payload?.completionState),
+          durationSeconds: item.Item.RunTimeTicks !== null ? item.Item.RunTimeTicks / 10_000_000 : null,
+        }];
+      });
     }
     if (liveSignals.ratings) {
-      bundle.ratings = liveSignals.ratings.map((item) => ({
-        item: toRecoItemRef(item.Item),
-        rating: item.rating.value,
-        ratedAt: new Date(item.rating.ratedAt),
-        ratingSource: readOptionalString(item.payload?.ratingSource),
-      }));
+      bundle.ratings = liveSignals.ratings.flatMap((item) => {
+        const recoItem = toRecoItemRef(item.Item);
+        if (!recoItem) return [];
+        return [{
+          item: recoItem,
+          rating: item.rating.value,
+          ratedAt: new Date(item.rating.ratedAt),
+          ratingSource: readOptionalString(item.payload?.ratingSource),
+        }];
+      });
     }
     if (liveSignals.watchlist) {
-      bundle.watchlist = liveSignals.watchlist.map((item) => ({
-        item: toRecoItemRef(item.Item),
-        addedAt: new Date(item.addedAt),
-      }));
+      bundle.watchlist = liveSignals.watchlist.flatMap((item) => {
+        const recoItem = toRecoItemRef(item.Item);
+        if (!recoItem) return [];
+        return [{
+          item: recoItem,
+          addedAt: new Date(item.addedAt),
+        }];
+      });
     }
     if (liveSignals.continueWatching) {
-      bundle.continueWatching = liveSignals.continueWatching.map((item) => ({
-        item: toRecoItemRef(item.Item),
-        progressPercent: item.progress.progressPercent,
-        updatedAt: new Date(item.lastActivityAt),
-      }));
+      bundle.continueWatching = liveSignals.continueWatching.flatMap((item) => {
+        const recoItem = toRecoItemRef(item.Item);
+        if (!recoItem) return [];
+        return [{
+          item: recoItem,
+          progressPercent: item.progress.progressPercent,
+          updatedAt: new Date(item.lastActivityAt),
+        }];
+      });
     }
 
     await this.deps.appAuditRepo.insert({
@@ -194,33 +210,26 @@ function readOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
-function toRecoItemRef(item: BaseItemDto): RecoItemRef {
+function toRecoItemRef(item: BaseItemDto): RecoItemRef | null {
+  const type = toRecoMediaType(item.Type);
+  if (!type) return null;
   return {
-    itemId: item.Id,
-    type: toRecoMediaType(item.Type),
+    type,
     providerRefs: toProviderRefs(item),
-    features: {
+    hints: {
       title: item.Name,
       originalTitle: item.OriginalTitle,
       year: item.ProductionYear,
       releaseDate: item.PremiereDate,
-      genres: item.Genres,
-      runtimeSeconds: item.RunTimeTicks !== null ? item.RunTimeTicks / 10_000_000 : null,
-      maturityRating: item.OfficialRating ?? item.Certification,
-      language: null,
-      country: null,
-      popularity: item.CommunityRating,
     },
   };
 }
 
-function toRecoMediaType(type: BaseItemDto['Type']): RecoMediaType {
+function toRecoMediaType(type: BaseItemDto['Type']): RecoMediaType | null {
   switch (type) {
     case 'Movie': return 'movie';
     case 'Series': return 'tv';
-    case 'Season': return 'season';
-    case 'Episode': return 'episode';
-    default: return 'movie';
+    default: return null;
   }
 }
 

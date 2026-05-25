@@ -21,7 +21,7 @@ function buildSystemPrompt(request: RecommendationAiPlanRequest): string {
 Your task is to analyze user signals and select the best items from a provided candidate pool.
 
 CRITICAL RULES:
-1. You MUST ONLY select items from the candidate pool provided. Do not invent titles or IDs.
+1. You MUST ONLY select items from the candidate pool provided. Do not invent titles or provider IDs.
 2. Output ONLY valid JSON matching the exact schema specified.
 3. Select up to ${constraints.maxItems} items maximum.
 4. Respect maturity rating: ${profile.maturityRating}
@@ -35,7 +35,9 @@ OUTPUT SCHEMA:
   "summary": "Brief strategy summary (1-2 sentences)",
   "items": [
     {
-      "itemId": "exact itemId from candidate pool",
+      "type": "exact type from candidate pool",
+      "provider": "exact provider from candidate pool",
+      "providerId": "exact providerId from candidate pool",
       "score": 0.0-1.0,
       "confidence": 0.0-1.0,
       "reason": "Concise human-readable reason (max 100 chars)",
@@ -123,7 +125,7 @@ function buildUserPrompt(request: RecommendationAiPlanRequest): string {
 }
 
 function formatMediaItem(item: RecommendationAiPlanMediaItem): string {
-  let line = `- ${item.title} (${item.year || 'N/A'}) [${item.itemId}]`;
+  let line = `- ${item.title} (${item.year || 'N/A'}) [${formatProviderRefs(item)}]`;
   if (item.overview) {
     line += ` - ${item.overview.slice(0, 100)}`;
   }
@@ -135,7 +137,7 @@ function formatMediaItem(item: RecommendationAiPlanMediaItem): string {
 }
 
 function formatCandidate(candidate: RecommendationAiPlanCandidate): string {
-  let line = `- ${candidate.title} (${candidate.year || 'N/A'}) [${candidate.itemId}]`;
+  let line = `- ${candidate.title} (${candidate.year || 'N/A'}) [${formatProviderRefs(candidate)}]`;
   if (candidate.overview) {
     line += ` - ${candidate.overview.slice(0, 100)}`;
   }
@@ -147,4 +149,8 @@ function formatCandidate(candidate: RecommendationAiPlanCandidate): string {
   }
   line += '\n';
   return line;
+}
+
+function formatProviderRefs(item: RecommendationAiPlanMediaItem): string {
+  return item.providerRefs.map((ref) => `${item.type}:${ref.provider}:${ref.providerId}`).join(', ');
 }

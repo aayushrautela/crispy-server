@@ -56,19 +56,15 @@ describe('RecommendationAiPlanService', () => {
     },
     candidatePool: [
       {
-        itemId: '00000000000000000000000000000603',
+        type: 'movie',
+        providerRefs: [{ provider: 'tmdb', providerId: '603' }],
         title: 'The Matrix',
-        mediaType: 'movie',
-        provider: 'tmdb',
-        providerId: '603',
         year: 1999,
       },
       {
-        itemId: '00000000000000000000000000000550',
+        type: 'movie',
+        providerRefs: [{ provider: 'tmdb', providerId: '550' }],
         title: 'Fight Club',
-        mediaType: 'movie',
-        provider: 'tmdb',
-        providerId: '550',
         year: 1999,
       },
     ],
@@ -96,7 +92,9 @@ describe('RecommendationAiPlanService', () => {
         summary: 'Prioritize sci-fi and action titles.',
         items: [
           {
-            itemId: '00000000000000000000000000000603',
+            type: 'movie',
+            provider: 'tmdb',
+            providerId: '603',
             score: 0.94,
             confidence: 0.88,
             reason: 'Matches high-concept sci-fi preferences.',
@@ -116,7 +114,7 @@ describe('RecommendationAiPlanService', () => {
     assert.strictEqual(response.plan.summary, 'Prioritize sci-fi and action titles.');
     assert.strictEqual(response.plan.items.length, 1);
     assert.strictEqual(response.plan.items[0]?.rank, 1);
-    assert.strictEqual(response.plan.items[0]?.itemId, '00000000000000000000000000000603');
+    assert.strictEqual(response.plan.items[0]?.type, 'movie');
     assert.strictEqual(response.plan.items[0]?.title, 'The Matrix');
     assert.strictEqual(response.plan.items[0]?.provider, 'tmdb');
     assert.strictEqual(response.plan.items[0]?.providerId, '603');
@@ -131,14 +129,18 @@ describe('RecommendationAiPlanService', () => {
         summary: 'Test summary',
         items: [
           {
-            itemId: '00000000000000000000000000000550',
+            type: 'movie',
+            provider: 'tmdb',
+            providerId: '550',
             score: 0.9,
             confidence: 0.8,
             reason: 'Test reason 1',
             reasonCodes: ['genre_match'],
           },
           {
-            itemId: '00000000000000000000000000000603',
+            type: 'movie',
+            provider: 'tmdb',
+            providerId: '603',
             score: 0.8,
             confidence: 0.7,
             reason: 'Test reason 2',
@@ -162,7 +164,9 @@ describe('RecommendationAiPlanService', () => {
         summary: 'Test summary',
         items: [
           {
-            itemId: '00000000000000000000000000000999',
+            type: 'movie',
+            provider: 'tmdb',
+            providerId: '999',
             score: 0.9,
             confidence: 0.8,
             reason: 'Test reason',

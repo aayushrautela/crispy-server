@@ -92,16 +92,18 @@ const eligibilityService: ProfileEligibilityService = {
   async recomputeAndStore() { throw new Error('not used'); },
 };
 
-const ITEM_101 = '00000000000040008000000000000101';
-const ITEM_102 = '00000000000040008000000000000102';
-const ITEM_103 = '00000000000040008000000000000103';
+const PROVIDER_TO_CONTENT_ID: Record<string, string> = {
+  '101': '00000000-0000-4000-8000-000000000101',
+  '102': '00000000-0000-4000-8000-000000000102',
+  '103': '00000000-0000-4000-8000-000000000103',
+};
 
-function buildWriteRequest(itemIds: string[] = [ITEM_101]) {
+function buildWriteRequest(providerIds: string[] = ['101']) {
   return {
     title: 'For You',
     subtitle: null,
-    layout: 'regular' as const,
-    items: itemIds.map((itemId) => ({ item: { itemId }, score: null, reason: null, reasonCodes: [], metadata: {} })),
+    sectionType: 'contentRail' as const,
+    items: providerIds.map((providerId) => ({ type: 'movie' as const, providerRefs: [{ provider: 'tmdb' as const, providerId }], score: null, reason: null, reasonCodes: [], metadata: {} })),
     model: null,
     context: {},
   };
@@ -120,6 +122,7 @@ function buildService() {
     clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
     maxProfilesPerBatch: 10,
     maxListsPerProfile: 5,
+    contentIdentityService: { async ensureTitleContentId(input) { return PROVIDER_TO_CONTENT_ID[input.providerId] ?? '00000000-0000-4000-8000-000000000999'; } },
   });
   return { service, serviceListRepo, recommendationListWriteService, appAuditRepo };
 }
@@ -133,7 +136,7 @@ test('upsertList normalizes item refs and derives internal write fields', async 
     profileId: 'prof-1',
     listKey: 'for-you',
     idempotencyKey: 'idem-1',
-    request: buildWriteRequest([ITEM_101, ITEM_102]),
+    request: buildWriteRequest(['101', '102']),
   });
 
   assert.equal(result.itemCount, 2);
@@ -145,11 +148,11 @@ test('upsertList normalizes item refs and derives internal write fields', async 
   assert.equal(write.writeMode, 'replace');
   assert.equal(write.title, 'For You');
   assert.equal(write.subtitle, null);
-  assert.equal(write.layout, 'regular');
+  assert.equal(write.sectionType, 'contentRail');
   assert.deepEqual(write.inputVersions, { eligibilityVersion: 42, modelVersion: null, algorithm: null });
   assert.deepEqual(write.items, [
-    { itemId: ITEM_101, sourceRef: null, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} },
-    { itemId: ITEM_102, sourceRef: null, rank: 2, score: null, reason: null, reasonCodes: [], metadata: {} },
+    { itemId: '00000000000040008000000000000101', sourceRef: { provider: 'tmdb', providerId: '101' }, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} },
+    { itemId: '00000000000040008000000000000102', sourceRef: { provider: 'tmdb', providerId: '102' }, rank: 2, score: null, reason: null, reasonCodes: [], metadata: {} },
   ]);
 });
 
@@ -163,7 +166,7 @@ test('upsertList rejects legacy writer-supplied fields', async () => {
       profileId: 'prof-1',
       listKey: 'for-you',
       idempotencyKey: 'idem-1',
-      request: { ...buildWriteRequest(), items: [{ item: { itemId: ITEM_101 }, rank: 1 }] } as never,
+      request: { ...buildWriteRequest(), items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }], rank: 1 }] } as never,
     }),
     (error: unknown) => error instanceof HttpError && error.code === 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD',
   );
@@ -176,7 +179,7 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
     principal: buildPrincipal(),
     idempotencyKey: 'batch-1',
     request: {
-      profiles: [{ accountId: 'acc-1', profileId: 'prof-1', lists: [{ listKey: 'for-you', ...buildWriteRequest([ITEM_103]) }] }],
+      profiles: [{ accountId: 'acc-1', profileId: 'prof-1', lists: [{ listKey: 'for-you', ...buildWriteRequest(['103']) }] }],
     },
   });
 
@@ -188,7 +191,7 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
   const batchWrite = recommendationListWriteService.writes[0];
   assert.ok(batchWrite);
   assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1:for-you');
-  assert.deepEqual(batchWrite.items, [{ itemId: ITEM_103, sourceRef: null, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} }]);
+  assert.deepEqual(batchWrite.items, [{ itemId: '00000000000040008000000000000103', sourceRef: { provider: 'tmdb', providerId: '103' }, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} }]);
 });
 
 test('authorization allows wildcard owned list keys', () => {
@@ -196,7 +199,7 @@ test('authorization allows wildcard owned list keys', () => {
   const principal = buildPrincipal();
   principal.ownedListKeys = ['*'];
 
-  assert.doesNotThrow(() => authorization.requireOwnedListKey({ principal, source: 'reco', listKey: 'hero' }));
+  assert.doesNotThrow(() => authorization.requireOwnedListKey({ principal, source: 'reco', listKey: 'hero-carousel' }));
 });
 
 test('source ownership allows wildcard owned list keys', async () => {
@@ -214,5 +217,5 @@ test('source ownership allows wildcard owned list keys', async () => {
     },
   });
 
-  await assert.doesNotReject(repo.assertAppOwnsListKey({ appId: 'test-app', source: 'reco', listKey: 'hero' }));
+  await assert.doesNotReject(repo.assertAppOwnsListKey({ appId: 'test-app', source: 'reco', listKey: 'hero-carousel' }));
 });

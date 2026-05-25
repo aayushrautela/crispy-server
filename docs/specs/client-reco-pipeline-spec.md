@@ -8,7 +8,7 @@ This spec replaces the BaseItemDto-first recommendation direction. Do not add du
 
 - Separate client UI payloads from recommendation-engine machine payloads.
 - Keep public client recommendations UI-ready and provider-free by default.
-- Give RECO explicit machine-readable identity, provider refs, interaction signals, list metadata, and scoring metadata.
+- Give RECO explicit machine-readable provider refs, interaction signals, list metadata, and scoring metadata.
 - Let MAIN own canonicalization, authorization, storage, and metadata enrichment.
 - Support future provider refs such as TVDB without changing client app contracts.
 
@@ -17,7 +17,7 @@ This spec replaces the BaseItemDto-first recommendation direction. Do not add du
 - No `BaseItemDto` in public recommendation home sections.
 - No `BaseItemDto` in RECO signal bundles.
 - No TMDB-only recommendation write contract.
-- No collection items without `itemId`.
+- No home section uses the legacy `layout` field or legacy section values.
 - No enriched poster/title blobs stored as recommendation source data.
 - No compatibility endpoint or dual shape for old recommendation contracts.
 
@@ -115,11 +115,13 @@ type ClientHomeResponse = {
   sections: ClientHomeSection[];
 };
 
+type HomeSectionType = 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail';
+
 type ClientHomeSection = {
   listKey: string;
   title: string;
   subtitle: string | null;
-  layout: 'regular' | 'landscape' | 'hero' | 'collection';
+  sectionType: HomeSectionType;
   items: ClientMediaCard[];
   meta: Record<string, unknown>;
 };
@@ -130,7 +132,11 @@ Rules:
 - `title` is required for every list/section.
 - `subtitle` is optional but must be present as `null` when absent.
 - Item order is display order.
-- Every item in every layout, including collections, must have `itemId`.
+- Every section has a semantic `sectionType`: `categoryTabs`, `heroCarousel`, `contentRail`, or `collectionRail`.
+- `categoryTabs` represents top category/tab pills that route to named lists.
+- `heroCarousel` represents the large featured carousel.
+- `contentRail` represents standard horizontal content rails.
+- `collectionRail` represents curated collection/folder rails.
 - Client cards are enriched by MAIN at read time.
 - Public recommendation responses must not include `ProviderIds`, `providerRefs`, `tmdbId`, `tvdbId`, `score`, `reasonCodes`, `modelVersion`, `contentId`, `mediaKey`, `UserData`, or PascalCase BaseItemDto fields.
 
@@ -142,32 +148,25 @@ RECO receives machine DTOs. It does not receive UI DTOs.
 
 ```ts
 type RecoItemRef = {
-  itemId: PublicItemId;
-  type: 'movie' | 'tv' | 'season' | 'episode';
+  type: 'movie' | 'tv';
   providerRefs: ProviderRef[];
-  features: RecoItemFeatures;
+  hints: RecoItemHints;
 };
 
-type RecoItemFeatures = {
+type RecoItemHints = {
   title: string;
   originalTitle: string | null;
   year: number | null;
   releaseDate: string | null;
-  genres: string[];
-  runtimeSeconds: number | null;
-  maturityRating: string | null;
-  language: string | null;
-  country: string | null;
-  popularity: number | null;
 };
 ```
 
 Rules:
 
-- `itemId` is required when MAIN knows the item.
+- RECO item identity is provider refs plus `type`.
 - `providerRefs` may contain TMDB, TVDB, IMDb, Kitsu, or future refs supported by MAIN.
-- RECO must not infer canonical identity from provider priority. MAIN owns canonicalization.
-- RECO signals must not include posters, backdrops, logos, trailers, client watch DTOs, or `BaseItemDto.UserData`.
+- RECO must not infer Crispy canonical identity from provider priority. MAIN owns canonicalization.
+- RECO signals must not include Crispy `itemId`, posters, backdrops, logos, trailers, client watch DTOs, or `BaseItemDto.UserData`.
 
 ### RECO signal bundle
 
@@ -241,7 +240,7 @@ type RecoImpressionSignal = {
 
 ## RECO write pipeline
 
-RECO writes list metadata plus ordered item refs. MAIN resolves identities, stores canonical item IDs, applies policy, and enriches client responses later.
+RECO writes list metadata plus ordered provider refs. MAIN resolves identities, stores canonical item IDs, applies policy, and enriches client responses later.
 
 ### Single-list write
 
@@ -257,23 +256,20 @@ Body:
 type RecoListWriteRequest = {
   title: string;
   subtitle: string | null;
-  layout: 'regular' | 'landscape' | 'hero' | 'collection';
+  sectionType: HomeSectionType;
   items: RecoWriteItem[];
   model: RecoModelInfo | null;
   context: Record<string, unknown>;
 };
 
 type RecoWriteItem = {
-  item: RecoWriteItemIdentity;
+  type: 'movie' | 'tv';
+  providerRefs: ProviderRef[];
   score: number | null;
   reason: string | null;
   reasonCodes: string[];
   metadata: Record<string, unknown>;
 };
-
-type RecoWriteItemIdentity =
-  | { itemId: PublicItemId }
-  | { ref: ProviderRef & { type: 'movie' | 'tv' | 'season' | 'episode' } };
 
 type RecoModelInfo = {
   runId: string | null;
@@ -286,12 +282,12 @@ Rules:
 
 - `title` is required.
 - `subtitle` is nullable, not omitted.
-- `layout` is required.
+- `sectionType` is required and must be one of `categoryTabs`, `heroCarousel`, `contentRail`, or `collectionRail`.
 - Rank is derived from array order.
-- `item.itemId` is preferred when RECO writes known catalog items from MAIN signals.
-- `item.ref` is allowed for provider-derived candidates. MAIN resolves it to canonical item identity.
+- Every item must have `type` and at least one provider ref.
+- RECO must not send `itemId`, `contentId`, `mediaKey`, nested `item`/`ref` wrappers, or TMDB-specific top-level fields.
 - `score`, `reason`, and `reasonCodes` are stored for diagnostics/explainability but are not exposed to normal client UI by default.
-- RECO must not send posters, artwork, descriptions, display titles per item, `contentId`, `mediaKey`, TMDB-specific top-level fields, or enriched card payloads.
+- RECO must not send posters, artwork, descriptions, display titles per item, or enriched card payloads.
 
 ### Batch write
 
@@ -304,7 +300,7 @@ type RecoBatchWriteRequest = {
       listKey: string;
       title: string;
       subtitle: string | null;
-      layout: 'regular' | 'landscape' | 'hero' | 'collection';
+      sectionType: HomeSectionType;
       items: RecoWriteItem[];
       model: RecoModelInfo | null;
       context: Record<string, unknown>;
@@ -326,7 +322,7 @@ type StoredRecommendationListVersion = {
   version: number;
   title: string;
   subtitle: string | null;
-  layout: 'regular' | 'landscape' | 'hero' | 'collection';
+  sectionType: HomeSectionType;
   items: StoredRecommendationItem[];
 };
 
@@ -345,14 +341,15 @@ Rules:
 
 - Stored items use canonical `itemId`, not `movie:tmdb:550` under a `contentId` field.
 - `sourceRef` is audit/debug input provenance, not canonical identity.
-- Collections use the same item storage as every other layout.
+- `collectionRail` currently uses the same provider-ref content-item write storage as every other section type.
 - Client response assembly enriches `itemId` through MAIN metadata/card services.
 
 ## Hard-cutover rules
 
-- Remove old BaseItemDto recommendation contracts in the same implementation branch.
+- Remove the legacy home `layout` field and legacy `regular`/`landscape`/`hero`/`collection` values.
 - Remove the legacy profile-only internal recommendation write route.
 - Remove TMDB-only `{ type, tmdbId }` write validation.
+- Remove external/RECO `itemId` write and signal identities.
 - Remove docs/specs that instruct clients to standardize on `BaseItemDto`.
 - Do not ship feature flags, alternate response envelopes, or temporary compatibility aliases.
 
@@ -361,7 +358,7 @@ Rules:
 - Public home recommendations contain `ClientHomeSection[]` and `ClientMediaCard[]` only.
 - Public home recommendations contain `title` and `subtitle` for each section.
 - RECO signal bundle item fields are `RecoItemRef`, never `BaseItemDto`.
-- RECO write accepts `itemId` or generic `ProviderRef`, not only `tmdbId`.
+- RECO signals and writes use provider refs plus `type`, not Crispy `itemId`.
 - MAIN resolves all writes to canonical public item IDs before storage.
 - No recommendation storage path writes provider media keys as `contentId`.
 - TVDB provider refs can be accepted without changing client contracts.

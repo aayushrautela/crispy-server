@@ -183,13 +183,6 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId, listKey: params.listKey });
     const body = request.body as Record<string, unknown>;
-    const rawItems = Array.isArray(body.items) ? body.items : [];
-    for (const [index, item] of rawItems.entries()) {
-      if (typeof item === 'object' && item !== null && 'contentId' in item) {
-        const { HttpError } = await import('../../lib/errors.js');
-        throw new HttpError(400, `items[${index}].contentId is server-derived and must not be supplied.`, { field: `items[${index}].contentId` }, 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD');
-      }
-    }
     const result = await deps.serviceRecommendationListService.upsertList({
       principal,
       accountId: params.accountId,

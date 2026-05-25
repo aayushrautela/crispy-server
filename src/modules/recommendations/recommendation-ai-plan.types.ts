@@ -1,3 +1,5 @@
+import type { RecoMediaType, RecoProviderRef } from './reco-contract.types.js';
+
 export type RecommendationAiPlanErrorCode =
   | 'INVALID_AI_PLAN_REQUEST'
   | 'UNSUPPORTED_AI_PLAN_SCHEMA_VERSION'
@@ -30,11 +32,9 @@ export type RecommendationAiPlanProfileContext = {
 };
 
 export type RecommendationAiPlanMediaItem = {
-  itemId: string;
+  type: RecoMediaType;
+  providerRefs: RecoProviderRef[];
   title: string;
-  mediaType: string;
-  provider: string;
-  providerId: string;
   year?: number;
   overview?: string;
   genres?: string[];
@@ -73,8 +73,7 @@ export type RecommendationAiPlanRequest = {
 
 export type RecommendationAiPlanItem = {
   rank: number;
-  itemId: string;
-  mediaType: string;
+  type: RecoMediaType;
   provider: string;
   providerId: string;
   title: string;

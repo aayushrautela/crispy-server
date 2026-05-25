@@ -6,7 +6,7 @@ import type { RecommendationListItemInput, RecommendationListPolicyDecision, Rec
 export interface RecommendationListWritePolicy {
   authorize(input: RecommendationListWriteInput): Promise<RecommendationListPolicyDecision>;
   validateListKey(input: { listKey: string; source: string; actor: RecommendationWriteActor }): Promise<void>;
-  validateItems(input: { listKey: string; source: string; items: RecommendationListItemInput[]; maxItems: number }): Promise<void>;
+  validateItems(input: { listKey: string; source: string; sectionType: RecommendationListWriteInput['sectionType']; items: RecommendationListItemInput[]; maxItems: number }): Promise<void>;
 }
 
 export interface PublicListKeyValidator {
@@ -28,8 +28,8 @@ export class PublicRecommendationWritePolicy implements RecommendationListWriteP
     await this.deps.publicListKeyValidator.validate(input.listKey);
   }
 
-  async validateItems(input: { items: RecommendationListItemInput[]; maxItems: number }): Promise<void> {
-    validateRecommendationItems(input.items, input.maxItems);
+  async validateItems(input: { listKey: string; source: string; sectionType: RecommendationListWriteInput['sectionType']; items: RecommendationListItemInput[]; maxItems: number }): Promise<void> {
+    validateRecommendationItems(input.items, input.maxItems, input.sectionType);
   }
 }
 
@@ -56,14 +56,15 @@ export class AppRecommendationWritePolicy implements RecommendationListWritePoli
     }
   }
 
-  async validateItems(input: { items: RecommendationListItemInput[]; maxItems: number }): Promise<void> {
-    validateRecommendationItems(input.items, input.maxItems);
+  async validateItems(input: { listKey: string; source: string; sectionType: RecommendationListWriteInput['sectionType']; items: RecommendationListItemInput[]; maxItems: number }): Promise<void> {
+    validateRecommendationItems(input.items, input.maxItems, input.sectionType);
   }
 }
 
-export function validateRecommendationItems(items: RecommendationListItemInput[], maxItems: number): void {
+export function validateRecommendationItems(items: RecommendationListItemInput[], maxItems: number, sectionType: RecommendationListWriteInput['sectionType'] = 'contentRail'): void {
   if (!Array.isArray(items)) throw new HttpError(400, 'items must be an array.', undefined, 'INVALID_ITEMS');
   if (items.length > maxItems) throw new HttpError(400, `items exceeds max of ${maxItems}.`, undefined, 'TOO_MANY_ITEMS');
+  if ((sectionType === 'categoryTabs' || sectionType === 'heroCarousel' || sectionType === 'contentRail' || sectionType === 'collectionRail') && items.length === 0) throw new HttpError(400, `${sectionType} requires at least one item.`, undefined, 'INVALID_ITEMS');
   const ranks = new Set<number>();
   for (const item of items) {
     if (!item.itemId || typeof item.itemId !== 'string') throw new HttpError(400, 'Each item requires itemId.', undefined, 'INVALID_ITEM_ID');

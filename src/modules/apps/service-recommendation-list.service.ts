@@ -7,8 +7,8 @@ import type { ProfileEligibilityService } from './profile-eligibility.service.js
 import type { RecommendationListWriteService } from '../recommendations/recommendation-list-write.service.js';
 import type { RecommendationListItemInput } from '../recommendations/recommendation-list.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
-import type { RecoLayout, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
+import type { RecoHomeSectionType, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
 import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, ServiceRecommendationListsResponse, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
 import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, isOfficialRecommenderListKey } from './official-recommender-lists.js';
@@ -16,10 +16,10 @@ import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, isOfficialRec
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
 const RECOMMENDATION_WRITE_MODE = 'replace' as const;
 const PROVIDERS = new Set(['tmdb', 'tvdb', 'imdb', 'kitsu']);
-const ITEM_TYPES = new Set(['movie', 'tv', 'season', 'episode']);
-const LAYOUTS = new Set(['regular', 'landscape', 'hero', 'collection']);
+const ITEM_TYPES = new Set(['movie', 'tv']);
+const HOME_SECTION_TYPES = new Set(['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail']);
 const TOP_LEVEL_REMOVED_FIELDS = ['source', 'purpose', 'writeMode', 'input', 'eligibilityVersion', 'signalsVersion', 'algorithm', 'batchId'];
-const ITEM_REMOVED_FIELDS = ['contentId', 'mediaKey', 'rank', 'tmdbId', 'tvdbId', 'providerId', 'media', 'payload', 'title', 'artists', 'album', 'imageUrl', 'durationMs', 'releaseDate', 'explicit'];
+const ITEM_REMOVED_FIELDS = ['contentId', 'itemId', 'mediaKey', 'rank', 'tmdbId', 'tvdbId', 'providerId', 'media', 'payload', 'title', 'artists', 'album', 'imageUrl', 'durationMs', 'releaseDate', 'explicit'];
 
 export interface ServiceRecommendationListService {
   listWritableLists(input: { principal: AppPrincipal }): Promise<ServiceRecommendationListsResponse>;
@@ -32,7 +32,7 @@ export interface Clock { now(): Date }
 interface NormalizedSingleRequest {
   title: string;
   subtitle: string | null;
-  layout: RecoLayout;
+  sectionType: RecoHomeSectionType;
   items: RecommendationListItemInput[];
   model: UpsertServiceRecommendationListRequest['model'];
   context: Record<string, unknown>;
@@ -74,7 +74,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
       source,
       purpose: RECOMMENDATION_WRITE_PURPOSE,
       writeMode: RECOMMENDATION_WRITE_MODE,
-      layout: request.layout,
+      sectionType: request.sectionType,
       title: request.title,
       subtitle: request.subtitle,
       items: request.items,
@@ -113,7 +113,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
             source,
             purpose: RECOMMENDATION_WRITE_PURPOSE,
             writeMode: RECOMMENDATION_WRITE_MODE,
-            layout: list.layout,
+            sectionType: list.sectionType,
             title: list.title,
             subtitle: list.subtitle,
             items: list.items,
@@ -177,11 +177,11 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
   private async validateSingleRequest(request: unknown): Promise<NormalizedSingleRequest> {
     assertRecord(request, 'request body');
     rejectRemovedFields(request, TOP_LEVEL_REMOVED_FIELDS, '');
-    assertOnlyKeys(request, ['title', 'subtitle', 'layout', 'items', 'model', 'context'], '');
+    assertOnlyKeys(request, ['title', 'subtitle', 'sectionType', 'items', 'model', 'context'], '');
     return {
       title: readRequiredString(request.title, 'title'),
       subtitle: readNullableString(request.subtitle, 'subtitle'),
-      layout: readLayout(request.layout, 'layout'),
+      sectionType: readHomeSectionType(request.sectionType, 'sectionType'),
       items: await this.normalizeItemRefs(request.items, 'items'),
       model: readModelInfo(request.model, 'model'),
       context: asRecordOrEmpty(request.context),
@@ -207,13 +207,13 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         const listPath = `${profilePath}.lists[${listIndex}]`;
         assertRecord(rawList, listPath);
         rejectRemovedFields(rawList, TOP_LEVEL_REMOVED_FIELDS, listPath);
-        assertOnlyKeys(rawList, ['listKey', 'title', 'subtitle', 'layout', 'items', 'model', 'context'], listPath);
+        assertOnlyKeys(rawList, ['listKey', 'title', 'subtitle', 'sectionType', 'items', 'model', 'context'], listPath);
         if (typeof rawList.listKey !== 'string' || !rawList.listKey.trim()) throw new HttpError(400, `${listPath}.listKey is required.`, { field: `${listPath}.listKey` }, 'INVALID_LIST_KEY');
         lists.push({
           listKey: rawList.listKey,
           title: readRequiredString(rawList.title, `${listPath}.title`),
           subtitle: readNullableString(rawList.subtitle, `${listPath}.subtitle`),
-          layout: readLayout(rawList.layout, `${listPath}.layout`),
+          sectionType: readHomeSectionType(rawList.sectionType, `${listPath}.sectionType`),
           items: await this.normalizeItemRefs(rawList.items, `${listPath}.items`),
           model: readModelInfo(rawList.model, `${listPath}.model`),
           context: asRecordOrEmpty(rawList.context),
@@ -252,15 +252,13 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
   }
 
   private async resolveWriteItem(item: RecoWriteItem, path: string): Promise<{ itemId: string; sourceRef: RecommendationListItemInput['sourceRef'] }> {
-    if ('itemId' in item.item) {
-      return { itemId: encodePublicItemId(assertPublicItemId(item.item.itemId)), sourceRef: null };
-    }
-    const ref = item.item.ref;
+    const ref = item.providerRefs[0];
+    if (!ref) throw new HttpError(400, `${path}.providerRefs must contain at least one provider ref.`, { field: `${path}.providerRefs` }, 'INVALID_RECOMMENDATION_PROVIDER_REF');
     const provider = ref.provider === 'tvdb' || ref.provider === 'imdb' || ref.provider === 'kitsu' ? ref.provider : 'tmdb';
-    const entityType = ref.type === 'tv' ? 'show' : ref.type;
+    const entityType = item.type === 'tv' ? 'show' : item.type;
     const contentIdentityService = this.deps.contentIdentityService ?? new DbServiceRecommendationContentIdentityService();
     const contentId = await contentIdentityService.ensureTitleContentId({
-      mediaType: entityType === 'show' ? 'show' : entityType === 'movie' ? 'movie' : failUnsupportedProviderRef(path),
+      mediaType: entityType === 'show' ? 'show' : 'movie',
       provider,
       providerId: ref.providerId,
       metadata: { provider: ref.provider, providerId: ref.providerId },
@@ -312,9 +310,9 @@ function readNullableString(value: unknown, path: string): string | null {
   throw new HttpError(400, `${path} must be a string or null.`, { field: path }, 'INVALID_RECOMMENDATION_LIST_SUBTITLE');
 }
 
-function readLayout(value: unknown, path: string): RecoLayout {
-  if (typeof value === 'string' && LAYOUTS.has(value)) return value as RecoLayout;
-  throw new HttpError(400, `${path} must be a supported layout.`, { field: path }, 'INVALID_RECOMMENDATION_LIST_LAYOUT');
+function readHomeSectionType(value: unknown, path: string): RecoHomeSectionType {
+  if (typeof value === 'string' && HOME_SECTION_TYPES.has(value)) return value as RecoHomeSectionType;
+  throw new HttpError(400, `${path} must be one of categoryTabs, heroCarousel, contentRail, or collectionRail.`, { field: path }, 'INVALID_RECOMMENDATION_SECTION_TYPE');
 }
 
 function readModelInfo(value: unknown, path: string): UpsertServiceRecommendationListRequest['model'] {
@@ -343,12 +341,12 @@ function asRecordOrEmpty(value: unknown): Record<string, unknown> {
 function validateWriteItem(value: unknown, path: string): RecoWriteItem {
   assertRecord(value, path);
   rejectRemovedFields(value, ITEM_REMOVED_FIELDS, path);
-  assertOnlyKeys(value, ['item', 'score', 'reason', 'reasonCodes', 'metadata'], path);
-  const item = validateWriteItemIdentity(value.item, `${path}.item`);
+  assertOnlyKeys(value, ['type', 'providerRefs', 'score', 'reason', 'reasonCodes', 'metadata'], path);
   const reasonCodes = value.reasonCodes === undefined ? [] : value.reasonCodes;
   if (!Array.isArray(reasonCodes) || reasonCodes.some((code) => typeof code !== 'string')) throw new HttpError(400, `${path}.reasonCodes must be an array of strings.`, { field: `${path}.reasonCodes` }, 'INVALID_RECOMMENDATION_REASON_CODES');
   return {
-    item,
+    type: readRecoType(value.type, `${path}.type`),
+    providerRefs: validateProviderRefs(value.providerRefs, `${path}.providerRefs`),
     score: readNullableNumber(value.score, `${path}.score`),
     reason: readOptionalString(value.reason ?? null, `${path}.reason`),
     reasonCodes,
@@ -356,29 +354,22 @@ function validateWriteItem(value: unknown, path: string): RecoWriteItem {
   };
 }
 
-function validateWriteItemIdentity(value: unknown, path: string): RecoWriteItem['item'] {
-  assertRecord(value, path);
-  if ('itemId' in value) {
-    assertOnlyKeys(value, ['itemId'], path);
-    if (typeof value.itemId !== 'string') throw new HttpError(400, `${path}.itemId is required.`, { field: `${path}.itemId` }, 'INVALID_RECOMMENDATION_ITEM_ID');
-    assertPublicItemId(value.itemId);
-    return { itemId: value.itemId };
-  }
-  if ('ref' in value) {
-    assertOnlyKeys(value, ['ref'], path);
-    const ref = validateProviderRef(value.ref, `${path}.ref`);
-    return { ref };
-  }
-  throw new HttpError(400, `${path} must contain itemId or ref.`, { field: path }, 'INVALID_RECOMMENDATION_ITEM_IDENTITY');
+function readRecoType(value: unknown, path: string): RecoWriteItem['type'] {
+  if (typeof value === 'string' && ITEM_TYPES.has(value)) return value as RecoWriteItem['type'];
+  throw new HttpError(400, `${path} is unsupported.`, { field: path }, 'INVALID_RECOMMENDATION_ITEM_TYPE');
 }
 
-function validateProviderRef(value: unknown, path: string): { provider: RecoProvider; providerId: string; type: 'movie' | 'tv' | 'season' | 'episode' } {
+function validateProviderRefs(value: unknown, path: string): RecoWriteItem['providerRefs'] {
+  if (!Array.isArray(value) || value.length === 0) throw new HttpError(400, `${path} must be a non-empty array.`, { field: path }, 'INVALID_RECOMMENDATION_PROVIDER_REF');
+  return value.map((ref, index) => validateProviderRef(ref, `${path}[${index}]`));
+}
+
+function validateProviderRef(value: unknown, path: string): { provider: RecoProvider; providerId: string } {
   assertRecord(value, path);
-  assertOnlyKeys(value, ['provider', 'providerId', 'type'], path);
+  assertOnlyKeys(value, ['provider', 'providerId'], path);
   if (typeof value.provider !== 'string' || !PROVIDERS.has(value.provider)) throw new HttpError(400, `${path}.provider is unsupported.`, { field: `${path}.provider` }, 'INVALID_RECOMMENDATION_PROVIDER');
   if (typeof value.providerId !== 'string' || !value.providerId.trim()) throw new HttpError(400, `${path}.providerId is required.`, { field: `${path}.providerId` }, 'INVALID_RECOMMENDATION_PROVIDER_ID');
-  if (typeof value.type !== 'string' || !ITEM_TYPES.has(value.type)) throw new HttpError(400, `${path}.type is unsupported.`, { field: `${path}.type` }, 'INVALID_RECOMMENDATION_ITEM_TYPE');
-  return { provider: value.provider as RecoProvider, providerId: value.providerId.trim(), type: value.type as 'movie' | 'tv' | 'season' | 'episode' };
+  return { provider: value.provider as RecoProvider, providerId: value.providerId.trim() };
 }
 
 function readNullableNumber(value: unknown, path: string): number | null {
@@ -390,9 +381,5 @@ function readNullableNumber(value: unknown, path: string): number | null {
 function readMetadata(value: unknown, path: string): Record<string, unknown> {
   assertRecord(value, path);
   return value;
-}
-
-function failUnsupportedProviderRef(path: string): never {
-  throw new HttpError(400, `${path}.item.ref.type must be movie or tv for provider refs.`, { field: `${path}.item.ref.type` }, 'UNSUPPORTED_RECOMMENDATION_REF_TYPE');
 }
 

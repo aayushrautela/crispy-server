@@ -1009,7 +1009,7 @@ export interface components {
             id: string;
             title: string;
             /** @enum {string} */
-            layout: "regular" | "landscape" | "collection" | "hero";
+            sectionType: "categoryTabs" | "heroCarousel" | "contentRail" | "collectionRail";
             items: components["schemas"]["GenericObject"][];
             meta?: {
                 [key: string]: unknown;
@@ -1022,7 +1022,7 @@ export interface components {
             title: string;
             subtitle: string | null;
             /** @enum {string} */
-            layout: "regular" | "landscape" | "collection" | "hero";
+            sectionType: "categoryTabs" | "heroCarousel" | "contentRail" | "collectionRail";
             items: components["schemas"]["ClientMediaCard"][];
             meta: {
                 [key: string]: unknown;

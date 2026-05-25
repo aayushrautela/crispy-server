@@ -31,11 +31,9 @@ describe('recommendation-ai-plan.prompt', () => {
     signals: {
       watchHistory: [
         {
-          itemId: '00000000000000000000000000000550',
+          type: 'movie',
+          providerRefs: [{ provider: 'tmdb', providerId: '550' }],
           title: 'Fight Club',
-          mediaType: 'movie',
-          provider: 'tmdb',
-          providerId: '550',
           year: 1999,
           overview: 'An insomniac office worker forms an underground fight club.',
         },
@@ -45,12 +43,10 @@ describe('recommendation-ai-plan.prompt', () => {
       negativeSignals: [],
     },
     candidatePool: [
-      {
-        itemId: '00000000000000000000000000000603',
-        title: 'The Matrix',
-        mediaType: 'movie',
-        provider: 'tmdb',
-        providerId: '603',
+        {
+          type: 'movie',
+          providerRefs: [{ provider: 'tmdb', providerId: '603' }],
+          title: 'The Matrix',
         year: 1999,
         overview: 'A hacker discovers the nature of reality.',
         genres: ['Action', 'Science Fiction'],
@@ -69,7 +65,7 @@ describe('recommendation-ai-plan.prompt', () => {
     const result = buildRecommendationAiPlanPrompt(request);
     assert.ok(result.userPrompt.includes('CANDIDATE POOL'));
     assert.ok(result.userPrompt.includes('The Matrix'));
-    assert.ok(result.userPrompt.includes('00000000000000000000000000000603'));
+    assert.ok(result.userPrompt.includes('movie:tmdb:603'));
   });
 
   it('should include constraints', () => {

@@ -29,7 +29,7 @@ export class DefaultRecommendationListWriteService implements RecommendationList
     const decision = await this.deps.policy.authorize(input);
     if (!decision.allowed) throw new HttpError(403, decision.rejectReason ?? 'Recommendation write denied.', undefined, 'RECOMMENDATION_WRITE_DENIED');
     await this.deps.policy.validateListKey({ listKey: input.listKey, source: decision.source, actor: input.actor });
-    await this.deps.policy.validateItems({ listKey: input.listKey, source: decision.source, items: input.items, maxItems: decision.maxItems });
+    await this.deps.policy.validateItems({ listKey: input.listKey, source: decision.source, sectionType: input.sectionType, items: input.items, maxItems: decision.maxItems });
     const now = this.deps.clock.now();
     const version = await this.deps.repo.createListVersion({ ...input, source: decision.source, createdAt: now });
     await this.deps.repo.replaceActiveVersion({ accountId: input.accountId, profileId: input.profileId, listKey: input.listKey, source: decision.source, version: version.version, updatedAt: now });

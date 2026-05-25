@@ -18,8 +18,8 @@ import type {
   TasteProfilePayload,
 } from './recommendation.types.js';
 import type {
-  ClientHomeLayout,
   ClientHomeSection,
+  ClientHomeSectionType,
   ClientMediaCard,
   ClientMediaType,
 } from './client-home.types.js';
@@ -286,29 +286,17 @@ export class RecommendationOutputService {
 
   private async mapRecommendationSection(client: DbClient, value: unknown): Promise<RecommendationSection> {
     const row = asRecord(value);
-    const layout = readClientHomeLayout(row.layout);
+    const sectionType = readClientHomeSectionType(row.sectionType);
     const rawItems = Array.isArray(row.items) ? row.items : [];
     const id = typeof row.id === 'string' ? row.id : 'recommended';
     const title = typeof row.title === 'string' ? row.title : 'Recommended';
     const meta = asRecord(row.meta);
 
-    if (layout === 'hero' || layout === 'landscape' || layout === 'collection') {
-      return {
-        listKey: id,
-        title,
-        subtitle: readNullableText(row.subtitle),
-        layout,
-        items: (await Promise.all(rawItems.map((item) => this.mapClientMediaCard(client, item))))
-          .filter((item): item is ClientMediaCard => item !== null),
-        meta,
-      };
-    }
-
     return {
       listKey: id,
       title,
       subtitle: readNullableText(row.subtitle),
-      layout: 'regular',
+      sectionType,
       items: (await Promise.all(rawItems.map((item) => this.mapClientMediaCard(client, item))))
         .filter((item): item is ClientMediaCard => item !== null),
       meta,
@@ -383,7 +371,7 @@ function sanitizeRecommendationSections(value: unknown[]): unknown[] {
 
 function sanitizeRecommendationSection(value: unknown): Record<string, unknown> | null {
   const row = asRecord(value);
-  const layout = readClientHomeLayout(row.layout);
+  const sectionType = readClientHomeSectionType(row.sectionType);
   const items = Array.isArray(row.items) ? row.items : [];
   const sanitizedItems = items.map((item) => sanitizeRecommendationMediaItem(item)).filter((item): item is Record<string, unknown> => item !== null);
 
@@ -391,7 +379,7 @@ function sanitizeRecommendationSection(value: unknown): Record<string, unknown> 
     id: typeof row.id === 'string' && row.id.trim() ? row.id.trim() : typeof row.listKey === 'string' && row.listKey.trim() ? row.listKey.trim() : 'recommended',
     title: typeof row.title === 'string' && row.title.trim() ? row.title.trim() : 'Recommended',
     subtitle: readNullableText(row.subtitle),
-    layout,
+    sectionType,
     meta: asRecord(row.meta),
     items: sanitizedItems,
   };
@@ -414,8 +402,8 @@ function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown
   };
 }
 
-function readClientHomeLayout(value: unknown): ClientHomeLayout {
-  return value === 'landscape' || value === 'collection' || value === 'hero' ? value : 'regular';
+function readClientHomeSectionType(value: unknown): ClientHomeSectionType {
+  return value === 'categoryTabs' || value === 'heroCarousel' || value === 'contentRail' || value === 'collectionRail' ? value : 'contentRail';
 }
 
 function readPublicItemId(value: unknown): string | null {
