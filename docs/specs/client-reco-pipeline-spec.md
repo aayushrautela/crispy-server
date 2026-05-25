@@ -150,14 +150,6 @@ RECO receives machine DTOs. It does not receive UI DTOs.
 type RecoItemRef = {
   type: 'movie' | 'tv';
   providerRefs: ProviderRef[];
-  hints: RecoItemHints;
-};
-
-type RecoItemHints = {
-  title: string;
-  originalTitle: string | null;
-  year: number | null;
-  releaseDate: string | null;
 };
 ```
 
@@ -166,7 +158,7 @@ Rules:
 - RECO item identity is provider refs plus `type`.
 - `providerRefs` may contain TMDB, TVDB, IMDb, Kitsu, or future refs supported by MAIN.
 - RECO must not infer Crispy canonical identity from provider priority. MAIN owns canonicalization.
-- RECO signals must not include Crispy `itemId`, posters, backdrops, logos, trailers, client watch DTOs, or `BaseItemDto.UserData`.
+- RECO signals must not include Crispy `itemId`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, client watch DTOs, or `BaseItemDto.UserData`.
 
 ### RECO signal bundle
 

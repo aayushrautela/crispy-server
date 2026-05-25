@@ -1,31 +1,10 @@
-import type { AiCredentialSource } from '../ai/ai.types.js';
 import type {
-  ProfileInputWatchHistoryItem,
-  ProfileInputRatingItem,
-  ProfileInputWatchlistItem,
-  ProfileInputTrackedSeriesItem,
-} from './profile-input-signal.types.js';
-
-export type RecommendationSignalDisplayMedia = {
-  mediaType: string;
-  itemId: string;
-  title: string;
-};
-
-export type RecommendationSignalContinueWatchingProgress = {
-  positionSeconds: number | null;
-  durationSeconds: number | null;
-  progressPercent: number;
-  lastPlayedAt?: string;
-};
-
-export type RecommendationSignalContinueWatchingItem = {
-  id: string;
-  media: RecommendationSignalDisplayMedia;
-  progress: RecommendationSignalContinueWatchingProgress;
-  lastActivityAt: string;
-  payload?: Record<string, unknown>;
-};
+  RecoContinueSignal,
+  RecoHistorySignal,
+  RecoRatingSignal,
+  RecoWatchlistSignal,
+} from './reco-contract.types.js';
+import type { AiCredentialSource } from '../ai/ai.types.js';
 
 export type RecommendationSignalBundle = {
   identity: {
@@ -39,9 +18,9 @@ export type RecommendationSignalBundle = {
     sourceCursor?: string | null;
     ttlSeconds?: number;
   };
-  watchHistory: ProfileInputWatchHistoryItem[];
-  ratings: ProfileInputRatingItem[];
-  watchlist: ProfileInputWatchlistItem[];
+  watchHistory: RecoHistorySignal[];
+  ratings: RecoRatingSignal[];
+  watchlist: RecoWatchlistSignal[];
   profileContext: {
     profileName: string;
     isKids: boolean;
@@ -57,8 +36,7 @@ export type RecommendationSignalBundle = {
     credentialSource: AiCredentialSource;
   };
   optionalExtras?: {
-    continueWatching?: RecommendationSignalContinueWatchingItem[];
-    trackedSeries?: ProfileInputTrackedSeriesItem[];
+    continueWatching?: RecoContinueSignal[];
     limits?: {
       watchHistory: number;
       ratings: number;

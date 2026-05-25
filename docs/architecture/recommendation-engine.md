@@ -92,9 +92,8 @@ Signal records carry `RecoItemRef` values with:
 
 - media `type` (`movie` or `tv`)
 - provider refs such as TMDB, TVDB, IMDb, or Kitsu
-- minimal title/year/release-date hints useful for ranking and debugging
 
-Signal records do not carry Crispy `itemId`, `BaseItemDto`, client `UserData`, posters, backdrops, logos, trailers, or enriched display card payloads.
+Signal records do not carry Crispy `itemId`, `BaseItemDto`, client `UserData`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, or enriched display card payloads.
 
 When AI assistance is needed:
 

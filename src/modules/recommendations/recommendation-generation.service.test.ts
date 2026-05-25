@@ -10,12 +10,12 @@ const SERIES_ITEM_ID = '00000000000000000000000000001397';
 
 const { mapContinueWatchingItem } = await import('./recommendation-generation.service.js');
 
-test('mapContinueWatchingItem maps continue-watching items into explicit worker DTOs', () => {
+test('mapContinueWatchingItem maps continue-watching into provider-ref machine DTOs only', () => {
   const item: ProfileInputContinueWatchingItem = {
     id: 'cw_1',
     Item: {
       Id: ITEM_ID,
-      Type: 'Episode',
+      Type: 'Series',
       Name: 'Breaking Bad',
       OriginalTitle: null,
       Overview: null,
@@ -28,7 +28,7 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
       Genres: [],
       RunTimeTicks: 27_000_000_000,
       Status: null,
-      ProviderIds: { Tmdb: null, Imdb: null, Tvdb: null },
+      ProviderIds: { Tmdb: '1396', Imdb: 'tt0903747', Tvdb: '81189' },
       ImageTags: {
         Primary: { small: 'poster', medium: 'poster', large: 'poster' },
         Backdrop: [{ small: 'backdrop', medium: 'backdrop', large: 'backdrop' }],
@@ -60,18 +60,18 @@ test('mapContinueWatchingItem maps continue-watching items into explicit worker 
   const mapped = mapContinueWatchingItem(item);
 
   assert.deepEqual(mapped, {
-    id: 'cw_1',
-    media: {
-      mediaType: 'Episode',
-      itemId: ITEM_ID,
-      title: 'Breaking Bad',
+    item: {
+      type: 'tv',
+      providerRefs: [
+        { provider: 'tmdb', providerId: '1396' },
+        { provider: 'tvdb', providerId: '81189' },
+        { provider: 'imdb', providerId: 'tt0903747' },
+      ],
     },
-    progress: {
-      positionSeconds: null,
-      durationSeconds: null,
-      progressPercent: 14.5,
-    },
-    lastActivityAt: '2026-03-01T18:00:00.000Z',
-    payload: {},
+    progressPercent: 14.5,
+    updatedAt: new Date('2026-03-01T18:00:00.000Z'),
   });
+  assert.equal(JSON.stringify(mapped).includes(ITEM_ID), false);
+  assert.equal(JSON.stringify(mapped).includes('Breaking Bad'), false);
+  assert.equal(JSON.stringify(mapped).includes('poster'), false);
 });

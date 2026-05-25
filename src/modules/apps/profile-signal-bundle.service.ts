@@ -213,15 +213,11 @@ function readOptionalString(value: unknown): string | null {
 function toRecoItemRef(item: BaseItemDto): RecoItemRef | null {
   const type = toRecoMediaType(item.Type);
   if (!type) return null;
+  const providerRefs = toProviderRefs(item);
+  if (providerRefs.length === 0) return null;
   return {
     type,
-    providerRefs: toProviderRefs(item),
-    hints: {
-      title: item.Name,
-      originalTitle: item.OriginalTitle,
-      year: item.ProductionYear,
-      releaseDate: item.PremiereDate,
-    },
+    providerRefs,
   };
 }
 

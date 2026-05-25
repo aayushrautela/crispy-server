@@ -425,26 +425,13 @@ export const recoProviderRefSchema = {
   },
 } as const;
 
-export const recoItemHintsSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['title', 'originalTitle', 'year', 'releaseDate'],
-  properties: {
-    title: stringSchema,
-    originalTitle: nullableStringSchema,
-    year: nullableIntegerSchema,
-    releaseDate: nullableStringSchema,
-  },
-} as const;
-
 export const recoItemRefSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['type', 'providerRefs', 'hints'],
+  required: ['type', 'providerRefs'],
   properties: {
     type: recoMediaTypeSchema,
-    providerRefs: { type: 'array', items: recoProviderRefSchema },
-    hints: recoItemHintsSchema,
+    providerRefs: { type: 'array', items: recoProviderRefSchema, minItems: 1 },
   },
 } as const;
 

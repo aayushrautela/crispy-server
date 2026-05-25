@@ -18,13 +18,7 @@
       {
         "item": {
           "type": "movie",
-          "providerRefs": [{ "provider": "tmdb", "providerId": "550" }],
-          "hints": {
-            "title": "Fight Club",
-            "originalTitle": "Fight Club",
-            "year": 1999,
-            "releaseDate": "1999-10-15"
-          }
+          "providerRefs": [{ "provider": "tmdb", "providerId": "550" }]
         },
         "watchedAt": "2026-05-01T20:00:00.000Z",
         "progressPercent": 100,
@@ -36,13 +30,7 @@
       {
         "item": {
           "type": "movie",
-          "providerRefs": [{ "provider": "tmdb", "providerId": "603" }],
-          "hints": {
-            "title": "The Matrix",
-            "originalTitle": "The Matrix",
-            "year": 1999,
-            "releaseDate": "1999-03-31"
-          }
+          "providerRefs": [{ "provider": "tmdb", "providerId": "603" }]
         },
         "rating": 4.5,
         "ratedAt": "2026-05-02T20:00:00.000Z",
@@ -53,13 +41,7 @@
       {
         "item": {
           "type": "tv",
-          "providerRefs": [{ "provider": "tmdb", "providerId": "1396" }],
-          "hints": {
-            "title": "Breaking Bad",
-            "originalTitle": "Breaking Bad",
-            "year": 2008,
-            "releaseDate": "2008-01-20"
-          }
+          "providerRefs": [{ "provider": "tmdb", "providerId": "1396" }]
         },
         "addedAt": "2026-05-03T20:00:00.000Z"
       }
@@ -68,13 +50,7 @@
       {
         "item": {
           "type": "tv",
-          "providerRefs": [{ "provider": "tmdb", "providerId": "1396" }],
-          "hints": {
-            "title": "Breaking Bad",
-            "originalTitle": "Breaking Bad",
-            "year": 2008,
-            "releaseDate": "2008-01-20"
-          }
+          "providerRefs": [{ "provider": "tmdb", "providerId": "1396" }]
         },
         "progressPercent": 42.5,
         "updatedAt": "2026-05-04T20:00:00.000Z"

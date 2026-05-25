@@ -7,17 +7,9 @@ export type RecoProviderRef = {
   providerId: string;
 };
 
-export type RecoItemHints = {
-  title: string;
-  originalTitle: string | null;
-  year: number | null;
-  releaseDate: string | null;
-};
-
 export type RecoItemRef = {
   type: RecoMediaType;
   providerRefs: RecoProviderRef[];
-  hints: RecoItemHints;
 };
 
 export type RecoHistorySignal = {

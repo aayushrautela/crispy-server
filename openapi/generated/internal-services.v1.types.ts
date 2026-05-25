@@ -367,16 +367,9 @@ export interface components {
             provider: components["schemas"]["RecoProvider"];
             providerId: string;
         };
-        RecoItemHints: {
-            title: string;
-            originalTitle: string | null;
-            year: number | null;
-            releaseDate: string | null;
-        };
         RecoItemRef: {
             type: components["schemas"]["RecoMediaType"];
             providerRefs: components["schemas"]["RecoProviderRef"][];
-            hints: components["schemas"]["RecoItemHints"];
         };
         ProviderIds: {
             Tmdb: string | null;

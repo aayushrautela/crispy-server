@@ -10,12 +10,16 @@ import { RecommendationSnapshotsRepository } from './recommendation-snapshots.re
 import { ProfileWatchDataStateRepository } from '../integrations/profile-watch-data-state.repo.js';
 import type {
   RecommendationSignalBundle,
-  RecommendationSignalContinueWatchingItem,
   RecommendationSignalGenerationResponse,
 } from './recommendation-signal.types.js';
 import type {
   ProfileInputContinueWatchingItem,
+  ProfileInputRatingItem,
+  ProfileInputWatchHistoryItem,
+  ProfileInputWatchlistItem,
 } from './profile-input-signal.types.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
+import type { RecoContinueSignal, RecoItemRef, RecoMediaType, RecoProviderRef } from './reco-contract.types.js';
 
 type GenerationContext = {
   accountId: string;
@@ -169,9 +173,9 @@ export class RecommendationGenerationService {
         sourceCursor: context.sourceCursor,
         ttlSeconds: recommendationConfig.generationTtlSeconds,
       },
-      watchHistory: signals.history ?? [],
-      ratings: signals.ratings ?? [],
-      watchlist: signals.watchlist ?? [],
+      watchHistory: signals.history ? signals.history.flatMap(mapInputHistoryItem) : [],
+      ratings: signals.ratings ? signals.ratings.flatMap(mapInputRatingItem) : [],
+      watchlist: signals.watchlist ? signals.watchlist.flatMap(mapInputWatchlistItem) : [],
       profileContext: {
         profileName: context.profileName,
         isKids: context.isKids,
@@ -187,34 +191,104 @@ export class RecommendationGenerationService {
         credentialSource: aiRequest.credentialSource,
       },
       optionalExtras: {
-        continueWatching: signals.continueWatching ? signals.continueWatching.map(mapInputContinueWatchingItem) : [],
-        trackedSeries: signals.trackedSeries ?? [],
+        continueWatching: signals.continueWatching ? signals.continueWatching.flatMap(mapInputContinueWatchingSignals) : [],
         limits,
       },
     };
   }
 }
 
-export function mapContinueWatchingItem(item: ProfileInputContinueWatchingItem): RecommendationSignalContinueWatchingItem {
+export function mapContinueWatchingItem(item: ProfileInputContinueWatchingItem): RecoContinueSignal | null {
   return mapInputContinueWatchingItem(item);
 }
 
-export function mapInputContinueWatchingItem(item: ProfileInputContinueWatchingItem): RecommendationSignalContinueWatchingItem {
-  return {
-    id: item.id,
-    media: {
-      mediaType: item.Item.Type,
-      itemId: item.Item.Id,
-      title: item.Item.Name,
-    },
-    progress: {
-      positionSeconds: null,
-      durationSeconds: null,
-      progressPercent: item.progress.progressPercent,
-    },
-    lastActivityAt: item.lastActivityAt,
-    payload: {},
-  };
+function mapInputHistoryItem(item: ProfileInputWatchHistoryItem): Array<RecommendationSignalBundle['watchHistory'][number]> {
+  const recoItem = toRecoItemRef(item.Item);
+  if (!recoItem) return [];
+  return [{
+    item: recoItem,
+    watchedAt: new Date(item.watchedAt),
+    progressPercent: readSignalNumber(item.payload?.progressPercent, 100),
+    completionState: readCompletionState(item.payload?.completionState),
+    durationSeconds: item.Item.RunTimeTicks !== null ? item.Item.RunTimeTicks / 10_000_000 : null,
+  }];
+}
+
+function mapInputRatingItem(item: ProfileInputRatingItem): Array<RecommendationSignalBundle['ratings'][number]> {
+  const recoItem = toRecoItemRef(item.Item);
+  if (!recoItem) return [];
+  return [{
+    item: recoItem,
+    rating: item.rating.value,
+    ratedAt: new Date(item.rating.ratedAt),
+    ratingSource: readSignalOptionalString(item.payload?.ratingSource),
+  }];
+}
+
+function mapInputWatchlistItem(item: ProfileInputWatchlistItem): Array<RecommendationSignalBundle['watchlist'][number]> {
+  const recoItem = toRecoItemRef(item.Item);
+  if (!recoItem) return [];
+  return [{
+    item: recoItem,
+    addedAt: new Date(item.addedAt),
+  }];
+}
+
+export function mapInputContinueWatchingItem(item: ProfileInputContinueWatchingItem): RecoContinueSignal | null {
+  const signals = mapInputContinueWatchingSignals(item);
+  return signals[0] ?? null;
+}
+
+function mapInputContinueWatchingSignals(item: ProfileInputContinueWatchingItem): RecoContinueSignal[] {
+  const recoItem = toRecoItemRef(item.Item);
+  if (!recoItem) return [];
+  return [{
+    item: recoItem,
+    progressPercent: item.progress.progressPercent,
+    updatedAt: new Date(item.lastActivityAt),
+  }];
+}
+
+function toRecoItemRef(item: BaseItemDto): RecoItemRef | null {
+  const type = toRecoMediaType(item.Type);
+  if (!type) return null;
+  const providerRefs = toProviderRefs(item);
+  if (providerRefs.length === 0) return null;
+  return { type, providerRefs };
+}
+
+function toRecoMediaType(type: BaseItemDto['Type']): RecoMediaType | null {
+  switch (type) {
+    case 'Movie': return 'movie';
+    case 'Series': return 'tv';
+    default: return null;
+  }
+}
+
+function toProviderRefs(item: BaseItemDto): RecoProviderRef[] {
+  const refs: RecoProviderRef[] = [];
+  if (item.ProviderIds.Tmdb) refs.push({ provider: 'tmdb', providerId: item.ProviderIds.Tmdb });
+  if (item.ProviderIds.Tvdb) refs.push({ provider: 'tvdb', providerId: item.ProviderIds.Tvdb });
+  if (item.ProviderIds.Imdb) refs.push({ provider: 'imdb', providerId: item.ProviderIds.Imdb });
+  return refs;
+}
+
+function readSignalNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function readCompletionState(value: unknown): 'completed' | 'partial' | 'unknown' {
+  if (value === 'completed' || value === 'partial' || value === 'unknown') return value;
+  return 'completed';
+}
+
+function readSignalOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function normalizeTasteProfile(response: RecommendationSignalGenerationResponse, context: GenerationExpectationContext) {
