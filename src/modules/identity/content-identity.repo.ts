@@ -99,13 +99,32 @@ export class ContentIdentityRepository {
           DO UPDATE SET
             metadata = content_provider_refs.metadata || EXCLUDED.metadata,
             updated_at = now()
+          RETURNING content_id, provider, entity_type, external_id, metadata
+        ),
+        resolved_refs AS (
+          SELECT content_id, provider, entity_type, external_id, metadata
+          FROM inserted_refs
+          UNION ALL
+          SELECT refs.content_id, refs.provider, refs.entity_type, refs.external_id, refs.metadata
+          FROM incoming
+          JOIN content_provider_refs refs
+            ON refs.provider = incoming.provider
+           AND refs.entity_type = incoming.entity_type
+           AND refs.external_id = incoming.external_id
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM inserted_refs
+            WHERE inserted_refs.provider = incoming.provider
+              AND inserted_refs.entity_type = incoming.entity_type
+              AND inserted_refs.external_id = incoming.external_id
+          )
         )
-        SELECT refs.content_id, refs.provider, refs.entity_type, refs.external_id, refs.metadata
+        SELECT resolved_refs.content_id, resolved_refs.provider, resolved_refs.entity_type, resolved_refs.external_id, resolved_refs.metadata
         FROM incoming
-        JOIN content_provider_refs refs
-          ON refs.provider = incoming.provider
-         AND refs.entity_type = incoming.entity_type
-         AND refs.external_id = incoming.external_id
+        JOIN resolved_refs
+          ON resolved_refs.provider = incoming.provider
+         AND resolved_refs.entity_type = incoming.entity_type
+         AND resolved_refs.external_id = incoming.external_id
         ORDER BY incoming.ord ASC
       `,
       values,
