@@ -102,8 +102,23 @@ export class LocalUserWatchService {
     const rows = await db.query(
       `SELECT pp.title_item_id, pp.playable_item_id, pp.media_type,
               pp.position_seconds, pp.duration_seconds, pp.progress_bps,
-              pp.last_activity_at, pp.source_kind, pp.source_provider
+              pp.last_activity_at, pp.source_kind, pp.source_provider,
+              tmdb_ref.external_id AS title_provider_id,
+              imdb_ref.external_id AS imdb_id,
+              tvdb_ref.external_id AS tvdb_id
        FROM user_state.playback_progress pp
+       LEFT JOIN content_provider_refs tmdb_ref
+         ON tmdb_ref.content_id = pp.title_item_id
+        AND tmdb_ref.provider = 'tmdb'
+        AND tmdb_ref.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs imdb_ref
+         ON imdb_ref.content_id = pp.title_item_id
+        AND imdb_ref.provider = 'imdb'
+        AND imdb_ref.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs tvdb_ref
+         ON tvdb_ref.content_id = pp.title_item_id
+        AND tvdb_ref.provider = 'tvdb'
+        AND tvdb_ref.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
        WHERE pp.profile_id = $1::uuid AND pp.dismissed_at IS NULL
          AND ($2::timestamptz IS NULL OR pp.last_activity_at < $2::timestamptz
               OR (pp.last_activity_at = $2::timestamptz AND pp.title_item_id > $3::uuid))
@@ -123,8 +138,23 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT pli.item_id, pli.media_type, pli.added_at, pli.source_kind, pli.source_provider
+      `SELECT pli.item_id, pli.media_type, pli.added_at, pli.source_kind, pli.source_provider,
+              tmdb_ref.external_id AS title_provider_id,
+              imdb_ref.external_id AS imdb_id,
+              tvdb_ref.external_id AS tvdb_id
        FROM user_state.profile_list_items pli
+       LEFT JOIN content_provider_refs tmdb_ref
+         ON tmdb_ref.content_id = pli.item_id
+        AND tmdb_ref.provider = 'tmdb'
+        AND tmdb_ref.entity_type = CASE WHEN pli.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs imdb_ref
+         ON imdb_ref.content_id = pli.item_id
+        AND imdb_ref.provider = 'imdb'
+        AND imdb_ref.entity_type = CASE WHEN pli.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs tvdb_ref
+         ON tvdb_ref.content_id = pli.item_id
+        AND tvdb_ref.provider = 'tvdb'
+        AND tvdb_ref.entity_type = CASE WHEN pli.media_type = 'movie' THEN 'movie' ELSE 'show' END
        WHERE pli.profile_id = $1::uuid AND pli.list_kind = 'watchlist'
          AND ($2::timestamptz IS NULL OR pli.added_at < $2::timestamptz
               OR (pli.added_at = $2::timestamptz AND pli.item_id > $3::uuid))
@@ -144,8 +174,23 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT pr.item_id, pr.media_type, pr.rating, pr.rated_at, pr.source_kind, pr.source_provider
+      `SELECT pr.item_id, pr.media_type, pr.rating, pr.rated_at, pr.source_kind, pr.source_provider,
+              tmdb_ref.external_id AS title_provider_id,
+              imdb_ref.external_id AS imdb_id,
+              tvdb_ref.external_id AS tvdb_id
        FROM user_state.profile_ratings pr
+       LEFT JOIN content_provider_refs tmdb_ref
+         ON tmdb_ref.content_id = pr.item_id
+        AND tmdb_ref.provider = 'tmdb'
+        AND tmdb_ref.entity_type = CASE WHEN pr.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs imdb_ref
+         ON imdb_ref.content_id = pr.item_id
+        AND imdb_ref.provider = 'imdb'
+        AND imdb_ref.entity_type = CASE WHEN pr.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs tvdb_ref
+         ON tvdb_ref.content_id = pr.item_id
+        AND tvdb_ref.provider = 'tvdb'
+        AND tvdb_ref.entity_type = CASE WHEN pr.media_type = 'movie' THEN 'movie' ELSE 'show' END
        WHERE pr.profile_id = $1::uuid
          AND ($2::timestamptz IS NULL OR pr.rated_at < $2::timestamptz
               OR (pr.rated_at = $2::timestamptz AND pr.item_id > $3::uuid))
@@ -168,8 +213,23 @@ export class LocalUserWatchService {
     const queryParams: unknown[] = [params.profileId];
 
     if (params.itemId) {
-      query = `SELECT we.id, we.item_id, we.title_item_id, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider
+      query = `SELECT we.id, we.item_id, we.title_item_id, we.media_type, we.event_type, we.occurred_at, we.source_kind, we.source_provider,
+                      tmdb_ref.external_id AS title_provider_id,
+                      imdb_ref.external_id AS imdb_id,
+                      tvdb_ref.external_id AS tvdb_id
                FROM user_state.watch_events we
+               LEFT JOIN content_provider_refs tmdb_ref
+                 ON tmdb_ref.content_id = we.title_item_id
+                AND tmdb_ref.provider = 'tmdb'
+                AND tmdb_ref.entity_type = CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END
+               LEFT JOIN content_provider_refs imdb_ref
+                 ON imdb_ref.content_id = we.title_item_id
+                AND imdb_ref.provider = 'imdb'
+                AND imdb_ref.entity_type = CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END
+               LEFT JOIN content_provider_refs tvdb_ref
+                 ON tvdb_ref.content_id = we.title_item_id
+                AND tvdb_ref.provider = 'tvdb'
+                AND tvdb_ref.entity_type = CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END
                WHERE we.profile_id = $1::uuid
                  AND we.event_type IN ('playback_completed', 'marked_watched')
                  AND we.title_item_id = $2::uuid
@@ -188,17 +248,38 @@ export class LocalUserWatchService {
                  WHERE we.profile_id = $1::uuid
                    AND we.event_type IN ('playback_completed', 'marked_watched')
                ),
-               title_ranked AS (
-                 SELECT er.*,
-                        ROW_NUMBER() OVER (
-                          PARTITION BY er.history_item_id, date_trunc('month', er.occurred_at)
-                          ORDER BY er.occurred_at DESC, er.id DESC
-                        ) AS rn
-                 FROM event_rows er
-               )
-               SELECT id, history_item_id AS item_id, history_media_type AS media_type, event_type, occurred_at, source_kind, source_provider
-               FROM title_ranked
-               WHERE rn = 1
+                title_ranked AS (
+                  SELECT er.*,
+                         ROW_NUMBER() OVER (
+                           PARTITION BY er.history_item_id, date_trunc('month', er.occurred_at)
+                           ORDER BY er.occurred_at DESC, er.id DESC
+                         ) AS rn
+                  FROM event_rows er
+                )
+                SELECT tr.id,
+                       tr.history_item_id AS item_id,
+                       tr.history_media_type AS media_type,
+                       tr.event_type,
+                       tr.occurred_at,
+                       tr.source_kind,
+                       tr.source_provider,
+                       tmdb_ref.external_id AS title_provider_id,
+                       imdb_ref.external_id AS imdb_id,
+                       tvdb_ref.external_id AS tvdb_id
+                FROM title_ranked tr
+                LEFT JOIN content_provider_refs tmdb_ref
+                  ON tmdb_ref.content_id = tr.history_item_id
+                 AND tmdb_ref.provider = 'tmdb'
+                 AND tmdb_ref.entity_type = tr.history_media_type
+                LEFT JOIN content_provider_refs imdb_ref
+                  ON imdb_ref.content_id = tr.history_item_id
+                 AND imdb_ref.provider = 'imdb'
+                 AND imdb_ref.entity_type = tr.history_media_type
+                LEFT JOIN content_provider_refs tvdb_ref
+                  ON tvdb_ref.content_id = tr.history_item_id
+                 AND tvdb_ref.provider = 'tvdb'
+                 AND tvdb_ref.entity_type = tr.history_media_type
+                WHERE rn = 1
                   AND ($2::timestamptz IS NULL OR occurred_at < $2::timestamptz
                        OR (occurred_at = $2::timestamptz AND id < $3::uuid))
                 ORDER BY occurred_at DESC, id DESC

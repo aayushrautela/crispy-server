@@ -1,6 +1,6 @@
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import { secondsToTicks, watchCacheRecordToBaseItemDto } from '../metadata/media-item.mapper.js';
-import type { BaseItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
+import type { BaseItemDto, ProviderIdsDto, UserItemDataDto } from '../metadata/media-item.types.js';
 
 export type WatchReadRow = Record<string, unknown>;
 
@@ -166,6 +166,7 @@ function playableMediaItemDtoFromRow(playableItemId: string, titleItemId: string
     episodeAirDate: null,
   }, {
     Id: playableItemId,
+    ProviderIds: providerIdsFromRow(row),
     SeriesName: seriesName ?? null,
     SeasonId: isEpisode ? stringValue(row.season_id) || null : null,
     SeasonName: isEpisode ? nullableStringValue(row.season_name) : null,
@@ -183,7 +184,7 @@ function mediaItemDtoFromRow(itemId: string, row: WatchReadRow, overrides: Parti
     itemId: itemId,
     mediaType: stringValue(row.media_type) || 'movie',
     titleProvider: 'tmdb',
-    titleProviderId: stringValue(row.title_provider_id) || stringValue(row.tmdb_id) || itemId,
+    titleProviderId: stringValue(row.title_provider_id) || stringValue(row.tmdb_id) || '',
     titleMediaType: stringValue(row.media_type) === 'movie' ? 'movie' : 'show',
     title: stringValue(row.title) || itemId,
     subtitle: nullableStringValue(row.subtitle),
@@ -208,8 +209,17 @@ function mediaItemDtoFromRow(itemId: string, row: WatchReadRow, overrides: Parti
     episodeAirDate: null,
   }, {
     Id: itemId,
+    ProviderIds: providerIdsFromRow(row),
     ...overrides,
   });
+}
+
+function providerIdsFromRow(row: WatchReadRow): ProviderIdsDto {
+  return {
+    Tmdb: nullableStringValue(row.title_provider_id) ?? nullableStringValue(row.tmdb_id),
+    Imdb: nullableStringValue(row.imdb_id),
+    Tvdb: nullableStringValue(row.tvdb_id),
+  };
 }
 
 function origins(row: WatchReadRow): string[] {

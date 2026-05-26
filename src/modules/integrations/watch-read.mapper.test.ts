@@ -29,10 +29,25 @@ test('mapHistoryRow maps title-level show history rows', () => {
   assert.equal(item.Name, 'Cached Show Title');
   assert.equal(item.ProductionYear, 2022);
   assert.equal(item.CommunityRating, 9.1);
+  assert.deepEqual(item.ProviderIds, { Tmdb: null, Imdb: null, Tvdb: null });
   assert.equal(item.UserData!.Played, true);
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-11T08:00:00.000Z');
 });
+test('mapHistoryRow uses actual provider IDs when present', () => {
+  const item = mapHistoryRow({
+    id: '00000000-0000-4000-8000-000000000011',
+    item_id: movieId,
+    media_type: 'movie',
+    event_type: 'playback_completed',
+    occurred_at: '2026-05-12T08:00:00.000Z',
+    title_provider_id: '550',
+    imdb_id: 'tt0137523',
+    tvdb_id: '12345',
+  });
 
+  assert.equal(item.Id, encodePublicItemId(movieId));
+  assert.deepEqual(item.ProviderIds, { Tmdb: '550', Imdb: 'tt0137523', Tvdb: '12345' });
+});
 test('mapContinueWatchingRow maps movie progress', () => {
   const item = mapContinueWatchingRow({
     title_item_id: movieId,
@@ -53,6 +68,7 @@ test('mapContinueWatchingRow maps movie progress', () => {
 
   assert.equal(item.Id, encodePublicItemId(movieId));
   assert.equal(item.Type, 'Movie');
+  assert.equal(item.ProviderIds.Tmdb, null);
   assert.equal(item.UserData!.PlaybackPositionTicks, 1_200_000_000);
   assert.equal(item.UserData!.RuntimeTicks, 72_000_000_000);
   assert.equal(item.UserData!.PlayedPercentage, 1.67);
@@ -86,6 +102,7 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
   assert.equal(item.ParentIndexNumber, null);
   assert.equal(item.IndexNumber, null);
   assert.equal(item.EpisodeTitle, 'Cached Show Title');
+  assert.equal(item.ProviderIds.Tmdb, null);
   assert.equal(item.UserData!.PlaybackPositionTicks, 6_000_000_000);
   assert.equal(item.UserData!.PlayedPercentage, 33.33);
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-14T08:00:00.000Z');
@@ -111,6 +128,7 @@ test('mapContinueWatchingRow maps percentage-only imported progress (no seconds)
 
   assert.equal(item.Id, encodePublicItemId(movieId));
   assert.equal(item.Type, 'Movie');
+  assert.equal(item.ProviderIds.Tmdb, null);
   assert.equal(item.UserData!.PlaybackPositionTicks, 0);
   assert.equal(item.UserData!.RuntimeTicks, 0);
   assert.equal(item.UserData!.PlayedPercentage, 48.89);

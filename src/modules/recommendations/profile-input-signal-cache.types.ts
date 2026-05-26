@@ -8,7 +8,7 @@ import type {
   ProfileInputWatchlistItem,
 } from './profile-input-signal.types.js';
 
-export const PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION = 1;
+export const PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION = 2;
 
 export type ProfileInputSignalFamily = 'history' | 'ratings' | 'watchlist' | 'continueWatching' | 'trackedSeries';
 
