@@ -19,6 +19,8 @@ const profile = {
   id: 'profile-1',
   profileGroupId: '',
   name: 'Test Profile',
+  interfaceLanguage: 'en',
+  region: null,
   avatarKey: null,
   isKids: false,
   sortOrder: 0,

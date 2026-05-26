@@ -37,6 +37,14 @@ export class MetadataLanguageService {
 
   private async getProfileLanguage(profileId: string): Promise<string | null> {
     return withTransaction(async (client) => {
+      const result = await client.query(
+        `SELECT interface_language FROM identity.profiles WHERE id = $1::uuid AND deleted_at IS NULL`,
+        [profileId],
+      );
+      const profileLanguage = normalizeMetadataLanguage(typeof result.rows[0]?.interface_language === 'string' ? result.rows[0].interface_language : null);
+      if (profileLanguage) {
+        return profileLanguage;
+      }
       const value = await this.profileSettingsRepository.getFieldForProfile(client, profileId, 'interfaceLanguage');
       return normalizeMetadataLanguage(typeof value === 'string' ? value : null);
     });

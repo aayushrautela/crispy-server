@@ -21,13 +21,15 @@ export class ProfileService {
     });
   }
 
-  async create(accountId: string, input: { name: string; avatarKey?: string | null; isKids?: boolean; sortOrder?: number }): Promise<ProfileRecord> {
+  async create(accountId: string, input: { name: string; interfaceLanguage?: string; region?: string | null; avatarKey?: string | null; isKids?: boolean; sortOrder?: number }): Promise<ProfileRecord> {
     return withTransaction(async (client) => {
       const profileGroupId = await this.profileGroupService.ensureDefaultProfileGroup(client, { userId: accountId });
       const existing = await this.profileRepository.listForProfileGroup(client, profileGroupId);
       const profile = await this.profileRepository.create(client, {
         profileGroupId,
         name: input.name.trim(),
+        interfaceLanguage: input.interfaceLanguage ?? 'en',
+        region: input.region ?? null,
         avatarKey: input.avatarKey ?? null,
         isKids: input.isKids ?? false,
         sortOrder: input.sortOrder ?? existing.length,
@@ -43,12 +45,14 @@ export class ProfileService {
     });
   }
 
-  async update(accountId: string, profileId: string, input: { name?: string; avatarKey?: string | null; isKids?: boolean; sortOrder?: number }): Promise<ProfileRecord> {
+  async update(accountId: string, profileId: string, input: { name?: string; interfaceLanguage?: string; region?: string | null; avatarKey?: string | null; isKids?: boolean; sortOrder?: number }): Promise<ProfileRecord> {
     return withTransaction(async (client) => {
       const updated = await this.profileRepository.update(client, {
         profileId,
         ownerUserId: accountId,
         name: input.name?.trim(),
+        interfaceLanguage: input.interfaceLanguage,
+        region: input.region,
         avatarKey: input.avatarKey,
         isKids: input.isKids,
         sortOrder: input.sortOrder,

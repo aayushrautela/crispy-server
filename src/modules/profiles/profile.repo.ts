@@ -1,10 +1,13 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
+import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
 
 export type ProfileRecord = {
   id: string;
   profileGroupId: string;
   name: string;
+  interfaceLanguage: string;
+  region: string | null;
   avatarKey: string | null;
   isKids: boolean;
   sortOrder: number;
@@ -13,11 +16,32 @@ export type ProfileRecord = {
   updatedAt: string;
 };
 
+function normalizeRequiredProfileLanguage(value: unknown): string {
+  return normalizeMetadataLanguage(typeof value === 'string' ? value : null) ?? 'en';
+}
+
+function normalizeOptionalProfileRegion(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const region = value.trim().replaceAll('_', '-');
+  if (!/^[A-Za-z]{2}(?:-[A-Za-z0-9]{2,8}){0,2}$/.test(region)) return null;
+  return region
+    .split('-')
+    .map((part, index) => (index === 0 || part.length === 2 ? part.toUpperCase() : part.toLowerCase()))
+    .join('-');
+}
+
 function mapProfile(row: Record<string, unknown>): ProfileRecord {
   return {
     id: String(row.id),
     profileGroupId: String(row.profile_group_id),
     name: String(row.name),
+    interfaceLanguage: typeof row.interface_language === 'string' ? row.interface_language : 'en',
+    region: typeof row.region === 'string' ? row.region : null,
     avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
@@ -31,7 +55,7 @@ export class ProfileRepository {
   async findById(client: DbClient, profileId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
         FROM identity.profiles
         WHERE id = $1::uuid AND deleted_at IS NULL
       `,
@@ -56,7 +80,7 @@ export class ProfileRepository {
   async listForProfileGroup(client: DbClient, profileGroupId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
         FROM identity.profiles
         WHERE account_id = $1::uuid AND deleted_at IS NULL
         ORDER BY sort_order ASC, created_at ASC
@@ -96,7 +120,7 @@ export class ProfileRepository {
   async listAll(client: DbClient, limit: number, offset: number): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
         FROM identity.profiles
         WHERE deleted_at IS NULL
         ORDER BY updated_at DESC, created_at DESC
@@ -110,7 +134,7 @@ export class ProfileRepository {
   async findByIdForOwnerUser(client: DbClient, profileId: string, ownerUserId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
         FROM identity.profiles
         WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
       `,
@@ -122,6 +146,8 @@ export class ProfileRepository {
   async create(client: DbClient, params: {
     profileGroupId: string;
     name: string;
+    interfaceLanguage?: string;
+    region?: string | null;
     avatarKey?: string | null;
     isKids?: boolean;
     sortOrder: number;
@@ -129,11 +155,11 @@ export class ProfileRepository {
   }): Promise<ProfileRecord> {
     const result = await client.query(
       `
-        INSERT INTO identity.profiles (account_id, name, avatar_key, is_kids, sort_order, created_by_account_id)
-        VALUES ($1::uuid, $2, $3, $4, $5, $6::uuid)
-        RETURNING id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid)
+        RETURNING id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
       `,
-      [params.profileGroupId, params.name, params.avatarKey ?? null, params.isKids ?? false, params.sortOrder, params.createdByUserId],
+      [params.profileGroupId, params.name, normalizeRequiredProfileLanguage(params.interfaceLanguage ?? 'en'), normalizeOptionalProfileRegion(params.region), params.avatarKey ?? null, params.isKids ?? false, params.sortOrder, params.createdByUserId],
     );
     const profile = mapProfile(result.rows[0]);
     await client.query(
@@ -155,6 +181,8 @@ export class ProfileRepository {
     profileId: string;
     ownerUserId: string;
     name?: string;
+    interfaceLanguage?: string;
+    region?: string | null;
     avatarKey?: string | null;
     isKids?: boolean;
     sortOrder?: number;
@@ -169,17 +197,21 @@ export class ProfileRepository {
         UPDATE identity.profiles
         SET
           name = $3,
-          avatar_key = $4,
-          is_kids = $5,
-          sort_order = $6,
+          interface_language = $4,
+          region = $5,
+          avatar_key = $6,
+          is_kids = $7,
+          sort_order = $8,
           updated_at = now()
         WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
-        RETURNING id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        RETURNING id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
       `,
       [
         params.profileId,
         current.profileGroupId,
         params.name ?? current.name,
+        params.interfaceLanguage === undefined ? current.interfaceLanguage : normalizeRequiredProfileLanguage(params.interfaceLanguage),
+        params.region === undefined ? current.region : normalizeOptionalProfileRegion(params.region),
         params.avatarKey === undefined ? current.avatarKey : params.avatarKey,
         params.isKids ?? current.isKids,
         params.sortOrder ?? current.sortOrder,

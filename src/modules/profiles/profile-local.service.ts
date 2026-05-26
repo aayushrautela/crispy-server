@@ -1,10 +1,13 @@
 import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
+import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
 import { RecommendationOutboxService } from '../outbox/recommendation-outbox.service.js';
 
 export type ProfileRecord = {
   id: string;
   name: string;
+  interfaceLanguage: string;
+  region: string | null;
   avatarKey: string | null;
   isKids: boolean;
   sortOrder: number;
@@ -13,10 +16,30 @@ export type ProfileRecord = {
   updatedAt: string;
 };
 
+export type ProfileCreateInput = {
+  name: string;
+  interfaceLanguage: string;
+  region?: string | null;
+  avatarKey?: string | null;
+  isKids?: boolean;
+  sortOrder?: number;
+};
+
+export type ProfileUpdateInput = {
+  name?: string;
+  interfaceLanguage?: string;
+  region?: string | null;
+  avatarKey?: string | null;
+  isKids?: boolean;
+  sortOrder?: number;
+};
+
 function mapRow(row: Record<string, unknown>): ProfileRecord {
   return {
     id: String(row.id),
     name: String(row.name),
+    interfaceLanguage: typeof row.interface_language === 'string' ? row.interface_language : 'en',
+    region: typeof row.region === 'string' ? row.region : null,
     avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
@@ -24,6 +47,42 @@ function mapRow(row: Record<string, unknown>): ProfileRecord {
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
+}
+
+function normalizeRequiredName(value: unknown): string {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (!name) {
+    throw new HttpError(400, 'Profile name is required.');
+  }
+  return name;
+}
+
+export function normalizeRequiredProfileLanguage(value: unknown): string {
+  const normalized = normalizeMetadataLanguage(typeof value === 'string' ? value : null);
+  if (!normalized) {
+    throw new HttpError(400, 'Profile language is required.');
+  }
+  return normalized;
+}
+
+export function normalizeOptionalProfileRegion(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw new HttpError(400, 'Profile region must be a string.');
+  }
+  const region = value.trim().replaceAll('_', '-');
+  if (!region) {
+    return null;
+  }
+  if (!/^[A-Za-z]{2}(?:-[A-Za-z0-9]{2,8}){0,2}$/.test(region)) {
+    throw new HttpError(400, 'Profile region must be a valid country or region code.');
+  }
+  return region
+    .split('-')
+    .map((part, index) => (index === 0 || part.length === 2 ? part.toUpperCase() : part.toLowerCase()))
+    .join('-');
 }
 
 export class ProfileLocalService {
@@ -34,7 +93,7 @@ export class ProfileLocalService {
   async listForAccount(authSubject: string): Promise<ProfileRecord[]> {
     return withDbClient(async (client) => {
       const result = await client.query(
-        `SELECT id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+        `SELECT id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
          FROM identity.profiles
          WHERE account_id = $1::uuid AND deleted_at IS NULL
          ORDER BY sort_order ASC, created_at ASC`,
@@ -46,9 +105,12 @@ export class ProfileLocalService {
 
   async create(
     authSubject: string,
-    input: { name: string; avatarKey?: string | null; isKids?: boolean; sortOrder?: number },
+    input: ProfileCreateInput,
   ): Promise<ProfileRecord> {
     return withDbClient(async (client) => {
+      const name = normalizeRequiredName(input.name);
+      const interfaceLanguage = normalizeRequiredProfileLanguage(input.interfaceLanguage);
+      const region = normalizeOptionalProfileRegion(input.region);
       const countResult = await client.query(
         `SELECT COUNT(*) AS cnt FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL`,
         [authSubject],
@@ -56,10 +118,10 @@ export class ProfileLocalService {
       const count = Number(countResult.rows[0]?.cnt ?? 0);
 
       const result = await client.query(
-        `INSERT INTO identity.profiles (account_id, name, avatar_key, is_kids, sort_order, created_by_account_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6::uuid)
-         RETURNING id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at`,
-        [authSubject, input.name.trim(), input.avatarKey ?? null, input.isKids ?? false, input.sortOrder ?? count, authSubject],
+        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid)
+         RETURNING id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at`,
+        [authSubject, name, interfaceLanguage, region, input.avatarKey ?? null, input.isKids ?? false, input.sortOrder ?? count, authSubject],
       );
 
       const profile = result.rows[0];
@@ -89,7 +151,7 @@ export class ProfileLocalService {
   async update(
     authSubject: string,
     profileId: string,
-    input: { name?: string; avatarKey?: string | null; isKids?: boolean; sortOrder?: number },
+    input: ProfileUpdateInput,
   ): Promise<ProfileRecord> {
     return withDbClient(async (client) => {
       const updates: string[] = ['updated_at = now()'];
@@ -98,7 +160,17 @@ export class ProfileLocalService {
 
       if (input.name !== undefined) {
         updates.push(`name = $${paramIdx}`);
-        params.push(input.name.trim());
+        params.push(normalizeRequiredName(input.name));
+        paramIdx++;
+      }
+      if (input.interfaceLanguage !== undefined) {
+        updates.push(`interface_language = $${paramIdx}`);
+        params.push(normalizeRequiredProfileLanguage(input.interfaceLanguage));
+        paramIdx++;
+      }
+      if (input.region !== undefined) {
+        updates.push(`region = $${paramIdx}`);
+        params.push(normalizeOptionalProfileRegion(input.region));
         paramIdx++;
       }
       if (input.avatarKey !== undefined) {
@@ -124,7 +196,7 @@ export class ProfileLocalService {
         `UPDATE identity.profiles
          SET ${updates.join(', ')}
          WHERE id = $${paramIdx}::uuid AND account_id = $${paramIdx + 1}::uuid AND deleted_at IS NULL
-         RETURNING id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at`,
+          RETURNING id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at`,
         params,
       );
 
@@ -136,7 +208,7 @@ export class ProfileLocalService {
   async requireOwnedProfile(authSubject: string, profileId: string): Promise<ProfileRecord> {
     return withDbClient(async (client) => {
       const result = await client.query(
-        `SELECT id, name, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+        `SELECT id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
          FROM identity.profiles
          WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL`,
         [profileId, authSubject],

@@ -162,6 +162,8 @@ export async function registerProfileRoutes(
     const body = (request.body ?? {}) as Record<string, unknown>;
     const profile = await profileService.create(actor.authSubject, {
       name: String(body.name ?? '').trim(),
+      interfaceLanguage: typeof body.interfaceLanguage === 'string' ? body.interfaceLanguage : '',
+      region: body.region === null || typeof body.region === 'string' ? body.region : undefined,
       avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : null,
       isKids: Boolean(body.isKids),
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
@@ -176,6 +178,8 @@ export async function registerProfileRoutes(
     const body = (request.body ?? {}) as Record<string, unknown>;
     const profile = await profileService.update(actor.authSubject, params.profileId, {
       name: typeof body.name === 'string' ? body.name : undefined,
+      interfaceLanguage: typeof body.interfaceLanguage === 'string' ? body.interfaceLanguage : undefined,
+      region: body.region === null || typeof body.region === 'string' ? body.region : undefined,
       avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : undefined,
       isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,

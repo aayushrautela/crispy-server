@@ -44,6 +44,8 @@ CREATE TABLE identity.profiles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid NOT NULL REFERENCES identity.accounts(id) ON DELETE CASCADE,
   name text NOT NULL,
+  interface_language text NOT NULL DEFAULT 'en',
+  region text,
   avatar_key text,
   is_kids boolean NOT NULL DEFAULT false,
   sort_order integer NOT NULL DEFAULT 0,
