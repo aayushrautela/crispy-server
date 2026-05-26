@@ -232,7 +232,7 @@ export class ProviderImportService {
       const activeProviderSession = await this.ensureImportableSessionAccount(client, providerSession);
       const queuedJob = await this.jobsRepository.create(client, {
         profileId,
-        profileGroupId: '',
+        profileGroupId: null,
         provider,
         requestedByUserId: userId,
         status: 'queued',
@@ -471,7 +471,7 @@ export class ProviderImportService {
       });
       const pendingJob = await this.jobsRepository.create(client, {
         profileId,
-        profileGroupId: '',
+        profileGroupId: null,
         provider,
         requestedByUserId: userId,
         status: 'oauth_pending',
@@ -754,7 +754,7 @@ export class ProviderImportService {
   private async getLocalProfile(profileId: string): Promise<ProfileRecord | null> {
     try {
       const result = await db.query(
-        `SELECT id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+        `SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
          FROM identity.profiles
          WHERE id = $1::uuid AND deleted_at IS NULL`,
         [profileId],
@@ -763,7 +763,7 @@ export class ProviderImportService {
       const r = result.rows[0];
       return {
         id: String(r.id),
-        profileGroupId: '',
+        profileGroupId: String(r.profile_group_id),
         name: String(r.name),
         interfaceLanguage: typeof r.interface_language === 'string' ? r.interface_language : 'en',
         region: typeof r.region === 'string' ? r.region : null,

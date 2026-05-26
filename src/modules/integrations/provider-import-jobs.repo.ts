@@ -5,7 +5,7 @@ import type { ProviderImportJobMode, ProviderImportJobStatus, ProviderImportProv
 export type ProviderImportJobRecord = {
   id: string;
   profileId: string;
-  profileGroupId: string;
+  profileGroupId: string | null;
   provider: ProviderImportProvider;
   mode: ProviderImportJobMode;
   status: ProviderImportJobStatus;
@@ -28,7 +28,7 @@ function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
   return {
     id: String(row.id),
     profileId: String(row.profile_id),
-    profileGroupId: String(row.profile_group_id),
+    profileGroupId: typeof row.profile_group_id === 'string' ? row.profile_group_id : null,
     provider: String(row.provider) as ProviderImportProvider,
     mode: String(row.mode) as ProviderImportJobMode,
     status: String(row.status) as ProviderImportJobStatus,
@@ -46,7 +46,7 @@ function mapJob(row: Record<string, unknown>): ProviderImportJobRecord {
 export class ProviderImportJobsRepository {
   async create(client: DbClient, params: {
     profileId: string;
-    profileGroupId: string;
+    profileGroupId: string | null;
     provider: ProviderImportProvider;
     requestedByUserId: string;
     status: ProviderImportJobStatus;
@@ -61,7 +61,7 @@ export class ProviderImportJobsRepository {
           status,
           requested_by_user_id
         )
-        VALUES ($1::uuid, $2, $3, 'replace_import', $4, $5::uuid)
+        VALUES ($1::uuid, $2::uuid, $3, 'replace_import', $4, $5::uuid)
         RETURNING id, profile_id, profile_group_id, provider, mode, status, requested_by_user_id,
                   checkpoint_json, summary_json, error_json, created_at, started_at, finished_at, updated_at
       `,
