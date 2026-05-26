@@ -2,15 +2,11 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { PersonalAccessTokenService } from '../auth/personal-access-token.service.js';
 import { ExternalAuthAdminService } from '../auth/external-auth-admin.service.js';
-import { ProfileGroupRepository } from '../profile-groups/profile-group.repo.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
-import { AccountSettingsRepository } from './account-settings.repo.js';
 import { UserRepository } from './user.repo.js';
 
 export type DeletedAccountResult = {
   appUserId: string;
-  deletedProfileGroups: number;
-  transferredProfileGroups: number;
+  deletedProfiles: number;
   revokedPersonalAccessTokens: number;
   deletedExternalAuthUser: boolean;
   warnings: string[];
@@ -21,9 +17,6 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 export class AccountDeletionService {
   constructor(
     private readonly personalAccessTokenService = new PersonalAccessTokenService(),
-    private readonly profileGroupRepository = new ProfileGroupRepository(),
-    private readonly profileRepository = new ProfileRepository(),
-    private readonly accountSettingsRepository = new AccountSettingsRepository(),
     private readonly userRepository = new UserRepository(),
     private readonly externalAuthAdminService = new ExternalAuthAdminService(),
     private readonly transactionRunner: TransactionRunner = withTransaction,
@@ -34,46 +27,32 @@ export class AccountDeletionService {
     const warnings: string[] = [];
 
     const deletion = await this.transactionRunner(async (client) => {
-      const ownedProfileGroupIds = await this.profileGroupRepository.findOwnedProfileGroupIds(client, params.appUserId);
-      let deletedOwnedProfileGroups = 0;
-      let transferredOwnedProfileGroups = 0;
+      const avatarResult = await client.query(
+        `SELECT avatar_key
+         FROM identity.profiles
+         WHERE account_id = $1::uuid
+           AND avatar_key IS NOT NULL
+           AND btrim(avatar_key) <> ''`,
+        [params.appUserId],
+      );
+      const avatarKeys = avatarResult.rows.map((row) => String(row.avatar_key));
 
-      for (const profileGroupId of ownedProfileGroupIds) {
-        const members = await this.profileGroupRepository.listMembers(client, profileGroupId);
-        const nextOwner = members.find((member) => member.userId !== params.appUserId);
-        if (nextOwner) {
-          await this.profileGroupRepository.transferOwnership(client, {
-            profileGroupId,
-            nextOwnerUserId: nextOwner.userId,
-          });
-          transferredOwnedProfileGroups += 1;
-          continue;
-        }
+      await client.query('DELETE FROM private.account_secrets WHERE account_id = $1::uuid', [params.appUserId]);
+      await client.query('DELETE FROM identity.account_preferences WHERE account_id = $1::uuid', [params.appUserId]);
+      const profileResult = await client.query('DELETE FROM identity.profiles WHERE account_id = $1::uuid RETURNING id', [params.appUserId]);
 
-        const avatarKeys = await this.profileRepository.listAvatarKeysForProfileGroups(client, [profileGroupId]);
-
-        const deleted = await this.profileGroupRepository.deleteById(client, profileGroupId);
-        if (deleted) {
-          deletedOwnedProfileGroups += 1;
-          if (avatarKeys.length > 0) {
-            warnings.push(
-              `Deleted profile group ${profileGroupId} referenced ${avatarKeys.length} avatar key(s), but avatar storage cleanup is not configured locally.`,
-            );
-          }
-        } else {
-          warnings.push(`Unable to delete empty profile group ${profileGroupId}.`);
-        }
+      if (avatarKeys.length > 0) {
+        warnings.push(
+          `Deleted account referenced ${avatarKeys.length} avatar key(s), but avatar storage cleanup is not configured locally.`,
+        );
       }
-
-      await client.query('DELETE FROM account_secrets WHERE app_user_id = $1::uuid', [params.appUserId]);
-      await client.query('DELETE FROM account_settings WHERE app_user_id = $1::uuid', [params.appUserId]);
 
       const deletedUser = await this.userRepository.deleteById(client, params.appUserId);
       if (!deletedUser) {
         throw new HttpError(404, 'Account not found.');
       }
 
-      return { deletedOwnedProfileGroups, transferredOwnedProfileGroups };
+      return { deletedProfiles: profileResult.rowCount ?? 0 };
     });
 
     let deletedExternalAuthUser = false;
@@ -83,8 +62,7 @@ export class AccountDeletionService {
 
     return {
       appUserId: params.appUserId,
-      deletedProfileGroups: deletion.deletedOwnedProfileGroups,
-      transferredProfileGroups: deletion.transferredOwnedProfileGroups,
+      deletedProfiles: deletion.deletedProfiles,
       revokedPersonalAccessTokens,
       deletedExternalAuthUser,
       warnings,

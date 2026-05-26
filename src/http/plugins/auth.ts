@@ -50,7 +50,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       throw new HttpError(401, 'Invalid bearer token.');
     }
 
-    // Bootstrap local account + default profile on first login
     const client = await db.connect();
     try {
       await client.query('SELECT identity.upsert_account($1, $2, $3)', [
@@ -59,7 +58,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         null,
       ]);
 
-      // Ensure at least one active profile exists
       const profileCheck = await client.query(
         `SELECT id FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL LIMIT 1`,
         [payload.sub],

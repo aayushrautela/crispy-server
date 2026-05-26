@@ -369,19 +369,19 @@ export class AdminBulkJobRepository {
     const cursorAccountId = cursorParts.length === 2 ? cursorParts[0] : null;
     const cursorProfileId = cursorParts.length === 2 ? cursorParts[1] : null;
     const params: unknown[] = [cursorAccountId, cursorProfileId, limit];
-    const tierClause = input.scope.type === 'tier' ? `AND COALESCE(account_settings.settings_json->>'pricingTier', 'free') = $4` : '';
+    const tierClause = input.scope.type === 'tier' ? `AND COALESCE(account_preferences.settings_json->>'pricingTier', 'free') = $4` : '';
     if (input.scope.type === 'tier') {
       params.push(input.scope.tier);
     }
     const result = await client.query(
-      `SELECT profile_groups.owner_user_id::text AS account_id,
+      `SELECT profiles.account_id::text AS account_id,
               profiles.id::text AS profile_id
-       FROM profiles
-       INNER JOIN profile_groups ON profile_groups.id = profiles.profile_group_id
-       LEFT JOIN account_settings ON account_settings.app_user_id = profile_groups.owner_user_id
-       WHERE ($1::uuid IS NULL OR (profile_groups.owner_user_id, profiles.id) > ($1::uuid, $2::uuid))
+       FROM identity.profiles profiles
+       LEFT JOIN identity.account_preferences account_preferences ON account_preferences.account_id = profiles.account_id
+       WHERE profiles.deleted_at IS NULL
+         AND ($1::uuid IS NULL OR (profiles.account_id, profiles.id) > ($1::uuid, $2::uuid))
          ${tierClause}
-       ORDER BY profile_groups.owner_user_id ASC, profiles.id ASC
+       ORDER BY profiles.account_id ASC, profiles.id ASC
        LIMIT $3`,
       params,
     );

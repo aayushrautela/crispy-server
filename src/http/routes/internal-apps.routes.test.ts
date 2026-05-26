@@ -21,8 +21,8 @@ import type { ProfileRecord } from '../../modules/profiles/profile.repo.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPurpose, AppScope } from '../../modules/apps/app-principal.types.js';
 
 setTestEnv({
-  SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  AUTH_BASE_URL: 'http://localhost:54321',
+  AUTH_ADMIN_API_KEY: 'service-role-key',
   JWT_SECRET: 'test-jwt-secret',
   RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: 'unused-token-hash',
 });

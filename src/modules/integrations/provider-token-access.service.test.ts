@@ -29,7 +29,7 @@ const connectedSession = {
 
 test('getAccessTokenForAccountProfile throws 404 when profile not found', async () => {
   const service = new ProviderTokenAccessService(
-    { findByIdForOwnerUser: async () => null } as never,
+    { requireOwnedProfile: async () => { throw new HttpError(404, 'Profile not found.'); } } as never,
     {} as never,
     {} as never,
     noopTransaction,
@@ -47,7 +47,7 @@ test('getAccessTokenForAccountProfile throws 404 when profile not found', async 
 
 test('getAccessTokenForAccountProfile throws 404 when no connected provider session', async () => {
   const service = new ProviderTokenAccessService(
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    { requireOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
     { getConnectedSession: async () => null } as never,
     {} as never,
     noopTransaction,
@@ -65,7 +65,7 @@ test('getAccessTokenForAccountProfile throws 404 when no connected provider sess
 
 test('getAccessTokenForAccountProfile returns access token when connected', async () => {
   const service = new ProviderTokenAccessService(
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    { requireOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
     { getConnectedSession: async () => connectedSession } as never,
     {
       refreshConnectedSession: async (providerSession: unknown) => ({ providerSession, refreshed: false }),
@@ -82,7 +82,7 @@ test('getAccessTokenForAccountProfile returns access token when connected', asyn
 
 test('getTokenStatusForAccountProfile returns token state', async () => {
   const service = new ProviderTokenAccessService(
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    { requireOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
     {
       getConnectedSession: async () => ({
         ...connectedSession,
@@ -102,7 +102,7 @@ test('getTokenStatusForAccountProfile returns token state', async () => {
 test('getAccessTokenForAccountProfile passes force refresh through to refresh service', async () => {
   const calls: Array<{ options: { force?: boolean } | undefined }> = [];
   const service = new ProviderTokenAccessService(
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    { requireOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
     {
       getConnectedSession: async () => ({
         ...connectedSession,
@@ -127,7 +127,7 @@ test('getAccessTokenForAccountProfile passes force refresh through to refresh se
 
 test('getTokenStatusForAccountProfile exposes refresh metadata fields', async () => {
   const service = new ProviderTokenAccessService(
-    { findByIdForOwnerUser: async () => ({ id: 'profile-1' }) } as never,
+    { requireOwnedProfile: async () => ({ id: 'profile-1' }) } as never,
     {
       getConnectedSession: async () => ({
         ...connectedSession,

@@ -70,7 +70,7 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
   const { ProviderImportService } = await import('./provider-import.service.js');
 
   const profileRepository = {
-    findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
+    requireOwnedProfile: async () => ({ id: 'profile-1' }),
   };
   const providerAccount = {
     id: 'acct-1',
@@ -135,7 +135,7 @@ test('disconnectProviderSession surfaces trakt revoke failures', async () => {
   const { HttpError } = await import('../../lib/errors.js');
 
   const profileRepository = {
-    findByIdForOwnerUser: async () => ({ id: 'profile-1' }),
+    requireOwnedProfile: async () => ({ id: 'profile-1' }),
   };
   const providerAccountsRepository = {
     findByProfileAndProvider: async () => ({

@@ -22,8 +22,8 @@ function mapProfile(row: Record<string, unknown>): ProfileRecord {
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
     createdByUserId: typeof row.created_by_user_id === 'string' ? row.created_by_user_id : null,
-    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'profiles.created_at'),
-    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'profiles.updated_at'),
+    createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'identity.profiles.created_at'),
+    updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'identity.profiles.updated_at'),
   };
 }
 
@@ -31,9 +31,9 @@ export class ProfileRepository {
   async findById(client: DbClient, profileId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
-        FROM profiles
-        WHERE id = $1::uuid
+        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        FROM identity.profiles
+        WHERE id = $1::uuid AND deleted_at IS NULL
       `,
       [profileId],
     );
@@ -43,10 +43,9 @@ export class ProfileRepository {
   async findOwnerUserIdById(client: DbClient, profileId: string): Promise<string | null> {
     const result = await client.query(
       `
-        SELECT pg.owner_user_id
-        FROM profiles p
-        INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
-        WHERE p.id = $1::uuid
+        SELECT account_id AS owner_user_id
+        FROM identity.profiles
+        WHERE id = $1::uuid AND deleted_at IS NULL
       `,
       [profileId],
     );
@@ -57,9 +56,9 @@ export class ProfileRepository {
   async listForProfileGroup(client: DbClient, profileGroupId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
-        FROM profiles
-        WHERE profile_group_id = $1::uuid
+        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        FROM identity.profiles
+        WHERE account_id = $1::uuid AND deleted_at IS NULL
         ORDER BY sort_order ASC, created_at ASC
       `,
       [profileGroupId],
@@ -75,8 +74,9 @@ export class ProfileRepository {
     const result = await client.query(
       `
         SELECT DISTINCT avatar_key
-        FROM profiles
-        WHERE profile_group_id = ANY($1::uuid[])
+        FROM identity.profiles
+        WHERE account_id = ANY($1::uuid[])
+          AND deleted_at IS NULL
           AND avatar_key IS NOT NULL
           AND btrim(avatar_key) <> ''
         ORDER BY avatar_key ASC
@@ -90,25 +90,15 @@ export class ProfileRepository {
   }
 
   async listForOwnerUser(client: DbClient, ownerUserId: string): Promise<ProfileRecord[]> {
-    const result = await client.query(
-      `
-        SELECT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order,
-               p.created_by_user_id, p.created_at, p.updated_at
-        FROM profiles p
-        INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
-        WHERE pg.owner_user_id = $1::uuid
-        ORDER BY p.sort_order ASC, p.created_at ASC
-      `,
-      [ownerUserId],
-    );
-    return result.rows.map((row) => mapProfile(row));
+    return this.listForProfileGroup(client, ownerUserId);
   }
 
   async listAll(client: DbClient, limit: number, offset: number): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
-        FROM profiles
+        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        FROM identity.profiles
+        WHERE deleted_at IS NULL
         ORDER BY updated_at DESC, created_at DESC
         LIMIT $1 OFFSET $2
       `,
@@ -120,10 +110,9 @@ export class ProfileRepository {
   async findByIdForOwnerUser(client: DbClient, profileId: string, ownerUserId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT p.id, p.profile_group_id, p.name, p.avatar_key, p.is_kids, p.sort_order, p.created_by_user_id, p.created_at, p.updated_at
-        FROM profiles p
-        INNER JOIN profile_groups pg ON pg.id = p.profile_group_id
-        WHERE p.id = $1::uuid AND pg.owner_user_id = $2::uuid
+        SELECT id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        FROM identity.profiles
+        WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
       `,
       [profileId, ownerUserId],
     );
@@ -140,13 +129,26 @@ export class ProfileRepository {
   }): Promise<ProfileRecord> {
     const result = await client.query(
       `
-        INSERT INTO profiles (profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id)
+        INSERT INTO identity.profiles (account_id, name, avatar_key, is_kids, sort_order, created_by_account_id)
         VALUES ($1::uuid, $2, $3, $4, $5, $6::uuid)
-        RETURNING id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        RETURNING id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
       `,
       [params.profileGroupId, params.name, params.avatarKey ?? null, params.isKids ?? false, params.sortOrder, params.createdByUserId],
     );
-    return mapProfile(result.rows[0]);
+    const profile = mapProfile(result.rows[0]);
+    await client.query(
+      `INSERT INTO identity.profile_members (profile_id, account_id, role)
+       VALUES ($1::uuid, $2::uuid, 'owner')
+       ON CONFLICT (profile_id, account_id) DO UPDATE SET role = EXCLUDED.role`,
+      [profile.id, params.profileGroupId],
+    );
+    await client.query(
+      `INSERT INTO identity.profile_preferences (profile_id, settings_json)
+       VALUES ($1::uuid, '{}'::jsonb)
+       ON CONFLICT (profile_id) DO NOTHING`,
+      [profile.id],
+    );
+    return profile;
   }
 
   async update(client: DbClient, params: {
@@ -164,15 +166,15 @@ export class ProfileRepository {
 
     const result = await client.query(
       `
-        UPDATE profiles
+        UPDATE identity.profiles
         SET
           name = $3,
           avatar_key = $4,
           is_kids = $5,
           sort_order = $6,
           updated_at = now()
-        WHERE id = $1::uuid AND profile_group_id = $2::uuid
-        RETURNING id, profile_group_id, name, avatar_key, is_kids, sort_order, created_by_user_id, created_at, updated_at
+        WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
+        RETURNING id, account_id AS profile_group_id, name, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
       `,
       [
         params.profileId,

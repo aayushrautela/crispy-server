@@ -199,7 +199,7 @@ test('account MDBList secret routes return metadata and delegate to account sett
 test('me route returns AI client configuration in account settings', async (t) => {
   const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
   const { FeatureEntitlementService } = await import('../../modules/entitlements/feature-entitlement.service.js');
-  const { ProfileService } = await import('../../modules/profiles/profile.service.js');
+  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
   const accountOriginals = {
     getSettings: AccountSettingsService.prototype.getSettings,
     getAiClientSettingsForUser: AccountSettingsService.prototype.getAiClientSettingsForUser,
@@ -207,7 +207,7 @@ test('me route returns AI client configuration in account settings', async (t) =
     getMetadataClientSettingsForUser: FeatureEntitlementService.prototype.getMetadataClientSettingsForUser,
   };
   const profileOriginals = {
-    listForAccount: ProfileService.prototype.listForAccount,
+    listForAccount: ProfileLocalService.prototype.listForAccount,
   };
 
   t.after(() => {
@@ -215,7 +215,7 @@ test('me route returns AI client configuration in account settings', async (t) =
     AccountSettingsService.prototype.getAiClientSettingsForUser = accountOriginals.getAiClientSettingsForUser;
     AccountSettingsService.prototype.getPricingTierForUser = accountOriginals.getPricingTierForUser;
     FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = accountOriginals.getMetadataClientSettingsForUser;
-    ProfileService.prototype.listForAccount = profileOriginals.listForAccount;
+    ProfileLocalService.prototype.listForAccount = profileOriginals.listForAccount;
   });
 
   AccountSettingsService.prototype.getSettings = async function () {
@@ -235,7 +235,7 @@ test('me route returns AI client configuration in account settings', async (t) =
   FeatureEntitlementService.prototype.getMetadataClientSettingsForUser = async function () {
     return { hasMdbListAccess: false };
   };
-  ProfileService.prototype.listForAccount = async function () {
+  ProfileLocalService.prototype.listForAccount = async function () {
     return [{
       id: 'profile-1',
       profileGroupId: 'group-1',
@@ -250,7 +250,6 @@ test('me route returns AI client configuration in account settings', async (t) =
   };
 
   const { registerMeRoutes } = await import('./me.js');
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
   const app = await buildTestApp((app) => registerMeRoutes(app, { profileService: new ProfileLocalService(), accountSettingsService: new AccountSettingsService() }));
   t.after(async () => { await app.close(); });
 

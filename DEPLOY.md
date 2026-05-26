@@ -43,13 +43,13 @@
     ```env
     APP_PUBLIC_URL=https://api.crispytv.tech
     APP_DISPLAY_NAME=CrispyTV
-    SUPABASE_URL=https://your-project.supabase.co
-    SUPABASE_PUBLISHABLE_KEY=replace_with_supabase_publishable_key
+    AUTH_BASE_URL=https://your-project.supabase.co
+    AUTH_PUBLISHABLE_KEY=replace_with_auth_publishable_key
     AUTH_JWT_AUDIENCE=authenticated
-    SUPABASE_SECRET_KEY=replace_with_supabase_secret_key_optional
+    AUTH_ADMIN_API_KEY=replace_with_auth_admin_api_key_optional
     ```
 
-   Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for account/profile authorization, canonical TMDB-backed media identity, API contracts, and stored recommendation snapshots. Supabase may store target user interaction signals behind Fastify; the recommendation engine does not read Supabase directly by default.
+   Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for account/profile authorization, canonical TMDB-backed media identity, API contracts, target user interaction signals, and stored recommendation snapshots. Supabase is not used as an app-data store and the recommendation engine does not read Supabase directly by default.
 
    Do not deploy a separate recommendation worker from this repository. The `worker` container/process in this repo is the internal BullMQ worker for backend queue jobs; scaling it affects internal async work only and does not scale recommendation generation.
 

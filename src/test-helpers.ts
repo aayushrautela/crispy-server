@@ -10,7 +10,7 @@ const REQUIRED_ENV: Record<string, string> = {
   REDIS_URL: 'redis://127.0.0.1:6379/0',
   APP_PUBLIC_URL: 'https://api.crispytv.tech',
   APP_DISPLAY_NAME: 'CrispyTV',
-  SUPABASE_URL: 'https://example.supabase.co',
+  AUTH_BASE_URL: 'https://example.supabase.co',
   AUTH_JWT_AUDIENCE: 'authenticated',
   TMDB_API_KEY: 'tmdb-test-key',
   SECRETS_ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',

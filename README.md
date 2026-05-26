@@ -57,7 +57,7 @@ The external recommendation engine is a separate event-driven service. It is not
 
 2. Fill required values in `.env`.
 
-   Key groups include `DATABASE_URL`, `REDIS_URL`, external auth settings such as `SUPABASE_URL`/`AUTH_JWT_AUDIENCE`, optional AI credentials, provider import credentials, and recommendation outbox/service-auth settings when testing cross-service flows.
+   Key groups include `DATABASE_URL`, `REDIS_URL`, external auth settings such as `AUTH_BASE_URL`/`AUTH_JWT_AUDIENCE`, optional AI credentials, provider import credentials, and recommendation outbox/service-auth settings when testing cross-service flows.
 
 3. Start the local stack:
 

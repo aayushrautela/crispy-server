@@ -10,8 +10,8 @@ import type { RecommendationAiPlanRequest, RecommendationAiPlanResponse } from '
 import { RecommendationAiPlanService } from '../../modules/recommendations/recommendation-ai-plan.service.js';
 
 setTestEnv({
-  SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  AUTH_BASE_URL: 'http://localhost:54321',
+  AUTH_ADMIN_API_KEY: 'service-role-key',
   JWT_SECRET: 'test-jwt-secret',
   RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: 'unused-token-hash',
 });

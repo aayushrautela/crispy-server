@@ -64,7 +64,7 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
 
   const service = new pkg.AiSearchService(
     {
-      findByIdForOwnerUser: async () => {
+      requireOwnedProfile: async () => {
         profileChecks += 1;
         return { id: 'profile-1' };
       },
@@ -82,38 +82,9 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
     } as never,
     {
       resolveAiCandidate: async () => ({
-        kind: 'search_result',
-        mediaItem: {
-          mediaType: 'movie',
-          Id: 'movie:tmdb:1',
-          title: 'Alpha Movie',
-          OriginalTitle: null,
-          subtitle: null,
-          Overview: null,
-          images: { poster: { small: 'https://img.example/alpha.jpg', medium: 'https://img.example/alpha.jpg', large: 'https://img.example/alpha.jpg' }, backdrop: { small: null, medium: null, large: null }, logo: { small: null, medium: null, large: null }, still: { small: null, medium: null, large: null } },
-          releaseDate: null,
-          releaseYear: 2024,
-          rating: 8.1,
-          Genres: [],
-          runtimeMinutes: null,
-          Status: null,
-          maturityRating: null,
-          Certification: null,
-          RemoteTrailers: null,
-          trailerThumbnailUrl: null,
-          PosterColor: null,
-          BackdropColor: null,
-          externalIds: { tmdb: 1, imdb: null, tvdb: null },
-          parent: null,
-          showTmdbId: null,
-          seasonNumber: null,
-          episodeNumber: null,
-          absoluteEpisodeNumber: null,
-          EpisodeTitle: null,
-          AirDate: null,
-        },
-        context: {},
-        presentation: { preferredSize: 'poster', sectionId: null, sectionTitle: null },
+        Id: 'movie:tmdb:1',
+        Type: 'Movie',
+        Name: 'Alpha Movie',
       }),
     } as never,
     new ShortLivedRequestCoalescer(10_000),

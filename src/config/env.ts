@@ -79,11 +79,10 @@ function optionalBaseUrl(name: string): string | undefined {
   return value ? value.replace(/\/+$/, '') : undefined;
 }
 
-// Auth provider config (read from AUTH_* env vars with SUPABASE_* fallback for migration)
-const authBaseUrl = optionalBaseUrl('AUTH_BASE_URL') ?? requireBaseUrl('SUPABASE_URL');
+const authBaseUrl = requireBaseUrl('AUTH_BASE_URL');
 const authAuthBaseUrl = `${authBaseUrl}/auth/v1`;
-const authPublishableKey = optionalEnv('AUTH_PUBLISHABLE_KEY') ?? optionalEnv('SUPABASE_PUBLISHABLE_KEY') ?? '';
-const authAdminApiKey = optionalEnv('AUTH_ADMIN_API_KEY') ?? optionalEnv('SUPABASE_SECRET_KEY') ?? optionalEnv('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const authPublishableKey = optionalEnv('AUTH_PUBLISHABLE_KEY') ?? '';
+const authAdminApiKey = optionalEnv('AUTH_ADMIN_API_KEY') ?? '';
 
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
@@ -98,7 +97,6 @@ export const env = {
   redisUrl: requireEnv('REDIS_URL'),
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
-  // Auth provider config - primary fields
   authBaseUrl,
   authPublishableKey,
   authAdminApiKey,
@@ -106,12 +104,6 @@ export const env = {
   authJwtIssuer: authAuthBaseUrl,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: authAuthBaseUrl,
-  // Deprecated SUPABASE_* aliases - migrate to AUTH_* equivalents
-  supabaseUrl: authBaseUrl,
-  supabasePublishableKey: authPublishableKey,
-  supabaseSecretKey: authAdminApiKey,
-  supabaseAdminApiKey: authAdminApiKey,
-  supabaseServiceRoleKey: authAdminApiKey,
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
   mdblistApiKey: optionalEnv('MDBLIST_API_KEY') ?? '',
   aiServerApiKey: optionalEnv('AI_SERVER_API_KEY') ?? '',

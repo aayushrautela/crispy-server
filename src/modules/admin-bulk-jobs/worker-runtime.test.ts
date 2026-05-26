@@ -4,9 +4,9 @@ import type { AdminBulkJobWorker } from './admin-bulk-job-worker.js';
 import { setTestEnv } from '../../test-helpers.js';
 
 setTestEnv({
-  SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
-  SUPABASE_ANON_KEY: 'test-anon-key',
+  AUTH_BASE_URL: 'http://localhost:54321',
+  AUTH_ADMIN_API_KEY: 'test-service-role-key',
+  AUTH_PUBLISHABLE_KEY: 'test-anon-key',
   JWT_SECRET: 'test-jwt-secret',
 });
 

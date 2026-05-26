@@ -1,7 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert';
 import { buildTestApp, seedTestEnv } from '../../test-helpers.js';
-import { registerAccountPublicRoutes } from './account-public.routes.js';
 
 seedTestEnv();
 
@@ -31,6 +30,7 @@ describe('Public Account Write API', () => {
       } as never;
     };
 
+    const { registerAccountPublicRoutes } = await import('./account-public.routes.js');
     const app = await buildTestApp(registerAccountPublicRoutes);
     const response = await app.inject({
       method: 'PUT',
@@ -53,6 +53,7 @@ describe('Public Account Write API', () => {
   });
 
   test('PUT /api/account/v1/profiles/:profileId/taste/current rejects too many signals', async (t) => {
+    const { registerAccountPublicRoutes } = await import('./account-public.routes.js');
     const app = await buildTestApp(registerAccountPublicRoutes);
     const signals = Array.from({ length: 251 }, (_, i) => ({ kind: 'genre', key: `genre-${i}`, weight: 0.5 }));
 
@@ -76,6 +77,7 @@ describe('Public Account Write API', () => {
       return { response: null, created: false, version: 1, etag: '', status: 204 } as never;
     };
 
+    const { registerAccountPublicRoutes } = await import('./account-public.routes.js');
     const app = await buildTestApp(registerAccountPublicRoutes);
     const response = await app.inject({
       method: 'DELETE',

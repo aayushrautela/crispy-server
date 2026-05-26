@@ -41,7 +41,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 ## Auth model
 
 - User auth: bearer JWTs are verified against a remote JWKS, then the backend ensures the corresponding Supabase account/profile bootstrap.
-- Personal access tokens: `cp_pat_...` tokens are issued and validated by this server, but durable token metadata/hashes belong in Supabase private/service-role tables.
+- Personal access tokens: `cp_pat_...` tokens are issued and validated by this server, and durable token metadata/hashes live in local Postgres private tables.
 - Official recommender auth: callers send a bearer token whose SHA-256 hash matches `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`.
 - Main-to-recommender auth: the outbox dispatcher sends `MAIN_TO_RECOMMENDER_SERVICE_TOKEN` to the recommender's internal event endpoint.
 - The signed-in account is the only auth actor and the ownership root.
@@ -75,8 +75,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/bin/api.ts` starts the HTTP API.
 - `src/bin/worker.ts` starts the background worker.
 - `docker-compose.yml` runs `api`, `worker`, `postgres`, and `redis`.
-- `migrations/` defines the local Postgres metadata/cache schema and temporary operational exception tables.
-- Durable user-data schema belongs in `supabase/migrations/`.
+- `migrations/` defines the local Postgres product, metadata/cache, operational, and recommendation schema.
 
 ## Main product areas
 

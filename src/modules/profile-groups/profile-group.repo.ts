@@ -14,10 +14,9 @@ export class ProfileGroupRepository {
   async findMembershipsForUser(client: DbClient, userId: string): Promise<ProfileGroupMembershipRow[]> {
     const result = await client.query(
       `
-        SELECT profile_group_id, role
-        FROM profile_group_members
-        WHERE user_id = $1::uuid
-        ORDER BY created_at ASC
+        SELECT account_id AS profile_group_id, 'owner' AS role
+        FROM identity.accounts
+        WHERE id = $1::uuid AND deleted_at IS NULL
       `,
       [userId],
     );
@@ -29,34 +28,16 @@ export class ProfileGroupRepository {
   }
 
   async createDefaultProfileGroup(client: DbClient, params: { userId: string; profileGroupName: string }): Promise<string> {
-    const profileGroupResult = await client.query(
-      `
-        INSERT INTO profile_groups (name, owner_user_id)
-        VALUES ($1, $2::uuid)
-        RETURNING id
-      `,
-      [params.profileGroupName, params.userId],
-    );
-    const profileGroupId = String(profileGroupResult.rows[0].id);
-
-    await client.query(
-      `
-        INSERT INTO profile_group_members (profile_group_id, user_id, role)
-        VALUES ($1::uuid, $2::uuid, 'owner')
-      `,
-      [profileGroupId, params.userId],
-    );
-
-    return profileGroupId;
+    await client.query('SELECT identity.upsert_account($1::uuid, null, $2)', [params.userId, params.profileGroupName]);
+    return params.userId;
   }
 
   async findOwnedProfileGroupIds(client: DbClient, userId: string): Promise<string[]> {
     const result = await client.query(
       `
         SELECT id
-        FROM profile_groups
-        WHERE owner_user_id = $1::uuid
-        ORDER BY created_at ASC
+        FROM identity.accounts
+        WHERE id = $1::uuid AND deleted_at IS NULL
       `,
       [userId],
     );
@@ -67,9 +48,9 @@ export class ProfileGroupRepository {
   async listMembers(client: DbClient, profileGroupId: string): Promise<ProfileGroupMemberRow[]> {
     const result = await client.query(
       `
-        SELECT user_id, role
-        FROM profile_group_members
-        WHERE profile_group_id = $1::uuid
+        SELECT account_id AS user_id, role
+        FROM identity.profile_members
+        WHERE account_id = $1::uuid
         ORDER BY created_at ASC
       `,
       [profileGroupId],
@@ -81,32 +62,13 @@ export class ProfileGroupRepository {
     }));
   }
 
-  async transferOwnership(client: DbClient, params: { profileGroupId: string; nextOwnerUserId: string }): Promise<void> {
-    await client.query(
-      `
-        UPDATE profile_groups
-        SET owner_user_id = $2::uuid,
-            updated_at = now()
-        WHERE id = $1::uuid
-      `,
-      [params.profileGroupId, params.nextOwnerUserId],
-    );
-
-    await client.query(
-      `
-        UPDATE profile_group_members
-        SET role = 'owner'
-        WHERE profile_group_id = $1::uuid AND user_id = $2::uuid
-      `,
-      [params.profileGroupId, params.nextOwnerUserId],
-    );
-  }
+  async transferOwnership(_client: DbClient, _params: { profileGroupId: string; nextOwnerUserId: string }): Promise<void> {}
 
   async deleteById(client: DbClient, profileGroupId: string): Promise<boolean> {
     const result = await client.query(
       `
-        DELETE FROM profile_groups
-        WHERE id = $1::uuid
+        DELETE FROM identity.accounts
+        WHERE id = $1::uuid AND deleted_at IS NULL
       `,
       [profileGroupId],
     );
@@ -115,14 +77,7 @@ export class ProfileGroupRepository {
   }
 
   async deleteOwnedByUser(client: DbClient, userId: string): Promise<number> {
-    const result = await client.query(
-      `
-        DELETE FROM profile_groups
-        WHERE owner_user_id = $1::uuid
-      `,
-      [userId],
-    );
-
-    return result.rowCount ?? 0;
+    const deleted = await this.deleteById(client, userId);
+    return deleted ? 1 : 0;
   }
 }

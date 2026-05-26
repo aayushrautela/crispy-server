@@ -9,8 +9,8 @@ import type { AppRateLimitService, AppRateLimitDecision } from '../../modules/ap
 import { setTestEnv } from '../../test-helpers.js';
 
 setTestEnv({
-  SUPABASE_URL: 'http://localhost:54321',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  AUTH_BASE_URL: 'http://localhost:54321',
+  AUTH_ADMIN_API_KEY: 'service-role-key',
   JWT_SECRET: 'test-jwt-secret',
   RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: 'unused-token-hash',
 });
@@ -161,6 +161,7 @@ test('app auth plugin returns app auth error response', async (t) => {
     category: 'authentication',
     retryable: false,
     requestId: 'req-1',
+    details: null,
   });
   assert.equal(auditRepo.inserted[0]?.action, 'app_auth_failed');
 });
