@@ -2,6 +2,8 @@ import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { ProfileWatchDataOrigin, ProviderImportProvider } from './provider-import.types.js';
 
+const DEFAULT_WATCH_DATA_ORIGIN: ProfileWatchDataOrigin = 'native';
+
 export type ProfileWatchDataStateRecord = {
   profileId: string;
   historyGeneration: number;
@@ -14,10 +16,12 @@ export type ProfileWatchDataStateRecord = {
 };
 
 function mapState(row: Record<string, unknown>): ProfileWatchDataStateRecord {
+  const currentOrigin = row.current_origin === 'provider_import' ? 'provider_import' : DEFAULT_WATCH_DATA_ORIGIN;
+
   return {
     profileId: String(row.profile_id),
     historyGeneration: Number(row.history_generation),
-    currentOrigin: String(row.current_origin) as ProfileWatchDataOrigin,
+    currentOrigin,
     lastImportProvider: typeof row.last_import_provider === 'string' ? (row.last_import_provider as ProviderImportProvider) : null,
     lastImportJobId: typeof row.last_import_job_id === 'string' ? row.last_import_job_id : null,
     lastResetAt: toDbIsoString(row.last_reset_at as Date | string | null | undefined, 'profile_watch_data_state.last_reset_at'),
@@ -30,14 +34,14 @@ export class ProfileWatchDataStateRepository {
   async ensure(client: DbClient, profileId: string): Promise<ProfileWatchDataStateRecord> {
     const result = await client.query(
       `
-        INSERT INTO user_state.profile_watch_data_state (profile_id)
-        VALUES ($1::uuid)
+        INSERT INTO user_state.profile_watch_data_state (profile_id, current_origin)
+        VALUES ($1::uuid, $2)
         ON CONFLICT (profile_id)
         DO UPDATE SET updated_at = user_state.profile_watch_data_state.updated_at
         RETURNING profile_id, history_generation, current_origin, last_import_provider,
                   last_import_job_id, last_reset_at, last_import_completed_at, updated_at
       `,
-      [profileId],
+      [profileId, DEFAULT_WATCH_DATA_ORIGIN],
     );
     return mapState(result.rows[0]);
   }
