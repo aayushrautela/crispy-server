@@ -584,39 +584,6 @@ export const profileSignalBundleRouteSchema = withDefaultErrorResponses({
   response: { 200: profileSignalBundleResponseSchema },
 });
 
-// ── Service Recommendation Lists ──────────────────────────────
-
-export const serviceRecommendationListDescriptorSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['listKey', 'displayName', 'ownerAppId', 'source', 'itemType', 'maxItems', 'writeMode', 'requiresEligibilityAtWrite'],
-  properties: {
-    listKey: stringSchema,
-    displayName: stringSchema,
-    ownerAppId: stringSchema,
-    source: stringSchema,
-    itemType: { type: 'string', enum: ['content'] },
-    maxItems: integerSchema,
-    writeMode: { type: 'string', enum: ['replace_versioned'] },
-    requiresEligibilityAtWrite: booleanSchema,
-  },
-} as const;
-
-export const serviceRecommendationListsDataSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['appId', 'source', 'lists'],
-  properties: {
-    appId: stringSchema,
-    source: stringSchema,
-    lists: { type: 'array', items: serviceRecommendationListDescriptorSchema },
-  },
-} as const;
-export const serviceRecommendationListsResponseSchema = successEnvelope(serviceRecommendationListsDataSchema);
-export const serviceRecommendationListsRouteSchema = withDefaultErrorResponses({
-  response: { 200: serviceRecommendationListsResponseSchema },
-});
-
 // ── Upsert Service Recommendation List ────────────────────────
 
 export const serviceRecommendationWriteItemSchema = {

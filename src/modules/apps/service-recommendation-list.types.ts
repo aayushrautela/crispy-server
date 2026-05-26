@@ -1,32 +1,11 @@
 import type { RecommendationListWriteResult } from '../recommendations/recommendation-list.types.js';
-import type { RecoHomeSectionType, RecoMediaType, RecoModelInfo, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
-
-export interface ServiceRecommendationListDescriptor {
-  listKey: string;
-  displayName: string;
-  ownerAppId: string;
-  source: string;
-  itemType: 'content';
-  maxItems: number;
-  writeMode: 'replace_versioned';
-  requiresEligibilityAtWrite: boolean;
-}
-
-export interface ServiceRecommendationListsResponse {
-  appId: string;
-  source: string;
-  lists: ServiceRecommendationListDescriptor[];
-}
-
-export type ServiceRecommendationItemType = RecoMediaType;
-export type ServiceRecommendationProvider = RecoProvider;
-export type ServiceRecommendationWriteItem = RecoWriteItem;
+import type { RecoHomeSectionType, RecoModelInfo, RecoWriteItem } from '../recommendations/reco-contract.types.js';
 
 export interface UpsertServiceRecommendationListRequest {
   title: string;
   subtitle: string | null;
   sectionType: RecoHomeSectionType;
-  items: ServiceRecommendationWriteItem[];
+  items: RecoWriteItem[];
   model: RecoModelInfo | null;
   context: Record<string, unknown>;
 }

@@ -9,9 +9,9 @@ import type { RecommendationListItemInput } from '../recommendations/recommendat
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import type { RecoHomeSectionType, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
-import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, ServiceRecommendationListsResponse, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
+import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
-import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, isOfficialRecommenderListKey } from './official-recommender-lists.js';
+import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, getOfficialRecommendationListConfig } from './official-recommender-lists.js';
 
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
 const RECOMMENDATION_WRITE_MODE = 'replace' as const;
@@ -22,7 +22,6 @@ const TOP_LEVEL_REMOVED_FIELDS = ['source', 'purpose', 'writeMode', 'input', 'el
 const ITEM_REMOVED_FIELDS = ['contentId', 'itemId', 'mediaKey', 'rank', 'tmdbId', 'tvdbId', 'providerId', 'media', 'payload', 'title', 'artists', 'album', 'imageUrl', 'durationMs', 'releaseDate', 'explicit'];
 
 export interface ServiceRecommendationListService {
-  listWritableLists(input: { principal: AppPrincipal }): Promise<ServiceRecommendationListsResponse>;
   upsertList(input: { principal: AppPrincipal; accountId: string; profileId: string; listKey: string; idempotencyKey: string; request: UpsertServiceRecommendationListRequest }): Promise<UpsertServiceRecommendationListResult>;
   batchUpsert(input: { principal: AppPrincipal; idempotencyKey: string; request: BatchUpsertServiceRecommendationListsRequest }): Promise<BatchUpsertServiceRecommendationListsResult>;
 }
@@ -53,19 +52,12 @@ interface ServiceRecommendationContentIdentityService {
 export class DefaultServiceRecommendationListService implements ServiceRecommendationListService {
   constructor(private readonly deps: { serviceListRepo: ServiceRecommendationListRepo; recommendationListWriteService: RecommendationListWriteService; profileEligibilityService: ProfileEligibilityService; appAuthorizationService: AppAuthorizationService; appAuditRepo: AppAuditRepo; clock: Clock; maxProfilesPerBatch: number; maxListsPerProfile: number; contentIdentityService?: ServiceRecommendationContentIdentityService }) {}
 
-  async listWritableLists(input: { principal: AppPrincipal }): Promise<ServiceRecommendationListsResponse> {
-    this.deps.appAuthorizationService.requireScope({ principal: input.principal, scope: 'recommendations:service-lists:read' });
-    const lists = await this.deps.serviceListRepo.listWritableServiceLists({ appId: input.principal.appId });
-    const source = this.deriveSource(input.principal);
-    return { appId: input.principal.appId, source, lists };
-  }
-
   async upsertList(input: { principal: AppPrincipal; accountId: string; profileId: string; listKey: string; idempotencyKey: string; request: UpsertServiceRecommendationListRequest }): Promise<UpsertServiceRecommendationListResult> {
     const request = await this.validateSingleRequest(input.request);
     if (!input.idempotencyKey) throw new HttpError(400, 'Idempotency-Key is required.', undefined, 'IDEMPOTENCY_KEY_REQUIRED');
     this.deps.appAuthorizationService.requireScope({ principal: input.principal, scope: 'recommendations:service-lists:write' });
     const source = this.deriveSource(input.principal);
-    await this.requireWritableList(input.principal, input.listKey, source, input.accountId, input.profileId);
+    await this.requireWritableList(input.principal, input.listKey, source, request.sectionType, input.accountId, input.profileId);
     const eligibility = await this.deps.profileEligibilityService.assertEligible({ principal: input.principal, accountId: input.accountId, profileId: input.profileId, purpose: RECOMMENDATION_WRITE_PURPOSE });
     const result = await this.deps.recommendationListWriteService.writeList({
       accountId: input.accountId,
@@ -105,7 +97,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         const eligibility = await this.deps.profileEligibilityService.assertEligible({ principal: input.principal, accountId: profile.accountId, profileId: profile.profileId, purpose: RECOMMENDATION_WRITE_PURPOSE });
         const writtenLists: Array<{ listKey: string; source: string; version: number; itemCount: number }> = [];
         for (const list of profile.lists) {
-          await this.requireWritableList(input.principal, list.listKey, source, profile.accountId, profile.profileId);
+          await this.requireWritableList(input.principal, list.listKey, source, list.sectionType, profile.accountId, profile.profileId);
           const result = await this.deps.recommendationListWriteService.writeList({
             accountId: profile.accountId,
             profileId: profile.profileId,
@@ -154,17 +146,23 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
     return source;
   }
 
-  private async requireWritableList(principal: AppPrincipal, listKey: string, source: string, accountId: string, profileId: string): Promise<void> {
+  private async requireWritableList(principal: AppPrincipal, listKey: string, source: string, sectionType: RecoHomeSectionType, accountId: string, profileId: string): Promise<void> {
     if (principal.appId === OFFICIAL_RECOMMENDER_APP_ID) {
       if (source !== OFFICIAL_RECOMMENDER_SOURCE) throw new HttpError(403, 'official-recommender must use official-recommender source.', undefined, 'INVALID_SOURCE');
-      if (!isOfficialRecommenderListKey(listKey)) throw new HttpError(403, 'List key not in official-recommender contract.', undefined, 'LIST_KEY_NOT_ALLOWED');
+      this.requireOfficialList(listKey, sectionType);
       this.deps.appAuthorizationService.requireGrant({ principal, resourceType: 'recommendationList', resourceId: listKey, purpose: RECOMMENDATION_WRITE_PURPOSE, action: 'write', accountId, profileId, listKey, source });
       return;
     }
     this.deps.appAuthorizationService.requireOwnedListKey({ principal, source, listKey });
     this.deps.appAuthorizationService.requireGrant({ principal, resourceType: 'recommendationList', resourceId: listKey, purpose: RECOMMENDATION_WRITE_PURPOSE, action: 'write', accountId, profileId, listKey, source });
-    const descriptor = await this.deps.serviceListRepo.findWritableServiceList({ appId: principal.appId, listKey });
-    if (!descriptor || descriptor.source !== source) throw new HttpError(403, 'App does not own recommendation list.', undefined, 'LIST_NOT_OWNED');
+  }
+
+  private requireOfficialList(listKey: string, sectionType: RecoHomeSectionType): void {
+    const config = getOfficialRecommendationListConfig(listKey);
+    if (!config) throw new HttpError(403, 'List key not in official-recommender contract.', undefined, 'LIST_KEY_NOT_ALLOWED');
+    if (config.sectionType !== sectionType) {
+      throw new HttpError(400, 'sectionType does not match listKey.', { listKey, expectedSectionType: config.sectionType, receivedSectionType: sectionType }, 'RECOMMENDATION_SECTION_TYPE_MISMATCH');
+    }
   }
 
   private validateBatchLimits(request: NormalizedBatchRequest): void {

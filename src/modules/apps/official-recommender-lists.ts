@@ -1,24 +1,21 @@
-import type { ServiceRecommendationListDescriptor } from './service-recommendation-list.types.js';
+import type { RecoHomeSectionType } from '../recommendations/reco-contract.types.js';
 
 export const OFFICIAL_RECOMMENDER_APP_ID = 'official-recommender';
 export const OFFICIAL_RECOMMENDER_SOURCE = 'official-recommender';
-export const OFFICIAL_RECOMMENDER_LIST_KEYS = ['category-tabs', 'hero-carousel', 'content-rails', 'collection-rails'] as const;
 
-export type OfficialRecommenderListKey = typeof OFFICIAL_RECOMMENDER_LIST_KEYS[number];
-
-export function isOfficialRecommenderListKey(value: string): value is OfficialRecommenderListKey {
-  return OFFICIAL_RECOMMENDER_LIST_KEYS.includes(value as OfficialRecommenderListKey);
+export interface OfficialRecommendationListConfig {
+  listKey: string;
+  sectionType: RecoHomeSectionType;
+  maxItems: number;
 }
 
-export function getOfficialRecommenderListDescriptors(): ServiceRecommendationListDescriptor[] {
-  return OFFICIAL_RECOMMENDER_LIST_KEYS.map((listKey) => ({
-    listKey,
-    displayName: listKey.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
-    ownerAppId: OFFICIAL_RECOMMENDER_APP_ID,
-    source: OFFICIAL_RECOMMENDER_SOURCE,
-    itemType: 'content',
-    maxItems: 100,
-    writeMode: 'replace_versioned',
-    requiresEligibilityAtWrite: true,
-  }));
+export const OFFICIAL_RECOMMENDER_LISTS: OfficialRecommendationListConfig[] = [
+  { listKey: 'category-tabs', sectionType: 'categoryTabs', maxItems: 100 },
+  { listKey: 'hero-carousel', sectionType: 'heroCarousel', maxItems: 10 },
+  { listKey: 'content-rails', sectionType: 'contentRail', maxItems: 100 },
+  { listKey: 'collection-rails', sectionType: 'collectionRail', maxItems: 100 },
+];
+
+export function getOfficialRecommendationListConfig(listKey: string): OfficialRecommendationListConfig | null {
+  return OFFICIAL_RECOMMENDER_LISTS.find((list) => list.listKey === listKey) ?? null;
 }

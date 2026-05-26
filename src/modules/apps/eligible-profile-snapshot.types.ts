@@ -12,7 +12,6 @@ export interface CreateEligibleProfileSnapshotRequest {
     minSignalsVersion?: number;
     includeProfilesWithNoPriorRecommendations?: boolean;
   };
-  reason: string;
   requestedBy?: { type: 'admin' | 'system'; id: string };
 }
 

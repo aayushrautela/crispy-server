@@ -1,5 +1,5 @@
 import { HttpError } from '../../lib/errors.js';
-import { OFFICIAL_RECOMMENDER_APP_ID } from '../apps/official-recommender-lists.js';
+import { OFFICIAL_RECOMMENDER_APP_ID, getOfficialRecommendationListConfig } from '../apps/official-recommender-lists.js';
 import type { AppSourceOwnershipRepo } from '../apps/app-source-ownership.repo.js';
 import type { RecommendationListItemInput, RecommendationListPolicyDecision, RecommendationListWriteInput, RecommendationWriteActor } from './recommendation-list.types.js';
 
@@ -34,19 +34,17 @@ export class PublicRecommendationWritePolicy implements RecommendationListWriteP
 }
 
 export class AppRecommendationWritePolicy implements RecommendationListWritePolicy {
-  constructor(private readonly deps: {
-    sourceOwnershipRepo: AppSourceOwnershipRepo;
-    maxItemsDefault: number;
-  }) {}
+  constructor(private readonly deps: { sourceOwnershipRepo: AppSourceOwnershipRepo }) {}
 
   async authorize(input: RecommendationListWriteInput): Promise<RecommendationListPolicyDecision> {
     if (input.actor.type !== 'app') {
-      return { allowed: false, source: input.source, maxItems: this.deps.maxItemsDefault, requiresEligibilityAtWrite: true, rejectReason: 'App actor is required.' };
+      return { allowed: false, source: input.source, maxItems: 100, requiresEligibilityAtWrite: true, rejectReason: 'App actor is required.' };
     }
+    const maxItems = this.maxItemsFor(input.actor.appId, input.listKey);
     if (input.actor.appId !== OFFICIAL_RECOMMENDER_APP_ID) {
       await this.deps.sourceOwnershipRepo.assertAppOwnsListKey({ appId: input.actor.appId, source: input.source, listKey: input.listKey });
     }
-    return { allowed: true, source: input.source, maxItems: this.deps.maxItemsDefault, requiresEligibilityAtWrite: true };
+    return { allowed: true, source: input.source, maxItems, requiresEligibilityAtWrite: true };
   }
 
   async validateListKey(input: { listKey: string; source: string; actor: RecommendationWriteActor }): Promise<void> {
@@ -58,6 +56,10 @@ export class AppRecommendationWritePolicy implements RecommendationListWritePoli
 
   async validateItems(input: { listKey: string; source: string; sectionType: RecommendationListWriteInput['sectionType']; items: RecommendationListItemInput[]; maxItems: number }): Promise<void> {
     validateRecommendationItems(input.items, input.maxItems, input.sectionType);
+  }
+
+  private maxItemsFor(appId: string, listKey: string): number {
+    return appId === OFFICIAL_RECOMMENDER_APP_ID ? getOfficialRecommendationListConfig(listKey)?.maxItems ?? 100 : 100;
   }
 }
 

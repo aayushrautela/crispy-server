@@ -34,7 +34,6 @@ const OFFICIAL_RECOMMENDER_SCOPES: AppScope[] = [
   'profiles:eligible:snapshot:create',
   'profiles:eligible:snapshot:read',
   'profiles:signals:read',
-  'recommendations:service-lists:read',
   'recommendations:service-lists:write',
   'recommendations:service-lists:batch-write',
   'recommendations:runs:write',

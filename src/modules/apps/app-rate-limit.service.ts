@@ -92,7 +92,6 @@ function getLimit(principal: AppPrincipal, routeGroup: AppRateLimitRouteGroup): 
       return { capacity: policy.profileChangesReadsPerMinute, windowSeconds: 60 };
     case 'profiles.signals':
       return { capacity: policy.profileSignalReadsPerMinute, windowSeconds: 60 };
-    case 'recommendations.service-lists':
     case 'recommendations.single-write':
       return { capacity: policy.recommendationWritesPerMinute, windowSeconds: 60 };
     case 'recommendations.batch-write':

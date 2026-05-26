@@ -24,7 +24,6 @@ import {
   getEligibleProfileSnapshotItemsRouteSchema,
   profileEligibilityRouteSchema,
   profileSignalBundleRouteSchema,
-  serviceRecommendationListsRouteSchema,
   accountListUpsertRouteSchema,
   batchUpsertRouteSchema,
   createRecommendationRunRouteSchema,
@@ -165,12 +164,6 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       },
       profiles: await recommendationDataService.listAccountProfilesForService(account.accountId),
     }, request);
-  });
-
-  app.get('/internal/apps/v1/recommendations/service-lists', { schema: serviceRecommendationListsRouteSchema }, async (request) => {
-    const principal = await app.requireRecommenderAuth(request);
-    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.service-lists' });
-    return success(await deps.serviceRecommendationListService.listWritableLists({ principal }), request);
   });
 
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', { schema: accountListUpsertRouteSchema }, async (request, reply) => {

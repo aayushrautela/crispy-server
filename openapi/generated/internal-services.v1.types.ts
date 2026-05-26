@@ -112,23 +112,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/apps/v1/recommendations/service-lists": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List service-owned recommendation list descriptors */
-        get: operations["listInternalRecommendationServiceLists"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}": {
         parameters: {
             query?: never;
@@ -139,10 +122,11 @@ export interface paths {
         get?: never;
         /**
          * Upsert a service-owned recommendation list
-         * @description Publishes an ordered home list for a profile. The caller sends list display
-         *     metadata plus item identities as public item IDs or provider references.
-         *     Crispy Server canonicalizes identities, derives rank from array order, and
-         *     owns enrichment, policy metadata, storage, and timestamps.
+         * @description Publishes an ordered home list for a profile. The write endpoint is the source
+         *     of truth for authorization, list-key/section-type compatibility, item limits,
+         *     eligibility, idempotency, and storage. Official recommender writes may use only
+         *     category-tabs/categoryTabs (max 100), hero-carousel/heroCarousel (max 10),
+         *     content-rails/contentRail (max 100), and collection-rails/collectionRail (max 100).
          */
         put: operations["upsertInternalRecommendationList"];
         post?: never;
@@ -509,11 +493,6 @@ export interface components {
         EligibleProfileSnapshotCreateRequest: {
             purpose: string;
             filters?: components["schemas"]["Metadata"];
-            /**
-             * @deprecated
-             * @description Legacy alias; callers should send purpose.
-             */
-            reason?: string;
             expiresInSeconds?: number;
         } & {
             [key: string]: unknown;
@@ -604,22 +583,6 @@ export interface components {
             };
         } & {
             [key: string]: unknown;
-        };
-        RecommendationServiceListsResponse: {
-            appId: string;
-            source: string;
-            lists: ({
-                listKey: string;
-                displayName: string;
-                ownerAppId?: string;
-                source?: string;
-                itemType?: string;
-                maxItems: number;
-                writeMode?: string;
-                requiresEligibilityAtWrite?: boolean;
-            } & {
-                [key: string]: unknown;
-            })[];
         };
         RecommendationListUpsertRequest: {
             title: string;
@@ -1233,37 +1196,6 @@ export interface operations {
             403: components["responses"]["ForbiddenError"];
             404: components["responses"]["NotFoundError"];
             429: components["responses"]["RateLimitedError"];
-            500: components["responses"]["InternalServerError"];
-        };
-    };
-    listInternalRecommendationServiceLists: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example Bearer <service-token> */
-                Authorization: components["parameters"]["Authorization"];
-                "x-service-id": components["parameters"]["ServiceId"];
-                /** @example req_example_01HXRECO */
-                "X-Request-Id"?: components["parameters"]["RequestId"];
-                /** @example corr_example_generation_001 */
-                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Configured writable service lists. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecommendationServiceListsResponse"];
-                };
-            };
-            401: components["responses"]["UnauthorizedError"];
-            403: components["responses"]["ForbiddenError"];
             500: components["responses"]["InternalServerError"];
         };
     };

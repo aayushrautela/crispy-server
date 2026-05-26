@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DefaultServiceRecommendationListService } from './service-recommendation-list.service.js';
+import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE } from './official-recommender-lists.js';
 import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, PaginatedAppAuditEvents } from './app-audit.repo.js';
 import type { AppAuthorizationService } from './app-authorization.service.js';
 import { DefaultAppAuthorizationService } from './app-authorization.service.js';
@@ -68,8 +69,6 @@ class FakeAuditRepo implements AppAuditRepo {
 class FakeServiceListRepo implements ServiceRecommendationListRepo {
   savedBatchRequestHash: string | null = null;
   savedBatchResultStatus: string | null = null;
-  async listWritableServiceLists() { return [{ listKey: 'for-you', displayName: 'For You', ownerAppId: 'test-app', source: 'reco', itemType: 'content' as const, maxItems: 100, writeMode: 'replace_versioned' as const, requiresEligibilityAtWrite: true }]; }
-  async findWritableServiceList() { return { listKey: 'for-you', displayName: 'For You', ownerAppId: 'test-app', source: 'reco', itemType: 'content' as const, maxItems: 100, writeMode: 'replace_versioned' as const, requiresEligibilityAtWrite: true }; }
   async findBatchIdempotency() { return null; }
   async saveBatchIdempotency(input: Parameters<ServiceRecommendationListRepo['saveBatchIdempotency']>[0]): Promise<void> {
     this.savedBatchRequestHash = input.requestHash;
@@ -169,6 +168,26 @@ test('upsertList rejects legacy writer-supplied fields', async () => {
       request: { ...buildWriteRequest(), items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }], rank: 1 }] } as never,
     }),
     (error: unknown) => error instanceof HttpError && error.code === 'UNSUPPORTED_RECOMMENDATION_WRITE_FIELD',
+  );
+});
+
+test('official recommender rejects section type mismatches', async () => {
+  const { service } = buildService();
+  const principal = buildPrincipal();
+  principal.appId = OFFICIAL_RECOMMENDER_APP_ID;
+  principal.ownedSources = [OFFICIAL_RECOMMENDER_SOURCE];
+  principal.ownedListKeys = ['hero-carousel'];
+
+  await assert.rejects(
+    service.upsertList({
+      principal,
+      accountId: 'acc-1',
+      profileId: 'prof-1',
+      listKey: 'hero-carousel',
+      idempotencyKey: 'idem-1',
+      request: buildWriteRequest(['101']),
+    }),
+    (error: unknown) => error instanceof HttpError && error.code === 'RECOMMENDATION_SECTION_TYPE_MISMATCH',
   );
 });
 

@@ -111,7 +111,6 @@ for (const [schema, file] of [
   ['ProfileEligibilityResponse', 'openapi/examples/profile-eligibility/response.ineligible.json'],
   ['RecommendationSignalBundleResponse', 'openapi/examples/signal-bundle/response.full.json'],
   ['RecommendationSignalBundleResponse', 'openapi/examples/signal-bundle/response.minimal.json'],
-  ['RecommendationServiceListsResponse', 'openapi/examples/service-lists/response.success.json'],
   ['RecommendationListUpsertRequest', 'openapi/examples/recommendation-list-upsert/request.valid.json'],
   ['CanonicalErrorEnvelope', 'openapi/examples/recommendation-list-upsert/error.unsupported-field.json'],
   ['RecommendationBatchUpsertRequest', 'openapi/examples/batch-upsert/request.valid.json'],

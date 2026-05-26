@@ -42,7 +42,7 @@ export class DefaultEligibleProfileSnapshotService implements EligibleProfileSna
       purpose: input.request.purpose,
       status: 'active',
       filters: input.request.filters ?? {},
-      reason: input.request.reason,
+      reason: input.request.purpose,
       requestedBy: input.request.requestedBy ?? null,
       createdAt: this.deps.clock.now(),
     });

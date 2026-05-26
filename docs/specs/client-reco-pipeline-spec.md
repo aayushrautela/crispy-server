@@ -272,6 +272,10 @@ type RecoModelInfo = {
 
 Rules:
 
+- `PUT /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}` is the production write contract. There is no service-list discovery preflight.
+- Official recommender may write only `category-tabs`/`categoryTabs` max 100, `hero-carousel`/`heroCarousel` max 10, `content-rails`/`contentRail` max 100, and `collection-rails`/`collectionRail` max 100.
+- MAIN rejects unknown official list keys, mismatched `sectionType`, too many items, ineligible profiles, bad provider refs, duplicate items, and idempotency conflicts with stable canonical errors.
+- `Idempotency-Key` is required; reusing it with the same payload replays, reusing it with a different payload returns conflict.
 - `title` is required.
 - `subtitle` is nullable, not omitted.
 - `sectionType` is required and must be one of `categoryTabs`, `heroCarousel`, `contentRail`, or `collectionRail`.

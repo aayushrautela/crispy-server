@@ -258,41 +258,17 @@ paths:
         '404': { $ref: '#/components/responses/NotFoundError' }
         '429': { $ref: '#/components/responses/RateLimitedError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  /internal/apps/v1/recommendations/service-lists:
-    get:
-      tags: [Recommendation Lists]
-      operationId: listInternalRecommendationServiceLists
-      summary: List service-owned recommendation list descriptors
-      x-internal: true
-      x-owner: crispy-server
-      x-consumers: [crispy-recommendation-engine]
-      parameters:
-        - $ref: '#/components/parameters/Authorization'
-        - $ref: '#/components/parameters/ServiceId'
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/CorrelationId'
-      responses:
-        '200':
-          description: Configured writable service lists.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RecommendationServiceListsResponse' }
-              examples:
-                success:
-                  externalValue: ./examples/service-lists/response.success.json
-        '401': { $ref: '#/components/responses/UnauthorizedError' }
-        '403': { $ref: '#/components/responses/ForbiddenError' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
   /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}:
     put:
       tags: [Recommendation Lists]
       operationId: upsertInternalRecommendationList
       summary: Upsert a service-owned recommendation list
       description: |
-        Publishes an ordered home list for a profile. The caller sends list display
-        metadata plus item identities as public item IDs or provider references.
-        Crispy Server canonicalizes identities, derives rank from array order, and
-        owns enrichment, policy metadata, storage, and timestamps.
+        Publishes an ordered home list for a profile. The write endpoint is the source
+        of truth for authorization, list-key/section-type compatibility, item limits,
+        eligibility, idempotency, and storage. Official recommender writes may use only
+        category-tabs/categoryTabs (max 100), hero-carousel/heroCarousel (max 10),
+        content-rails/contentRail (max 100), and collection-rails/collectionRail (max 100).
       x-internal: true
       x-owner: crispy-server
       x-consumers: [crispy-recommendation-engine]
@@ -1194,10 +1170,6 @@ components:
       properties:
         purpose: { type: string, minLength: 1 }
         filters: { $ref: '#/components/schemas/Metadata' }
-        reason:
-          type: string
-          deprecated: true
-          description: Legacy alias; callers should send purpose.
         expiresInSeconds: { type: integer, minimum: 1 }
     EligibleProfileSnapshot:
       type: object
@@ -1296,28 +1268,6 @@ components:
             ratingsLimitApplied: { type: integer, minimum: 0 }
             watchlistLimitApplied: { type: integer, minimum: 0 }
             continueLimitApplied: { type: integer, minimum: 0 }
-    RecommendationServiceListsResponse:
-      type: object
-      additionalProperties: false
-      required: [appId, source, lists]
-      properties:
-        appId: { type: string }
-        source: { type: string }
-        lists:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-            required: [listKey, displayName, maxItems]
-            properties:
-              listKey: { type: string }
-              displayName: { type: string }
-              ownerAppId: { type: string }
-              source: { type: string }
-              itemType: { type: string }
-              maxItems: { type: integer, minimum: 1 }
-              writeMode: { type: string }
-              requiresEligibilityAtWrite: { type: boolean }
     RecommendationListUpsertRequest:
       type: object
       additionalProperties: false
