@@ -117,6 +117,7 @@ export const env = {
   redisUrl: requireEnv('REDIS_URL'),
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
+  accountPortalUrl: requireBaseUrl('ACCOUNT_PORTAL_URL'),
   authBaseUrl,
   authAdminApiKey,
   authJwksUrl: `${authAuthBaseUrl}/.well-known/jwks.json`,
