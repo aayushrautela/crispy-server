@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { logger, loggerOptions } from '../config/logger.js';
 import { db } from '../lib/db.js';
 import adminUiAuthPlugin from './plugins/admin-ui-auth.js';
@@ -266,6 +267,10 @@ export async function buildApp() {
   });
 
   await app.register(errorHandlerPlugin);
+  await app.register(cors, {
+    origin: env.corsOrigins,
+    credentials: true,
+  });
   await app.register(adminUiAuthPlugin);
   await app.register(authPlugin);
   const appAuthDeps = buildAppAuthDependencies();

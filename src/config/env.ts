@@ -89,6 +89,7 @@ export const env = {
   serverHost: process.env.SERVER_HOST?.trim() || '0.0.0.0',
   serverPort: parseNumber('SERVER_PORT', 18765),
   logLevel: process.env.LOG_LEVEL?.trim() || 'info',
+  corsOrigins: parseStringListEnv('CORS_ORIGINS'),
   adminUiUser: optionalEnv('ADMIN_UI_USER') ?? '',
   adminUiPassword: optionalEnv('ADMIN_UI_PASSWORD') ?? '',
   adminUiSessionSecret: optionalEnv('ADMIN_UI_SESSION_SECRET') ?? '',
