@@ -28,6 +28,7 @@ import { ConfidentialConfigService } from '../modules/confidential/service.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
 import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
+import portalSessionAuthPlugin from './plugins/portal-session-auth.js';
 import { PortalHandoffService } from '../modules/auth/portal-handoff.service.js';
 import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
 import { registerPortalHandoffRoutes } from './routes/portal-handoff.js';
@@ -275,6 +276,7 @@ export async function buildApp() {
     credentials: true,
   });
   await app.register(adminUiAuthPlugin);
+  await app.register(portalSessionAuthPlugin);
   await app.register(authPlugin);
   const appAuthDeps = buildAppAuthDependencies();
   await app.register(appAuthPlugin, appAuthDeps);

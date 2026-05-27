@@ -4,7 +4,6 @@ import { withDbClient, withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { hashAccessToken } from './token-hash.js';
 import { PortalHandoffRepository } from './portal-handoff.repo.js';
-import { ExternalAuthAdminService } from './external-auth-admin.service.js';
 
 const HANDOFF_CODE_TTL_MS = 5 * 60 * 1000;
 const CODE_PREFIX = 'cp_ph_';
@@ -14,14 +13,15 @@ export type CreatedPortalHandoffCode = {
 };
 
 export type ExchangedPortalHandoffCode = {
-  accessToken: string;
-  refreshToken: string;
+  accountId: string;
+  email: string | null;
+  csrfToken: string;
+  expiresAt: number;
 };
 
 export class PortalHandoffService {
   constructor(
     private readonly handoffRepo: PortalHandoffRepository = new PortalHandoffRepository(),
-    private readonly authAdmin: ExternalAuthAdminService = new ExternalAuthAdminService(),
   ) {}
 
   async createForUser(authSubject: string, redirectPath: string): Promise<CreatedPortalHandoffCode> {
@@ -58,11 +58,11 @@ export class PortalHandoffService {
         throw new HttpError(409, 'Portal handoff code is expired, invalid, or already used.', undefined, 'portal_handoff_code_not_usable');
       }
 
-      const tokens = await this.authAdmin.createSessionTokens(consumed.accountId);
-
       return {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        accountId: consumed.accountId,
+        email: consumed.email,
+        csrfToken: '',
+        expiresAt: 0,
       };
     });
   }

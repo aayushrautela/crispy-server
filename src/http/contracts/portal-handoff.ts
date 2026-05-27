@@ -1,4 +1,4 @@
-import { nonEmptyStringSchema, successEnvelope, withDefaultErrorResponses } from './shared.js';
+import { nonEmptyStringSchema, nullableStringSchema, successEnvelope, withDefaultErrorResponses } from './shared.js';
 
 export const createPortalHandoffRouteSchema = withDefaultErrorResponses({
   body: {
@@ -34,10 +34,58 @@ export const exchangePortalHandoffRouteSchema = withDefaultErrorResponses({
     200: successEnvelope({
       type: 'object',
       additionalProperties: false,
-      required: ['accessToken', 'refreshToken'],
+      required: ['csrfToken', 'expiresAt', 'user'],
       properties: {
-        accessToken: nonEmptyStringSchema,
-        refreshToken: nonEmptyStringSchema,
+        csrfToken: nonEmptyStringSchema,
+        expiresAt: { type: 'number' },
+        user: {
+          type: 'object',
+          required: ['id', 'email'],
+          properties: {
+            id: nonEmptyStringSchema,
+            email: nullableStringSchema,
+          },
+        },
+      },
+    }),
+  },
+});
+
+export const portalSessionRouteSchema = withDefaultErrorResponses({
+  response: {
+    200: successEnvelope({
+      type: 'object',
+      additionalProperties: false,
+      required: ['user'],
+      properties: {
+        user: {
+          anyOf: [
+            {
+              type: 'object',
+              required: ['id', 'email'],
+              properties: {
+                id: nonEmptyStringSchema,
+                email: nullableStringSchema,
+              },
+            },
+            { type: 'null' },
+          ],
+        },
+        csrfToken: { type: 'string' },
+        expiresAt: { type: 'number' },
+      },
+    }),
+  },
+});
+
+export const portalSignOutRouteSchema = withDefaultErrorResponses({
+  response: {
+    200: successEnvelope({
+      type: 'object',
+      additionalProperties: false,
+      required: ['signedOut'],
+      properties: {
+        signedOut: { type: 'boolean' },
       },
     }),
   },
