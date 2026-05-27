@@ -25,6 +25,7 @@ type SignedTokenPayload = {
 declare module 'fastify' {
   interface FastifyRequest {
     portalSession?: PortalSession;
+    portalAuthOrigin?: 'jwt' | 'pat' | 'cookie';
   }
 
   interface FastifyInstance {

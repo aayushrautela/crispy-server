@@ -29,8 +29,12 @@ import { registerPersonalAccessTokenRoutes } from './routes/personal-access-toke
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
 import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
 import portalSessionAuthPlugin from './plugins/portal-session-auth.js';
+import portalAuthBridgePlugin from './plugins/portal-auth-bridge.js';
+import externalApiAuthPlugin from './plugins/external-api-auth.js';
 import { PortalHandoffService } from '../modules/auth/portal-handoff.service.js';
 import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
+import { registerExternalApiV2Routes } from './routes/external-api-v2.js';
+import { registerPortalRoutes } from './routes/portal.js';
 import { registerPortalHandoffRoutes } from './routes/portal-handoff.js';
 import { AccountSettingsService } from '../modules/users/account-settings.service.js';
 import { registerProfileRoutes } from './routes/profiles.js';
@@ -278,6 +282,8 @@ export async function buildApp() {
   await app.register(adminUiAuthPlugin);
   await app.register(portalSessionAuthPlugin);
   await app.register(authPlugin);
+  await app.register(portalAuthBridgePlugin);
+  await app.register(externalApiAuthPlugin);
   const appAuthDeps = buildAppAuthDependencies();
   await app.register(appAuthPlugin, appAuthDeps);
 
@@ -307,6 +313,8 @@ export async function buildApp() {
   await registerPersonalAccessTokenRoutes(app, { patService });
   await registerAuthHandoffRoutes(app, { appLoginHandoffService });
   await registerPortalHandoffRoutes(app, { portalHandoffService });
+  await registerPortalRoutes(app, { profileService, accountSettingsService, patService });
+  await registerExternalApiV2Routes(app);
   await registerProfileRoutes(app, { profileService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);

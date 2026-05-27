@@ -6,7 +6,6 @@ import { setTestEnv } from '../../test-helpers.js';
 setTestEnv({
   AUTH_BASE_URL: 'http://localhost:54321',
   AUTH_ADMIN_API_KEY: 'test-service-role-key',
-  AUTH_PUBLISHABLE_KEY: 'test-anon-key',
   JWT_SECRET: 'test-jwt-secret',
 });
 
