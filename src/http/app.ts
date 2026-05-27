@@ -269,6 +269,7 @@ export async function buildApp() {
   await app.register(errorHandlerPlugin);
   await app.register(cors, {
     origin: env.corsOrigins,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
     credentials: true,
   });
   await app.register(adminUiAuthPlugin);
