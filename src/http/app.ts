@@ -26,6 +26,8 @@ import { registerInternalConfidentialRoutes } from './routes/internal-confidenti
 import { ConfidentialConfigService } from '../modules/confidential/service.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
+import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
+import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
 import { AccountSettingsService } from '../modules/users/account-settings.service.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
@@ -284,6 +286,7 @@ export async function buildApp() {
   const profileService = new ProfileLocalService();
   const accountSettingsService = new AccountSettingsService();
   const patService = new PersonalAccessTokenService();
+  const appLoginHandoffService = new AppLoginHandoffService();
 
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
@@ -291,6 +294,7 @@ export async function buildApp() {
   await registerAiRoutes(app);
   await registerMeRoutes(app, { profileService, accountSettingsService });
   await registerPersonalAccessTokenRoutes(app, { patService });
+  await registerAuthHandoffRoutes(app, { appLoginHandoffService });
   await registerProfileRoutes(app, { profileService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
