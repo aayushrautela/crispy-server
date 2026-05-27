@@ -107,7 +107,7 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     appAuthorizationService,
     clock: authDeps.clock,
   });
-  const cursorCodec = new SignedAppCursorCodec({ secret: env.adminUiSessionSecret || 'dev-cursor-secret' });
+  const cursorCodec = new SignedAppCursorCodec({ secret: env.cursorSigningSecret });
   const eligibleProfileChangeFeedRepo = new SqlEligibleProfileChangeFeedRepo({ db });
   const eligibleProfileChangeFeedService = new DefaultEligibleProfileChangeFeedService({
     repo: eligibleProfileChangeFeedRepo,

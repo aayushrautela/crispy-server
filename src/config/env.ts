@@ -79,10 +79,27 @@ function optionalBaseUrl(name: string): string | undefined {
   return value ? value.replace(/\/+$/, '') : undefined;
 }
 
+function parseAppLoginAllowedReturnUris(name: string): Map<string, Set<string>> {
+  const raw = process.env[name];
+  if (!raw) return new Map();
+  const map = new Map<string, Set<string>>();
+  for (const entry of raw.split(',').map(e => e.trim()).filter(Boolean)) {
+    const colonIdx = entry.indexOf(':');
+    if (colonIdx <= 0) throw new Error(`Invalid ${name} entry: ${entry}`);
+    const clientId = entry.slice(0, colonIdx);
+    const uri = entry.slice(colonIdx + 1);
+    if (!clientId || !uri) throw new Error(`Invalid ${name} entry: ${entry}`);
+    try { new URL(uri); } catch { throw new Error(`Invalid URL in ${name}: ${uri}`); }
+    const set = map.get(clientId) ?? new Set();
+    set.add(uri);
+    map.set(clientId, set);
+  }
+  return map;
+}
+
 const authBaseUrl = requireBaseUrl('AUTH_BASE_URL');
 const authAuthBaseUrl = `${authBaseUrl}/auth/v1`;
-const authPublishableKey = optionalEnv('AUTH_PUBLISHABLE_KEY') ?? '';
-const authAdminApiKey = optionalEnv('AUTH_ADMIN_API_KEY') ?? '';
+const authAdminApiKey = requireEnv('AUTH_ADMIN_API_KEY');
 
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
@@ -93,13 +110,14 @@ export const env = {
   adminUiUser: optionalEnv('ADMIN_UI_USER') ?? '',
   adminUiPassword: optionalEnv('ADMIN_UI_PASSWORD') ?? '',
   adminUiSessionSecret: optionalEnv('ADMIN_UI_SESSION_SECRET') ?? '',
+  cursorSigningSecret: requireEnv('CURSOR_SIGNING_SECRET'),
+  appLoginAllowedReturnUris: parseAppLoginAllowedReturnUris('APP_LOGIN_ALLOWED_RETURN_URIS'),
   databaseUrl: requireEnv('DATABASE_URL'),
   databasePoolMax: parseNumber('DATABASE_POOL_MAX', 20),
   redisUrl: requireEnv('REDIS_URL'),
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
   authBaseUrl,
-  authPublishableKey,
   authAdminApiKey,
   authJwksUrl: `${authAuthBaseUrl}/.well-known/jwks.json`,
   authJwtIssuer: authAuthBaseUrl,

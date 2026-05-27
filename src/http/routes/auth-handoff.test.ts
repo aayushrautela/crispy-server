@@ -4,7 +4,7 @@ import { buildTestApp, seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('POST /v1/auth/app-login/handoff-codes creates one-time code', async (t) => {
+test('POST /v1/auth/app-login/handoff-codes creates one-time code with PKCE', async (t) => {
   const { AppLoginHandoffService } = await import('../../modules/auth/app-login-handoff.service.js');
   const original = AppLoginHandoffService.prototype.createForUser;
   t.after(() => {
@@ -13,18 +13,24 @@ test('POST /v1/auth/app-login/handoff-codes creates one-time code', async (t) =>
 
   AppLoginHandoffService.prototype.createForUser = async function (authSubject, input) {
     assert.equal(authSubject, 'auth-subject');
-    assert.equal(input.returnUri, 'crispy://auth/callback');
+    assert.equal(input.clientId, 'crispy-ios');
+    assert.equal(input.returnUri, 'https://app.crispytv.tech/auth/callback');
+    assert.equal(input.codeChallenge, 'test-challenge');
+    assert.equal(input.codeChallengeMethod, 'S256');
+    assert.equal(input.state, 'test-state-value-16chars');
     return {
       code: {
         id: 'code-1',
         codePreview: 'cp_login_abc',
-        returnUri: 'crispy://auth/callback',
+        clientId: 'crispy-ios',
+        returnUri: 'https://app.crispytv.tech/auth/callback',
+        state: 'test-state-value-16chars',
         expiresAt: '2026-01-01T00:05:00.000Z',
         consumedAt: null,
         createdAt: '2026-01-01T00:00:00.000Z',
       },
       plaintextCode: 'cp_login_abc123',
-      redirectUri: 'crispy://auth/callback?code=cp_login_abc123',
+      redirectUri: 'https://app.crispytv.tech/auth/callback?code=cp_login_abc123&state=test-state-value-16chars',
     };
   };
 
@@ -37,14 +43,22 @@ test('POST /v1/auth/app-login/handoff-codes creates one-time code', async (t) =>
     method: 'POST',
     url: '/v1/auth/app-login/handoff-codes',
     headers: { authorization: 'Bearer test' },
-    payload: { returnUri: 'crispy://auth/callback' },
+    payload: {
+      clientId: 'crispy-ios',
+      returnUri: 'https://app.crispytv.tech/auth/callback',
+      codeChallenge: 'test-challenge',
+      codeChallengeMethod: 'S256',
+      state: 'test-state-value-16chars',
+    },
   });
 
   assert.equal(response.statusCode, 201);
-  const body = response.json() as { data: { plaintextCode: string; redirectUri: string; code: { consumedAt: string | null } } };
+  const body = response.json() as { data: { plaintextCode: string; redirectUri: string; code: { consumedAt: string | null; state: string; clientId: string } } };
   assert.equal(body.data.plaintextCode, 'cp_login_abc123');
-  assert.equal(body.data.redirectUri, 'crispy://auth/callback?code=cp_login_abc123');
+  assert.equal(body.data.redirectUri, 'https://app.crispytv.tech/auth/callback?code=cp_login_abc123&state=test-state-value-16chars');
   assert.equal(body.data.code.consumedAt, null);
+  assert.equal(body.data.code.clientId, 'crispy-ios');
+  assert.equal(body.data.code.state, 'test-state-value-16chars');
 });
 
 test('POST /v1/auth/app-login/exchange exchanges code for app session token', async (t) => {
@@ -56,6 +70,7 @@ test('POST /v1/auth/app-login/exchange exchanges code for app session token', as
 
   AppLoginHandoffService.prototype.exchange = async function (input) {
     assert.equal(input.code, 'cp_login_abc123');
+    assert.equal(input.codeVerifier, 'test-verifier');
     assert.equal(input.deviceName, 'Pixel TV');
     return {
       token: {
@@ -84,7 +99,7 @@ test('POST /v1/auth/app-login/exchange exchanges code for app session token', as
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/app-login/exchange',
-    payload: { code: 'cp_login_abc123', deviceName: 'Pixel TV' },
+    payload: { code: 'cp_login_abc123', codeVerifier: 'test-verifier', deviceName: 'Pixel TV' },
   });
 
   assert.equal(response.statusCode, 200);

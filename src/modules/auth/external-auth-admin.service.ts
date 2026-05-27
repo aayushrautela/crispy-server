@@ -8,13 +8,11 @@ export type AuthAdminUser = {
 
 export class ExternalAuthAdminService {
   isConfigured(): boolean {
-    return Boolean(env.authAdminUrl && env.authAdminApiKey);
+    return true;
   }
 
   async findUserByEmail(email: string): Promise<AuthAdminUser | null> {
-    if (!this.isConfigured()) {
-      return null;
-    }
+    
 
     const baseUrl = env.authAdminUrl.replace(/\/$/, '');
     const url = `${baseUrl}/admin/users?filter=${encodeURIComponent(email)}&page=1&per_page=10`;
@@ -52,9 +50,7 @@ export class ExternalAuthAdminService {
   }
 
   async deleteUser(authSubject: string): Promise<boolean> {
-    if (!this.isConfigured()) {
-      return false;
-    }
+    
 
     const response = await fetch(`${env.authAdminUrl.replace(/\/$/, '')}/admin/users/${encodeURIComponent(authSubject)}`, {
       method: 'DELETE',

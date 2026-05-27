@@ -12,8 +12,10 @@ const REQUIRED_ENV: Record<string, string> = {
   APP_DISPLAY_NAME: 'CrispyTV',
   AUTH_BASE_URL: 'https://example.supabase.co',
   AUTH_JWT_AUDIENCE: 'authenticated',
+  AUTH_ADMIN_API_KEY: 'test-admin-api-key',
   TMDB_API_KEY: 'tmdb-test-key',
   SECRETS_ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
+  CURSOR_SIGNING_SECRET: 'test-cursor-signing-secret-thats-long-enough-32',
 };
 
 export function seedTestEnv(extra?: Record<string, string>): void {

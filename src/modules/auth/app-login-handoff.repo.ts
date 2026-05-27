@@ -6,7 +6,11 @@ export type AppLoginHandoffRecord = {
   accountId: string;
   codeHash: string;
   codePreview: string;
-  returnUri: string | null;
+  clientId: string;
+  returnUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: string;
+  state: string;
   expiresAt: string;
   consumedAt: string | null;
   createdAt: string;
@@ -19,7 +23,11 @@ function mapAppLoginHandoff(row: Record<string, unknown>): AppLoginHandoffRecord
     accountId: String(row.account_id),
     codeHash: String(row.code_hash),
     codePreview: String(row.code_preview),
-    returnUri: typeof row.return_uri === 'string' ? row.return_uri : null,
+    clientId: String(row.client_id),
+    returnUri: String(row.return_uri),
+    codeChallenge: String(row.code_challenge),
+    codeChallengeMethod: String(row.code_challenge_method),
+    state: String(row.state),
     expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'app_login_handoff_codes.expires_at'),
     consumedAt: toDbIsoString(row.consumed_at as Date | string | null | undefined, 'app_login_handoff_codes.consumed_at'),
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'app_login_handoff_codes.created_at'),
@@ -32,7 +40,11 @@ export class AppLoginHandoffRepository {
     accountId: string;
     codeHash: string;
     codePreview: string;
-    returnUri: string | null;
+    clientId: string;
+    returnUri: string;
+    codeChallenge: string;
+    codeChallengeMethod: string;
+    state: string;
     expiresAt: string;
   }): Promise<AppLoginHandoffRecord> {
     const result = await client.query(
@@ -41,14 +53,19 @@ export class AppLoginHandoffRepository {
           account_id,
           code_hash,
           code_preview,
+          client_id,
           return_uri,
+          code_challenge,
+          code_challenge_method,
+          state,
           expires_at
         )
-        VALUES ($1::uuid, $2, $3, $4, $5::timestamptz)
-        RETURNING id, account_id, code_hash, code_preview, return_uri,
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz)
+        RETURNING id, account_id, code_hash, code_preview,
+                  client_id, return_uri, code_challenge, code_challenge_method, state,
                   expires_at, consumed_at, created_at, updated_at
       `,
-      [params.accountId, params.codeHash, params.codePreview, params.returnUri, params.expiresAt],
+      [params.accountId, params.codeHash, params.codePreview, params.clientId, params.returnUri, params.codeChallenge, params.codeChallengeMethod, params.state, params.expiresAt],
     );
 
     return mapAppLoginHandoff(result.rows[0]);
@@ -68,7 +85,8 @@ export class AppLoginHandoffRepository {
           FOR UPDATE SKIP LOCKED
           LIMIT 1
         )
-        RETURNING id, account_id, code_hash, code_preview, return_uri,
+        RETURNING id, account_id, code_hash, code_preview,
+                  client_id, return_uri, code_challenge, code_challenge_method, state,
                   expires_at, consumed_at, created_at, updated_at
       `,
       [codeHash],

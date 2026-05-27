@@ -3,11 +3,13 @@ import { nonEmptyStringSchema, nullableStringSchema, successEnvelope, withDefaul
 const handoffCodeSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'codePreview', 'returnUri', 'expiresAt', 'consumedAt', 'createdAt'],
+  required: ['id', 'codePreview', 'clientId', 'returnUri', 'state', 'expiresAt', 'consumedAt', 'createdAt'],
   properties: {
     id: nonEmptyStringSchema,
     codePreview: nonEmptyStringSchema,
-    returnUri: nullableStringSchema,
+    clientId: nonEmptyStringSchema,
+    returnUri: nonEmptyStringSchema,
+    state: nonEmptyStringSchema,
     expiresAt: nonEmptyStringSchema,
     consumedAt: nullableStringSchema,
     createdAt: nonEmptyStringSchema,
@@ -44,8 +46,13 @@ export const createAppLoginHandoffRouteSchema = withDefaultErrorResponses({
   body: {
     type: 'object',
     additionalProperties: false,
+    required: ['clientId', 'returnUri', 'codeChallenge', 'codeChallengeMethod', 'state'],
     properties: {
-      returnUri: nullableStringSchema,
+      clientId: nonEmptyStringSchema,
+      returnUri: nonEmptyStringSchema,
+      codeChallenge: nonEmptyStringSchema,
+      codeChallengeMethod: { type: 'string', enum: ['S256'] },
+      state: nonEmptyStringSchema,
     },
   },
   response: {
@@ -56,7 +63,7 @@ export const createAppLoginHandoffRouteSchema = withDefaultErrorResponses({
       properties: {
         code: handoffCodeSchema,
         plaintextCode: nonEmptyStringSchema,
-        redirectUri: nullableStringSchema,
+        redirectUri: nonEmptyStringSchema,
       },
     }),
   },
@@ -66,9 +73,10 @@ export const exchangeAppLoginHandoffRouteSchema = withDefaultErrorResponses({
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['code'],
+    required: ['code', 'codeVerifier'],
     properties: {
       code: nonEmptyStringSchema,
+      codeVerifier: nonEmptyStringSchema,
       deviceName: nullableStringSchema,
     },
   },

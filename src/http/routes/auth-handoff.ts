@@ -14,7 +14,11 @@ export async function registerAuthHandoffRoutes(
     const actor = app.requireUserSessionActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     const created = await appLoginHandoffService.createForUser(actor.authSubject, {
-      returnUri: body.returnUri === null || typeof body.returnUri === 'string' ? body.returnUri : undefined,
+      clientId: String(body.clientId ?? ''),
+      returnUri: String(body.returnUri ?? ''),
+      codeChallenge: String(body.codeChallenge ?? ''),
+      codeChallengeMethod: String(body.codeChallengeMethod ?? ''),
+      state: String(body.state ?? ''),
     });
     reply.code(201);
     return mutation(created, request);
@@ -24,6 +28,7 @@ export async function registerAuthHandoffRoutes(
     const body = (request.body ?? {}) as Record<string, unknown>;
     return success(await appLoginHandoffService.exchange({
       code: String(body.code ?? ''),
+      codeVerifier: String(body.codeVerifier ?? ''),
       deviceName: body.deviceName === null || typeof body.deviceName === 'string' ? body.deviceName : undefined,
     }), request);
   });

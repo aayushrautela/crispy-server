@@ -1,6 +1,11 @@
+import { createHash } from 'node:crypto';
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString, toDbIsoString } from '../../lib/time.js';
 import type { ProviderImportProvider } from './provider-import.types.js';
+
+function hashStateToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 export type ProviderSessionState =
   | 'not_connected'
@@ -64,10 +69,10 @@ export class ProviderSessionsRepository {
         FROM user_state.provider_sessions
         WHERE provider = $1
           AND state = 'oauth_pending'
-          AND state_token = $2
+          AND state_token_hash = $2
         LIMIT 1
       `,
-      [provider, stateToken],
+      [provider, hashStateToken(stateToken)],
     );
     return result.rows[0] ? mapProviderSession(result.rows[0]) : null;
   }
@@ -143,6 +148,7 @@ export class ProviderSessionsRepository {
     expiresAt: string;
     credentialsJson: Record<string, unknown>;
   }): Promise<ProviderSessionRecord> {
+    const stateTokenHash = hashStateToken(params.stateToken);
     const result = await client.query(
       `
         INSERT INTO user_state.provider_sessions (
@@ -151,17 +157,19 @@ export class ProviderSessionsRepository {
           state,
           credentials_json,
           state_token,
+          state_token_hash,
           expires_at,
           updated_at
         )
-        VALUES ($1::uuid, $2, 'oauth_pending', $3::jsonb, $4, $5::timestamptz, now())
+        VALUES ($1::uuid, $2, 'oauth_pending', $3::jsonb, null, $4, $5::timestamptz, now())
         ON CONFLICT (profile_id, provider)
         DO UPDATE SET
           state = 'oauth_pending',
           provider_user_id = null,
           external_username = null,
           credentials_json = EXCLUDED.credentials_json,
-          state_token = EXCLUDED.state_token,
+          state_token = null,
+          state_token_hash = EXCLUDED.state_token_hash,
           expires_at = EXCLUDED.expires_at,
           last_refresh_at = null,
           last_refresh_error = null,
@@ -175,7 +183,7 @@ export class ProviderSessionsRepository {
         params.profileId,
         params.provider,
         JSON.stringify(params.credentialsJson),
-        params.stateToken,
+        stateTokenHash,
         params.expiresAt,
       ],
     );
