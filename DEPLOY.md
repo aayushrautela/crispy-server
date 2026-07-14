@@ -1,4 +1,4 @@
-# Fedora VPS deploy
+# Fedora VPS deploy (self-hosted Supabase)
 
 1. Install tools:
    ```bash
@@ -7,16 +7,45 @@
    sudo usermod -aG docker $USER
    ```
 
-2. Clone and configure:
+2. Deploy self-hosted Supabase (if not already):
+   ```bash
+   git clone https://github.com/supabase/supabase.git /opt/supabase
+   cd /opt/supabase/docker
+   cp .env.example .env
+   # Edit .env: set POSTGRES_PASSWORD, JWT_SECRET, SERVICE_ROLE_KEY, ANON_KEY, SUPABASE_PUBLIC_URL, API_EXTERNAL_URL, etc.
+   # Generate keys: sh utils/generate-keys.sh
+   docker compose up -d
+   ```
+
+3. Clone and configure crispy-server:
    ```bash
    git clone <your-repo-url> /opt/crispy-server
    cd /opt/crispy-server
    cp .env.production.example .env
    ```
 
-3. Fill `.env`.
+4. Fill `.env` with self-hosted Supabase values.
 
-   Auth is external through Supabase. Fastify remains the API/data boundary, and local Postgres stores product data, operational data, metadata caches, and recommendation data. JWT verification and optional upstream user deletion use the `AUTH_*`/Supabase variables.
+   **Key env vars for self-hosted Supabase:**
+   ```env
+   # Database - connects to Supabase Postgres via shared Docker network
+   POSTGRES_PASSWORD=<from Supabase .env POSTGRES_PASSWORD>
+   DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@supabase-db:5432/postgres
+
+   # Redis - separate container on host
+   REDIS_URL=redis://host.docker.internal:6379
+
+   # Auth - connects to Supabase Kong gateway on host
+   AUTH_BASE_URL=http://host.docker.internal:8000
+   AUTH_ADMIN_API_KEY=<from Supabase .env SERVICE_ROLE_KEY>
+   AUTH_JWT_AUDIENCE=authenticated
+   AUTH_JWT_ISSUER=http://host.docker.internal:8000/auth/v1
+
+   # App
+   APP_PUBLIC_URL=https://api.crispytv.tech
+   APP_DISPLAY_NAME=CrispyTV
+   ACCOUNT_PORTAL_URL=https://crispy-account-portal.vercel.app
+   ```
 
    Product defaults live in `config/app-config.json.example` (committed template). The loader looks for `config/app-config.json` first; if absent, it falls back to the example template. To customize, copy the template:
    ```bash
@@ -38,16 +67,6 @@
    - Shared management data stays account-scoped: addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
    - Personal experience data stays profile-scoped: profile settings, Trakt and Simkl connections, imports, watch history, continue watching, watchlist, ratings, episodic follow state, taste profiles, and recommendations.
    - Privileged routes are account-rooted: resolve the owning account first, then target a profile under that account for personal data.
-
-    Example auth config when Supabase is the auth provider:
-    ```env
-    APP_PUBLIC_URL=https://api.crispytv.tech
-    APP_DISPLAY_NAME=CrispyTV
-    AUTH_BASE_URL=https://your-project.supabase.co
-    AUTH_PUBLISHABLE_KEY=replace_with_auth_publishable_key
-    AUTH_JWT_AUDIENCE=authenticated
-    AUTH_ADMIN_API_KEY=replace_with_auth_admin_api_key_optional
-    ```
 
    Recommendation generation is handled by an external event-driven recommendation engine. Crispy Server emits durable recompute events through its outbox; the engine receives those events, authenticates to Crispy API as a service principal, pulls authorized source data from the internal API, and publishes recommendation outputs through the agreed internal API surface. Crispy Server remains the source of truth for account/profile authorization, canonical TMDB-backed media identity, API contracts, target user interaction signals, and stored recommendation snapshots. Supabase is not used as an app-data store and the recommendation engine does not read Supabase directly by default.
 
@@ -75,27 +94,35 @@
 
    Privileged inbound data reads and writes should use the account-rooted internal routes documented in OpenAPI (`openapi/internal-services.v1.yaml`) and indexed from `docs/api/README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 
-4. Start it:
+5. Start Redis on host (if not already):
    ```bash
-   docker compose -f docker-compose.prod.yml up -d --build
-   docker compose -f docker-compose.prod.yml exec api npm run migrate:prod
+   docker run -d --name redis -p 6379:6379 --restart unless-stopped redis:7
    ```
 
-5. Reverse proxy to:
+6. Start crispy-server:
+   ```bash
+   cd /opt/crispy-server
+   docker compose up -d --build
+   docker compose exec api npm run migrate:prod
+   ```
+
+7. Reverse proxy to:
    - `127.0.0.1:18765`
 
-6. Test on the server:
+8. Test on the server:
    ```bash
    curl http://127.0.0.1:18765/healthz
    ```
 
-7. Update later:
+9. Update later:
    ```bash
    git pull --ff-only
-   docker compose -f docker-compose.prod.yml up -d --build
-   docker compose -f docker-compose.prod.yml exec api npm run migrate:prod
+   docker compose up -d --build
+   docker compose exec api npm run migrate:prod
    ```
 
 Notes:
-- DB survives restarts because Postgres uses the `postgres-data` Docker volume.
-- Do not run `docker compose down -v`.
+- Supabase Postgres data survives restarts via its own `volumes/db/data` Docker volume.
+- Crispy-server does not run its own Postgres/Redis — it connects to the host's Supabase stack and Redis container.
+- Do not run `docker compose down -v` on Supabase stack.
+- Crispy-server compose uses `supabase_default` external network to reach `supabase-db:5432` and `host.docker.internal` to reach host Kong (8000) and Redis (6379).

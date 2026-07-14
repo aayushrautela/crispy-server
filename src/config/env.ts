@@ -101,6 +101,7 @@ const authBaseUrl = requireBaseUrl('AUTH_BASE_URL');
 const authAuthBaseUrl = `${authBaseUrl}/auth/v1`;
 const authAdminApiKey = requireEnv('AUTH_ADMIN_API_KEY');
 const portalSessionSecret = requireEnv('PORTAL_SESSION_SECRET');
+const authJwtIssuer = optionalBaseUrl('AUTH_JWT_ISSUER') ?? authAuthBaseUrl;
 
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
@@ -123,7 +124,7 @@ export const env = {
   authBaseUrl,
   authAdminApiKey,
   authJwksUrl: `${authAuthBaseUrl}/.well-known/jwks.json`,
-  authJwtIssuer: authAuthBaseUrl,
+  authJwtIssuer,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: authAuthBaseUrl,
   tmdbApiKey: requireEnv('TMDB_API_KEY'),

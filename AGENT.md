@@ -19,23 +19,19 @@ This repository is easy to misread if you only scan env vars. Read this first be
   - clients may use Supabase Auth directly for login/session
   - Fastify verifies bearer JWTs through Supabase issuer/JWKS discovery
   - Fastify may use the upstream auth admin API for deleting Supabase auth users
-- Local Postgres is the store for durable product data behind Fastify:
-  - accounts, profiles, memberships, preferences, and entitlements
-  - account/profile secrets, token metadata, provider credentials, and PAT hashes
-  - profile watch state
-  - watch history
-  - continue watching
-  - watchlist/favorites/list items
-  - ratings
-  - provider-import interaction facts
-  - recommendation outputs, taste profiles, idempotency, and copied profile signals
+- **Self-hosted Supabase runs on the same VPS** (separate Docker stack at `/opt/supabase/docker`):
+  - Kong gateway on `host.docker.internal:8000` → Auth, REST, Realtime, Storage APIs
+  - Postgres on `supabase-db:5432` (internal Docker network `supabase_default`)
+  - Supavisor pooler on `supabase-pooler:5432` (session) / `6543` (transaction)
+- Local Postgres is **not used** — crispy-server connects to Supabase Postgres for all product data.
+- Redis runs as a standalone container on the host (`host.docker.internal:6379`).
 - Normal app data calls must go through Fastify by default.
 - Supabase service-role credentials are server-only and limited to upstream auth admin calls when required.
-- Supabase is not used here as the app-data store, metadata authority, AI execution layer, queue system, or direct client data API.
+- Supabase is not used here as an app-data store via PostgREST/RLS — we use direct `pg` connections to Supabase Postgres.
 - Core backend logic remains on our server:
   - Fastify API
   - BullMQ worker
-  - local Postgres for product data, metadata/cache tables, outbox/admin state, and recommendation data
+  - Supabase Postgres for product data, metadata/cache tables, outbox/admin state, and recommendation data
   - Redis accessed directly with `ioredis`
 
 ## Auth model
@@ -74,8 +70,11 @@ This repository is easy to misread if you only scan env vars. Read this first be
 
 - `src/bin/api.ts` starts the HTTP API.
 - `src/bin/worker.ts` starts the background worker.
-- `docker-compose.yml` runs `api`, `worker`, `postgres`, and `redis`.
-- `migrations/` defines the local Postgres product, metadata/cache, operational, and recommendation schema.
+- `docker-compose.yml` runs `api` and `worker` only — connects to:
+  - Supabase Postgres via `supabase_default` network (`supabase-db:5432`)
+  - Supabase Kong via `host.docker.internal:8000`
+  - Redis via `host.docker.internal:6379`
+- `migrations/` defines the product, metadata/cache, operational, and recommendation schema applied to Supabase Postgres.
 
 ## Main product areas
 
