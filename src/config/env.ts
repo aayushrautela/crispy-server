@@ -123,7 +123,7 @@ export const env = {
   portalSessionSecret,
   authBaseUrl,
   authAdminApiKey,
-  authJwksUrl: `${authAuthBaseUrl}/.well-known/jwks.json`,
+  authJwksUrl: `${authBaseUrl}/.well-known/jwks.json`,
   authJwtIssuer,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: authAuthBaseUrl,
