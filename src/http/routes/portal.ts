@@ -40,7 +40,10 @@ export async function registerPortalRoutes(
   const entitlementService = new FeatureEntitlementService();
 
   const auth = async (req: import('fastify').FastifyRequest) => app.portalOptionalUserAuth(req);
-  const mutationAuth = async (req: import('fastify').FastifyRequest) => app.portalRequireUserMutation(req);
+  const mutationAuth = async (req: import('fastify').FastifyRequest) => {
+    await app.portalOptionalUserAuth(req);
+    app.portalRequireUserMutation(req);
+  };
 
   // ---- Me ----
 
