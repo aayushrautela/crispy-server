@@ -1,19 +1,4 @@
 services:
-  postgres:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: crispy
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: crispy
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crispy -d crispy"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
   redis:
     image: redis:7
     restart: unless-stopped
@@ -33,21 +18,16 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgres://crispy:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/crispy
       REDIS_URL: redis://redis:6379
     command: npm run start:api
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
       - "127.0.0.1:18765:18765"
     networks:
-      default:
-      crispy-shared:
-        aliases:
-          - crispy-server-api
+      - default
+      - supabase_default
 
   worker:
     build:
@@ -56,23 +36,19 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgres://crispy:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/crispy
       REDIS_URL: redis://redis:6379
     command: npm run start:worker
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - default
-      - crispy-shared
+      - supabase_default
 
 volumes:
-  postgres-data:
   redis-data:
 
 networks:
-  crispy-shared:
+  supabase_default:
     external: true
-    name: crispy-shared
+    name: supabase_default
