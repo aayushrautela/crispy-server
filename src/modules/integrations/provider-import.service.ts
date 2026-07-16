@@ -754,7 +754,7 @@ export class ProviderImportService {
   private async getLocalProfile(profileId: string): Promise<ProfileRecord | null> {
     try {
       const result = await db.query(
-        `SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+        `SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_url, is_kids, sort_order, created_by_account_id, created_at, updated_at
          FROM identity.profiles
          WHERE id = $1::uuid AND deleted_at IS NULL`,
         [profileId],
@@ -767,7 +767,7 @@ export class ProviderImportService {
         name: String(r.name),
         interfaceLanguage: typeof r.interface_language === 'string' ? r.interface_language : 'en',
         region: typeof r.region === 'string' ? r.region : null,
-        avatarKey: typeof r.avatar_key === 'string' ? r.avatar_key : null,
+        avatarUrl: typeof r.avatar_url === 'string' ? r.avatar_url : null,
         isKids: Boolean(r.is_kids),
         sortOrder: Number(r.sort_order),
         createdByUserId: typeof r.created_by_account_id === 'string' ? r.created_by_account_id : null,

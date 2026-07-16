@@ -176,7 +176,7 @@ test('me route returns account settings envelope', async (t) => {
       id: 'profile-1',
       profileGroupId: 'group-1',
       name: 'Main',
-      avatarKey: null,
+      avatarUrl: null,
       isKids: false,
       sortOrder: 0,
       createdByUserId: 'user-1',

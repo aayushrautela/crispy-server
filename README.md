@@ -47,6 +47,8 @@ The external recommendation engine is a separate event-driven service. It is not
 - Per-profile 4-digit PINs are stored as bcrypt hashes with exponential backoff on invalid attempts.
 - The admin profile may require a valid PIN when new profiles are added; the PIN set/change/remove/verify endpoints live under `/v1/profiles/:profileId/pin`.
 - Profile `interface_language` and country code are validated against code-only catalogs exposed at `/v1/i18n/languages` and `/v1/i18n/countries`.
+- Profile `avatar_url` must be a valid Dicebear URL (`https://api.dicebear.com/v9/<style>/<format>`); avatar rendering is client-side.
+- First authenticated request bootstraps the account + admin profile; if `name`, `interfaceLanguage`, or `avatarUrl` are missing/invalid, the API returns `409 signup_incomplete`.
 - Account-shared data includes profile roster management, addons, PATs, account deletion, metadata-enrichment availability flags, and AI provider/secret settings.
 - Profile-personal data includes profile settings, watch state, history, continue watching, watchlist, ratings, episodic follow state, provider connections/imports, taste profiles, and recommendations.
 - Trakt and Simkl connections remain per-profile.

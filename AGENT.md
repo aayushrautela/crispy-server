@@ -49,6 +49,8 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Per-profile 4-digit PINs are stored as bcrypt hashes (`pin_hash`) on `identity.profiles`. Brute-force protection uses `pin_failed_attempts` + `pin_locked_until`; locked-out PINs return 423.
 - The admin profile can enable `require_pin_to_add_profiles`; when on, `POST /v1/profiles` requires a valid `adminPin` matching the admin profile's PIN (verified server-side).
 - Language and country values are validated against code-only allowlists exposed at `/v1/i18n/languages` and `/v1/i18n/countries`. Clients must use these catalogs to render signup/profile forms.
+- Profile `avatar_url` must be a valid Dicebear URL (`api.dicebear.com/v9/<style>/<format>`); validation lives in `src/modules/profiles/avatar-url.ts`.
+- Signup bootstrap is strict: the first authenticated request rejects with `409 signup_incomplete` (and a `fields` list) unless `name`, `interfaceLanguage`, and `avatarUrl` are present and valid (`src/http/auth-helpers.ts`).
 - Shared account-scoped data includes addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
 - Profile-scoped personal data includes profile settings, watch state/history, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl are per-profile, not account-scoped.
@@ -101,7 +103,6 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/http/routes/` - actual endpoint definitions
 - `src/http/plugins/auth.ts` - user JWT and PAT auth flow
 - `src/modules/auth/external-auth-admin.service.ts` - optional upstream auth user deletion
-- `src/modules/users/user.service.ts` - account bootstrap from auth subject into local account/profile records
 - `src/modules/users/account-settings.service.ts` - account-shared settings and secrets
 - `docker-compose.yml` - local runtime topology
 - `DEPLOY.md` - deployment and hosted service auth notes

@@ -1,7 +1,9 @@
+import { HttpError } from '../../lib/errors.js';
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
 import { normalizeLanguageCode } from '../i18n/supported-languages.js';
 import { normalizeCountryCode } from '../i18n/supported-countries.js';
+import { validateAvatarUrl } from './avatar-url.js';
 
 export type ProfileRecord = {
   id: string;
@@ -9,7 +11,7 @@ export type ProfileRecord = {
   name: string;
   interfaceLanguage: string;
   region: string | null;
-  avatarKey: string | null;
+  avatarUrl: string | null;
   isAdmin: boolean;
   requirePinToAddProfiles: boolean;
   hasPin: boolean;
@@ -29,7 +31,7 @@ export type ProfilePinRow = {
 };
 
 const PROFILE_COLUMNS = `
-  id, account_id AS profile_group_id, name, interface_language, region, avatar_key,
+  id, account_id AS profile_group_id, name, interface_language, region, avatar_url,
   is_admin, pin_hash IS NOT NULL AS has_pin, require_pin_to_add_profiles,
   is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
 `;
@@ -42,6 +44,14 @@ function normalizeOptionalProfileRegion(value: unknown): string | null {
   return normalizeCountryCode(value);
 }
 
+function normalizeOptionalAvatarUrl(value: unknown): string | null {
+  const result = validateAvatarUrl(value);
+  if (!result.ok) {
+    throw new HttpError(400, result.reason);
+  }
+  return result.url === '' ? null : result.url;
+}
+
 function mapProfile(row: Record<string, unknown>): ProfileRecord {
   return {
     id: String(row.id),
@@ -49,7 +59,7 @@ function mapProfile(row: Record<string, unknown>): ProfileRecord {
     name: String(row.name),
     interfaceLanguage: typeof row.interface_language === 'string' ? row.interface_language : 'en',
     region: typeof row.region === 'string' ? row.region : null,
-    avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
+    avatarUrl: typeof row.avatar_url === 'string' ? row.avatar_url : null,
     isAdmin: Boolean(row.is_admin),
     requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles),
     hasPin: Boolean(row.has_pin),
@@ -137,29 +147,6 @@ export class ProfileRepository {
     return result.rows.map((row) => mapProfile(row));
   }
 
-  async listAvatarKeysForProfileGroups(client: DbClient, profileGroupIds: string[]): Promise<string[]> {
-    if (profileGroupIds.length === 0) {
-      return [];
-    }
-
-    const result = await client.query(
-      `
-        SELECT DISTINCT avatar_key
-        FROM identity.profiles
-        WHERE account_id = ANY($1::uuid[])
-          AND deleted_at IS NULL
-          AND avatar_key IS NOT NULL
-          AND btrim(avatar_key) <> ''
-        ORDER BY avatar_key ASC
-      `,
-      [profileGroupIds],
-    );
-
-    return result.rows
-      .map((row) => (typeof row.avatar_key === 'string' ? row.avatar_key : null))
-      .filter((value): value is string => value !== null);
-  }
-
   async listForOwnerUser(client: DbClient, ownerUserId: string): Promise<ProfileRecord[]> {
     return this.listForProfileGroup(client, ownerUserId);
   }
@@ -195,7 +182,7 @@ export class ProfileRepository {
     name: string;
     interfaceLanguage?: string;
     region?: string | null;
-    avatarKey?: string | null;
+    avatarUrl?: string | null;
     isAdmin?: boolean;
     isKids?: boolean;
     sortOrder: number;
@@ -203,7 +190,7 @@ export class ProfileRepository {
   }): Promise<ProfileRecord> {
     const result = await client.query(
       `
-        INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_admin, is_kids, sort_order, created_by_account_id)
+        INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_url, is_admin, is_kids, sort_order, created_by_account_id)
         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
         RETURNING ${PROFILE_COLUMNS}
       `,
@@ -212,7 +199,7 @@ export class ProfileRepository {
         params.name,
         normalizeRequiredProfileLanguage(params.interfaceLanguage ?? 'en'),
         normalizeOptionalProfileRegion(params.region),
-        params.avatarKey ?? null,
+        normalizeOptionalAvatarUrl(params.avatarUrl ?? null),
         params.isAdmin ?? false,
         params.isKids ?? false,
         params.sortOrder,
@@ -241,7 +228,7 @@ export class ProfileRepository {
     name?: string;
     interfaceLanguage?: string;
     region?: string | null;
-    avatarKey?: string | null;
+    avatarUrl?: string | null;
     isKids?: boolean;
     sortOrder?: number;
   }): Promise<ProfileRecord | null> {
@@ -257,7 +244,7 @@ export class ProfileRepository {
           name = $3,
           interface_language = $4,
           region = $5,
-          avatar_key = $6,
+          avatar_url = $6,
           is_kids = $7,
           sort_order = $8,
           updated_at = now()
@@ -270,7 +257,7 @@ export class ProfileRepository {
         params.name ?? current.name,
         params.interfaceLanguage === undefined ? current.interfaceLanguage : normalizeRequiredProfileLanguage(params.interfaceLanguage),
         params.region === undefined ? current.region : normalizeOptionalProfileRegion(params.region),
-        params.avatarKey === undefined ? current.avatarKey : params.avatarKey,
+        params.avatarUrl === undefined ? current.avatarUrl : normalizeOptionalAvatarUrl(params.avatarUrl),
         params.isKids ?? current.isKids,
         params.sortOrder ?? current.sortOrder,
       ],

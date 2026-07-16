@@ -28,22 +28,22 @@ export class AccountDeletionService {
 
     const deletion = await this.transactionRunner(async (client) => {
       const avatarResult = await client.query(
-        `SELECT avatar_key
+        `SELECT avatar_url
          FROM identity.profiles
          WHERE account_id = $1::uuid
-           AND avatar_key IS NOT NULL
-           AND btrim(avatar_key) <> ''`,
+           AND avatar_url IS NOT NULL
+           AND btrim(avatar_url) <> ''`,
         [params.appUserId],
       );
-      const avatarKeys = avatarResult.rows.map((row) => String(row.avatar_key));
+      const avatarUrls = avatarResult.rows.map((row) => String(row.avatar_url));
 
       await client.query('DELETE FROM private.account_secrets WHERE account_id = $1::uuid', [params.appUserId]);
       await client.query('DELETE FROM identity.account_preferences WHERE account_id = $1::uuid', [params.appUserId]);
       const profileResult = await client.query('DELETE FROM identity.profiles WHERE account_id = $1::uuid RETURNING id', [params.appUserId]);
 
-      if (avatarKeys.length > 0) {
+      if (avatarUrls.length > 0) {
         warnings.push(
-          `Deleted account referenced ${avatarKeys.length} avatar key(s), but avatar storage cleanup is not configured locally.`,
+          `Deleted account referenced ${avatarUrls.length} external avatar URL(s); no local avatar storage cleanup is configured.`,
         );
       }
 

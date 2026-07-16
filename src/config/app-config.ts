@@ -10,10 +10,6 @@ export type AppServerAiConfig = {
 };
 
 type AppConfig = {
-  defaults: {
-    profileGroupName: string;
-    profileName: string;
-  };
   cache: {
     calendarTtlSeconds: number;
     tmdb: {
@@ -70,18 +66,9 @@ function loadAppConfig(filePath: string): AppConfig {
   const root = expectRecord(parsed, 'app config');
 
   return {
-    defaults: parseDefaults(root),
     cache: parseCache(root),
     metadata: parseMetadata(root),
     ai: parseAiConfig(root),
-  };
-}
-
-function parseDefaults(root: Record<string, unknown>): AppConfig['defaults'] {
-  const defaults = expectRecord(root.defaults, 'defaults');
-  return {
-    profileGroupName: expectNonEmptyString(defaults.profileGroupName, 'defaults.profileGroupName'),
-    profileName: expectNonEmptyString(defaults.profileName, 'defaults.profileName'),
   };
 }
 

@@ -11,7 +11,7 @@ test('deleteAccount revokes PATs and cleans up data', async () => {
   const client = {
     query: async (sql: string) => {
       queries.push(sql);
-      if (sql.includes('SELECT avatar_key')) return { rows: [], rowCount: 0 };
+      if (sql.includes('SELECT avatar_url')) return { rows: [], rowCount: 0 };
       if (sql.includes('DELETE FROM identity.profiles')) return { rows: [{ id: 'profile-1' }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     },
@@ -35,7 +35,7 @@ test('deleteAccount revokes PATs and cleans up data', async () => {
 test('deleteAccount includes warnings for avatar keys', async () => {
   const client = {
     query: async (sql: string) => {
-      if (sql.includes('SELECT avatar_key')) return { rows: [{ avatar_key: 'key-1' }, { avatar_key: 'key-2' }], rowCount: 2 };
+      if (sql.includes('SELECT avatar_url')) return { rows: [{ avatar_url: 'https://api.dicebear.com/v9/initials/svg?seed=key-1' }, { avatar_url: 'https://api.dicebear.com/v9/initials/svg?seed=key-2' }], rowCount: 2 };
       if (sql.includes('DELETE FROM identity.profiles')) return { rows: [{ id: 'profile-1' }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     },

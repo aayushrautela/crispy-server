@@ -21,7 +21,7 @@ const profile = {
   name: 'Test Profile',
   interfaceLanguage: 'en',
   region: null,
-  avatarKey: null,
+  avatarUrl: null,
   isAdmin: false,
   requirePinToAddProfiles: false,
   hasPin: false,

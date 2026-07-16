@@ -182,7 +182,7 @@ export async function registerProfileRoutes(
       name: String(body.name ?? '').trim(),
       interfaceLanguage: typeof body.interfaceLanguage === 'string' ? body.interfaceLanguage : '',
       region: body.region === null || typeof body.region === 'string' ? body.region : undefined,
-      avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : null,
+      avatarUrl: typeof body.avatarUrl === 'string' ? body.avatarUrl : null,
       isKids: Boolean(body.isKids),
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
@@ -198,7 +198,7 @@ export async function registerProfileRoutes(
       name: typeof body.name === 'string' ? body.name : undefined,
       interfaceLanguage: typeof body.interfaceLanguage === 'string' ? body.interfaceLanguage : undefined,
       region: body.region === null || typeof body.region === 'string' ? body.region : undefined,
-      avatarKey: typeof body.avatarKey === 'string' ? body.avatarKey : undefined,
+      avatarUrl: typeof body.avatarUrl === 'string' ? body.avatarUrl : undefined,
       isKids: typeof body.isKids === 'boolean' ? body.isKids : undefined,
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });

@@ -109,6 +109,20 @@ When the admin profile has `require_pin_to_add_profiles = true`, every `POST /v1
 
 These endpoints are the source of truth for any UI rendering signup, profile-edit, or onboarding dropdowns.
 
+### Avatar URL
+
+`identity.profiles.avatar_url` stores a full avatar URL. On write (profile create/update) the value is validated as a Dicebear URL by `src/modules/profiles/avatar-url.ts`: only `https://api.dicebear.com/v9/<style>/<format>` is accepted, where `<style>` is one of `SUPPORTED_DICEBEAR_STYLES` and `<format>` is `svg` | `png` | `webp` | `avif`. Empty/null means no avatar. Avatar rendering is the client's responsibility; the backend only stores and validates the URL.
+
+### Strict signup bootstrap
+
+The first authenticated request bootstraps the account and its admin profile. Required profile fields are enforced at that point via `src/http/auth-helpers.ts` `verifyAndUpsertAuthJwt`:
+
+- `name` is required (derived from token `full_name`/`name`/`display_name`, else the email local-part).
+- `interfaceLanguage` is required and must be a supported language code.
+- `avatarUrl` is required and must be a valid Dicebear URL.
+
+If any required field is missing or invalid, the request is rejected with `409 signup_incomplete` and a `fields` list; the admin profile is not created until the client supplies complete metadata (e.g. via Supabase user metadata). Once a profile exists, subsequent requests succeed.
+
 ## Canonical Provider Rules
 
 Canonical media identity is TMDB-only.

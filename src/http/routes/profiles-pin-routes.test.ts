@@ -54,7 +54,7 @@ test('POST /v1/profiles does NOT call verifyAdminPinForAddProfile when no adminP
       name: String(input.name),
       interfaceLanguage: String(input.interfaceLanguage),
       region: input.region === null || typeof input.region === 'string' ? input.region as string | null : null,
-      avatarKey: typeof input.avatarKey === 'string' ? input.avatarKey : null,
+      avatarUrl: typeof input.avatarKey === 'string' ? input.avatarKey : null,
       isAdmin: false,
       requirePinToAddProfiles: false,
       hasPin: false,
@@ -92,7 +92,7 @@ test('POST /v1/profiles calls verifyAdminPinForAddProfile when adminPin is suppl
       name: String(input.name),
       interfaceLanguage: String(input.interfaceLanguage),
       region: null,
-      avatarKey: null,
+      avatarUrl: null,
       isAdmin: false,
       requirePinToAddProfiles: false,
       hasPin: false,
@@ -152,7 +152,7 @@ test('PATCH /v1/profiles/:profileId/admin-policy rejects non-admin profiles with
   ProfileLocalService.prototype.requireOwnedProfile = async function (_auth: string, id: string) {
     return {
       id, profileGroupId: 'g', name: 'Member', interfaceLanguage: 'en', region: null,
-      avatarKey: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false,
+      avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false,
       isKids: false, sortOrder: 1, createdByUserId: 'u',
       createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z',
     };

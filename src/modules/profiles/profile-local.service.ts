@@ -2,6 +2,7 @@ import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
 import { normalizeLanguageCode } from '../i18n/supported-languages.js';
 import { normalizeCountryCode } from '../i18n/supported-countries.js';
+import { validateAvatarUrl } from './avatar-url.js';
 import { RecommendationOutboxService } from '../outbox/recommendation-outbox.service.js';
 
 export type ProfileRecord = {
@@ -9,7 +10,7 @@ export type ProfileRecord = {
   name: string;
   interfaceLanguage: string;
   region: string | null;
-  avatarKey: string | null;
+  avatarUrl: string | null;
   isAdmin: boolean;
   requirePinToAddProfiles: boolean;
   hasPin: boolean;
@@ -24,7 +25,7 @@ export type ProfileCreateInput = {
   name: string;
   interfaceLanguage: string;
   region?: string | null;
-  avatarKey?: string | null;
+  avatarUrl?: string | null;
   isAdmin?: boolean;
   isKids?: boolean;
   sortOrder?: number;
@@ -34,7 +35,7 @@ export type ProfileUpdateInput = {
   name?: string;
   interfaceLanguage?: string;
   region?: string | null;
-  avatarKey?: string | null;
+  avatarUrl?: string | null;
   isKids?: boolean;
   sortOrder?: number;
 };
@@ -45,7 +46,7 @@ function mapRow(row: Record<string, unknown>): ProfileRecord {
     name: String(row.name),
     interfaceLanguage: typeof row.interface_language === 'string' ? row.interface_language : 'en',
     region: typeof row.region === 'string' ? row.region : null,
-    avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
+    avatarUrl: typeof row.avatar_url === 'string' ? row.avatar_url : null,
     isAdmin: Boolean(row.is_admin),
     requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles),
     hasPin: Boolean(row.has_pin),
@@ -55,6 +56,14 @@ function mapRow(row: Record<string, unknown>): ProfileRecord {
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
+}
+
+function normalizeOptionalAvatarUrl(value: unknown): string | null {
+  const result = validateAvatarUrl(value);
+  if (!result.ok) {
+    throw new HttpError(400, result.reason);
+  }
+  return result.url === '' ? null : result.url;
 }
 
 function normalizeRequiredName(value: unknown): string {
@@ -88,7 +97,7 @@ export function normalizeOptionalProfileRegion(value: unknown): string | null {
 }
 
 const LOCAL_PROFILE_COLUMNS = `
-  id, name, interface_language, region, avatar_key,
+  id, name, interface_language, region, avatar_url,
   is_admin, pin_hash IS NOT NULL AS has_pin, require_pin_to_add_profiles,
   is_kids, sort_order, created_by_account_id, created_at, updated_at
 `;
@@ -132,6 +141,7 @@ export class ProfileLocalService {
       const name = normalizeRequiredName(input.name);
       const interfaceLanguage = normalizeRequiredProfileLanguage(input.interfaceLanguage);
       const region = normalizeOptionalProfileRegion(input.region);
+      const avatarUrl = normalizeOptionalAvatarUrl(input.avatarUrl);
       const countResult = await client.query(
         `SELECT COUNT(*) AS cnt FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL`,
         [authSubject],
@@ -139,10 +149,10 @@ export class ProfileLocalService {
       const count = Number(countResult.rows[0]?.cnt ?? 0);
 
       const result = await client.query(
-        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_admin, is_kids, sort_order, created_by_account_id)
+        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_url, is_admin, is_kids, sort_order, created_by_account_id)
          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
          RETURNING ${LOCAL_PROFILE_COLUMNS}`,
-        [authSubject, name, interfaceLanguage, region, input.avatarKey ?? null, input.isAdmin ?? false, input.isKids ?? false, input.sortOrder ?? count, authSubject],
+        [authSubject, name, interfaceLanguage, region, avatarUrl, input.isAdmin ?? false, input.isKids ?? false, input.sortOrder ?? count, authSubject],
       );
 
       const profile = result.rows[0];
@@ -194,9 +204,9 @@ export class ProfileLocalService {
         params.push(normalizeOptionalProfileRegion(input.region));
         paramIdx++;
       }
-      if (input.avatarKey !== undefined) {
-        updates.push(`avatar_key = $${paramIdx}`);
-        params.push(input.avatarKey);
+      if (input.avatarUrl !== undefined) {
+        updates.push(`avatar_url = $${paramIdx}`);
+        params.push(normalizeOptionalAvatarUrl(input.avatarUrl));
         paramIdx++;
       }
       if (input.isKids !== undefined) {

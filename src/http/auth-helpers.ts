@@ -1,7 +1,9 @@
 import { verifyAuthJwt, type AuthTokenPayload } from '../lib/jwks.js';
 import { db } from '../lib/db.js';
 import { USER_DEFAULT_SCOPES, type UserAuthActor } from '../modules/auth/auth.types.js';
-import { normalizeMetadataLanguage } from '../modules/metadata/metadata-language.js';
+import { normalizeLanguageCode } from '../modules/i18n/supported-languages.js';
+import { normalizeCountryCode } from '../modules/i18n/supported-countries.js';
+import { validateAvatarUrl } from '../modules/profiles/avatar-url.js';
 
 export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthActor> {
   let payload: AuthTokenPayload;
@@ -11,15 +13,12 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
     throw Object.assign(new Error('Invalid bearer token.'), { statusCode: 401 });
   }
 
-  const displayName = deriveProfileName(payload);
-  const interfaceLanguage = deriveProfileLanguage(payload);
-  const region = deriveProfileRegion(payload);
   const client = await db.connect();
   try {
     await client.query('SELECT identity.upsert_account($1, $2, $3)', [
       payload.sub,
       typeof payload.email === 'string' ? payload.email : null,
-      displayName,
+      deriveProfileName(payload),
     ]);
 
     const profileCheck = await client.query(
@@ -27,11 +26,20 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
       [payload.sub],
     );
     if (profileCheck.rows.length === 0) {
+      const signup = deriveSignupProfile(payload);
+      if (!signup.ok) {
+        throw Object.assign(new Error('Signup is incomplete; profile name, language, and avatar are required.'), {
+          statusCode: 409,
+          code: 'signup_incomplete',
+          fields: signup.missing,
+        });
+      }
+
       const profileResult = await client.query(
-        `INSERT INTO identity.profiles (account_id, name, interface_language, region, sort_order, created_by_account_id)
-         VALUES ($1::uuid, $2, $3, $4, 0, $1::uuid)
+        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_url, sort_order, created_by_account_id)
+         VALUES ($1::uuid, $2, $3, $4, $5, 0, $1::uuid)
          RETURNING id`,
-        [payload.sub, displayName, interfaceLanguage, region],
+        [payload.sub, signup.name, signup.interfaceLanguage, signup.region, signup.avatarUrl],
       );
       const profileId = profileResult.rows[0].id;
       await client.query(
@@ -62,6 +70,47 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
   };
 }
 
+type SignupProfile =
+  | { ok: true; name: string; interfaceLanguage: string; region: string | null; avatarUrl: string }
+  | { ok: false; missing: string[] };
+
+function deriveSignupProfile(payload: Record<string, unknown>): SignupProfile {
+  const missing: string[] = [];
+
+  const name = deriveProfileName(payload);
+  if (!name) missing.push('name');
+
+  const rawLanguage = readMetadataString(payload, 'interfaceLanguage')
+    ?? readMetadataString(payload, 'interface_language')
+    ?? readMetadataString(payload, 'locale')
+    ?? readMetadataString(payload, 'language');
+  const interfaceLanguage = normalizeLanguageCode(rawLanguage);
+  if (!interfaceLanguage) missing.push('interfaceLanguage');
+
+  const rawRegion = readMetadataString(payload, 'region')
+    ?? readMetadataString(payload, 'country')
+    ?? readMetadataString(payload, 'country_code');
+  const region = rawRegion === null ? null : normalizeCountryCode(rawRegion);
+  if (rawRegion !== null && !region) missing.push('region');
+
+  const rawAvatar = readMetadataString(payload, 'avatarUrl')
+    ?? readMetadataString(payload, 'avatar_url');
+  const avatar = validateAvatarUrl(rawAvatar);
+  if (!avatar.ok) missing.push('avatarUrl');
+
+  if (missing.length > 0) {
+    return { ok: false, missing: Array.from(new Set(missing)) };
+  }
+
+  return {
+    ok: true,
+    name: name as string,
+    interfaceLanguage: interfaceLanguage as string,
+    region,
+    avatarUrl: (avatar as { ok: true; url: string }).url,
+  };
+}
+
 function deriveProfileName(payload: Record<string, unknown>): string {
   for (const key of ['full_name', 'name', 'display_name']) {
     const value = readMetadataString(payload, key);
@@ -71,23 +120,7 @@ function deriveProfileName(payload: Record<string, unknown>): string {
     const localPart = payload.email.split('@')[0]?.trim();
     if (localPart) return localPart;
   }
-  return 'Main';
-}
-
-function deriveProfileLanguage(payload: Record<string, unknown>): string {
-  for (const key of ['interfaceLanguage', 'interface_language', 'locale', 'language']) {
-    const normalized = normalizeMetadataLanguage(readMetadataString(payload, key));
-    if (normalized) return normalized;
-  }
-  return 'en';
-}
-
-function deriveProfileRegion(payload: Record<string, unknown>): string | null {
-  for (const key of ['region', 'country', 'country_code']) {
-    const value = readMetadataString(payload, key);
-    if (value) return normalizeRegion(value);
-  }
-  return null;
+  return '';
 }
 
 function readMetadataString(payload: Record<string, unknown>, key: string): string | null {
