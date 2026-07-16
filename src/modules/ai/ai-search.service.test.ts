@@ -81,11 +81,11 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
       },
     } as never,
     {
-      resolveAiCandidate: async () => ({
+      resolveAiCandidates: async () => ([{
         Id: 'movie:tmdb:1',
         Type: 'Movie',
         Name: 'Alpha Movie',
-      }),
+      }]),
     } as never,
     new ShortLivedRequestCoalescer(10_000),
     async <T>(work: (client: DbClient) => Promise<T>) => work({} as DbClient),

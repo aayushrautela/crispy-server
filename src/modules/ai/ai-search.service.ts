@@ -17,7 +17,7 @@ type ResolvedSuggestion = {
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const FINAL_RESULT_LIMIT = 12;
+const FINAL_RESULT_LIMIT = 20;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
 const RESOLUTION_TIMEOUT_MS = 12_000;
@@ -111,8 +111,8 @@ async function resolveSuggestions(
     if (!candidate) {
       continue;
     }
-    const item = await resolveSuggestion(titleSearchService, candidate, locale, signal);
-    if (item) {
+    const items = await resolveSuggestion(titleSearchService, candidate, locale, signal);
+    for (const item of items) {
       results.push({ candidate, item });
     }
   }
@@ -124,13 +124,13 @@ async function resolveSuggestion(
   candidate: AiSearchCandidate,
   locale: string,
   signal: AbortSignal,
-): Promise<MetadataSearchResult | null> {
+): Promise<MetadataSearchResult[]> {
   if (signal.aborted) {
-    return null;
+    return [];
   }
   try {
     const tmdbMediaType = candidate.mediaType === 'show' ? 'tv' : candidate.mediaType;
-    return await titleSearchService.resolveAiCandidate({
+    return await titleSearchService.resolveAiCandidates({
       query: candidate.title,
       mediaType: tmdbMediaType,
       locale,
@@ -138,7 +138,7 @@ async function resolveSuggestion(
     });
   } catch {
     logger.debug({ candidate: candidate.title }, 'Failed to resolve candidate, skipping.');
-    return null;
+    return [];
   }
 }
 

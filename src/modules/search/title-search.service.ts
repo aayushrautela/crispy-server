@@ -48,6 +48,17 @@ const ALL_LIMIT = 60;
 const SEARCH_CACHE_TTL_MS = 3_000;
 const HYDRATION_CONCURRENCY = 3;
 
+const AI_MATCH_SEARCH_LIMIT = 10;
+const AI_MATCH_MAX_SCORE = 3;
+
+const SCORE_EXACT = 0;
+const SCORE_NEAR_EXACT = 1;
+const SCORE_MAJORITY_TOKENS = 2;
+const SCORE_SOME_TOKENS = 3;
+const SCORE_NO_MATCH = 10;
+
+const AI_CHAR_SIMILARITY_NEAR_EXACT = 0.65;
+
 export class TitleSearchService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
@@ -147,48 +158,60 @@ export class TitleSearchService {
     }));
   }
 
-  async resolveAiCandidate(input: {
+  async resolveAiCandidates(input: {
     query: string;
     mediaType: 'movie' | 'tv' | null;
     locale?: string | null;
     signal?: AbortSignal;
-  }): Promise<MetadataSearchResult | null> {
+  }): Promise<MetadataSearchResult[]> {
     const normalizedQuery = input.query.trim();
     if (!normalizedQuery) {
-      return null;
+      return [];
     }
 
     const locale = normalizeSearchLocale(input.locale);
     const mediaTypes: TmdbTitleType[] = input.mediaType ? [input.mediaType] : ['movie', 'tv'];
 
     return withDbClient(async (client) => {
-      const rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, 3, mediaTypes, locale, input.signal);
+      let rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, AI_MATCH_SEARCH_LIMIT, mediaTypes, locale, input.signal);
+
+      if (rawMatches.length === 0 && input.mediaType) {
+        rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, AI_MATCH_SEARCH_LIMIT, ['movie', 'tv'], locale, input.signal);
+      }
+
       if (rawMatches.length === 0) {
-        return null;
+        return [];
       }
 
-      const best = pickBestAiMatch(normalizedQuery, rawMatches);
-      if (!best) {
-        return null;
+      const ranked = rankAiMatches(normalizedQuery, rawMatches);
+      const goodMatches = ranked.filter((entry) => entry.score <= AI_MATCH_MAX_SCORE);
+
+      const results: MetadataSearchResult[] = [];
+      for (const { match } of goodMatches) {
+        if (input.signal?.aborted) {
+          break;
+        }
+
+        const identity = inferMediaIdentity({
+          mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+          tmdbId: match.tmdbId,
+        });
+        const contentId = await this.contentIdentityService.ensureContentId(client, identity).catch(() => null);
+        if (!contentId) {
+          continue;
+        }
+
+        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, locale, input.signal);
+        if (!hydrated) {
+          continue;
+        }
+
+        const itemId = encodePublicItemId(contentId);
+        const card = buildMetadataCardView({ identity, itemId, title: hydrated, language: locale });
+        results.push(mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId })));
       }
 
-      const identity = inferMediaIdentity({
-        mediaType: best.mediaType === 'movie' ? 'movie' : 'show',
-        tmdbId: best.tmdbId,
-      });
-      const contentId = await this.contentIdentityService.ensureContentId(client, identity);
-      if (!contentId) {
-        return null;
-      }
-
-      const hydrated = await this.tmdbCacheService.getTitle(client, best.mediaType, best.tmdbId, locale, input.signal);
-      if (!hydrated) {
-        return null;
-      }
-
-      const itemId = encodePublicItemId(contentId);
-      const card = buildMetadataCardView({ identity, itemId, title: hydrated, language: locale });
-      return mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId }));
+      return results;
     });
   }
 
@@ -517,31 +540,102 @@ function resolveGenreMapping(genre: string | null | undefined): GenreMapping | n
   return genreMap[normalizeGenreKey(genre)] ?? null;
 }
 
-function pickBestAiMatch(query: string, matches: TmdbTitleRecord[]): TmdbTitleRecord | null {
-  const normalizedQuery = normalizeForAiMatch(query);
-  const queryTokens = new Set(normalizedQuery.split(' ').filter(Boolean));
+export type RankedAiMatch = {
+  match: TmdbTitleRecord;
+  score: number;
+};
 
-  for (const match of matches) {
-    const normalizedName = normalizeForAiMatch(match.name ?? '');
-    const normalizedOriginal = normalizeForAiMatch(match.originalName ?? '');
-    if (normalizedName === normalizedQuery || normalizedOriginal === normalizedQuery) {
-      return match;
+export function rankAiMatches(query: string, matches: TmdbTitleRecord[]): RankedAiMatch[] {
+  const normalizedQuery = normalizeForAiMatch(query);
+  return matches
+    .map((match) => ({ match, score: scoreAiMatch(normalizedQuery, match) }))
+    .sort((left, right) => left.score - right.score);
+}
+
+export function scoreAiMatch(normalizedQuery: string, match: TmdbTitleRecord): number {
+  const normalizedName = normalizeForAiMatch(match.name ?? '');
+  const normalizedOriginal = normalizeForAiMatch(match.originalName ?? '');
+
+  if (normalizedName === normalizedQuery || normalizedOriginal === normalizedQuery) {
+    return SCORE_EXACT;
+  }
+
+  const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+
+  const nameTokenScore = tokenOverlapScore(queryTokens, normalizedName);
+  const originalTokenScore = tokenOverlapScore(queryTokens, normalizedOriginal);
+  const tokenScore = Math.min(nameTokenScore, originalTokenScore);
+
+  const nameSimilarity = characterSimilarity(normalizedQuery, normalizedName);
+  const originalSimilarity = characterSimilarity(normalizedQuery, normalizedOriginal);
+  const bestSimilarity = Math.max(nameSimilarity, originalSimilarity);
+
+  if (bestSimilarity >= AI_CHAR_SIMILARITY_NEAR_EXACT) {
+    return SCORE_NEAR_EXACT;
+  }
+
+  return tokenScore;
+}
+
+export function tokenOverlapScore(queryTokens: string[], candidateText: string): number {
+  if (queryTokens.length === 0) {
+    return SCORE_NO_MATCH;
+  }
+  const candidateTokens = candidateText.split(' ').filter(Boolean);
+  if (candidateTokens.length === 0) {
+    return SCORE_NO_MATCH;
+  }
+
+  const candidateSet = new Set(candidateTokens);
+  let shared = 0;
+  for (const token of queryTokens) {
+    if (candidateSet.has(token)) {
+      shared += 1;
     }
   }
 
-  const first = matches[0];
-  if (!first) {
-    return null;
+  if (shared === 0) {
+    return SCORE_NO_MATCH;
+  }
+  if (shared === queryTokens.length) {
+    return SCORE_NEAR_EXACT;
+  }
+  if (shared / queryTokens.length >= 0.5) {
+    return SCORE_MAJORITY_TOKENS;
+  }
+  return SCORE_SOME_TOKENS;
+}
+
+export function characterSimilarity(a: string, b: string): number {
+  if (!a || !b) {
+    return 0;
+  }
+  if (a === b) {
+    return 1;
   }
 
-  const nameTokens = new Set(normalizeForAiMatch(first.name ?? '').split(' ').filter(Boolean));
-  const hasSharedToken = [...queryTokens].some((token) => nameTokens.has(token));
-
-  if (hasSharedToken && (first.releaseDate || first.firstAirDate)) {
-    return first;
+  const bigramsA = characterBigrams(a);
+  const bigramsB = characterBigrams(b);
+  if (bigramsA.size === 0 || bigramsB.size === 0) {
+    return 0;
   }
 
-  return null;
+  let shared = 0;
+  for (const bigram of bigramsA) {
+    if (bigramsB.has(bigram)) {
+      shared += 1;
+    }
+  }
+
+  return shared / Math.max(bigramsA.size, bigramsB.size);
+}
+
+function characterBigrams(value: string): Set<string> {
+  const bigrams = new Set<string>();
+  for (let index = 0; index < value.length - 1; index += 1) {
+    bigrams.add(value.slice(index, index + 2));
+  }
+  return bigrams;
 }
 
 function normalizeForAiMatch(value: string): string {
