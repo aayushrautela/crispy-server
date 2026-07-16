@@ -1,9 +1,0 @@
-{
-  "error": {
-    "code": "AI_PLAN_OUTPUT_VALIDATION_FAILED",
-    "message": "AI plan output failed provider-side validation",
-    "category": "upstream_dependency",
-    "retryable": false,
-    "requestId": "req_example_ai_plan_validation_failed"
-  }
-}

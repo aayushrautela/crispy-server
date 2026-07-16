@@ -23,7 +23,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     },
     'ai-lab': {
       title: 'AI Lab',
-      description: 'Test configured AI targets, models, prompts, and one-time BYOK credentials.',
+      description: 'Test configured server AI models, prompts, and providers.',
     },
   };
 
@@ -133,16 +133,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     profileDetailBody: document.getElementById('profile-detail-body'),
     refreshProfileDetail: document.getElementById('refresh-profile-detail'),
     aiTestForm: document.getElementById('ai-test-form'),
-    aiTestMode: document.getElementById('ai-test-mode'),
     aiTestModel: document.getElementById('ai-test-model'),
     aiTestModelOptions: document.getElementById('ai-test-model-options'),
-    aiTestApiKey: document.getElementById('ai-test-api-key'),
-    aiTestApiKeyRow: document.getElementById('ai-test-api-key-row'),
     aiTestPrompt: document.getElementById('ai-test-prompt'),
     aiTestSubmit: document.getElementById('ai-test-submit'),
     aiTestRunServer: document.getElementById('ai-test-run-server'),
-    aiTestRunByok: document.getElementById('ai-test-run-byok'),
-    aiTestRunAll: document.getElementById('ai-test-run-all'),
     aiTestConfigSummary: document.getElementById('ai-test-config-summary'),
     aiTestMessage: document.getElementById('ai-test-message'),
     aiTestResult: document.getElementById('ai-test-result'),
@@ -286,17 +281,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.recomputeCreateScope.addEventListener('change', syncRecomputeCreateForm);
       syncRecomputeCreateForm();
     }
-    if (elements.aiTestMode) {
-      elements.aiTestMode.addEventListener('change', syncAiModeControls);
-    }
     if (elements.aiTestRunServer) {
       elements.aiTestRunServer.addEventListener('click', () => { void runAiTest('server'); });
-    }
-    if (elements.aiTestRunByok) {
-      elements.aiTestRunByok.addEventListener('click', () => { void runAiTest('byok'); });
-    }
-    if (elements.aiTestRunAll) {
-      elements.aiTestRunAll.addEventListener('click', () => { void runAiTest('all'); });
     }
   }
 
@@ -1619,7 +1605,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       aiLabState.config = payload;
       aiLabState.configLoaded = true;
       renderAiConfig(payload);
-      syncAiModeControls();
       return payload;
     } catch (error) {
       aiLabState.config = null;
@@ -1647,28 +1632,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     if (elements.aiTestConfigSummary) {
       const serverCount = configuredAiTargets(config, 'server').length;
-      const byokCount = configuredAiTargets(config, 'byok').length;
       const serverStatus = config && config.server && config.server.available ? 'available' : 'missing AI_SERVER_API_KEY';
-      elements.aiTestConfigSummary.textContent = 'Server AI: ' + serverStatus + ' (' + serverCount + ' configured models). OpenRouter BYOK: ' + byokCount + ' suggested models.';
+      elements.aiTestConfigSummary.textContent = 'Server AI: ' + serverStatus + ' (' + serverCount + ' configured models).';
     }
     if (elements.aiTestRunServer && config && config.server) {
       elements.aiTestRunServer.disabled = config.server.available !== true || configuredAiTargets(config, 'server').length === 0;
-    }
-    if (elements.aiTestRunByok) {
-      elements.aiTestRunByok.disabled = configuredAiTargets(config, 'byok').length === 0;
-    }
-    if (elements.aiTestRunAll) {
-      elements.aiTestRunAll.disabled = targets.length === 0;
-    }
-  }
-
-  function syncAiModeControls() {
-    const mode = String((elements.aiTestMode && elements.aiTestMode.value) || 'server');
-    if (elements.aiTestApiKeyRow) {
-      elements.aiTestApiKeyRow.hidden = mode !== 'byok';
-    }
-    if (elements.aiTestApiKey && mode !== 'byok') {
-      elements.aiTestApiKey.value = '';
     }
   }
 
@@ -1681,17 +1649,11 @@ export const ADMIN_UI_CLIENT = String.raw`
         targets.push({ mode: 'server', tier: item.tier || '', feature: item.feature || '', model: item.model });
       }
     }
-    if ((scope === 'byok' || scope === 'all') && config.byok && config.byok.available === true && Array.isArray(config.byok.models)) {
-      for (const item of config.byok.models) {
-        if (!item || !item.model) continue;
-        targets.push({ mode: 'byok', feature: item.feature || '', model: item.model });
-      }
-    }
     return targets;
   }
 
   function aiTargetLabel(target) {
-    const parts = [target.mode === 'server' ? 'Server AI' : 'OpenRouter BYOK'];
+    const parts = ['Server AI'];
     if (target.tier) parts.push(target.tier);
     if (target.feature) parts.push(target.feature);
     parts.push(target.model);
@@ -1699,12 +1661,11 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function selectedAiTarget() {
-    const mode = String((elements.aiTestMode && elements.aiTestMode.value) || 'server');
     const model = String((elements.aiTestModel && elements.aiTestModel.value) || '').trim();
     if (!model) return null;
-    const matches = configuredAiTargets(aiLabState.config, mode).filter((target) => target.model === model);
+    const matches = configuredAiTargets(aiLabState.config, 'server').filter((target) => target.model === model);
     if (matches.length > 0) return matches[0];
-    return { mode, model };
+    return { mode: 'server', model };
   }
 
   function uniqueAiTargets(targets) {
@@ -1719,7 +1680,6 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   async function runAiTest(scope) {
     const prompt = String((elements.aiTestPrompt && elements.aiTestPrompt.value) || '').trim();
-    const apiKey = String((elements.aiTestApiKey && elements.aiTestApiKey.value) || '');
     const requestedScope = scope || 'selected';
 
     if (!prompt) {
@@ -1748,10 +1708,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       setMessage(elements.aiTestMessage, 'error', 'No configured targets are available for this run.');
       return;
     }
-    if (targets.some((target) => target.mode === 'byok') && !apiKey.trim()) {
-      setMessage(elements.aiTestMessage, 'error', 'Enter a one-time OpenRouter API key for BYOK targets.');
-      return;
-    }
 
     setAiBusy(true);
     setMessage(elements.aiTestMessage, 'info', 'Running ' + targets.length + ' AI test' + (targets.length === 1 ? '' : 's') + '...');
@@ -1763,17 +1719,14 @@ export const ADMIN_UI_CLIENT = String.raw`
         body: JSON.stringify({
           prompt: prompt,
           targets: targets,
-          apiKey: targets.some((target) => target.mode === 'byok') ? apiKey : undefined,
         }),
       });
-      if (elements.aiTestApiKey) elements.aiTestApiKey.value = '';
       renderAiTestResult(payload);
       const summary = payload && payload.summary ? payload.summary : {};
       setMessage(elements.aiTestMessage, 'success', 'AI run completed: ' + String(summary.success || 0) + ' succeeded, ' + String(summary.error || 0) + ' failed.');
       pushNotification('success', 'AI run completed', 'Ran ' + String(summary.total || targets.length) + ' configured target(s).', false);
     } catch (error) {
       const description = describeApiError(error, 'Unable to run AI test.');
-      if (elements.aiTestApiKey) elements.aiTestApiKey.value = '';
       setMessage(elements.aiTestMessage, 'error', description);
       if (elements.aiTestResult) elements.aiTestResult.innerHTML = '<div class="message error">' + escapeHtml(description) + '</div>';
       pushNotification('error', 'AI test failed', description, true);
@@ -1783,7 +1736,7 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function setAiBusy(busy) {
-    const controls = [elements.aiTestSubmit, elements.aiTestRunServer, elements.aiTestRunByok, elements.aiTestRunAll];
+    const controls = [elements.aiTestSubmit, elements.aiTestRunServer];
     for (const control of controls) {
       if (control) control.disabled = busy;
     }
@@ -1815,7 +1768,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       ? '<pre class="code-block">' + escapeHtml(item.logs.join('\n')) + '</pre>'
       : '<div class="muted">No logs.</div>';
     return '<article class="panel-card">'
-      + '<div class="panel-head"><div><p class="eyebrow">' + escapeHtml(item && item.mode === 'server' ? 'Server AI' : 'OpenRouter BYOK') + '</p>'
+      + '<div class="panel-head"><div><p class="eyebrow">Server AI</p>'
       + '<h3>' + escapeHtml(item && item.model ? item.model : 'Unknown model') + '</h3>'
       + '<p class="panel-note">' + escapeHtml(aiTargetLabel(item || {})) + '</p></div>'
       + '<span class="status-pill ' + escapeHtml(statusTone(status)) + '">' + escapeHtml(status) + '</span></div>'

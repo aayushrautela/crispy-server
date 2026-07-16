@@ -6,23 +6,14 @@ export function renderAiLabView(): string {
         <div>
           <p class="eyebrow">AI diagnostics</p>
           <h2>AI test bench</h2>
-          <p class="panel-note">Test configured server models or a one-time OpenRouter BYOK key without exposing secrets in browser responses.</p>
+          <p class="panel-note">Test configured server models without exposing secrets in browser responses.</p>
         </div>
       </div>
       <form id="ai-test-form" class="section-stack">
         <div class="form-grid">
-          <label>Test target
-            <select id="ai-test-mode">
-              <option value="server">Server AI</option>
-              <option value="byok">OpenRouter BYOK</option>
-            </select>
-          </label>
           <label>Configured model or custom model
             <input id="ai-test-model" type="text" list="ai-test-model-options" autocomplete="off" spellcheck="false" placeholder="Select or type a model" required>
             <datalist id="ai-test-model-options"></datalist>
-          </label>
-          <label id="ai-test-api-key-row">OpenRouter one-time API key
-            <input id="ai-test-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Only sent for this request">
           </label>
         </div>
         <div id="ai-test-config-summary" class="muted">Loading configured AI models...</div>
@@ -32,8 +23,6 @@ export function renderAiLabView(): string {
         <div class="jobs-toolbar">
           <button type="submit" id="ai-test-submit">Run selected test</button>
           <button type="button" id="ai-test-run-server">Run all server models</button>
-          <button type="button" id="ai-test-run-byok">Run all BYOK models</button>
-          <button type="button" id="ai-test-run-all">Run all configured models</button>
         </div>
         <div id="ai-test-message" class="message" hidden></div>
       </form>

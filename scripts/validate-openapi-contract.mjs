@@ -10,7 +10,6 @@ const specFiles = [
   'openapi/public-account.v1.yaml',
   'openapi/internal-services.v1.yaml',
   'openapi/internal-recommender.v1.yaml',
-  'openapi/internal-confidential.v1.yaml',
   'openapi/admin-ops.v1.yaml',
   'openapi/health-infrastructure.yaml',
 ];
@@ -131,10 +130,7 @@ for (const [schema, file] of [
   ['AppAuditEventsResponse', 'openapi/examples/audit-events/read.response.page.json'],
   ['BackfillAssignmentsResponse', 'openapi/examples/backfills/assignments.response.page.json'],
   ['AccountLookupResponse', 'openapi/examples/account-lookup/response.success.json'],
-  ['RecommendationAiPlanRequest', 'openapi/examples/ai-plan/request.valid.json'],
-  ['RecommendationAiPlanResponse', 'openapi/examples/ai-plan/response.success.json'],
 ]) validate(internalSpec, schema, file);
-for (const file of ['openapi/examples/ai-plan/error.provider-unavailable.json','openapi/examples/ai-plan/error.timeout.json','openapi/examples/ai-plan/error.invalid-vendor-output.json','openapi/examples/ai-plan/error.output-validation-failed.json','openapi/examples/ai-plan/error.internal-error.json']) validate(internalSpec, 'CanonicalErrorEnvelope', file);
 const upsertRequestValidator = validated.get(internalSpec).validators.get('RecommendationListUpsertRequest');
 if (upsertRequestValidator(readJson('openapi/examples/recommendation-list-upsert/request.unsupported-content-id.json'))) throw new Error('Unsupported contentId write fixture unexpectedly validated.');
 const errorValidator = validated.get(internalSpec).validators.get('CanonicalErrorEnvelope');

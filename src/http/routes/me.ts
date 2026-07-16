@@ -17,7 +17,6 @@ export async function registerMeRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
     const baseSettings = await accountSettingsService.getSettings(actor.authSubject);
-    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.authSubject);
     const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.authSubject);
     const auth = request.auth!;
     const profiles = await profileService.listForAccount(actor.authSubject);
@@ -27,7 +26,6 @@ export async function registerMeRoutes(
         email: auth.email,
       },
       accountSettings: mergeAccountScopedSettings(baseSettings, {
-        ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
         pricingTier: await accountSettingsService.getPricingTierForUser(actor.authSubject),
       }),

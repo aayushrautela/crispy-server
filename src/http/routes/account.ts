@@ -2,8 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import {
   accountSettingsPatchRouteSchema,
   accountSettingsRouteSchema,
-  aiAccountSecretGetRouteSchema,
-  aiAccountSecretPutRouteSchema,
   deleteResultRouteSchema,
   mdblistAccountSecretGetRouteSchema,
   mdblistAccountSecretPutRouteSchema,
@@ -25,11 +23,9 @@ export async function registerAccountRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
     const baseSettings = await accountSettingsService.getSettings(actor.authSubject);
-    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.authSubject);
     const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.authSubject);
     return success({
       settings: mergeAccountScopedSettings(baseSettings, {
-        ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
         pricingTier: await accountSettingsService.getPricingTierForUser(actor.authSubject),
       }),
@@ -41,39 +37,12 @@ export async function registerAccountRoutes(
     const actor = app.requireUserActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     const baseSettings = await accountSettingsService.patchSettings(actor.authSubject, body);
-    const ai = await accountSettingsService.getAiClientSettingsForUser(actor.authSubject);
     const metadata = await entitlementService.getMetadataClientSettingsForUser(actor.authSubject);
     return success({
       settings: mergeAccountScopedSettings(baseSettings, {
-        ai,
         hasMdbListAccess: metadata.hasMdbListAccess,
         pricingTier: await accountSettingsService.getPricingTierForUser(actor.authSubject),
       }),
-    });
-  });
-
-  app.get('/v1/account/secrets/ai-api-key', { schema: aiAccountSecretGetRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request) as { authSubject: string };
-    return success({
-      secret: await accountSettingsService.getAiApiKeyMetadataForUser(actor.authSubject),
-    });
-  });
-
-  app.put('/v1/account/secrets/ai-api-key', { schema: aiAccountSecretPutRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request) as { authSubject: string };
-    const body = (request.body ?? {}) as Record<string, unknown>;
-    return success({
-      secret: await accountSettingsService.setAiApiKeyForUser(actor.authSubject, String(body.value ?? '')),
-    });
-  });
-
-  app.delete('/v1/account/secrets/ai-api-key', { schema: deleteResultRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request) as { authSubject: string };
-    return success({
-      deleted: await accountSettingsService.clearAiApiKeyForUser(actor.authSubject),
     });
   });
 

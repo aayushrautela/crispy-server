@@ -44,7 +44,6 @@
    # App
    APP_PUBLIC_URL=https://api.crispytv.tech
    APP_DISPLAY_NAME=CrispyTV
-   ACCOUNT_PORTAL_URL=https://crispy-account-portal.vercel.app
    ```
 
    Product defaults live in `config/app-config.json.example` (committed template). The loader looks for `config/app-config.json` first; if absent, it falls back to the example template. To customize, copy the template:
@@ -90,7 +89,7 @@
    OUTBOX_DISPATCHER_ENABLED=true
    ```
 
-   The external recommendation engine reads required data from `/internal/apps/v1`. For AI-assisted generation, the engine calls `POST /internal/recommendations/v1/accounts/:accountId/profiles/:profileId/ai-plan` with business inputs and a bounded candidate pool. Crispy validates eligibility, builds the prompt, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed plan. The engine never receives raw OpenRouter, OpenAI-compatible, server-funded, or account BYOK API keys, provider/model routing config, proxy URLs, or raw vendor request details. The engine writes service-owned recommendation outputs through the internal app API. MAIN dispatches recompute events to the engine through the outbox and does not poll it for generation status.
+   The external recommendation engine reads required data from `/internal/apps/v1`. AI-assisted generation is owned by the engine: it uses its own server-funded key (`RECO_AI_API_KEY`, `RECO_AI_ENDPOINT_URL`, `RECO_AI_MODEL`) to call the OpenAI-compatible vendor directly from the worker process, and falls back to deterministic TMDB lists when AI is disabled or errors. MAIN does not expose an AI-plan endpoint and keeps its own server-funded key only for `ai search` and `ai insights`. The engine writes service-owned recommendation outputs through the internal app API. MAIN dispatches recompute events to the engine through the outbox and does not poll it for generation status.
 
    Privileged inbound data reads and writes should use the account-rooted internal routes documented in OpenAPI (`openapi/internal-services.v1.yaml`) and indexed from `docs/api/README.md`. Treat `profileId` as the selected persona inside the owning account, not as a separate-user model.
 

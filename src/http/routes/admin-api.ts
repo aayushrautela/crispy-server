@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
-import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app-config.js';
+import { getServerAiProvider } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
 import { OpenAiCompatibleClient } from '../../modules/ai/openai-compatible.client.js';
 import type { AiProviderFailureDetails, AiResolvedProviderConfig } from '../../modules/ai/ai.types.js';
@@ -670,7 +670,6 @@ export async function registerAdminApiRoutes(
   app.get('/admin/api/ai/config', async (request, reply) => {
     await requireAdmin(request);
     const serverProvider = getServerAiProvider();
-    const byokProvider = getByokOpenRouterProvider();
     const serverAvailable = !!env.aiServerApiKey;
 
     const serverModels: Array<{ tier: string; feature: string; model: string }> = [];
@@ -682,21 +681,11 @@ export async function registerAdminApiRoutes(
       }
     }
 
-    const byokModels: Array<{ feature: string; model: string }> = [];
-    for (const [feature, model] of Object.entries(byokProvider.models)) {
-      byokModels.push({ feature, model });
-    }
-
     return success({
       server: {
         available: serverAvailable,
         label: serverProvider.label,
         models: serverModels,
-      },
-      byok: {
-        available: true,
-        label: byokProvider.label,
-        models: byokModels,
       },
     }, request);
   });
@@ -729,20 +718,7 @@ export async function registerAdminApiRoutes(
       logs?: string[];
     }> = [];
 
-    let byokApiKey: string | null = null;
-    const hasByokTarget = targets.some((t) => {
-      const targetRecord = asRecord(t);
-      return targetRecord.mode === 'byok';
-    });
-    if (hasByokTarget) {
-      byokApiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
-      if (!byokApiKey) {
-        throw new HttpError(400, 'apiKey is required for BYOK targets.');
-      }
-    }
-
     const serverProvider = getServerAiProvider();
-    const byokProvider = getByokOpenRouterProvider();
 
     for (const target of targets) {
       const targetRecord = asRecord(target);
@@ -773,22 +749,8 @@ export async function registerAdminApiRoutes(
           logs.push(`Using server AI: ${serverProvider.label}`);
           if (tier) logs.push(`Tier: ${tier}`);
           if (feature) logs.push(`Feature: ${feature}`);
-        } else if (mode === 'byok') {
-          if (!byokApiKey) {
-            throw new Error('BYOK API key is required.');
-          }
-          resolvedProvider = {
-            id: byokProvider.id,
-            label: byokProvider.label,
-            endpointUrl: byokProvider.endpointUrl,
-            httpReferer: env.appPublicUrl,
-            title: env.appDisplayName,
-          };
-          apiKey = byokApiKey;
-          logs.push(`Using BYOK: ${byokProvider.label}`);
-          if (feature) logs.push(`Feature: ${feature}`);
         } else {
-          throw new Error(`Invalid mode: ${mode}. Must be "server" or "byok".`);
+          throw new Error(`Invalid mode: ${mode}. Must be "server".`);
         }
 
         logs.push(`Model: ${model}`);

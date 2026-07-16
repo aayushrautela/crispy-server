@@ -19,25 +19,16 @@
     }
   },
   "ai": {
-    "byokOpenRouter": {
-      "models": {
-        "recommendations": "minimax/minimax-m2.5:free",
-        "search": "google/gemma-4-31b-it:free",
-        "insights": "google/gemma-4-31b-it:free"
-      }
-    },
     "server": {
       "id": "server-ai",
       "label": "Server AI",
       "endpointUrl": "https://omnirouter.aayushcodes.eu/v1/chat/completions",
       "models": {
         "pro": {
-          "recommendations": "gpt5mini",
           "search": "gpt5mini",
           "insights": "gpt5mini"
         },
         "ultra": {
-          "recommendations": "gpt5mini",
           "search": "gpt5mini",
           "insights": "gpt5mini"
         }

@@ -1,11 +1,9 @@
 import { createHash } from 'node:crypto';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import type { AiClientSettings } from '../ai/ai.types.js';
-import { buildAiClientSettings, getAiProviderIdFromSettings } from '../ai/ai-account-settings.js';
 import { AccountSettingsRepository } from './account-settings.repo.js';
 
-export type AccountSecretField = 'ai.api_key' | 'mdblist.api_key';
+export type AccountSecretField = 'mdblist.api_key';
 
 export type AccountSecretValue = {
   appUserId: string;
@@ -27,10 +25,10 @@ const PRICING_TIERS = new Set<PricingTier>(['free', 'lite', 'pro', 'ultra']);
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const ACCOUNT_SECRET_FIELDS = ['ai.api_key', 'mdblist.api_key'] as const satisfies readonly AccountSecretField[];
+const ACCOUNT_SECRET_FIELDS = ['mdblist.api_key'] as const satisfies readonly AccountSecretField[];
 const ACCOUNT_SECRET_FIELD_SET = new Set<AccountSecretField>(ACCOUNT_SECRET_FIELDS);
 const ACCOUNT_SECRET_SETTING_KEYS = new Set<string>(ACCOUNT_SECRET_FIELDS);
-const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['ai', ...ACCOUNT_SECRET_FIELDS, 'addons']);
+const ACCOUNT_SCOPED_PROFILE_SETTING_KEYS = new Set(['addons']);
 
 export class AccountSettingsService {
   constructor(
@@ -47,18 +45,6 @@ export class AccountSettingsService {
     return this.runInTransaction((client) => this.accountSettingsRepository.patchSettingsForUser(client, userId, normalizedPatch));
   }
 
-  async getAiApiKeyForUser(userId: string): Promise<AccountSecretValue> {
-    return this.getSecretForUser(userId, 'ai.api_key');
-  }
-
-  async getAiApiKeyMetadataForUser(userId: string): Promise<AccountSecretMetadata> {
-    return this.getSecretMetadataForUser(userId, 'ai.api_key');
-  }
-
-  async setAiApiKeyForUser(userId: string, value: string): Promise<AccountSecretMetadata> {
-    return this.setSecretForUser(userId, 'ai.api_key', value);
-  }
-
   async getMdbListApiKeyForUser(userId: string): Promise<AccountSecretValue> {
     return this.getSecretForUser(userId, 'mdblist.api_key');
   }
@@ -69,19 +55,6 @@ export class AccountSettingsService {
 
   async setMdbListApiKeyForUser(userId: string, value: string): Promise<AccountSecretMetadata> {
     return this.setSecretForUser(userId, 'mdblist.api_key', value);
-  }
-
-  async getAiProviderIdForUser(userId: string): Promise<string> {
-    const settings = await this.getSettings(userId);
-    return getAiProviderIdFromSettings(settings);
-  }
-
-  async getAiClientSettingsForUser(userId: string): Promise<AiClientSettings> {
-    const settings = await this.getSettings(userId);
-    const hasAiApiKey = await this.getAiApiKeyForUser(userId)
-      .then(() => true)
-      .catch(() => false);
-    return buildAiClientSettings(settings, hasAiApiKey);
   }
 
   async getPricingTierForUser(userId: string): Promise<PricingTier> {
@@ -95,10 +68,6 @@ export class AccountSettingsService {
       pricingTier: normalizedPricingTier,
     }));
     return normalizedPricingTier;
-  }
-
-  async clearAiApiKeyForUser(userId: string): Promise<boolean> {
-    return this.clearSecretForUser(userId, 'ai.api_key');
   }
 
   async clearMdbListApiKeyForUser(userId: string): Promise<boolean> {
@@ -146,15 +115,9 @@ export class AccountSettingsService {
 
 export function mergeAccountScopedSettings(
   accountSettings: Record<string, unknown>,
-  options?: { ai?: AiClientSettings; hasMdbListAccess?: boolean; pricingTier?: PricingTier },
+  options?: { hasMdbListAccess?: boolean; pricingTier?: PricingTier },
 ): Record<string, unknown> {
   const merged = { ...accountSettings };
-  if (options?.ai) {
-    merged.ai = {
-      ...(isRecord(merged.ai) ? merged.ai : {}),
-      ...options.ai,
-    };
-  }
   if (options?.hasMdbListAccess !== undefined) {
     merged.metadata = {
       ...(isRecord(merged.metadata) ? merged.metadata : {}),
@@ -183,15 +146,6 @@ export function normalizeAccountSettingsPatch(value: unknown): Record<string, un
   for (const key of Object.keys(value)) {
     if (ACCOUNT_SECRET_SETTING_KEYS.has(key)) {
       throw new HttpError(400, `Setting '${key}' is secret and must be updated on /v1/account/secrets.`);
-    }
-  }
-
-  if (Object.hasOwn(normalized, 'ai')) {
-    const aiSettings = normalizeEditableAiSettings(normalized.ai);
-    if (Object.keys(aiSettings).length > 0) {
-      normalized.ai = aiSettings;
-    } else {
-      delete normalized.ai;
     }
   }
 
@@ -283,24 +237,6 @@ function normalizeEditableRecommendationSettings(value: unknown): Record<string,
     normalized.enabled = value.enabled;
   }
   return normalized;
-}
-
-function normalizeEditableAiSettings(value: unknown): Record<string, unknown> {
-  if (!isRecord(value)) {
-    throw new HttpError(400, 'AI settings patch must be an object.');
-  }
-
-  const aiSettings = { ...value };
-  delete aiSettings.hasAiApiKey;
-  delete aiSettings.defaultProviderId;
-  delete aiSettings.providers;
-  delete aiSettings.endpointUrl;
-
-  if (Object.hasOwn(aiSettings, 'providerId')) {
-    delete aiSettings.providerId;
-  }
-
-  return aiSettings;
 }
 
 function normalizeEditableMetadataSettings(value: unknown): Record<string, unknown> {

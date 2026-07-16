@@ -13,8 +13,6 @@ const REQUIRED_ENV: Record<string, string> = {
   AUTH_BASE_URL: 'https://example.supabase.co',
   AUTH_JWT_AUDIENCE: 'authenticated',
   AUTH_ADMIN_API_KEY: 'test-admin-api-key',
-  ACCOUNT_PORTAL_URL: 'https://account-portal.test',
-  PORTAL_SESSION_SECRET: 'test-portal-session-secret-thats-long-enough-32',
   TMDB_API_KEY: 'tmdb-test-key',
   SECRETS_ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
   CURSOR_SIGNING_SECRET: 'test-cursor-signing-secret-thats-long-enough-32',

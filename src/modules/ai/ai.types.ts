@@ -1,14 +1,8 @@
 import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 
-export type AiFeatureId = 'recommendations' | 'search' | 'insights';
-export type AiCredentialSource = 'user' | 'server';
+export type AiFeatureId = 'search' | 'insights';
+export type AiCredentialSource = 'server';
 export type ServerAiTier = 'pro' | 'ultra';
-
-export type AiProviderView = {
-  id: string;
-  label: string;
-  models?: Record<AiFeatureId, string>;
-};
 
 export type AiResolvedProviderConfig = {
   id: string;
@@ -29,13 +23,6 @@ export type AiProviderFailureDetails = {
   retryAfterSeconds?: number;
   failureKind?: AiProviderFailureKind;
   errorMessage?: string;
-};
-
-export type AiClientSettings = {
-  hasAiApiKey: boolean;
-  providerId: string;
-  defaultProviderId: string;
-  providers: AiProviderView[];
 };
 
 export type ResolvedAiRequest = {

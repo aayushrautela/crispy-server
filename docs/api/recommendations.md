@@ -80,4 +80,4 @@ Rules:
 3. RECO reads bounded machine inputs from `/internal/apps/v1` endpoints.
 4. RECO publishes final home sections back through internal app recommendation write endpoints.
 
-RECO must not receive, cache, log, or forward raw account BYOK keys, server-funded AI keys, provider/model routing config, proxy URLs, raw prompts, or raw vendor chat-completions payloads.
+AI-assisted generation is owned by RECO: it uses its own server-funded key to call the OpenAI-compatible vendor directly and falls back to deterministic TMDB lists when AI is disabled or errors. RECO must not receive, cache, log, or forward raw account BYOK keys.

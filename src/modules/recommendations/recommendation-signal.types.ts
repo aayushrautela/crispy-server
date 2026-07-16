@@ -4,7 +4,6 @@ import type {
   RecoRatingSignal,
   RecoWatchlistSignal,
 } from './reco-contract.types.js';
-import type { AiCredentialSource } from '../ai/ai.types.js';
 
 export type RecommendationSignalBundle = {
   identity: {
@@ -25,15 +24,6 @@ export type RecommendationSignalBundle = {
     profileName: string;
     isKids: boolean;
     watchDataOrigin: string;
-  };
-  aiConfig: {
-    providerId: string;
-    endpointUrl: string;
-    httpReferer: string;
-    title: string;
-    model: string;
-    apiKey: string;
-    credentialSource: AiCredentialSource;
   };
   optionalExtras?: {
     continueWatching?: RecoContinueSignal[];

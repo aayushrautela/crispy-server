@@ -97,7 +97,7 @@ function errorCategory(statusCode: number, code: string): ApiErrorResponse['erro
 }
 
 function isRetryable(statusCode: number, code: string): boolean {
-  return statusCode === 429 || statusCode === 503 || statusCode === 504 || code === 'AI_PLAN_PROVIDER_UNAVAILABLE' || code === 'AI_PLAN_TIMEOUT' || code === 'AI_PLAN_INTERNAL_ERROR' || code === 'AI_PLAN_RATE_LIMITED';
+  return statusCode === 429 || statusCode === 503 || statusCode === 504 || code === 'AI_PLAN_INTERNAL_ERROR' || code === 'AI_PLAN_TIMEOUT' || code === 'AI_PLAN_RATE_LIMITED';
 }
 
 function isFastifyValidationError(error: unknown): error is FastifyValidationError {

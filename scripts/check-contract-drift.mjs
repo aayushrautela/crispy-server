@@ -24,10 +24,6 @@ const specToRoutes = {
   ],
   'openapi/internal-services.v1.yaml': [
     'src/http/routes/internal-apps.routes.ts',
-    'src/http/routes/internal-recommendations.routes.ts',
-  ],
-  'openapi/internal-confidential.v1.yaml': [
-    'src/http/routes/internal-confidential.ts',
   ],
   'openapi/admin-ops.v1.yaml': [
     'src/http/routes/admin-api.ts',

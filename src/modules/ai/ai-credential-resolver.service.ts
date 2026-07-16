@@ -1,135 +1,28 @@
 import { env } from '../../config/env.js';
-import { getByokOpenRouterProvider, getServerAiProvider } from '../../config/app-config.js';
+import { getServerAiProvider } from '../../config/app-config.js';
 import { HttpError } from '../../lib/errors.js';
-import { AccountSettingsService } from '../users/account-settings.service.js';
-import type { PricingTier } from '../users/account-settings.service.js';
 import type { AiFeatureId, ResolvedAiRequest, ServerAiTier } from './ai.types.js';
 
-export type AiTaskId = 'recommendations' | 'search' | 'insights';
-
-type AiTaskConfig = {
-  feature: AiFeatureId;
-  requiresCredentials: boolean;
-};
-
-const AI_TASK_CONFIGS: Record<AiTaskId, AiTaskConfig> = {
-  recommendations: { feature: 'recommendations', requiresCredentials: true },
-  search: { feature: 'search', requiresCredentials: true },
-  insights: { feature: 'insights', requiresCredentials: true },
-};
-
-type TierCredentialPolicy = {
-  allowUserKey: boolean;
-  allowServerKey: boolean;
-  serverTier?: ServerAiTier;
-};
-
-const TIER_POLICIES: Record<PricingTier, TierCredentialPolicy> = {
-  free: { allowUserKey: false, allowServerKey: false },
-  lite: { allowUserKey: true, allowServerKey: false },
-  pro: { allowUserKey: true, allowServerKey: true, serverTier: 'pro' },
-  ultra: { allowUserKey: true, allowServerKey: true, serverTier: 'ultra' },
-};
+export type AiTaskId = 'search' | 'insights';
 
 export class AiCredentialResolver {
   constructor(
-    private readonly accountSettingsService = new AccountSettingsService(),
     private readonly serverApiKey: string = env.aiServerApiKey,
   ) {}
 
   async resolveForTask(
-    userId: string,
+    _userId: string,
     task: AiTaskId,
   ): Promise<ResolvedAiRequest> {
-    const taskConfig = AI_TASK_CONFIGS[task];
-    if (!taskConfig) {
-      throw new HttpError(400, `Unknown AI task: ${task}`);
-    }
-
-    if (!taskConfig.requiresCredentials) {
-      throw new HttpError(503, `AI ${task} is not configured.`);
-    }
-
-    const tier = await this.accountSettingsService.getPricingTierForUser(userId);
-    const policy = TIER_POLICIES[tier];
-
-    if (!policy.allowUserKey && !policy.allowServerKey) {
+    const tier: ServerAiTier = 'pro';
+    const serverKey = this.getServerApiKey(tier, task);
+    if (!serverKey) {
       throw new HttpError(
-        412,
-        `AI ${task} is not available on the ${tier} tier. Upgrade your account to use AI features.`,
+        503,
+        `AI ${task} is temporarily unavailable. Server credentials are not configured.`,
       );
     }
-
-    if (policy.allowUserKey && !policy.allowServerKey) {
-      const userRequest = await this.getUserAiRequest(userId, taskConfig.feature);
-      if (!userRequest) {
-        const byokProvider = getByokOpenRouterProvider();
-        throw new HttpError(
-          412,
-          `AI ${task} requires an API key. Add your ${byokProvider.label} API key in Account Settings.`,
-        );
-      }
-
-      return userRequest;
-    }
-
-    if (policy.allowServerKey && policy.serverTier) {
-      if (policy.allowUserKey) {
-        const userRequest = await this.getUserAiRequest(userId, taskConfig.feature);
-        if (userRequest) {
-          return userRequest;
-        }
-      }
-
-      const serverKey = this.getServerApiKey(policy.serverTier, taskConfig.feature);
-      if (!serverKey) {
-        throw new HttpError(
-          503,
-          `AI ${task} is temporarily unavailable. Server credentials are not configured.`,
-        );
-      }
-
-      return serverKey;
-    }
-
-    throw new HttpError(503, `AI ${task} is not configured for this account tier.`);
-  }
-
-  private async getUserAiRequest(userId: string, feature: AiFeatureId): Promise<ResolvedAiRequest | null> {
-    const userKey = await this.getUserApiKey(userId);
-    if (!userKey) {
-      return null;
-    }
-
-    const byokProvider = getByokOpenRouterProvider();
-    const model = byokProvider.models[feature];
-
-    return {
-      feature,
-      providerId: byokProvider.id,
-      provider: {
-        id: byokProvider.id,
-        label: byokProvider.label,
-        endpointUrl: byokProvider.endpointUrl,
-        httpReferer: env.appPublicUrl,
-        title: env.appDisplayName,
-      },
-      model,
-      apiKey: userKey,
-      credentialSource: 'user',
-    };
-  }
-
-  private async getUserApiKey(userId: string): Promise<string | null> {
-    try {
-      const secret = await this.accountSettingsService.getAiApiKeyForUser(userId);
-      return secret.value;
-    } catch (error) {
-      if (error instanceof HttpError && error.statusCode === 404) {
-        return null;
-      }
-      throw error;
-    }
+    return serverKey;
   }
 
   private getServerApiKey(tier: ServerAiTier, feature: AiFeatureId): ResolvedAiRequest | null {

@@ -84,7 +84,7 @@ Dispatcher response handling:
 
 The current RECO ingestion response acknowledges acceptance and may include only a RECO event id. It does not return generation progress or a durable generation job id to MAIN.
 
-## Source data and AI-plan flow
+## Source data and AI generation flow
 
 RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from profile context plus canonical watch history, ratings, watchlist, continue-watching state, negative signals, and impressions.
 
@@ -95,15 +95,15 @@ Signal records carry `RecoItemRef` values with:
 
 Signal records do not carry Crispy `itemId`, `BaseItemDto`, client `UserData`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, or enriched display card payloads.
 
-When AI assistance is needed:
+AI-assisted generation is owned entirely by RECO. MAIN does not expose an AI-plan endpoint and never sees provider credentials, model selection, prompts, or raw vendor traffic for recommendations.
 
-1. RECO prepares business inputs, candidate pool, list key, algorithm version, and generation context using provider refs.
-2. RECO calls MAIN's internal AI-plan endpoint with service auth.
-3. MAIN validates account/profile eligibility, builds prompts, selects provider/model/credentials, calls the AI vendor, parses the response, and returns a typed provider-ref plan.
-4. RECO uses the typed plan to assemble final recommendation lists.
-5. RECO writes generated outputs back through internal app recommendation endpoints.
+1. RECO prepares business inputs, a bounded TMDB-backed candidate pool, list key, algorithm version, and generation context using provider refs.
+2. RECO selects the AI provider/model and uses its own server-funded API key (`RECO_AI_API_KEY`, `RECO_AI_ENDPOINT_URL`, `RECO_AI_MODEL`) to call the OpenAI-compatible vendor directly from the worker process.
+3. RECO builds the prompt, calls the vendor, parses and validates the response against the candidate pool, and resolves titles.
+4. On any AI error or when AI is disabled, RECO falls back to deterministic TMDB trending/popular/top-rated lists.
+5. RECO uses the typed plan to assemble final recommendation lists and writes generated outputs back through internal app recommendation endpoints.
 
-RECO must not request, receive, cache, log, or forward raw account BYOK keys, server-funded keys, provider keys, proxy URLs, AI provider IDs, AI model names, endpoint URLs, raw prompts, raw vendor request payloads, or raw vendor responses.
+RECO must not request, receive, cache, log, or forward raw account BYOK keys. MAIN keeps its own server-funded key only for non-recommendation AI features (`ai search`, `ai insights`).
 
 ## Result publication
 

@@ -1,7 +1,6 @@
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { logger } from '../../config/logger.js';
-import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { ProfileRepository } from '../profiles/profile.repo.js';
 import { ProfileInputSignalFacade } from './profile-input-signal.facade.js';
 import { recommendationConfig } from './recommendation-config.js';
@@ -65,14 +64,12 @@ export class RecommendationGenerationService {
         trackedSeriesMax: 100,
       },
     }),
-    private readonly featureEntitlementService = new FeatureEntitlementService(),
     private readonly recommendationOutputService = new RecommendationOutputService(),
   ) {}
 
   async buildGenerationRequest(profileId: string): Promise<RecommendationGenerationBuildResult> {
     const context = await this.loadGenerationContext(profileId);
-    const aiRequest = await this.featureEntitlementService.resolveAiRequestForTask(context.accountId, 'recommendations');
-    const payload = await this.buildRequest(context, aiRequest);
+    const payload = await this.buildRequest(context);
     return { context, payload };
   }
 
@@ -145,7 +142,6 @@ export class RecommendationGenerationService {
 
   private async buildRequest(
     context: GenerationContext,
-    aiRequest: Awaited<ReturnType<FeatureEntitlementService['resolveAiRequestForUser']>>,
   ): Promise<RecommendationSignalBundle> {
     const limits = recommendationConfig.payloadLimits;
     const signals = await this.profileInputSignalFacade.getBundle({
@@ -180,15 +176,6 @@ export class RecommendationGenerationService {
         profileName: context.profileName,
         isKids: context.isKids,
         watchDataOrigin: context.currentOrigin,
-      },
-      aiConfig: {
-        providerId: aiRequest.providerId,
-        endpointUrl: aiRequest.provider.endpointUrl,
-        httpReferer: aiRequest.provider.httpReferer,
-        title: aiRequest.provider.title,
-        model: aiRequest.model,
-        apiKey: aiRequest.apiKey,
-        credentialSource: aiRequest.credentialSource,
       },
       optionalExtras: {
         continueWatching: signals.continueWatching ? signals.continueWatching.flatMap(mapInputContinueWatchingSignals) : [],

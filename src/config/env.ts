@@ -100,7 +100,6 @@ function parseAppLoginAllowedReturnUris(name: string): Map<string, Set<string>> 
 const authBaseUrl = requireBaseUrl('AUTH_BASE_URL');
 const authAuthBaseUrl = `${authBaseUrl}/auth/v1`;
 const authAdminApiKey = requireEnv('AUTH_ADMIN_API_KEY');
-const portalSessionSecret = requireEnv('PORTAL_SESSION_SECRET');
 const authJwtIssuer = optionalBaseUrl('AUTH_JWT_ISSUER') ?? authAuthBaseUrl;
 
 export const env = {
@@ -119,8 +118,6 @@ export const env = {
   redisUrl: requireEnv('REDIS_URL'),
   appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
-  accountPortalUrl: requireBaseUrl('ACCOUNT_PORTAL_URL'),
-  portalSessionSecret,
   authBaseUrl,
   authAdminApiKey,
   authJwksUrl: `${authBaseUrl}/.well-known/jwks.json`,

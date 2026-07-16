@@ -1076,7 +1076,6 @@ export const appAuditActionSchema = {
     'service_recommendation_batch_written', 'recommendation_run_created',
     'recommendation_run_updated', 'recommendation_batch_created',
     'recommendation_batch_updated', 'backfill_assignments_read',
-    'confidential_config_bundle_read',
   ],
 } as const;
 

@@ -1,9 +1,0 @@
-{
-  "error": {
-    "code": "AI_PLAN_PROVIDER_UNAVAILABLE",
-    "message": "AI provider unavailable",
-    "category": "upstream_dependency",
-    "retryable": true,
-    "requestId": "req_example_ai_plan_provider_unavailable"
-  }
-}

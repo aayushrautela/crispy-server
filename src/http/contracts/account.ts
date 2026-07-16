@@ -7,41 +7,6 @@ import {
   withDefaultErrorResponses,
 } from './shared.js';
 
-export const aiProviderViewSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['id', 'label'],
-  properties: {
-    id: nonEmptyStringSchema,
-    label: nonEmptyStringSchema,
-    models: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['recommendations', 'search', 'insights'],
-      properties: {
-        recommendations: nonEmptyStringSchema,
-        search: nonEmptyStringSchema,
-        insights: nonEmptyStringSchema,
-      },
-    },
-  },
-} as const;
-
-export const aiClientSettingsSchema = {
-  type: 'object',
-  additionalProperties: true,
-  required: ['hasAiApiKey', 'providerId', 'defaultProviderId', 'providers'],
-  properties: {
-    providerId: nonEmptyStringSchema,
-    hasAiApiKey: booleanSchema,
-    defaultProviderId: nonEmptyStringSchema,
-    providers: {
-      type: 'array',
-      items: aiProviderViewSchema,
-    },
-  },
-} as const;
-
 export const metadataClientSettingsSchema = {
   type: 'object',
   additionalProperties: true,
@@ -58,7 +23,6 @@ export const accountScopedSettingsSchema = {
       type: 'string',
       enum: ['free', 'lite', 'pro', 'ultra'],
     },
-    ai: aiClientSettingsSchema,
     metadata: metadataClientSettingsSchema,
   },
 } as const;
@@ -84,33 +48,12 @@ const accountSecretValueSchema = {
   },
 } as const;
 
-const internalAiSecretValueSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['appUserId', 'key', 'value', 'providerId'],
-  properties: {
-    appUserId: nonEmptyStringSchema,
-    key: nonEmptyStringSchema,
-    value: nonEmptyStringSchema,
-    providerId: nonEmptyStringSchema,
-  },
-} as const;
-
 const secretEnvelopeSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['secret'],
   properties: {
     secret: accountSecretValueSchema,
-  },
-} as const;
-
-const internalAiSecretEnvelopeSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['secret'],
-  properties: {
-    secret: internalAiSecretValueSchema,
   },
 } as const;
 
@@ -141,19 +84,6 @@ export const accountSettingsPatchRouteSchema = withDefaultErrorResponses({
   body: recordSchema,
   response: {
     200: successEnvelope(accountSettingsEnvelopeSchema),
-  },
-});
-
-export const aiAccountSecretGetRouteSchema = withDefaultErrorResponses({
-  response: {
-    200: successEnvelope(secretEnvelopeSchema),
-  },
-});
-
-export const aiAccountSecretPutRouteSchema = withDefaultErrorResponses({
-  body: secretValueBodySchema,
-  response: {
-    200: successEnvelope(secretEnvelopeSchema),
   },
 });
 
@@ -199,22 +129,5 @@ export const meRouteSchema = withDefaultErrorResponses({
         },
       },
     }),
-  },
-});
-
-const internalAccountProfileParamsSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['accountId', 'profileId'],
-  properties: {
-    accountId: nonEmptyStringSchema,
-    profileId: nonEmptyStringSchema,
-  },
-} as const;
-
-export const internalAiSecretRouteSchema = withDefaultErrorResponses({
-  params: internalAccountProfileParamsSchema,
-  response: {
-    200: successEnvelope(internalAiSecretEnvelopeSchema),
   },
 });

@@ -279,30 +279,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/recommendations/v1/accounts/{accountId}/profiles/{profileId}/ai-plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate a bounded AI-assisted recommendation plan
-         * @description Accepts business inputs and a bounded candidate pool. Crispy Server owns
-         *     AI provider/model selection, credentials, prompts, vendor protocol,
-         *     parsing, validation, and safe error mapping. Request and response bodies
-         *     never include provider secrets, provider IDs, model names, prompt text,
-         *     raw vendor payloads, proxy URLs, or transport overrides.
-         */
-        post: operations["generateInternalRecommendationAiPlan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -310,7 +286,7 @@ export interface components {
         /** @enum {string} */
         ErrorCategory: "validation" | "authentication" | "authorization" | "not_found" | "conflict" | "idempotency" | "rate_limit" | "timeout" | "upstream_dependency" | "internal";
         /** @enum {string} */
-        ErrorCode: "AUTHENTICATION_REQUIRED" | "INVALID_SERVICE_TOKEN" | "FORBIDDEN" | "RESOURCE_NOT_FOUND" | "VALIDATION_FAILED" | "IDEMPOTENCY_KEY_REQUIRED" | "IDEMPOTENCY_CONFLICT" | "RATE_LIMITED" | "REQUEST_TIMEOUT" | "INTERNAL_SERVER_ERROR" | "UNSUPPORTED_RECOMMENDATION_WRITE_FIELD" | "INVALID_RECOMMENDATION_LIST_KEY" | "INVALID_RECOMMENDATION_ITEM" | "DUPLICATE_RECOMMENDATION_ITEM" | "RECOMMENDATION_LIST_TOO_LARGE" | "RECOMMENDATION_PROFILE_NOT_ELIGIBLE" | "INVALID_AI_PLAN_REQUEST" | "UNSUPPORTED_AI_PLAN_SCHEMA_VERSION" | "EMPTY_CANDIDATE_POOL" | "AI_PLAN_TIMEOUT" | "AI_PLAN_RATE_LIMITED" | "AI_PLAN_PROVIDER_UNAVAILABLE" | "AI_PLAN_INVALID_VENDOR_OUTPUT" | "AI_PLAN_OUTPUT_VALIDATION_FAILED" | "AI_PLAN_INTERNAL_ERROR";
+        ErrorCode: "AUTHENTICATION_REQUIRED" | "INVALID_SERVICE_TOKEN" | "FORBIDDEN" | "RESOURCE_NOT_FOUND" | "VALIDATION_FAILED" | "IDEMPOTENCY_KEY_REQUIRED" | "IDEMPOTENCY_CONFLICT" | "RATE_LIMITED" | "REQUEST_TIMEOUT" | "INTERNAL_SERVER_ERROR" | "UNSUPPORTED_RECOMMENDATION_WRITE_FIELD" | "INVALID_RECOMMENDATION_LIST_KEY" | "INVALID_RECOMMENDATION_ITEM" | "DUPLICATE_RECOMMENDATION_ITEM" | "RECOMMENDATION_LIST_TOO_LARGE" | "RECOMMENDATION_PROFILE_NOT_ELIGIBLE";
         /** @description Safe structured details. Must not contain an authoritative nested code, raw prompt, vendor payload, provider routing, or secrets. */
         ErrorDetails: {
             [key: string]: unknown;
@@ -780,88 +756,6 @@ export interface components {
         AccountLookupResponse: {
             [key: string]: unknown;
         };
-        RecommendationAiPlanRequest: {
-            /** @constant */
-            schemaVersion: 1;
-            requestId: string;
-            runId: string;
-            listKey: string;
-            /** @constant */
-            intent: "generate_recommendation_plan";
-            locale: string;
-            timezone?: string;
-            /** Format: date-time */
-            generatedAt: string;
-            constraints: components["schemas"]["RecommendationAiPlanConstraints"];
-            profile: components["schemas"]["RecommendationAiPlanProfile"];
-            signals: components["schemas"]["RecommendationAiPlanSignals"];
-            candidatePool: components["schemas"]["RecommendationAiPlanMediaItem"][];
-            debug?: {
-                source?: string;
-                signalBundleVersion?: number;
-            };
-        };
-        RecommendationAiPlanConstraints: {
-            maxItems: number;
-            mediaTypes: ("movie" | "tv")[];
-            excludeWatched: boolean;
-            excludeWatchlisted: boolean;
-            minimumConfidence: number;
-        };
-        RecommendationAiPlanProfile: {
-            accountId: string;
-            profileId: string;
-            displayName: string;
-            maturityRating: string;
-            preferredLanguages: string[];
-            country: string;
-        };
-        RecommendationAiPlanSignals: {
-            watchHistory: components["schemas"]["RecommendationAiPlanMediaItem"][];
-            ratings: components["schemas"]["RecommendationAiPlanMediaItem"][];
-            watchlist: components["schemas"]["RecommendationAiPlanMediaItem"][];
-            negativeSignals: components["schemas"]["RecommendationAiPlanMediaItem"][];
-        };
-        RecommendationAiPlanMediaItem: {
-            type: components["schemas"]["RecoMediaType"];
-            providerRefs: components["schemas"]["RecoProviderRef"][];
-            title: string;
-            year?: number;
-            overview?: string;
-            genres?: string[];
-            popularity?: number;
-            /** Format: date-time */
-            watchedAt?: string;
-            completionPercent?: number;
-        };
-        RecommendationAiPlanResponse: {
-            /** @constant */
-            schemaVersion: 1;
-            requestId: string;
-            runId: string;
-            listKey: string;
-            /** Format: date-time */
-            generatedAt: string;
-            plan: {
-                summary: string;
-                items: components["schemas"]["RecommendationAiPlanItem"][];
-            };
-            diagnostics: {
-                aiPlanVersion: string;
-                latencyMs: number;
-            };
-        };
-        RecommendationAiPlanItem: {
-            rank: number;
-            type: components["schemas"]["RecoMediaType"];
-            provider: components["schemas"]["RecoProvider"];
-            providerId: string;
-            title: string;
-            score: number;
-            confidence: number;
-            reason: string;
-            reasonCodes: string[];
-        };
     };
     responses: {
         /** @description Invalid request. */
@@ -911,16 +805,6 @@ export interface components {
         };
         /** @description Request was rate limited. */
         RateLimitedError: {
-            headers: {
-                "Retry-After"?: string;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-            };
-        };
-        /** @description AI-plan generation was rate limited. */
-        AiPlanRateLimitedError: {
             headers: {
                 "Retry-After"?: string;
                 [name: string]: unknown;
@@ -1604,98 +1488,6 @@ export interface operations {
             403: components["responses"]["ForbiddenError"];
             404: components["responses"]["NotFoundError"];
             500: components["responses"]["InternalServerError"];
-        };
-    };
-    generateInternalRecommendationAiPlan: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example Bearer <service-token> */
-                Authorization: components["parameters"]["Authorization"];
-                "x-service-id": components["parameters"]["ServiceId"];
-                /** @example req_example_01HXRECO */
-                "X-Request-Id"?: components["parameters"]["RequestId"];
-                /** @example corr_example_generation_001 */
-                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
-            };
-            path: {
-                /** @example acct_example_reco_001 */
-                accountId: components["parameters"]["AccountId"];
-                /** @example prof_example_reco_001 */
-                profileId: components["parameters"]["ProfileId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecommendationAiPlanRequest"];
-            };
-        };
-        responses: {
-            /** @description AI-plan generation succeeded. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecommendationAiPlanResponse"];
-                };
-            };
-            /** @description Invalid AI-plan request or unsupported schema version. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-                };
-            };
-            /** @description Empty or semantically invalid candidate pool. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-                };
-            };
-            429: components["responses"]["AiPlanRateLimitedError"];
-            /** @description Internal AI-plan failure mapped to canonical provider code. */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-                };
-            };
-            /** @description AI provider output was invalid or failed provider-side output validation. */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-                };
-            };
-            /** @description AI provider unavailable. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-                };
-            };
-            /** @description AI-plan provider or server deadline exceeded. */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalErrorEnvelope"];
-                };
-            };
         };
     };
 }

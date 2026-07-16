@@ -97,15 +97,12 @@ function getLimit(principal: AppPrincipal, routeGroup: AppRateLimitRouteGroup): 
     case 'recommendations.batch-write':
     case 'recommendations.batches':
       return { capacity: policy.batchWritesPerMinute, windowSeconds: 60 };
-    case 'confidential.config-bundle':
-      return { capacity: policy.configBundleReadsPerMinute, windowSeconds: 60 };
     case 'recommendations.runs':
       return { capacity: policy.runsPerHour, windowSeconds: 3600 };
     case 'profiles.eligible.snapshots':
       return { capacity: policy.snapshotsPerDay, windowSeconds: 86400 };
     case 'apps.self':
     case 'recommendations.backfills':
-    case 'recommendations.ai-plan':
     case 'apps.audit':
       return null;
   }

@@ -1,9 +1,0 @@
-{
-  "error": {
-    "code": "AI_PLAN_INTERNAL_ERROR",
-    "message": "Internal AI plan generation error",
-    "category": "internal",
-    "retryable": false,
-    "requestId": "req_example_ai_plan_internal_error"
-  }
-}

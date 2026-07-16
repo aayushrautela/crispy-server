@@ -1,17 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AiFeatureId, AiProviderView, ServerAiTier } from '../modules/ai/ai.types.js';
-
-export const BYOK_OPENROUTER_PROVIDER_ID = 'openrouter';
-export const BYOK_OPENROUTER_LABEL = 'OpenRouter';
-export const BYOK_OPENROUTER_CHAT_COMPLETIONS_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-
-export type AppAiProviderConfig = {
-  id: string;
-  label: string;
-  endpointUrl: string;
-  models: Record<AiFeatureId, string>;
-};
+import type { AiFeatureId, ServerAiTier } from '../modules/ai/ai.types.js';
 
 export type AppServerAiConfig = {
   id: string;
@@ -40,7 +29,6 @@ type AppConfig = {
     };
   };
   ai: {
-    byokOpenRouter: AppAiProviderConfig;
     server: AppServerAiConfig;
   };
 };
@@ -48,33 +36,8 @@ type AppConfig = {
 export const appConfigPath = resolveAppConfigPath();
 export const appConfig = loadAppConfig(appConfigPath);
 
-export function getByokOpenRouterProvider(): AppAiProviderConfig {
-  return appConfig.ai.byokOpenRouter;
-}
-
 export function getServerAiProvider(): AppServerAiConfig {
   return appConfig.ai.server;
-}
-
-export function listPublicAiProviders(): AiProviderView[] {
-  const provider = getByokOpenRouterProvider();
-  return [{
-    id: provider.id,
-    label: provider.label,
-    models: provider.models,
-  }];
-}
-
-export function normalizeAiProviderId(_value: string | null | undefined): string {
-  return BYOK_OPENROUTER_PROVIDER_ID;
-}
-
-export function isAiProviderId(value: string): boolean {
-  return value.trim() === BYOK_OPENROUTER_PROVIDER_ID;
-}
-
-export function requireAiProvider(_providerId: string): AppAiProviderConfig {
-  return getByokOpenRouterProvider();
 }
 
 function resolveAppConfigPath(): string {
@@ -152,19 +115,7 @@ function parseAiConfig(root: Record<string, unknown>): AppConfig['ai'] {
   const ai = expectRecord(root.ai, 'ai');
 
   return {
-    byokOpenRouter: parseByokOpenRouter(ai),
     server: parseServerAi(ai),
-  };
-}
-
-function parseByokOpenRouter(ai: Record<string, unknown>): AppAiProviderConfig {
-  const configured = expectRecord(ai.byokOpenRouter, 'ai.byokOpenRouter');
-
-  return {
-    id: BYOK_OPENROUTER_PROVIDER_ID,
-    label: BYOK_OPENROUTER_LABEL,
-    endpointUrl: BYOK_OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
-    models: parseFeatureModels(configured.models, 'ai.byokOpenRouter.models'),
   };
 }
 
@@ -186,7 +137,6 @@ function parseServerAi(ai: Record<string, unknown>): AppServerAiConfig {
 function parseFeatureModels(value: unknown, label: string): Record<AiFeatureId, string> {
   const models = expectRecord(value, label);
   return {
-    recommendations: expectNonEmptyString(models.recommendations, `${label}.recommendations`),
     search: expectNonEmptyString(models.search, `${label}.search`),
     insights: expectNonEmptyString(models.insights, `${label}.insights`),
   };

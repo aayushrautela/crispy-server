@@ -13,7 +13,6 @@ const specs = [
   { file: 'openapi/public-account.v1.yaml', class: 'Public Account API', types: 'openapi/generated/public-account.v1.types.ts' },
   { file: 'openapi/internal-services.v1.yaml', class: 'Internal Service API', types: 'openapi/generated/internal-services.v1.types.ts' },
   { file: 'openapi/internal-recommender.v1.yaml', class: 'Internal Service API (Recommender)', types: 'openapi/generated/internal-recommender.v1.types.ts' },
-  { file: 'openapi/internal-confidential.v1.yaml', class: 'Confidential Internal API', types: 'openapi/generated/internal-confidential.v1.types.ts' },
   { file: 'openapi/admin-ops.v1.yaml', class: 'Admin/Ops API', types: 'openapi/generated/admin-ops.v1.types.ts' },
   { file: 'openapi/health-infrastructure.yaml', class: 'Health/Infrastructure API', types: 'openapi/generated/health-infrastructure.types.ts' },
 ];

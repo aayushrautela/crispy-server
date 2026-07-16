@@ -23,19 +23,12 @@ import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
-import { registerInternalConfidentialRoutes } from './routes/internal-confidential.js';
-import { ConfidentialConfigService } from '../modules/confidential/service.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
 import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
-import portalSessionAuthPlugin from './plugins/portal-session-auth.js';
-import portalAuthBridgePlugin from './plugins/portal-auth-bridge.js';
 import externalApiAuthPlugin from './plugins/external-api-auth.js';
-import { PortalHandoffService } from '../modules/auth/portal-handoff.service.js';
 import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
 import { registerExternalApiV2Routes } from './routes/external-api-v2.js';
-import { registerPortalRoutes } from './routes/portal.js';
-import { registerPortalHandoffRoutes } from './routes/portal-handoff.js';
 import { AccountSettingsService } from '../modules/users/account-settings.service.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
@@ -44,7 +37,6 @@ import { registerRecommendationOutputRoutes } from './routes/recommendation-outp
 import { registerWatchRoutes } from './routes/watch.js';
 import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
 import { registerInternalAppsRoutes } from './routes/internal-apps.routes.js';
-import { registerInternalRecommendationsRoutes } from './routes/internal-recommendations.routes.js';
 import { DefaultAppSelfService } from '../modules/apps/app-self.service.js';
 import { DefaultAppAuthorizationService } from '../modules/apps/app-authorization.service.js';
 import { DefaultProfileEligibilityService } from '../modules/apps/profile-eligibility.service.js';
@@ -255,14 +247,6 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
   };
 }
 
-function buildConfidentialConfigService(appDeps: ReturnType<typeof buildInternalAppsRoutesDependencies>) {
-  return new ConfidentialConfigService({
-    profileEligibilityService: appDeps.profileEligibilityService,
-    appAuthorizationService: appDeps.appAuthorizationService,
-    appAuditRepo: appDeps.appAuditRepo,
-  });
-}
-
 export async function buildApp() {
   const app = Fastify({
     logger: loggerOptions,
@@ -280,9 +264,7 @@ export async function buildApp() {
     credentials: true,
   });
   await app.register(adminUiAuthPlugin);
-  await app.register(portalSessionAuthPlugin);
   await app.register(authPlugin);
-  await app.register(portalAuthBridgePlugin);
   await app.register(externalApiAuthPlugin);
   const appAuthDeps = buildAppAuthDependencies();
   await app.register(appAuthPlugin, appAuthDeps);
@@ -303,7 +285,6 @@ export async function buildApp() {
   const accountSettingsService = new AccountSettingsService();
   const patService = new PersonalAccessTokenService();
   const appLoginHandoffService = new AppLoginHandoffService();
-  const portalHandoffService = new PortalHandoffService();
 
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
@@ -312,8 +293,6 @@ export async function buildApp() {
   await registerMeRoutes(app, { profileService, accountSettingsService });
   await registerPersonalAccessTokenRoutes(app, { patService });
   await registerAuthHandoffRoutes(app, { appLoginHandoffService });
-  await registerPortalHandoffRoutes(app, { portalHandoffService });
-  await registerPortalRoutes(app, { profileService, accountSettingsService, patService });
   await registerExternalApiV2Routes(app);
   await registerProfileRoutes(app, { profileService });
   await registerProfileSettingsRoutes(app, { profileService });
@@ -322,16 +301,8 @@ export async function buildApp() {
   await registerRecommendationOutputRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
   await registerAdminApiRoutes(app);
-  await registerInternalConfidentialRoutes(app, {
-    confidentialConfigService: buildConfidentialConfigService(internalAppsDeps),
-  });
   await registerCalendarRoutes(app);
   await registerAccountPublicRoutes(app);
   await registerInternalAppsRoutes(app, internalAppsDeps);
-  await registerInternalRecommendationsRoutes(app, {
-    appAuthorizationService: internalAppsDeps.appAuthorizationService,
-    appRateLimitService: internalAppsDeps.appRateLimitService,
-  });
-
   return app;
 }

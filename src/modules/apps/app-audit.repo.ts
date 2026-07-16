@@ -19,8 +19,7 @@ export type AppAuditAction =
   | 'recommendation_run_updated'
   | 'recommendation_batch_created'
   | 'recommendation_batch_updated'
-  | 'backfill_assignments_read'
-  | 'confidential_config_bundle_read';
+  | 'backfill_assignments_read';
 
 export interface AppAuditEventRecord {
   eventId: string;
