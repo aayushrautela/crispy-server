@@ -84,6 +84,31 @@ Removed backend type:
 
 Anime-origin titles are modeled as ordinary TMDB `movie` or `show` content.
 
+## Profile Model
+
+Each profile is a child persona under exactly one account. The first profile on an account is the **admin (main) profile** (`is_admin = true`); at most one admin profile per account is enforced by a partial unique index. Subsequent profiles are non-admin.
+
+Admin profiles are the only place account-scoped operations surface — addon configuration, profile roster management, AI key administration, account deletion, and the optional `require_pin_to_add_profiles` policy live on the admin profile.
+
+### Per-profile PIN
+
+Every profile (admin included) may set a 4-digit PIN. Storage:
+
+- `pin_hash` bcrypt (cost 10) — never plaintext.
+- `pin_failed_attempts` + `pin_locked_until` for exponential brute-force back-off (5 wrong → 30s, 10 → 5m, doubling, capped at 1h).
+- Verify returns `valid: boolean`, `lockedUntil: ISO | null`, `remainingAttemptsBeforeLockout: number`.
+
+When the admin profile has `require_pin_to_add_profiles = true`, every `POST /v1/profiles` call must include a valid `adminPin` matched against the admin profile's PIN.
+
+### Standardized language and country
+
+`interface_language` and country code values are validated against code-only allowlists: `src/modules/i18n/supported-languages.ts` (BCP-47 short list) and `src/modules/i18n/supported-countries.ts` (ISO-3166-1 alpha-2). Clients fetch the canonical catalogs via:
+
+- `GET /v1/i18n/languages`
+- `GET /v1/i18n/countries`
+
+These endpoints are the source of truth for any UI rendering signup, profile-edit, or onboarding dropdowns.
+
 ## Canonical Provider Rules
 
 Canonical media identity is TMDB-only.

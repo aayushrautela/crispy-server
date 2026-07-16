@@ -45,6 +45,10 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Profiles are child personas under one account, not standalone users.
 - One account token covers all profiles owned by that account; profiles do not have separate credentials.
 - Profiles do not have separate logins, PATs, service credentials, or account-shared secrets.
+- The first profile on an account is the admin profile (`is_admin = true`). Exactly one admin profile per account is enforced by a partial unique index.
+- Per-profile 4-digit PINs are stored as bcrypt hashes (`pin_hash`) on `identity.profiles`. Brute-force protection uses `pin_failed_attempts` + `pin_locked_until`; locked-out PINs return 423.
+- The admin profile can enable `require_pin_to_add_profiles`; when on, `POST /v1/profiles` requires a valid `adminPin` matching the admin profile's PIN (verified server-side).
+- Language and country values are validated against code-only allowlists exposed at `/v1/i18n/languages` and `/v1/i18n/countries`. Clients must use these catalogs to render signup/profile forms.
 - Shared account-scoped data includes addons, AI API key, metadata-enrichment availability flags, PATs, account deletion, and profile roster management.
 - Profile-scoped personal data includes profile settings, watch state/history, provider connections, imports, taste profiles, and recommendations.
 - Trakt and Simkl are per-profile, not account-scoped.

@@ -1,6 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
-import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
+import { normalizeLanguageCode } from '../i18n/supported-languages.js';
+import { normalizeCountryCode } from '../i18n/supported-countries.js';
 
 export type ProfileRecord = {
   id: string;
@@ -9,6 +10,9 @@ export type ProfileRecord = {
   interfaceLanguage: string;
   region: string | null;
   avatarKey: string | null;
+  isAdmin: boolean;
+  requirePinToAddProfiles: boolean;
+  hasPin: boolean;
   isKids: boolean;
   sortOrder: number;
   createdByUserId: string | null;
@@ -16,23 +20,26 @@ export type ProfileRecord = {
   updatedAt: string;
 };
 
+export type ProfilePinRow = {
+  profileId: string;
+  pinHash: string | null;
+  failedAttempts: number;
+  lockedUntil: string | null;
+  requirePinToAddProfiles: boolean;
+};
+
+const PROFILE_COLUMNS = `
+  id, account_id AS profile_group_id, name, interface_language, region, avatar_key,
+  is_admin, pin_hash IS NOT NULL AS has_pin, require_pin_to_add_profiles,
+  is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+`;
+
 function normalizeRequiredProfileLanguage(value: unknown): string {
-  return normalizeMetadataLanguage(typeof value === 'string' ? value : null) ?? 'en';
+  return normalizeLanguageCode(value) ?? 'en';
 }
 
 function normalizeOptionalProfileRegion(value: unknown): string | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const region = value.trim().replaceAll('_', '-');
-  if (!/^[A-Za-z]{2}(?:-[A-Za-z0-9]{2,8}){0,2}$/.test(region)) return null;
-  return region
-    .split('-')
-    .map((part, index) => (index === 0 || part.length === 2 ? part.toUpperCase() : part.toLowerCase()))
-    .join('-');
+  return normalizeCountryCode(value);
 }
 
 function mapProfile(row: Record<string, unknown>): ProfileRecord {
@@ -43,11 +50,26 @@ function mapProfile(row: Record<string, unknown>): ProfileRecord {
     interfaceLanguage: typeof row.interface_language === 'string' ? row.interface_language : 'en',
     region: typeof row.region === 'string' ? row.region : null,
     avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
+    isAdmin: Boolean(row.is_admin),
+    requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles),
+    hasPin: Boolean(row.has_pin),
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
-    createdByUserId: typeof row.created_by_user_id === 'string' ? row.created_by_user_id : null,
+    createdByUserId: typeof row.created_by_user_id === 'string' ? String(row.created_by_account_id) : null,
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'identity.profiles.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'identity.profiles.updated_at'),
+  };
+}
+
+function mapPinRow(row: Record<string, unknown>): ProfilePinRow {
+  return {
+    profileId: String(row.id),
+    pinHash: typeof row.pin_hash === 'string' ? row.pin_hash : null,
+    failedAttempts: Number(row.pin_failed_attempts ?? 0),
+    lockedUntil: row.locked_until instanceof Date || typeof row.locked_until === 'string'
+      ? String(row.locked_until)
+      : null,
+    requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles),
   };
 }
 
@@ -55,11 +77,36 @@ export class ProfileRepository {
   async findById(client: DbClient, profileId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT ${PROFILE_COLUMNS}
         FROM identity.profiles
         WHERE id = $1::uuid AND deleted_at IS NULL
       `,
       [profileId],
+    );
+    return result.rows[0] ? mapProfile(result.rows[0]) : null;
+  }
+
+  async findPinRow(client: DbClient, profileId: string): Promise<ProfilePinRow | null> {
+    const result = await client.query(
+      `
+        SELECT id, pin_hash, pin_failed_attempts, pin_locked_until, require_pin_to_add_profiles
+        FROM identity.profiles
+        WHERE id = $1::uuid AND deleted_at IS NULL
+      `,
+      [profileId],
+    );
+    return result.rows[0] ? mapPinRow(result.rows[0]) : null;
+  }
+
+  async findAdminProfileForOwner(client: DbClient, ownerUserId: string): Promise<ProfileRecord | null> {
+    const result = await client.query(
+      `
+        SELECT ${PROFILE_COLUMNS}
+        FROM identity.profiles
+        WHERE account_id = $1::uuid AND is_admin AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [ownerUserId],
     );
     return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }
@@ -80,7 +127,7 @@ export class ProfileRepository {
   async listForProfileGroup(client: DbClient, profileGroupId: string): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT ${PROFILE_COLUMNS}
         FROM identity.profiles
         WHERE account_id = $1::uuid AND deleted_at IS NULL
         ORDER BY sort_order ASC, created_at ASC
@@ -120,7 +167,7 @@ export class ProfileRepository {
   async listAll(client: DbClient, limit: number, offset: number): Promise<ProfileRecord[]> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT ${PROFILE_COLUMNS}
         FROM identity.profiles
         WHERE deleted_at IS NULL
         ORDER BY updated_at DESC, created_at DESC
@@ -134,7 +181,7 @@ export class ProfileRepository {
   async findByIdForOwnerUser(client: DbClient, profileId: string, ownerUserId: string): Promise<ProfileRecord | null> {
     const result = await client.query(
       `
-        SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        SELECT ${PROFILE_COLUMNS}
         FROM identity.profiles
         WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
       `,
@@ -149,17 +196,28 @@ export class ProfileRepository {
     interfaceLanguage?: string;
     region?: string | null;
     avatarKey?: string | null;
+    isAdmin?: boolean;
     isKids?: boolean;
     sortOrder: number;
     createdByUserId: string;
   }): Promise<ProfileRecord> {
     const result = await client.query(
       `
-        INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id)
-        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid)
-        RETURNING id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_admin, is_kids, sort_order, created_by_account_id)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
+        RETURNING ${PROFILE_COLUMNS}
       `,
-      [params.profileGroupId, params.name, normalizeRequiredProfileLanguage(params.interfaceLanguage ?? 'en'), normalizeOptionalProfileRegion(params.region), params.avatarKey ?? null, params.isKids ?? false, params.sortOrder, params.createdByUserId],
+      [
+        params.profileGroupId,
+        params.name,
+        normalizeRequiredProfileLanguage(params.interfaceLanguage ?? 'en'),
+        normalizeOptionalProfileRegion(params.region),
+        params.avatarKey ?? null,
+        params.isAdmin ?? false,
+        params.isKids ?? false,
+        params.sortOrder,
+        params.createdByUserId,
+      ],
     );
     const profile = mapProfile(result.rows[0]);
     await client.query(
@@ -204,7 +262,7 @@ export class ProfileRepository {
           sort_order = $8,
           updated_at = now()
         WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
-        RETURNING id, account_id AS profile_group_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+        RETURNING ${PROFILE_COLUMNS}
       `,
       [
         params.profileId,
@@ -216,6 +274,34 @@ export class ProfileRepository {
         params.isKids ?? current.isKids,
         params.sortOrder ?? current.sortOrder,
       ],
+    );
+    return result.rows[0] ? mapProfile(result.rows[0]) : null;
+  }
+
+  async updatePin(client: DbClient, profileId: string, params: {
+    pinHash: string | null;
+    failedAttempts: number;
+    lockedUntil: string | null;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE identity.profiles
+        SET pin_hash = $2, pin_failed_attempts = $3, pin_locked_until = $4::timestamptz, updated_at = now()
+        WHERE id = $1::uuid AND deleted_at IS NULL
+      `,
+      [profileId, params.pinHash, params.failedAttempts, params.lockedUntil],
+    );
+  }
+
+  async setRequirePinToAddProfiles(client: DbClient, adminProfileId: string, ownerUserId: string, value: boolean): Promise<ProfileRecord | null> {
+    const result = await client.query(
+      `
+        UPDATE identity.profiles
+        SET require_pin_to_add_profiles = $3, updated_at = now()
+        WHERE id = $1::uuid AND account_id = $2::uuid AND is_admin AND deleted_at IS NULL
+        RETURNING ${PROFILE_COLUMNS}
+      `,
+      [adminProfileId, ownerUserId, value],
     );
     return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }

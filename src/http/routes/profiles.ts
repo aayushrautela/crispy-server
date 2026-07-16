@@ -2,6 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import type { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
+import { ProfilePinService } from '../../modules/profiles/profile-pin.service.js';
+import { SUPPORTED_LANGUAGES } from '../../modules/i18n/supported-languages.js';
+import { SUPPORTED_COUNTRIES } from '../../modules/i18n/supported-countries.js';
 import { nonEmptyStringSchema, nullableStringSchema, profileIdParamsSchema, stringSchema, successEnvelope, withDefaultErrorResponses } from '../contracts/shared.js';
 import { success, mutation } from '../response.js';
 
@@ -143,9 +146,10 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
 
 export async function registerProfileRoutes(
   app: FastifyInstance,
-  opts: { profileService: ProfileLocalService },
+  opts: { profileService: ProfileLocalService; pinService?: ProfilePinService },
 ): Promise<void> {
   const profileService = opts.profileService;
+  const pinService = opts.pinService ?? new ProfilePinService();
   const providerImportService = new ProviderImportService();
 
   app.get('/v1/profiles', async (request) => {
@@ -156,10 +160,24 @@ export async function registerProfileRoutes(
     }, request);
   });
 
+  app.get('/v1/i18n/languages', async (request) => {
+    await app.requireAuth(request);
+    return success({ languages: SUPPORTED_LANGUAGES }, request);
+  });
+
+  app.get('/v1/i18n/countries', async (request) => {
+    await app.requireAuth(request);
+    return success({ countries: SUPPORTED_COUNTRIES }, request);
+  });
+
   app.post('/v1/profiles', async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
+    const adminPin = body.adminPin;
+    if (typeof adminPin === 'string') {
+      await pinService.verifyAdminPinForAddProfile(actor.authSubject, adminPin);
+    }
     const profile = await profileService.create(actor.authSubject, {
       name: String(body.name ?? '').trim(),
       interfaceLanguage: typeof body.interfaceLanguage === 'string' ? body.interfaceLanguage : '',
@@ -185,6 +203,55 @@ export async function registerProfileRoutes(
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
     return success({ profile }, request);
+  });
+
+  app.post('/v1/profiles/:profileId/pin', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const params = request.params as { profileId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    await pinService.setPin(actor.authSubject, params.profileId, body.pin);
+    return success({ ok: true }, request);
+  });
+
+  app.patch('/v1/profiles/:profileId/pin', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const params = request.params as { profileId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    await pinService.changePin(actor.authSubject, params.profileId, body.currentPin, body.newPin);
+    return success({ ok: true }, request);
+  });
+
+  app.delete('/v1/profiles/:profileId/pin', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const params = request.params as { profileId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    await pinService.removePin(actor.authSubject, params.profileId, body.currentPin);
+    return success({ ok: true }, request);
+  });
+
+  app.post('/v1/profiles/:profileId/pin/verify', async (request) => {
+    await app.requireAuth(request);
+    const params = request.params as { profileId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const result = await pinService.verifyPin(params.profileId, body.pin);
+    return success({ verify: result }, request);
+  });
+
+  app.patch('/v1/profiles/:profileId/admin-policy', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const params = request.params as { profileId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const profile = await profileService.requireOwnedProfile(actor.authSubject, params.profileId);
+    if (!profile.isAdmin) {
+      throw Object.assign(new Error('Admin profile required.'), { statusCode: 403 });
+    }
+    const value = Boolean(body.requirePinToAddProfiles);
+    await pinService.setRequirePinToAddProfiles(actor.authSubject, params.profileId, value);
+    return success({ ok: true }, request);
   });
 
   app.post('/v1/profiles/:profileId/imports/start', { schema: providerImportStartRouteSchema }, async (request, reply) => {

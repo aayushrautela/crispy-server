@@ -33,6 +33,7 @@ import { AccountSettingsService } from '../modules/users/account-settings.servic
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
 import { ProfileLocalService } from '../modules/profiles/profile-local.service.js';
+import { ProfilePinService } from '../modules/profiles/profile-pin.service.js';
 import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
@@ -282,6 +283,7 @@ export async function buildApp() {
   });
 
   const profileService = new ProfileLocalService();
+  const profilePinService = new ProfilePinService();
   const accountSettingsService = new AccountSettingsService();
   const patService = new PersonalAccessTokenService();
   const appLoginHandoffService = new AppLoginHandoffService();
@@ -294,7 +296,7 @@ export async function buildApp() {
   await registerPersonalAccessTokenRoutes(app, { patService });
   await registerAuthHandoffRoutes(app, { appLoginHandoffService });
   await registerExternalApiV2Routes(app);
-  await registerProfileRoutes(app, { profileService });
+  await registerProfileRoutes(app, { profileService, pinService: profilePinService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app);

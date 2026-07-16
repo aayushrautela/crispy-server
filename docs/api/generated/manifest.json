@@ -1,5 +1,5 @@
 {
-  "generated": "2026-05-26T11:50:29.101Z",
+  "generated": "2026-07-16T22:27:10.558Z",
   "specs": [
     {
       "file": "openapi/public-app.v1.yaml",
@@ -20,11 +20,6 @@
       "file": "openapi/internal-recommender.v1.yaml",
       "class": "Internal Service API (Recommender)",
       "types": "openapi/generated/internal-recommender.v1.types.ts"
-    },
-    {
-      "file": "openapi/internal-confidential.v1.yaml",
-      "class": "Confidential Internal API",
-      "types": "openapi/generated/internal-confidential.v1.types.ts"
     },
     {
       "file": "openapi/admin-ops.v1.yaml",

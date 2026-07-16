@@ -43,6 +43,10 @@ The external recommendation engine is a separate event-driven service. It is not
 
 - The signed-in account is the auth actor and ownership root.
 - Profiles are child personas under an account, not separately authenticated users.
+- The first profile on an account is the admin (main) profile; account-scoped operations route through it.
+- Per-profile 4-digit PINs are stored as bcrypt hashes with exponential backoff on invalid attempts.
+- The admin profile may require a valid PIN when new profiles are added; the PIN set/change/remove/verify endpoints live under `/v1/profiles/:profileId/pin`.
+- Profile `interface_language` and country code are validated against code-only catalogs exposed at `/v1/i18n/languages` and `/v1/i18n/countries`.
 - Account-shared data includes profile roster management, addons, PATs, account deletion, metadata-enrichment availability flags, and AI provider/secret settings.
 - Profile-personal data includes profile settings, watch state, history, continue watching, watchlist, ratings, episodic follow state, provider connections/imports, taste profiles, and recommendations.
 - Trakt and Simkl connections remain per-profile.

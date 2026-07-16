@@ -1,6 +1,7 @@
 import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
-import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
+import { normalizeLanguageCode } from '../i18n/supported-languages.js';
+import { normalizeCountryCode } from '../i18n/supported-countries.js';
 import { RecommendationOutboxService } from '../outbox/recommendation-outbox.service.js';
 
 export type ProfileRecord = {
@@ -9,6 +10,9 @@ export type ProfileRecord = {
   interfaceLanguage: string;
   region: string | null;
   avatarKey: string | null;
+  isAdmin: boolean;
+  requirePinToAddProfiles: boolean;
+  hasPin: boolean;
   isKids: boolean;
   sortOrder: number;
   createdByUserId: string | null;
@@ -21,6 +25,7 @@ export type ProfileCreateInput = {
   interfaceLanguage: string;
   region?: string | null;
   avatarKey?: string | null;
+  isAdmin?: boolean;
   isKids?: boolean;
   sortOrder?: number;
 };
@@ -41,6 +46,9 @@ function mapRow(row: Record<string, unknown>): ProfileRecord {
     interfaceLanguage: typeof row.interface_language === 'string' ? row.interface_language : 'en',
     region: typeof row.region === 'string' ? row.region : null,
     avatarKey: typeof row.avatar_key === 'string' ? row.avatar_key : null,
+    isAdmin: Boolean(row.is_admin),
+    requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles),
+    hasPin: Boolean(row.has_pin),
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
     createdByUserId: typeof row.created_by_account_id === 'string' ? row.created_by_account_id : null,
@@ -58,9 +66,9 @@ function normalizeRequiredName(value: unknown): string {
 }
 
 export function normalizeRequiredProfileLanguage(value: unknown): string {
-  const normalized = normalizeMetadataLanguage(typeof value === 'string' ? value : null);
+  const normalized = normalizeLanguageCode(typeof value === 'string' ? value : null);
   if (!normalized) {
-    throw new HttpError(400, 'Profile language is required.');
+    throw new HttpError(400, 'Profile language is required and must be a supported language code.');
   }
   return normalized;
 }
@@ -72,18 +80,18 @@ export function normalizeOptionalProfileRegion(value: unknown): string | null {
   if (typeof value !== 'string') {
     throw new HttpError(400, 'Profile region must be a string.');
   }
-  const region = value.trim().replaceAll('_', '-');
-  if (!region) {
-    return null;
+  const normalized = normalizeCountryCode(value);
+  if (!normalized) {
+    throw new HttpError(400, 'Profile region must be a supported country code.');
   }
-  if (!/^[A-Za-z]{2}(?:-[A-Za-z0-9]{2,8}){0,2}$/.test(region)) {
-    throw new HttpError(400, 'Profile region must be a valid country or region code.');
-  }
-  return region
-    .split('-')
-    .map((part, index) => (index === 0 || part.length === 2 ? part.toUpperCase() : part.toLowerCase()))
-    .join('-');
+  return normalized;
 }
+
+const LOCAL_PROFILE_COLUMNS = `
+  id, name, interface_language, region, avatar_key,
+  is_admin, pin_hash IS NOT NULL AS has_pin, require_pin_to_add_profiles,
+  is_kids, sort_order, created_by_account_id, created_at, updated_at
+`;
 
 export class ProfileLocalService {
   constructor(
@@ -93,13 +101,26 @@ export class ProfileLocalService {
   async listForAccount(authSubject: string): Promise<ProfileRecord[]> {
     return withDbClient(async (client) => {
       const result = await client.query(
-        `SELECT id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+        `SELECT ${LOCAL_PROFILE_COLUMNS}
          FROM identity.profiles
          WHERE account_id = $1::uuid AND deleted_at IS NULL
          ORDER BY sort_order ASC, created_at ASC`,
         [authSubject],
       );
       return result.rows.map((r) => mapRow(r));
+    });
+  }
+
+  async getAdminProfile(authSubject: string): Promise<ProfileRecord | null> {
+    return withDbClient(async (client) => {
+      const result = await client.query(
+        `SELECT ${LOCAL_PROFILE_COLUMNS}
+         FROM identity.profiles
+         WHERE account_id = $1::uuid AND is_admin AND deleted_at IS NULL
+         LIMIT 1`,
+        [authSubject],
+      );
+      return result.rows[0] ? mapRow(result.rows[0]) : null;
     });
   }
 
@@ -118,10 +139,10 @@ export class ProfileLocalService {
       const count = Number(countResult.rows[0]?.cnt ?? 0);
 
       const result = await client.query(
-        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid)
-         RETURNING id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at`,
-        [authSubject, name, interfaceLanguage, region, input.avatarKey ?? null, input.isKids ?? false, input.sortOrder ?? count, authSubject],
+        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_key, is_admin, is_kids, sort_order, created_by_account_id)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
+         RETURNING ${LOCAL_PROFILE_COLUMNS}`,
+        [authSubject, name, interfaceLanguage, region, input.avatarKey ?? null, input.isAdmin ?? false, input.isKids ?? false, input.sortOrder ?? count, authSubject],
       );
 
       const profile = result.rows[0];
@@ -196,7 +217,7 @@ export class ProfileLocalService {
         `UPDATE identity.profiles
          SET ${updates.join(', ')}
          WHERE id = $${paramIdx}::uuid AND account_id = $${paramIdx + 1}::uuid AND deleted_at IS NULL
-          RETURNING id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at`,
+          RETURNING ${LOCAL_PROFILE_COLUMNS}`,
         params,
       );
 
@@ -208,7 +229,7 @@ export class ProfileLocalService {
   async requireOwnedProfile(authSubject: string, profileId: string): Promise<ProfileRecord> {
     return withDbClient(async (client) => {
       const result = await client.query(
-        `SELECT id, name, interface_language, region, avatar_key, is_kids, sort_order, created_by_account_id, created_at, updated_at
+        `SELECT ${LOCAL_PROFILE_COLUMNS}
          FROM identity.profiles
          WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL`,
         [profileId, authSubject],
