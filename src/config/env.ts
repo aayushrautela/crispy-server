@@ -120,7 +120,7 @@ export const env = {
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
   authBaseUrl,
   authAdminApiKey,
-  authJwksUrl: `${authBaseUrl}/.well-known/jwks.json`,
+  authJwksUrl: requireBaseUrl('AUTH_JWKS_URL'),
   authJwtIssuer,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
   authAdminUrl: authAuthBaseUrl,

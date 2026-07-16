@@ -2,8 +2,11 @@ import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { withDbClient } from '../lib/db.js';
 import { buildApp } from '../http/app.js';
+import { assertJwksReachable } from '../lib/jwks-healthcheck.js';
 import { createAdminBulkJobsWorkerRuntime } from '../modules/admin-bulk-jobs/worker-runtime.js';
 import { imdbRatingsService } from '../modules/metadata/enrichment/imdb-ratings.service.js';
+
+await assertJwksReachable();
 
 const app = await buildApp();
 const adminBulkJobsWorkerRuntime = env.adminBulkJobsWorkerMode === 'inline'

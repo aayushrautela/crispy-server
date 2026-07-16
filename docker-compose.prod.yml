@@ -19,6 +19,9 @@ services:
       - .env
     environment:
       REDIS_URL: redis://redis:6379
+      AUTH_BASE_URL: http://supabase-auth:9999
+      AUTH_JWKS_URL: http://supabase-auth:9999/auth/v1/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://api.crispytv.tech
     command: npm run start:api
     depends_on:
       redis:
@@ -37,6 +40,9 @@ services:
       - .env
     environment:
       REDIS_URL: redis://redis:6379
+      AUTH_BASE_URL: http://supabase-auth:9999
+      AUTH_JWKS_URL: http://supabase-auth:9999/auth/v1/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://api.crispytv.tech
     command: npm run start:worker
     depends_on:
       redis:
