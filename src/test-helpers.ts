@@ -11,7 +11,7 @@ const REQUIRED_ENV: Record<string, string> = {
   APP_PUBLIC_URL: 'https://api.crispytv.tech',
   APP_DISPLAY_NAME: 'CrispyTV',
   AUTH_BASE_URL: 'https://example.supabase.co',
-  AUTH_JWKS_URL: 'https://example.supabase.co/auth/v1/.well-known/jwks.json',
+  AUTH_JWKS_URL: 'https://example.supabase.co/.well-known/jwks.json',
   AUTH_JWT_AUDIENCE: 'authenticated',
   AUTH_ADMIN_API_KEY: 'test-admin-api-key',
   TMDB_API_KEY: 'tmdb-test-key',
