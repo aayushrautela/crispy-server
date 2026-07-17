@@ -12,7 +12,11 @@ export type AiResolvedProviderConfig = {
   title: string;
 };
 
-export type AiProviderFailureKind = 'network' | 'provider_response' | 'invalid_response';
+export type AiProviderFailureKind =
+  | 'network'
+  | 'provider_response'
+  | 'invalid_response'
+  | 'unexpected_tool_calls';
 
 export type AiProviderFailureDetails = {
   provider: string;
@@ -23,6 +27,7 @@ export type AiProviderFailureDetails = {
   retryAfterSeconds?: number;
   failureKind?: AiProviderFailureKind;
   errorMessage?: string;
+  toolCallNames?: string[];
 };
 
 export type ResolvedAiRequest = {

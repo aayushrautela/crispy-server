@@ -55,7 +55,7 @@ export class AiSearchService {
       const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
         userId,
         feature: 'search',
-        systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope.',
+        systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope. Do not call any tools or functions. Do not invoke web search. Answer ONLY with the JSON object in the message content.',
         userPrompt: buildSearchPrompt(query, locale, analysis),
       });
 

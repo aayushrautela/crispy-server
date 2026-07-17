@@ -27,7 +27,9 @@ const RAW_SUGGESTION_LIMIT = 16;
 
 export function buildSearchPrompt(query: string, locale: string, analysis: SearchQueryAnalysis): string {
   const lines = [
-    'You help a streaming app answer what-to-watch questions like a smart friend.',
+    'You help a streaming app answer what-to-watch questions like a smart friend. You do not have access to the internet.',
+    'Do NOT use web search. Do NOT call any tools or functions. Do NOT emit tool_calls.',
+    'Answer ONLY from your own knowledge as a completed JSON object in the message content.',
     `User query: ${query}`,
     'Catalog scope: You may suggest movies or TV shows.',
     'Mixed results can come from the movie and TV catalogs.',

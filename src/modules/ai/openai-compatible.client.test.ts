@@ -206,3 +206,45 @@ test('generateJson parses array-based content parts', async (t) => {
 
   assert.deepEqual(result, { ok: true });
 });
+
+test('generateJson classifies tool_calls responses as unexpected_tool_calls', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return new Response(JSON.stringify({
+      choices: [{
+        index: 0,
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          reasoning: 'We need to search the web.',
+          tool_calls: [{
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"movies like blade runner"}' },
+          }],
+        },
+      }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  await assert.rejects(
+    () => client.generateJson({
+      provider: { id: 'server-ai', label: 'Server AI', endpointUrl: 'https://example.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
+      apiKey: 'test-key',
+      model: 'gpt-5-mini',
+      userPrompt: 'movies like Blade Runner but darker',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      const details = (error as Error & { details?: Record<string, unknown> }).details;
+      assert.equal(details?.failureKind, 'unexpected_tool_calls');
+      assert.deepEqual(details?.toolCallNames, ['web_search']);
+      return true;
+    },
+  );
+});

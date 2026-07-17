@@ -43,17 +43,22 @@ export class OpenAiCompatibleClient {
     }
 
     const content = extractChoiceContent(payload);
-    if (!content.trim()) {
+    const toolCalls = extractChoiceToolCalls(payload);
+
+    if (!content.trim() || toolCalls.length > 0) {
       logger.warn({
         providerId: args.provider.id,
         model: args.model,
         status: attempt.response.status,
+        finishReason: extractFinishReason(payload),
+        toolCallCount: toolCalls.length,
         rawBodySample: sampleText(attempt.rawBody),
-      }, 'AI provider returned empty message content');
+      }, 'AI provider returned empty/usable message content');
       throw new HttpError(502, 'AI provider returned empty data.', {
         provider: args.provider.id,
         providerStatus: attempt.response.status,
-        failureKind: 'invalid_response',
+        failureKind: toolCalls.length > 0 ? 'unexpected_tool_calls' : 'invalid_response',
+        toolCallNames: toolCalls.map((call) => call.name),
       });
     }
 
@@ -185,6 +190,29 @@ function extractContentPartText(part: unknown): string {
   }
 
   return '';
+}
+
+function extractFinishReason(payload: Record<string, unknown> | null): string | null {
+  const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+  const first = isRecord(choices[0]) ? choices[0] : null;
+  return typeof first?.finish_reason === 'string' ? first.finish_reason : null;
+}
+
+type ToolCallDescriptor = { name: string; arguments: string };
+
+function extractChoiceToolCalls(payload: Record<string, unknown> | null): ToolCallDescriptor[] {
+  const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+  const first = isRecord(choices[0]) ? choices[0] : null;
+  const message = isRecord(first?.message) ? first?.message : null;
+  const toolCallsRaw = Array.isArray(message?.tool_calls) ? message?.tool_calls : [];
+  return toolCallsRaw
+    .filter((entry): entry is Record<string, unknown> => isRecord(entry))
+    .map((entry) => {
+      const function_ = isRecord(entry.function) ? entry.function : null;
+      const name = typeof function_?.name === 'string' ? function_.name : 'unknown';
+      const args = typeof function_?.arguments === 'string' ? function_.arguments : '';
+      return { name, arguments: args };
+    });
 }
 
 function extractProviderError(rawBody: string): { message: string | null; code?: string; param?: string } {
