@@ -44,7 +44,7 @@ The external recommendation engine is a separate event-driven service. It is not
 - The signed-in account is the auth actor and ownership root.
 - Profiles are child personas under an account, not separately authenticated users.
 - The first profile on an account is the admin (main) profile; account-scoped operations route through it.
-- Per-profile 4-digit PINs are stored as bcrypt hashes with exponential backoff on invalid attempts. A successful verify returns a short-lived unlock token; profile-scoped routes (`watch`, `ai`, `calendar`) require it when the profile has a PIN set.
+- Per-profile 4-digit PINs are stored as bcrypt hashes with exponential backoff on invalid attempts. A successful verify unlocks the profile in Redis for 30 days (Netflix-style: once unlocked, no per-request token needed); `POST /v1/profiles/:profileId/lock` re-locks. Profile-scoped routes (`watch`, `ai`, `calendar`) require an unlocked profile when the profile has a PIN set.
 - The admin profile may require a valid PIN when new profiles are added; the PIN set/change/remove/verify endpoints live under `/v1/profiles/:profileId/pin`.
 - Profile `interface_language` and country code are validated against code-only catalogs exposed at `/v1/i18n/languages` and `/v1/i18n/countries`.
 - Profile `avatar_url` must be a valid Dicebear URL (`https://api.dicebear.com/v9/<style>/<format>`); avatar rendering is client-side.

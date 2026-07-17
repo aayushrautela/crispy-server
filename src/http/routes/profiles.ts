@@ -234,10 +234,19 @@ export async function registerProfileRoutes(
 
   app.post('/v1/profiles/:profileId/pin/verify', async (request) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const result = await pinService.verifyPin(params.profileId, body.pin);
+    const result = await pinService.verifyPin(params.profileId, actor.authSubject, body.pin);
     return success({ verify: result }, request);
+  });
+
+  app.post('/v1/profiles/:profileId/lock', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const params = request.params as { profileId: string };
+    await pinService.lock(actor.authSubject, params.profileId);
+    return success({ ok: true }, request);
   });
 
   app.patch('/v1/profiles/:profileId/admin-policy', async (request) => {

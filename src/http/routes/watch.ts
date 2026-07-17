@@ -27,7 +27,7 @@ import { mutation, success } from '../response.js';
 import { assertPublicItemId, decodePublicItemId } from '../../modules/identity/public-item-id.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
-import { extractProfileUnlockToken, requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
+import { requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
 
 export interface WatchRoutesDeps {
   profilePinService?: {
@@ -48,9 +48,7 @@ export async function registerWatchRoutes(
 
   async function assertProfileUnlocked(request: import('fastify').FastifyRequest, profileId: string) {
     if (!profilePinService) return;
-    const hasPin = await profilePinService.hasPin(profileId);
-    if (!hasPin) return;
-    await requireProfileUnlock(request, profileId);
+    await requireProfileUnlock(request, profileId, { profilePinService });
   }
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {

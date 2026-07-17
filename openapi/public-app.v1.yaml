@@ -870,6 +870,37 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/lock:
+    post:
+      tags:
+        - Profiles
+      operationId: postV1ProfilesProfileIdLock
+      summary: Lock a profile, requiring PIN re-verification on the next gated request.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/admin-policy:
     patch:
       tags:

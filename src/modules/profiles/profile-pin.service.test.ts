@@ -142,10 +142,9 @@ test('changePin fails with 409 if no PIN set', async () => {
 test('verifyPin returns ok short-circuit when no PIN is set', async () => {
   const { repo } = freshRepo();
   const service = await buildService(repo);
-  const result = await service.verifyPin(PROFILE_ID, '0000');
+  const result = await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '0000');
   assert.equal(result.valid, true);
   assert.equal(result.lockedUntil, null);
-  assert.equal(result.unlockToken, null);
 });
 
 test('verifyPin locks out after threshold of wrong attempts', async () => {
@@ -154,7 +153,7 @@ test('verifyPin locks out after threshold of wrong attempts', async () => {
   await service.setPin(AUTH_SUBJECT, PROFILE_ID, '1234');
 
   for (let i = 1; i <= MAX_ATTEMPTS + 1; i++) {
-    const result = await service.verifyPin(PROFILE_ID, '0000');
+    const result = await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '0000');
     assert.equal(result.valid, false, `attempt ${i} should fail`);
     if (i <= MAX_ATTEMPTS) {
       assert.equal(result.lockedUntil, null, `attempt ${i} should not yet lock out`);
@@ -179,13 +178,13 @@ test('verifyPin reports locked-until when called during lockout window', async (
     requirePinToAddProfiles: false,
   });
   const service = await buildService(repo);
-  const result = await service.verifyPin(PROFILE_ID, '1234');
+  const result = await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '1234');
   assert.equal(result.valid, false);
   assert.equal(result.lockedUntil, future);
   assert.equal(result.remainingAttemptsBeforeLockout, 0);
 });
 
-test('verifyPin succeeds and resets counter on correct PIN', async () => {
+test('verifyPin succeeds and resets counter on correct PIN, unlocking the profile', async () => {
   const { repo, state } = freshRepo();
   const service = await buildService(repo);
   await service.setPin(AUTH_SUBJECT, PROFILE_ID, '1111');
@@ -196,11 +195,12 @@ test('verifyPin succeeds and resets counter on correct PIN', async () => {
     failedAttempts: 3,
     lockedUntil: null,
   });
-  const result = await service.verifyPin(PROFILE_ID, '1111');
+  const result = await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '1111');
   assert.equal(result.valid, true);
   assert.equal(result.lockedUntil, null);
-  assert.ok(typeof result.unlockToken === 'string' && result.unlockToken.length > 0, 'unlockToken should be returned on success');
   assert.equal(state.pinRows.get(PROFILE_ID)?.failedAttempts, 0);
+  const { isProfileUnlocked } = await import('../../lib/profile-unlock-store.js');
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), true, 'profile should be unlocked after verify');
 });
 
 test('removePin clears stored hash when current PIN matches', async () => {
@@ -216,6 +216,32 @@ test('removePin is a no-op when no PIN is set', async () => {
   const { repo, state } = freshRepo();
   await buildService(repo).then((s) => s.removePin(AUTH_SUBJECT, PROFILE_ID, '9999'));
   assert.equal(state.pinRows.has(PROFILE_ID), false);
+});
+
+test('setPin/changePin/removePin lock the profile (require re-verify)', async () => {
+  const { isProfileUnlocked, lockProfile } = await import('../../lib/profile-unlock-store.js');
+  const { repo } = freshRepo();
+  const service = await buildService(repo);
+  await service.setPin(AUTH_SUBJECT, PROFILE_ID, '1234');
+  await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '1234');
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), true);
+
+  await service.changePin(AUTH_SUBJECT, PROFILE_ID, '1234', '5678');
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), false, 'changePin should re-lock');
+
+  await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '5678');
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), true);
+
+  await service.removePin(AUTH_SUBJECT, PROFILE_ID, '5678');
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), false, 'removePin should re-lock');
+
+  // lock() clears a valid unlock
+  await service.verifyPin(PROFILE_ID, AUTH_SUBJECT, '0000');
+  await service.lock(AUTH_SUBJECT, PROFILE_ID);
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), false);
+  // ensure lockProfile is exported/idempotent
+  await lockProfile(PROFILE_ID, AUTH_SUBJECT);
+  assert.equal(await isProfileUnlocked(PROFILE_ID, AUTH_SUBJECT), false);
 });
 
 test('setRequirePinToAddProfiles writes the flag', async () => {

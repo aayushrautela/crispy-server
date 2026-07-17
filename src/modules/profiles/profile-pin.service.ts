@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
 import { ProfileRepository, type ProfilePinRow } from './profile.repo.js';
-import { signProfileUnlockToken } from '../../lib/profile-unlock-token.js';
+import { setProfileUnlocked, lockProfile } from '../../lib/profile-unlock-store.js';
 
 const DEFAULT_PIN_COST = 10;
 const PIN_PATTERN = /^\d{4}$/;
@@ -20,7 +20,6 @@ export type VerifyPinResult = {
   valid: boolean;
   lockedUntil: string | null;
   remainingAttemptsBeforeLockout: number;
-  unlockToken: string | null;
 };
 
 export interface ProfilePinRepo {
@@ -78,6 +77,7 @@ export class ProfilePinService {
       failedAttempts: 0,
       lockedUntil: null,
     }));
+    await lockProfile(profile.id, authSubject);
   }
 
   async changePin(authSubject: string, profileId: string, currentPin: unknown, newPin: unknown): Promise<void> {
@@ -99,12 +99,14 @@ export class ProfilePinService {
       failedAttempts: 0,
       lockedUntil: null,
     }));
+    await lockProfile(profile.id, authSubject);
   }
 
   async removePin(authSubject: string, profileId: string, currentPin: unknown): Promise<void> {
     const profile = await this.requireOwnedProfile(authSubject, profileId);
     const pinRow = await this.run((client) => this.repo.findPinRow(client, profile.id));
     if (!pinRow || !pinRow.pinHash) {
+      await lockProfile(profile.id, authSubject);
       return;
     }
     await this.assertNotLocked(pinRow);
@@ -118,17 +120,18 @@ export class ProfilePinService {
       failedAttempts: 0,
       lockedUntil: null,
     }));
+    await lockProfile(profile.id, authSubject);
   }
 
-  async verifyPin(profileId: string, pin: unknown): Promise<VerifyPinResult> {
+  async verifyPin(profileId: string, authSubject: string, pin: unknown): Promise<VerifyPinResult> {
     const pinRow = await this.run((client) => this.repo.findPinRow(client, profileId));
     if (!pinRow || !pinRow.pinHash) {
-      return { valid: true, lockedUntil: null, remainingAttemptsBeforeLockout: 0, unlockToken: null };
+      return { valid: true, lockedUntil: null, remainingAttemptsBeforeLockout: 0 };
     }
     const lockedUntilMs = parseIso(pinRow.lockedUntil);
     const now = Date.now();
     if (lockedUntilMs && lockedUntilMs > now) {
-      return { valid: false, lockedUntil: pinRow.lockedUntil, remainingAttemptsBeforeLockout: 0, unlockToken: null };
+      return { valid: false, lockedUntil: pinRow.lockedUntil, remainingAttemptsBeforeLockout: 0 };
     }
     const matches = await bcrypt.compare(normalizePin(pin), pinRow.pinHash);
     if (matches) {
@@ -137,8 +140,8 @@ export class ProfilePinService {
         failedAttempts: 0,
         lockedUntil: null,
       }));
-      const unlockToken = await signProfileUnlockToken(profileId, pinRow.profileId ?? '');
-      return { valid: true, lockedUntil: null, remainingAttemptsBeforeLockout: 0, unlockToken };
+      await setProfileUnlocked(profileId, authSubject);
+      return { valid: true, lockedUntil: null, remainingAttemptsBeforeLockout: 0 };
     }
     const nextFailedAttempts = pinRow.failedAttempts + 1;
     const aboveThreshold = Math.max(nextFailedAttempts - MAX_ATTEMPTS_BEFORE_LOCKOUT, 0);
@@ -149,7 +152,7 @@ export class ProfilePinService {
       lockedUntil: nextLockedUntil,
     }));
     const remaining = Math.max(MAX_ATTEMPTS_BEFORE_LOCKOUT - nextFailedAttempts, 0);
-    return { valid: false, lockedUntil: nextLockedUntil, remainingAttemptsBeforeLockout: remaining, unlockToken: null };
+    return { valid: false, lockedUntil: nextLockedUntil, remainingAttemptsBeforeLockout: remaining };
   }
 
   async setRequirePinToAddProfiles(authSubject: string, adminProfileId: string, value: boolean): Promise<void> {
@@ -170,7 +173,7 @@ export class ProfilePinService {
     if (!admin.hasPin) {
       throw new HttpError(409, 'Admin PIN is required to add profiles but no admin PIN is set.');
     }
-    const result = await this.verifyPin(admin.id, adminPin);
+    const result = await this.verifyPin(admin.id, authSubject, adminPin);
     if (!result.valid) {
       throw new HttpError(403, 'Admin PIN is required to add a new profile.', { lockedUntil: result.lockedUntil });
     }
@@ -212,5 +215,10 @@ export class ProfilePinService {
   async hasPin(profileId: string): Promise<boolean> {
     const pinRow = await this.run((client) => this.repo.findPinRow(client, profileId));
     return Boolean(pinRow?.pinHash);
+  }
+
+  // Explicitly locks a profile, requiring PIN re-verification on the next gated request
+  async lock(authSubject: string, profileId: string): Promise<void> {
+    await lockProfile(profileId, authSubject);
   }
 }

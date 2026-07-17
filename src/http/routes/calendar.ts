@@ -20,9 +20,7 @@ export async function registerCalendarRoutes(
 
   async function assertProfileUnlocked(request: import('fastify').FastifyRequest, profileId: string) {
     if (!profilePinService) return;
-    const hasPin = await profilePinService.hasPin(profileId);
-    if (!hasPin) return;
-    await requireProfileUnlock(request, profileId);
+    await requireProfileUnlock(request, profileId, { profilePinService });
   }
 
   app.get('/v1/profiles/:profileId/calendar', { schema: profileCalendarRouteSchema }, async (request) => {

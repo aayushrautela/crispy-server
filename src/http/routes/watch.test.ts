@@ -369,10 +369,12 @@ test('watch state serializes progress without status', async (t) => {
   assert.equal(body.data.UserData.LastPlayedDate, now);
 });
 
-test('watch route requires unlock token when profile has a PIN', async (t) => {
+test('watch route requires unlock (locked profile) when profile has a PIN', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
+  const { setProfileUnlocked, lockProfile } = await import('../../lib/profile-unlock-store.js');
+  const { TEST_USER_AUTH } = await import('../../test-helpers.js');
 
   const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
   const originalEnrich = WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems;
@@ -391,6 +393,8 @@ test('watch route requires unlock token when profile has a PIN', async (t) => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
     WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originalEnrich;
     MetadataLanguageService.prototype.resolveForProfile = originalResolve;
+    void lockProfile('profile-1', TEST_USER_AUTH.appUserId);
+    void lockProfile('profile-2', TEST_USER_AUTH.appUserId);
   });
 
   const fakePin = {
@@ -411,24 +415,24 @@ test('watch route requires unlock token when profile has a PIN', async (t) => {
   assert.equal(denied.statusCode, 423);
   assert.equal(denied.json().error.code, 'PROFILE_LOCKED');
 
-  const { signProfileUnlockToken } = await import('../../lib/profile-unlock-token.js');
-  const { TEST_USER_AUTH } = await import('../../test-helpers.js');
-  const token = await signProfileUnlockToken('profile-1', TEST_USER_AUTH.appUserId);
+  await setProfileUnlocked('profile-1', TEST_USER_AUTH.appUserId);
 
   const allowed = await app.inject({
     method: 'GET',
     url: '/v1/profiles/profile-1/watch/continue-watching',
-    headers: { ...auth, 'x-profile-unlock-token': token },
+    headers: auth,
   });
   assert.equal(allowed.statusCode, 200);
 
-  const wrongProfile = await signProfileUnlockToken('profile-2', TEST_USER_AUTH.appUserId);
-  const rejected = await app.inject({
+  // Unlocking a different profile does not unlock profile-1
+  await lockProfile('profile-1', TEST_USER_AUTH.appUserId);
+  await setProfileUnlocked('profile-2', TEST_USER_AUTH.appUserId);
+  const stillLocked = await app.inject({
     method: 'GET',
     url: '/v1/profiles/profile-1/watch/continue-watching',
-    headers: { ...auth, 'x-profile-unlock-token': wrongProfile },
+    headers: auth,
   });
-  assert.equal(rejected.statusCode, 403);
+  assert.equal(stillLocked.statusCode, 423);
 });
 
 test('watch route allows access when profile has no PIN', async (t) => {

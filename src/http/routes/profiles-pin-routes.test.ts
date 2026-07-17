@@ -35,7 +35,8 @@ function makeFakePinService(overrides: Partial<{
       async setPin() {},
       async changePin() {},
       async removePin() {},
-      async verifyPin() { return { valid: true, lockedUntil: null }; },
+      async verifyPin() { return { valid: true, lockedUntil: null, remainingAttemptsBeforeLockout: 0 }; },
+      async lock() {},
       async setRequirePinToAddProfiles() {},
     } as never,
   };
@@ -169,4 +170,24 @@ test('PATCH /v1/profiles/:profileId/admin-policy rejects non-admin profiles with
     payload: { requirePinToAddProfiles: true },
   });
   assert.equal(response.statusCode, 403);
+});
+
+test('POST /v1/profiles/:profileId/lock calls pinService.lock and returns ok', async (t) => {
+  let lockedProfileId: string | null = null;
+  const fakePin = makeFakePinService();
+  (fakePin.service as unknown as { lock: (auth: string, id: string) => void }).lock = (_auth, id) => {
+    lockedProfileId = id;
+  };
+  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
+  const { registerProfileRoutes } = await import('./profiles.js');
+  const app = await buildTestApp((a) => registerProfileRoutes(a, { profileService: new ProfileLocalService(), pinService: fakePin.service }));
+  t.after(async () => { await app.close(); });
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/profiles/profile-1/lock',
+    headers: AUTH_HEADERS,
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.ok, true);
+  assert.equal(lockedProfileId, 'profile-1');
 });

@@ -13,7 +13,6 @@ const REQUIRED_ENV: Record<string, string> = {
   AUTH_BASE_URL: 'https://example.supabase.co',
   AUTH_JWKS_URL: 'https://example.supabase.co/.well-known/jwks.json',
   AUTH_JWT_AUDIENCE: 'authenticated',
-  AUTH_JWT_SECRET: 'test-auth-jwt-secret-thats-long-enough-32-chars',
   AUTH_ADMIN_API_KEY: 'test-admin-api-key',
   TMDB_API_KEY: 'tmdb-test-key',
   SECRETS_ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',

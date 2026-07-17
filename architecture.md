@@ -100,17 +100,16 @@ Every profile (admin included) may set a 4-digit PIN. Storage:
 
 When the admin profile has `require_pin_to_add_profiles = true`, every `POST /v1/profiles` call must include a valid `adminPin` matched against the admin profile's PIN.
 
-#### PIN unlock token
+#### Profile unlock (Redis session)
 
-A successful `verifyPin` returns a short-lived **unlock token** (HS256 JWT, issuer `crispy-server`, audience `crispy-profile-unlock`, TTL 15 min, signed with `AUTH_JWT_SECRET`). The token binds the profile id and the authenticated user (`sub`).
+A successful `verifyPin` sets a Redis-backed unlock flag for the profile + authenticated user: key `profile_unlock:{profileId}:{authSubject}` with a 30-day TTL. This mirrors the Netflix model — verify the PIN once and stay unlocked until the user explicitly locks or logs out; the client does NOT need to present any per-request token.
 
 Profile-scoped read/write routes (currently `/v1/profiles/:profileId/watch/*`, `/v1/profiles/:profileId/ai/*`, `/v1/profiles/:profileId/calendar*`) enforce the `requireProfileUnlock` guard when the target profile has a PIN set:
 
-- No token → `423 PROFILE_LOCKED`.
-- Token with mismatched profile id or authenticated user, or invalid/expired signature → `403 INVALID_UNLOCK_TOKEN`.
-- Profile has no PIN → routes are open (no token required).
+- Profile locked (no unlock flag) → `423 PROFILE_LOCKED`.
+- Profile has no PIN → routes are open.
 
-Clients present the token via the `x-profile-unlock-token` request header (or `profileUnlockToken` query param). The token is minted by the verify-pin endpoint and must be re-fetched after expiry or lockout.
+`POST /v1/profiles/:profileId/lock` clears the unlock flag for the authenticated user, forcing PIN re-verification on the next gated request. Setting, changing, or removing a PIN also clears the unlock flag (force re-verify with the new/changed PIN). The unlock state lives server-side in Redis; clients never handle tokens.
 
 ### Standardized language and country
 

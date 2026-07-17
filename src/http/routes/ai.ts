@@ -3,7 +3,7 @@ import { aiInsightsRouteSchema, aiSearchRouteSchema } from '../contracts/ai.js';
 import { AiInsightsService } from '../../modules/ai/ai-insights.service.js';
 import { AiSearchService } from '../../modules/ai/ai-search.service.js';
 import { success } from '../response.js';
-import { extractProfileUnlockToken, requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
+import { requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
 
 export interface AiRoutesDeps {
   profilePinService?: {
@@ -21,9 +21,7 @@ export async function registerAiRoutes(
 
   async function assertProfileUnlocked(request: import('fastify').FastifyRequest, profileId: string) {
     if (!profilePinService) return;
-    const hasPin = await profilePinService.hasPin(profileId);
-    if (!hasPin) return;
-    await requireProfileUnlock(request, profileId);
+    await requireProfileUnlock(request, profileId, { profilePinService });
   }
 
   app.post('/v1/profiles/:profileId/ai/search', { schema: aiSearchRouteSchema }, async (request) => {
