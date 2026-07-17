@@ -69,13 +69,18 @@ test('account settings patch route returns merged settings envelope', async (t) 
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp((app) => registerAccountRoutes(app, { accountSettingsService: new AccountSettingsService() }));
+  const app = await buildTestApp((app) => registerAccountRoutes(app, {
+    accountSettingsService: new AccountSettingsService(),
+    adminProfileLookup: async (profileId, authSubject) => ({
+      id: profileId, accountId: authSubject, isAdmin: true, hasPin: false,
+    }),
+  }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'PATCH',
     url: '/v1/account/settings',
-    headers: { authorization: 'Bearer test' },
+    headers: { authorization: 'Bearer test', 'x-profile-id': 'admin-profile-1' },
     payload: { metadata: { language: 'fr-FR' } },
   });
   assert.equal(response.statusCode, 200);
@@ -111,10 +116,16 @@ test('account MDBList secret routes return metadata and delegate to account sett
   };
 
   const { registerAccountRoutes } = await import('./account.js');
-  const app = await buildTestApp((app) => registerAccountRoutes(app, { accountSettingsService: new AccountSettingsService() }));
+  const adminLookup = async (profileId: string, authSubject: string) => ({
+    id: profileId, accountId: authSubject, isAdmin: true, hasPin: false,
+  });
+  const app = await buildTestApp((app) => registerAccountRoutes(app, {
+    accountSettingsService: new AccountSettingsService(),
+    adminProfileLookup: adminLookup,
+  }));
   t.after(async () => { await app.close(); });
 
-  const auth = { authorization: 'Bearer test' };
+  const auth = { authorization: 'Bearer test', 'x-profile-id': 'admin-profile-1' };
 
   const getResponse = await app.inject({ method: 'GET', url: '/v1/account/secrets/mdblist-api-key', headers: auth });
   assert.equal(getResponse.statusCode, 200);

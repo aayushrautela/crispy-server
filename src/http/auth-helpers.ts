@@ -143,3 +143,63 @@ function normalizeRegion(value: string): string | null {
     .map((part, index) => (index === 0 || part.length === 2 ? part.toUpperCase() : part.toLowerCase()))
     .join('-');
 }
+
+const PROFILE_HEADER = 'x-profile-id';
+
+export function getProfileIdFromRequest(request: import('fastify').FastifyRequest): string | null {
+  const header = request.headers[PROFILE_HEADER];
+  if (Array.isArray(header)) return header[0] ?? null;
+  return header ?? null;
+}
+
+export interface AdminProfileContext {
+  id: string;
+  accountId: string;
+  isAdmin: true;
+}
+
+export interface ProfileForAdminLookup {
+  id: string;
+  accountId: string;
+  isAdmin: boolean;
+  hasPin: boolean;
+}
+
+export type AdminProfileLookup = (profileId: string, authSubject: string) => Promise<ProfileForAdminLookup | null>;
+
+export function createRequireAdminProfile(lookup: AdminProfileLookup): (request: import('fastify').FastifyRequest) => Promise<AdminProfileContext> {
+  return async (request): Promise<AdminProfileContext> => {
+    const { HttpError } = await import('../lib/errors.js');
+    const actor = request.server.requireUserActor(request);
+
+    const profileId = getProfileIdFromRequest(request);
+    if (!profileId) {
+      throw new HttpError(400, 'Profile context required. Provide X-Profile-ID header.', undefined, 'profile_context_required');
+    }
+    const id: string = profileId;
+    const authSubject: string = actor.authSubject!;
+
+    const profile = await lookup(id, authSubject);
+    if (!profile) {
+      throw new HttpError(404, 'Profile not found.');
+    }
+    if (profile.accountId !== actor.authSubject) {
+      throw new HttpError(403, 'Profile does not belong to authenticated account.');
+    }
+    if (!profile.isAdmin) {
+      throw new HttpError(403, 'Admin profile required.', undefined, 'admin_profile_required');
+    }
+    if (profile.hasPin) {
+      const { isProfileUnlocked } = await import('../lib/profile-unlock-store.js');
+      const unlocked = await isProfileUnlocked(profile.id, actor.authSubject);
+      if (!unlocked) {
+        throw new HttpError(423, 'Admin profile is locked. Verify PIN to continue.', undefined, 'PROFILE_LOCKED');
+      }
+    }
+    return { id: profile.id, accountId: profile.accountId, isAdmin: true };
+  };
+}
+
+export function getProfileHeaderName(): string {
+  return PROFILE_HEADER;
+}

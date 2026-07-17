@@ -1,12 +1,36 @@
 import type { FastifyInstance } from 'fastify';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
+import {
+  IMPORT_CLIENT_IDS,
+  validateImportReturnTo,
+  buildImportReturnUrl,
+  type ValidatedImportReturnTo,
+} from '../../modules/integrations/provider-import-return-to.js';
 import type { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 import { ProfilePinService } from '../../modules/profiles/profile-pin.service.js';
 import { SUPPORTED_LANGUAGES } from '../../modules/i18n/supported-languages.js';
 import { SUPPORTED_COUNTRIES } from '../../modules/i18n/supported-countries.js';
 import { nonEmptyStringSchema, nullableStringSchema, profileIdParamsSchema, stringSchema, successEnvelope, withDefaultErrorResponses } from '../contracts/shared.js';
 import { success, mutation } from '../response.js';
+import { env } from '../../config/env.js';
+import { HttpError } from '../../lib/errors.js';
+import { createRequireAdminProfile, type AdminProfileLookup } from '../auth-helpers.js';
+
+function safeParseReturnTo(stored: string): ValidatedImportReturnTo | null {
+  // The stored value was validated at /imports/start time, but we still parse
+  // defensively in case of manual DB tampering. Returns null on any anomaly.
+  const parts = stored.split('|', 2);
+  if (parts.length !== 2) return null;
+  const [clientId, baseUrl] = parts;
+  if (!IMPORT_CLIENT_IDS.includes(clientId as typeof IMPORT_CLIENT_IDS[number])) return null;
+  try {
+    // Re-validate using the same allowlist so we don't trust raw DB contents.
+    return validateImportReturnTo(clientId, baseUrl);
+  } catch {
+    return null;
+  }
+}
 
 const providerStateSchema = {
   type: 'object',
@@ -136,6 +160,8 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
     properties: {
       provider: { type: 'string', enum: ['trakt', 'simkl'] },
       action: { type: 'string', enum: ['connect', 'reconnect', 'import'] },
+      clientId: { type: 'string', enum: ['crispy-web', 'crispy-ios', 'crispy-android', 'crispy-desktop'] },
+      returnTo: { type: 'string', maxLength: 2048 },
     },
   },
   response: {
@@ -146,11 +172,17 @@ const providerImportStartRouteSchema = withDefaultErrorResponses({
 
 export async function registerProfileRoutes(
   app: FastifyInstance,
-  opts: { profileService: ProfileLocalService; pinService?: ProfilePinService },
+  opts: { profileService: ProfileLocalService; pinService?: ProfilePinService; adminProfileLookup?: AdminProfileLookup },
 ): Promise<void> {
   const profileService = opts.profileService;
   const pinService = opts.pinService ?? new ProfilePinService();
   const providerImportService = new ProviderImportService();
+  const requireAdminProfile = opts.adminProfileLookup
+    ? createRequireAdminProfile(opts.adminProfileLookup)
+    : createRequireAdminProfile(async (profileId, authSubject) => {
+        const profile = await profileService.requireOwnedProfile(authSubject, profileId);
+        return { id: profile.id, accountId: authSubject, isAdmin: profile.isAdmin, hasPin: profile.hasPin };
+      });
 
   app.get('/v1/profiles', async (request) => {
     await app.requireAuth(request);
@@ -172,6 +204,7 @@ export async function registerProfileRoutes(
 
   app.post('/v1/profiles', async (request) => {
     await app.requireAuth(request);
+    await requireAdminProfile(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     const adminPin = body.adminPin;
@@ -203,6 +236,20 @@ export async function registerProfileRoutes(
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
     return success({ profile }, request);
+  });
+
+  app.delete('/v1/profiles/:profileId', async (request) => {
+    await app.requireAuth(request);
+    await requireAdminProfile(request);
+    const actor = app.requireUserActor(request) as { authSubject: string };
+    const params = request.params as { profileId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const adminPin = body.adminPin;
+    if (typeof adminPin === 'string') {
+      await pinService.verifyAdminPinForAddProfile(actor.authSubject, adminPin);
+    }
+    await profileService.delete(actor.authSubject, params.profileId);
+    return success({ deleted: true }, request);
   });
 
   app.post('/v1/profiles/:profileId/pin', async (request) => {
@@ -270,10 +317,16 @@ export async function registerProfileRoutes(
     const body = (request.body ?? {}) as Record<string, unknown>;
     const provider = parseImportProvider(body.provider);
     const action = typeof body.action === 'string' ? body.action.trim().toLowerCase() : 'import';
+
+    let importClient: ValidatedImportReturnTo | null = null;
+    if (action === 'connect' || action === 'reconnect') {
+      importClient = validateImportReturnTo(String(body.clientId ?? ''), String(body.returnTo ?? ''));
+    }
+
     const started = action === 'connect'
-      ? await providerImportService.connectProvider(actor.appUserId, params.profileId, provider)
+      ? await providerImportService.connectProvider(actor.appUserId, params.profileId, provider, importClient ?? undefined)
       : action === 'reconnect'
-        ? await providerImportService.reconnectProvider(actor.appUserId, params.profileId, provider)
+        ? await providerImportService.reconnectProvider(actor.appUserId, params.profileId, provider, importClient ?? undefined)
         : await providerImportService.importProviderNow(actor.appUserId, params.profileId, provider);
     reply.code(started.nextAction === 'queued' ? 202 : 201);
     return mutation({
@@ -318,21 +371,52 @@ export async function registerProfileRoutes(
   app.get('/v1/imports/:provider/callback', async (request, reply) => {
     const params = request.params as { provider: string };
     const query = (request.query ?? {}) as Record<string, unknown>;
-    const completed = await providerImportService.completeOAuthCallback(parseImportProvider(params.provider), {
-      state: String(query.state ?? '').trim(),
-      code: typeof query.code === 'string' ? query.code : undefined,
-      error: typeof query.error === 'string' ? query.error : undefined,
-      errorDescription:
-        typeof query.error_description === 'string'
-          ? query.error_description
-          : typeof query.errorDescription === 'string'
-            ? query.errorDescription
-            : undefined,
-    });
-    reply.code(202);
-    return mutation({
-      ...completed,
-      job: mapProviderImportJobView(completed.job),
-    }, request);
+    const provider = parseImportProvider(params.provider);
+
+    // Look up the pending session first so we know where to send the browser
+    // back to, regardless of whether the exchange succeeds or fails.
+    const state = String(query.state ?? '').trim();
+    const pendingSession = await providerImportService.findPendingOAuthSession(provider, state);
+
+    // Use the stored return-to if we have it; otherwise fall back to the web app,
+    // so a broken/unknown callback still lands somewhere user-visible.
+    const fallbackReturnTo: ValidatedImportReturnTo = { clientId: 'crispy-web', baseUrl: env.appPublicUrl };
+    const returnTo = pendingSession?.oauthReturnTo
+      ? safeParseReturnTo(pendingSession.oauthReturnTo) ?? fallbackReturnTo
+      : fallbackReturnTo;
+
+    try {
+      const completed = await providerImportService.completeOAuthCallback(provider, {
+        state,
+        code: typeof query.code === 'string' ? query.code : undefined,
+        error: typeof query.error === 'string' ? query.error : undefined,
+        errorDescription:
+          typeof query.error_description === 'string'
+            ? query.error_description
+            : typeof query.errorDescription === 'string'
+              ? query.errorDescription
+              : undefined,
+      });
+      // Success → redirect to the client with status=ok. The client re-fetches
+      // provider state via its own authenticated API; no tokens on the URL.
+      const successUrl = buildImportReturnUrl(returnTo, {
+        provider,
+        status: 'ok',
+        profileId: completed.job.profileId,
+      });
+      return reply.redirect(successUrl, 302);
+    } catch (err) {
+      const httpStatus = err instanceof HttpError ? err.statusCode : 500;
+      const errorCode = err instanceof HttpError && err.code ? err.code : 'provider_callback_failed';
+      reply.status(httpStatus);
+      // Failures also go back to the client — they render their own error UI.
+      const errorUrl = buildImportReturnUrl(returnTo, {
+        provider,
+        status: 'error',
+        profileId: pendingSession?.profileId ?? '',
+        errorCode,
+      });
+      return reply.redirect(errorUrl, 302);
+    }
   });
 }

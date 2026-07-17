@@ -10,13 +10,22 @@ import { AccountDeletionService } from '../../modules/users/account-deletion.ser
 import { FeatureEntitlementService } from '../../modules/entitlements/feature-entitlement.service.js';
 import { AccountSettingsService, mergeAccountScopedSettings } from '../../modules/users/account-settings.service.js';
 import { success } from '../response.js';
+import { createRequireAdminProfile, type AdminProfileLookup } from '../auth-helpers.js';
+import { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 
 export async function registerAccountRoutes(
   app: FastifyInstance,
-  opts: { accountSettingsService: AccountSettingsService },
+  opts: { accountSettingsService: AccountSettingsService; adminProfileLookup?: AdminProfileLookup },
 ): Promise<void> {
   const accountDeletionService = new AccountDeletionService();
   const accountSettingsService = opts.accountSettingsService;
+  const requireAdminProfile = opts.adminProfileLookup
+    ? createRequireAdminProfile(opts.adminProfileLookup)
+    : createRequireAdminProfile(async (profileId, authSubject) => {
+        const profileService = new ProfileLocalService();
+        const profile = await profileService.requireOwnedProfile(authSubject, profileId);
+        return { id: profile.id, accountId: authSubject, isAdmin: profile.isAdmin, hasPin: profile.hasPin };
+      });
   const entitlementService = new FeatureEntitlementService();
 
   app.get('/v1/account/settings', { schema: accountSettingsRouteSchema }, async (request) => {
@@ -34,6 +43,7 @@ export async function registerAccountRoutes(
 
   app.patch('/v1/account/settings', { schema: accountSettingsPatchRouteSchema }, async (request) => {
     await app.requireAuth(request);
+    await requireAdminProfile(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     const baseSettings = await accountSettingsService.patchSettings(actor.authSubject, body);
@@ -56,6 +66,7 @@ export async function registerAccountRoutes(
 
   app.put('/v1/account/secrets/mdblist-api-key', { schema: mdblistAccountSecretPutRouteSchema }, async (request) => {
     await app.requireAuth(request);
+    await requireAdminProfile(request);
     const actor = app.requireUserSessionActor(request) as { authSubject: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     return success({
@@ -65,6 +76,7 @@ export async function registerAccountRoutes(
 
   app.delete('/v1/account/secrets/mdblist-api-key', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
+    await requireAdminProfile(request);
     const actor = app.requireUserSessionActor(request) as { authSubject: string };
     return success({
       deleted: await accountSettingsService.clearMdbListApiKeyForUser(actor.authSubject),
@@ -73,6 +85,7 @@ export async function registerAccountRoutes(
 
   app.delete('/v1/account', { schema: deleteResultRouteSchema }, async (request) => {
     await app.requireAuth(request);
+    await requireAdminProfile(request);
     const actor = app.requireUserSessionActor(request) as { appUserId: string; authSubject: string };
     return success({
       deleted: await accountDeletionService.deleteAccount({

@@ -69,12 +69,16 @@ test('POST /v1/profiles does NOT call verifyAdminPinForAddProfile when no adminP
 
   const fakePin = makeFakePinService();
   const { registerProfileRoutes } = await import('./profiles.js');
-  const app = await buildTestApp((a) => registerProfileRoutes(a, { profileService: new ProfileLocalService(), pinService: fakePin.service }));
+  const app = await buildTestApp((a) => registerProfileRoutes(a, {
+    profileService: new ProfileLocalService(),
+    pinService: fakePin.service,
+    adminProfileLookup: async (profileId, authSubject) => ({ id: profileId, accountId: authSubject, isAdmin: true, hasPin: false }),
+  }));
   t.after(async () => { await app.close(); });
   const response = await app.inject({
     method: 'POST',
     url: '/v1/profiles',
-    headers: AUTH_HEADERS,
+    headers: { ...AUTH_HEADERS, 'x-profile-id': 'admin-profile-1' },
     payload: VALID_PROFILE_BODY,
   });
   assert.equal(response.statusCode, 200);
@@ -107,12 +111,16 @@ test('POST /v1/profiles calls verifyAdminPinForAddProfile when adminPin is suppl
 
   const fakePin = makeFakePinService({ adminProfile: { hasPin: true, requirePinToAddProfiles: true } });
   const { registerProfileRoutes } = await import('./profiles.js');
-  const app = await buildTestApp((a) => registerProfileRoutes(a, { profileService: new ProfileLocalService(), pinService: fakePin.service }));
+  const app = await buildTestApp((a) => registerProfileRoutes(a, {
+    profileService: new ProfileLocalService(),
+    pinService: fakePin.service,
+    adminProfileLookup: async (profileId, authSubject) => ({ id: profileId, accountId: authSubject, isAdmin: true, hasPin: false }),
+  }));
   t.after(async () => { await app.close(); });
   const response = await app.inject({
     method: 'POST',
     url: '/v1/profiles',
-    headers: AUTH_HEADERS,
+    headers: { ...AUTH_HEADERS, 'x-profile-id': 'admin-profile-1' },
     payload: { ...VALID_PROFILE_BODY, adminPin: '1234' },
   });
   assert.equal(response.statusCode, 200);
@@ -134,12 +142,16 @@ test('POST /v1/profiles rejects with 403 when admin PIN is wrong and policy is o
     throwOnVerifyAdminWith: 'wrong',
   });
   const { registerProfileRoutes } = await import('./profiles.js');
-  const app = await buildTestApp((a) => registerProfileRoutes(a, { profileService: new ProfileLocalService(), pinService: fakePin.service }));
+  const app = await buildTestApp((a) => registerProfileRoutes(a, {
+    profileService: new ProfileLocalService(),
+    pinService: fakePin.service,
+    adminProfileLookup: async (profileId, authSubject) => ({ id: profileId, accountId: authSubject, isAdmin: true, hasPin: false }),
+  }));
   t.after(async () => { await app.close(); });
   const response = await app.inject({
     method: 'POST',
     url: '/v1/profiles',
-    headers: AUTH_HEADERS,
+    headers: { ...AUTH_HEADERS, 'x-profile-id': 'admin-profile-1' },
     payload: { ...VALID_PROFILE_BODY, adminPin: '0000' },
   });
   assert.equal(response.statusCode, 403);
