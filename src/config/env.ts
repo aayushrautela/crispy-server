@@ -97,6 +97,38 @@ function parseAppLoginAllowedReturnUris(name: string): Map<string, Set<string>> 
   return map;
 }
 
+// OAuth import callback return-to allowlist.
+// Format (same as APP_LOGIN_ALLOWED_RETURN_URIS): "clientId:https://app.crispytv.tech,crispy-android:crispytv://auth/callback,..."
+// The clientId here is a coarse platform tag (e.g. "crispy-web", "crispy-android", "crispy-desktop")
+// and the URI is the base the server appends "/auth/connect/<provider>" + query to.
+export const VALID_IMPORT_CLIENT_IDS = ['crispy-web', 'crispy-ios', 'crispy-android', 'crispy-desktop'] as const;
+export type ImportClientId = typeof VALID_IMPORT_CLIENT_IDS[number];
+
+export function parseImportAllowedReturnUris(name: string): Map<ImportClientId, Set<string>> {
+  const raw = process.env[name];
+  if (!raw) return new Map();
+  const map = new Map<ImportClientId, Set<string>>();
+  for (const entry of raw.split(',').map(e => e.trim()).filter(Boolean)) {
+    const colonIdx = entry.indexOf(':');
+    if (colonIdx <= 0) throw new Error(`Invalid ${name} entry: ${entry}`);
+    const clientId = entry.slice(0, colonIdx) as ImportClientId;
+    const uri = entry.slice(colonIdx + 1);
+    if (!clientId || !uri) throw new Error(`Invalid ${name} entry: ${entry}`);
+    if (!VALID_IMPORT_CLIENT_IDS.includes(clientId)) throw new Error(`Unknown import client id in ${name}: ${clientId}`);
+    try {
+      const parsed = new URL(uri);
+      if (parsed.protocol === 'javascript:') throw new Error(`Invalid protocol in ${name}: ${uri}`);
+    } catch {
+      throw new Error(`Invalid URL in ${name}: ${uri}`);
+    }
+    // Allow custom-scheme URIs (e.g. crispytv://) — URL parsing still works, protocol is "crispytv:".
+    const set = map.get(clientId) ?? new Set();
+    set.add(uri.replace(/\/+$/, ''));
+    map.set(clientId, set);
+  }
+  return map;
+}
+
 const authBaseUrl = requireBaseUrl('AUTH_BASE_URL');
 const authAuthBaseUrl = `${authBaseUrl}/auth/v1`;
 const authAdminApiKey = requireEnv('AUTH_ADMIN_API_KEY');
@@ -113,6 +145,7 @@ export const env = {
   adminUiSessionSecret: optionalEnv('ADMIN_UI_SESSION_SECRET') ?? '',
   cursorSigningSecret: requireEnv('CURSOR_SIGNING_SECRET'),
   appLoginAllowedReturnUris: parseAppLoginAllowedReturnUris('APP_LOGIN_ALLOWED_RETURN_URIS'),
+  importAllowedReturnUris: parseImportAllowedReturnUris('IMPORT_OAUTH_ALLOWED_RETURN_URIS'),
   databaseUrl: requireEnv('DATABASE_URL'),
   databasePoolMax: parseNumber('DATABASE_POOL_MAX', 20),
   redisUrl: requireEnv('REDIS_URL'),

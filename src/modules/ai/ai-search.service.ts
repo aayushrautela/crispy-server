@@ -20,7 +20,6 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 const FINAL_RESULT_LIMIT = 20;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
-const RESOLUTION_TIMEOUT_MS = 12_000;
 const MAX_RESOLUTION_CANDIDATES = 8;
 
 export class AiSearchService {
@@ -62,16 +61,7 @@ export class AiSearchService {
 
       const rawItems = Array.isArray(generated.items) ? generated.items : [];
       const candidates = parseSearchCandidates(rawItems);
-      const resolvedSuggestions = await withTimeout(
-        (signal) => resolveSuggestions(this.titleSearchService, candidates, locale, signal),
-        RESOLUTION_TIMEOUT_MS,
-      ).catch((err) => {
-        if (err instanceof HttpError && err.statusCode === 504) {
-          logger.warn({ userId, profileId, query: sampleQuery(query) }, 'AI search resolution timed out, returning partial results.');
-          return [] as ResolvedSuggestion[];
-        }
-        throw err;
-      });
+      const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, locale);
       const response = finalizeResolvedItems(resolvedSuggestions, analysis, query);
 
       logger.info({
@@ -100,18 +90,14 @@ async function resolveSuggestions(
   titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
   locale: string,
-  signal: AbortSignal,
 ): Promise<ResolvedSuggestion[]> {
   const results: ResolvedSuggestion[] = [];
   for (let i = 0; i < Math.min(candidates.length, MAX_RESOLUTION_CANDIDATES); i++) {
-    if (signal.aborted) {
-      break;
-    }
     const candidate = candidates[i];
     if (!candidate) {
       continue;
     }
-    const items = await resolveSuggestion(titleSearchService, candidate, locale, signal);
+    const items = await resolveSuggestion(titleSearchService, candidate, locale);
     for (const item of items) {
       results.push({ candidate, item });
     }
@@ -123,18 +109,13 @@ async function resolveSuggestion(
   titleSearchService: TitleSearchService,
   candidate: AiSearchCandidate,
   locale: string,
-  signal: AbortSignal,
 ): Promise<MetadataSearchResult[]> {
-  if (signal.aborted) {
-    return [];
-  }
   try {
     const tmdbMediaType = candidate.mediaType === 'show' ? 'tv' : candidate.mediaType;
     return await titleSearchService.resolveAiCandidates({
       query: candidate.title,
       mediaType: tmdbMediaType,
       locale,
-      signal,
     });
   } catch {
     logger.debug({ candidate: candidate.title }, 'Failed to resolve candidate, skipping.');
@@ -415,18 +396,4 @@ function sampleQuery(value: string, maxLength = 120): string {
     return value;
   }
   return `${value.slice(0, maxLength)}...`;
-}
-
-function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
-  const controller = new AbortController();
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    work(controller.signal),
-    new Promise<T>((_, reject) => {
-      timeout = setTimeout(() => {
-        controller.abort();
-        reject(new HttpError(504, 'Search resolution timed out.'));
-      }, ms);
-    }),
-  ]).finally(() => clearTimeout(timeout));
 }

@@ -9,6 +9,7 @@ export class OpenAiCompatibleClient {
     model: string;
     systemPrompt?: string;
     userPrompt: string;
+    signal?: AbortSignal;
   }): Promise<Record<string, unknown>> {
     const attempt = await this.sendChatCompletion(args);
 
@@ -92,6 +93,7 @@ export class OpenAiCompatibleClient {
       model: string;
       systemPrompt?: string;
       userPrompt: string;
+      signal?: AbortSignal;
     },
   ): Promise<{ response: Response; rawBody: string }> {
     let response: Response;
@@ -114,8 +116,12 @@ export class OpenAiCompatibleClient {
             { role: 'user', content: args.userPrompt },
           ],
         }),
+        ...(args.signal ? { signal: args.signal } : {}),
       });
     } catch (error) {
+      if (args.signal?.aborted && isAbortTimeoutError(error)) {
+        throw error;
+      }
       logger.warn({
         providerId: args.provider.id,
         model: args.model,
@@ -240,6 +246,13 @@ function parseRetryAfterSeconds(value: string | null): number | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function isAbortTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return error.name === 'TimeoutError' || error.name === 'AbortError';
 }
 
 function sampleText(value: string, maxLength = 400): string {
