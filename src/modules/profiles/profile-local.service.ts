@@ -305,4 +305,24 @@ export class ProfileLocalService {
       return (result.rows[0]?.settings_json as Record<string, unknown>) ?? {};
     });
   }
+
+  async delete(authSubject: string, profileId: string): Promise<void> {
+    return withDbClient(async (client) => {
+      const profile = await this.requireOwnedProfile(authSubject, profileId);
+
+      const countResult = await client.query(
+        `SELECT COUNT(*) AS cnt FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL`,
+        [authSubject],
+      );
+      const count = Number(countResult.rows[0]?.cnt ?? 0);
+      if (count <= 1) {
+        throw new HttpError(400, 'Cannot delete the only profile in the account.');
+      }
+
+      await client.query(
+        `UPDATE identity.profiles SET deleted_at = now() WHERE id = $1::uuid AND account_id = $2::uuid`,
+        [profile.id, authSubject],
+      );
+    });
+  }
 }

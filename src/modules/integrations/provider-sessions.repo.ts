@@ -27,6 +27,7 @@ export type ProviderSessionRecord = {
   lastRefreshError: string | null;
   lastImportCompletedAt: string | null;
   disconnectedAt: string | null;
+  oauthReturnTo: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -50,6 +51,7 @@ function mapProviderSession(row: Record<string, unknown>): ProviderSessionRecord
     lastRefreshError: typeof row.last_refresh_error === 'string' ? row.last_refresh_error : null,
     lastImportCompletedAt: toDbIsoString(row.last_import_completed_at as Date | string | null | undefined, 'provider_sessions.last_import_completed_at'),
     disconnectedAt: toDbIsoString(row.disconnected_at as Date | string | null | undefined, 'provider_sessions.disconnected_at'),
+    oauthReturnTo: typeof row.oauth_return_to === 'string' ? row.oauth_return_to : null,
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'provider_sessions.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'provider_sessions.updated_at'),
   };
@@ -65,7 +67,7 @@ export class ProviderSessionsRepository {
       `
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-               last_import_completed_at, disconnected_at, created_at, updated_at
+               last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
         FROM user_state.provider_sessions
         WHERE provider = $1
           AND state = 'oauth_pending'
@@ -86,7 +88,7 @@ export class ProviderSessionsRepository {
       `
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-               last_import_completed_at, disconnected_at, created_at, updated_at
+               last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
         FROM user_state.provider_sessions
         WHERE profile_id = $1::uuid AND provider = $2
       `,
@@ -100,7 +102,7 @@ export class ProviderSessionsRepository {
       `
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-               last_import_completed_at, disconnected_at, created_at, updated_at
+               last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
         FROM user_state.provider_sessions
         WHERE profile_id = $1::uuid
         ORDER BY provider ASC
@@ -118,7 +120,7 @@ export class ProviderSessionsRepository {
       `
         SELECT profile_id, provider, state, provider_user_id, external_username,
                credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-               last_import_completed_at, disconnected_at, created_at, updated_at
+               last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
         FROM user_state.provider_sessions
         WHERE ($1::text IS NULL OR provider = $1)
         ORDER BY updated_at DESC, created_at DESC
@@ -147,6 +149,7 @@ export class ProviderSessionsRepository {
     stateToken: string;
     expiresAt: string;
     credentialsJson: Record<string, unknown>;
+    oauthReturnTo?: string | null;
   }): Promise<ProviderSessionRecord> {
     const stateTokenHash = hashStateToken(params.stateToken);
     const result = await client.query(
@@ -159,9 +162,10 @@ export class ProviderSessionsRepository {
           state_token,
           state_token_hash,
           expires_at,
+          oauth_return_to,
           updated_at
         )
-        VALUES ($1::uuid, $2, 'oauth_pending', $3::jsonb, null, $4, $5::timestamptz, now())
+        VALUES ($1::uuid, $2, 'oauth_pending', $3::jsonb, null, $4, $5::timestamptz, $6, now())
         ON CONFLICT (profile_id, provider)
         DO UPDATE SET
           state = 'oauth_pending',
@@ -174,10 +178,11 @@ export class ProviderSessionsRepository {
           last_refresh_at = null,
           last_refresh_error = null,
           disconnected_at = null,
+          oauth_return_to = EXCLUDED.oauth_return_to,
           updated_at = now()
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
       [
         params.profileId,
@@ -185,6 +190,7 @@ export class ProviderSessionsRepository {
         JSON.stringify(params.credentialsJson),
         stateTokenHash,
         params.expiresAt,
+        params.oauthReturnTo ?? null,
       ],
     );
     return mapProviderSession(result.rows[0]);
@@ -235,7 +241,7 @@ export class ProviderSessionsRepository {
           updated_at = now()
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
       [
         params.profileId,
@@ -292,7 +298,7 @@ export class ProviderSessionsRepository {
           updated_at = now()
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
         [
           params.profileId,
@@ -334,7 +340,7 @@ export class ProviderSessionsRepository {
           AND provider = $2
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
       [
         params.profileId,
@@ -395,7 +401,7 @@ export class ProviderSessionsRepository {
           updated_at = now()
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
       [
         params.profileId,
@@ -441,7 +447,7 @@ export class ProviderSessionsRepository {
           updated_at = now()
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
       [params.profileId, params.provider, params.disconnectedAt],
     );
@@ -466,7 +472,7 @@ export class ProviderSessionsRepository {
         WHERE profile_id = $1::uuid AND provider = $2
         RETURNING profile_id, provider, state, provider_user_id, external_username,
                   credentials_json, state_token, expires_at, last_refresh_at, last_refresh_error,
-                  last_import_completed_at, disconnected_at, created_at, updated_at
+                  last_import_completed_at, disconnected_at, oauth_return_to, created_at, updated_at
       `,
       [params.profileId, params.provider, params.completedAt, params.importJobId],
     );

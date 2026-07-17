@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { db, withTransaction, type DbClient } from '../../lib/db.js';
+import { db, withDbClient, withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { enqueueProviderImport, enqueueProviderRefresh, enqueueTmdbTitleWarmBatch } from '../../lib/queue.js';
@@ -21,6 +21,7 @@ import {
   type ProviderSessionRecord,
 } from './provider-sessions.repo.js';
 import { ProviderTokenRefreshService } from './provider-token-refresh.service.js';
+import { type ValidatedImportReturnTo } from './provider-import-return-to.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { UserRepository } from '../users/user.repo.js';
@@ -197,16 +198,26 @@ export class ProviderImportService {
     userId: string,
     profileId: string,
     provider: ProviderImportProvider,
+    importClient?: ValidatedImportReturnTo,
   ): Promise<ProviderSessionActionResult> {
-    return this.startProviderAuthorization(userId, profileId, provider);
+    return this.startProviderAuthorization(userId, profileId, provider, importClient);
   }
 
   async reconnectProvider(
     userId: string,
     profileId: string,
     provider: ProviderImportProvider,
+    importClient?: ValidatedImportReturnTo,
   ): Promise<ProviderSessionActionResult> {
-    return this.startProviderAuthorization(userId, profileId, provider);
+    return this.startProviderAuthorization(userId, profileId, provider, importClient);
+  }
+
+  async findPendingOAuthSession(
+    provider: ProviderImportProvider,
+    stateToken: string,
+  ): Promise<ProviderSessionRecord | null> {
+    if (!stateToken) return null;
+    return withDbClient((client) => this.providerSessionsRepository.findPendingByStateToken(client, provider, stateToken));
   }
 
   async importProviderNow(
@@ -442,6 +453,7 @@ export class ProviderImportService {
     userId: string,
     profileId: string,
     provider: ProviderImportProvider,
+    importClient?: ValidatedImportReturnTo,
   ): Promise<ProviderSessionActionResult> {
     assertProviderEnabled(provider);
     const started = await this.runInTransaction(async (client) => {
@@ -468,6 +480,10 @@ export class ProviderImportService {
           pkceCodeVerifier: pkce.codeVerifier,
           pkceCodeChallenge: pkce.codeChallenge,
         },
+        // Persist both clientId and base URL together so the callback can
+        // reconstruct a validated ReturnTo without re-validating against
+        // a possibly-changed allowlist at callback time.
+        oauthReturnTo: importClient ? `${importClient.clientId}|${importClient.baseUrl}` : null,
       });
       const pendingJob = await this.jobsRepository.create(client, {
         profileId,
