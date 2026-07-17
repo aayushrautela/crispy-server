@@ -123,6 +123,7 @@ export const env = {
   authJwksUrl: requireBaseUrl('AUTH_JWKS_URL'),
   authJwtIssuer,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
+  authJwtSecret: requireEnv('AUTH_JWT_SECRET'),
   authAdminUrl: authAuthBaseUrl,
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
   mdblistApiKey: optionalEnv('MDBLIST_API_KEY') ?? '',

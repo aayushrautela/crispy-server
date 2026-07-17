@@ -291,7 +291,7 @@ export async function buildApp() {
   await registerHealthRoutes(app);
   await registerAdminUiRoutes(app);
   await registerAccountRoutes(app, { accountSettingsService });
-  await registerAiRoutes(app);
+  await registerAiRoutes(app, { profilePinService });
   await registerMeRoutes(app, { profileService, accountSettingsService });
   await registerPersonalAccessTokenRoutes(app, { patService });
   await registerAuthHandoffRoutes(app, { appLoginHandoffService });
@@ -299,11 +299,11 @@ export async function buildApp() {
   await registerProfileRoutes(app, { profileService, pinService: profilePinService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
-  await registerWatchRoutes(app);
+  await registerWatchRoutes(app, { profilePinService });
   await registerRecommendationOutputRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
   await registerAdminApiRoutes(app);
-  await registerCalendarRoutes(app);
+  await registerCalendarRoutes(app, { profilePinService });
   await registerAccountPublicRoutes(app);
   await registerInternalAppsRoutes(app, internalAppsDeps);
   return app;

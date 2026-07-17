@@ -368,3 +368,105 @@ test('watch state serializes progress without status', async (t) => {
   assert.equal(body.data.UserData.RuntimeTicks, 72_000_000_000);
   assert.equal(body.data.UserData.LastPlayedDate, now);
 });
+
+test('watch route requires unlock token when profile has a PIN', async (t) => {
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
+
+  const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
+  const originalEnrich = WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems;
+  const originalResolve = MetadataLanguageService.prototype.resolveForProfile;
+
+  LocalUserWatchService.prototype.listContinueWatchingPage = async function () {
+    return { items: [], pageInfo: { nextCursor: null, hasMore: false } } as never;
+  };
+  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async function () {
+    return [] as never;
+  };
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en' as never;
+  };
+  t.after(() => {
+    LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
+    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originalEnrich;
+    MetadataLanguageService.prototype.resolveForProfile = originalResolve;
+  });
+
+  const fakePin = {
+    hasPin: async (profileId: string) => profileId === 'profile-1',
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profilePinService: fakePin }));
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+
+  const denied = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/continue-watching',
+    headers: auth,
+  });
+  assert.equal(denied.statusCode, 423);
+  assert.equal(denied.json().error.code, 'PROFILE_LOCKED');
+
+  const { signProfileUnlockToken } = await import('../../lib/profile-unlock-token.js');
+  const { TEST_USER_AUTH } = await import('../../test-helpers.js');
+  const token = await signProfileUnlockToken('profile-1', TEST_USER_AUTH.appUserId);
+
+  const allowed = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/continue-watching',
+    headers: { ...auth, 'x-profile-unlock-token': token },
+  });
+  assert.equal(allowed.statusCode, 200);
+
+  const wrongProfile = await signProfileUnlockToken('profile-2', TEST_USER_AUTH.appUserId);
+  const rejected = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/continue-watching',
+    headers: { ...auth, 'x-profile-unlock-token': wrongProfile },
+  });
+  assert.equal(rejected.statusCode, 403);
+});
+
+test('watch route allows access when profile has no PIN', async (t) => {
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
+
+  const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
+  const originalEnrich = WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems;
+  const originalResolve = MetadataLanguageService.prototype.resolveForProfile;
+
+  LocalUserWatchService.prototype.listContinueWatchingPage = async function () {
+    return { items: [], pageInfo: { nextCursor: null, hasMore: false } } as never;
+  };
+  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async function () {
+    return [] as never;
+  };
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en' as never;
+  };
+  t.after(() => {
+    LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
+    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originalEnrich;
+    MetadataLanguageService.prototype.resolveForProfile = originalResolve;
+  });
+
+  const fakePin = {
+    hasPin: async (profileId: string) => profileId === 'profile-2', // profile-1 has no PIN
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profilePinService: fakePin }));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/profiles/profile-1/watch/continue-watching',
+    headers: { authorization: 'Bearer test' },
+  });
+  assert.equal(response.statusCode, 200);
+});

@@ -143,7 +143,9 @@ test('verifyPin returns ok short-circuit when no PIN is set', async () => {
   const { repo } = freshRepo();
   const service = await buildService(repo);
   const result = await service.verifyPin(PROFILE_ID, '0000');
-  assert.deepEqual(result, { valid: true, lockedUntil: null });
+  assert.equal(result.valid, true);
+  assert.equal(result.lockedUntil, null);
+  assert.equal(result.unlockToken, null);
 });
 
 test('verifyPin locks out after threshold of wrong attempts', async () => {
@@ -195,7 +197,9 @@ test('verifyPin succeeds and resets counter on correct PIN', async () => {
     lockedUntil: null,
   });
   const result = await service.verifyPin(PROFILE_ID, '1111');
-  assert.deepEqual(result, { valid: true, lockedUntil: null });
+  assert.equal(result.valid, true);
+  assert.equal(result.lockedUntil, null);
+  assert.ok(typeof result.unlockToken === 'string' && result.unlockToken.length > 0, 'unlockToken should be returned on success');
   assert.equal(state.pinRows.get(PROFILE_ID)?.failedAttempts, 0);
 });
 

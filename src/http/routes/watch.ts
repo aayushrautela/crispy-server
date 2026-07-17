@@ -27,18 +27,37 @@ import { mutation, success } from '../response.js';
 import { assertPublicItemId, decodePublicItemId } from '../../modules/identity/public-item-id.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
+import { extractProfileUnlockToken, requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
 
-export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
+export interface WatchRoutesDeps {
+  profilePinService?: {
+    hasPin(profileId: string): Promise<boolean>;
+  };
+}
+
+export async function registerWatchRoutes(
+  app: FastifyInstance,
+  deps: WatchRoutesDeps = {}
+): Promise<void> {
   const localUserWatchService = new LocalUserWatchService();
   const watchMetadataEnrichmentService = new WatchMetadataEnrichmentService();
   const metadataLanguageService = new MetadataLanguageService();
   const contentIdentityService = new ContentIdentityService();
   const contentIdentityRepo = new ContentIdentityRepository();
+  const { profilePinService } = deps;
+
+  async function assertProfileUnlocked(request: import('fastify').FastifyRequest, profileId: string) {
+    if (!profilePinService) return;
+    const hasPin = await profilePinService.hasPin(profileId);
+    if (!hasPin) return;
+    await requireProfileUnlock(request, profileId);
+  }
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchEventBody;
     const playableItemId = assertPublicItemId(body.itemId!);
     const resolved = await withDbClient(async (client) => {
@@ -67,6 +86,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
@@ -95,6 +115,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchContinueWatchingDismissParams> & { id: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileUnlocked(request, profileId);
     const titleItemId = assertPublicItemId(params.id);
     await localUserWatchService.dismissContinueWatching({
       accountId: actor.authSubject!,
@@ -108,6 +129,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 100);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
@@ -136,6 +158,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
@@ -163,6 +186,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
@@ -190,6 +214,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchStateLookupContract;
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const itemId = assertPublicItemId(query.itemId!);
@@ -208,6 +233,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchStateBatchBody;
     const items = Array.isArray(body.items) ? body.items : [];
 
@@ -230,6 +256,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
     const resolved = await withDbClient(async (client) => {
@@ -254,6 +281,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
     const resolved = await withDbClient(async (client) => {
@@ -279,6 +307,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.itemId);
     const resolvedMediaType = await withDbClient(async (client) => {
       const contentItem = await contentIdentityRepo.findContentItemById(client, itemId);
@@ -299,6 +328,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.itemId);
     await localUserWatchService.deleteListItem({
       accountId: actor.authSubject!,
@@ -314,6 +344,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     if (typeof body.rating !== 'number') {
       throw new HttpError(400, 'Rating must be between 1 and 10.');
@@ -338,6 +369,7 @@ export async function registerWatchRoutes(app: FastifyInstance): Promise<void> {
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.itemId);
     await localUserWatchService.deleteRating({
       accountId: actor.authSubject!,

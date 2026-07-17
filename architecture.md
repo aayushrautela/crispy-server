@@ -100,6 +100,18 @@ Every profile (admin included) may set a 4-digit PIN. Storage:
 
 When the admin profile has `require_pin_to_add_profiles = true`, every `POST /v1/profiles` call must include a valid `adminPin` matched against the admin profile's PIN.
 
+#### PIN unlock token
+
+A successful `verifyPin` returns a short-lived **unlock token** (HS256 JWT, issuer `crispy-server`, audience `crispy-profile-unlock`, TTL 15 min, signed with `AUTH_JWT_SECRET`). The token binds the profile id and the authenticated user (`sub`).
+
+Profile-scoped read/write routes (currently `/v1/profiles/:profileId/watch/*`, `/v1/profiles/:profileId/ai/*`, `/v1/profiles/:profileId/calendar*`) enforce the `requireProfileUnlock` guard when the target profile has a PIN set:
+
+- No token → `423 PROFILE_LOCKED`.
+- Token with mismatched profile id or authenticated user, or invalid/expired signature → `403 INVALID_UNLOCK_TOKEN`.
+- Profile has no PIN → routes are open (no token required).
+
+Clients present the token via the `x-profile-unlock-token` request header (or `profileUnlockToken` query param). The token is minted by the verify-pin endpoint and must be re-fetched after expiry or lockout.
+
 ### Standardized language and country
 
 `interface_language` and country code values are validated against code-only allowlists: `src/modules/i18n/supported-languages.ts` (BCP-47 short list) and `src/modules/i18n/supported-countries.ts` (ISO-3166-1 alpha-2). Clients fetch the canonical catalogs via:
