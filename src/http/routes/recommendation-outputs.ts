@@ -1,17 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
-import {
-  recommendationConfig,
-  resolveRecommendationAlgorithmVersion,
-  resolveRecommendationSourceKey,
-} from '../../modules/recommendations/recommendation-config.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
-import { HomeResolverService } from '../../modules/homescreen/home-resolver.service.js';
+import { HomeResolverService } from '../../modules/home/home-resolver.service.js';
+import { HomeModeService } from '../../modules/home/home-mode.service.js';
 import { success, successList } from '../response.js';
+import { resolveRecommendationAlgorithmVersion, resolveRecommendationSourceKey } from '../../modules/recommendations/recommendation-config.js';
 
 export async function registerRecommendationOutputRoutes(app: FastifyInstance): Promise<void> {
   const outputService = new RecommendationOutputService();
   const homeResolver = new HomeResolverService();
+  const homeModeService = new HomeModeService();
 
   app.get('/v1/profiles/:profileId/taste-profiles', async (request) => {
     await app.requireAuth(request);
@@ -50,17 +48,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:read']);
     const params = request.params as { profileId: string };
-    const query = (request.query ?? {}) as Record<string, unknown>;
-    const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
-    if (sourceKey === recommendationConfig.sourceKey && !query.algorithmVersion && !query.sourceKey) {
-      return success(await homeResolver.resolveHome(actor.appUserId, params.profileId), request);
-    }
-    return success(await outputService.getHomeForAccount(
-      actor.appUserId,
-      params.profileId,
-      sourceKey,
-      resolveRecommendationAlgorithmVersion(query.algorithmVersion),
-    ), request);
+    return success(await homeResolver.resolveHome(actor.appUserId, params.profileId), request);
   });
 
   app.put('/v1/profiles/:profileId/home', async (request) => {
@@ -68,7 +56,63 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:write']);
     const params = request.params as { profileId: string };
-    return success(await outputService.upsertHomeForAccount(actor.appUserId, params.profileId, parseRecommendationSnapshotInput(request.body)), request);
+    const idempotencyKey = request.headers['idempotency-key'];
+    if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) {
+      throw new HttpError(400, 'Idempotency-Key is required.', undefined, 'IDEMPOTENCY_KEY_REQUIRED');
+    }
+    const body = asRecord(request.body);
+    const lists = parseHomeWriteBody(body);
+    await homeModeService.assertCanWrite(actor.appUserId, params.profileId, 'custom');
+    await homeResolver.writeHome({
+      accountId: actor.appUserId,
+      profileId: params.profileId,
+      source: 'custom',
+      idempotencyKey,
+      actor: { type: 'account', accountId: actor.appUserId, userId: actor.appUserId },
+      lists,
+    });
+    return success(await homeResolver.resolveHome(actor.appUserId, params.profileId), request);
+  });
+}
+
+function parseHomeWriteBody(body: Record<string, unknown>): Array<{ listKey: string; sectionType: 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail'; title: string; subtitle: string | null; items: Array<{ type: 'movie' | 'tv'; providerRefs: Array<{ provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string }>; rank?: number; score?: number | null; reason?: string | null; reasonCodes?: string[] }> }> {
+  if (!Array.isArray(body.lists)) throw new HttpError(400, 'lists is required.', { field: 'lists' }, 'INVALID_HOME_WRITE');
+  return body.lists.map((rawList, index) => {
+    const listPath = `lists[${index}]`;
+    const list = asRecord(rawList);
+    if (typeof list.listKey !== 'string' || !list.listKey.trim()) throw new HttpError(400, `${listPath}.listKey is required.`, { field: `${listPath}.listKey` }, 'INVALID_LIST_KEY');
+    const sectionType = list.sectionType;
+    if (sectionType !== 'categoryTabs' && sectionType !== 'heroCarousel' && sectionType !== 'contentRail' && sectionType !== 'collectionRail') {
+      throw new HttpError(400, `${listPath}.sectionType is invalid.`, { field: `${listPath}.sectionType` }, 'INVALID_SECTION_TYPE');
+    }
+    if (typeof list.title !== 'string' || !list.title.trim()) throw new HttpError(400, `${listPath}.title is required.`, { field: `${listPath}.title` }, 'INVALID_TITLE');
+    if (!Array.isArray(list.items)) throw new HttpError(400, `${listPath}.items must be an array.`, { field: `${listPath}.items` }, 'INVALID_ITEMS');
+    const items = list.items.map((rawItem, itemIndex) => {
+      const itemPath = `${listPath}.items[${itemIndex}]`;
+      const item = asRecord(rawItem);
+      const type = item.type;
+      if (type !== 'movie' && type !== 'tv') throw new HttpError(400, `${itemPath}.type must be movie or tv.`, { field: `${itemPath}.type` }, 'INVALID_ITEM_TYPE');
+      if (!Array.isArray(item.providerRefs) || item.providerRefs.length === 0) throw new HttpError(400, `${itemPath}.providerRefs is required.`, { field: `${itemPath}.providerRefs` }, 'INVALID_PROVIDER_REF');
+      const ref = asRecord(item.providerRefs[0]);
+      const provider = ref.provider;
+      if (provider !== 'tmdb' && provider !== 'tvdb' && provider !== 'imdb' && provider !== 'kitsu') throw new HttpError(400, `${itemPath}.providerRefs[0].provider is invalid.`, { field: `${itemPath}.providerRefs[0].provider` }, 'INVALID_PROVIDER');
+      if (typeof ref.providerId !== 'string' || !ref.providerId.trim()) throw new HttpError(400, `${itemPath}.providerRefs[0].providerId is required.`, { field: `${itemPath}.providerRefs[0].providerId` }, 'INVALID_PROVIDER_ID');
+      return {
+        type: type as 'movie' | 'tv',
+        providerRefs: [{ provider: provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu', providerId: String(ref.providerId) }],
+        rank: typeof item.rank === 'number' ? item.rank : undefined,
+        score: typeof item.score === 'number' ? item.score : null,
+        reason: typeof item.reason === 'string' ? item.reason : null,
+        reasonCodes: Array.isArray(item.reasonCodes) ? item.reasonCodes.filter((code) => typeof code === 'string') : [],
+      };
+    });
+    return {
+      listKey: list.listKey,
+      sectionType,
+      title: list.title,
+      subtitle: typeof list.subtitle === 'string' ? list.subtitle : null,
+      items,
+    };
   });
 }
 

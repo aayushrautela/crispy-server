@@ -2,11 +2,15 @@ import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
-import { isHomeMode, type HomeMode } from './homescreen.types.js';
+import type { HomeMode, HomeSource } from './home-types.js';
 
 const HOME_MODE_FIELD = 'homeMode';
 
 export const DEFAULT_HOME_MODE: HomeMode = 'recommended';
+
+export function isHomeMode(value: unknown): value is HomeMode {
+  return value === 'custom' || value === 'recommended';
+}
 
 export class HomeModeService {
   constructor(
@@ -35,14 +39,13 @@ export class HomeModeService {
   }
 
   /**
-   * Guard used before any write to a profile's home. A manual or reco write is
-   * only allowed when the profile mode permits it:
-   *  - manual writes (source 'user') require mode 'custom'
-   *  - reco writes (source 'service') are blocked when mode is 'custom'
+   * Guard used before any write to a profile's home. A custom write is only
+   * allowed when the profile mode is 'custom'. A reco/fallback (service) write
+   * is blocked when the profile mode is 'custom'.
    */
-  async assertCanWrite(accountId: string, profileId: string, source: 'user' | 'service'): Promise<void> {
+  async assertCanWrite(accountId: string, profileId: string, source: HomeSource): Promise<void> {
     const mode = await this.getMode(accountId, profileId);
-    if (source === 'user' && mode !== 'custom') {
+    if (source === 'custom' && mode !== 'custom') {
       throw new HttpError(
         409,
         'Cannot write a custom home while homeMode is "recommended". Set homeMode to "custom" first.',
@@ -50,7 +53,7 @@ export class HomeModeService {
         'home_mode_conflict',
       );
     }
-    if (source === 'service' && mode === 'custom') {
+    if ((source === 'reco' || source === 'fallback') && mode === 'custom') {
       throw new HttpError(
         409,
         'Cannot overwrite a custom home with recommendations while homeMode is "custom".',

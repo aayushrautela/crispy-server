@@ -4,11 +4,8 @@ import { renderDiagnosticsView } from './diagnostics.js';
 import { renderOverviewView } from './overview.js';
 import { renderRecomputeJobsDetailView } from './recompute-jobs-detail.js';
 import { renderRecomputeJobsListView } from './recompute-jobs-list.js';
-import { renderHomescreenTemplatesView } from './homescreen-templates.js';
-import { renderHomescreenCollectionsView } from './homescreen-collections.js';
-import { renderHomescreenTraktView } from './homescreen-trakt.js';
-import { renderHomescreenDefaultView } from './homescreen-default.js';
-import { renderHomescreenProfilesView } from './homescreen-profiles.js';
+import { renderHomeFallbackView } from './home-fallback.js';
+import { renderHomeProfilesView } from './home-profiles.js';
 
 export function renderAdminViews(): string {
   return [
@@ -18,10 +15,7 @@ export function renderAdminViews(): string {
     renderRecomputeJobsListView(),
     renderRecomputeJobsDetailView(),
     renderAiLabView(),
-    renderHomescreenTemplatesView(),
-    renderHomescreenCollectionsView(),
-    renderHomescreenTraktView(),
-    renderHomescreenDefaultView(),
-    renderHomescreenProfilesView(),
+    renderHomeFallbackView(),
+    renderHomeProfilesView(),
   ].join('');
 }

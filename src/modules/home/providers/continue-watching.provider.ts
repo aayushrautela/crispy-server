@@ -3,15 +3,13 @@ import { LocalUserWatchService } from '../../integrations/local-user-watch.servi
 import { WatchMetadataEnrichmentService } from '../../watch/watch-metadata-enrichment.service.js';
 import type { BaseItemDto } from '../../metadata/media-item.types.js';
 import type { ClientHomeSection, ClientMediaCard, ClientMediaType } from '../../recommendations/client-home.types.js';
-import type { SectionProviderContext } from '../homescreen.types.ts';
 
 const CONTINUE_WATCHING_LIMIT = 20;
 const TICKS_PER_SECOND = 10_000_000;
 
 /**
- * Continue-watching rail. Unlike the shared TMDB rails, this is per-profile and
- * is layered onto the cached default home at request time. Returns an empty
- * section (filtered out by the builder) when the profile has no progress.
+ * Continue-watching rail. Per-profile; layered onto the resolved home at read
+ * time. Returns the sections unchanged when the profile has no progress.
  */
 export class ContinueWatchingProvider {
   constructor(

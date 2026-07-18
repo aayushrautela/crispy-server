@@ -55,9 +55,9 @@ import { PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION } from '../modules/recommenda
 import { SignedAppCursorCodec } from '../modules/apps/app-cursor-codec.js';
 import { SqlServiceRecommendationListRepo } from '../modules/apps/service-recommendation-list.repo.js';
 import { DefaultServiceRecommendationListService } from '../modules/apps/service-recommendation-list.service.js';
-import { SqlRecommendationListRepo } from '../modules/recommendations/recommendation-list.repo.js';
-import { AppRecommendationWritePolicy } from '../modules/recommendations/recommendation-list-policy.js';
-import { DefaultRecommendationListWriteService } from '../modules/recommendations/recommendation-list-write.service.js';
+import { HomeListsRepo } from '../modules/home/repos/home-lists.repo.js';
+import { DefaultHomeWriteService } from '../modules/home/home-write.service.js';
+import { ContentIdentityService } from '../modules/identity/content-identity.service.js';
 import { SqlRecommendationRunRepo } from '../modules/apps/recommendation-run.repo.js';
 import { DefaultRecommendationRunService } from '../modules/apps/recommendation-run.service.js';
 import { SqlRecommendationBatchRepo } from '../modules/apps/recommendation-batch.repo.js';
@@ -189,18 +189,15 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
       tasteKeywordsMax: 50,
     },
   });
-  const recommendationListRepo = new SqlRecommendationListRepo({ db });
-  const recommendationListWriteService = new DefaultRecommendationListWriteService({
-    repo: recommendationListRepo,
-    policy: new AppRecommendationWritePolicy({
-      sourceOwnershipRepo: authDeps.sourceOwnershipRepo,
-    }),
-    appAuditRepo: authDeps.appAuditRepo,
+  const homeListsRepo = new HomeListsRepo({ db });
+  const homeWriteService = new DefaultHomeWriteService({
+    repo: homeListsRepo,
+    contentIdentityService: new ContentIdentityService(),
     clock: authDeps.clock,
   });
   const serviceRecommendationListService = new DefaultServiceRecommendationListService({
     serviceListRepo: new SqlServiceRecommendationListRepo({ db }),
-    recommendationListWriteService,
+    homeWriteService,
     profileEligibilityService,
     appAuthorizationService,
     appAuditRepo: authDeps.appAuditRepo,

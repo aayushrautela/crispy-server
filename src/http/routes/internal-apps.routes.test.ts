@@ -280,14 +280,18 @@ test('official recommender with accounts:all:write rejects unsupported write fie
       async findBatchIdempotency() { return null; },
       async saveBatchIdempotency() {},
     },
-    recommendationListWriteService: {       async writeList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'hero-carousel', source: 'reco', version: 1, status: 'written' as const, itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z') }; }, async clearList() { throw new Error('not used'); } },
+    homeWriteService: {
+      async writeHome() {
+        return { accountId: 'acc-999', profileId: 'prof-888', source: 'reco', status: 'written' as const, listsWritten: 1, itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
+      },
+      async clearHome() { throw new Error('not used'); },
+    },
     profileEligibilityService: { async check() { throw new Error('not used'); }, async assertEligible() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, useOfficialRecommendationEngine: true, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async recomputeAndStore() { throw new Error('not used'); } },
     appAuthorizationService: new FakeAuthorizationService(),
     appAuditRepo: new FakeAuditRepo(),
     clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
     maxProfilesPerBatch: 100,
     maxListsPerProfile: 10,
-    contentIdentityService: { async ensureTitleContentId() { return '00000000-0000-4000-8000-000000000101'; } },
   });
   const principal = buildPrincipal(['apps:self:read', 'recommendations:service-lists:write']);
   principal.ownedListKeys = ['hero-carousel'];

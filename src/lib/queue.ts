@@ -135,22 +135,28 @@ export function getProjectionQueue(): Queue {
   return projectionQueue;
 }
 
-export const homescreenQueueName = 'homescreen';
+export const homeQueueName = 'home';
 
-let homescreenQueue: Queue | null = null;
+let homeQueue: Queue | null = null;
 
-export function getHomescreenQueue(): Queue {
-  homescreenQueue ??= new Queue(homescreenQueueName, {
+export function getHomeQueue(): Queue {
+  homeQueue ??= new Queue(homeQueueName, {
     connection: bullConnection,
   });
-  return homescreenQueue;
+  return homeQueue;
 }
 
-export async function enqueueHomescreenTraktSync(importId: string): Promise<string> {
-  await getHomescreenQueue().add('homescreen-trakt-sync', { importId }, {
-    jobId: buildJobId('homescreen-trakt-sync', importId),
+export type HomeSeedJob = {
+  accountId: string;
+  profileId: string;
+};
+
+export async function enqueueHomeSeed(job: HomeSeedJob): Promise<string> {
+  const jobId = buildJobId('home-seed', job.accountId, job.profileId);
+  await getHomeQueue().add('home-seed', job, {
+    jobId,
     removeOnComplete: true,
     removeOnFail: 100,
   });
-  return buildJobId('homescreen-trakt-sync', importId);
+  return jobId;
 }

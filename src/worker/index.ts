@@ -1,11 +1,11 @@
 import { Worker } from 'bullmq';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
-import { bullConnection, getHomescreenQueue, homescreenQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheRefreshJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob } from '../lib/queue.js';
+import { bullConnection, getHomeQueue, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheRefreshJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob } from '../lib/queue.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
-import { runHomescreenJob } from './jobs/homescreen.job.js';
+import { runHomeSeedJob } from './jobs/home-seed.job.js';
 import {
   runTmdbCachePurgeExpiredJob,
   runTmdbCacheRefreshJob,
@@ -52,39 +52,19 @@ export function startWorker(): Worker {
     { connection: bullConnection },
   );
 
-  const homescreenWorker = new Worker(
-    homescreenQueueName,
+  const homeWorker = new Worker(
+    homeQueueName,
     async (job) => {
-      await runHomescreenJob(job.data as Parameters<typeof runHomescreenJob>[0]);
+      await runHomeSeedJob(job.data as Parameters<typeof runHomeSeedJob>[0]);
     },
     { connection: bullConnection },
   );
 
-  homescreenWorker.on('failed', (job, error) => {
-    logger.error({ jobId: job?.id, err: error }, 'homescreen worker job failed');
+  homeWorker.on('failed', (job, error) => {
+    logger.error({ jobId: job?.id, err: error }, 'home worker job failed');
   });
 
-  void scheduleHomescreenJobs();
-
   return projectionWorker;
-}
-
-export async function scheduleHomescreenJobs(): Promise<void> {
-  const queue = getHomescreenQueue();
-  try {
-    await queue.upsertJobScheduler('homescreen-trakt-sync-all', { pattern: env.homescreenTraktSyncCron }, {
-      name: 'homescreen-trakt-sync-all',
-      data: { reason: 'homescreen-trakt-sync-all' },
-      opts: { removeOnComplete: true, removeOnFail: 100 },
-    });
-    await queue.upsertJobScheduler('homescreen-default-rebuild', { pattern: env.homescreenDefaultRebuildCron }, {
-      name: 'homescreen-default-rebuild',
-      data: { reason: 'homescreen-default-rebuild' },
-      opts: { removeOnComplete: true, removeOnFail: 100 },
-    });
-  } catch (error) {
-    logger.error({ err: error }, 'failed to schedule homescreen crons');
-  }
 }
 
 export function registerWorkerLogging(worker: Worker): void {

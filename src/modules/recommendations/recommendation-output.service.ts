@@ -1,8 +1,6 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { RecommendationSnapshotHydrator } from './recommendation-snapshot-hydrator.js';
-import { HomeModeService } from '../homescreen/home-mode.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
@@ -11,15 +9,11 @@ import {
 } from './recommendation-snapshots.repo.js';
 import { recommendationConfig } from './recommendation-config.js';
 import type {
-  RecommendationHomePayload,
   RecommendationSection,
   RecommendationSnapshotPayload,
   TasteProfilePayload,
 } from './recommendation.types.js';
-import type {
-  ClientHomeSection,
-  ClientHomeSectionType,
-} from './client-home.types.js';
+import type { ClientHomeSectionType } from './client-home.types.js';
 
 export type RecommendationTasteProfileInput = {
   sourceKey: string;
@@ -51,8 +45,6 @@ export class RecommendationOutputService {
     private readonly profileAccessService = new ProfileAccessService(),
     private readonly tasteProfileRepository = new TasteProfileRepository(),
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
-    private readonly homeModeService = new HomeModeService(),
-    private readonly hydrator = new RecommendationSnapshotHydrator(),
   ) {}
 
   async listTasteProfilesForAccount(accountId: string, profileId: string): Promise<TasteProfilePayload[]> {
@@ -92,17 +84,6 @@ export class RecommendationOutputService {
       return mapTasteProfile(row);
     });
   }
-  async upsertHomeForAccount(
-    accountId: string,
-    profileId: string,
-    input: RecommendationSnapshotInput,
-  ): Promise<RecommendationHomePayload> {
-    await this.homeModeService.assertCanWrite(accountId, profileId, 'user');
-    const snapshot = await this.upsertRecommendationsForAccount(accountId, profileId, input);
-    return toHomePayload(profileId, snapshot);
-  }
-
-
   async getTasteProfileForAccountService(accountId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
     return withDbClient(async (client) => {
       const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
@@ -157,17 +138,6 @@ export class RecommendationOutputService {
       return row ? this.mapRecommendationSnapshot(client, row) : null;
     });
   }
-  async getHomeForAccount(
-    accountId: string,
-    profileId: string,
-    sourceKey: string,
-    algorithmVersion: string,
-  ): Promise<RecommendationHomePayload> {
-    const snapshot = await this.getRecommendationsForAccount(accountId, profileId, sourceKey, algorithmVersion);
-    return toHomePayload(profileId, snapshot);
-  }
-
-
   async upsertRecommendationsForAccount(
     accountId: string,
     profileId: string,
@@ -214,7 +184,6 @@ export class RecommendationOutputService {
   ): Promise<RecommendationSnapshotPayload> {
     return withDbClient(async (client) => {
       const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
-      await this.homeModeService.assertCanWrite(accountId, targetProfileId, 'service');
       const sections = sanitizeRecommendationSections(input.sections);
       const row = await this.snapshotsRepository.upsert(client, {
         profileId: targetProfileId,
@@ -283,26 +252,17 @@ export class RecommendationOutputService {
     };
   }
 
-  private async mapRecommendationSection(client: DbClient, value: unknown): Promise<RecommendationSection> {
-    const section = await this.hydrator.hydrateSection(client, value);
-    return section ?? {
-      listKey: 'recommended',
-      title: 'Recommended',
-      subtitle: null,
-      sectionType: 'contentRail',
-      items: [],
-      meta: {},
+  private async mapRecommendationSection(_client: DbClient, value: unknown): Promise<RecommendationSection> {
+    const section = asRecord(value);
+    return {
+      listKey: typeof section.listKey === 'string' ? section.listKey : 'recommended',
+      title: typeof section.title === 'string' ? section.title : 'Recommended',
+      subtitle: typeof section.subtitle === 'string' ? section.subtitle : null,
+      sectionType: (typeof section.sectionType === 'string' ? section.sectionType : 'contentRail') as ClientHomeSectionType,
+      items: Array.isArray(section.items) ? section.items : [],
+      meta: asRecord(section.meta),
     };
   }
-}
-
-function toHomePayload(profileId: string, snapshot: RecommendationSnapshotPayload | null): RecommendationHomePayload {
-  return {
-    profileId,
-    generatedAt: snapshot?.generatedAt ?? new Date(0).toISOString(),
-    expiresAt: snapshot?.expiresAt ?? null,
-    sections: snapshot?.sections ?? [],
-  };
 }
 
 function sanitizeRecommendationSections(value: unknown[]): unknown[] {

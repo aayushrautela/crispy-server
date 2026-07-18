@@ -4,17 +4,14 @@ import type { AppAuditRepo } from './app-audit.repo.js';
 import type { AppAuthorizationService } from './app-authorization.service.js';
 import type { AppPrincipal } from './app-principal.types.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
-import type { RecommendationListWriteService } from '../recommendations/recommendation-list-write.service.js';
+import type { HomeWriteService } from '../home/home-write.service.js';
 import type { RecommendationListItemInput } from '../recommendations/recommendation-list.types.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { encodePublicItemId } from '../identity/public-item-id.js';
 import type { RecoHomeSectionType, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
 import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
 import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, getOfficialRecommendationListConfig } from './official-recommender-lists.js';
 
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
-const RECOMMENDATION_WRITE_MODE = 'replace' as const;
 const PROVIDERS = new Set(['tmdb', 'tvdb', 'imdb', 'kitsu']);
 const ITEM_TYPES = new Set(['movie', 'tv']);
 const HOME_SECTION_TYPES = new Set(['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail']);
@@ -32,7 +29,7 @@ interface NormalizedSingleRequest {
   title: string;
   subtitle: string | null;
   sectionType: RecoHomeSectionType;
-  items: RecommendationListItemInput[];
+  items: RecoWriteItem[];
   model: UpsertServiceRecommendationListRequest['model'];
   context: Record<string, unknown>;
 }
@@ -45,12 +42,8 @@ interface NormalizedBatchRequest {
   }>;
 }
 
-interface ServiceRecommendationContentIdentityService {
-  ensureTitleContentId(input: Parameters<ContentIdentityService['ensureTitleContentId']>[1]): Promise<string>;
-}
-
 export class DefaultServiceRecommendationListService implements ServiceRecommendationListService {
-  constructor(private readonly deps: { serviceListRepo: ServiceRecommendationListRepo; recommendationListWriteService: RecommendationListWriteService; profileEligibilityService: ProfileEligibilityService; appAuthorizationService: AppAuthorizationService; appAuditRepo: AppAuditRepo; clock: Clock; maxProfilesPerBatch: number; maxListsPerProfile: number; contentIdentityService?: ServiceRecommendationContentIdentityService }) {}
+  constructor(private readonly deps: { serviceListRepo: ServiceRecommendationListRepo; homeWriteService: HomeWriteService; profileEligibilityService: ProfileEligibilityService; appAuthorizationService: AppAuthorizationService; appAuditRepo: AppAuditRepo; clock: Clock; maxProfilesPerBatch: number; maxListsPerProfile: number }) {}
 
   async upsertList(input: { principal: AppPrincipal; accountId: string; profileId: string; listKey: string; idempotencyKey: string; request: UpsertServiceRecommendationListRequest }): Promise<UpsertServiceRecommendationListResult> {
     const request = await this.validateSingleRequest(input.request);
@@ -59,23 +52,21 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
     const source = this.deriveSource(input.principal);
     await this.requireWritableList(input.principal, input.listKey, source, request.sectionType, input.accountId, input.profileId);
     const eligibility = await this.deps.profileEligibilityService.assertEligible({ principal: input.principal, accountId: input.accountId, profileId: input.profileId, purpose: RECOMMENDATION_WRITE_PURPOSE });
-    const result = await this.deps.recommendationListWriteService.writeList({
+    await this.deps.homeWriteService.writeHome({
       accountId: input.accountId,
       profileId: input.profileId,
-      listKey: input.listKey,
       source,
-      purpose: RECOMMENDATION_WRITE_PURPOSE,
-      writeMode: RECOMMENDATION_WRITE_MODE,
-      sectionType: request.sectionType,
-      title: request.title,
-      subtitle: request.subtitle,
-      items: request.items,
       idempotencyKey: input.idempotencyKey,
-      runId: request.model?.runId ?? undefined,
-      inputVersions: { eligibilityVersion: eligibility.eligibilityVersion, modelVersion: request.model?.modelVersion ?? null, algorithm: request.model?.algorithmVersion ?? null },
       actor: { type: 'app', appId: input.principal.appId, keyId: input.principal.keyId },
+      lists: [{
+        listKey: input.listKey,
+        sectionType: request.sectionType,
+        title: request.title,
+        subtitle: request.subtitle,
+        items: request.items,
+      }],
     });
-    return { ...result, eligibility: { checkedAt: eligibility.checkedAt, eligible: eligibility.eligible, eligibilityVersion: eligibility.eligibilityVersion } };
+    return { accountId: input.accountId, profileId: input.profileId, listKey: input.listKey, source, version: 0, status: 'written', itemCount: request.items.length, idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: this.deps.clock.now(), eligibility: { checkedAt: eligibility.checkedAt, eligible: eligibility.eligible, eligibilityVersion: eligibility.eligibilityVersion } };
   }
 
   async batchUpsert(input: { principal: AppPrincipal; idempotencyKey: string; request: BatchUpsertServiceRecommendationListsRequest }): Promise<BatchUpsertServiceRecommendationListsResult> {
@@ -98,25 +89,23 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         const writtenLists: Array<{ listKey: string; source: string; version: number; itemCount: number }> = [];
         for (const list of profile.lists) {
           await this.requireWritableList(input.principal, list.listKey, source, list.sectionType, profile.accountId, profile.profileId);
-          const result = await this.deps.recommendationListWriteService.writeList({
+          await this.deps.homeWriteService.writeHome({
             accountId: profile.accountId,
             profileId: profile.profileId,
-            listKey: list.listKey,
             source,
-            purpose: RECOMMENDATION_WRITE_PURPOSE,
-            writeMode: RECOMMENDATION_WRITE_MODE,
-            sectionType: list.sectionType,
-            title: list.title,
-            subtitle: list.subtitle,
-            items: list.items,
             idempotencyKey: `${input.idempotencyKey}:${profile.accountId}:${profile.profileId}:${list.listKey}`,
-            runId: list.model?.runId ?? undefined,
-            inputVersions: { eligibilityVersion: eligibility.eligibilityVersion, modelVersion: list.model?.modelVersion ?? null, algorithm: list.model?.algorithmVersion ?? null },
             actor: { type: 'app', appId: input.principal.appId, keyId: input.principal.keyId },
+            lists: [{
+              listKey: list.listKey,
+              sectionType: list.sectionType,
+              title: list.title,
+              subtitle: list.subtitle,
+              items: list.items,
+            }],
           });
-          writtenLists.push({ listKey: result.listKey, source: result.source, version: result.version, itemCount: result.itemCount });
+          writtenLists.push({ listKey: list.listKey, source, version: 0, itemCount: list.items.length });
           listsWritten += 1;
-          itemsWritten += result.itemCount;
+          itemsWritten += list.items.length;
         }
         results.push({ accountId: profile.accountId, profileId: profile.profileId, status: 'written', lists: writtenLists });
       } catch (error) {
@@ -226,51 +215,21 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
     return createHash('sha256').update(JSON.stringify(request)).digest('hex');
   }
 
-  private async normalizeItemRefs(value: unknown, path: string): Promise<RecommendationListItemInput[]> {
+  private async normalizeItemRefs(value: unknown, path: string): Promise<RecoWriteItem[]> {
     if (!Array.isArray(value)) throw new HttpError(400, `${path} must be an array.`, { field: path }, 'INVALID_RECOMMENDATION_ITEMS');
     const seen = new Set<string>();
-    const items: RecommendationListItemInput[] = [];
+    const items: RecoWriteItem[] = [];
     for (const [index, rawItem] of value.entries()) {
       const itemPath = `${path}[${index}]`;
       const item = validateWriteItem(rawItem, itemPath);
-      const resolved = await this.resolveWriteItem(item, itemPath);
-      if (seen.has(resolved.itemId)) throw new HttpError(400, `Duplicate recommendation item at ${itemPath}.`, { field: itemPath, itemId: resolved.itemId }, 'DUPLICATE_RECOMMENDATION_ITEM');
-      seen.add(resolved.itemId);
-      items.push({
-        itemId: resolved.itemId,
-        sourceRef: resolved.sourceRef,
-        rank: index + 1,
-        score: item.score,
-        reason: item.reason,
-        reasonCodes: item.reasonCodes,
-        metadata: item.metadata,
-      });
+      const ref = item.providerRefs[0];
+      if (!ref) throw new HttpError(400, `${itemPath}.providerRefs must contain at least one provider ref.`, { field: `${itemPath}.providerRefs` }, 'INVALID_RECOMMENDATION_PROVIDER_REF');
+      const dupKey = `${item.type}:${ref.provider}:${ref.providerId}`;
+      if (seen.has(dupKey)) throw new HttpError(400, `Duplicate recommendation item at ${itemPath}.`, { field: itemPath, ref }, 'DUPLICATE_RECOMMENDATION_ITEM');
+      seen.add(dupKey);
+      items.push(item);
     }
     return items;
-  }
-
-  private async resolveWriteItem(item: RecoWriteItem, path: string): Promise<{ itemId: string; sourceRef: RecommendationListItemInput['sourceRef'] }> {
-    const ref = item.providerRefs[0];
-    if (!ref) throw new HttpError(400, `${path}.providerRefs must contain at least one provider ref.`, { field: `${path}.providerRefs` }, 'INVALID_RECOMMENDATION_PROVIDER_REF');
-    const provider = ref.provider === 'tvdb' || ref.provider === 'imdb' || ref.provider === 'kitsu' ? ref.provider : 'tmdb';
-    const entityType = item.type === 'tv' ? 'show' : item.type;
-    const contentIdentityService = this.deps.contentIdentityService ?? new DbServiceRecommendationContentIdentityService();
-    const contentId = await contentIdentityService.ensureTitleContentId({
-      mediaType: entityType === 'show' ? 'show' : 'movie',
-      provider,
-      providerId: ref.providerId,
-      metadata: { provider: ref.provider, providerId: ref.providerId },
-    });
-    return { itemId: encodePublicItemId(contentId), sourceRef: { provider: ref.provider, providerId: ref.providerId } };
-  }
-}
-
-class DbServiceRecommendationContentIdentityService implements ServiceRecommendationContentIdentityService {
-  private readonly contentIdentityService = new ContentIdentityService();
-
-  async ensureTitleContentId(input: Parameters<ContentIdentityService['ensureTitleContentId']>[1]): Promise<string> {
-    const { withDbClient } = await import('../../lib/db.js');
-    return withDbClient((client) => this.contentIdentityService.ensureTitleContentId(client, input));
   }
 }
 

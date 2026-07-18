@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
-import { HomeModeService } from '../../modules/homescreen/home-mode.service.js';
+import { HomeModeService } from '../../modules/home/home-mode.service.js';
 import { success } from '../response.js';
 
 export async function registerProfileSettingsRoutes(

@@ -4,6 +4,7 @@ import { USER_DEFAULT_SCOPES, type UserAuthActor } from '../modules/auth/auth.ty
 import { normalizeLanguageCode } from '../modules/i18n/supported-languages.js';
 import { normalizeCountryCode } from '../modules/i18n/supported-countries.js';
 import { validateAvatarUrl } from '../modules/profiles/avatar-url.js';
+import { enqueueHomeSeed } from '../lib/queue.js';
 
 export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthActor> {
   let payload: AuthTokenPayload;
@@ -52,6 +53,10 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
          VALUES ($1::uuid, '{}'::jsonb)`,
         [profileId],
       );
+
+      void enqueueHomeSeed({ accountId: payload.sub, profileId }).catch(() => {
+        /* seed is best-effort; home falls back to built templates on read */
+      });
     }
   } finally {
     client.release();

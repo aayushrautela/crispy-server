@@ -9,8 +9,7 @@ import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPrincipal, AppP
 import { SqlAppSourceOwnershipRepo } from './app-source-ownership.repo.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
-import type { RecommendationListWriteService } from '../recommendations/recommendation-list-write.service.js';
-import type { RecommendationListWriteInput, RecommendationListWriteResult } from '../recommendations/recommendation-list.types.js';
+import type { HomeWriteService } from '../home/home-write.service.js';
 import { HttpError } from '../../lib/errors.js';
 
 function buildPrincipal(scopes: AppScope[] = ['recommendations:service-lists:write', 'recommendations:service-lists:batch-write']): AppPrincipal {
@@ -76,13 +75,13 @@ class FakeServiceListRepo implements ServiceRecommendationListRepo {
   }
 }
 
-class FakeRecommendationListWriteService implements RecommendationListWriteService {
-  writes: RecommendationListWriteInput[] = [];
-  async writeList(input: RecommendationListWriteInput): Promise<RecommendationListWriteResult> {
+class FakeHomeWriteService implements HomeWriteService {
+  writes: Parameters<HomeWriteService['writeHome']>[0][] = [];
+  async writeHome(input: Parameters<HomeWriteService['writeHome']>[0]) {
     this.writes.push(input);
-    return { accountId: input.accountId, profileId: input.profileId, listKey: input.listKey, source: input.source, version: this.writes.length, status: 'written', itemCount: input.items.length, idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
+    return { accountId: input.accountId, profileId: input.profileId, source: 'reco' as const, status: 'written' as const, listsWritten: input.lists.length, itemCount: input.lists.reduce((sum, list) => sum + list.items.length, 0), idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
   }
-  async clearList(): Promise<RecommendationListWriteResult> { throw new Error('not used'); }
+  async clearHome(): Promise<import('../home/home-types.js').HomeWriteResult> { throw new Error('not used'); }
 }
 
 const eligibilityService: ProfileEligibilityService = {
@@ -110,24 +109,23 @@ function buildWriteRequest(providerIds: string[] = ['101']) {
 
 function buildService() {
   const serviceListRepo = new FakeServiceListRepo();
-  const recommendationListWriteService = new FakeRecommendationListWriteService();
+  const homeWriteService = new FakeHomeWriteService();
   const appAuditRepo = new FakeAuditRepo();
   const service = new DefaultServiceRecommendationListService({
     serviceListRepo,
-    recommendationListWriteService,
+    homeWriteService,
     profileEligibilityService: eligibilityService,
     appAuthorizationService: new FakeAuthorizationService(),
     appAuditRepo,
     clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
     maxProfilesPerBatch: 10,
     maxListsPerProfile: 5,
-    contentIdentityService: { async ensureTitleContentId(input) { return PROVIDER_TO_CONTENT_ID[input.providerId] ?? '00000000-0000-4000-8000-000000000999'; } },
   });
-  return { service, serviceListRepo, recommendationListWriteService, appAuditRepo };
+  return { service, serviceListRepo, homeWriteService, appAuditRepo };
 }
 
-test('upsertList normalizes item refs and derives internal write fields', async () => {
-  const { service, recommendationListWriteService } = buildService();
+test('upsertList normalizes item refs and delegates to the home writer', async () => {
+  const { service, homeWriteService } = buildService();
 
   const result = await service.upsertList({
     principal: buildPrincipal(),
@@ -140,18 +138,22 @@ test('upsertList normalizes item refs and derives internal write fields', async 
 
   assert.equal(result.itemCount, 2);
   assert.equal(result.eligibility.eligibilityVersion, 42);
-  assert.equal(recommendationListWriteService.writes.length, 1);
-  const write = recommendationListWriteService.writes[0];
+  assert.equal(homeWriteService.writes.length, 1);
+  const write = homeWriteService.writes[0];
   assert.ok(write);
-  assert.equal(write.purpose, 'recommendation-generation');
-  assert.equal(write.writeMode, 'replace');
-  assert.equal(write.title, 'For You');
-  assert.equal(write.subtitle, null);
-  assert.equal(write.sectionType, 'contentRail');
-  assert.deepEqual(write.inputVersions, { eligibilityVersion: 42, modelVersion: null, algorithm: null });
-  assert.deepEqual(write.items, [
-    { itemId: '00000000000040008000000000000101', sourceRef: { provider: 'tmdb', providerId: '101' }, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} },
-    { itemId: '00000000000040008000000000000102', sourceRef: { provider: 'tmdb', providerId: '102' }, rank: 2, score: null, reason: null, reasonCodes: [], metadata: {} },
+  assert.equal(write.source, 'reco');
+  assert.equal(write.accountId, 'acc-1');
+  assert.equal(write.profileId, 'prof-1');
+  assert.equal(write.idempotencyKey, 'idem-1');
+  assert.equal(write.lists.length, 1);
+  const list = write.lists[0];
+  assert.ok(list);
+  assert.equal(list.listKey, 'for-you');
+  assert.equal(list.sectionType, 'contentRail');
+  assert.deepEqual(list.title, 'For You');
+  assert.deepEqual(list.items, [
+    { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }], score: null, reason: null, reasonCodes: [], metadata: {} },
+    { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '102' }], score: null, reason: null, reasonCodes: [], metadata: {} },
   ]);
 });
 
@@ -192,7 +194,7 @@ test('official recommender rejects section type mismatches', async () => {
 });
 
 test('batchUpsert normalizes list refs, derives per-list idempotency, and returns processed status', async () => {
-  const { service, serviceListRepo, recommendationListWriteService } = buildService();
+  const { service, serviceListRepo, homeWriteService } = buildService();
 
   const result = await service.batchUpsert({
     principal: buildPrincipal(),
@@ -207,10 +209,12 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
   assert.equal(result.summary.itemsWritten, 1);
   assert.equal(serviceListRepo.savedBatchResultStatus, 'completed');
   assert.ok(serviceListRepo.savedBatchRequestHash);
-  const batchWrite = recommendationListWriteService.writes[0];
+  const batchWrite = homeWriteService.writes[0];
   assert.ok(batchWrite);
   assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1:for-you');
-  assert.deepEqual(batchWrite.items, [{ itemId: '00000000000040008000000000000103', sourceRef: { provider: 'tmdb', providerId: '103' }, rank: 1, score: null, reason: null, reasonCodes: [], metadata: {} }]);
+  const batchList = batchWrite.lists[0];
+  assert.ok(batchList);
+  assert.deepEqual(batchList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }], score: null, reason: null, reasonCodes: [], metadata: {} }]);
 });
 
 test('authorization allows wildcard owned list keys', () => {
