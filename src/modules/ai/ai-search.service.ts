@@ -20,7 +20,7 @@ type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<
 const FINAL_RESULT_LIMIT = 20;
 const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
-const MAX_RESOLUTION_CANDIDATES = 8;
+const MAX_RESOLUTION_CANDIDATES = FINAL_RESULT_LIMIT;
 
 export class AiSearchService {
   constructor(

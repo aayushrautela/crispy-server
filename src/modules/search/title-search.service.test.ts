@@ -132,3 +132,83 @@ test('tokenOverlapScore returns no-match when nothing shared', async () => {
   const { tokenOverlapScore } = await import('./title-search.service.js');
   assert.equal(tokenOverlapScore(['blade', 'runner'], 'dune'), 10);
 });
+
+test('isStrongMatch is true for a clean multi-token title equal to the query', async () => {
+  const { isStrongMatch } = await import('./title-search.service.js');
+  const match = makeTitle({ name: 'Dark City', originalName: 'Dark City' });
+  assert.equal(isStrongMatch('dark city', match), true);
+});
+
+test('isStrongMatch is false for a longer phrase that merely contains every query token', async () => {
+  const { isStrongMatch } = await import('./title-search.service.js');
+  const match = makeTitle({
+    name: 'Desperate Souls: Dark City and the Legend of Midnight Cowboy',
+    originalName: 'Desperate Souls: Dark City and the Legend of Midnight Cowboy',
+  });
+  assert.equal(isStrongMatch('dark city', match), false);
+});
+
+test('isStrongMatch is false for a single-token query even when exact (handled by EXACT tier)', async () => {
+  const { isStrongMatch } = await import('./title-search.service.js');
+  const match = makeTitle({ name: 'Brazil', originalName: 'Brazil' });
+  assert.equal(isStrongMatch('brazil', match), false);
+});
+
+test('isStrongMatch is false across extra-titled candidates like The Boys from Brazil', async () => {
+  const { isStrongMatch } = await import('./title-search.service.js');
+  const match = makeTitle({ name: 'The Boys from Brazil', originalName: 'The Boys from Brazil' });
+  assert.equal(isStrongMatch('brazil', match), false);
+});
+
+test('selectAiResolutionMatches returns a single absolute match when one exists', async () => {
+  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+  const ranked = [
+    { match: makeTitle({ tmdbId: 1, name: 'Dark City', originalName: 'Dark City', releaseDate: '1998-02-27' }), score: 0 },
+    { match: makeTitle({ tmdbId: 2, name: 'Desperate Souls: Dark City and the Legend of Midnight Cowboy', originalName: 'x', releaseDate: null }), score: 1 },
+    { match: makeTitle({ tmdbId: 3, name: 'Brazil', originalName: 'Brazil', releaseDate: null }), score: 10 },
+  ];
+  const selected = selectAiResolutionMatches('dark city', ranked);
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0]?.match.tmdbId, 1);
+});
+
+test('selectAiResolutionMatches returns a single strong match when no absolute match exists', async () => {
+  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+  const ranked = [
+    { match: makeTitle({ tmdbId: 1, name: 'Twelve Monkeys', originalName: '12 Monkeys', releaseDate: '1995-12-29' }), score: 1 },
+    { match: makeTitle({ tmdbId: 2, name: '12 Monkeys (Metaphor)', originalName: 'x', releaseDate: null }), score: 1 },
+  ];
+  const selected = selectAiResolutionMatches('12 monkeys', ranked);
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0]?.match.tmdbId, 1);
+});
+
+test('selectAiResolutionMatches keeps up to three fuzzy fallbacks when no confident match exists', async () => {
+  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+  const ranked = [
+    { match: makeTitle({ tmdbId: 1, name: 'Snowpiercer', originalName: 'Snowpiercer', releaseDate: '2013-08-07' }), score: 2 },
+    { match: makeTitle({ tmdbId: 2, name: 'The Snowpiercer Diaries', originalName: 'x', releaseDate: null }), score: 2 },
+    { match: makeTitle({ tmdbId: 3, name: 'Snowpiercer Reborn', originalName: 'x', releaseDate: null }), score: 3 },
+    { match: makeTitle({ tmdbId: 4, name: 'Unrelated', originalName: 'x', releaseDate: null }), score: 10 },
+  ];
+  const selected = selectAiResolutionMatches('snowpiercer darker', ranked);
+  assert.equal(selected.length, 3);
+  assert.equal(selected[0]?.match.tmdbId, 1);
+});
+
+test('selectAiResolutionMatches returns empty for an empty ranking', async () => {
+  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+  assert.deepEqual(selectAiResolutionMatches('anything', []), []);
+});
+
+test('selectAiResolutionMatches tie-breaks identical absolute scores toward the dated title', async () => {
+  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+  const ranked = [
+    { match: makeTitle({ tmdbId: 1, name: 'Brazil', originalName: 'Brazil', releaseDate: null }), score: 0 },
+    { match: makeTitle({ tmdbId: 2, name: 'Brazil', originalName: 'Brazil', releaseDate: '1985-02-20' }), score: 0 },
+  ];
+  const selected = selectAiResolutionMatches('brazil', ranked);
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0]?.match.tmdbId, 2);
+});
+
