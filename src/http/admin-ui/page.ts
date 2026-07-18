@@ -43,6 +43,21 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
           <button type="button" class="nav-item" data-nav-target="ai-lab">
             <span>AI Lab</span>
           </button>
+          <button type="button" class="nav-item" data-nav-target="homescreen-templates">
+            <span>Home Templates</span>
+          </button>
+          <button type="button" class="nav-item" data-nav-target="homescreen-collections">
+            <span>Collections</span>
+          </button>
+          <button type="button" class="nav-item" data-nav-target="homescreen-trakt">
+            <span>Trakt Imports</span>
+          </button>
+          <button type="button" class="nav-item" data-nav-target="homescreen-default">
+            <span>Default Home</span>
+          </button>
+          <button type="button" class="nav-item" data-nav-target="homescreen-profiles">
+            <span>Profile Home</span>
+          </button>
         </nav>
       </div>
 

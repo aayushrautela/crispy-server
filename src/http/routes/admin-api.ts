@@ -33,6 +33,7 @@ import { EpisodicFollowService } from '../../modules/watch/episodic-follow.servi
 import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
 import { withDbClient, withTransaction, db } from '../../lib/db.js';
 import { success, mutation } from '../response.js';
+import { registerHomescreenAdminRoutes } from './homescreen-admin.routes.js';
 
 const JOB_STATUSES = new Set<ProviderImportJobStatus>([
   'oauth_pending',
@@ -815,6 +816,8 @@ export async function registerAdminApiRoutes(
       results,
     }, request);
   });
+
+  await registerHomescreenAdminRoutes(app);
 }
 
 async function loadProviderStates(

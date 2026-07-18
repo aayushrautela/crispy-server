@@ -134,3 +134,23 @@ export function getProjectionQueue(): Queue {
   });
   return projectionQueue;
 }
+
+export const homescreenQueueName = 'homescreen';
+
+let homescreenQueue: Queue | null = null;
+
+export function getHomescreenQueue(): Queue {
+  homescreenQueue ??= new Queue(homescreenQueueName, {
+    connection: bullConnection,
+  });
+  return homescreenQueue;
+}
+
+export async function enqueueHomescreenTraktSync(importId: string): Promise<string> {
+  await getHomescreenQueue().add('homescreen-trakt-sync', { importId }, {
+    jobId: buildJobId('homescreen-trakt-sync', importId),
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+  return buildJobId('homescreen-trakt-sync', importId);
+}

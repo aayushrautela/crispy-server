@@ -1,10 +1,9 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { RecommendationSnapshotHydrator } from './recommendation-snapshot-hydrator.js';
+import { HomeModeService } from '../homescreen/home-mode.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
-import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
 import {
   RecommendationSnapshotsRepository,
@@ -20,8 +19,6 @@ import type {
 import type {
   ClientHomeSection,
   ClientHomeSectionType,
-  ClientMediaCard,
-  ClientMediaType,
 } from './client-home.types.js';
 
 export type RecommendationTasteProfileInput = {
@@ -52,10 +49,10 @@ export type RecommendationSnapshotInput = {
 export class RecommendationOutputService {
   constructor(
     private readonly profileAccessService = new ProfileAccessService(),
-    private readonly metadataCardService = new MetadataCardService(),
     private readonly tasteProfileRepository = new TasteProfileRepository(),
     private readonly snapshotsRepository = new RecommendationSnapshotsRepository(),
-    private readonly contentIdentityService = new ContentIdentityService(),
+    private readonly homeModeService = new HomeModeService(),
+    private readonly hydrator = new RecommendationSnapshotHydrator(),
   ) {}
 
   async listTasteProfilesForAccount(accountId: string, profileId: string): Promise<TasteProfilePayload[]> {
@@ -100,6 +97,7 @@ export class RecommendationOutputService {
     profileId: string,
     input: RecommendationSnapshotInput,
   ): Promise<RecommendationHomePayload> {
+    await this.homeModeService.assertCanWrite(accountId, profileId, 'user');
     const snapshot = await this.upsertRecommendationsForAccount(accountId, profileId, input);
     return toHomePayload(profileId, snapshot);
   }
@@ -216,6 +214,7 @@ export class RecommendationOutputService {
   ): Promise<RecommendationSnapshotPayload> {
     return withDbClient(async (client) => {
       const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
+      await this.homeModeService.assertCanWrite(accountId, targetProfileId, 'service');
       const sections = sanitizeRecommendationSections(input.sections);
       const row = await this.snapshotsRepository.upsert(client, {
         profileId: targetProfileId,
@@ -285,31 +284,15 @@ export class RecommendationOutputService {
   }
 
   private async mapRecommendationSection(client: DbClient, value: unknown): Promise<RecommendationSection> {
-    const row = asRecord(value);
-    const sectionType = readClientHomeSectionType(row.sectionType);
-    const rawItems = Array.isArray(row.items) ? row.items : [];
-    const id = typeof row.id === 'string' ? row.id : 'recommended';
-    const title = typeof row.title === 'string' ? row.title : 'Recommended';
-    const meta = asRecord(row.meta);
-
-    return {
-      listKey: id,
-      title,
-      subtitle: readNullableText(row.subtitle),
-      sectionType,
-      items: (await Promise.all(rawItems.map((item) => this.mapClientMediaCard(client, item))))
-        .filter((item): item is ClientMediaCard => item !== null),
-      meta,
+    const section = await this.hydrator.hydrateSection(client, value);
+    return section ?? {
+      listKey: 'recommended',
+      title: 'Recommended',
+      subtitle: null,
+      sectionType: 'contentRail',
+      items: [],
+      meta: {},
     };
-  }
-
-  private async mapClientMediaCard(client: DbClient, value: unknown): Promise<ClientMediaCard | null> {
-    const row = asRecord(value);
-    const itemId = readPublicItemId(row.itemId);
-    if (!itemId) { return null; }
-    const identity = await this.contentIdentityService.resolveMediaIdentity(client, assertPublicItemId(itemId));
-    const card = await this.metadataCardService.buildCardView(client, identity);
-    return card ? toClientMediaCard(card, row) : null;
   }
 }
 
@@ -320,49 +303,6 @@ function toHomePayload(profileId: string, snapshot: RecommendationSnapshotPayloa
     expiresAt: snapshot?.expiresAt ?? null,
     sections: snapshot?.sections ?? [],
   };
-}
-
-function toClientMediaCard(card: MetadataCardView, row: Record<string, unknown>): ClientMediaCard | null {
-  if (!card.title) {
-    return null;
-  }
-  return {
-    itemId: card.itemId,
-    mediaType: toClientMediaType(card.mediaType),
-    title: card.title,
-    subtitle: readNullableText(row.subtitle) ?? card.subtitle,
-    overview: readNullableText(row.description) ?? card.overview ?? card.summary,
-    year: card.releaseYear,
-    releaseDate: card.releaseDate,
-    rating: card.rating,
-    maturityRating: card.maturityRating,
-    genres: card.genres,
-    runtimeSeconds: typeof card.runtimeMinutes === 'number' ? card.runtimeMinutes * 60 : null,
-    images: {
-      poster: card.images.poster,
-      backdrop: card.images.backdrop,
-      logo: card.images.logo,
-      still: card.images.still,
-    },
-    progress: null,
-    parent: card.seriesItemId || card.seasonItemId || card.seasonNumber !== null || card.episodeNumber !== null
-      ? {
-          seriesItemId: card.seriesItemId ?? undefined,
-          seasonItemId: card.seasonItemId ?? undefined,
-          seasonNumber: card.seasonNumber,
-          episodeNumber: card.episodeNumber,
-        }
-      : null,
-  };
-}
-
-function toClientMediaType(mediaType: MetadataCardView['mediaType']): ClientMediaType {
-  if (mediaType === 'show') return 'tv';
-  return mediaType;
-}
-
-function readNullableText(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function sanitizeRecommendationSections(value: unknown[]): unknown[] {
@@ -404,6 +344,10 @@ function sanitizeRecommendationMediaItem(value: unknown): Record<string, unknown
 
 function readClientHomeSectionType(value: unknown): ClientHomeSectionType {
   return value === 'categoryTabs' || value === 'heroCarousel' || value === 'contentRail' || value === 'collectionRail' ? value : 'contentRail';
+}
+
+function readNullableText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function readPublicItemId(value: unknown): string | null {

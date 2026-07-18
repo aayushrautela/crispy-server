@@ -21,6 +21,8 @@ tags:
     description: AI configuration diagnostics and test calls.
   - name: Admin Recommendations
     description: Recommendation engine diagnostics and job management.
+  - name: Admin Homescreen
+    description: Main-server-owned homescreen management (templates, collections, trakt imports, default home, profile home).
 paths:
   /admin/api/accounts/lookup-by-email/{email}:
     get:
@@ -1719,6 +1721,689 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/templates:
+    get:
+      tags:
+        - Admin Homescreen
+      operationId: getAdminApiHomescreenTemplates
+      summary: List home templates
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      tags:
+        - Admin Homescreen
+      operationId: postAdminApiHomescreenTemplates
+      summary: Create or update a home template
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, locale, sectionKeys]
+              properties:
+                key:
+                  type: string
+                locale:
+                  type: string
+                title:
+                  type: [string, "null"]
+                sectionKeys:
+                  type: array
+                  items:
+                    type: string
+                isActive:
+                  type: boolean
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/templates/{locale}:
+    get:
+      tags:
+        - Admin Homescreen
+      operationId: getAdminApiHomescreenTemplatesLocale
+      summary: Get active template for a locale
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: locale
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Admin Homescreen
+      operationId: putAdminApiHomescreenTemplatesLocale
+      summary: Update a home template
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: locale
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, sectionKeys]
+              properties:
+                key:
+                  type: string
+                title:
+                  type: [string, "null"]
+                sectionKeys:
+                  type: array
+                  items:
+                    type: string
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Admin Homescreen
+      operationId: deleteAdminApiHomescreenTemplatesKeyLocale
+      summary: Delete a home template
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: locale
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/collections:
+    get:
+      tags:
+        - Admin Homescreen
+      operationId: getAdminApiHomescreenCollections
+      summary: List curated collections
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [manual, trakt]
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      tags:
+        - Admin Homescreen
+      operationId: postAdminApiHomescreenCollections
+      summary: Create or update a curated collection
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, title, providerRefs]
+              properties:
+                key:
+                  type: string
+                title:
+                  type: string
+                subtitle:
+                  type: [string, "null"]
+                providerRefs:
+                  type: array
+                  items:
+                    type: object
+                    required: [provider, providerId]
+                    properties:
+                      provider:
+                        type: string
+                      providerId:
+                        type: string
+                      type:
+                        type: string
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/collections/{key}:
+    put:
+      tags:
+        - Admin Homescreen
+      operationId: putAdminApiHomescreenCollectionsKey
+      summary: Update a curated collection
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                subtitle:
+                  type: [string, "null"]
+                providerRefs:
+                  type: array
+                  items:
+                    type: object
+                    required: [provider, providerId]
+                    properties:
+                      provider:
+                        type: string
+                      providerId:
+                        type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Admin Homescreen
+      operationId: deleteAdminApiHomescreenCollectionsKey
+      summary: Delete a curated collection
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/default/regenerate:
+    post:
+      tags:
+        - Admin Homescreen
+      operationId: postAdminApiHomescreenDefaultRegenerate
+      summary: Regenerate the cached default home for a locale
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locale:
+                  type: string
+                region:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/default/{locale}:
+    get:
+      tags:
+        - Admin Homescreen
+      operationId: getAdminApiHomescreenDefaultLocale
+      summary: Get cached default home for a locale
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: locale
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/trakt-imports:
+    get:
+      tags:
+        - Admin Homescreen
+      operationId: getAdminApiHomescreenTraktImports
+      summary: List trakt imports
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    post:
+      tags:
+        - Admin Homescreen
+      operationId: postAdminApiHomescreenTraktImports
+      summary: Create a trakt import
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, templateKey]
+              properties:
+                slug:
+                  type: string
+                title:
+                  type: [string, "null"]
+                traktListId:
+                  type: [string, "null"]
+                templateKey:
+                  type: string
+                active:
+                  type: boolean
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/trakt-imports/{id}:
+    delete:
+      tags:
+        - Admin Homescreen
+      operationId: deleteAdminApiHomescreenTraktImportsId
+      summary: Delete a trakt import
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/homescreen/trakt-imports/{id}/sync:
+    post:
+      tags:
+        - Admin Homescreen
+      operationId: postAdminApiHomescreenTraktImportsIdSync
+      summary: Enqueue a trakt import sync
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/home:
+    get:
+      tags:
+        - Admin Homescreen
+      operationId: getAdminApiAccountsAccountIdProfilesProfileIdHome
+      summary: Resolve a profile home
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/home-mode:
+    put:
+      tags:
+        - Admin Homescreen
+      operationId: putAdminApiAccountsAccountIdProfilesProfileIdHomeMode
+      summary: Set a profile home mode
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [recommended, custom]
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/accounts/{accountId}/profiles/{profileId}/recompute:
+    post:
+      tags:
+        - Admin Homescreen
+      operationId: postAdminApiAccountsAccountIdProfilesProfileIdRecompute
+      summary: Enqueue a profile recompute
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: "#/components/parameters/AdminMutationCsrfToken"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+
 components:
   securitySchemes:
     AdminSession:

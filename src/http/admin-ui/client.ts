@@ -25,6 +25,26 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'AI Lab',
       description: 'Test configured server AI models, prompts, and providers.',
     },
+    'homescreen-templates': {
+      title: 'Home Templates',
+      description: 'Manage per-locale default home templates and their section order.',
+    },
+    'homescreen-collections': {
+      title: 'Curated Collections',
+      description: 'Manage manually curated rails shown on the default home.',
+    },
+    'homescreen-trakt': {
+      title: 'Trakt Imports',
+      description: 'Manage public Trakt lists imported as curated collections.',
+    },
+    'homescreen-default': {
+      title: 'Default Home',
+      description: 'Preview and regenerate the cached default home per locale.',
+    },
+    'homescreen-profiles': {
+      title: 'Profile Home',
+      description: 'Inspect a profile home resolution, switch home mode, and trigger recompute.',
+    },
   };
 
   const apiBase = String((document.body && document.body.getAttribute('data-admin-api-base')) || '/admin/api').replace(/\/$/, '');
@@ -165,6 +185,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     const parsed = parseHashView(window.location.hash);
     if (parsed.jobId) await loadRecomputeJobDetail(parsed.jobId, { silent: true });
     await loadAiConfig();
+    bindHomescreen();
     startPolling();
   }
 
@@ -317,6 +338,335 @@ export const ADMIN_UI_CLIENT = String.raw`
         elements.body.classList.remove('sidebar-open');
       });
     }
+  }
+
+  function bindHomescreen() {
+    const root = document;
+
+    root.querySelectorAll('[data-homescreen-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.getAttribute('data-homescreen-action');
+        if (action === 'refresh-templates') void loadHomescreenTemplates();
+        else if (action === 'create-template') toggleHomescreenForm('template-create', true);
+        else if (action === 'cancel-template') toggleHomescreenForm('template-create', false);
+        else if (action === 'refresh-collections') void loadHomescreenCollections();
+        else if (action === 'create-collection') toggleHomescreenForm('collection-create', true);
+        else if (action === 'cancel-collection') toggleHomescreenForm('collection-create', false);
+        else if (action === 'refresh-trakt') void loadHomescreenTrakt();
+        else if (action === 'create-trakt') toggleHomescreenForm('trakt-create', true);
+        else if (action === 'cancel-trakt') toggleHomescreenForm('trakt-create', false);
+        else if (action === 'preview-default') void previewHomescreenDefault();
+        else if (action === 'regenerate-default') submitHomescreenForm('default-regenerate');
+        else if (action === 'recompute-profile') submitProfileRecompute();
+      });
+    });
+
+    root.querySelectorAll('[data-homescreen-form]').forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const name = form.getAttribute('data-homescreen-form');
+        if (name === 'template-create') void createHomescreenTemplate(form);
+        else if (name === 'collection-create') void createHomescreenCollection(form);
+        else if (name === 'trakt-create') void createHomescreenTrakt(form);
+        else if (name === 'default-regenerate') void regenerateHomescreenDefault(form);
+        else if (name === 'profile-lookup') void inspectHomescreenProfile(form);
+        else if (name === 'profile-mode') void setHomescreenProfileMode(form);
+      });
+    });
+
+    if (state.activeView === 'homescreen-templates') void loadHomescreenTemplates();
+    if (state.activeView === 'homescreen-collections') void loadHomescreenCollections();
+    if (state.activeView === 'homescreen-trakt') void loadHomescreenTrakt();
+    if (state.activeView === 'homescreen-default') void previewHomescreenDefault();
+  }
+
+  function toggleHomescreenForm(name, show) {
+    const form = document.querySelector('[data-homescreen-form="' + name + '"]');
+    if (form) form.hidden = !show;
+  }
+
+  function setHomescreenStatus(selector, message, isError) {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.textContent = message || '';
+    el.className = 'panel-note' + (isError ? ' warn' : '');
+  }
+
+  async function loadHomescreenTemplates() {
+    const result = await safeFetchJson(apiPath('/homescreen/templates'));
+    const rows = document.getElementById('homescreen-templates-rows');
+    if (!rows) return;
+    if (result.error) {
+      setHomescreenStatus('#homescreen-templates-status', result.error, true);
+      rows.innerHTML = '';
+      return;
+    }
+    setHomescreenStatus('#homescreen-templates-status', '', false);
+    const items = (result.items || []).slice().sort((a, b) => String(a.locale).localeCompare(String(b.locale)) || String(a.key).localeCompare(String(b.key)));
+    rows.innerHTML = items.map((t) => '<tr>'
+      + '<td>' + escapeHtml(String(t.key)) + '</td>'
+      + '<td>' + escapeHtml(String(t.locale)) + '</td>'
+      + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
+      + '<td>' + (Array.isArray(t.sectionKeys) ? t.sectionKeys.join(', ') : '') + '</td>'
+      + '<td>' + (t.isActive ? 'yes' : 'no') + '</td>'
+      + '<td><button type="button" class="secondary" data-hs-template-delete="' + escapeHtml(String(t.key)) + '" data-hs-template-locale="' + escapeHtml(String(t.locale)) + '">Delete</button></td>'
+      + '</tr>').join('') || emptyTableRow('No templates.', 6);
+    rows.querySelectorAll('[data-hs-template-delete]').forEach((btn) => {
+      btn.addEventListener('click', () => void deleteHomescreenTemplate(btn.getAttribute('data-hs-template-delete'), btn.getAttribute('data-hs-template-locale')));
+    });
+  }
+
+  async function createHomescreenTemplate(form) {
+    const data = new FormData(form);
+    const sectionKeys = String(data.get('sectionKeys') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    try {
+      await fetchJson(apiPath('/homescreen/templates'), {
+        method: 'POST',
+        body: JSON.stringify({
+          key: String(data.get('key') || '').trim(),
+          locale: String(data.get('locale') || '').trim(),
+          title: String(data.get('title') || '').trim() || null,
+          sectionKeys,
+          isActive: Boolean(data.get('isActive')),
+        }),
+      });
+      toggleHomescreenForm('template-create', false);
+      form.reset();
+      void loadHomescreenTemplates();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-templates-status', error.message || 'Failed to save template.', true);
+    }
+  }
+
+  async function deleteHomescreenTemplate(key, locale) {
+    try {
+      await fetchJson(apiPath('/homescreen/templates/' + encodeURIComponent(key) + '/' + encodeURIComponent(locale)), { method: 'DELETE' });
+      void loadHomescreenTemplates();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-templates-status', error.message || 'Failed to delete template.', true);
+    }
+  }
+
+  async function loadHomescreenCollections() {
+    const result = await safeFetchJson(apiPath('/homescreen/collections'));
+    const rows = document.getElementById('homescreen-collections-rows');
+    if (!rows) return;
+    if (result.error) {
+      setHomescreenStatus('#homescreen-collections-status', result.error, true);
+      rows.innerHTML = '';
+      return;
+    }
+    setHomescreenStatus('#homescreen-collections-status', '', false);
+    const items = result.items || [];
+    rows.innerHTML = items.map((c) => '<tr>'
+      + '<td>' + escapeHtml(String(c.key)) + '</td>'
+      + '<td>' + escapeHtml(c.title ? String(c.title) : '') + '</td>'
+      + '<td>' + escapeHtml(String(c.source)) + '</td>'
+      + '<td>' + (Array.isArray(c.providerRefs) ? c.providerRefs.length : 0) + '</td>'
+      + '<td><button type="button" class="secondary" data-hs-collection-delete="' + escapeHtml(String(c.key)) + '">Delete</button></td>'
+      + '</tr>').join('') || emptyTableRow('No collections.', 5);
+    rows.querySelectorAll('[data-hs-collection-delete]').forEach((btn) => {
+      btn.addEventListener('click', () => void deleteHomescreenCollection(btn.getAttribute('data-hs-collection-delete')));
+    });
+  }
+
+  async function createHomescreenCollection(form) {
+    const data = new FormData(form);
+    const providerRefs = String(data.get('providerRefs') || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [provider, providerId] = line.split(':').map((s) => s.trim());
+        return provider && providerId ? { provider, providerId } : null;
+      })
+      .filter(Boolean);
+    try {
+      await fetchJson(apiPath('/homescreen/collections'), {
+        method: 'POST',
+        body: JSON.stringify({
+          key: String(data.get('key') || '').trim(),
+          title: String(data.get('title') || '').trim(),
+          subtitle: String(data.get('subtitle') || '').trim() || null,
+          providerRefs,
+        }),
+      });
+      toggleHomescreenForm('collection-create', false);
+      form.reset();
+      void loadHomescreenCollections();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-collections-status', error.message || 'Failed to save collection.', true);
+    }
+  }
+
+  async function deleteHomescreenCollection(key) {
+    try {
+      await fetchJson(apiPath('/homescreen/collections/' + encodeURIComponent(key)), { method: 'DELETE' });
+      void loadHomescreenCollections();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-collections-status', error.message || 'Failed to delete collection.', true);
+    }
+  }
+
+  async function loadHomescreenTrakt() {
+    const result = await safeFetchJson(apiPath('/homescreen/trakt-imports'));
+    const rows = document.getElementById('homescreen-trakt-rows');
+    if (!rows) return;
+    if (result.error) {
+      setHomescreenStatus('#homescreen-trakt-status', result.error, true);
+      rows.innerHTML = '';
+      return;
+    }
+    setHomescreenStatus('#homescreen-trakt-status', '', false);
+    const items = result.items || [];
+    rows.innerHTML = items.map((t) => '<tr>'
+      + '<td>' + escapeHtml(String(t.slug)) + '</td>'
+      + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
+      + '<td>' + escapeHtml(String(t.templateKey)) + '</td>'
+      + '<td>' + (t.active ? 'yes' : 'no') + '</td>'
+      + '<td><button type="button" data-hs-trakt-sync="' + escapeHtml(String(t.id)) + '">Sync</button>'
+      + ' <button type="button" class="secondary" data-hs-trakt-delete="' + escapeHtml(String(t.id)) + '">Delete</button></td>'
+      + '</tr>').join('') || emptyTableRow('No trakt imports.', 5);
+    rows.querySelectorAll('[data-hs-trakt-sync]').forEach((btn) => {
+      btn.addEventListener('click', () => void syncHomescreenTrakt(btn.getAttribute('data-hs-trakt-sync')));
+    });
+    rows.querySelectorAll('[data-hs-trakt-delete]').forEach((btn) => {
+      btn.addEventListener('click', () => void deleteHomescreenTrakt(btn.getAttribute('data-hs-trakt-delete')));
+    });
+  }
+
+  async function createHomescreenTrakt(form) {
+    const data = new FormData(form);
+    try {
+      await fetchJson(apiPath('/homescreen/trakt-imports'), {
+        method: 'POST',
+        body: JSON.stringify({
+          slug: String(data.get('slug') || '').trim(),
+          title: String(data.get('title') || '').trim() || null,
+          traktListId: String(data.get('traktListId') || '').trim() || null,
+          templateKey: String(data.get('templateKey') || '').trim(),
+          active: Boolean(data.get('active')),
+        }),
+      });
+      toggleHomescreenForm('trakt-create', false);
+      form.reset();
+      void loadHomescreenTrakt();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-trakt-status', error.message || 'Failed to save trakt import.', true);
+    }
+  }
+
+  async function syncHomescreenTrakt(id) {
+    try {
+      await fetchJson(apiPath('/homescreen/trakt-imports/' + encodeURIComponent(id) + '/sync'), { method: 'POST' });
+      setHomescreenStatus('#homescreen-trakt-status', 'Sync enqueued.', false);
+    } catch (error) {
+      setHomescreenStatus('#homescreen-trakt-status', error.message || 'Failed to enqueue sync.', true);
+    }
+  }
+
+  async function deleteHomescreenTrakt(id) {
+    try {
+      await fetchJson(apiPath('/homescreen/trakt-imports/' + encodeURIComponent(id)), { method: 'DELETE' });
+      void loadHomescreenTrakt();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-trakt-status', error.message || 'Failed to delete trakt import.', true);
+    }
+  }
+
+  async function previewHomescreenDefault() {
+    const result = await safeFetchJson(apiPath('/homescreen/default/all'));
+    const preview = document.getElementById('homescreen-default-preview');
+    if (!preview) return;
+    if (result.error) {
+      setHomescreenStatus('#homescreen-default-status', result.error, true);
+      preview.innerHTML = '';
+      return;
+    }
+    setHomescreenStatus('#homescreen-default-status', 'Generated at ' + (result.generatedAt ? result.generatedAt : 'never'), false);
+    preview.innerHTML = renderHomescreenSections(result.sections || []);
+  }
+
+  async function regenerateHomescreenDefault(form) {
+    const data = new FormData(form);
+    try {
+      const result = await fetchJson(apiPath('/homescreen/default/regenerate'), {
+        method: 'POST',
+        body: JSON.stringify({
+          locale: String(data.get('locale') || '').trim() || 'all',
+          region: String(data.get('region') || '').trim() || null,
+        }),
+      });
+      setHomescreenStatus('#homescreen-default-status', 'Regenerated ' + result.sectionsBuilt + ' sections for ' + result.locale + '.', false);
+      void previewHomescreenDefault();
+    } catch (error) {
+      setHomescreenStatus('#homescreen-default-status', error.message || 'Failed to regenerate.', true);
+    }
+  }
+
+  async function inspectHomescreenProfile(form) {
+    const data = new FormData(form);
+    const accountId = String(data.get('accountId') || '').trim();
+    const profileId = String(data.get('profileId') || '').trim();
+    const result = await safeFetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/home'));
+    const preview = document.getElementById('homescreen-profiles-preview');
+    if (!preview) return;
+    if (result.error) {
+      setHomescreenStatus('#homescreen-profiles-status', result.error, true);
+      preview.innerHTML = '';
+      return;
+    }
+    setHomescreenStatus('#homescreen-profiles-status', 'Mode: ' + result.mode + ' / Source: ' + result.source, false);
+    preview.innerHTML = renderHomescreenSections(result.sections || []);
+    const modeForm = document.querySelector('[data-homescreen-form="profile-mode"]');
+    if (modeForm) {
+      modeForm.hidden = false;
+      const modeSelect = modeForm.querySelector('select[name="mode"]');
+      if (modeSelect) modeSelect.value = result.mode;
+    }
+  }
+
+  async function setHomescreenProfileMode(form) {
+    const data = new FormData(form);
+    const accountId = document.querySelector('[data-homescreen-form="profile-lookup"] input[name="accountId"]');
+    const profileId = document.querySelector('[data-homescreen-form="profile-lookup"] input[name="profileId"]');
+    if (!accountId || !profileId) return;
+    try {
+      await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId.value) + '/profiles/' + encodeURIComponent(profileId.value) + '/home-mode'), {
+        method: 'PUT',
+        body: JSON.stringify({ mode: String(data.get('mode') || '').trim() }),
+      });
+      setHomescreenStatus('#homescreen-profiles-status', 'Home mode updated.', false);
+      void inspectHomescreenProfile(document.querySelector('[data-homescreen-form="profile-lookup"]'));
+    } catch (error) {
+      setHomescreenStatus('#homescreen-profiles-status', error.message || 'Failed to update mode.', true);
+    }
+  }
+
+  async function submitProfileRecompute() {
+    const accountId = document.querySelector('[data-homescreen-form="profile-lookup"] input[name="accountId"]');
+    const profileId = document.querySelector('[data-homescreen-form="profile-lookup"] input[name="profileId"]');
+    if (!accountId || !profileId) return;
+    try {
+      await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId.value) + '/profiles/' + encodeURIComponent(profileId.value) + '/recompute'), { method: 'POST' });
+      setHomescreenStatus('#homescreen-profiles-status', 'Recompute enqueued.', false);
+    } catch (error) {
+      setHomescreenStatus('#homescreen-profiles-status', error.message || 'Failed to enqueue recompute.', true);
+    }
+  }
+
+  function submitHomescreenForm(name) {
+    const form = document.querySelector('[data-homescreen-form="' + name + '"]');
+    if (form) form.requestSubmit();
+  }
+
+  function renderHomescreenSections(sections) {
+    if (!sections.length) return emptyState('No sections.');
+    return sections.map((section) => '<div class="section-card">'
+      + '<h4>' + escapeHtml(section.title || section.key || 'Section') + '</h4>'
+      + '<p class="section-meta">' + escapeHtml(String(section.items ? section.items.length : 0)) + ' items'
+      + (section.layout ? ' · ' + escapeHtml(String(section.layout)) : '') + '</p>'
+      + '</div>').join('');
   }
 
   function updateView(viewId, updateHash) {

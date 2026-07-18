@@ -6,10 +6,12 @@ import {
   resolveRecommendationSourceKey,
 } from '../../modules/recommendations/recommendation-config.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { HomeResolverService } from '../../modules/homescreen/home-resolver.service.js';
 import { success, successList } from '../response.js';
 
 export async function registerRecommendationOutputRoutes(app: FastifyInstance): Promise<void> {
   const outputService = new RecommendationOutputService();
+  const homeResolver = new HomeResolverService();
 
   app.get('/v1/profiles/:profileId/taste-profiles', async (request) => {
     await app.requireAuth(request);
@@ -50,6 +52,9 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const params = request.params as { profileId: string };
     const query = (request.query ?? {}) as Record<string, unknown>;
     const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
+    if (sourceKey === recommendationConfig.sourceKey && !query.algorithmVersion && !query.sourceKey) {
+      return success(await homeResolver.resolveHome(actor.appUserId, params.profileId), request);
+    }
     return success(await outputService.getHomeForAccount(
       actor.appUserId,
       params.profileId,
