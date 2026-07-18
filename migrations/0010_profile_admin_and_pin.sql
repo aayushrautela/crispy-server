@@ -31,14 +31,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS identity_profiles_admin_per_account_uidx
   ON identity.profiles (account_id)
   WHERE is_admin AND deleted_at IS NULL;
 
--- Defensive constraints.
-ALTER TABLE identity.profiles
-  ADD CONSTRAINT identity_profiles_pin_hash_length_chk
-    CHECK (pin_hash IS NULL OR length(pin_hash) BETWEEN 20 AND 100),
-  ADD CONSTRAINT identity_profiles_pin_failed_attempts_chk
-    CHECK (pin_failed_attempts >= 0),
-  ADD CONSTRAINT identity_profiles_sort_order_chk
-    CHECK (sort_order >= 0);
+-- Defensive constraints (idempotent: each only added when absent).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'identity.profiles'::regclass AND conname = 'identity_profiles_pin_hash_length_chk'
+  ) THEN
+    ALTER TABLE identity.profiles
+      ADD CONSTRAINT identity_profiles_pin_hash_length_chk
+        CHECK (pin_hash IS NULL OR length(pin_hash) BETWEEN 20 AND 100);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'identity.profiles'::regclass AND conname = 'identity_profiles_pin_failed_attempts_chk'
+  ) THEN
+    ALTER TABLE identity.profiles
+      ADD CONSTRAINT identity_profiles_pin_failed_attempts_chk
+        CHECK (pin_failed_attempts >= 0);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'identity.profiles'::regclass AND conname = 'identity_profiles_sort_order_chk'
+  ) THEN
+    ALTER TABLE identity.profiles
+      ADD CONSTRAINT identity_profiles_sort_order_chk
+        CHECK (sort_order >= 0);
+  END IF;
+END $$;
 
 -- Token-hash helper already imported for PATs lives in private schema;
 -- PIN hashing uses bcrypt on the application side, so no DB-side crypto needed.
