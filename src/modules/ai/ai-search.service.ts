@@ -115,6 +115,7 @@ async function resolveSuggestion(
     return await titleSearchService.resolveAiCandidates({
       query: candidate.title,
       mediaType: tmdbMediaType,
+      year: candidate.year,
       locale,
     });
   } catch {
@@ -384,7 +385,7 @@ function summarizeUnresolvedCandidates(candidates: AiSearchCandidate[], resolved
   return candidates
     .filter((candidate) => !resolvedKeys.has(candidateKey(candidate)))
     .slice(0, 8)
-    .map((candidate) => `${candidate.title}${candidate.mediaType ? ` [${candidate.mediaType}]` : ''}`);
+    .map((candidate) => `${candidate.title}${candidate.mediaType ? ` [${candidate.mediaType}]` : ''}${candidate.year ? ` (${candidate.year})` : ''}`);
 }
 
 function candidateKey(candidate: AiSearchCandidate): string {

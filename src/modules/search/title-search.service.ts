@@ -50,9 +50,7 @@ const HYDRATION_CONCURRENCY = 3;
 
 const AI_MATCH_SEARCH_LIMIT = 10;
 const AI_MATCH_MAX_SCORE = 3;
-const AI_FALLBACK_MAX_RESULTS = 3;
-const AI_MULTITOKEN_QUERY_MIN_TOKENS = 2;
-const AI_STRONG_EXTRA_TOKENS_TOLERANCE = 1;
+const AI_YEAR_TIEBREAK_BAND = 10;
 
 const SCORE_EXACT = 0;
 const SCORE_NEAR_EXACT = 1;
@@ -61,7 +59,6 @@ const SCORE_SOME_TOKENS = 3;
 const SCORE_NO_MATCH = 10;
 
 const AI_CHAR_SIMILARITY_NEAR_EXACT = 0.65;
-const AI_CHAR_SIMILARITY_STRONG = 0.92;
 
 export class TitleSearchService {
   constructor(
@@ -165,6 +162,7 @@ export class TitleSearchService {
   async resolveAiCandidates(input: {
     query: string;
     mediaType: 'movie' | 'tv' | null;
+    year?: number | null;
     locale?: string | null;
     signal?: AbortSignal;
   }): Promise<MetadataSearchResult[]> {
@@ -188,10 +186,14 @@ export class TitleSearchService {
       }
 
       const ranked = rankAiMatches(normalizedQuery, rawMatches);
-      const selected = selectAiResolutionMatches(normalizedQuery, ranked);
+      const winner = selectAiMatchWinner(ranked, input.year ?? null);
+      if (!winner) {
+        return [];
+      }
 
       const results: MetadataSearchResult[] = [];
-      for (const { match } of selected) {
+      const matches = [winner];
+      for (const { match } of matches) {
         if (input.signal?.aborted) {
           break;
         }
@@ -553,71 +555,57 @@ export function rankAiMatches(query: string, matches: TmdbTitleRecord[]): Ranked
   const normalizedQuery = normalizeForAiMatch(query);
   return matches
     .map((match) => ({ match, score: scoreAiMatch(normalizedQuery, match) }))
-    .sort((left, right) => compareRankedAiMatches(left, right));
+    .sort((left, right) => compareRankedAiMatches(left, right, null));
 }
 
-export function selectAiResolutionMatches(query: string, ranked: RankedAiMatch[]): RankedAiMatch[] {
+export function selectAiMatchWinner(ranked: RankedAiMatch[], queryYear: number | null): RankedAiMatch | null {
   if (ranked.length === 0) {
-    return [];
+    return null;
   }
 
-  const normalizedQuery = normalizeForAiMatch(query);
+  const sorted = ranked.slice().sort((left, right) => compareRankedAiMatches(left, right, queryYear));
 
-  const absolute = ranked.filter((entry) => entry.score === SCORE_EXACT);
-  if (absolute.length > 0) {
-    return tieBreakAbsoluteMatches(absolute).slice(0, 1);
+  if (sorted[0]?.score === SCORE_EXACT) {
+    return sorted[0] ?? null;
   }
 
-  const strong = ranked.filter((entry) => isStrongMatch(normalizedQuery, entry.match));
-  if (strong.length > 0) {
-    return tieBreakStrongMatches(strong).slice(0, 1);
+  if (sorted[0] && sorted[0].score <= AI_MATCH_MAX_SCORE) {
+    return sorted[0];
   }
-
-  return ranked
-    .filter((entry) => entry.score <= AI_MATCH_MAX_SCORE)
-    .slice(0, AI_FALLBACK_MAX_RESULTS);
+  return null;
 }
 
-export function isStrongMatch(normalizedQuery: string, match: TmdbTitleRecord): boolean {
-  const queryTokens = normalizedQuery.split(' ').filter(Boolean);
-  if (queryTokens.length < AI_MULTITOKEN_QUERY_MIN_TOKENS) {
-    return false;
-  }
-
-  const normalizedName = normalizeForAiMatch(match.name ?? '');
-  const normalizedOriginal = normalizeForAiMatch(match.originalName ?? '');
-
-  const nameSimilarity = characterSimilarity(normalizedQuery, normalizedName);
-  const originalSimilarity = characterSimilarity(normalizedQuery, normalizedOriginal);
-  const bestSimilarity = Math.max(nameSimilarity, originalSimilarity);
-  if (bestSimilarity < AI_CHAR_SIMILARITY_STRONG) {
-    return false;
-  }
-
-  const bestText = nameSimilarity >= originalSimilarity ? normalizedName : normalizedOriginal;
-  const bestTokens = bestText.split(' ').filter(Boolean);
-
-  return bestTokens.length <= queryTokens.length + AI_STRONG_EXTRA_TOKENS_TOLERANCE
-    && bestTokens.length >= queryTokens.length;
-}
-
-function tieBreakAbsoluteMatches(matches: RankedAiMatch[]): RankedAiMatch[] {
-  return matches
-    .slice()
-    .sort((left, right) => compareRankedAiMatches(left, right));
-}
-
-function tieBreakStrongMatches(matches: RankedAiMatch[]): RankedAiMatch[] {
-  return matches
-    .slice()
-    .sort((left, right) => compareRankedAiMatches(left, right));
-}
-
-function compareRankedAiMatches(left: RankedAiMatch, right: RankedAiMatch): number {
+function compareRankedAiMatches(left: RankedAiMatch, right: RankedAiMatch, queryYear: number | null): number {
   if (left.score !== right.score) {
     return left.score - right.score;
   }
+  if (queryYear != null) {
+    const leftByYear = compareMatchToYear(left.match, queryYear);
+    const rightByYear = compareMatchToYear(right.match, queryYear);
+    if (leftByYear !== rightByYear) {
+      return leftByYear - rightByYear;
+    }
+  }
   return compareTitleRecordFreshness(left.match, right.match);
+}
+
+function compareMatchToYear(match: TmdbTitleRecord, queryYear: number): number {
+  const year = titleYear(match);
+  if (year === null) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  return Math.abs(year - queryYear) <= AI_YEAR_TIEBREAK_BAND
+    ? Math.abs(year - queryYear)
+    : Number.MAX_SAFE_INTEGER;
+}
+
+export function titleYear(match: TmdbTitleRecord): number | null {
+  const date = match.releaseDate ?? match.firstAirDate ?? null;
+  if (!date) {
+    return null;
+  }
+  const year = Number.parseInt(date.slice(0, 4), 10);
+  return Number.isInteger(year) && year > 0 ? year : null;
 }
 
 function compareTitleRecordFreshness(left: TmdbTitleRecord, right: TmdbTitleRecord): number {

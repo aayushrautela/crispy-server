@@ -3,6 +3,7 @@ export type AiSuggestedMediaType = 'movie' | 'show';
 export type AiSearchCandidate = {
   title: string;
   mediaType: AiSuggestedMediaType | null;
+  year: number | null;
 };
 
 export function parseSearchCandidates(items: unknown[]): AiSearchCandidate[] {
@@ -15,7 +16,7 @@ export function parseSearchCandidates(items: unknown[]): AiSearchCandidate[] {
       continue;
     }
 
-    const key = `${normalizeTitle(candidate.title)}::${candidate.mediaType ?? '*'}`;
+    const key = `${normalizeTitle(candidate.title)}::${candidate.mediaType ?? '*'}::${candidate.year ?? '*'}`;
     if (seen.has(key)) {
       continue;
     }
@@ -41,7 +42,15 @@ function normalizeSearchCandidate(value: unknown): AiSearchCandidate | null {
       )
     : null;
 
-  return { title, mediaType };
+  const year = value && typeof value === 'object'
+    ? normalizeSuggestedYear(
+        (value as Record<string, unknown>).year
+        ?? (value as Record<string, unknown>).releaseYear
+        ?? (value as Record<string, unknown>).release_year,
+      )
+    : null;
+
+  return { title, mediaType, year };
 }
 
 function normalizeSuggestedTitle(value: unknown): string | null {
@@ -76,6 +85,20 @@ function normalizeSuggestedMediaType(value: unknown): AiSuggestedMediaType | nul
     return 'show';
   }
 
+  return null;
+}
+
+function normalizeSuggestedYear(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === 'string') {
+    const match = value.match(/\d{4}/);
+    if (match) {
+      const year = Number.parseInt(match[0] ?? '', 10);
+      return Number.isInteger(year) && year > 0 ? year : null;
+    }
+  }
   return null;
 }
 

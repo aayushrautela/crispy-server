@@ -12,7 +12,8 @@ test('search prompt uses mixed catalog guidance without hard category filters', 
   assert.match(prompt, /Mixed results can come from the movie and TV catalogs\./);
   assert.match(prompt, /The anchor can come from any franchise or medium\./);
   assert.match(prompt, /Every item must include `title` and should include `mediaType` when you know it\./);
-  assert.match(prompt, /\{"items":\[\{"title":"Title One","mediaType":"movie"\}/);
+  assert.match(prompt, /When you are reasonably confident of the release year, include it as `year`/);
+  assert.match(prompt, /\{"items":\[\{"title":"Title One","mediaType":"movie","year":1982\}/);
   assert.doesNotMatch(prompt, /TMDB is likely to recognize/);
 });
 

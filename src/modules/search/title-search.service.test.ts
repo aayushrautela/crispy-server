@@ -133,82 +133,86 @@ test('tokenOverlapScore returns no-match when nothing shared', async () => {
   assert.equal(tokenOverlapScore(['blade', 'runner'], 'dune'), 10);
 });
 
-test('isStrongMatch is true for a clean multi-token title equal to the query', async () => {
-  const { isStrongMatch } = await import('./title-search.service.js');
-  const match = makeTitle({ name: 'Dark City', originalName: 'Dark City' });
-  assert.equal(isStrongMatch('dark city', match), true);
+test('titleYear parses releaseDate year and ignores nulls', async () => {
+  const { titleYear } = await import('./title-search.service.js');
+  assert.equal(titleYear(makeTitle({ releaseDate: '1998-02-27', firstAirDate: null })), 1998);
+  assert.equal(titleYear(makeTitle({ releaseDate: null, firstAirDate: '2018-01-15' })), 2018);
+  assert.equal(titleYear(makeTitle({ releaseDate: null, firstAirDate: null })), null);
 });
 
-test('isStrongMatch is false for a longer phrase that merely contains every query token', async () => {
-  const { isStrongMatch } = await import('./title-search.service.js');
-  const match = makeTitle({
-    name: 'Desperate Souls: Dark City and the Legend of Midnight Cowboy',
-    originalName: 'Desperate Souls: Dark City and the Legend of Midnight Cowboy',
-  });
-  assert.equal(isStrongMatch('dark city', match), false);
-});
-
-test('isStrongMatch is false for a single-token query even when exact (handled by EXACT tier)', async () => {
-  const { isStrongMatch } = await import('./title-search.service.js');
-  const match = makeTitle({ name: 'Brazil', originalName: 'Brazil' });
-  assert.equal(isStrongMatch('brazil', match), false);
-});
-
-test('isStrongMatch is false across extra-titled candidates like The Boys from Brazil', async () => {
-  const { isStrongMatch } = await import('./title-search.service.js');
-  const match = makeTitle({ name: 'The Boys from Brazil', originalName: 'The Boys from Brazil' });
-  assert.equal(isStrongMatch('brazil', match), false);
-});
-
-test('selectAiResolutionMatches returns a single absolute match when one exists', async () => {
-  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+test('selectAiMatchWinner returns the single absolute match alone', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
   const ranked = [
     { match: makeTitle({ tmdbId: 1, name: 'Dark City', originalName: 'Dark City', releaseDate: '1998-02-27' }), score: 0 },
     { match: makeTitle({ tmdbId: 2, name: 'Desperate Souls: Dark City and the Legend of Midnight Cowboy', originalName: 'x', releaseDate: null }), score: 1 },
     { match: makeTitle({ tmdbId: 3, name: 'Brazil', originalName: 'Brazil', releaseDate: null }), score: 10 },
   ];
-  const selected = selectAiResolutionMatches('dark city', ranked);
-  assert.equal(selected.length, 1);
-  assert.equal(selected[0]?.match.tmdbId, 1);
+  const winner = selectAiMatchWinner(ranked, null);
+  assert.ok(winner);
+  assert.equal(winner?.match.tmdbId, 1);
 });
 
-test('selectAiResolutionMatches returns a single strong match when no absolute match exists', async () => {
-  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+test('selectAiMatchWinner prefers the fuzzy match when nothing is exact', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
   const ranked = [
     { match: makeTitle({ tmdbId: 1, name: 'Twelve Monkeys', originalName: '12 Monkeys', releaseDate: '1995-12-29' }), score: 1 },
-    { match: makeTitle({ tmdbId: 2, name: '12 Monkeys (Metaphor)', originalName: 'x', releaseDate: null }), score: 1 },
+    { match: makeTitle({ tmdbId: 2, name: '12 Monkeys Diaries', originalName: 'x', releaseDate: null }), score: 2 },
   ];
-  const selected = selectAiResolutionMatches('12 monkeys', ranked);
-  assert.equal(selected.length, 1);
-  assert.equal(selected[0]?.match.tmdbId, 1);
+  const winner = selectAiMatchWinner(ranked, null);
+  assert.ok(winner);
+  assert.equal(winner?.match.tmdbId, 1);
 });
 
-test('selectAiResolutionMatches keeps up to three fuzzy fallbacks when no confident match exists', async () => {
-  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+test('selectAiMatchWinner returns null when everything scores above the fuzzy cutoff', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
   const ranked = [
-    { match: makeTitle({ tmdbId: 1, name: 'Snowpiercer', originalName: 'Snowpiercer', releaseDate: '2013-08-07' }), score: 2 },
-    { match: makeTitle({ tmdbId: 2, name: 'The Snowpiercer Diaries', originalName: 'x', releaseDate: null }), score: 2 },
-    { match: makeTitle({ tmdbId: 3, name: 'Snowpiercer Reborn', originalName: 'x', releaseDate: null }), score: 3 },
     { match: makeTitle({ tmdbId: 4, name: 'Unrelated', originalName: 'x', releaseDate: null }), score: 10 },
   ];
-  const selected = selectAiResolutionMatches('snowpiercer darker', ranked);
-  assert.equal(selected.length, 3);
-  assert.equal(selected[0]?.match.tmdbId, 1);
+  assert.equal(selectAiMatchWinner(ranked, null), null);
 });
 
-test('selectAiResolutionMatches returns empty for an empty ranking', async () => {
-  const { selectAiResolutionMatches } = await import('./title-search.service.js');
-  assert.deepEqual(selectAiResolutionMatches('anything', []), []);
+test('selectAiMatchWinner returns null for empty ranking', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
+  assert.equal(selectAiMatchWinner([], null), null);
 });
 
-test('selectAiResolutionMatches tie-breaks identical absolute scores toward the dated title', async () => {
-  const { selectAiResolutionMatches } = await import('./title-search.service.js');
+test('selectAiMatchWinner tie-breaks identical exact scores toward the dated title when year is absent', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
   const ranked = [
     { match: makeTitle({ tmdbId: 1, name: 'Brazil', originalName: 'Brazil', releaseDate: null }), score: 0 },
     { match: makeTitle({ tmdbId: 2, name: 'Brazil', originalName: 'Brazil', releaseDate: '1985-02-20' }), score: 0 },
   ];
-  const selected = selectAiResolutionMatches('brazil', ranked);
-  assert.equal(selected.length, 1);
-  assert.equal(selected[0]?.match.tmdbId, 2);
+  const winner = selectAiMatchWinner(ranked, null);
+  assert.ok(winner);
+  assert.equal(winner?.match.tmdbId, 2);
+});
+
+test('selectAiMatchWinner tie-breaks identical exact scores using year when provided', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
+  const ranked = [
+    { match: makeTitle({ tmdbId: 1, name: 'Brazil', originalName: 'Brazil', releaseDate: '1985-02-20' }), score: 0 },
+    { match: makeTitle({ tmdbId: 2, name: 'Brazil', originalName: 'Brazil', releaseDate: '1994-01-01' }), score: 0 },
+    { match: makeTitle({ tmdbId: 3, name: 'Brazil', originalName: 'Brazil', releaseDate: '1973-04-04' }), score: 0 },
+  ];
+  // LLM year exactly matches the 1985 Gilliam film
+  const exact = selectAiMatchWinner(ranked, 1985);
+  assert.equal(exact?.match.tmdbId, 1);
+  // LLM year is off by 3 years (still inside the tiebreak band) -> 1985 wins
+  const approx = selectAiMatchWinner(ranked, 1988);
+  assert.equal(approx?.match.tmdbId, 1);
+  // LLM year far outside the band -> all candidates equally far, freshness tiebreak keeps the newest (1994)
+  const far = selectAiMatchWinner(ranked, 2050);
+  assert.equal(far?.match.tmdbId, 2);
+});
+
+test('selectAiMatchWinner ignores year when ranking differs by score', async () => {
+  const { selectAiMatchWinner } = await import('./title-search.service.js');
+  const ranked = [
+    { match: makeTitle({ tmdbId: 1, name: 'Dark City', originalName: 'Dark City', releaseDate: '1998-02-27' }), score: 0 },
+    { match: makeTitle({ tmdbId: 2, name: 'The Boys from Brazil', originalName: 'x', releaseDate: '1978-10-13' }), score: 1 },
+  ];
+  // LLM says year 1978 (matches the wrong film), but exact-name match still wins
+  const winner = selectAiMatchWinner(ranked, 1978);
+  assert.equal(winner?.match.tmdbId, 1);
 });
 

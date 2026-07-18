@@ -6,6 +6,7 @@ export type SearchQueryAnalysis = {
 export type SearchPromptCandidateShape = {
   title: string;
   mediaType?: 'movie' | 'show';
+  year?: number | null;
 };
 
 export type TitleInsightsContext = {
@@ -57,9 +58,10 @@ export function buildSearchPrompt(query: string, locale: string, analysis: Searc
   lines.push('Use short JSON objects so the app can validate each suggestion against the right catalog.');
   lines.push('Every item must include `title` and should include `mediaType` when you know it.');
   lines.push('Allowed mediaType values: `movie`, `show`.');
-  lines.push('Do not include years, numbering, commentary, or markdown.');
+  lines.push('When you are reasonably confident of the release year, include it as `year` (four-digit integer). If you are unsure of the year, omit the field rather than guessing.');
+  lines.push('Do not include commentary or markdown.');
   lines.push('Return ONLY a JSON object with this shape:');
-  lines.push('{"items":[{"title":"Title One","mediaType":"movie"},{"title":"Title Two","mediaType":"show"}]}');
+  lines.push('{"items":[{"title":"Title One","mediaType":"movie","year":1982},{"title":"Title Two","mediaType":"show"}]}');
   return lines.join('\n\n');
 }
 
