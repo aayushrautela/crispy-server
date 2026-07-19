@@ -6,9 +6,10 @@ import { HomeModeService } from './home-mode.service.js';
 import { HomeListsRepo } from './repos/home-lists.repo.js';
 import { HomeHydrator } from './home-hydrator.service.js';
 import { DefaultHomeWriteService, type HomeWriteService } from './home-write.service.js';
-import { ContinueWatchingProvider } from './providers/continue-watching.provider.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
+import { getListSource } from './list-sources/list-source.registry.js';
+import { buildFallbackLists, localeCandidates, resolveTemplatesByLocale, profileContextForFallback, FALLBACK_SECTION_LIMITS, type FallbackTemplate } from './home-fallback.service.js';
 
 export type ResolvedHomeSource = 'custom' | 'reco' | 'fallback' | 'fallback-built';
 
@@ -26,7 +27,6 @@ function homeCacheKey(profileId: string): string {
 export class HomeResolverService {
   private readonly modeService = new HomeModeService();
   private readonly hydrator = new HomeHydrator();
-  private readonly continueWatching = new ContinueWatchingProvider();
 
   constructor(
     private readonly profileLocalService = new ProfileLocalService(),
@@ -60,11 +60,11 @@ export class HomeResolverService {
         sections = await this.hydrator.hydrateSections(client, lists, locale);
         resolvedSource = source;
       } else {
-        sections = await this.hydrateFallbackTemplates(client, locale);
+        sections = await this.hydrateFallbackTemplates(client, accountId, profileId, profile.interfaceLanguage || 'en', region, profile.isKids);
         resolvedSource = 'fallback-built';
       }
 
-      sections = await this.continueWatching.layer(sections, profileId, locale, region);
+      sections = await this.layerContinueWatching(client, sections, profileId, locale);
 
       const generatedAt = new Date().toISOString();
       const response: ClientHomeResponse & { source: ResolvedHomeSource } = {
@@ -94,34 +94,87 @@ export class HomeResolverService {
     return null;
   }
 
-  private async hydrateFallbackTemplates(client: DbClient, locale: string | null): Promise<ClientHomeSection[]> {
-    const templates = await this.repo.listFallbackTemplates();
-    const grouped = new Map<string, typeof templates>();
-    for (const template of templates) {
-      const list = grouped.get(template.listKey) ?? [];
-      list.push(template);
-      grouped.set(template.listKey, list);
-    }
-    const lists = Array.from(grouped.entries()).map(([listKey, rows]) => {
-      const first = rows[0];
-      if (!first) return null;
-      return {
-        listKey,
-        title: first.title,
-        subtitle: first.subtitle,
-        sectionType: first.sectionType,
-        items: rows.map((row) => ({
-          itemId: null,
-          provider: row.provider,
-          providerId: row.providerId,
-          mediaType: row.mediaType,
-          score: row.score,
-          reason: row.reason,
-          reasonCodes: row.reasonCodes,
+  /** Layered continue-watching rail, always shown at the top. */
+  private async layerContinueWatching(client: DbClient, sections: ClientHomeSection[], profileId: string, locale: string): Promise<ClientHomeSection[]> {
+    const source = getListSource('home.continue-watching');
+    if (!source) return sections;
+    try {
+      const result = await source.fetchItems({}, {
+        client,
+        profileId,
+        locale,
+        region: null,
+        isKids: false,
+        connectedProviders: [],
+        tmdbLanguage: locale,
+        tmdbRegion: undefined,
+        limit: 20,
+      });
+      if (result.items.length === 0) return sections;
+      const lists = [{
+        listKey: 'continue-watching',
+        sectionType: 'contentRail' as const,
+        title: 'Continue Watching',
+        subtitle: null,
+        items: result.items.map((item) => ({
+          type: item.type,
+          providerRefs: item.providerRefs.map((ref) => ({ provider: ref.provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu', providerId: ref.providerId })),
+          score: item.score ?? null,
+          reason: item.reason ?? null,
+          reasonCodes: item.reasonCodes ?? [],
         })),
-      };
-    }).filter((list): list is NonNullable<typeof list> => list !== null);
-    return this.hydrator.hydrateSections(client, lists, locale);
+      }];
+      const hydrated = await this.hydrator.hydrateSections(client, lists, locale);
+      return [...hydrated, ...sections];
+    } catch {
+      return sections;
+    }
+  }
+
+  private async hydrateFallbackTemplates(
+    client: DbClient,
+    accountId: string,
+    profileId: string,
+    locale: string,
+    region: string | null,
+    isKids: boolean,
+  ): Promise<ClientHomeSection[]> {
+    const candidates = localeCandidates(locale);
+    const all = await this.repo.listFallbackTemplatesForLocales(candidates);
+    const templates = resolveTemplatesByLocale(all, candidates);
+    if (templates.length === 0) return [];
+
+    const connectedProviders = await this.connectedProviderKinds(client, profileId);
+    const ctxBase = profileContextForFallback({ interfaceLanguage: locale, region, isKids }, connectedProviders);
+
+    const lists = await buildFallbackLists(
+      client,
+      this.repo,
+      profileId,
+      templates as FallbackTemplate[],
+      ctxBase,
+      FALLBACK_SECTION_LIMITS,
+    );
+    const normalized = lists.map((list) => ({
+      listKey: list.listKey,
+      sectionType: list.sectionType,
+      title: list.title,
+      subtitle: list.subtitle ?? null,
+      items: list.items,
+    }));
+    return this.hydrator.hydrateSections(client, normalized, locale);
+  }
+
+  private async connectedProviderKinds(client: DbClient, profileId: string): Promise<Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>> {
+    try {
+      const result = await client.query(
+        `SELECT DISTINCT provider FROM user_state.provider_sessions WHERE profile_id = $1::uuid AND state = 'connected'`,
+        [profileId],
+      );
+      return (result.rows as Array<{ provider: string }>).map((r) => r.provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt');
+    } catch {
+      return [];
+    }
   }
 }
 

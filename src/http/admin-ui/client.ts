@@ -328,6 +328,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
+  const homeState = {
+    listSources: [],
+    sourceById: {},
+  };
+
   function bindHome() {
     const root = document;
 
@@ -335,8 +340,12 @@ export const ADMIN_UI_CLIENT = String.raw`
       button.addEventListener('click', () => {
         const action = button.getAttribute('data-home-action');
         if (action === 'refresh-fallback') void loadHomeFallback();
-        else if (action === 'create-fallback') toggleHomeForm('fallback-create', true);
+        else if (action === 'create-fallback') {
+          toggleHomeForm('fallback-create', true);
+          void renderHomeSourceConfig();
+        }
         else if (action === 'cancel-fallback') toggleHomeForm('fallback-create', false);
+        else if (action === 'preview-fallback') void previewHomeFallback();
         else if (action === 'recompute-profile') void submitHomeRecompute();
       });
     });
@@ -351,8 +360,76 @@ export const ADMIN_UI_CLIENT = String.raw`
       });
     });
 
-    if (state.activeView === 'home-fallback') void loadHomeFallback();
+    const sourceSelect = document.querySelector('[data-home-field="sourceId"]');
+    if (sourceSelect) {
+      sourceSelect.addEventListener('change', () => void renderHomeSourceConfig());
+    }
+
+    if (state.activeView === 'home-fallback') {
+      void loadListSources().then(() => loadHomeFallback());
+    }
     if (state.activeView === 'home-profiles') void loadHomeProfilesEmpty();
+  }
+
+  async function loadListSources() {
+    const result = await safeFetchJson(apiPath('/home/list-sources'));
+    if (result.error) return;
+    homeState.listSources = result.items || [];
+    homeState.sourceById = {};
+    for (const source of homeState.listSources) {
+      homeState.sourceById[source.id] = source;
+    }
+    const selects = Array.from(document.querySelectorAll('[data-home-field="sourceId"]'));
+    for (const select of selects) {
+      select.innerHTML = '<option value="">— select source —</option>'
+        + homeState.listSources.map((source) => '<option value="' + escapeHtml(source.id) + '">' + escapeHtml(source.name) + '</option>').join('');
+    }
+  }
+
+  function renderHomeSourceConfig() {
+    const select = document.querySelector('[data-home-field="sourceId"]');
+    const container = document.querySelector('[data-home-field="source-config"]');
+    if (!container) return;
+    if (!select) {
+      container.innerHTML = '';
+      return;
+    }
+    const source = homeState.sourceById[select.value];
+    if (!source || !Array.isArray(source.configFields) || source.configFields.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = '<div class="form-grid">' + source.configFields.map((field) => {
+      const id = 'home-cfg-' + escapeHtml(field.key);
+      if (field.type === 'select') {
+        const options = (field.options || []).map((option) => '<option value="' + escapeHtml(option.value) + '"' + (String(field.default) === option.value ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>').join('');
+        return '<label>' + escapeHtml(field.label) + '<select name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.required ? ' required' : '') + '>' + options + '</select></label>';
+      }
+      if (field.type === 'checkbox') {
+        return '<label class="checkbox"><input type="checkbox" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '" value="true"' + (field.default ? ' checked' : '') + ' /> ' + escapeHtml(field.label) + '</label>';
+      }
+      if (field.type === 'number') {
+        return '<label>' + escapeHtml(field.label) + '<input type="number" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.default !== undefined && field.default !== null ? ' value="' + escapeHtml(String(field.default)) + '"' : '') + (field.required ? ' required' : '') + ' /></label>';
+      }
+      return '<label>' + escapeHtml(field.label) + '<input type="text" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.default !== undefined && field.default !== null ? ' value="' + escapeHtml(String(field.default)) + '"' : '') + (field.required ? ' required' : '') + ' /></label>';
+    }).join('') + '</div>';
+  }
+
+  function collectHomeSourceConfig(form) {
+    const config = {};
+    const fields = form.querySelectorAll('[data-home-config]');
+    for (const field of Array.from(fields)) {
+      const key = field.getAttribute('data-home-config');
+      if (field.type === 'checkbox') {
+        config[key] = field.checked;
+      } else if (field.type === 'number') {
+        const value = field.value === '' ? null : Number(field.value);
+        config[key] = value;
+      } else {
+        config[key] = field.value;
+      }
+    }
+    return config;
   }
 
   function loadHomeProfilesEmpty() {
@@ -372,6 +449,55 @@ export const ADMIN_UI_CLIENT = String.raw`
     el.className = 'panel-note' + (isError ? ' warn' : '');
   }
 
+  async function previewHomeFallback() {
+    const statusEl = document.querySelector('[data-home-field="preview-status"]');
+    const itemsEl = document.querySelector('[data-home-field="preview-items"]');
+    if (!statusEl || !itemsEl) return;
+    const form = document.querySelector('[data-home-form="fallback-create"]');
+    if (!form) return;
+    const sourceId = String(form.querySelector('[name="sourceId"]')?.value || '').trim();
+    if (!sourceId) {
+      statusEl.hidden = false;
+      statusEl.className = 'panel-note warn';
+      statusEl.textContent = 'Select a source first.';
+      itemsEl.innerHTML = '';
+      return;
+    }
+    const config = collectHomeSourceConfig(form);
+    setHtmlMessage(statusEl, 'info', 'Previewing ' + escapeHtml(sourceId) + '...');
+    statusEl.hidden = false;
+    try {
+      const payload = await fetchJson(apiPath('/home/list-sources/preview'), {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceId,
+          sourceConfig: config,
+          locale: String(form.querySelector('[name="locale"]')?.value || 'en').trim(),
+          profileId: '',
+          limit: 20,
+        }),
+      });
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      itemsEl.innerHTML = items.length
+        ? items.map((item) => renderHomePreviewItem(item)).join('')
+        : emptyState('No preview items returned.');
+      setMessage(statusEl, 'success', 'Preview returned ' + items.length + ' item(s).');
+    } catch (error) {
+      itemsEl.innerHTML = '';
+      setMessage(statusEl, 'error', error.message || 'Preview failed.');
+    }
+  }
+
+  function renderHomePreviewItem(item) {
+    const refs = Array.isArray(item.providerRefs) ? item.providerRefs : [];
+    const refText = refs.map((ref) => ref.provider + ':' + ref.providerId).join(', ');
+    return '<div class="preview-card">'
+      + '<strong>' + escapeHtml(String(item.type || 'unknown')) + '</strong>'
+      + (item.reason ? '<div class="muted">' + escapeHtml(String(item.reason)) + '</div>' : '')
+      + (refText ? '<div class="item-meta"><span>' + escapeHtml(refText) + '</span></div>' : '')
+      + '</div>';
+  }
+
   async function loadHomeFallback() {
     const result = await safeFetchJson(apiPath('/home/fallback-templates'));
     const rows = document.getElementById('home-fallback-rows');
@@ -383,50 +509,81 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     setHomeStatus('#home-fallback-status', '', false);
     const items = result.items || [];
-    rows.innerHTML = items.map((t) => '<tr>'
+    rows.innerHTML = items.length ? items.map((t) => '<tr>'
       + '<td>' + escapeHtml(String(t.listKey)) + '</td>'
+      + '<td>' + escapeHtml(String(t.locale)) + '</td>'
       + '<td>' + escapeHtml(String(t.sectionType)) + '</td>'
       + '<td>' + escapeHtml(String(t.rank)) + '</td>'
       + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
-      + '<td>' + escapeHtml(String(t.provider)) + '</td>'
-      + '<td>' + escapeHtml(String(t.providerId)) + '</td>'
-      + '<td>' + escapeHtml(String(t.mediaType)) + '</td>'
-      + '<td><button type="button" class="secondary" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '" data-home-template-rank="' + escapeHtml(String(t.rank)) + '">Delete</button></td>'
-      + '</tr>').join('') || emptyTableRow('No fallback templates.', 8);
+      + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
+      + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
+      + '<td><div class="jobs-toolbar">'
+        + '<button type="button" class="secondary" data-home-template-sync="' + escapeHtml(String(t.listKey)) + '" data-home-template-locale="' + escapeHtml(String(t.locale)) + '">Sync</button>'
+        + '<button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '" data-home-template-locale="' + escapeHtml(String(t.locale)) + '">Delete</button>'
+      + '</div></td>'
+      + '</tr>').join('')
+      : emptyTableRow('No fallback rails. Create one to seed deterministic home content.', 8);
     rows.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => void deleteHomeFallback(btn.getAttribute('data-home-template-delete'), btn.getAttribute('data-home-template-rank')));
+      btn.addEventListener('click', () => void deleteHomeFallback(btn.getAttribute('data-home-template-delete'), btn.getAttribute('data-home-template-locale')));
+    });
+    rows.querySelectorAll('[data-home-template-sync]').forEach((btn) => {
+      btn.addEventListener('click', () => void syncHomeFallback(btn.getAttribute('data-home-template-sync'), btn.getAttribute('data-home-template-locale'), btn));
     });
   }
 
   async function createHomeFallback(form) {
     const data = new FormData(form);
+    const sourceId = String(data.get('sourceId') || '').trim();
+    if (!sourceId) {
+      setHomeStatus('#home-fallback-status', 'Select a source.', true);
+      return;
+    }
+    const config = collectHomeSourceConfig(form);
     try {
       await fetchJson(apiPath('/home/fallback-templates'), {
         method: 'POST',
         body: JSON.stringify({
           listKey: String(data.get('listKey') || '').trim(),
+          locale: String(data.get('locale') || '').trim(),
           sectionType: String(data.get('sectionType') || '').trim(),
           title: String(data.get('title') || '').trim(),
-          provider: String(data.get('provider') || '').trim(),
-          providerId: String(data.get('providerId') || '').trim(),
-          mediaType: String(data.get('mediaType') || '').trim(),
+          subtitle: String(data.get('subtitle') || '').trim() || null,
           rank: Number(data.get('rank') || 0),
+          sourceId,
+          sourceConfig: config,
+          refreshMinutes: data.get('refreshMinutes') ? Number(data.get('refreshMinutes')) : null,
         }),
       });
       toggleHomeForm('fallback-create', false);
       form.reset();
+      const configEl = form.querySelector('[data-home-field="source-config"]');
+      if (configEl) configEl.innerHTML = '';
       void loadHomeFallback();
     } catch (error) {
-      setHomeStatus('#home-fallback-status', error.message || 'Failed to save template.', true);
+      setHomeStatus('#home-fallback-status', error.message || 'Failed to save rail.', true);
     }
   }
 
-  async function deleteHomeFallback(listKey, rank) {
+  async function deleteHomeFallback(listKey, locale) {
     try {
-      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/' + encodeURIComponent(rank)), { method: 'DELETE' });
+      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/' + encodeURIComponent(locale)), { method: 'DELETE' });
       void loadHomeFallback();
     } catch (error) {
-      setHomeStatus('#home-fallback-status', error.message || 'Failed to delete template.', true);
+      setHomeStatus('#home-fallback-status', error.message || 'Failed to delete rail.', true);
+    }
+  }
+
+  async function syncHomeFallback(listKey, locale, button) {
+    if (button) button.disabled = true;
+    setHomeStatus('#home-fallback-status', 'Syncing ' + listKey + ' (' + locale + ')...', false);
+    try {
+      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/' + encodeURIComponent(locale) + '/sync'), { method: 'POST' });
+      setHomeStatus('#home-fallback-status', 'Synced ' + listKey + ' (' + locale + ').', false);
+      void loadHomeFallback();
+    } catch (error) {
+      setHomeStatus('#home-fallback-status', error.message || 'Sync failed.', true);
+    } finally {
+      if (button) button.disabled = false;
     }
   }
 

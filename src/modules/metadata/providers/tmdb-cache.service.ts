@@ -582,4 +582,192 @@ export class TmdbCacheService {
 
     return sortDiscoverResults(dedupeTitles(records)).slice(0, params.limit);
   }
+
+  /**
+   * Generic list endpoint helper (trending/popular/top_rated/now_playing/etc).
+   * Reads `results` from the TMDB paged response and maps each to a record.
+   */
+  private async fetchListEndpoint(
+    client: DbClient,
+    resourceType: string,
+    requestPath: string,
+    requestQuery: Record<string, string | number | undefined>,
+    mediaType: TmdbTitleType,
+    limit: number,
+  ): Promise<TmdbTitleRecord[]> {
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType,
+        resourceId: null,
+        variant: requestPath.replace(/[^a-z0-9]/gi, '_'),
+        language: requestQuery.language as string | null ?? null,
+        requestPath,
+        requestQuery,
+      },
+      'search',
+      () => this.tmdbClient.request(requestPath, requestQuery),
+    );
+    if (response.isNegative || response.statusCode === 404) {
+      return [];
+    }
+    const items = Array.isArray(response.responseJson.results) ? (response.responseJson.results as SearchPayloadItem[]) : [];
+    return items
+      .map((item) => toSearchTitleRecord(mediaType, item, requestQuery.language as string | undefined))
+      .filter((item): item is TmdbTitleRecord => item !== null)
+      .slice(0, limit);
+  }
+
+  async fetchTrending(
+    client: DbClient,
+    mediaType: TmdbTitleType,
+    timeWindow: 'day' | 'week',
+    opts: { page?: number; language?: string; region?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: opts.page ?? 1, include_adult: 'false' };
+    if (opts.language) requestQuery.language = opts.language;
+    if (opts.region) requestQuery.region = opts.region;
+    return this.fetchListEndpoint(client, 'trending', `/trending/${mediaType}/${timeWindow}`, requestQuery, mediaType, limit);
+  }
+
+  async fetchPopular(
+    client: DbClient,
+    mediaType: TmdbTitleType,
+    opts: { page?: number; language?: string; region?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: opts.page ?? 1, include_adult: 'false' };
+    if (opts.language) requestQuery.language = opts.language;
+    if (opts.region) requestQuery.region = opts.region;
+    return this.fetchListEndpoint(client, 'popular', `/${mediaType}/popular`, requestQuery, mediaType, limit);
+  }
+
+  async fetchTopRated(
+    client: DbClient,
+    mediaType: TmdbTitleType,
+    opts: { page?: number; language?: string; region?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: opts.page ?? 1, include_adult: 'false' };
+    if (opts.language) requestQuery.language = opts.language;
+    if (opts.region) requestQuery.region = opts.region;
+    return this.fetchListEndpoint(client, 'top_rated', `/${mediaType}/top_rated`, requestQuery, mediaType, limit);
+  }
+
+  async fetchNowPlaying(
+    client: DbClient,
+    opts: { page?: number; language?: string; region?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: opts.page ?? 1, include_adult: 'false' };
+    if (opts.language) requestQuery.language = opts.language;
+    if (opts.region) requestQuery.region = opts.region;
+    return this.fetchListEndpoint(client, 'now_playing', '/movie/now_playing', requestQuery, 'movie', limit);
+  }
+
+  async fetchAiringToday(
+    client: DbClient,
+    opts: { page?: number; language?: string; region?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: opts.page ?? 1, include_adult: 'false' };
+    if (opts.language) requestQuery.language = opts.language;
+    if (opts.region) requestQuery.region = opts.region;
+    return this.fetchListEndpoint(client, 'airing_today', '/tv/airing_today', requestQuery, 'tv', limit);
+  }
+
+  async fetchUpcoming(
+    client: DbClient,
+    opts: { page?: number; language?: string; region?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: opts.page ?? 1, include_adult: 'false' };
+    if (opts.language) requestQuery.language = opts.language;
+    if (opts.region) requestQuery.region = opts.region;
+    return this.fetchListEndpoint(client, 'upcoming', '/movie/upcoming', requestQuery, 'movie', limit);
+  }
+
+  async fetchTmdbList(
+    client: DbClient,
+    listId: number,
+    opts: { language?: string; limit?: number } = {},
+  ): Promise<TmdbTitleRecord[]> {
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const requestQuery: Record<string, string | number | undefined> = { page: 1 };
+    if (opts.language) requestQuery.language = opts.language;
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType: 'list',
+        resourceId: String(listId),
+        variant: 'items',
+        language: opts.language ?? null,
+        requestPath: `/list/${listId}`,
+        requestQuery,
+      },
+      'search',
+      () => this.tmdbClient.request(`/list/${listId}`, requestQuery),
+    );
+    if (response.isNegative || response.statusCode === 404) {
+      return [];
+    }
+    const records: TmdbTitleRecord[] = [];
+    const items = Array.isArray(response.responseJson.items) ? (response.responseJson.items as Record<string, unknown>[]) : [];
+    for (const item of items) {
+      const mediaType: TmdbTitleType = item.media_type === 'tv' ? 'tv' : 'movie';
+      const record = toSearchTitleRecord(mediaType, item as SearchPayloadItem, opts.language);
+      if (record) records.push(record);
+    }
+    return records.slice(0, limit);
+  }
+
+  async discoverTitlesByGenreExtended(client: DbClient, params: {
+    mediaType: TmdbTitleType;
+    genreId?: number | null;
+    language?: string;
+    region?: string;
+    withWatchProviders?: number[];
+    voteAverageGte?: number;
+    releaseYear?: number;
+    originalLanguage?: string;
+    sortBy?: string;
+    limit: number;
+  }): Promise<TmdbTitleRecord[]> {
+    const requestQuery: Record<string, string | number | undefined> = {
+      page: 1,
+      sort_by: params.sortBy ?? 'popularity.desc',
+      include_adult: 'false',
+    };
+    if (params.genreId) requestQuery.with_genres = params.genreId;
+    if (params.language) requestQuery.language = params.language;
+    if (params.region) requestQuery.region = params.region;
+    if (params.withWatchProviders?.length) requestQuery.with_watch_providers = params.withWatchProviders.join('|');
+    if (typeof params.voteAverageGte === 'number') requestQuery['vote_average.gte'] = params.voteAverageGte;
+    if (params.releaseYear) requestQuery.primary_release_year = params.releaseYear;
+    if (params.originalLanguage) requestQuery.with_original_language = params.originalLanguage;
+
+    const variantParts = [params.sortBy ?? 'popularity.desc', params.genreId ?? 'all', params.region ?? 'na', params.language ?? 'na'];
+    const response = await this.responseCache.getOrFetch(
+      client,
+      {
+        resourceType: 'discover',
+        resourceId: null,
+        variant: `genre-ext:${variantParts.join(':')}`,
+        language: params.language ?? null,
+        requestPath: `/discover/${params.mediaType}`,
+        requestQuery,
+      },
+      'search',
+      () => this.tmdbClient.request(`/discover/${params.mediaType}`, requestQuery),
+    );
+    if (response.isNegative || response.statusCode === 404) {
+      return [];
+    }
+    const items = Array.isArray(response.responseJson.results) ? (response.responseJson.results as SearchPayloadItem[]) : [];
+    return items
+      .map((item) => toSearchTitleRecord(params.mediaType, item, params.language))
+      .filter((item): item is TmdbTitleRecord => item !== null)
+      .slice(0, params.limit);
+  }
 }

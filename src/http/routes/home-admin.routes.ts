@@ -4,6 +4,7 @@ import { withDbClient, db } from '../../lib/db.js';
 import { HomeResolverService } from '../../modules/home/home-resolver.service.js';
 import { HomeModeService, isHomeMode } from '../../modules/home/home-mode.service.js';
 import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
+import { listSourceDescriptors, getListSource } from '../../modules/home/list-sources/list-source.registry.js';
 import { RecommendationOutboxService } from '../../modules/outbox/recommendation-outbox.service.js';
 import { success, mutation } from '../response.js';
 
@@ -20,11 +21,27 @@ function stringField(value: unknown, name: string): string {
   return value.trim();
 }
 
+function numberField(value: unknown, name: string, fallback: number): number {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new HttpError(400, `${name} must be a number.`);
+  }
+  return value;
+}
+
+const SECTION_TYPES = ['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail'];
+
 export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<void> {
   const homeResolver = new HomeResolverService();
   const homeModeService = new HomeModeService();
   const repo = new HomeListsRepo({ db });
   const recommendationOutboxService = new RecommendationOutboxService();
+
+  // --- List source catalog (drives the admin form) ---
+  app.get('/admin/api/home/list-sources', async (request) => {
+    await app.requireAdminUi(request);
+    return success({ items: listSourceDescriptors() }, request);
+  });
 
   // --- Fallback templates ---
   app.get('/admin/api/home/fallback-templates', async (request) => {
@@ -36,37 +53,120 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     await app.requireAdminUiMutation(request);
     const body = asRecord(request.body);
     const listKey = stringField(body.listKey, 'listKey');
+    const locale = stringField(body.locale, 'locale');
     const sectionType = stringField(body.sectionType, 'sectionType');
-    if (sectionType !== 'categoryTabs' && sectionType !== 'heroCarousel' && sectionType !== 'contentRail' && sectionType !== 'collectionRail') {
+    if (!SECTION_TYPES.includes(sectionType)) {
       throw new HttpError(400, 'Invalid sectionType.');
     }
-    const provider = stringField(body.provider, 'provider');
-    if (provider !== 'tmdb' && provider !== 'tvdb' && provider !== 'imdb' && provider !== 'kitsu') {
-      throw new HttpError(400, 'Invalid provider.');
+    const sourceId = stringField(body.sourceId, 'sourceId');
+    if (!getListSource(sourceId)) {
+      throw new HttpError(400, `Unknown source: ${sourceId}`);
     }
-    const providerId = stringField(body.providerId, 'providerId');
-    const mediaType = stringField(body.mediaType, 'mediaType');
-    if (mediaType !== 'movie' && mediaType !== 'tv') {
-      throw new HttpError(400, 'mediaType must be movie or tv.');
-    }
-    const rank = typeof body.rank === 'number' ? body.rank : 0;
-    await withDbClient((client) => client.query(
-      `INSERT INTO home.fallback_list_templates (list_key, section_type, title, subtitle, rank, provider, provider_id, media_type, score, reason, reason_codes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::text[])
-       ON CONFLICT (list_key, rank) DO UPDATE SET section_type = EXCLUDED.section_type, title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, provider = EXCLUDED.provider, provider_id = EXCLUDED.provider_id, media_type = EXCLUDED.media_type, score = EXCLUDED.score, reason = EXCLUDED.reason, reason_codes = EXCLUDED.reason_codes`,
-      [listKey, sectionType, stringField(body.title, 'title'), typeof body.subtitle === 'string' ? body.subtitle : null, rank, provider, providerId, mediaType, typeof body.score === 'number' ? body.score : null, typeof body.reason === 'string' ? body.reason : null, Array.isArray(body.reasonCodes) ? body.reasonCodes.map(String) : []],
-    ));
+    const sourceConfig = asRecord(body.sourceConfig);
+    const rank = numberField(body.rank, 'rank', 0);
+    const refreshMinutes = body.refreshMinutes === undefined || body.refreshMinutes === null || body.refreshMinutes === ''
+      ? null
+      : numberField(body.refreshMinutes, 'refreshMinutes', 60);
+    await withDbClient((client) => repo.upsertFallbackTemplate({
+      listKey,
+      locale,
+      sectionType,
+      title: stringField(body.title, 'title'),
+      subtitle: typeof body.subtitle === 'string' ? body.subtitle : null,
+      rank,
+      sourceId,
+      sourceConfig,
+      refreshMinutes,
+      updatedBy: 'admin',
+    }));
     reply.code(201);
     return mutation({ accepted: true }, request);
   });
 
-  app.delete('/admin/api/home/fallback-templates/:listKey/:rank', async (request) => {
+  app.delete('/admin/api/home/fallback-templates/:listKey/:locale', async (request) => {
     await app.requireAdminUiMutation(request);
     const params = asRecord(request.params);
     const listKey = stringField(params.listKey, 'listKey');
-    const rank = Number(params.rank);
-    if (!Number.isInteger(rank)) throw new HttpError(400, 'rank must be an integer.');
-    await withDbClient((client) => client.query('DELETE FROM home.fallback_list_templates WHERE list_key = $1 AND rank = $2', [listKey, rank]));
+    const locale = stringField(params.locale, 'locale');
+    await withDbClient((client) => repo.deleteFallbackTemplate(listKey, locale));
+    return mutation({ accepted: true }, request);
+  });
+
+  // --- Preview a source without persisting ---
+  app.post('/admin/api/home/list-sources/preview', async (request) => {
+    await app.requireAdminUiMutation(request);
+    const body = asRecord(request.body);
+    const sourceId = stringField(body.sourceId, 'sourceId');
+    const source = getListSource(sourceId);
+    if (!source) {
+      throw new HttpError(400, `Unknown source: ${sourceId}`);
+    }
+    const profileId = typeof body.profileId === 'string' ? body.profileId : '';
+    const locale = typeof body.locale === 'string' && body.locale ? body.locale : 'en';
+    const region = typeof body.region === 'string' && body.region ? body.region : null;
+    const limit = numberField(body.limit, 'limit', 20);
+    const ctxBase = {
+      locale,
+      tmdbLanguage: locale,
+      region,
+      tmdbRegion: region ?? undefined,
+      isKids: Boolean(body.isKids),
+      connectedProviders: Array.isArray(body.connectedProviders) ? (body.connectedProviders as Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>) : [],
+    };
+    const result = await withDbClient((client) =>
+      source.fetchItems(asRecord(body.sourceConfig), {
+        client,
+        profileId,
+        ...ctxBase,
+        limit,
+      }),
+    );
+    return success({ count: result.items.length, items: result.items.slice(0, limit) }, request);
+  });
+
+  // --- Manual refresh/sync of a single fallback rail ---
+  app.post('/admin/api/home/fallback-templates/:listKey/:locale/sync', async (request) => {
+    await app.requireAdminUiMutation(request);
+    const params = asRecord(request.params);
+    const listKey = stringField(params.listKey, 'listKey');
+    const locale = stringField(params.locale, 'locale');
+    await withDbClient(async (client) => {
+      const rows = await repo.listFallbackTemplatesForLocales([locale]);
+      const template = rows.find((r) => r.listKey === listKey && r.locale === locale);
+      if (!template) {
+        throw new HttpError(404, 'Fallback template not found.');
+      }
+      const source = getListSource(template.sourceId);
+      if (!source) {
+        throw new HttpError(400, `Unknown source: ${template.sourceId}`);
+      }
+      const connectedProviders = await connectedProviderKindsForLocale(client, locale);
+      const ctxBase = profileContextForFallbackPreview(locale, connectedProviders);
+      const result = await source.fetchItems(template.sourceConfig, {
+        client,
+        profileId: '',
+        ...ctxBase,
+        limit: FALLBACK_PREVIEW_LIMIT,
+      });
+      const items = result.items.map((item) => ({
+        type: item.type,
+        providerRefs: item.providerRefs.map((ref) => ({ provider: ref.provider, providerId: ref.providerId })),
+        score: item.score ?? null,
+        reason: item.reason ?? null,
+        reasonCodes: item.reasonCodes ?? [],
+      }));
+      await repo.saveFallbackVersion({
+        listKey: template.listKey,
+        locale: template.locale,
+        sourceId: template.sourceId,
+        sectionType: template.sectionType,
+        title: template.title,
+        subtitle: template.subtitle,
+        rank: template.rank,
+        items,
+      });
+      await repo.markFallbackRefreshed(template.listKey, template.locale);
+    });
     return mutation({ accepted: true }, request);
   });
 
@@ -114,4 +214,21 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     );
     return mutation({ accepted: true }, request);
   });
+}
+
+const FALLBACK_PREVIEW_LIMIT = 100;
+
+function profileContextForFallbackPreview(locale: string, connectedProviders: Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>) {
+  return {
+    locale,
+    tmdbLanguage: locale,
+    region: null,
+    tmdbRegion: undefined,
+    isKids: false,
+    connectedProviders,
+  };
+}
+
+async function connectedProviderKindsForLocale(client: unknown, _locale: string): Promise<Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>> {
+  return [];
 }

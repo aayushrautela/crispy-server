@@ -173,70 +173,191 @@ export class HomeListsRepo {
     }));
   }
 
-  /** Static fallback templates used when a profile has no generated rows yet. */
-  async listFallbackTemplates(): Promise<Array<{
+  /** Active fallback rail templates for a given locale candidate list. */
+  async listFallbackTemplatesForLocales(locales: string[]): Promise<Array<{
     listKey: string;
+    locale: string;
     sectionType: string;
     title: string;
     subtitle: string | null;
     rank: number;
-    provider: string;
-    providerId: string;
-    mediaType: string;
-    score: number | null;
-    reason: string | null;
-    reasonCodes: string[];
+    sourceId: string;
+    sourceConfig: Record<string, unknown>;
+    refreshMinutes: number | null;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, section_type, title, subtitle, rank, provider, provider_id, media_type, score, reason, reason_codes
-       FROM home.fallback_list_templates
-       ORDER BY list_key, rank ASC`,
+      `SELECT list_key, locale, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+        FROM home.fallback_list_templates
+        WHERE is_active AND locale = ANY($1::text[])
+        ORDER BY rank ASC, list_key ASC`,
+      [locales],
     );
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
+      locale: String(row.locale),
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
       rank: Number(row.rank),
-      provider: String(row.provider),
-      providerId: String(row.provider_id),
-      mediaType: String(row.media_type),
-      score: row.score == null ? null : Number(row.score),
-      reason: row.reason == null ? null : String(row.reason),
-      reasonCodes: Array.isArray(row.reason_codes) ? (row.reason_codes as string[]) : [],
+      sourceId: String(row.source_id),
+      sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
+      refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
     }));
   }
 
   async listFallbackTemplatesForClient(client: DbClient): Promise<Array<{
     listKey: string;
+    locale: string;
     sectionType: string;
     title: string;
     subtitle: string | null;
     rank: number;
-    provider: string;
-    providerId: string;
-    mediaType: string;
-    score: number | null;
-    reason: string | null;
-    reasonCodes: string[];
+    sourceId: string;
+    sourceConfig: Record<string, unknown>;
+    refreshMinutes: number | null;
   }>> {
     const result = await client.query(
-      `SELECT list_key, section_type, title, subtitle, rank, provider, provider_id, media_type, score, reason, reason_codes
-       FROM home.fallback_list_templates
-       ORDER BY list_key, rank ASC`,
+      `SELECT list_key, locale, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+        FROM home.fallback_list_templates
+        WHERE is_active
+        ORDER BY rank ASC, list_key ASC`,
     );
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
+      locale: String(row.locale),
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
       rank: Number(row.rank),
-      provider: String(row.provider),
-      providerId: String(row.provider_id),
-      mediaType: String(row.media_type),
-      score: row.score == null ? null : Number(row.score),
-      reason: row.reason == null ? null : String(row.reason),
-      reasonCodes: Array.isArray(row.reason_codes) ? (row.reason_codes as string[]) : [],
+      sourceId: String(row.source_id),
+      sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
+      refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
     }));
+  }
+
+  /** Upsert a fallback rail template. */
+  async upsertFallbackTemplate(input: {
+    listKey: string;
+    locale: string;
+    sectionType: string;
+    title: string;
+    subtitle: string | null;
+    rank: number;
+    sourceId: string;
+    sourceConfig: Record<string, unknown>;
+    refreshMinutes: number | null;
+    updatedBy: string;
+  }): Promise<void> {
+    await this.deps.db.query(
+      `INSERT INTO home.fallback_list_templates (list_key, locale, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, now())
+        ON CONFLICT (list_key, locale) DO UPDATE SET
+          section_type = EXCLUDED.section_type,
+          title = EXCLUDED.title,
+          subtitle = EXCLUDED.subtitle,
+          rank = EXCLUDED.rank,
+          source_id = EXCLUDED.source_id,
+          source_config = EXCLUDED.source_config,
+          refresh_minutes = EXCLUDED.refresh_minutes,
+          updated_by = EXCLUDED.updated_by,
+          updated_at = EXCLUDED.updated_at`,
+      [input.listKey, input.locale, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.updatedBy],
+    );
+  }
+
+  async deleteFallbackTemplate(listKey: string, locale: string): Promise<void> {
+    await this.deps.db.query(
+      'DELETE FROM home.fallback_list_templates WHERE list_key = $1 AND locale = $2',
+      [listKey, locale],
+    );
+  }
+
+  /** Resolved fallback rail cache (shared across profiles). */
+  async getFallbackVersion(listKey: string, locale: string, sourceId: string): Promise<{
+    sectionType: string;
+    title: string;
+    subtitle: string | null;
+    rank: number;
+    items: unknown[];
+    refreshedAt: Date;
+  } | null> {
+    const result = await this.deps.db.query(
+      `SELECT section_type, title, subtitle, rank, items_json, refreshed_at
+        FROM home.fallback_list_versions
+        WHERE list_key = $1 AND locale = $2 AND source_id = $3`,
+      [listKey, locale, sourceId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      sectionType: String(row.section_type),
+      title: String(row.title),
+      subtitle: row.subtitle == null ? null : String(row.subtitle),
+      rank: Number(row.rank),
+      items: Array.isArray(row.items_json) ? (row.items_json as unknown[]) : [],
+      refreshedAt: new Date(row.refreshed_at as string),
+    };
+  }
+
+  async saveFallbackVersion(input: {
+    listKey: string;
+    locale: string;
+    sourceId: string;
+    sectionType: string;
+    title: string;
+    subtitle: string | null;
+    rank: number;
+    items: unknown[];
+  }): Promise<void> {
+    await this.deps.db.query(
+      `INSERT INTO home.fallback_list_versions (list_key, locale, source_id, section_type, title, subtitle, rank, items_json, item_count, refreshed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now())
+        ON CONFLICT (list_key, locale, source_id) DO UPDATE SET
+          section_type = EXCLUDED.section_type,
+          title = EXCLUDED.title,
+          subtitle = EXCLUDED.subtitle,
+          rank = EXCLUDED.rank,
+          items_json = EXCLUDED.items_json,
+          item_count = EXCLUDED.item_count,
+          refreshed_at = EXCLUDED.refreshed_at`,
+      [input.listKey, input.locale, input.sourceId, input.sectionType, input.title, input.subtitle, input.rank, JSON.stringify(input.items), input.items.length],
+    );
+  }
+
+  /** Templates due for a scheduled refresh. */
+  async listStaleFallbackTemplates(threshold: Date): Promise<Array<{
+    listKey: string;
+    locale: string;
+    sourceId: string;
+    sourceConfig: Record<string, unknown>;
+    sectionType: string;
+    title: string;
+    subtitle: string | null;
+    rank: number;
+  }>> {
+    const result = await this.deps.db.query(
+      `SELECT list_key, locale, source_id, source_config, section_type, title, subtitle, rank
+        FROM home.fallback_list_templates
+        WHERE is_active AND refresh_minutes IS NOT NULL
+          AND (last_refreshed_at IS NULL OR last_refreshed_at < $1)`,
+      [threshold],
+    );
+    return result.rows.map((row) => ({
+      listKey: String(row.list_key),
+      locale: String(row.locale),
+      sourceId: String(row.source_id),
+      sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
+      sectionType: String(row.section_type),
+      title: String(row.title),
+      subtitle: row.subtitle == null ? null : String(row.subtitle),
+      rank: Number(row.rank),
+    }));
+  }
+
+  async markFallbackRefreshed(listKey: string, locale: string): Promise<void> {
+    await this.deps.db.query(
+      'UPDATE home.fallback_list_templates SET last_refreshed_at = now() WHERE list_key = $1 AND locale = $2',
+      [listKey, locale],
+    );
   }
 }

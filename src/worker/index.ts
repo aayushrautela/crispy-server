@@ -6,6 +6,7 @@ import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
 import { runHomeSeedJob } from './jobs/home-seed.job.js';
+import { runHomeFallbackRefreshJob } from './jobs/home-fallback-refresh.job.js';
 import {
   runTmdbCachePurgeExpiredJob,
   runTmdbCacheRefreshJob,
@@ -55,7 +56,12 @@ export function startWorker(): Worker {
   const homeWorker = new Worker(
     homeQueueName,
     async (job) => {
-      await runHomeSeedJob(job.data as Parameters<typeof runHomeSeedJob>[0]);
+      const payload = job.data as { scope?: string } & Record<string, unknown>;
+      if (payload.scope === 'cron' || payload.scope === 'single') {
+        await runHomeFallbackRefreshJob(payload as Parameters<typeof runHomeFallbackRefreshJob>[0]);
+        return;
+      }
+      await runHomeSeedJob(payload as Parameters<typeof runHomeSeedJob>[0]);
     },
     { connection: bullConnection },
   );
