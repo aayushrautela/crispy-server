@@ -234,6 +234,26 @@ type RecoImpressionSignal = {
 
 RECO writes list metadata plus ordered provider refs. MAIN resolves identities, stores canonical item IDs, applies policy, and enriches client responses later.
 
+### Pipeline producers (target)
+
+This write contract is the **unified home ingest contract** — not just for RECO.
+The same endpoint and the same `RecoListWriteRequest` shape are reused by every
+producer that materializes a user's home:
+
+| Producer | Where | `source` field | Auth |
+| --- | --- | --- | --- |
+| RECO (personalized recommendations) | external reco engine, push | `'reco'` (or documented source key) | service principal (`x-service-id` + bearer hash) |
+| Custom (curated lists from external service) | external custom service, push | `'custom'` (TBD exact value) | service principal, allow-listed service-id |
+| Fallback | internal HTTP source, pulled on miss/failure | `'fallback'` | service principal, internal-only |
+
+Sources do not branch the transform or the write path. They only:
+
+- populate the `source` field on the stored snapshot (for diagnostics, mode resolution, and admin UI);
+- drive the auth allow-list on the ingest endpoint.
+
+See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the
+end-to-end flow including the eager fallback-pull triggers.
+
 ### Single-list write
 
 Path:
@@ -307,7 +327,7 @@ type RecoBatchWriteRequest = {
 
 ## Storage target
 
-Recommendation list versions store list metadata separately from item identity.
+Recommendation list versions store list metadata separately from item identity. All home ingest producers (reco, custom, fallback) share this storage target; `source` distinguishes provenance for diagnostics, mode resolution (`homeMode`), and admin visibility.
 
 ```ts
 type StoredRecommendationListVersion = {

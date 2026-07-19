@@ -168,6 +168,97 @@ Each item is a UI-ready card with canonical `itemId`, display fields, artwork, a
 
 RECO logs should avoid raw watch/rating payload retention and should include account/profile identifiers only when operationally necessary. Never log API keys, user access tokens, provider refresh tokens, bearer tokens, service API keys, AI provider/model/endpoint/proxy configuration, raw prompts, raw vendor request/response payloads, or confidential configuration.
 
+## Home ingest pipeline (target)
+
+The home screen is recommendations. Client apps call `/home` and read back
+whatever the pipeline wrote; the read path does not call external services
+on-the-fly. Three sources feed one pipeline:
+
+| Source | Type | Q | Push or pull | Notes |
+| --- | --- | --- | --- | --- |
+| `reco` | personalized recommendations | external reco engine | postalpush (RECO POSTs results) | already wired today via `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey` |
+| `custom` | curated lists from an external service | external | push (same endpoint, same fixed shape) | NOT admin-curated. Treated identically to `reco` from the pipeline's POV. |
+| `fallback` | deterministic default templates (the table we already built) | internal | **pull on miss/failure** | Exposed as an internal HTTP service returning the *same* shape as the external sources. |
+
+All three sources return the same fixed input contract (`RecoListWriteRequest`)
+with `source` distinguishing the producer. The pipeline does not branch by
+source at the transform/write boundary — it canonicalizes provider refs to
+`itemId`, applies policy, and persists to the same per-profile storage target
+that `/home` reads from.
+
+### Pipeline stages
+
+```text
+[ external reco service ]--push-->|
+[ external custom service ]--push-->|
+                                   |
+                                   v
+                       +---------------------------+
+                       |  Pipeline ingest endpoint |  (existing PUT /internal/apps/v1/.../lists/:listKey)
+                       +---------------------------+
+                                   |
+                                   v
+                       +---------------------------+
+                       |  Transform                |  provider refs -> canonical itemId,
+                       |  (canonicalize + policy)  |  section/item validation, eligibility
+                       +---------------------------+
+                                   |
+                                   v
+                       +---------------------------+
+                       |  Write to home store      |  per-profile materialized home rails
+                       |  (read by GET /home)      |  that GET /home serves from
+                       +---------------------------+
+                                   ^
+                                   |  (on miss / push failure)
+                       +---------------------------+
+                       |  Fallback source (HTTP)    |  returns same RecoListWriteRequest shape
+                       +---------------------------+
+```
+
+### Fallback source
+
+Fallback is invoked in two eager scenarios and feeds through the *same*
+pipeline path — it is not layered at read time:
+
+1. **Empty home on `/home` read.** A client calls `GET /home` for a profile
+   that has nothing materialized (new user, no reco/custom ever written, all
+   rows expired). The pipeline calls the fallback HTTP endpoint for that
+   profile, gets a `RecoListWriteRequest`-shaped payload, writes it, then the
+   resolver returns the now-populated home. Surfaced as `source: 'fallback'`
+   on the response.
+2. **External push attempt failed.** An external `reco`/`custom` push returns
+   a transform/validation/canonicalization error, or the external service is
+   unreachable and the outbox dispatcher marks the event permanently failed.
+   The pipeline eagerly calls the fallback endpoint for that profile and
+   writes a fallback home so the user is never left empty.
+
+The fallback HTTP endpoint is exposed internally and authenticated as a
+service principal (same `x-service-id` + bearer hash scheme as the RECO→MAIN
+contract). It is registered in `home.fallback_list_templates` (the table we
+built), and `locale_mode='auto'` rows are resolved per-viewer at fallback-pull
+time.
+
+### What the pipeline replaces
+
+- The lazy fallback-on-cache-miss path in `home-resolver.service.ts`. Fallback
+  becomes an HTTP fetch + pipeline write, not an inline rail-build step.
+- The read-time "cached default home + freshly-built default home" branches.
+  `/home` reads only from what the pipeline wrote.
+- Continue-watching remains a separate, real-time, per-profile rail layered on
+  top of the materialized home at read time (already migrated out of the
+  list-source registry).
+
+### Open implementation work
+
+- Define and expose the fallback HTTP endpoint returning `RecoListWriteRequest`
+  for a given `(accountId, profileId, locale, region, isKids)`.
+- Implement the two eager fallback-pull triggers (push-failed listener, and
+  `/home` read with empty store).
+- Decide whether `custom` lists reuse the existing reco push endpoint or get a
+  sibling route (preferred: same endpoint, distinguished by `source` /
+  service-id).
+- Define the producer service-id for `custom` and update the auth allow-list.
+
 ## Explicit non-goals
 
 This contract does not define:

@@ -7,6 +7,16 @@ This guide defines the home section contract used by external recommendation eng
 - MAIN-to-RECO event ingestion: `openapi/internal-recommender.v1.yaml`
 - Admin recompute and diagnostics: `openapi/admin-ops.v1.yaml`
 
+## Home ingest pipeline
+
+The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`) is the unified write contract for **all** home producers, not just the reco engine. Producers authenticate as service principals and are distinguished by `source`:
+
+- `reco` — personalized recommendations pushed by the external reco engine
+- `custom` — curated lists pushed by an external custom service (not admin-curated)
+- `fallback` — deterministic default templates pulled by the pipeline itself on `/home` read with empty store, or when an external push attempt fails
+
+All three producers share the same `RecoListWriteRequest` shape and the same canonicalize → policy → persist path. `/home` reads only from what the pipeline wrote. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" and `docs/specs/client-reco-pipeline-spec.md` → "Pipeline producers".
+
 ## Home section model
 
 A profile home screen is an ordered array of sections. Every section has:
