@@ -154,6 +154,10 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
       if (!source) {
         throw new HttpError(400, `Unknown source: ${template.sourceId}`);
       }
+      if (template.sourceId.startsWith('home.') && template.sourceId !== 'home.popular-in-region') {
+        // Per-profile sources need a profile context the admin sync path does not have.
+        throw new HttpError(400, `Source ${template.sourceId} is per-profile and cannot be synced from admin. It resolves live per viewer.`);
+      }
       const resolvedLocale = template.localeMode === 'auto' ? (template.locale || 'en') : template.locale;
       const tmdbLanguage = template.localeMode === 'en' ? 'en' : resolvedLocale;
       const tmdbRegion = template.regionOverride ?? undefined;

@@ -7,7 +7,7 @@ const { listSourceDescriptors, getListSource } = await import('./list-source.reg
 
 test('registry exposes all list sources with unique ids', () => {
   const descriptors = listSourceDescriptors();
-  assert.equal(descriptors.length, 7);
+  assert.equal(descriptors.length, 6);
   const ids = descriptors.map((d) => d.id);
   assert.equal(new Set(ids).size, ids.length, 'source ids must be unique');
   assert.ok(getListSource('tmdb.discover-filtered'), 'filtered source registered');
@@ -24,6 +24,7 @@ test('every descriptor has a name, description, and configFields array', () => {
 
 test('getListSource resolves known ids and returns null for unknown', () => {
   assert.ok(getListSource('tmdb.discover-filtered'));
-  assert.ok(getListSource('home.continue-watching'));
+  assert.ok(getListSource('trakt.trending'));
+  assert.equal(getListSource('home.continue-watching'), null, 'continue-watching is no longer a list source');
   assert.equal(getListSource('does.not.exist'), null);
 });

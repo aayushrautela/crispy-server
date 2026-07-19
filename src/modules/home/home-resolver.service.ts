@@ -6,9 +6,9 @@ import { HomeModeService } from './home-mode.service.js';
 import { HomeListsRepo } from './repos/home-lists.repo.js';
 import { HomeHydrator } from './home-hydrator.service.js';
 import { DefaultHomeWriteService, type HomeWriteService } from './home-write.service.js';
+import { LocalUserWatchService } from '../integrations/local-user-watch.service.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
-import { getListSource } from './list-sources/list-source.registry.js';
 import { buildFallbackLists, resolveFallbackTemplatesForViewer, profileContextForFallback, FALLBACK_SECTION_LIMITS, type FallbackTemplate } from './home-fallback.service.js';
 
 export type ResolvedHomeSource = 'custom' | 'reco' | 'fallback' | 'fallback-built';
@@ -27,6 +27,7 @@ function homeCacheKey(profileId: string): string {
 export class HomeResolverService {
   private readonly modeService = new HomeModeService();
   private readonly hydrator = new HomeHydrator();
+  private readonly continueWatchingService = new LocalUserWatchService();
 
   constructor(
     private readonly profileLocalService = new ProfileLocalService(),
@@ -94,35 +95,39 @@ export class HomeResolverService {
     return null;
   }
 
-  /** Layered continue-watching rail, always shown at the top. */
+  /** Layered continue-watching rail, always shown at the top.
+   *  Deterministic and per-profile: pulled fresh from playback_progress on every
+   *  resolve. Does NOT go through the fallback-template list-source pipeline. */
   private async layerContinueWatching(client: DbClient, sections: ClientHomeSection[], profileId: string, locale: string): Promise<ClientHomeSection[]> {
-    const source = getListSource('home.continue-watching');
-    if (!source) return sections;
     try {
-      const result = await source.fetchItems({}, {
-        client,
+      const page = await this.continueWatchingService.listContinueWatchingPage({
+        accountId: '',
         profileId,
-        locale,
-        region: null,
-        isKids: false,
-        connectedProviders: [],
-        tmdbLanguage: locale,
-        tmdbRegion: undefined,
         limit: 20,
+        cursor: null,
       });
-      if (result.items.length === 0) return sections;
+      const items = page.items
+        .map((item) => {
+          const providerIds = (item as { ProviderIds?: Record<string, string | null> }).ProviderIds;
+          if (!providerIds?.Tmdb) return null;
+          const mediaType = item.Type === 'Movie' ? 'movie' : 'tv';
+          return {
+            type: mediaType,
+            providerRefs: [{ provider: 'tmdb' as const, providerId: String(providerIds.Tmdb) }],
+            score: null,
+            reason: 'Continue watching',
+            reasonCodes: ['continue-watching'],
+            metadata: { progress: item.UserData?.PlayedPercentage ?? null },
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      if (items.length === 0) return sections;
       const lists = [{
         listKey: 'continue-watching',
         sectionType: 'contentRail' as const,
         title: 'Continue Watching',
         subtitle: null,
-        items: result.items.map((item) => ({
-          type: item.type,
-          providerRefs: item.providerRefs.map((ref) => ({ provider: ref.provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu', providerId: ref.providerId })),
-          score: item.score ?? null,
-          reason: item.reason ?? null,
-          reasonCodes: item.reasonCodes ?? [],
-        })),
+        items,
       }];
       const hydrated = await this.hydrator.hydrateSections(client, lists, locale);
       return [...hydrated, ...sections];
