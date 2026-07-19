@@ -5,11 +5,12 @@ import { seedTestEnv } from '../../../test-helpers.js';
 seedTestEnv();
 const { listSourceDescriptors, getListSource } = await import('./list-source.registry.js');
 
-test('registry exposes all 14 list sources with unique ids', () => {
+test('registry exposes all list sources with unique ids', () => {
   const descriptors = listSourceDescriptors();
-  assert.equal(descriptors.length, 14);
+  assert.equal(descriptors.length, 7);
   const ids = descriptors.map((d) => d.id);
   assert.equal(new Set(ids).size, ids.length, 'source ids must be unique');
+  assert.ok(getListSource('tmdb.discover-filtered'), 'filtered source registered');
 });
 
 test('every descriptor has a name, description, and configFields array', () => {
@@ -22,7 +23,7 @@ test('every descriptor has a name, description, and configFields array', () => {
 });
 
 test('getListSource resolves known ids and returns null for unknown', () => {
-  assert.ok(getListSource('tmdb.trending'));
+  assert.ok(getListSource('tmdb.discover-filtered'));
   assert.ok(getListSource('home.continue-watching'));
   assert.equal(getListSource('does.not.exist'), null);
 });

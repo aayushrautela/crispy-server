@@ -173,10 +173,12 @@ export class HomeListsRepo {
     }));
   }
 
-  /** Active fallback rail templates for a given locale candidate list. */
-  async listFallbackTemplatesForLocales(locales: string[]): Promise<Array<{
+  /** Active fallback rail templates matching a viewer locale (including auto rows). */
+  async listFallbackTemplatesForViewer(locales: string[]): Promise<Array<{
     listKey: string;
     locale: string;
+    localeMode: 'auto' | 'specific' | 'en';
+    regionOverride: string | null;
     sectionType: string;
     title: string;
     subtitle: string | null;
@@ -186,15 +188,17 @@ export class HomeListsRepo {
     refreshMinutes: number | null;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, locale, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
         FROM home.fallback_list_templates
-        WHERE is_active AND locale = ANY($1::text[])
+        WHERE is_active AND (locale_mode = 'auto' OR locale = ANY($1::text[]))
         ORDER BY rank ASC, list_key ASC`,
       [locales],
     );
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
       locale: String(row.locale),
+      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
+      regionOverride: row.region_override == null ? null : String(row.region_override),
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
@@ -208,6 +212,8 @@ export class HomeListsRepo {
   async listFallbackTemplatesForClient(client: DbClient): Promise<Array<{
     listKey: string;
     locale: string;
+    localeMode: 'auto' | 'specific' | 'en';
+    regionOverride: string | null;
     sectionType: string;
     title: string;
     subtitle: string | null;
@@ -217,7 +223,7 @@ export class HomeListsRepo {
     refreshMinutes: number | null;
   }>> {
     const result = await client.query(
-      `SELECT list_key, locale, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
         FROM home.fallback_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -225,6 +231,8 @@ export class HomeListsRepo {
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
       locale: String(row.locale),
+      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
+      regionOverride: row.region_override == null ? null : String(row.region_override),
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
@@ -239,6 +247,8 @@ export class HomeListsRepo {
   async upsertFallbackTemplate(input: {
     listKey: string;
     locale: string;
+    localeMode: 'auto' | 'specific' | 'en';
+    regionOverride: string | null;
     sectionType: string;
     title: string;
     subtitle: string | null;
@@ -249,9 +259,12 @@ export class HomeListsRepo {
     updatedBy: string;
   }): Promise<void> {
     await this.deps.db.query(
-      `INSERT INTO home.fallback_list_templates (list_key, locale, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, now())
-        ON CONFLICT (list_key, locale) DO UPDATE SET
+      `INSERT INTO home.fallback_list_templates (list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, now())
+        ON CONFLICT (list_key) DO UPDATE SET
+          locale = EXCLUDED.locale,
+          locale_mode = EXCLUDED.locale_mode,
+          region_override = EXCLUDED.region_override,
           section_type = EXCLUDED.section_type,
           title = EXCLUDED.title,
           subtitle = EXCLUDED.subtitle,
@@ -261,15 +274,52 @@ export class HomeListsRepo {
           refresh_minutes = EXCLUDED.refresh_minutes,
           updated_by = EXCLUDED.updated_by,
           updated_at = EXCLUDED.updated_at`,
-      [input.listKey, input.locale, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.updatedBy],
+      [input.listKey, input.locale, input.localeMode, input.regionOverride, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.updatedBy],
     );
   }
 
-  async deleteFallbackTemplate(listKey: string, locale: string): Promise<void> {
+  async deleteFallbackTemplate(listKey: string): Promise<void> {
     await this.deps.db.query(
-      'DELETE FROM home.fallback_list_templates WHERE list_key = $1 AND locale = $2',
-      [listKey, locale],
+      'DELETE FROM home.fallback_list_templates WHERE list_key = $1',
+      [listKey],
     );
+  }
+
+  /** Single active template by list_key (PK). */
+  async listFallbackTemplateByKey(listKey: string): Promise<{
+    listKey: string;
+    locale: string;
+    localeMode: 'auto' | 'specific' | 'en';
+    regionOverride: string | null;
+    sectionType: string;
+    title: string;
+    subtitle: string | null;
+    rank: number;
+    sourceId: string;
+    sourceConfig: Record<string, unknown>;
+    refreshMinutes: number | null;
+  } | null> {
+    const result = await this.deps.db.query(
+      `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+        FROM home.fallback_list_templates
+        WHERE is_active AND list_key = $1`,
+      [listKey],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      listKey: String(row.list_key),
+      locale: String(row.locale),
+      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
+      regionOverride: row.region_override == null ? null : String(row.region_override),
+      sectionType: String(row.section_type),
+      title: String(row.title),
+      subtitle: row.subtitle == null ? null : String(row.subtitle),
+      rank: Number(row.rank),
+      sourceId: String(row.source_id),
+      sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
+      refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
+    };
   }
 
   /** Resolved fallback rail cache (shared across profiles). */
@@ -324,10 +374,13 @@ export class HomeListsRepo {
     );
   }
 
-  /** Templates due for a scheduled refresh. */
+  /** Templates due for a scheduled refresh (locale-mode rows are skipped; they
+   *  are refreshed lazily per viewer locale on cache miss). */
   async listStaleFallbackTemplates(threshold: Date): Promise<Array<{
     listKey: string;
     locale: string;
+    localeMode: 'auto' | 'specific' | 'en';
+    regionOverride: string | null;
     sourceId: string;
     sourceConfig: Record<string, unknown>;
     sectionType: string;
@@ -336,15 +389,17 @@ export class HomeListsRepo {
     rank: number;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, locale, source_id, source_config, section_type, title, subtitle, rank
+      `SELECT list_key, locale, locale_mode, region_override, source_id, source_config, section_type, title, subtitle, rank
         FROM home.fallback_list_templates
-        WHERE is_active AND refresh_minutes IS NOT NULL
+        WHERE is_active AND refresh_minutes IS NOT NULL AND locale_mode != 'auto'
           AND (last_refreshed_at IS NULL OR last_refreshed_at < $1)`,
       [threshold],
     );
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
       locale: String(row.locale),
+      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
+      regionOverride: row.region_override == null ? null : String(row.region_override),
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       sectionType: String(row.section_type),
@@ -354,10 +409,10 @@ export class HomeListsRepo {
     }));
   }
 
-  async markFallbackRefreshed(listKey: string, locale: string): Promise<void> {
+  async markFallbackRefreshed(listKey: string): Promise<void> {
     await this.deps.db.query(
-      'UPDATE home.fallback_list_templates SET last_refreshed_at = now() WHERE list_key = $1 AND locale = $2',
-      [listKey, locale],
+      'UPDATE home.fallback_list_templates SET last_refreshed_at = now() WHERE list_key = $1',
+      [listKey],
     );
   }
 }

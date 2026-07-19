@@ -52,4 +52,6 @@ export type ListSourceDescriptor = {
 export interface ListSource<IConfig = Record<string, unknown>> {
   descriptor(): ListSourceDescriptor;
   fetchItems(config: IConfig, ctx: ListSourceCtx): Promise<ListSourceResult>;
+  /** Optional: derive a stable list key from config so admins don't type one. */
+  suggestListKey?(config: IConfig): string;
 }

@@ -24,68 +24,70 @@ beforeEach(async () => {
   await cleanup();
 });
 
-after(async () => {
-  await cleanup();
-  await db.end();
-});
-
-test('fallback templates persist and resolve across locales', { concurrency: false }, async () => {
+test('auto + specific templates resolve per viewer locale', { concurrency: false }, async () => {
   const repo = new HomeListsRepo({ db });
   await repo.upsertFallbackTemplate({
     listKey: TEST_MARKER + '_trending',
     locale: 'en',
+    localeMode: 'auto',
+    regionOverride: null,
     sectionType: 'contentRail',
     title: 'Trending',
     subtitle: null,
     rank: 0,
-    sourceId: 'tmdb.trending',
-    sourceConfig: {},
+    sourceId: 'tmdb.discover-filtered',
+    sourceConfig: { feed: 'popular', mediaType: 'movie' },
     refreshMinutes: null,
     updatedBy: TEST_MARKER,
   });
   await repo.upsertFallbackTemplate({
-    listKey: TEST_MARKER + '_trending',
-    locale: 'es',
+    listKey: TEST_MARKER + '_pl',
+    locale: 'pl',
+    localeMode: 'specific',
+    regionOverride: null,
     sectionType: 'contentRail',
-    title: 'Tendencies',
+    title: 'Polish',
     subtitle: null,
     rank: 0,
-    sourceId: 'tmdb.trending',
-    sourceConfig: {},
+    sourceId: 'tmdb.discover-filtered',
+    sourceConfig: { feed: 'popular', mediaType: 'movie' },
     refreshMinutes: null,
     updatedBy: TEST_MARKER,
   });
 
-  const all = await repo.listFallbackTemplatesForLocales(['en', 'es']);
-  const matching = all.filter((t) => t.listKey === TEST_MARKER + '_trending');
-  assert.equal(matching.length, 2);
+  const pl = await repo.listFallbackTemplatesForViewer(['pl']);
+  const matching = pl.filter((t) => t.listKey === TEST_MARKER + '_trending' || t.listKey === TEST_MARKER + '_pl');
+  assert.equal(matching.length, 2, 'pl viewer sees its specific rail + the auto rail');
 
-  const enOnly = await repo.listFallbackTemplatesForLocales(['en']);
-  assert.equal(enOnly.filter((t) => t.listKey === TEST_MARKER + '_trending').length, 1);
+  const de = await repo.listFallbackTemplatesForViewer(['de']);
+  const deKeys = de.map((t) => t.listKey);
+  assert.ok(deKeys.includes(TEST_MARKER + '_trending') && !deKeys.includes(TEST_MARKER + '_pl'), 'de viewer sees auto but not pl-specific');
 });
 
-test('fallback version cache round-trips and stale detection works', { concurrency: false }, async () => {
+test('fallback version cache round-trips and stale detection skips auto', { concurrency: false }, async () => {
   const repo = new HomeListsRepo({ db });
   const listKey = TEST_MARKER + '_rail';
   await repo.upsertFallbackTemplate({
     listKey,
     locale: 'en',
+    localeMode: 'specific',
+    regionOverride: null,
     sectionType: 'contentRail',
     title: 'Rail',
     subtitle: null,
     rank: 0,
-    sourceId: 'tmdb.popular',
-    sourceConfig: { mediaType: 'movie' },
+    sourceId: 'tmdb.discover-filtered',
+    sourceConfig: { feed: 'popular', mediaType: 'movie' },
     refreshMinutes: 60,
     updatedBy: TEST_MARKER,
   });
 
-  assert.equal(await repo.getFallbackVersion(listKey, 'en', 'tmdb.popular'), null);
+  assert.equal(await repo.getFallbackVersion(listKey, 'en', 'tmdb.discover-filtered'), null);
 
   await repo.saveFallbackVersion({
     listKey,
     locale: 'en',
-    sourceId: 'tmdb.popular',
+    sourceId: 'tmdb.discover-filtered',
     sectionType: 'contentRail',
     title: 'Rail',
     subtitle: null,
@@ -93,36 +95,58 @@ test('fallback version cache round-trips and stale detection works', { concurren
     items: [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '123' }], score: null, reason: null, reasonCodes: [] }],
   });
 
-  const version = await repo.getFallbackVersion(listKey, 'en', 'tmdb.popular');
+  const version = await repo.getFallbackVersion(listKey, 'en', 'tmdb.discover-filtered');
   assert.ok(version);
   assert.equal(version?.items.length, 1);
   const firstItem = version?.items[0]! as { providerRefs: Array<{ providerId: string }> };
   assert.equal(firstItem.providerRefs[0]?.providerId, '123');
 
   const stale = await repo.listStaleFallbackTemplates(new Date(Date.now() - 120 * 60 * 1000));
-  assert.ok(stale.some((t) => t.listKey === listKey && t.locale === 'en'));
+  assert.ok(stale.some((t) => t.listKey === listKey), 'specific row is eligible for cron refresh');
 
-  await repo.markFallbackRefreshed(listKey, 'en');
+  await repo.markFallbackRefreshed(listKey);
   const staleAfter = await repo.listStaleFallbackTemplates(new Date(Date.now() - 120 * 60 * 1000));
-  assert.ok(!staleAfter.some((t) => t.listKey === listKey && t.locale === 'en'));
+  assert.ok(!staleAfter.some((t) => t.listKey === listKey));
 });
 
-test('delete removes a fallback template by listKey and locale', { concurrency: false }, async () => {
+test('auto templates are excluded from cron refresh eligibility', { concurrency: false }, async () => {
+  const repo = new HomeListsRepo({ db });
+  await repo.upsertFallbackTemplate({
+    listKey: TEST_MARKER + '_auto',
+    locale: 'en',
+    localeMode: 'auto',
+    regionOverride: null,
+    sectionType: 'contentRail',
+    title: 'Auto',
+    subtitle: null,
+    rank: 0,
+    sourceId: 'tmdb.discover-filtered',
+    sourceConfig: { feed: 'popular', mediaType: 'movie' },
+    refreshMinutes: 60,
+    updatedBy: TEST_MARKER,
+  });
+  const stale = await repo.listStaleFallbackTemplates(new Date(Date.now() - 120 * 60 * 1000));
+  assert.ok(!stale.some((t) => t.listKey === TEST_MARKER + '_auto'), 'auto rows stay out of the cron queue');
+});
+
+test('delete removes a fallback template by listKey', { concurrency: false }, async () => {
   const repo = new HomeListsRepo({ db });
   const listKey = TEST_MARKER + '_del';
   await repo.upsertFallbackTemplate({
     listKey,
     locale: 'en',
+    localeMode: 'auto',
+    regionOverride: null,
     sectionType: 'contentRail',
     title: 'Del',
     subtitle: null,
     rank: 0,
-    sourceId: 'tmdb.trending',
+    sourceId: 'tmdb.discover-filtered',
     sourceConfig: {},
     refreshMinutes: null,
     updatedBy: TEST_MARKER,
   });
-  await repo.deleteFallbackTemplate(listKey, 'en');
-  const all = await repo.listFallbackTemplatesForLocales(['en']);
-  assert.ok(!all.some((t) => t.listKey === listKey && t.locale === 'en'));
+  await repo.deleteFallbackTemplate(listKey);
+  const all = await repo.listFallbackTemplatesForViewer(['en']);
+  assert.ok(!all.some((t) => t.listKey === listKey));
 });

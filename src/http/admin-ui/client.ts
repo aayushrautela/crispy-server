@@ -365,6 +365,12 @@ export const ADMIN_UI_CLIENT = String.raw`
       sourceSelect.addEventListener('change', () => void renderHomeSourceConfig());
     }
 
+    const localeModeSelect = document.querySelector('[data-home-field="localeMode"]');
+    if (localeModeSelect) {
+      localeModeSelect.addEventListener('change', updateLocaleModeFields);
+    }
+    updateLocaleModeFields();
+
     if (state.activeView === 'home-fallback') {
       void loadListSources().then(() => loadHomeFallback());
     }
@@ -384,6 +390,15 @@ export const ADMIN_UI_CLIENT = String.raw`
       select.innerHTML = '<option value="">— select source —</option>'
         + homeState.listSources.map((source) => '<option value="' + escapeHtml(source.id) + '">' + escapeHtml(source.name) + '</option>').join('');
     }
+  }
+
+  function updateLocaleModeFields() {
+    const mode = document.querySelector('[data-home-field="localeMode"]');
+    const modeValue = mode ? String((mode as HTMLSelectElement).value) : 'auto';
+    const overrideWrap = document.querySelector('[data-home-field="overrideLocaleWrap"]');
+    const regionWrap = document.querySelector('[data-home-field="regionOverrideWrap"]');
+    if (overrideWrap) overrideWrap.hidden = modeValue !== 'specific';
+    if (regionWrap) regionWrap.hidden = modeValue === 'auto';
   }
 
   function renderHomeSourceConfig() {
@@ -509,25 +524,29 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     setHomeStatus('#home-fallback-status', '', false);
     const items = result.items || [];
-    rows.innerHTML = items.length ? items.map((t) => '<tr>'
-      + '<td>' + escapeHtml(String(t.listKey)) + '</td>'
-      + '<td>' + escapeHtml(String(t.locale)) + '</td>'
-      + '<td>' + escapeHtml(String(t.sectionType)) + '</td>'
-      + '<td>' + escapeHtml(String(t.rank)) + '</td>'
-      + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
-      + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
-      + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
-      + '<td><div class="jobs-toolbar">'
-        + '<button type="button" class="secondary" data-home-template-sync="' + escapeHtml(String(t.listKey)) + '" data-home-template-locale="' + escapeHtml(String(t.locale)) + '">Sync</button>'
-        + '<button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '" data-home-template-locale="' + escapeHtml(String(t.locale)) + '">Delete</button>'
-      + '</div></td>'
-      + '</tr>').join('')
+    rows.innerHTML = items.length ? items.map((t) => {
+      const mode = String(t.localeMode);
+      const region = t.regionOverride ? ' (' + escapeHtml(String(t.regionOverride)) + ')' : '';
+      return '<tr>'
+        + '<td>' + escapeHtml(String(t.listKey)) + '</td>'
+        + '<td>' + escapeHtml(mode) + region + '</td>'
+        + '<td>' + escapeHtml(String(t.sectionType)) + '</td>'
+        + '<td>' + escapeHtml(String(t.rank)) + '</td>'
+        + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
+        + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
+        + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
+        + '<td><div class="jobs-toolbar">'
+          + '<button type="button" class="secondary" data-home-template-sync="' + escapeHtml(String(t.listKey)) + '">Sync</button>'
+          + '<button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '">Delete</button>'
+        + '</div></td>'
+        + '</tr>';
+    }).join('')
       : emptyTableRow('No fallback rails. Create one to seed deterministic home content.', 8);
     rows.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => void deleteHomeFallback(btn.getAttribute('data-home-template-delete'), btn.getAttribute('data-home-template-locale')));
+      btn.addEventListener('click', () => void deleteHomeFallback(btn.getAttribute('data-home-template-delete')));
     });
     rows.querySelectorAll('[data-home-template-sync]').forEach((btn) => {
-      btn.addEventListener('click', () => void syncHomeFallback(btn.getAttribute('data-home-template-sync'), btn.getAttribute('data-home-template-locale'), btn));
+      btn.addEventListener('click', () => void syncHomeFallback(btn.getAttribute('data-home-template-sync'), btn));
     });
   }
 
@@ -543,8 +562,10 @@ export const ADMIN_UI_CLIENT = String.raw`
       await fetchJson(apiPath('/home/fallback-templates'), {
         method: 'POST',
         body: JSON.stringify({
-          listKey: String(data.get('listKey') || '').trim(),
-          locale: String(data.get('locale') || '').trim(),
+          listKey: '',
+          localeMode: String(data.get('localeMode') || 'auto'),
+          overrideLocale: String(data.get('overrideLocale') || 'en'),
+          regionOverride: String(data.get('regionOverride') || ''),
           sectionType: String(data.get('sectionType') || '').trim(),
           title: String(data.get('title') || '').trim(),
           subtitle: String(data.get('subtitle') || '').trim() || null,
@@ -558,27 +579,29 @@ export const ADMIN_UI_CLIENT = String.raw`
       form.reset();
       const configEl = form.querySelector('[data-home-field="source-config"]');
       if (configEl) configEl.innerHTML = '';
+      const slugEl = form.querySelector('[data-home-field="slug-preview"]');
+      if (slugEl) slugEl.textContent = '';
       void loadHomeFallback();
     } catch (error) {
       setHomeStatus('#home-fallback-status', error.message || 'Failed to save rail.', true);
     }
   }
 
-  async function deleteHomeFallback(listKey, locale) {
+  async function deleteHomeFallback(listKey) {
     try {
-      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/' + encodeURIComponent(locale)), { method: 'DELETE' });
+      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey)), { method: 'DELETE' });
       void loadHomeFallback();
     } catch (error) {
       setHomeStatus('#home-fallback-status', error.message || 'Failed to delete rail.', true);
     }
   }
 
-  async function syncHomeFallback(listKey, locale, button) {
+  async function syncHomeFallback(listKey, button) {
     if (button) button.disabled = true;
-    setHomeStatus('#home-fallback-status', 'Syncing ' + listKey + ' (' + locale + ')...', false);
+    setHomeStatus('#home-fallback-status', 'Syncing ' + listKey + '...', false);
     try {
-      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/' + encodeURIComponent(locale) + '/sync'), { method: 'POST' });
-      setHomeStatus('#home-fallback-status', 'Synced ' + listKey + ' (' + locale + ').', false);
+      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/sync'), { method: 'POST' });
+      setHomeStatus('#home-fallback-status', 'Synced ' + listKey + '.', false);
       void loadHomeFallback();
     } catch (error) {
       setHomeStatus('#home-fallback-status', error.message || 'Sync failed.', true);

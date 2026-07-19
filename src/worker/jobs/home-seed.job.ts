@@ -3,7 +3,7 @@ import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
 import { DefaultHomeWriteService } from '../../modules/home/home-write.service.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
-import { buildFallbackLists, localeCandidates, resolveTemplatesByLocale, profileContextForFallback, FALLBACK_SECTION_LIMITS, type FallbackTemplate } from '../../modules/home/home-fallback.service.js';
+import { buildFallbackLists, resolveFallbackTemplatesForViewer, profileContextForFallback, FALLBACK_SECTION_LIMITS, type FallbackTemplate } from '../../modules/home/home-fallback.service.js';
 import type { HomeSeedJob } from '../../lib/queue.js';
 
 /**
@@ -20,9 +20,9 @@ export async function runHomeSeedJob(job: HomeSeedJob): Promise<void> {
 
   await withDbClient(async (client) => {
     const profile = await profileService.requireOwnedProfile(job.accountId, job.profileId);
-    const candidates = localeCandidates(profile.interfaceLanguage || 'en');
-    const all = await repo.listFallbackTemplatesForLocales(candidates);
-    const templates = resolveTemplatesByLocale(all, candidates);
+    const locale = profile.interfaceLanguage || 'en';
+    const all = await repo.listFallbackTemplatesForViewer([locale]);
+    const templates = resolveFallbackTemplatesForViewer(all, locale);
     if (templates.length === 0) return;
 
     const connectedProviders = await connectedProviderKinds(client, job.profileId);

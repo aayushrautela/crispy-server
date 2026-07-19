@@ -9,7 +9,7 @@ import { DefaultHomeWriteService, type HomeWriteService } from './home-write.ser
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
 import { getListSource } from './list-sources/list-source.registry.js';
-import { buildFallbackLists, localeCandidates, resolveTemplatesByLocale, profileContextForFallback, FALLBACK_SECTION_LIMITS, type FallbackTemplate } from './home-fallback.service.js';
+import { buildFallbackLists, resolveFallbackTemplatesForViewer, profileContextForFallback, FALLBACK_SECTION_LIMITS, type FallbackTemplate } from './home-fallback.service.js';
 
 export type ResolvedHomeSource = 'custom' | 'reco' | 'fallback' | 'fallback-built';
 
@@ -139,30 +139,69 @@ export class HomeResolverService {
     region: string | null,
     isKids: boolean,
   ): Promise<ClientHomeSection[]> {
-    const candidates = localeCandidates(locale);
-    const all = await this.repo.listFallbackTemplatesForLocales(candidates);
-    const templates = resolveTemplatesByLocale(all, candidates);
+    const all = await this.repo.listFallbackTemplatesForViewer(locale ? [locale] : []);
+    const templates = resolveFallbackTemplatesForViewer(all, locale);
     if (templates.length === 0) return [];
 
     const connectedProviders = await this.connectedProviderKinds(client, profileId);
-    const ctxBase = profileContextForFallback({ interfaceLanguage: locale, region, isKids }, connectedProviders);
+    const normalized: Array<{
+      listKey: string;
+      sectionType: string;
+      title: string;
+      subtitle: string | null;
+      items: unknown[];
+    }> = [];
 
-    const lists = await buildFallbackLists(
-      client,
-      this.repo,
-      profileId,
-      templates as FallbackTemplate[],
-      ctxBase,
-      FALLBACK_SECTION_LIMITS,
-    );
-    const normalized = lists.map((list) => ({
-      listKey: list.listKey,
-      sectionType: list.sectionType,
-      title: list.title,
-      subtitle: list.subtitle ?? null,
-      items: list.items,
-    }));
-    return this.hydrator.hydrateSections(client, normalized, locale);
+    for (const template of templates as FallbackTemplate[]) {
+      // Resolve the effective TMDB language + region for this viewer.
+      const tmdbLanguage = template.localeMode === 'en' ? 'en' : (locale || 'en');
+      const tmdbRegion = template.regionOverride || region || undefined;
+      const viewerLocale = template.localeMode === 'auto' ? (locale || 'en') : (template.localeMode === 'en' ? 'en' : template.locale);
+
+      // Serve from the shared cache when present; otherwise resolve live.
+      const cached = await this.repo.getFallbackVersion(template.listKey, viewerLocale, template.sourceId);
+      let items: unknown[];
+      if (cached && cached.items.length > 0) {
+        items = cached.items;
+      } else {
+        const ctxBase = profileContextForFallback(
+          { interfaceLanguage: tmdbLanguage, region: tmdbRegion ?? null, isKids },
+          connectedProviders,
+        );
+        const lists = await buildFallbackLists(
+          client,
+          this.repo,
+          profileId,
+          [template],
+          { ...ctxBase, tmdbLanguage, tmdbRegion },
+          FALLBACK_SECTION_LIMITS,
+        );
+        const list = lists[0];
+        items = list ? list.items : [];
+        // Persist to the shared cache so the next viewer in this locale is free.
+        if (items.length > 0) {
+          await this.repo.saveFallbackVersion({
+            listKey: template.listKey,
+            locale: viewerLocale,
+            sourceId: template.sourceId,
+            sectionType: template.sectionType,
+            title: template.title,
+            subtitle: template.subtitle,
+            rank: template.rank,
+            items,
+          });
+        }
+      }
+      normalized.push({
+        listKey: template.listKey,
+        sectionType: template.sectionType,
+        title: template.title,
+        subtitle: template.subtitle ?? null,
+        items,
+      });
+    }
+
+    return this.hydrator.hydrateSections(client, normalized as never, locale);
   }
 
   private async connectedProviderKinds(client: DbClient, profileId: string): Promise<Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>> {

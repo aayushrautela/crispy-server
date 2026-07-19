@@ -8,13 +8,17 @@ import type { HomeFallbackRefreshJob } from '../../lib/queue.js';
  * Refreshes resolved fallback rails into the shared `home.fallback_list_versions`
  * cache so N profiles share a single upstream fetch per refresh interval.
  *
- * scope='cron'  -> refresh every template whose refresh_minutes elapsed.
- * scope='single' -> refresh one template (admin "sync now").
+ * scope='cron'  -> refresh every 'specific'/'en' template whose refresh_minutes
+ *                  elapsed. 'auto' rows are intentionally excluded: they refresh
+ *                  lazily per viewer locale on cache miss (see home-resolver).
+ * scope='single' -> refresh one template (admin "sync now"). For 'auto' rows the
+ *                  locale is resolved from the job payload (viewer locale); the
+ *                  cached row is keyed by that locale.
  */
 export async function runHomeFallbackRefreshJob(job: HomeFallbackRefreshJob): Promise<void> {
   const repo = new HomeListsRepo({ db });
 
-  if (job.scope === 'single' && job.listKey && job.locale) {
+  if (job.scope === 'single' && job.listKey) {
     await refreshOne(repo, job.listKey, job.locale);
     return;
   }
@@ -26,25 +30,30 @@ export async function runHomeFallbackRefreshJob(job: HomeFallbackRefreshJob): Pr
   }
 }
 
-async function refreshOne(repo: HomeListsRepo, listKey: string, locale: string): Promise<void> {
+async function refreshOne(repo: HomeListsRepo, listKey: string, locale: string | undefined): Promise<void> {
   await withDbClient(async (client) => {
-    const rows = await repo.listFallbackTemplatesForLocales([locale]);
-    const template = rows.find((r) => r.listKey === listKey && r.locale === locale);
-    if (!template) return;
-    const source = getListSource(template.sourceId);
+    const rows = await repo.listFallbackTemplateByKey(listKey);
+    if (!rows) return;
+    const source = getListSource(rows.sourceId);
     if (!source) return;
+
+    // For 'auto' rows the job locale is the viewer locale to refresh; for
+    // 'specific'/'en' rows the template's own locale is authoritative.
+    const resolvedLocale = rows.localeMode === 'auto' ? (locale ?? 'en') : rows.locale;
+    const tmdbLanguage = rows.localeMode === 'en' ? 'en' : resolvedLocale;
+    const tmdbRegion = rows.regionOverride ?? undefined;
 
     const lists = await buildFallbackLists(
       client,
       repo,
       '',
-      [template as FallbackTemplate],
-      { locale, tmdbLanguage: locale, region: null, tmdbRegion: undefined, isKids: false, connectedProviders: [] },
+      [rows as FallbackTemplate],
+      { locale: tmdbLanguage, tmdbLanguage, region: tmdbRegion ?? null, tmdbRegion, isKids: false, connectedProviders: [] },
       FALLBACK_SECTION_LIMITS,
     );
     const list = lists[0];
     if (!list) {
-      await repo.markFallbackRefreshed(listKey, locale);
+      await repo.markFallbackRefreshed(listKey);
       return;
     }
     const items = list.items.map((item) => ({
@@ -56,16 +65,16 @@ async function refreshOne(repo: HomeListsRepo, listKey: string, locale: string):
       metadata: item.metadata,
     }));
     await repo.saveFallbackVersion({
-      listKey: template.listKey,
-      locale: template.locale,
-      sourceId: template.sourceId,
-      sectionType: template.sectionType,
-      title: template.title,
-      subtitle: template.subtitle,
-      rank: template.rank,
+      listKey: rows.listKey,
+      locale: resolvedLocale,
+      sourceId: rows.sourceId,
+      sectionType: rows.sectionType,
+      title: rows.title,
+      subtitle: rows.subtitle,
+      rank: rows.rank,
       items,
     });
-    await repo.markFallbackRefreshed(listKey, locale);
+    await repo.markFallbackRefreshed(listKey);
   });
 }
 
