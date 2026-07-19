@@ -3,8 +3,11 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { AppAuthService } from '../../modules/apps/app-auth.service.js';
 import type { AppRateLimitService } from '../../modules/apps/app-rate-limit.service.js';
 import type { AppAuditRepo } from '../../modules/apps/app-audit.repo.js';
-import type { AppGrant, AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
-import { AppAuthError } from '../../modules/apps/app-auth.errors.js';
+import type { AppKeyRecord, AppPrincipal } from '../../modules/apps/app-principal.types.js';
+import type { AppRegistryRepo } from '../../modules/apps/app-registry.repo.js';
+import type { AppGrantRepo } from '../../modules/apps/app-grant.repo.js';
+import type { AppSourceOwnershipRepo } from '../../modules/apps/app-source-ownership.repo.js';
+import type { Clock } from '../../modules/apps/clock.js';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/errors.js';
 import { hashAccessToken } from '../../modules/auth/token-hash.js';
@@ -20,142 +23,75 @@ declare module 'fastify' {
   }
 }
 
-export interface AppAuthPluginOptions {
+type EnvVarPrincipalRepoDeps = {
+  appRegistryRepo: Pick<AppRegistryRepo, 'findAppById' | 'listScopesForApp' | 'getRateLimitPolicy'>;
+  appGrantRepo: Pick<AppGrantRepo, 'listActiveGrantsForApp'>;
+  sourceOwnershipRepo: Pick<AppSourceOwnershipRepo, 'findByAppId'>;
+};
+
+export interface AppAuthPluginOptions extends EnvVarPrincipalRepoDeps {
   appAuthService: AppAuthService;
   appRateLimitService: AppRateLimitService;
   appAuditRepo: AppAuditRepo;
+  clock: Clock;
 }
 
-const OFFICIAL_RECOMMENDER_SCOPES: AppScope[] = [
-  'apps:self:read',
-  'accounts:all:read',
-  'accounts:all:write',
-  'profiles:eligible:read',
-  'profiles:eligible:snapshot:create',
-  'profiles:eligible:snapshot:read',
-  'profiles:signals:read',
-  'recommendations:service-lists:write',
-  'recommendations:service-lists:batch-write',
-  'recommendations:runs:write',
-  'recommendations:batches:write',
-  'recommendations:backfills:read',
-  'apps:audit:read',
-  'apps:audit:write',
-];
+const RECO_ENV_VAR_KEY_ID = 'reco-env-var-token';
 
-const OFFICIAL_RECOMMENDER_GRANTS: AppGrant[] = [
-  {
-    grantId: 'official-recommender-profile-signals',
-    appId: 'official-recommender',
-    resourceType: 'profileSignals',
-    resourceId: '*',
-    purpose: 'recommendation-generation',
-    actions: ['read'],
-    constraints: { eligibleProfilesOnly: false, allowServerFallback: true },
-    status: 'active',
-    createdAt: new Date(0),
-    expiresAt: null,
-  },
-  {
-    grantId: 'official-recommender-recommendation-list',
-    appId: 'official-recommender',
-    resourceType: 'recommendationList',
-    resourceId: '*',
-    purpose: 'recommendation-generation',
-    actions: ['read', 'write', 'create', 'update'],
-    constraints: { source: 'official-recommender', maxItems: 1000 },
-    status: 'active',
-    createdAt: new Date(0),
-    expiresAt: null,
-  },
-  {
-    grantId: 'official-recommender-profile-eligibility',
-    appId: 'official-recommender',
-    resourceType: 'profileEligibility',
-    resourceId: '*',
-    purpose: 'recommendation-generation',
-    actions: ['read'],
-    constraints: {},
-    status: 'active',
-    createdAt: new Date(0),
-    expiresAt: null,
-  },
-  {
-    grantId: 'official-recommender-recommendation-run',
-    appId: 'official-recommender',
-    resourceType: 'recommendationRun',
-    resourceId: '*',
-    purpose: 'recommendation-generation',
-    actions: ['create', 'update', 'claim'],
-    constraints: {},
-    status: 'active',
-    createdAt: new Date(0),
-    expiresAt: null,
-  },
-  {
-    grantId: 'official-recommender-recommendation-batch',
-    appId: 'official-recommender',
-    resourceType: 'recommendationBatch',
-    resourceId: '*',
-    purpose: 'recommendation-generation',
-    actions: ['create', 'update', 'claim'],
-    constraints: {},
-    status: 'active',
-    createdAt: new Date(0),
-    expiresAt: null,
-  },
-  {
-    grantId: 'official-recommender-audit-events',
-    appId: 'official-recommender',
-    resourceType: 'auditEvents',
-    resourceId: '*',
-    purpose: 'recommendation-generation',
-    actions: ['read'],
-    constraints: {},
-    status: 'active',
-    createdAt: new Date(0),
-    expiresAt: null,
-  },
-];
+type BuildPrincipalFromAppIdInput = {
+  appId: string;
+  keyId: string;
+  registryRepo: Pick<AppRegistryRepo, 'findAppById' | 'listScopesForApp' | 'getRateLimitPolicy'>;
+  grantRepo: Pick<AppGrantRepo, 'listActiveGrantsForApp'>;
+  sourceOwnershipRepo: Pick<AppSourceOwnershipRepo, 'findByAppId'>;
+  clock: Clock;
+};
 
-function buildOfficialRecommenderPrincipal(): AppPrincipal {
-  const now = new Date(0);
+async function buildPrincipalFromAppId(input: BuildPrincipalFromAppIdInput): Promise<AppPrincipal> {
+  const registryEntry = await input.registryRepo.findAppById(input.appId);
+  if (!registryEntry) {
+    throw new HttpError(401, `Unknown app_id: ${input.appId}`);
+  }
+  if (registryEntry.status !== 'active') {
+    throw new HttpError(403, `App ${input.appId} is not active.`);
+  }
+
+  const now = input.clock.now();
+  const [scopes, grants, ownerships, rateLimitPolicy] = await Promise.all([
+    input.registryRepo.listScopesForApp(input.appId),
+    input.grantRepo.listActiveGrantsForApp(input.appId, now),
+    input.sourceOwnershipRepo.findByAppId(input.appId),
+    input.registryRepo.getRateLimitPolicy(input.appId),
+  ]);
+
+  const fakeKey: AppKeyRecord = {
+    keyId: input.keyId,
+    appId: input.appId,
+    keyHash: '',
+    status: 'active',
+    createdAt: now,
+    expiresAt: null,
+    lastUsedAt: null,
+    rotationGroup: null,
+    allowedIpCidrs: [],
+    metadata: { provisioningMethod: 'env-var' },
+  };
+
   return {
     principalType: 'app',
-    appId: 'official-recommender',
-    keyId: 'crispy-recommender-api-token',
-    scopes: OFFICIAL_RECOMMENDER_SCOPES,
-    grants: OFFICIAL_RECOMMENDER_GRANTS,
-    ownedSources: ['official-recommender'],
-    ownedListKeys: ['*'],
-    rateLimitPolicy: {
-      profileChangesReadsPerMinute: 1000000,
-      profileSignalReadsPerMinute: 1000000,
-      recommendationWritesPerMinute: 1000000,
-      batchWritesPerMinute: 1000000,
-      configBundleReadsPerMinute: 1000000,
-      runsPerHour: 1000000,
-      snapshotsPerDay: 1000000,
-      maxProfilesPerBatch: 1000000,
-      maxItemsPerList: 1000000,
-    },
-    registryEntry: {
-      appId: 'official-recommender',
-      name: 'Official Recommender',
-      description: 'Built-in Crispy recommendation engine token principal.',
-      status: 'active',
-      ownerTeam: 'crispy',
-      allowedEnvironments: ['*'],
-      principalType: 'service_app',
-      createdAt: now,
-      updatedAt: now,
-      disabledAt: null,
-    },
+    appId: input.appId,
+    keyId: input.keyId,
+    scopes,
+    grants,
+    ownedSources: ownerships.filter((item) => item.status === 'active').map((item) => item.source),
+    ownedListKeys: [...new Set(ownerships.flatMap((item) => item.allowedListKeys))],
+    rateLimitPolicy,
+    registryEntry,
   };
 }
 
 const appAuthPlugin: FastifyPluginAsync<AppAuthPluginOptions> = async (fastify, options) => {
-  const { appAuthService, appAuditRepo } = options;
+  const { appAuthService, appAuditRepo, appRegistryRepo, appGrantRepo, sourceOwnershipRepo, clock } = options;
 
   fastify.decorateRequest('appPrincipal');
 
@@ -165,30 +101,46 @@ const appAuthPlugin: FastifyPluginAsync<AppAuthPluginOptions> = async (fastify, 
     }
 
     const header = request.headers.authorization?.trim();
-    if (header?.startsWith('Bearer ')) {
-      const token = header.slice('Bearer '.length).trim();
-      const expectedHash = env.recommenderToMainServiceTokenHash;
-      if (!expectedHash || !token || hashAccessToken(token) !== expectedHash) {
-        throw new HttpError(401, 'Invalid recommender bearer token.');
-      }
-
-      const principal = buildOfficialRecommenderPrincipal();
-      request.appPrincipal = principal;
-      request.auth = {
-        type: 'recommender',
-        appUserId: null,
-        serviceId: 'official-recommender',
-        scopes: [],
-        authSubject: null,
-        email: null,
-        tokenId: null,
-        consumerId: null,
-        accessToken: null,
-      };
-      return principal;
+    if (!header?.startsWith('Bearer ')) {
+      throw new HttpError(401, 'Missing recommender bearer token.');
     }
 
-    return fastify.requireAppAuth(request);
+    const token = header.slice('Bearer '.length).trim();
+    const expectedHash = env.recommenderToMainServiceTokenHash;
+    if (!expectedHash || !token || hashAccessToken(token) !== expectedHash) {
+      throw new HttpError(401, 'Invalid recommender bearer token.');
+    }
+
+    const principal = await buildPrincipalFromAppId({
+      appId: 'reco',
+      keyId: RECO_ENV_VAR_KEY_ID,
+      registryRepo: appRegistryRepo,
+      grantRepo: appGrantRepo,
+      sourceOwnershipRepo,
+      clock,
+    });
+    request.appPrincipal = principal;
+    request.auth = {
+      type: 'recommender',
+      appUserId: null,
+      serviceId: 'reco',
+      scopes: [],
+      authSubject: null,
+      email: null,
+      tokenId: null,
+      consumerId: null,
+      accessToken: null,
+    };
+    await appAuditRepo.insert({
+      appId: principal.appId,
+      keyId: principal.keyId,
+      action: 'app_authenticated',
+      requestId: request.id,
+      metadata: { method: request.method, url: request.url, authPath: 'env-var' },
+    }).catch((err) => {
+      request.log.warn({ err }, 'Failed to audit app authentication');
+    });
+    return principal;
   });
 
   fastify.decorate('requireAppAuth', async (request: FastifyRequest): Promise<AppPrincipal> => {
@@ -215,13 +167,13 @@ const appAuthPlugin: FastifyPluginAsync<AppAuthPluginOptions> = async (fastify, 
 
       return principal;
     } catch (error) {
-      if (error instanceof AppAuthError) {
+      if (error instanceof Error && error.constructor.name === 'AppAuthError') {
         await appAuditRepo.insert({
           appId: 'unknown',
           action: 'app_auth_failed',
           requestId: request.id,
           metadata: {
-            code: error.code,
+            code: (error as { code?: string }).code ?? 'unknown',
             method: request.method,
             url: request.url,
           },

@@ -1,0 +1,21 @@
+-- Drop the legacy External API Keys (EAK) mechanism.
+--
+-- EAKs (table `private.external_api_keys`, key prefix `cp_eak_`) were a
+-- parallel per-user API-key system introduced in 0008 and only ever used by
+-- three `/v2/profiles/:profileId/watch/{history,watchlist,ratings}` routes
+-- that returned BaseItemDto-shaped payloads. Critical issues:
+--
+--   1. No management routes existed -- users could never obtain an EAK, so
+--      the table was perpetually empty (zero rows on prod as of this commit).
+--   2. The same model was superseded by Personal Access Tokens (PATs, prefix
+--      `cp_pat_`, table `personal_access_tokens`) which have management routes
+--      and work across the `/v1/...` and `/internal/apps/v1/...` surface.
+--   3. The `/v2/...` payload shape (BaseItemDto.ProviderIds/UserData)
+--      contradicts the canonical provider-ref contract documented in
+--      docs/specs/client-reco-pipeline-spec.md.
+--
+-- Keeping one per-user key system (PATs only) is the KISS consolidation.
+-- Code-level removal is in this commit; this migration drops the orphaned
+-- table so future installs (and fresh dev databases) don't recreate it.
+
+DROP TABLE IF EXISTS private.external_api_keys;

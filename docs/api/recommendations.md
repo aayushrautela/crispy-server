@@ -9,13 +9,13 @@ This guide defines the home section contract used by external recommendation eng
 
 ## Home ingest pipeline
 
-The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`) is the unified write contract for **all** home producers, not just the reco engine. Producers authenticate as service principals and are distinguished by `source`:
+The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`) is the unified write contract for **all** home producers, not just the reco engine. Producers authenticate differently depending on whether they're owned by us (reco, fallback) or custom per-user:
 
-- `reco` — personalized recommendations pushed by the external reco engine
-- `custom` — curated lists pushed by an external custom service (not admin-curated)
-- `fallback` — deterministic default templates pulled by the pipeline itself on `/home` read with empty store, or when an external push attempt fails
+- `reco` (reco engine, system-wide): Bearer token, hash matched against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`. Principal resolved from `app_registry.app_id='reco'`.
+- `fallback` (internal source, system-wide): Bearer AppKey, principal resolved from `app_registry.app_id='fallback'` rows. No fallback route required yet.
+- `custom` (per-user, PAT-authenticated): Bearer `cp_pat_...` carrying `recommendations:write`, with URL `:accountId` matching the PAT owner's `appUserId`. Principal synthesized from the user actor with `appId='custom'` and no system-wide scopes.
 
-All three producers share the same `RecoListWriteRequest` shape and the same canonicalize → policy → persist path. `/home` reads only from what the pipeline wrote. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" and `docs/specs/client-reco-pipeline-spec.md` → "Pipeline producers".
+All three producers share the same `RecoListWriteRequest` shape and the same canonicalize → policy → persist path. `/home` reads only from what the pipeline wrote. See `docs/architecture/recommendation-engine.md` → "Authentication" and "Home ingest pipeline" for details.
 
 ## Home section model
 

@@ -4,7 +4,11 @@ import type { FastifyRequest } from 'fastify';
 import { AppAuthError } from '../../modules/apps/app-auth.errors.js';
 import type { AppAuthService, AppCredential } from '../../modules/apps/app-auth.service.js';
 import type { AppAuditRepo, CreateAppAuditEventInput, AppAuditEventRecord, PaginatedAppAuditEvents } from '../../modules/apps/app-audit.repo.js';
-import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
+import type { AppGrantRepo } from '../../modules/apps/app-grant.repo.js';
+import type { AppGrant } from '../../modules/apps/app-principal.types.js';
+import type { AppRegistryRepo } from '../../modules/apps/app-registry.repo.js';
+import type { AppScope, AppRateLimitPolicy, AppPrincipal } from '../../modules/apps/app-principal.types.js';
+import type { AppSourceOwnershipRepo, AppSourceOwnership } from '../../modules/apps/app-source-ownership.repo.js';
 import type { AppRateLimitService, AppRateLimitDecision } from '../../modules/apps/app-rate-limit.service.js';
 import { setTestEnv } from '../../test-helpers.js';
 
@@ -75,6 +79,54 @@ class FakeRateLimitService implements AppRateLimitService {
   }
 }
 
+class FakeRegistryRepo implements Pick<AppRegistryRepo, 'findAppById' | 'listScopesForApp' | 'getRateLimitPolicy'> {
+  async findAppById(appId: string) {
+    if (appId === 'test-app') {
+      return {
+        appId: 'test-app',
+        name: 'Test App',
+        description: 'Test description',
+        status: 'active' as const,
+        ownerTeam: 'test',
+        allowedEnvironments: ['test'],
+        principalType: 'service_app' as const,
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+        disabledAt: undefined,
+      };
+    }
+    return null;
+  }
+  async listScopesForApp(_appId: string): Promise<AppScope[]> {
+    return ['apps:self:read', 'accounts:all:read', 'profiles:signals:read', 'recommendations:service-lists:write'];
+  }
+  async getRateLimitPolicy(_appId: string): Promise<AppRateLimitPolicy> {
+    return {
+      profileChangesReadsPerMinute: 60,
+      profileSignalReadsPerMinute: 60,
+      recommendationWritesPerMinute: 60,
+      batchWritesPerMinute: 10,
+      configBundleReadsPerMinute: 60,
+      runsPerHour: 10,
+      snapshotsPerDay: 5,
+      maxProfilesPerBatch: 100,
+      maxItemsPerList: 50,
+    };
+  }
+}
+
+class FakeGrantRepo implements Pick<AppGrantRepo, 'listActiveGrantsForApp'> {
+  async listActiveGrantsForApp(_appId: string, _now: Date): Promise<AppGrant[]> {
+    return [];
+  }
+}
+
+class FakeSourceOwnershipRepo implements Pick<AppSourceOwnershipRepo, 'findByAppId'> {
+  async findByAppId(_appId: string): Promise<AppSourceOwnership[]> {
+    return [];
+  }
+}
+
 class FakeAuditRepo implements AppAuditRepo {
   readonly inserted: CreateAppAuditEventInput[] = [];
 
@@ -113,6 +165,10 @@ async function buildApp(authService: AppAuthService, auditRepo = new FakeAuditRe
     appAuthService: authService,
     appRateLimitService: new FakeRateLimitService(),
     appAuditRepo: auditRepo,
+    appRegistryRepo: new FakeRegistryRepo(),
+    appGrantRepo: new FakeGrantRepo(),
+    sourceOwnershipRepo: new FakeSourceOwnershipRepo(),
+    clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
   });
 
   app.get('/internal/apps/v1/test', async (request) => {

@@ -29,16 +29,48 @@ RECO is not this repository's BullMQ worker and must not read Crispy Server Post
 
 ## Authentication
 
-### RECO to MAIN
+MAIN uses one auth framework for all service-to-service identity. The same
+framework governs the three home ingest pipeline producers (`reco`,
+`custom`, `fallback`), and is the sole source of principal shape.
 
-RECO authenticates to MAIN as a service principal using service-to-service headers:
+| Producer | App identity | Auth mechanism | Scope of access |
+| --- | --- | --- | --- |
+| `reco` | `app_registry.app_id = 'reco'` | Bearer token verified against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH` env var (legacy single-token mechanism preserved for operational continuity; principal resolved from `app_registry` / `app_scopes` / `app_grants` / `app_source_ownership` rows on match) | system-wide: any profile's signals read, any profile's home lists write |
+| `fallback` | `app_registry.app_id = 'fallback'` | Bearer AppKey verified by `DefaultAppAuthService.authenticateRequest` (an `app_keys` row for `fallback` is created by an operator at deployment time) | system-wide: any profile's signals read, any profile's fallback home lists write (`source='fallback'` constraint) |
+| `custom` | `app_registry.app_id = 'custom'` (registry-only; no `app_keys` row) | Bearer PAT (`cp_pat_...`) issued by the user, with the `recommendations:write` scope | per-user only: the URL `:accountId` must match the PAT owner's `appUserId`; ownership enforced at the home-list-upsert route |
+
+### Service principal resolution (reco)
+
+RECO authenticates to MAIN with:
 
 ```text
-x-service-id: crispy-recommendation-engine
 Authorization: Bearer <raw token whose SHA-256 hash matches RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH>
 ```
 
-`RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH` is configured in MAIN and stores the SHA-256 hash of the raw bearer token used by RECO.
+On match, the auth plugin resolves the principal for `app_id='reco'` from DB rows
+(same rows `DefaultAppAuthService.buildPrincipal` would use for an AppKey).
+This eliminates the prior `buildOfficialRecommenderPrincipal` hard-coded
+principal; the DB rows registered in migration `0022_register_home_ingest_apps`
+are the single source of truth.
+
+### AppKey principal resolution (fallback)
+
+Fallback authenticates with a `Bearer <AppKey>` (AppKey scheme is the multi-app
+framework in `src/modules/apps/`): the dispatcher hashes the secret and matches
+against an `app_keys` row for `app_id='fallback'`. Scopes, grants, and source
+ownership are resolved from the same DB rows. An operator inserts the
+`fallback` `app_keys` row when the fallback service goes live.
+
+### Per-user principal resolution (custom)
+
+Custom services do NOT authenticate as a service principal. They authenticate
+with a PAT (Personal Access Token, prefix `cp_pat_`) issued by the user whose
+home they push to. The PAT must carry the `recommendations:write` scope
+(this scope is already in `PAT_ALLOWED_SCOPES`). The upsert route synthesizes
+an `AppPrincipal` for `appId='custom'` from the PAT-authenticated user actor
+and enforces that the URL `:accountId` equals the PAT owner's `appUserId` —
+custom can only push the caller's own home. System-wide scopes are never
+granted to PATs.
 
 ### MAIN to RECO
 

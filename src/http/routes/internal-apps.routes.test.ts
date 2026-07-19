@@ -115,7 +115,21 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
   const { registerInternalAppsRoutes } = await import('./internal-apps.routes.js');
   await app.register(errorHandlerPlugin);
-  await app.register(appAuthPlugin, { appAuthService: authService, appRateLimitService: rateLimitService, appAuditRepo: auditRepo });
+  await app.register(appAuthPlugin, {
+    appAuthService: authService,
+    appRateLimitService: rateLimitService,
+    appAuditRepo: auditRepo,
+    appRegistryRepo: {
+      async findAppById() { return null; },
+      async listScopesForApp() { return []; },
+      async getRateLimitPolicy() {
+        return { profileChangesReadsPerMinute: 60, profileSignalReadsPerMinute: 60, recommendationWritesPerMinute: 60, batchWritesPerMinute: 10, configBundleReadsPerMinute: 60, runsPerHour: 10, snapshotsPerDay: 5, maxProfilesPerBatch: 100, maxItemsPerList: 50 };
+      },
+    } as Pick<import('../../modules/apps/app-registry.repo.js').AppRegistryRepo, 'findAppById' | 'listScopesForApp' | 'getRateLimitPolicy'>,
+    appGrantRepo: { async listActiveGrantsForApp() { return []; } } as Pick<import('../../modules/apps/app-grant.repo.js').AppGrantRepo, 'listActiveGrantsForApp'>,
+    sourceOwnershipRepo: { async findByAppId() { return []; } } as Pick<import('../../modules/apps/app-source-ownership.repo.js').AppSourceOwnershipRepo, 'findByAppId'>,
+    clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
+  });
   app.addHook('onRequest', async (request) => {
     request.appPrincipal = principal;
   });
@@ -357,7 +371,7 @@ test('normal app without accounts:all:write is denied cross-account recommendati
   assert.equal(response.json().error.message, 'Profile not found.');
 });
 
-test('non-official-recommender app with accounts:all:read scope is still denied cross-account access', async (t) => {
+test('any service app with accounts:all:read scope gets cross-account read access (no appId special-casing)', async (t) => {
   const nonOfficialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:read', 'profiles:eligible:read']);
   nonOfficialPrincipal.appId = 'some-other-app';
   const app = await buildServer(nonOfficialPrincipal, []);
@@ -368,6 +382,9 @@ test('non-official-recommender app with accounts:all:read scope is still denied 
     url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/eligibility',
   });
 
-  assert.equal(response.statusCode, 404);
-  assert.equal(response.json().error.message, 'Profile not found.');
+  // Old behavior gated this on appId === 'official-recommender'; the
+  // consolidated auth model grants cross-account access purely via scope,
+  // so this app (which holds accounts:all:read) should be allowed through
+  // to the eligibility service and get a fabricated 200 response.
+  assert.equal(response.statusCode, 200);
 });

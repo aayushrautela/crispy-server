@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppAuditAction } from '../../modules/apps/app-audit.repo.js';
 import type { AppAuditRepo } from '../../modules/apps/app-audit.repo.js';
 import type { AppAuthService } from '../../modules/apps/app-auth.service.js';
@@ -13,10 +13,12 @@ import type { ServiceRecommendationListService } from '../../modules/apps/servic
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
+import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
+import type { AuthActor } from '../../modules/auth/auth.types.js';
+import { HttpError } from '../../lib/errors.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
-import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.types.js';
 import { success, mutation } from '../response.js';
 import {
   eligibleProfileChangesRouteSchema,
@@ -58,7 +60,77 @@ export interface InternalAppsRoutesDeps {
 }
 
 function hasScopedAllAccountAccess(principal: AppPrincipal, scope: AppScope): boolean {
-  return principal.appId === 'official-recommender' && principal.scopes.includes(scope);
+  // System-wide all-account access is reserved for service apps that hold the
+  // explicit scope. PAT-authenticated requests never carry app scopes, so per-
+  // user (e.g. custom) pushes fall through to per-profile ownership checks.
+  return principal.principalType === 'app' && principal.scopes.includes(scope);
+}
+
+const DEFAULT_RATE_LIMIT_POLICY = {
+  profileChangesReadsPerMinute: 60,
+  profileSignalReadsPerMinute: 60,
+  recommendationWritesPerMinute: 60,
+  batchWritesPerMinute: 10,
+  configBundleReadsPerMinute: 60,
+  runsPerHour: 10,
+  snapshotsPerDay: 5,
+  maxProfilesPerBatch: 100,
+  maxItemsPerList: 100,
+};
+
+/**
+ * Synthesize an `AppPrincipal` for the `custom` app from a PAT-authenticated
+ * user. Per-user custom pushes (3rd-party custom services acting on behalf of
+ * a user) authenticate via PAT (Bearer cp_pat_...); the principal is built
+ * with appId='custom', no system-wide scopes (so hasScopedAllAccountAccess
+ * returns false), and ownedSources=['custom'] so the downstream service
+ * derives source='custom' on the pushed list. Ownership of accountId/profileId
+ * is enforced by the route via requireOwnedProfile.
+ */
+function buildCustomPrincipalForUser(user: AuthActor): AppPrincipal {
+  if (!user.appUserId) {
+    throw new Error('PAT auth is missing appUserId; cannot build custom principal.');
+  }
+  return {
+    principalType: 'app',
+    appId: 'custom',
+    keyId: `pat:${user.tokenId ?? user.appUserId}`,
+    scopes: ['recommendations:service-lists:write'],
+    grants: [],
+    ownedSources: ['custom'],
+    ownedListKeys: ['*'],
+    rateLimitPolicy: DEFAULT_RATE_LIMIT_POLICY,
+    registryEntry: {
+      appId: 'custom',
+      name: 'Crispy Custom Lists Service',
+      description: 'Per-user custom-list push (PAT-authenticated).',
+      status: 'active',
+      ownerTeam: 'crispy',
+      allowedEnvironments: ['*'],
+      principalType: 'service_app',
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+      disabledAt: undefined,
+    },
+  };
+}
+
+/**
+ * Resolve the principal for the home-list upsert route.
+ * - `Bearer cp_pat_...`: PAT path -> custom principal derived from the user
+ *   actor. The PAT must carry the `recommendations:write` scope.
+ * - Anything else: service-principal path via requireRecommenderAuth
+ *   (reco/fallback apps).
+ */
+async function resolveHomeIngestPrincipal(app: FastifyInstance, request: FastifyRequest): Promise<AppPrincipal> {
+  const header = request.headers.authorization?.trim() ?? '';
+  if (header.startsWith('Bearer cp_pat_')) {
+    await app.requireAuth(request);
+    app.requireScopes(request, ['recommendations:write']);
+    const actor = app.requireUserActor(request) as AuthActor;
+    return buildCustomPrincipalForUser(actor);
+  }
+  return app.requireRecommenderAuth(request);
 }
 
 export async function registerInternalAppsRoutes(app: FastifyInstance, deps: InternalAppsRoutesDeps): Promise<void> {
@@ -167,11 +239,19 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   });
 
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', { schema: accountListUpsertRouteSchema }, async (request, reply) => {
-    const principal = await app.requireRecommenderAuth(request);
+    const principal = await resolveHomeIngestPrincipal(app, request);
     const params = request.params as { accountId: string; profileId: string; listKey: string };
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
     const hasAllAccountWrite = hasScopedAllAccountAccess(principal, 'accounts:all:write');
     if (!hasAllAccountWrite) {
+      if (principal.appId === 'custom' && request.auth?.type === 'pat') {
+        // PAT-authenticated custom push: enforce that the URL :accountId is
+        // the PAT owner's own account before delegating to per-profile ownership.
+        const owner = (request.auth as AuthActor).appUserId;
+        if (owner !== params.accountId) {
+          throw new HttpError(403, 'Custom push accountId must match the authenticated user.');
+        }
+      }
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId, listKey: params.listKey });

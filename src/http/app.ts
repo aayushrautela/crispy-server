@@ -26,9 +26,7 @@ import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
 import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
-import externalApiAuthPlugin from './plugins/external-api-auth.js';
 import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
-import { registerExternalApiV2Routes } from './routes/external-api-v2.js';
 import { AccountSettingsService } from '../modules/users/account-settings.service.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
@@ -95,7 +93,7 @@ function buildAppAuthDependencies() {
     clock,
   });
 
-  return { appAuthService, appRateLimitService, appAuditRepo, clock, sourceOwnershipRepo };
+  return { appAuthService, appRateLimitService, appAuditRepo, clock, sourceOwnershipRepo, appRegistryRepo, appGrantRepo };
 }
 
 function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAppAuthDependencies>) {
@@ -263,7 +261,6 @@ export async function buildApp() {
   });
   await app.register(adminUiAuthPlugin);
   await app.register(authPlugin);
-  await app.register(externalApiAuthPlugin);
   const appAuthDeps = buildAppAuthDependencies();
   await app.register(appAuthPlugin, appAuthDeps);
 
@@ -292,7 +289,6 @@ export async function buildApp() {
   await registerMeRoutes(app, { profileService, accountSettingsService });
   await registerPersonalAccessTokenRoutes(app, { patService });
   await registerAuthHandoffRoutes(app, { appLoginHandoffService });
-  await registerExternalApiV2Routes(app);
   await registerProfileRoutes(app, { profileService, pinService: profilePinService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
