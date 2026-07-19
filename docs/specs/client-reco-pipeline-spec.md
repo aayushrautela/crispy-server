@@ -1,8 +1,6 @@
-# Client and RECO Pipeline Spec
+# Client and Home Ingest Pipeline Spec
 
-Status: target contract for the recommendation/client cleanup.
-
-This spec replaces the BaseItemDto-first recommendation direction. Do not add dual response shapes, migration aliases, compatibility wrappers, or legacy profile-only routes for this change.
+Status: target contract for the home ingest pipeline and the client home response shape.
 
 ## Goals
 
@@ -14,10 +12,6 @@ This spec replaces the BaseItemDto-first recommendation direction. Do not add du
 
 ## Non-goals
 
-- No `BaseItemDto` in public recommendation home sections.
-- No `BaseItemDto` in RECO signal bundles.
-- No TMDB-only recommendation write contract.
-- No home section uses the legacy `layout` field or legacy section values.
 - No enriched poster/title blobs stored as recommendation source data.
 - No compatibility endpoint or dual shape for old recommendation contracts.
 
@@ -360,14 +354,16 @@ Rules:
 - `collectionRail` currently uses the same provider-ref content-item write storage as every other section type.
 - Client response assembly enriches `itemId` through MAIN metadata/card services.
 
-## Hard-cutover rules
+## Hard-cutover rules (completed)
 
-- Remove the legacy home `layout` field and legacy `regular`/`landscape`/`hero`/`collection` values.
-- Remove the legacy profile-only internal recommendation write route.
-- Remove TMDB-only `{ type, tmdbId }` write validation.
-- Remove external/RECO `itemId` write and signal identities.
-- Remove docs/specs that instruct clients to standardize on `BaseItemDto`.
-- Do not ship feature flags, alternate response envelopes, or temporary compatibility aliases.
+The following legacy paths have been removed. Do not reintroduce them:
+
+- Legacy home `layout` field and legacy `regular`/`landscape`/`hero`/`collection` values.
+- Legacy profile-only internal recommendation write route.
+- TMDB-only `{ type, tmdbId }` write validation.
+- External/RECO `itemId` write and signal identities.
+- Docs/specs that instruct clients to standardize on `BaseItemDto`.
+- Feature flags, alternate response envelopes, or temporary compatibility aliases.
 
 ## Acceptance criteria
 

@@ -109,41 +109,7 @@ RECO must not request, receive, cache, log, or forward raw account BYOK keys. MA
 
 Generated outputs are published back through internal app recommendation write endpoints. RECO writes list metadata plus ordered provider identities.
 
-Target body shape:
-
-```json
-{
-  "title": "Because you watched The Matrix",
-  "subtitle": "Mind-bending sci-fi picks",
-  "sectionType": "contentRail",
-  "items": [
-    {
-      "type": "movie",
-      "providerRefs": [{ "provider": "tmdb", "providerId": "603" }],
-      "score": 0.98,
-      "reason": "Similar tone and themes",
-      "reasonCodes": ["similar_history"],
-      "metadata": {}
-    },
-    {
-      "type": "tv",
-      "providerRefs": [{ "provider": "tvdb", "providerId": "79168" }],
-      "score": null,
-      "reason": null,
-      "reasonCodes": [],
-      "metadata": {}
-    }
-  ],
-  "model": {
-    "runId": "rec-run-123",
-    "algorithmVersion": "home-v3",
-    "modelVersion": "ranker-2026-05"
-  },
-  "context": {}
-}
-```
-
-MAIN derives rank from array order, resolves every provider identity to canonical item IDs, applies eligibility and policy checks, persists list metadata, and enriches public client cards at read time.
+See "Home ingest pipeline" below for the unified producer contract (reco, custom, fallback) and the transform/write path. The same endpoint and request shape are reused for every source; only the `source` field on the stored snapshot distinguishes provenance.
 
 RECO must not send Crispy `itemId`, nested identity wrappers, enriched card payloads, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata.
 
@@ -242,8 +208,9 @@ time.
 
 - The lazy fallback-on-cache-miss path in `home-resolver.service.ts`. Fallback
   becomes an HTTP fetch + pipeline write, not an inline rail-build step.
-- The read-time "cached default home + freshly-built default home" branches.
-  `/home` reads only from what the pipeline wrote.
+- The read-time materialization branches. `/home` reads only from what the
+  pipeline wrote; there is no "cached default home + freshly-built default
+  home" branch.
 - Continue-watching remains a separate, real-time, per-profile rail layered on
   top of the materialized home at read time (already migrated out of the
   list-source registry).
@@ -263,7 +230,6 @@ time.
 
 This contract does not define:
 
-- API Server to engine push-submission endpoints outside service-outbox event delivery.
 - MAIN polling RECO for generation job status.
 - Recommendation worker job ids exposed by MAIN.
 - RECO's internal queue implementation.
