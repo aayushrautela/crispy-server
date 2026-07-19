@@ -394,7 +394,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function updateLocaleModeFields() {
     const mode = document.querySelector('[data-home-field="localeMode"]');
-    const modeValue = mode ? String((mode as HTMLSelectElement).value) : 'auto';
+    const modeValue = mode ? String(mode.value) : 'auto';
     const overrideWrap = document.querySelector('[data-home-field="overrideLocaleWrap"]');
     const regionWrap = document.querySelector('[data-home-field="regionOverrideWrap"]');
     if (overrideWrap) overrideWrap.hidden = modeValue !== 'specific';
