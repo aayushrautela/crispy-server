@@ -5,6 +5,7 @@ import { normalizeLanguageCode } from '../modules/i18n/supported-languages.js';
 import { normalizeCountryCode } from '../modules/i18n/supported-countries.js';
 import { validateAvatarUrl } from '../modules/profiles/avatar-url.js';
 import { enqueueHomeSeed } from '../lib/queue.js';
+import { getRecommenderNotifier } from '../modules/recommender-notifier/recommender-notifier.js';
 
 export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthActor> {
   let payload: AuthTokenPayload;
@@ -55,7 +56,12 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
       );
 
       void enqueueHomeSeed({ accountId: payload.sub, profileId }).catch(() => {
-        /* seed is best-effort; home falls back to built templates on read */
+        /* seed is best-effort; home falls back to empty state until seed completes */
+      });
+      getRecommenderNotifier()?.notifyRecompute({
+        accountId: payload.sub,
+        profileId,
+        reason: 'profile_created',
       });
     }
   } finally {

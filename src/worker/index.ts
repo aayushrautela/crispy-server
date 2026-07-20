@@ -1,12 +1,10 @@
 import { Worker } from 'bullmq';
-import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
-import { bullConnection, getHomeQueue, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheRefreshJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob } from '../lib/queue.js';
+import { bullConnection, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheRefreshJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob } from '../lib/queue.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
 import { runHomeSeedJob } from './jobs/home-seed.job.js';
-import { runHomeFallbackRefreshJob } from './jobs/home-fallback-refresh.job.js';
 import {
   runTmdbCachePurgeExpiredJob,
   runTmdbCacheRefreshJob,
@@ -56,12 +54,7 @@ export function startWorker(): Worker {
   const homeWorker = new Worker(
     homeQueueName,
     async (job) => {
-      const payload = job.data as { scope?: string } & Record<string, unknown>;
-      if (payload.scope === 'cron' || payload.scope === 'single') {
-        await runHomeFallbackRefreshJob(payload as Parameters<typeof runHomeFallbackRefreshJob>[0]);
-        return;
-      }
-      await runHomeSeedJob(payload as Parameters<typeof runHomeSeedJob>[0]);
+      await runHomeSeedJob(job.data as Parameters<typeof runHomeSeedJob>[0]);
     },
     { connection: bullConnection },
   );

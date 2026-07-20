@@ -101,16 +101,6 @@ export async function registerAdminUiRoutes(app: FastifyInstance): Promise<void>
       logoutToken: app.createAdminUiFormToken('logout', session),
     });
   });
-
-  app.get('/admin/recommendations/recompute-jobs', async (_request, reply) => {
-    return reply.redirect('/admin#recompute-jobs', 303);
-  });
-
-  app.get('/admin/recommendations/recompute-jobs/:jobId', async (request, reply) => {
-    const params = asRecord(request.params);
-    const jobId = readRequiredString(params.jobId, 'jobId');
-    return reply.redirect(`/admin#recompute-job-detail:${encodeURIComponent(jobId)}`, 303);
-  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

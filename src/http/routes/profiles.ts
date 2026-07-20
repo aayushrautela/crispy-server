@@ -219,6 +219,7 @@ export async function registerProfileRoutes(
       isKids: Boolean(body.isKids),
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : undefined,
     });
+    profileService.notifyProfileCreated(actor.authSubject, profile.id);
     return success({ profile }, request);
   });
 

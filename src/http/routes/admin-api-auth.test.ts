@@ -23,7 +23,7 @@ test('admin api requires an authenticated admin session', async (t) => {
 
   t.after(async () => { await app.close(); });
 
-  const response = await app.inject({ method: 'GET', url: '/admin/api/recommendations/recompute-jobs/capabilities' });
+  const response = await app.inject({ method: 'POST', url: '/admin/api/accounts/test-account/profiles/test-profile/notify-recompute' });
 
   assert.equal(response.statusCode, 401);
 });

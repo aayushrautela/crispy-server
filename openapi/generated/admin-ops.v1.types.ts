@@ -225,7 +225,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/api/accounts/{accountId}/profiles/{profileId}/recommendations/recompute": {
+    "/admin/api/accounts/{accountId}/profiles/{profileId}/notify-recompute": {
         parameters: {
             query?: never;
             header?: never;
@@ -235,25 +235,27 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Enqueue recommendation recompute for one profile
-         * @description Enqueues one `recommendation.recompute_requested` event in `service_outbox_events`
-         *     with reason `admin_requested`. The endpoint confirms the profile belongs to the
-         *     account and returns dispatch-tracking metadata only; it does not wait for
-         *     downstream recommendation generation to finish and does not return a generation
-         *     job id or progress.
+         * Notify the recommender engine that a profile needs a recompute
+         * @description Fires a fire-and-forget `recommendation.recompute_requested` notification
+         *     to the external recommender engine for one profile. The endpoint confirms
+         *     the profile belongs to the account, then dispatches the notification
+         *     with reason `admin_requested`. There is no outbox, no durable job id,
+         *     no retry tracking, and no diagnostics follow-up — the notification is
+         *     lost on network failure and re-sent on the next change. RECO is
+         *     idempotent on `profileId` and converges to the right state.
          *
          *     This is an admin mutation and follows the existing admin route conventions:
          *     callers need an authenticated admin session or authorized admin bearer token,
          *     plus the admin mutation/CSRF protection required by the deployed admin stack.
          */
-        post: operations["postAdminApiAccountsAccountIdProfilesProfileIdRecommendationsRecompute"];
+        post: operations["postAdminApiAccountsAccountIdProfilesProfileIdNotifyRecompute"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/api/accounts/{accountId}/recommendations/recompute": {
+    "/admin/api/accounts/{accountId}/recommendations/notify-recompute": {
         parameters: {
             query?: never;
             header?: never;
@@ -263,17 +265,16 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Enqueue recommendation recompute for selected account profiles
-         * @description Enqueues one `recommendation.recompute_requested` event per selected profile in
-         *     `service_outbox_events` with reason `admin_requested`. The current MVP accepts
-         *     selected profiles only and caps one request at 50 profile ids. It returns
-         *     outbox/dispatch-tracking metadata only, not downstream generation completion.
+         * Notify the recommender engine for the selected profiles of an account
+         * @description Fires one fire-and-forget `recommendation.recompute_requested`
+         *     notification per selected profile in the account, with reason
+         *     `admin_requested`. The endpoint validates account membership, caps one
+         *     request at 50 profile ids, and does not persist any state. Lost
+         *     notifications are recovered by the next change event for that profile.
          *
-         *     This is an admin mutation and follows the existing admin route conventions:
-         *     callers need an authenticated admin session or authorized admin bearer token,
-         *     plus the admin mutation/CSRF protection required by the deployed admin stack.
+         *     This is an admin mutation and follows the existing admin route conventions.
          */
-        post: operations["postAdminApiAccountsAccountIdRecommendationsRecompute"];
+        post: operations["postAdminApiAccountsAccountIdRecommendationsNotifyRecompute"];
         delete?: never;
         options?: never;
         head?: never;
@@ -399,51 +400,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/api/diagnostics/recommendations/service-outbox": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Recommendation service outbox diagnostics
-         * @description Lists recommendation recompute events from `service_outbox_events` for
-         *     dispatch diagnostics. The status values describe MAIN outbox delivery state
-         *     (`pending`, `processing`, `dispatched`, `failed`) only. A dispatched row means
-         *     the dispatcher delivered the event to RECO's internal event ingestion endpoint;
-         *     it does not mean recommendation generation has completed.
-         */
-        get: operations["getAdminApiDiagnosticsRecommendationsServiceOutbox"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/api/diagnostics/recommendations/outbox": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * diagnostics recommendations outbox
-         * @deprecated
-         * @description Deprecated compatibility route. Prefer `GET /admin/api/diagnostics/recommendations/service-outbox`, which exposes service-outbox dispatch state and supports correlationId/profileId/reason/status filters.
-         */
-        get: operations["getAdminApiDiagnosticsRecommendationsOutbox"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/api/recommendations/runs": {
         parameters: {
             query?: never;
@@ -512,15 +468,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/api/recommendations/recompute-jobs/capabilities": {
+    "/admin/api/homescreen/templates": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get recompute job feature capabilities */
-        get: operations["getAdminApiRecommendationsRecomputeJobsCapabilities"];
+        /** List home templates */
+        get: operations["getAdminApiHomescreenTemplates"];
+        put?: never;
+        /** Create or update a home template */
+        post: operations["postAdminApiHomescreenTemplates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/homescreen/templates/{locale}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get active template for a locale */
+        get: operations["getAdminApiHomescreenTemplatesLocale"];
+        /** Update a home template */
+        put: operations["putAdminApiHomescreenTemplatesLocale"];
+        post?: never;
+        /** Delete a home template */
+        delete: operations["deleteAdminApiHomescreenTemplatesKeyLocale"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/homescreen/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List curated collections */
+        get: operations["getAdminApiHomescreenCollections"];
+        put?: never;
+        /** Create or update a curated collection */
+        post: operations["postAdminApiHomescreenCollections"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/homescreen/collections/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a curated collection */
+        put: operations["putAdminApiHomescreenCollectionsKey"];
+        post?: never;
+        /** Delete a curated collection */
+        delete: operations["deleteAdminApiHomescreenCollectionsKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/homescreen/default/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate the cached default home for a locale */
+        post: operations["postAdminApiHomescreenDefaultRegenerate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/homescreen/default/{locale}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get cached default home for a locale */
+        get: operations["getAdminApiHomescreenDefaultLocale"];
         put?: never;
         post?: never;
         delete?: never;
@@ -529,7 +575,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/api/recommendations/recompute-jobs/preview": {
+    "/admin/api/homescreen/trakt-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List trakt imports */
+        get: operations["getAdminApiHomescreenTraktImports"];
+        put?: never;
+        /** Create a trakt import */
+        post: operations["postAdminApiHomescreenTraktImports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/homescreen/trakt-imports/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -538,41 +602,40 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview a recompute job without executing */
-        post: operations["postAdminApiRecommendationsRecomputeJobsPreview"];
-        delete?: never;
+        post?: never;
+        /** Delete a trakt import */
+        delete: operations["deleteAdminApiHomescreenTraktImportsId"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/api/recommendations/recompute-jobs": {
+    "/admin/api/homescreen/trakt-imports/{id}/sync": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List recommendation recompute jobs */
-        get: operations["getAdminApiRecommendationsRecomputeJobs"];
+        get?: never;
         put?: never;
-        /** Create a recommendation recompute job */
-        post: operations["postAdminApiRecommendationsRecomputeJobs"];
+        /** Enqueue a trakt import sync */
+        post: operations["postAdminApiHomescreenTraktImportsIdSync"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/api/recommendations/recompute-jobs/{jobId}": {
+    "/admin/api/accounts/{accountId}/profiles/{profileId}/home": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get recompute job details */
-        get: operations["getAdminApiRecommendationsRecomputeJobsJobId"];
+        /** Resolve a profile home */
+        get: operations["getAdminApiAccountsAccountIdProfilesProfileIdHome"];
         put?: never;
         post?: never;
         delete?: never;
@@ -581,7 +644,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/api/recommendations/recompute-jobs/{jobId}/pause": {
+    "/admin/api/accounts/{accountId}/profiles/{profileId}/home-mode": {
         parameters: {
             query?: never;
             header?: never;
@@ -589,16 +652,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
-        /** Pause a recompute job */
-        post: operations["postAdminApiRecommendationsRecomputeJobsJobIdPause"];
+        /** Set a profile home mode */
+        put: operations["putAdminApiAccountsAccountIdProfilesProfileIdHomeMode"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/api/recommendations/recompute-jobs/{jobId}/resume": {
+    "/admin/api/accounts/{accountId}/profiles/{profileId}/recompute": {
         parameters: {
             query?: never;
             header?: never;
@@ -607,42 +670,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a paused recompute job */
-        post: operations["postAdminApiRecommendationsRecomputeJobsJobIdResume"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/api/recommendations/recompute-jobs/{jobId}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel a recompute job */
-        post: operations["postAdminApiRecommendationsRecomputeJobsJobIdCancel"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/api/recommendations/recompute-jobs/{jobId}/reconcile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reconcile a recompute job's state */
-        post: operations["postAdminApiRecommendationsRecomputeJobsJobIdReconcile"];
+        /** Enqueue a profile recompute */
+        post: operations["postAdminApiAccountsAccountIdProfilesProfileIdRecompute"];
         delete?: never;
         options?: never;
         head?: never;
@@ -658,78 +687,21 @@ export interface components {
          * @enum {string}
          */
         RecommendationRecomputeReason: "watch_history_changed" | "rating_changed" | "watchlist_changed" | "playback_progress_changed" | "profile_created" | "profile_settings_changed" | "admin_requested";
-        /** @enum {string} */
-        ServiceOutboxDispatchStatus: "pending" | "processing" | "dispatched" | "failed";
-        AdminRecommendationRecomputeRequest: {
-            /** @description Optional caller-supplied correlation id used to find the outbox event in diagnostics. */
-            correlationId?: string;
-        };
-        AdminAccountRecommendationRecomputeRequest: {
-            /** @description Selected profile ids under the account. Tier-wide or unbounded recompute is outside the MVP. */
-            profileIds: string[];
-            correlationId?: string;
-        };
-        AdminRecommendationRecomputeResponse: {
+        AdminNotifyRecomputeResponse: {
             ok: boolean;
-            reason: components["schemas"]["RecommendationRecomputeReason"];
             accountId: string;
             profileId: string;
-            /** @constant */
-            requested: 1;
-            enqueued: number;
-            skipped: number;
-            correlationId?: string;
-            note?: string;
-            /** @description Admin diagnostics URL filtered by correlation id when available. */
-            diagnosticsUrl?: string;
-        } & {
-            [key: string]: unknown;
         };
-        AdminAccountRecommendationRecomputeResponse: {
+        AdminAccountNotifyRecomputeRequest: {
+            /** @description Selected profile ids under the account. Tier-wide or unbounded notify is outside the MVP. */
+            profileIds: string[];
+        };
+        AdminAccountNotifyRecomputeResponse: {
             ok: boolean;
-            reason: components["schemas"]["RecommendationRecomputeReason"];
             accountId: string;
             profileIds: string[];
-            requested: number;
             enqueued: number;
             skipped: number;
-            correlationId?: string;
-            note?: string;
-            diagnosticsUrl?: string;
-        } & {
-            [key: string]: unknown;
-        };
-        AdminRecommendationServiceOutboxEvent: {
-            id: string;
-            profileId: string;
-            userId: string;
-            reason: components["schemas"]["RecommendationRecomputeReason"];
-            status: components["schemas"]["ServiceOutboxDispatchStatus"];
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            availableAt: string;
-            attemptCount: number;
-            /** Format: date-time */
-            lastAttemptAt?: string | null;
-            correlationId: string;
-            /** Format: date-time */
-            createdAt: string;
-        } & {
-            [key: string]: unknown;
-        };
-        AdminRecommendationServiceOutboxResponse: {
-            events: components["schemas"]["AdminRecommendationServiceOutboxEvent"][];
-            summary: {
-                total?: number;
-                pending?: number;
-                dispatched?: number;
-                failed?: number;
-            } & {
-                [key: string]: unknown;
-            };
-        } & {
-            [key: string]: unknown;
         };
         ErrorEnvelope: {
             error: {
@@ -1236,7 +1208,7 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiAccountsAccountIdProfilesProfileIdRecommendationsRecompute: {
+    postAdminApiAccountsAccountIdProfilesProfileIdNotifyRecompute: {
         parameters: {
             query?: never;
             header?: {
@@ -1249,31 +1221,25 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["AdminRecommendationRecomputeRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Recompute request event accepted for asynchronous dispatch. */
+            /** @description Notification accepted (the POST is dispatched out-of-band). */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminRecommendationRecomputeResponse"];
+                    "application/json": components["schemas"]["AdminNotifyRecomputeResponse"];
                 };
             };
-            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiAccountsAccountIdRecommendationsRecompute: {
+    postAdminApiAccountsAccountIdRecommendationsNotifyRecompute: {
         parameters: {
             query?: never;
             header?: {
@@ -1287,24 +1253,23 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminAccountRecommendationRecomputeRequest"];
+                "application/json": components["schemas"]["AdminAccountNotifyRecomputeRequest"];
             };
         };
         responses: {
-            /** @description Recompute request events accepted for asynchronous dispatch. */
+            /** @description Notifications accepted for asynchronous dispatch. */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminAccountRecommendationRecomputeResponse"];
+                    "application/json": components["schemas"]["AdminAccountNotifyRecomputeResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
@@ -1529,70 +1494,6 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getAdminApiDiagnosticsRecommendationsServiceOutbox: {
-        parameters: {
-            query?: {
-                correlationId?: string;
-                profileId?: string;
-                reason?: components["schemas"]["RecommendationRecomputeReason"];
-                status?: components["schemas"]["ServiceOutboxDispatchStatus"];
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Recommendation service-outbox events. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminRecommendationServiceOutboxResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getAdminApiDiagnosticsRecommendationsOutbox: {
-        parameters: {
-            query?: {
-                limit?: string;
-                sourceKey?: string;
-                algorithmVersion?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
     getAdminApiRecommendationsRuns: {
         parameters: {
             query?: {
@@ -1714,70 +1615,10 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
-    getAdminApiRecommendationsRecomputeJobsCapabilities: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    postAdminApiRecommendationsRecomputeJobsPreview: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenericObject"];
-            };
-        };
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getAdminApiRecommendationsRecomputeJobs: {
+    getAdminApiHomescreenTemplates: {
         parameters: {
             query?: {
-                status?: string;
-                scope?: string;
-                limit?: string;
+                locale?: string;
             };
             header?: never;
             path?: never;
@@ -1794,16 +1635,12 @@ export interface operations {
                     "application/json": components["schemas"]["GenericObject"];
                 };
             };
-            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiRecommendationsRecomputeJobs: {
+    postAdminApiHomescreenTemplates: {
         parameters: {
             query?: never;
             header?: {
@@ -1815,21 +1652,18 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    key: string;
+                    locale: string;
+                    title?: string | null;
+                    sectionKeys: string[];
+                    isActive?: boolean;
+                };
             };
         };
         responses: {
-            /** @description Job already exists or completed. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
-                };
-            };
-            /** @description Job created and accepted. */
-            202: {
+            /** @description Created. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1840,18 +1674,15 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    getAdminApiRecommendationsRecomputeJobsJobId: {
+    getAdminApiHomescreenTemplatesLocale: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                jobId: string;
+                locale: string;
             };
             cookie?: never;
         };
@@ -1866,16 +1697,13 @@ export interface operations {
                     "application/json": components["schemas"]["GenericObject"];
                 };
             };
-            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiRecommendationsRecomputeJobsJobIdPause: {
+    putAdminApiHomescreenTemplatesLocale: {
         parameters: {
             query?: never;
             header?: {
@@ -1883,11 +1711,20 @@ export interface operations {
                 "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
             };
             path: {
-                jobId: string;
+                locale: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    key: string;
+                    title?: string | null;
+                    sectionKeys: string[];
+                    isActive?: boolean;
+                };
+            };
+        };
         responses: {
             /** @description Successful response. */
             200: {
@@ -1902,12 +1739,10 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiRecommendationsRecomputeJobsJobIdResume: {
+    deleteAdminApiHomescreenTemplatesKeyLocale: {
         parameters: {
             query?: never;
             header?: {
@@ -1915,7 +1750,8 @@ export interface operations {
                 "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
             };
             path: {
-                jobId: string;
+                key: string;
+                locale: string;
             };
             cookie?: never;
         };
@@ -1930,16 +1766,78 @@ export interface operations {
                     "application/json": components["schemas"]["GenericObject"];
                 };
             };
-            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiRecommendationsRecomputeJobsJobIdCancel: {
+    getAdminApiHomescreenCollections: {
+        parameters: {
+            query?: {
+                source?: "manual" | "trakt";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiHomescreenCollections: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    key: string;
+                    title: string;
+                    subtitle?: string | null;
+                    providerRefs: {
+                        provider: string;
+                        providerId: string;
+                        type?: string;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    putAdminApiHomescreenCollectionsKey: {
         parameters: {
             query?: never;
             header?: {
@@ -1947,11 +1845,22 @@ export interface operations {
                 "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
             };
             path: {
-                jobId: string;
+                key: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    subtitle?: string | null;
+                    providerRefs?: {
+                        provider: string;
+                        providerId: string;
+                    }[];
+                };
+            };
+        };
         responses: {
             /** @description Successful response. */
             200: {
@@ -1966,12 +1875,10 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
-    postAdminApiRecommendationsRecomputeJobsJobIdReconcile: {
+    deleteAdminApiHomescreenCollectionsKey: {
         parameters: {
             query?: never;
             header?: {
@@ -1979,7 +1886,7 @@ export interface operations {
                 "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
             };
             path: {
-                jobId: string;
+                key: string;
             };
             cookie?: never;
         };
@@ -1994,12 +1901,282 @@ export interface operations {
                     "application/json": components["schemas"]["GenericObject"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiHomescreenDefaultRegenerate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    locale?: string;
+                    region?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getAdminApiHomescreenDefaultLocale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getAdminApiHomescreenTraktImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiHomescreenTraktImports: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    slug: string;
+                    title?: string | null;
+                    traktListId?: string | null;
+                    templateKey: string;
+                    active?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    deleteAdminApiHomescreenTraktImportsId: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiHomescreenTraktImportsIdSync: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getAdminApiAccountsAccountIdProfilesProfileIdHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: string;
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    putAdminApiAccountsAccountIdProfilesProfileIdHomeMode: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path: {
+                accountId: string;
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "recommended" | "custom";
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiAccountsAccountIdProfilesProfileIdRecompute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Admin mutation/CSRF token required by existing admin session route conventions when using cookie-based admin auth. */
+                "X-CSRF-Token"?: components["parameters"]["AdminMutationCsrfToken"];
+            };
+            path: {
+                accountId: string;
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["ServerError"];
         };
     };

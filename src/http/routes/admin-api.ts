@@ -24,10 +24,6 @@ import { RecommendationOutputService } from '../../modules/recommendations/recom
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
-import { RecommendationOutboxService } from '../../modules/outbox/recommendation-outbox.service.js';
-import { ServiceOutboxRepository, type ServiceOutboxEventStatus } from '../../modules/outbox/service-outbox.repo.js';
-import { AdminBulkJobService } from '../../modules/admin-bulk-jobs/admin-bulk-job.service.js';
-import type { AdminBulkJobScope, AdminBulkJobStatus, AdminBulkJobTargetInput } from '../../modules/admin-bulk-jobs/admin-bulk-job.types.js';
 import { AdminWatchReadService } from '../../modules/integrations/admin-watch-read.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
@@ -58,9 +54,6 @@ export async function registerAdminApiRoutes(
   const calendarService = new CalendarService();
   const accountSettingsService = new AccountSettingsService();
   const aiClient = new OpenAiCompatibleClient();
-  const recommendationOutboxService = new RecommendationOutboxService();
-  const serviceOutboxRepository = new ServiceOutboxRepository();
-  const adminBulkJobService = new AdminBulkJobService();
   const adminWatchReadService = new AdminWatchReadService();
   const episodicFollowService = new EpisodicFollowService();
   const watchMetadataEnrichmentService = new WatchMetadataEnrichmentService();
@@ -133,154 +126,6 @@ export async function registerAdminApiRoutes(
       [readRequiredString(params.runId, 'runId'), parseLimit(query.limit)],
     );
     return success({ logs: rows ?? [] }, request);
-  });
-
-  app.get('/admin/api/recommendations/recompute-jobs/capabilities', async (request, reply) => {
-    await requireAdmin(request);
-    return success({
-      feature: {
-        enabled: env.adminRecommendationRecomputeJobsEnabled,
-        createEnabled: env.adminRecommendationRecomputeJobsCreateEnabled,
-      },
-      worker: {
-        mode: env.adminBulkJobsWorkerMode,
-        pollIntervalMs: env.adminBulkJobsPollIntervalMs,
-        pollJitterMs: env.adminBulkJobsPollJitterMs,
-        claimTtlMs: env.adminBulkJobsClaimTtlMs,
-        shutdownTimeoutMs: env.adminBulkJobsShutdownTimeoutMs,
-        maxConcurrentJobs: env.adminBulkJobsMaxConcurrentJobs,
-      },
-      allowedScopes: [
-        { type: 'explicit_targets' },
-        { type: 'all_users' },
-        { type: 'tier', tiers: ['free', 'pro', 'ultra'] },
-      ],
-      limits: {
-        enumerationPageSize: env.adminBulkJobsEnumerationPageSize,
-        fanoutBatchSize: env.adminBulkJobsFanoutBatchSize,
-      },
-    }, request);
-  });
-
-  app.post('/admin/api/recommendations/recompute-jobs/preview', async (request, reply) => {
-    await requireAdmin(request);
-    ensureRecomputeJobsEnabled();
-    const body = asRecord(request.body);
-    return success(await adminBulkJobService.previewRecommendationRecomputeJob(parseBulkJobInput(body)), request);
-  });
-
-  app.post('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
-    await requireAdminMutation(request);
-    ensureRecomputeJobsEnabled();
-    if (!env.adminRecommendationRecomputeJobsCreateEnabled) {
-      throw new HttpError(403, 'Recommendation recompute job creation is disabled.');
-    }
-    const body = asRecord(request.body);
-    const input = parseBulkJobInput(body);
-    if (input.scope.type === 'all_users') {
-      const confirmation = typeof body.confirmation === 'string' ? body.confirmation.trim() : '';
-      if (confirmation !== 'RECOMPUTE_ALL_USERS') {
-        throw new HttpError(400, 'confirmation must be RECOMPUTE_ALL_USERS for all-users recompute jobs.');
-      }
-    }
-    const result = await adminBulkJobService.createRecommendationRecomputeJob(input);
-    reply.code(result.created ? 202 : 200);
-    return mutation(result as Record<string, unknown>, request);
-  });
-
-  app.get('/admin/api/recommendations/recompute-jobs', async (request, reply) => {
-    await requireAdmin(request);
-    ensureRecomputeJobsEnabled();
-    const query = asRecord(request.query);
-    return success(await adminBulkJobService.listJobs({ status: parseBulkJobStatus(query.status), scope: parseBulkJobScopeFilter(query.scope), limit: parseBulkJobLimit(query.limit) }), request);
-  });
-
-  app.get('/admin/api/recommendations/recompute-jobs/:jobId', async (request, reply) => {
-    await requireAdmin(request);
-    ensureRecomputeJobsEnabled();
-    const params = asRecord(request.params);
-    return success(await adminBulkJobService.getJobDetail(readRequiredString(params.jobId, 'jobId')), request);
-  });
-
-  app.post('/admin/api/recommendations/recompute-jobs/:jobId/pause', async (request, reply) => {
-    await requireAdminMutation(request);
-    ensureRecomputeJobsEnabled();
-    const params = asRecord(request.params);
-    return mutation(await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'pause') as Record<string, unknown>, request);
-  });
-
-  app.post('/admin/api/recommendations/recompute-jobs/:jobId/resume', async (request, reply) => {
-    await requireAdminMutation(request);
-    ensureRecomputeJobsEnabled();
-    const params = asRecord(request.params);
-    return mutation(await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'resume') as Record<string, unknown>, request);
-  });
-
-  app.post('/admin/api/recommendations/recompute-jobs/:jobId/cancel', async (request, reply) => {
-    await requireAdminMutation(request);
-    ensureRecomputeJobsEnabled();
-    const params = asRecord(request.params);
-    return mutation(await adminBulkJobService.controlJob(readRequiredString(params.jobId, 'jobId'), 'cancel') as Record<string, unknown>, request);
-  });
-
-  app.post('/admin/api/recommendations/recompute-jobs/:jobId/reconcile', async (request, reply) => {
-    await requireAdminMutation(request);
-    ensureRecomputeJobsEnabled();
-    const params = asRecord(request.params);
-    return mutation(await adminBulkJobService.reconcileJob(readRequiredString(params.jobId, 'jobId')) as Record<string, unknown>, request);
-  });
-
-  app.get('/admin/api/diagnostics/recommendations/outbox', async (request, reply) => {
-    await requireAdmin(request);
-    const query = asRecord(request.query);
-    return success(await recommendationAdminService.getOutbox(parseLimit(query.limit)), request);
-  });
-
-  app.get('/admin/api/diagnostics/recommendations/service-outbox', async (request, reply) => {
-    await requireAdmin(request);
-    const query = asRecord(request.query);
-    const correlationId = typeof query.correlationId === 'string' && query.correlationId.trim() ? query.correlationId.trim() : null;
-    const profileId = typeof query.profileId === 'string' && query.profileId.trim() ? query.profileId.trim() : null;
-    const reason = typeof query.reason === 'string' && query.reason.trim() ? query.reason.trim() : null;
-    const status = typeof query.status === 'string' && query.status.trim() ? query.status.trim() as ServiceOutboxEventStatus : null;
-    const limit = parseLimit(query.limit);
-
-    const events = await withTransaction(async (client) => {
-      return serviceOutboxRepository.queryForDiagnostics(client, {
-        correlationId,
-        profileId,
-        reason,
-        status,
-        limit,
-      });
-    });
-
-    const summary = {
-      total: events.length,
-      pending: events.filter((e) => e.status === 'pending').length,
-      processing: events.filter((e) => e.status === 'processing').length,
-      dispatched: events.filter((e) => e.status === 'dispatched').length,
-      failed: events.filter((e) => e.status === 'failed').length,
-    };
-
-    return success({
-      events: events.map((e) => ({
-        id: e.id,
-        profileId: e.profileId,
-        userId: e.userId,
-        bulkJobId: e.bulkJobId,
-        bulkJobTargetId: e.bulkJobTargetId,
-        reason: e.payload.reason,
-        status: e.status,
-        occurredAt: e.occurredAt,
-        availableAt: e.availableAt,
-        attemptCount: e.attemptCount,
-        lastAttemptAt: e.lastAttemptAt,
-        correlationId: e.correlationId,
-        createdAt: e.createdAt,
-      })),
-      summary,
-    }, request);
   });
 
   app.get('/admin/api/diagnostics/imports/connections', async (request, reply) => {
@@ -577,94 +422,52 @@ export async function registerAdminApiRoutes(
     ), request);
   });
 
-  app.post('/admin/api/accounts/:accountId/profiles/:profileId/recommendations/recompute', async (request, reply) => {
+  app.post('/admin/api/accounts/:accountId/profiles/:profileId/notify-recompute', async (request, reply) => {
     await requireAdminMutation(request);
     const params = parseAccountProfileParams(request.params);
-    const body = asRecord(request.body);
-    const correlationId = typeof body.correlationId === 'string' && body.correlationId.trim() ? body.correlationId.trim() : crypto.randomUUID();
-    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
-
     const profileBelongsToAccount = (await recommendationDataService.listAccountProfilesForService(params.accountId))
       .some((profile) => profile.id === params.profileId);
     if (!profileBelongsToAccount) {
       throw new HttpError(404, 'Profile not found.');
     }
-
-    await withTransaction(async (client) => {
-      await recommendationOutboxService.appendRecomputeRequested(client, {
-        userId: params.accountId,
-        profileId: params.profileId,
-        reason: 'admin_requested',
-        correlationId,
-      });
-    });
-
-    reply.code(202);
-    return mutation({
-      ok: true,
-      reason: 'admin_requested',
+    app.recommenderNotifier?.notifyRecompute({
       accountId: params.accountId,
       profileId: params.profileId,
-      requested: 1,
-      enqueued: 1,
-      skipped: 0,
-      correlationId,
-      note,
-      diagnosticsUrl: `/admin/api/diagnostics/recommendations/service-outbox?correlationId=${encodeURIComponent(correlationId)}`,
-    }, request);
+      reason: 'admin_requested',
+    });
+    reply.code(202);
+    return mutation({ ok: true, accountId: params.accountId, profileId: params.profileId }, request);
   });
 
-  app.post('/admin/api/accounts/:accountId/recommendations/recompute', async (request, reply) => {
+  app.post('/admin/api/accounts/:accountId/recommendations/notify-recompute', async (request, reply) => {
     await requireAdminMutation(request);
     const params = asRecord(request.params);
     const accountId = readRequiredString(params.accountId, 'accountId');
     const body = asRecord(request.body);
     const profileIds = Array.isArray(body.profileIds) ? body.profileIds : [];
-    const correlationId = typeof body.correlationId === 'string' && body.correlationId.trim() ? body.correlationId.trim() : crypto.randomUUID();
-    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
-
     if (profileIds.length === 0) {
       throw new HttpError(400, 'profileIds array is required and must not be empty.');
     }
     if (profileIds.length > 50) {
       throw new HttpError(400, 'Maximum 50 profiles allowed per request.');
     }
-
     const validProfileIds = profileIds.filter((id) => typeof id === 'string' && id.trim()).map((id) => String(id).trim());
     if (validProfileIds.length === 0) {
       throw new HttpError(400, 'No valid profile IDs provided.');
     }
-
     const profiles = await recommendationDataService.listAccountProfilesForService(accountId);
     const accountProfileIds = new Set(profiles.map((p) => p.id));
     const validatedProfileIds = validProfileIds.filter((id) => accountProfileIds.has(id));
-    const skipped = validProfileIds.length - validatedProfileIds.length;
-
-    let enqueued = 0;
-    await withTransaction(async (client) => {
-      for (const profileId of validatedProfileIds) {
-        await recommendationOutboxService.appendRecomputeRequested(client, {
-          userId: accountId,
-          profileId,
-          reason: 'admin_requested',
-          correlationId,
-        });
-        enqueued++;
-      }
-    });
-
+    for (const profileId of validatedProfileIds) {
+      app.recommenderNotifier?.notifyRecompute({ accountId, profileId, reason: 'admin_requested' });
+    }
     reply.code(202);
     return mutation({
       ok: true,
-      reason: 'admin_requested',
       accountId,
       profileIds: validatedProfileIds,
-      requested: validProfileIds.length,
-      enqueued,
-      skipped,
-      correlationId,
-      note,
-      diagnosticsUrl: `/admin/api/diagnostics/recommendations/service-outbox?correlationId=${encodeURIComponent(correlationId)}`,
+      enqueued: validatedProfileIds.length,
+      skipped: validProfileIds.length - validatedProfileIds.length,
     }, request);
   });
 
@@ -921,65 +724,6 @@ function parseNullableString(value: unknown): string | null {
 
 function clampLimit(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.trunc(value), min), max);
-}
-
-function parseBulkJobLimit(value: unknown): number {
-  return clampLimit(parseOptionalNumber(value) ?? 50, 1, 100);
-}
-
-function parseBulkJobScopeFilter(value: unknown): AdminBulkJobScope['type'] | null {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-  const scope = typeof value === 'string' ? value.trim() : null;
-  if (scope === 'explicit_targets' || scope === 'all_users' || scope === 'tier') {
-    return scope;
-  }
-  throw new HttpError(400, 'Invalid bulk job scope filter.');
-}
-
-function ensureRecomputeJobsEnabled(): void {
-  if (!env.adminRecommendationRecomputeJobsEnabled) {
-    throw new HttpError(403, 'Recommendation recompute jobs are disabled.');
-  }
-}
-
-function parseBulkJobInput(body: Record<string, unknown>): { scope: AdminBulkJobScope; targets: AdminBulkJobTargetInput[]; reason: string | null; idempotencyKey?: string | null; correlationId?: string | null } {
-  const scopeRecord = asRecord(body.scope);
-  const scopeType = typeof scopeRecord.type === 'string' ? scopeRecord.type : null;
-  const scope = scopeType === 'explicit_targets'
-    ? { type: 'explicit_targets' } as const
-    : scopeType === 'all_users'
-      ? { type: 'all_users' } as const
-      : scopeType === 'tier' && (scopeRecord.tier === 'free' || scopeRecord.tier === 'pro' || scopeRecord.tier === 'ultra')
-        ? { type: 'tier', tier: scopeRecord.tier } as const
-        : null;
-  if (!scope) {
-    throw new HttpError(400, 'Invalid bulk job scope.');
-  }
-  const rawTargets = Array.isArray(body.targets) ? body.targets : [];
-  const targets = rawTargets
-    .map((target) => asRecord(target))
-    .filter((target) => typeof target.accountId === 'string' && typeof target.profileId === 'string')
-    .map((target) => ({ accountId: String(target.accountId), profileId: String(target.profileId) }));
-  return {
-    scope,
-    targets,
-    reason: typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null,
-    idempotencyKey: typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim() ? body.idempotencyKey.trim() : null,
-    correlationId: typeof body.correlationId === 'string' && body.correlationId.trim() ? body.correlationId.trim() : null,
-  };
-}
-
-function parseBulkJobStatus(value: unknown): AdminBulkJobStatus | null {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-  const status = typeof value === 'string' ? value.trim() : null;
-  if (status === 'queued' || status === 'enumerating' || status === 'fanout' || status === 'paused' || status === 'canceling' || status === 'canceled' || status === 'completed' || status === 'failed') {
-    return status;
-  }
-  throw new HttpError(400, 'Invalid bulk job status filter.');
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

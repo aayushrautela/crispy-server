@@ -180,7 +180,7 @@ test('admin recompute multiple profiles validates max 50', async (t) => {
   const profileIds = Array.from({ length: 51 }, (_, i) => `profile-${i}`);
   const response = await app.inject({
     method: 'POST',
-    url: '/admin/api/accounts/account-1/recommendations/recompute',
+    url: '/admin/api/accounts/account-1/recommendations/notify-recompute',
     payload: { profileIds },
   });
 
@@ -188,37 +188,3 @@ test('admin recompute multiple profiles validates max 50', async (t) => {
   assert.match(response.body, /Maximum 50 profiles/);
 });
 
-test('admin recompute jobs capabilities returns worker configuration', async (t) => {
-  const Fastify = (await import('fastify')).default;
-  const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
-  const { registerAdminApiRoutes } = await import('./admin-api.js');
-
-  const app = Fastify();
-  const adminSession = {
-    username: 'admin-user',
-    csrfToken: 'csrf-token',
-    expiresAt: Math.floor(Date.now() / 1000) + 60,
-  };
-  app.decorate('requireAdminUiMutation', async (_request: FastifyRequest) => adminSession);
-  app.decorate('requireAdminUi', async (_request: FastifyRequest) => adminSession);
-  await app.register(errorHandlerPlugin);
-  await registerAdminApiRoutes(app);
-
-  t.after(async () => { await app.close(); });
-
-  const response = await app.inject({
-    method: 'GET',
-    url: '/admin/api/recommendations/recompute-jobs/capabilities',
-  });
-
-  assert.equal(response.statusCode, 200);
-  const payload = JSON.parse(response.body) as {
-    data: { feature: { enabled: boolean; createEnabled: boolean }; worker: { mode: string; pollIntervalMs: number }; allowedScopes: unknown[] };
-  };
-
-  assert.ok(typeof payload.data.feature.enabled === 'boolean', 'should return feature.enabled');
-  assert.ok(typeof payload.data.feature.createEnabled === 'boolean', 'should return feature.createEnabled');
-  assert.ok(typeof payload.data.worker.mode === 'string', 'should return worker.mode');
-  assert.ok(typeof payload.data.worker.pollIntervalMs === 'number', 'should return worker.pollIntervalMs');
-  assert.ok(Array.isArray(payload.data.allowedScopes), 'should return allowedScopes array');
-});

@@ -24,9 +24,9 @@ export async function registerProfileSettingsRoutes(
     const actor = app.requireUserActor(request) as { authSubject: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return success({
-      settings: await profileService.patchSettings(actor.authSubject, params.profileId, body),
-    }, request);
+    const settings = await profileService.patchSettings(actor.authSubject, params.profileId, body);
+    profileService.notifyProfileSettingsChanged(actor.authSubject, params.profileId);
+    return success({ settings }, request);
   });
 
   app.get('/v1/profiles/:profileId/home-mode', async (request) => {

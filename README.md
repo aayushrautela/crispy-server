@@ -33,11 +33,10 @@ Application data and business logic are owned by:
 
 - `src/bin/api.ts` starts the HTTP API assembled in `src/http/app.ts`.
 - `src/bin/worker.ts` starts the internal BullMQ worker for backend-owned async jobs.
-- `src/bin/outbox-dispatcher.ts` dispatches durable service-outbox events, including recommendation recompute events, to external services.
 - `migrations/` contains the Postgres schema history.
 - `config/app-config.json.example` contains committed runtime defaults; `config/app-config.json` is the gitignored local override.
 
-The external recommendation engine is a separate event-driven service. It is not this repository's BullMQ worker, does not read Crispy storage directly, and integrates through authenticated APIs plus service-outbox events.
+The external recommendation engine is a separate event-driven service. It is not this repository's BullMQ worker, does not read Crispy storage directly, and integrates through authenticated APIs plus fire-and-forget `recommendation.recompute_requested` notifications posted from `RecommenderNotifier` (no persistent outbox, no retries; reco is idempotent on `profileId`).
 
 ## Product/auth model
 
@@ -63,7 +62,7 @@ The external recommendation engine is a separate event-driven service. It is not
 
 2. Fill required values in `.env`.
 
-   Key groups include `DATABASE_URL`, `REDIS_URL`, external auth settings such as `AUTH_BASE_URL`/`AUTH_JWT_AUDIENCE`, optional AI credentials, provider import credentials, and recommendation outbox/service-auth settings when testing cross-service flows.
+   Key groups include `DATABASE_URL`, `REDIS_URL`, external auth settings such as `AUTH_BASE_URL`/`AUTH_JWT_AUDIENCE`, optional AI credentials, provider import credentials, and optional `RECOMMENDER_INTERNAL_BASE_URL` + `MAIN_TO_RECOMMENDER_SERVICE_TOKEN` for fire-and-forget notifier calls to the recommender engine.
 
 3. Start the local stack:
 
@@ -88,7 +87,6 @@ Useful commands:
 ```bash
 npm run dev:api
 npm run dev:worker
-npm run dev:outbox-dispatcher
 npm run build
 npm run typecheck
 npm run test

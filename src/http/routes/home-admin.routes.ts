@@ -6,7 +6,7 @@ import { HomeModeService, isHomeMode } from '../../modules/home/home-mode.servic
 import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
 import { listSourceDescriptors, getListSource } from '../../modules/home/list-sources/list-source.registry.js';
 import { suggestListKey } from '../../modules/home/list-sources/sources/tmdb.discover-filtered.js';
-import { RecommendationOutboxService } from '../../modules/outbox/recommendation-outbox.service.js';
+import { enqueueHomeSeed } from '../../lib/queue.js';
 import { success, mutation } from '../response.js';
 
 type AdminSession = { username: string };
@@ -36,7 +36,6 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
   const homeResolver = new HomeResolverService();
   const homeModeService = new HomeModeService();
   const repo = new HomeListsRepo({ db });
-  const recommendationOutboxService = new RecommendationOutboxService();
 
   // --- List source catalog (drives the admin form) ---
   app.get('/admin/api/home/list-sources', async (request) => {
@@ -141,58 +140,33 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
   });
 
   // --- Manual refresh/sync of a single fallback rail ---
+  // Re-seeds every profile whose active home source is 'fallback'. The seed
+  // job will repopulate recommendation_list_versions for this rail across
+  // all viewers that currently have it active (bounded by # profiles using
+  // fallback). We enqueue via `enqueueHomeSeed`; the worker fans out per
+  // profile. Since each seed call uses the same idempotency key for repeat
+  // signups (home-seed:<accountId>:<profileId>), a profile whose seed has
+  // already completed would short-circuit; that's acceptable -- subsequent
+  // refreshes happen via new recompute signals or admin "sync all".
   app.post('/admin/api/home/fallback-templates/:listKey/sync', async (request) => {
     await app.requireAdminUiMutation(request);
     const params = asRecord(request.params);
     const listKey = stringField(params.listKey, 'listKey');
-    await withDbClient(async (client) => {
-      const template = await repo.listFallbackTemplateByKey(listKey);
-      if (!template) {
-        throw new HttpError(404, 'Fallback template not found.');
+    const template = await withDbClient((client) => repo.listFallbackTemplateByKey(client, listKey));
+    if (!template) {
+      throw new HttpError(404, 'Fallback template not found.');
+    }
+    const profiles = await withDbClient((client) => repo.listProfileIdsUsingSource(client, 'fallback', 1000));
+    let enqueued = 0;
+    for (const { accountId, profileId } of profiles) {
+      try {
+        await enqueueHomeSeed({ accountId, profileId });
+        enqueued++;
+      } catch {
+        /* per-profile enqueue failures are tolerated; next sync catches them */
       }
-      const source = getListSource(template.sourceId);
-      if (!source) {
-        throw new HttpError(400, `Unknown source: ${template.sourceId}`);
-      }
-      if (template.sourceId.startsWith('home.') && template.sourceId !== 'home.popular-in-region') {
-        // Per-profile sources need a profile context the admin sync path does not have.
-        throw new HttpError(400, `Source ${template.sourceId} is per-profile and cannot be synced from admin. It resolves live per viewer.`);
-      }
-      const resolvedLocale = template.localeMode === 'auto' ? (template.locale || 'en') : template.locale;
-      const tmdbLanguage = template.localeMode === 'en' ? 'en' : resolvedLocale;
-      const tmdbRegion = template.regionOverride ?? undefined;
-      const connectedProviders = await connectedProviderKindsForLocale(client, resolvedLocale);
-      const result = await source.fetchItems(template.sourceConfig, {
-        client,
-        profileId: '',
-        locale: tmdbLanguage,
-        tmdbLanguage,
-        region: tmdbRegion ?? null,
-        tmdbRegion,
-        isKids: false,
-        connectedProviders,
-        limit: FALLBACK_PREVIEW_LIMIT,
-      });
-      const items = result.items.map((item) => ({
-        type: item.type,
-        providerRefs: item.providerRefs.map((ref) => ({ provider: ref.provider, providerId: ref.providerId })),
-        score: item.score ?? null,
-        reason: item.reason ?? null,
-        reasonCodes: item.reasonCodes ?? [],
-      }));
-      await repo.saveFallbackVersion({
-        listKey: template.listKey,
-        locale: resolvedLocale,
-        sourceId: template.sourceId,
-        sectionType: template.sectionType,
-        title: template.title,
-        subtitle: template.subtitle,
-        rank: template.rank,
-        items,
-      });
-      await repo.markFallbackRefreshed(template.listKey);
-    });
-    return mutation({ accepted: true }, request);
+    }
+    return mutation({ accepted: true, enqueued, profilesTouched: profiles.length }, request);
   });
 
   // --- Per-profile home mode + recompute ---
@@ -224,21 +198,6 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     const updated = await homeModeService.setMode(accountId, profileId, mode);
     return mutation({ mode: updated }, request);
   });
-
-  app.post('/admin/api/accounts/:accountId/profiles/:profileId/recompute', async (request) => {
-    await app.requireAdminUiMutation(request);
-    const params = asRecord(request.params);
-    const accountId = stringField(params.accountId, 'accountId');
-    const profileId = stringField(params.profileId, 'profileId');
-    await withDbClient((client) =>
-      recommendationOutboxService.appendRecomputeRequested(client, {
-        userId: accountId,
-        profileId,
-        reason: 'admin_requested',
-      }),
-    );
-    return mutation({ accepted: true }, request);
-  });
 }
 
 const FALLBACK_PREVIEW_LIMIT = 100;
@@ -267,7 +226,7 @@ async function deriveUniqueListKey(repo: HomeListsRepo, baseKey: string): Promis
   let candidate = normalized;
   let suffix = 2;
   for (;;) {
-    const existing = await withDbClient((client) => repo.listFallbackTemplateByKey(candidate));
+    const existing = await withDbClient((client) => repo.listFallbackTemplateByKey(client, candidate));
     if (!existing) return candidate;
     candidate = `${normalized}-${suffix++}`;
   }

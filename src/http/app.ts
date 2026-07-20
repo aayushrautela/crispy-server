@@ -56,6 +56,7 @@ import { DefaultServiceRecommendationListService } from '../modules/apps/service
 import { HomeListsRepo } from '../modules/home/repos/home-lists.repo.js';
 import { DefaultHomeWriteService } from '../modules/home/home-write.service.js';
 import { ContentIdentityService } from '../modules/identity/content-identity.service.js';
+import { RecommenderNotifier, getRecommenderNotifier } from '../modules/recommender-notifier/recommender-notifier.js';
 import { SqlRecommendationRunRepo } from '../modules/apps/recommendation-run.repo.js';
 import { DefaultRecommendationRunService } from '../modules/apps/recommendation-run.service.js';
 import { SqlRecommendationBatchRepo } from '../modules/apps/recommendation-batch.repo.js';
@@ -70,6 +71,7 @@ declare module 'fastify' {
     requireAuth(request: import('fastify').FastifyRequest): Promise<void>;
     requireUserActor(request: import('fastify').FastifyRequest): UserAuthActor;
     requireScopes(request: import('fastify').FastifyRequest, scopes: AuthScope[]): void;
+    recommenderNotifier: RecommenderNotifier | null;
   }
 }
 
@@ -276,7 +278,10 @@ export async function buildApp() {
     }
   });
 
-  const profileService = new ProfileLocalService();
+  const recommenderNotifier = getRecommenderNotifier();
+  app.decorate('recommenderNotifier', recommenderNotifier);
+
+  const profileService = new ProfileLocalService(recommenderNotifier);
   const profilePinService = new ProfilePinService();
   const accountSettingsService = new AccountSettingsService();
   const patService = new PersonalAccessTokenService();

@@ -161,28 +161,3 @@ export async function enqueueHomeSeed(job: HomeSeedJob): Promise<string> {
   return jobId;
 }
 
-export type HomeFallbackRefreshJob = {
-  scope: 'cron' | 'single';
-  listKey?: string;
-  locale?: string;
-};
-
-export async function enqueueHomeFallbackRefreshCron(): Promise<string> {
-  const jobId = buildJobId('home-fallback-refresh', 'cron');
-  await getHomeQueue().add('home-fallback-refresh', { scope: 'cron' }, {
-    jobId,
-    removeOnComplete: true,
-    removeOnFail: 100,
-  });
-  return jobId;
-}
-
-export async function enqueueHomeFallbackRefreshSingle(listKey: string, locale: string): Promise<string> {
-  const jobId = buildJobId('home-fallback-refresh', listKey, locale);
-  await getHomeQueue().add('home-fallback-refresh', { scope: 'single', listKey, locale }, {
-    jobId,
-    removeOnComplete: true,
-    removeOnFail: 100,
-  });
-  return jobId;
-}

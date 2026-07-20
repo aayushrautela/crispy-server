@@ -55,21 +55,6 @@ function parseBoolean(name: string, fallback: boolean): boolean {
   throw new Error(`Invalid boolean environment variable: ${name}`);
 }
 
-function parseStringEnumEnv<T extends string>(name: string, allowed: readonly T[], fallback: T): T {
-  const raw = process.env[name]?.trim();
-  if (!raw) {
-    return fallback;
-  }
-
-  if ((allowed as readonly string[]).includes(raw)) {
-    return raw as T;
-  }
-
-  throw new Error(`Invalid value for ${name}: ${raw}`);
-}
-
-const adminBulkJobWorkerModes = ['off', 'standalone', 'inline'] as const;
-
 function requireBaseUrl(name: string): string {
   return requireEnv(name).replace(/\/+$/, '');
 }
@@ -175,23 +160,7 @@ export const env = {
   recommenderToMainServiceTokenHash: optionalEnv('RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH') ?? '',
   recommenderInternalBaseUrl: optionalBaseUrl('RECOMMENDER_INTERNAL_BASE_URL') ?? '',
   mainToRecommenderServiceToken: optionalEnv('MAIN_TO_RECOMMENDER_SERVICE_TOKEN') ?? '',
-  adminRecommendationRecomputeJobsEnabled: parseBoolean('ADMIN_RECOMMENDATION_RECOMPUTE_JOBS_ENABLED', false),
-  adminRecommendationRecomputeJobsCreateEnabled: parseBoolean('ADMIN_RECOMMENDATION_RECOMPUTE_JOBS_CREATE_ENABLED', false),
-  adminBulkJobsWorkerMode: parseStringEnumEnv('ADMIN_BULK_JOBS_WORKER_MODE', adminBulkJobWorkerModes, 'off'),
-  adminBulkJobsPollIntervalMs: parseNumber('ADMIN_BULK_JOBS_POLL_INTERVAL_MS', 5000),
-  adminBulkJobsPollJitterMs: parseNumber('ADMIN_BULK_JOBS_POLL_JITTER_MS', 1000),
-  adminBulkJobsClaimTtlMs: parseNumber('ADMIN_BULK_JOBS_CLAIM_TTL_MS', 300000),
-  adminBulkJobsShutdownTimeoutMs: parseNumber('ADMIN_BULK_JOBS_SHUTDOWN_TIMEOUT_MS', 30000),
-  adminBulkJobsMaxConcurrentJobs: parseNumber('ADMIN_BULK_JOBS_MAX_CONCURRENT_JOBS', 1),
-  adminBulkJobsEnumerationPageSize: parseNumber('ADMIN_BULK_JOBS_ENUMERATION_PAGE_SIZE', 500),
-  adminBulkJobsFanoutBatchSize: parseNumber('ADMIN_BULK_JOBS_FANOUT_BATCH_SIZE', 100),
-  outboxDispatcherEnabled: parseBoolean('OUTBOX_DISPATCHER_ENABLED', false),
-  outboxDispatchBatchSize: parseNumber('OUTBOX_DISPATCH_BATCH_SIZE', 10),
-  outboxDispatchIntervalMs: parseNumber('OUTBOX_DISPATCH_INTERVAL_MS', 5000),
-  outboxDispatchLockSeconds: parseNumber('OUTBOX_DISPATCH_LOCK_SECONDS', 60),
-  outboxDispatchMaxAttempts: parseNumber('OUTBOX_DISPATCH_MAX_ATTEMPTS', 10),
-  outboxDispatchRetryBaseMs: parseNumber('OUTBOX_DISPATCH_RETRY_BASE_MS', 1000),
-  outboxDispatchRetryMaxMs: parseNumber('OUTBOX_DISPATCH_RETRY_MAX_MS', 300000),
+  recommenderNotifyTimeoutMs: parseNumber('RECOMMENDER_NOTIFY_TIMEOUT_MS', 5000),
 };
 
 export type Env = typeof env;

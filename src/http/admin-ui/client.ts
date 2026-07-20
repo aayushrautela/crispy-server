@@ -13,14 +13,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'Account Inspector',
       description: 'Resolve accounts, choose profiles, and keep profile operations in a dedicated workspace.',
     },
-    'recompute-jobs': {
-      title: 'Recompute Jobs',
-      description: 'Create, monitor, and control bulk recommendation recompute jobs.',
-    },
-    'recompute-job-detail': {
-      title: 'Recompute Job Detail',
-      description: 'Inspect recompute progress, diagnostics, and job controls.',
-    },
     'ai-lab': {
       title: 'AI Lab',
       description: 'Test configured server AI models, prompts, and providers.',
@@ -31,7 +23,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     },
     'home-profiles': {
       title: 'Profile Home',
-      description: 'Inspect a profile home resolution, switch home mode, and trigger recompute.',
+      description: 'Inspect a profile home resolution and switch home mode.',
     },
   };
 
@@ -51,12 +43,9 @@ export const ADMIN_UI_CLIENT = String.raw`
     toastCounter: 0,
     selectedAccount: null,
     selectedProfile: null,
-    selectedRecomputeJobId: null,
-    recomputeJobs: [],
     pollersStarted: false,
     intervals: {
       diagnostics: 30000,
-      recomputeJobs: 10000,
     },
   };
 
@@ -81,36 +70,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     sidebarRunningStatus: document.getElementById('sidebar-running-status'),
     navDiagnosticsBadge: document.getElementById('nav-diagnostics-badge'),
     navAccountsBadge: document.getElementById('nav-accounts-badge'),
-    navRecomputeJobsBadge: document.getElementById('nav-recompute-jobs-badge'),
-    recomputeJobsFilterForm: document.getElementById('recompute-jobs-filter-form'),
-    recomputeJobsStatus: document.getElementById('recompute-jobs-status'),
-    recomputeJobsScope: document.getElementById('recompute-jobs-scope'),
-    recomputeJobsLimit: document.getElementById('recompute-jobs-limit'),
-    recomputeJobsSummary: document.getElementById('recompute-jobs-summary'),
-    recomputeJobsRows: document.getElementById('recompute-jobs-rows'),
-    recomputeJobsMessage: document.getElementById('recompute-jobs-message'),
-    refreshRecomputeJobs: document.getElementById('refresh-recompute-jobs'),
-    openRecomputeCreate: document.getElementById('open-recompute-create'),
-    recomputeCreateModal: document.getElementById('recompute-create-modal'),
-    recomputeCreateClose: document.getElementById('recompute-create-close'),
-    recomputeCreateCancel: document.getElementById('recompute-create-cancel'),
-    recomputeCreateForm: document.getElementById('recompute-create-form'),
-    recomputeCreateScope: document.getElementById('recompute-create-scope'),
-    recomputeCreateTargets: document.getElementById('recompute-create-targets'),
-    recomputeCreateTargetsRow: document.getElementById('recompute-create-targets-row'),
-    recomputeCreateReason: document.getElementById('recompute-create-reason'),
-    recomputeCreateConfirm: document.getElementById('recompute-create-confirm'),
-    recomputeCreateConfirmRow: document.getElementById('recompute-create-confirm-row'),
-    recomputeCreateConfirmHelp: document.getElementById('recompute-create-confirm-help'),
-    recomputeCreateMessage: document.getElementById('recompute-create-message'),
-    recomputeDetailTitle: document.getElementById('recompute-detail-title'),
-    recomputeDetailMeta: document.getElementById('recompute-detail-meta'),
-    recomputeDetailMessage: document.getElementById('recompute-detail-message'),
-    recomputeDetailSummary: document.getElementById('recompute-detail-summary'),
-    recomputeDetailProgress: document.getElementById('recompute-detail-progress'),
-    recomputeDetailActions: document.getElementById('recompute-detail-actions'),
-    recomputeDetailDiagnostics: document.getElementById('recompute-detail-diagnostics'),
-    refreshRecomputeJobDetail: document.getElementById('refresh-recompute-job-detail'),
     overviewSummary: document.getElementById('overview-summary'),
     overviewRunningJobs: document.getElementById('overview-running-jobs'),
     overviewDiagnostics: document.getElementById('overview-diagnostics'),
@@ -118,14 +77,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     refreshDiagnostics: document.getElementById('refresh-diagnostics'),
     diagStats: document.getElementById('diag-stats'),
     backlogSummary: document.getElementById('backlog-summary'),
-    outboxSummary: document.getElementById('outbox-summary'),
     importSummary: document.getElementById('import-summary'),
-    serviceOutboxSummary: document.getElementById('service-outbox-summary'),
-    serviceOutboxRows: document.getElementById('service-outbox-rows'),
-    serviceOutboxFilterForm: document.getElementById('service-outbox-filter-form'),
-    serviceOutboxCorrelationId: document.getElementById('service-outbox-correlation-id'),
-    serviceOutboxProfileId: document.getElementById('service-outbox-profile-id'),
-    serviceOutboxStatus: document.getElementById('service-outbox-status'),
     backlogRows: document.getElementById('backlog-rows'),
     importRows: document.getElementById('import-rows'),
     lookupForm: document.getElementById('account-lookup-form'),
@@ -169,9 +121,6 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   async function initialize() {
     await loadDiagnostics({ silent: true });
-    await loadRecomputeJobs({ silent: true });
-    const parsed = parseHashView(window.location.hash);
-    if (parsed.jobId) await loadRecomputeJobDetail(parsed.jobId, { silent: true });
     await loadAiConfig();
     bindHome();
     startPolling();
@@ -197,9 +146,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     window.addEventListener('hashchange', () => {
       const value = readHashView();
       if (value && value !== state.activeView) {
-        const parsed = parseHashView(value);
-        updateView(parsed.view, false);
-        if (parsed.jobId) void loadRecomputeJobDetail(parsed.jobId);
+        updateView(value, false);
       }
     });
   }
@@ -217,19 +164,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (elements.refreshDiagnostics) {
       elements.refreshDiagnostics.addEventListener('click', () => { void loadDiagnostics(); });
     }
-    if (elements.refreshRecomputeJobs) {
-      elements.refreshRecomputeJobs.addEventListener('click', () => { void loadRecomputeJobs(); });
-    }
-    if (elements.refreshRecomputeJobDetail) {
-      elements.refreshRecomputeJobDetail.addEventListener('click', () => {
-        if (state.selectedRecomputeJobId) void loadRecomputeJobDetail(state.selectedRecomputeJobId);
-      });
-    }
-    if (elements.openRecomputeCreate) {
-      elements.openRecomputeCreate.addEventListener('click', openRecomputeCreateModal);
-    }
-    if (elements.recomputeCreateClose) elements.recomputeCreateClose.addEventListener('click', closeRecomputeCreateModal);
-    if (elements.recomputeCreateCancel) elements.recomputeCreateCancel.addEventListener('click', closeRecomputeCreateModal);
     if (elements.refreshProfileDetail) {
       elements.refreshProfileDetail.addEventListener('click', () => {
         if (!state.selectedAccount || !state.selectedProfile) return;
@@ -267,28 +201,6 @@ export const ADMIN_UI_CLIENT = String.raw`
         event.preventDefault();
         void runAiTest('selected');
       });
-    }
-    if (elements.serviceOutboxFilterForm) {
-      elements.serviceOutboxFilterForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        void loadDiagnostics();
-      });
-    }
-    if (elements.recomputeJobsFilterForm) {
-      elements.recomputeJobsFilterForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        void loadRecomputeJobs();
-      });
-    }
-    if (elements.recomputeCreateForm) {
-      elements.recomputeCreateForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        void createRecomputeJob();
-      });
-    }
-    if (elements.recomputeCreateScope) {
-      elements.recomputeCreateScope.addEventListener('change', syncRecomputeCreateForm);
-      syncRecomputeCreateForm();
     }
     if (elements.aiTestRunServer) {
       elements.aiTestRunServer.addEventListener('click', () => { void runAiTest('server'); });
@@ -654,10 +566,10 @@ export const ADMIN_UI_CLIENT = String.raw`
     const profileId = document.querySelector('[data-home-form="profile-lookup"] input[name="profileId"]');
     if (!accountId || !profileId) return;
     try {
-      await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId.value) + '/profiles/' + encodeURIComponent(profileId.value) + '/recompute'), { method: 'POST' });
-      setHomeStatus('#home-profiles-status', 'Recompute enqueued.', false);
+      await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId.value) + '/profiles/' + encodeURIComponent(profileId.value) + '/notify-recompute'), { method: 'POST' });
+      setHomeStatus('#home-profiles-status', 'Notified recommender.', false);
     } catch (error) {
-      setHomeStatus('#home-profiles-status', error.message || 'Failed to enqueue recompute.', true);
+      setHomeStatus('#home-profiles-status', error.message || 'Failed to notify recommender.', true);
     }
   }
 
@@ -710,11 +622,7 @@ export const ADMIN_UI_CLIENT = String.raw`
 
   function parseHashView(hash) {
     const value = String(hash || '').replace(/^#/, '');
-    if (value.startsWith('recompute-job-detail:')) {
-      const jobId = value.replace('recompute-job-detail:', '');
-      return { view: 'recompute-job-detail', jobId: decodeURIComponent(jobId) };
-    }
-    return { view: value, jobId: null };
+    return { view: value };
   }
 
   function apiPath(path) {
@@ -728,15 +636,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       if (document.visibilityState === 'hidden') return;
       void loadDiagnostics({ silent: true });
     }, state.intervals.diagnostics);
-    window.setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
-      if (state.activeView === 'recompute-jobs' || hasActiveRecomputeJobs()) {
-        void loadRecomputeJobs({ silent: true });
-      }
-      if (state.activeView === 'recompute-job-detail' && state.selectedRecomputeJobId) {
-        void loadRecomputeJobDetail(state.selectedRecomputeJobId, { silent: true });
-      }
-    }, state.intervals.recomputeJobs);
   }
 
   async function fetchJson(url, options) {
@@ -789,18 +688,10 @@ export const ADMIN_UI_CLIENT = String.raw`
   async function loadDiagnostics(options) {
     setBusy('diagnosticsBusy', true);
     try {
-      const result = await Promise.all([
-        fetchJson(apiPath('/diagnostics/recommendations/outbox?limit=8')),
-        fetchJson(apiPath('/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false')),
-        fetchJson(apiPath('/diagnostics/recommendations/service-outbox' + serviceOutboxQueryString())),
-      ]);
-      const payload = {
-        outbox: result[0],
-        imports: result[1],
-        serviceOutbox: result[2],
-      };
+      const imports = await fetchJson(apiPath('/diagnostics/imports/connections?limit=8&refreshFailuresOnly=false'));
+      const payload = { imports };
       state.diagnosticsPayload = payload;
-      renderDiagnostics(payload.outbox, payload.imports, payload.serviceOutbox);
+      renderDiagnostics(payload.imports);
       updateDiagnosticsChrome(payload);
       stampUpdated();
       return payload;
@@ -810,12 +701,9 @@ export const ADMIN_UI_CLIENT = String.raw`
         elements.diagStats.innerHTML = '';
       }
       if (elements.backlogSummary) elements.backlogSummary.textContent = error.message || 'Failed to load diagnostics.';
-      if (elements.outboxSummary) elements.outboxSummary.textContent = 'Unavailable';
       if (elements.importSummary) elements.importSummary.textContent = 'Unavailable';
       if (elements.backlogRows) elements.backlogRows.innerHTML = emptyTableRow('Diagnostics unavailable.', 4);
       if (elements.importRows) elements.importRows.innerHTML = emptyTableRow('Import diagnostics unavailable.', 5);
-      if (elements.serviceOutboxSummary) elements.serviceOutboxSummary.textContent = 'Unavailable';
-      if (elements.serviceOutboxRows) elements.serviceOutboxRows.innerHTML = emptyTableRow('Service outbox diagnostics unavailable.', 5);
       if (elements.navDiagnosticsBadge) elements.navDiagnosticsBadge.textContent = '!';
       if (!(options && options.silent)) {
         pushNotification('warn', 'Diagnostics degraded', error.message || 'Unable to refresh diagnostics.', true);
@@ -828,10 +716,8 @@ export const ADMIN_UI_CLIENT = String.raw`
   }
 
   function updateDiagnosticsChrome(payload) {
-    const undelivered = payload && payload.outbox && Array.isArray(payload.outbox.undelivered) ? payload.outbox.undelivered : [];
     const providerDiagnostics = payload && payload.imports && Array.isArray(payload.imports.providerDiagnostics) ? payload.imports.providerDiagnostics : [];
-    const warningCount = providerDiagnostics.filter((row) => !!row.lastRefreshError).length
-      + (undelivered.length > 0 ? 1 : 0);
+    const warningCount = providerDiagnostics.filter((row) => !!row.lastRefreshError).length;
     if (elements.navDiagnosticsBadge) {
       elements.navDiagnosticsBadge.textContent = String(warningCount);
     }
@@ -841,314 +727,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (elements.sidebarRunningStatus) {
       elements.sidebarRunningStatus.textContent = warningCount
         ? String(warningCount) + ' diagnostics need attention.'
-        : 'Recommendation outbox and import diagnostics are clear.';
-    }
-  }
-
-  function serviceOutboxQueryString() {
-    const params = new URLSearchParams();
-    params.set('limit', '25');
-    const correlationId = String((elements.serviceOutboxCorrelationId && elements.serviceOutboxCorrelationId.value) || '').trim();
-    const profileId = String((elements.serviceOutboxProfileId && elements.serviceOutboxProfileId.value) || '').trim();
-    const status = String((elements.serviceOutboxStatus && elements.serviceOutboxStatus.value) || '').trim();
-    if (correlationId) params.set('correlationId', correlationId);
-    if (profileId) params.set('profileId', profileId);
-    if (status) params.set('status', status);
-    return '?' + params.toString();
-  }
-
-  function recomputeJobsQueryString() {
-    const params = new URLSearchParams();
-    const status = String((elements.recomputeJobsStatus && elements.recomputeJobsStatus.value) || '').trim();
-    const scope = String((elements.recomputeJobsScope && elements.recomputeJobsScope.value) || '').trim();
-    const limit = String((elements.recomputeJobsLimit && elements.recomputeJobsLimit.value) || '25').trim();
-    if (status) params.set('status', status);
-    if (scope) params.set('scope', scope);
-    if (limit) params.set('limit', limit);
-    const query = params.toString();
-    return query ? '?' + query : '';
-  }
-
-  async function loadRecomputeJobs(options) {
-    if (!elements.recomputeJobsRows) return null;
-    if (elements.refreshRecomputeJobs) elements.refreshRecomputeJobs.disabled = true;
-    if (!(options && options.silent)) setMessage(elements.recomputeJobsMessage, 'info', 'Loading recompute jobs...');
-    try {
-      const payload = await fetchJson(apiPath('/recommendations/recompute-jobs' + recomputeJobsQueryString()));
-      const jobs = normalizeRecomputeJobs(payload);
-      state.recomputeJobs = jobs;
-      renderRecomputeJobs(jobs, payload);
-      setMessage(elements.recomputeJobsMessage, '', '');
-      updateRecomputeJobsBadge(jobs);
-      stampUpdated();
-      renderOverview();
-      return payload;
-    } catch (error) {
-      setMessage(elements.recomputeJobsMessage, 'error', error.message || 'Unable to load recompute jobs.');
-      if (elements.recomputeJobsRows) elements.recomputeJobsRows.innerHTML = emptyTableRow('Recompute jobs unavailable.', 6);
-      pushNotification('error', 'Recompute jobs unavailable', error.message || 'Unable to load recompute jobs.', true);
-      return null;
-    } finally {
-      if (elements.refreshRecomputeJobs) elements.refreshRecomputeJobs.disabled = false;
-    }
-  }
-
-  function normalizeRecomputeJobs(payload) {
-    if (!payload) return [];
-    if (Array.isArray(payload.jobs)) return payload.jobs;
-    if (Array.isArray(payload.items)) return payload.items;
-    if (Array.isArray(payload.recomputeJobs)) return payload.recomputeJobs;
-    if (Array.isArray(payload)) return payload;
-    return [];
-  }
-
-  function renderRecomputeJobs(jobs, payload) {
-    const counts = summarizeRecomputeJobs(jobs);
-    if (elements.recomputeJobsSummary) {
-      elements.recomputeJobsSummary.innerHTML = [
-        statCard('Jobs returned', jobs.length, 'current filter window'),
-        statCard('Active', counts.active, 'queued, running, or paused'),
-        statCard('Failures', counts.failed, 'failed or cancelled'),
-      ].join('');
-    }
-    if (elements.recomputeJobsRows) {
-      elements.recomputeJobsRows.innerHTML = jobs.length
-        ? jobs.map(renderRecomputeJobRow).join('')
-        : emptyTableRow('No recompute jobs matched.', 6);
-      bindRecomputeJobTableActions();
-    }
-  }
-
-  function renderRecomputeJobRow(job) {
-    const jobId = recomputeJobId(job);
-    const progress = recomputeProgress(job);
-    return '<tr>'
-      + '<td><strong>' + escapeHtml(jobId || 'unknown-job') + '</strong><br><span class="muted">' + escapeHtml(String(job.reason || job.note || 'no reason')) + '</span></td>'
-      + '<td>' + escapeHtml(String(job.scope || job.targetScope || 'unknown')) + '</td>'
-      + '<td>' + badge(String(job.status || 'unknown'), statusTone(String(job.status || 'unknown'))) + '</td>'
-      + '<td>' + escapeHtml(progress.label) + '</td>'
-      + '<td>' + escapeHtml(formatDate(job.createdAt || job.requestedAt || 'n/a')) + '</td>'
-      + '<td><div class="jobs-toolbar">'
-        + '<button type="button" class="secondary" data-open-recompute-job="' + escapeHtml(jobId) + '">Open</button>'
-        + recomputeActionButton(jobId, job.status, 'pause')
-        + recomputeActionButton(jobId, job.status, 'resume')
-        + recomputeActionButton(jobId, job.status, 'cancel')
-        + recomputeActionButton(jobId, job.status, 'reconcile')
-      + '</div></td>'
-      + '</tr>';
-  }
-
-  function recomputeActionButton(jobId, status, action) {
-    if (!jobId) return '';
-    const normalized = String(status || '').toLowerCase();
-    const enabled = action === 'pause' ? ['queued', 'running'].includes(normalized)
-      : action === 'resume' ? normalized === 'paused'
-        : action === 'cancel' ? ['queued', 'running', 'paused'].includes(normalized)
-          : ['queued', 'running', 'paused', 'failed'].includes(normalized);
-    return '<button type="button" class="ghost" data-recompute-job-action="' + escapeHtml(action) + '" data-recompute-job-id="' + escapeHtml(jobId) + '"' + (enabled ? '' : ' disabled') + '>' + escapeHtml(action) + '</button>';
-  }
-
-  function bindRecomputeJobTableActions() {
-    const openButtons = Array.from(document.querySelectorAll('[data-open-recompute-job]'));
-    for (const button of openButtons) {
-      button.addEventListener('click', () => {
-        const jobId = button.getAttribute('data-open-recompute-job');
-        if (!jobId) return;
-        history.replaceState(null, '', '#recompute-job-detail:' + encodeURIComponent(jobId));
-        updateView('recompute-job-detail', false);
-        void loadRecomputeJobDetail(jobId);
-      });
-    }
-    bindRecomputeActionButtons(document);
-  }
-
-  function bindRecomputeActionButtons(container) {
-    const buttons = Array.from(container.querySelectorAll('[data-recompute-job-action]'));
-    for (const button of buttons) {
-      button.onclick = async () => {
-        const action = button.getAttribute('data-recompute-job-action');
-        const jobId = button.getAttribute('data-recompute-job-id');
-        if (!action || !jobId) return;
-        await runRecomputeJobAction(jobId, action, button);
-      };
-    }
-  }
-
-  async function runRecomputeJobAction(jobId, action, button) {
-    if (button) button.disabled = true;
-    const messageEl = state.activeView === 'recompute-job-detail' ? elements.recomputeDetailMessage : elements.recomputeJobsMessage;
-    setMessage(messageEl, 'info', action + ' requested for recompute job ' + jobId + '...');
-    try {
-      await fetchJson(apiPath('/recommendations/recompute-jobs/' + encodeURIComponent(jobId) + '/' + encodeURIComponent(action)), { method: 'POST' });
-      setMessage(messageEl, 'success', 'Recompute job ' + action + ' request accepted.');
-      pushNotification('success', 'Recompute job updated', action + ' request accepted for ' + jobId + '.', true);
-      await loadRecomputeJobs({ silent: true });
-      if (state.selectedRecomputeJobId === jobId) await loadRecomputeJobDetail(jobId, { silent: true });
-    } catch (error) {
-      const description = describeApiError(error, 'Unable to update recompute job.');
-      setMessage(messageEl, 'error', description);
-      pushNotification('error', 'Recompute action failed', description, true);
-    } finally {
-      if (button) button.disabled = false;
-    }
-  }
-
-  async function loadRecomputeJobDetail(jobId, options) {
-    state.selectedRecomputeJobId = jobId;
-    if (!elements.recomputeDetailSummary) return null;
-    if (!(options && options.silent)) setMessage(elements.recomputeDetailMessage, 'info', 'Loading recompute job...');
-    try {
-      const payload = await fetchJson(apiPath('/recommendations/recompute-jobs/' + encodeURIComponent(jobId)));
-      const job = payload && payload.job ? payload.job : payload;
-      renderRecomputeJobDetail(job || { id: jobId }, payload);
-      setMessage(elements.recomputeDetailMessage, '', '');
-      stampUpdated();
-      return payload;
-    } catch (error) {
-      setMessage(elements.recomputeDetailMessage, 'error', error.message || 'Unable to load recompute job.');
-      pushNotification('error', 'Recompute job unavailable', error.message || 'Unable to load recompute job.', true);
-      return null;
-    }
-  }
-
-  function renderRecomputeJobDetail(job, payload) {
-    const jobId = recomputeJobId(job) || state.selectedRecomputeJobId || 'unknown-job';
-    const progress = recomputeProgress(job);
-    if (elements.recomputeDetailTitle) elements.recomputeDetailTitle.textContent = 'Job ' + jobId;
-    if (elements.recomputeDetailMeta) elements.recomputeDetailMeta.textContent = String(job.scope || job.targetScope || 'unknown scope') + ' · ' + String(job.status || 'unknown status');
-    if (elements.recomputeDetailSummary) {
-      elements.recomputeDetailSummary.innerHTML = [
-        statCard('Status', job.status || 'unknown', 'current job state'),
-        statCard('Progress', progress.label, progress.percent + '% complete'),
-        statCard('Failures', job.failedTargets || job.failedCount || 0, 'target failures'),
-      ].join('');
-    }
-    if (elements.recomputeDetailProgress) {
-      elements.recomputeDetailProgress.innerHTML = '<h4>Progress</h4><div class="kv-grid">'
-        + kvPair('Queued', String(job.queuedTargets || job.queuedCount || '0'))
-        + kvPair('Processed', String(job.processedTargets || job.processedCount || job.completedTargets || '0'))
-        + kvPair('Total', String(job.totalTargets || job.targetCount || '0'))
-        + kvPair('Updated', formatDate(job.updatedAt || job.createdAt || 'n/a'))
-        + '</div>';
-    }
-    if (elements.recomputeDetailActions) {
-      elements.recomputeDetailActions.innerHTML = recomputeActionButton(jobId, job.status, 'pause')
-        + recomputeActionButton(jobId, job.status, 'resume')
-        + recomputeActionButton(jobId, job.status, 'cancel')
-        + recomputeActionButton(jobId, job.status, 'reconcile');
-      bindRecomputeActionButtons(elements.recomputeDetailActions);
-    }
-    if (elements.recomputeDetailDiagnostics) {
-      elements.recomputeDetailDiagnostics.innerHTML = '<div class="kv-grid">'
-        + kvPair('Reason', job.reason || job.note || 'n/a')
-        + kvPair('Created', formatDate(job.createdAt || 'n/a'))
-        + kvPair('Started', job.startedAt ? formatDate(job.startedAt) : 'n/a')
-        + kvPair('Finished', job.finishedAt ? formatDate(job.finishedAt) : 'n/a')
-        + '</div><pre class="mini-panel">' + escapeHtml(JSON.stringify(payload || job, null, 2)) + '</pre>';
-    }
-  }
-
-  function recomputeJobId(job) {
-    return String((job && (job.id || job.jobId || job.bulkJobId)) || '');
-  }
-
-  function recomputeProgress(job) {
-    const total = Number((job && (job.totalTargets || job.targetCount || job.totalCount)) || 0);
-    const done = Number((job && (job.processedTargets || job.processedCount || job.completedTargets || job.completedCount)) || 0);
-    const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0;
-    return { percent, label: total > 0 ? String(done) + ' / ' + String(total) : String(done) + ' processed' };
-  }
-
-  function summarizeRecomputeJobs(jobs) {
-    return jobs.reduce((summary, job) => {
-      const status = String(job.status || '').toLowerCase();
-      if (['queued', 'running', 'paused'].includes(status)) summary.active += 1;
-      if (['failed', 'cancelled', 'canceled'].includes(status)) summary.failed += 1;
-      return summary;
-    }, { active: 0, failed: 0 });
-  }
-
-  function hasActiveRecomputeJobs() {
-    return summarizeRecomputeJobs(state.recomputeJobs || []).active > 0;
-  }
-
-  function updateRecomputeJobsBadge(jobs) {
-    if (elements.navRecomputeJobsBadge) elements.navRecomputeJobsBadge.textContent = String(summarizeRecomputeJobs(jobs).active);
-  }
-
-  function openRecomputeCreateModal() {
-    if (elements.recomputeCreateModal) elements.recomputeCreateModal.hidden = false;
-    syncRecomputeCreateForm();
-  }
-
-  function closeRecomputeCreateModal() {
-    if (elements.recomputeCreateModal) elements.recomputeCreateModal.hidden = true;
-  }
-
-  function syncRecomputeCreateForm() {
-    const scope = String((elements.recomputeCreateScope && elements.recomputeCreateScope.value) || 'explicit-targets');
-    const allUsers = scope === 'all-users';
-    if (elements.recomputeCreateTargetsRow) elements.recomputeCreateTargetsRow.hidden = allUsers;
-    if (elements.recomputeCreateConfirmRow) elements.recomputeCreateConfirmRow.hidden = !allUsers;
-    if (elements.recomputeCreateConfirmHelp) elements.recomputeCreateConfirmHelp.hidden = !allUsers;
-  }
-
-  function parseRecomputeTargets(value) {
-    const lines = String(value || '').split(/\r?\n/);
-    const targets = [];
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index].trim();
-      if (!line) continue;
-      const parts = line.split(',').map((part) => part.trim()).filter(Boolean);
-      if (parts.length !== 2) {
-        return { error: 'Line ' + String(index + 1) + ' must contain accountId,profileId.' };
-      }
-      targets.push({ accountId: parts[0], profileId: parts[1] });
-    }
-    return { targets };
-  }
-
-  async function createRecomputeJob() {
-    const scope = String((elements.recomputeCreateScope && elements.recomputeCreateScope.value) || 'explicit-targets');
-    const reason = String((elements.recomputeCreateReason && elements.recomputeCreateReason.value) || 'admin-ui-bulk-recompute').trim();
-    const confirmation = String((elements.recomputeCreateConfirm && elements.recomputeCreateConfirm.value) || '').trim();
-    const allUsers = scope === 'all-users';
-    const parsedTargets = allUsers ? { targets: [] } : parseRecomputeTargets(elements.recomputeCreateTargets && elements.recomputeCreateTargets.value);
-    if (parsedTargets.error) {
-      setMessage(elements.recomputeCreateMessage, 'error', parsedTargets.error);
-      return;
-    }
-    if (!allUsers && parsedTargets.targets.length === 0) {
-      setMessage(elements.recomputeCreateMessage, 'error', 'Enter at least one accountId,profileId target pair.');
-      return;
-    }
-    if (allUsers && confirmation !== 'RECOMPUTE_ALL_USERS') {
-      setMessage(elements.recomputeCreateMessage, 'error', 'Type RECOMPUTE_ALL_USERS exactly to create an all-users job.');
-      return;
-    }
-    setMessage(elements.recomputeCreateMessage, 'info', 'Creating recompute job...');
-    try {
-      const body = allUsers
-        ? { scope: { type: 'all_users' }, reason, confirmation }
-        : { scope: { type: 'explicit_targets' }, targets: parsedTargets.targets, reason };
-      const payload = await fetchJson(apiPath('/recommendations/recompute-jobs'), { method: 'POST', body: JSON.stringify(body) });
-      const job = payload && payload.job ? payload.job : payload;
-      const jobId = recomputeJobId(job);
-      setMessage(elements.recomputeCreateMessage, 'success', 'Created recompute job' + (jobId ? ' ' + jobId : '') + '.');
-      pushNotification('success', 'Recompute job created', jobId ? 'Created job ' + jobId + '.' : 'Created recompute job.', true);
-      if (elements.recomputeCreateForm) elements.recomputeCreateForm.reset();
-      syncRecomputeCreateForm();
-      closeRecomputeCreateModal();
-      await loadRecomputeJobs({ silent: true });
-      if (jobId) {
-        history.replaceState(null, '', '#recompute-job-detail:' + encodeURIComponent(jobId));
-        updateView('recompute-job-detail', false);
-        await loadRecomputeJobDetail(jobId, { silent: true });
-      }
-    } catch (error) {
-      const description = describeApiError(error, 'Unable to create recompute job.');
-      setMessage(elements.recomputeCreateMessage, 'error', description);
-      pushNotification('error', 'Recompute job create failed', description, true);
+        : 'Import diagnostics are clear.';
     }
   }
 
@@ -1396,22 +975,17 @@ export const ADMIN_UI_CLIENT = String.raw`
     for (const button of recomputeButtons) {
       button.onclick = async () => {
         button.disabled = true;
-        setMessage(messageEl, 'info', 'Queueing recommendation recompute...');
+        setMessage(messageEl, 'info', 'Notifying recommender...');
         try {
-          const payload = await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/recommendations/recompute'), {
+          await fetchJson(apiPath('/accounts/' + encodeURIComponent(accountId) + '/profiles/' + encodeURIComponent(profileId) + '/notify-recompute'), {
             method: 'POST',
-            body: JSON.stringify({ note: 'admin-ui-profile-workspace' }),
           });
-          const correlationId = payload && payload.correlationId ? String(payload.correlationId) : 'unknown';
-          const diagnosticsPath = payload && payload.diagnosticsUrl ? String(payload.diagnosticsUrl) : '/admin/api/diagnostics/recommendations/service-outbox?correlationId=' + encodeURIComponent(correlationId);
-          setHtmlMessage(messageEl, 'success', 'Queued recommendation recompute. Correlation ID: <code>' + escapeHtml(correlationId) + '</code>. <a href="' + escapeHtml(diagnosticsPath) + '" target="_blank" rel="noopener noreferrer">Open diagnostics JSON</a>.');
-          if (elements.serviceOutboxCorrelationId) elements.serviceOutboxCorrelationId.value = correlationId;
-          pushNotification('success', 'Recompute queued', 'Queued recommendation recompute for profile ' + profileId + '.', true);
-          await loadDiagnostics({ silent: true });
+          setMessage(messageEl, 'success', 'Notified recommender.');
+          pushNotification('success', 'Notified recommender', 'Notified recommender for profile ' + profileId + '.', true);
         } catch (error) {
-          const description = describeApiError(error, 'Unable to queue recommendation recompute.');
+          const description = describeApiError(error, 'Unable to notify recommender.');
           setMessage(messageEl, 'error', description);
-          pushNotification('error', 'Recompute failed', description, true);
+          pushNotification('error', 'Notify failed', description, true);
         } finally {
           button.disabled = false;
         }
@@ -1431,37 +1005,24 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  function renderDiagnostics(outbox, imports, serviceOutbox) {
-    const undelivered = Array.isArray(outbox.undelivered) ? outbox.undelivered : [];
+  function renderDiagnostics(imports) {
     const providerDiagnostics = Array.isArray(imports.providerDiagnostics) ? imports.providerDiagnostics : [];
     const refreshFailures = providerDiagnostics.filter((row) => !!row.lastRefreshError).length;
     const expiringSoon = providerDiagnostics.filter((row) => row.accessTokenExpiresAt).length;
 
     if (elements.diagStats) {
       elements.diagStats.innerHTML = [
-        statCard('Undelivered events', undelivered.length, undelivered.length ? 'needs orchestration attention' : 'delivery is caught up'),
-        statCard('Outbox undelivered', countArray(outbox.undelivered), lagText(outbox.lag)),
         statCard('Import refresh failures', refreshFailures, expiringSoon + ' with expiry timestamps'),
       ].join('');
     }
 
     if (elements.backlogSummary) {
-      elements.backlogSummary.textContent = undelivered.length
-        ? String(undelivered.length) + ' recommendation events are still undelivered.'
-        : 'Recommendation delivery is caught up.';
-    }
-    if (elements.outboxSummary) {
-      elements.outboxSummary.textContent = lagText(outbox.lag);
+      elements.backlogSummary.textContent = 'Recommendation delivery is managed by the unified home pipeline.';
     }
     if (elements.importSummary) {
       elements.importSummary.textContent = providerDiagnostics.length
         ? refreshFailures + ' current provider sessions have refresh issues across ' + providerDiagnostics.length + ' providers.'
         : 'No provider diagnostics returned.';
-    }
-    if (elements.backlogRows) {
-      elements.backlogRows.innerHTML = undelivered.length
-        ? undelivered.map((row) => '<tr><td><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong></td><td>' + escapeHtml(String(row.eventType || 'unknown')) + '</td><td>' + escapeHtml(String(row.occurredAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.historyGeneration || 'n/a')) + '</td></tr>').join('')
-        : emptyTableRow('No undelivered recommendation events.', 4);
     }
     if (elements.importRows) {
       elements.importRows.innerHTML = providerDiagnostics.length
@@ -1470,19 +1031,6 @@ export const ADMIN_UI_CLIENT = String.raw`
           + '<span class="muted">' + escapeHtml(String(row.provider || 'unknown-provider')) + '</span>'
           + '</td><td>' + badge(String(row.state || 'unknown'), statusTone(String(row.state || 'unknown'))) + '</td><td>' + escapeHtml(String(row.externalUsername || row.providerUserId || 'n/a')) + '</td><td>' + escapeHtml(String(row.accessTokenExpiresAt || 'n/a')) + '</td><td>' + escapeHtml(String(row.lastRefreshError || 'none')) + '</td></tr>').join('')
         : emptyTableRow('No provider diagnostics.', 5);
-    }
-
-    const serviceEvents = serviceOutbox && Array.isArray(serviceOutbox.events) ? serviceOutbox.events : [];
-    const serviceSummary = serviceOutbox && serviceOutbox.summary ? serviceOutbox.summary : null;
-    if (elements.serviceOutboxSummary) {
-      elements.serviceOutboxSummary.textContent = serviceSummary
-        ? String(serviceSummary.total || 0) + ' recompute events returned: ' + String(serviceSummary.pending || 0) + ' pending, ' + String(serviceSummary.processing || 0) + ' processing, ' + String(serviceSummary.dispatched || 0) + ' dispatched, ' + String(serviceSummary.failed || 0) + ' failed.'
-        : 'No service outbox summary returned.';
-    }
-    if (elements.serviceOutboxRows) {
-      elements.serviceOutboxRows.innerHTML = serviceEvents.length
-        ? serviceEvents.map((row) => '<tr><td><strong>' + escapeHtml(String(row.profileId || 'unknown-profile')) + '</strong><br><span class="muted">' + escapeHtml(String(row.userId || 'unknown-account')) + '</span></td><td>' + escapeHtml(String(row.reason || 'n/a')) + '</td><td>' + badge(String(row.status || 'unknown'), statusTone(String(row.status || 'unknown'))) + '</td><td>' + escapeHtml(String(row.correlationId || 'none')) + '</td><td>' + escapeHtml(String(row.createdAt || 'n/a')) + '</td></tr>').join('')
-        : emptyTableRow('No recompute service outbox events matched.', 5);
     }
   }
 
@@ -1579,7 +1127,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sectionCard('Provider + import state',
       '<div class="inline-actions">'
         + '<button type="button" class="secondary" data-refresh-profile-view="true">Refresh profile panel</button>'
-        + '<button type="button" data-recompute-profile="true">Queue recommendation recompute</button>'
+        + '<button type="button" data-recompute-profile="true">Notify recommender</button>'
         + '<button type="button" data-start-import="trakt">Import Trakt watch data</button>'
         + '<button type="button" data-start-import="simkl">Import Simkl watch data</button>'
       + '</div>'
@@ -2370,9 +1918,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       : 0;
 
     elements.overviewSummary.innerHTML = [
-      statCard('Outbox undelivered', diagnostics && diagnostics.outbox ? countArray(diagnostics.outbox.undelivered) : 0, diagnostics && diagnostics.outbox ? lagText(diagnostics.outbox.lag) : 'waiting'),
       statCard('Import warnings', refreshFailures, countArray(imports.providerDiagnostics) + ' providers tracked'),
-      statCard('Diagnostics', refreshFailures + (diagnostics && diagnostics.outbox && countArray(diagnostics.outbox.undelivered) > 0 ? 1 : 0), 'items needing attention'),
+      statCard('Diagnostics', refreshFailures, 'items needing attention'),
     ].join('');
   }
 
@@ -2383,11 +1930,9 @@ export const ADMIN_UI_CLIENT = String.raw`
       elements.overviewRunningJobs.innerHTML = emptyState('Diagnostics have not loaded yet.');
       return;
     }
-    const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
     const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerDiagnostics) ? diagnostics.imports.providerDiagnostics : [];
     const refreshFailures = imports.filter((row) => !!row.lastRefreshError).length;
     elements.overviewRunningJobs.innerHTML = '<div class="kv-grid">'
-      + kvPair('Outbox lag', lagText(outbox))
       + kvPair('Import refresh failures', String(refreshFailures))
       + kvPair('Provider diagnostics', String(imports.length))
       + '</div>';
@@ -2419,12 +1964,10 @@ export const ADMIN_UI_CLIENT = String.raw`
       return;
     }
     const imports = diagnostics.imports && Array.isArray(diagnostics.imports.providerDiagnostics) ? diagnostics.imports.providerDiagnostics : [];
-    const outbox = diagnostics.outbox && diagnostics.outbox.lag ? diagnostics.outbox.lag : null;
     const refreshFailures = imports.filter((row) => !!row.lastRefreshError).length;
     elements.overviewDiagnostics.innerHTML =
       '<div class="kv-grid">'
       + kvPair('Refresh failures', String(refreshFailures))
-      + kvPair('Outbox lag', lagText(outbox))
       + '</div>';
   }
 

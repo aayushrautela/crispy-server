@@ -3,7 +3,8 @@ import { withDbClient } from '../../lib/db.js';
 import { normalizeLanguageCode } from '../i18n/supported-languages.js';
 import { normalizeCountryCode } from '../i18n/supported-countries.js';
 import { validateAvatarUrl } from './avatar-url.js';
-import { RecommendationOutboxService } from '../outbox/recommendation-outbox.service.js';
+import type { RecommenderNotifier } from '../recommender-notifier/recommender-notifier.js';
+import { enqueueHomeSeed } from '../../lib/queue.js';
 
 export type ProfileRecord = {
   id: string;
@@ -104,7 +105,7 @@ const LOCAL_PROFILE_COLUMNS = `
 
 export class ProfileLocalService {
   constructor(
-    private readonly recommendationOutboxService = new RecommendationOutboxService(),
+    private readonly recommenderNotifier: RecommenderNotifier | null = null,
   ) {}
 
   async listForAccount(authSubject: string): Promise<ProfileRecord[]> {
@@ -169,13 +170,21 @@ export class ProfileLocalService {
         [profile.id],
       );
 
-      await this.recommendationOutboxService.appendRecomputeRequested(client, {
-        userId: authSubject,
-        profileId: profile.id,
-        reason: 'profile_created',
-      });
-
       return mapRow(profile);
+    });
+  }
+
+  /** Fire post-create signals outside the create transaction so a notifier
+   *  failure never rolls back the profile insert. Called by the route layer
+   *  right after `create` returns. */
+  notifyProfileCreated(accountId: string, profileId: string): void {
+    this.recommenderNotifier?.notifyRecompute({
+      accountId,
+      profileId,
+      reason: 'profile_created',
+    });
+    void enqueueHomeSeed({ accountId, profileId }).catch(() => {
+      /* seed is best-effort; resolver returns empty until seed completes */
     });
   }
 
@@ -296,13 +305,16 @@ export class ProfileLocalService {
         [profileId, JSON.stringify(merged)],
       );
 
-      await this.recommendationOutboxService.appendRecomputeRequested(client, {
-        userId: authSubject,
-        profileId,
-        reason: 'profile_settings_changed',
-      });
-
       return (result.rows[0]?.settings_json as Record<string, unknown>) ?? {};
+    });
+  }
+
+  /** Fire post-patch signals outside the patch transaction. */
+  notifyProfileSettingsChanged(accountId: string, profileId: string): void {
+    this.recommenderNotifier?.notifyRecompute({
+      accountId,
+      profileId,
+      reason: 'profile_settings_changed',
     });
   }
 
