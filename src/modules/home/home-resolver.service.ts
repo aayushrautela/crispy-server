@@ -6,7 +6,6 @@ import { HomeModeService } from './home-mode.service.js';
 import { HomeListsRepo } from './repos/home-lists.repo.js';
 import { HomeHydrator } from './home-hydrator.service.js';
 import { DefaultHomeWriteService, type HomeWriteService } from './home-write.service.js';
-import { LocalUserWatchService } from '../integrations/local-user-watch.service.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
 
@@ -26,7 +25,6 @@ function homeCacheKey(profileId: string): string {
 export class HomeResolverService {
   private readonly modeService = new HomeModeService();
   private readonly hydrator = new HomeHydrator();
-  private readonly continueWatchingService = new LocalUserWatchService();
 
   constructor(
     private readonly profileLocalService = new ProfileLocalService(),
@@ -66,8 +64,6 @@ export class HomeResolverService {
         resolvedSource = 'empty';
       }
 
-      sections = await this.layerContinueWatching(client, sections, profileId, locale);
-
       const generatedAt = new Date().toISOString();
       const response: ClientHomeResponse & { source: ResolvedHomeSource } = {
         profileId,
@@ -94,47 +90,6 @@ export class HomeResolverService {
       }
     }
     return null;
-  }
-
-  /** Layered continue-watching rail, always shown at the top.
-   *  Deterministic and per-profile: pulled fresh from playback_progress on every
-   *  resolve. Does NOT go through the fallback-template list-source pipeline. */
-  private async layerContinueWatching(client: DbClient, sections: ClientHomeSection[], profileId: string, locale: string): Promise<ClientHomeSection[]> {
-    try {
-      const page = await this.continueWatchingService.listContinueWatchingPage({
-        accountId: '',
-        profileId,
-        limit: 20,
-        cursor: null,
-      });
-      const items = page.items
-        .map((item) => {
-          const providerIds = (item as { ProviderIds?: Record<string, string | null> }).ProviderIds;
-          if (!providerIds?.Tmdb) return null;
-          const mediaType = item.Type === 'Movie' ? 'movie' : 'tv';
-          return {
-            type: mediaType,
-            providerRefs: [{ provider: 'tmdb' as const, providerId: String(providerIds.Tmdb) }],
-            score: null,
-            reason: 'Continue watching',
-            reasonCodes: ['continue-watching'],
-            metadata: { progress: item.UserData?.PlayedPercentage ?? null },
-          };
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null);
-      if (items.length === 0) return sections;
-      const lists = [{
-        listKey: 'continue-watching',
-        sectionType: 'contentRail' as const,
-        title: 'Continue Watching',
-        subtitle: null,
-        items,
-      }];
-      const hydrated = await this.hydrator.hydrateSections(client, lists, locale);
-      return [...hydrated, ...sections];
-    } catch {
-      return sections;
-    }
   }
 }
 
