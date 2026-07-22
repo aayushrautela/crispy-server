@@ -3256,6 +3256,8 @@ components:
         - generatedAt
         - expiresAt
         - sections
+        - mode
+        - source
       properties:
         profileId:
           type: string
@@ -3269,6 +3271,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ProfileHomeSection"
+        mode:
+          type: string
+          enum: [recommended, custom]
+          description: Home mode currently in effect for the profile.
+        source:
+          type: string
+          enum: [custom, reco, fallback, empty]
+          description: Which producer's lists are currently serving the home screen.
     ProfileHomeSnapshotInput:
       type: object
       additionalProperties: true

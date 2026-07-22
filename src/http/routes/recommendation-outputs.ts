@@ -48,7 +48,15 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     const actor = app.requireUserActor(request);
     app.requireScopes(request, ['recommendations:read']);
     const params = request.params as { profileId: string };
-    return success(await homeResolver.resolveHome(actor.appUserId, params.profileId), request);
+    const resolved = await homeResolver.resolveHome(actor.appUserId, params.profileId);
+    return success({
+      profileId: resolved.response.profileId,
+      mode: resolved.mode,
+      source: resolved.source,
+      generatedAt: resolved.generatedAt,
+      expiresAt: resolved.response.expiresAt,
+      sections: resolved.response.sections,
+    }, request);
   });
 
   app.put('/v1/profiles/:profileId/home', async (request) => {
@@ -71,7 +79,15 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
       actor: { type: 'account', accountId: actor.appUserId, userId: actor.appUserId },
       lists,
     });
-    return success(await homeResolver.resolveHome(actor.appUserId, params.profileId), request);
+    const resolved = await homeResolver.resolveHome(actor.appUserId, params.profileId);
+    return success({
+      profileId: resolved.response.profileId,
+      mode: resolved.mode,
+      source: resolved.source,
+      generatedAt: resolved.generatedAt,
+      expiresAt: resolved.response.expiresAt,
+      sections: resolved.response.sections,
+    }, request);
   });
 }
 

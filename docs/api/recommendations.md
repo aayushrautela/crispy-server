@@ -79,9 +79,9 @@ Rules:
 
 ## Public home reads
 
-`GET /v1/profiles/:profileId/home` returns `{ data: { recommendations }, meta: { requestId } }`.
+`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, and progress. Public responses do not expose provider refs, model scores, reason codes, storage `contentId`, media keys, or RECO internals.
 
-`recommendations` is either `null` or a home response containing `profileId`, `generatedAt`, `expiresAt`, and `sections`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, and progress. Public responses do not expose provider refs, model scores, reason codes, storage `contentId`, media keys, or RECO internals.
+`mode` is the profile's current home mode (`recommended` or `custom`); `source` is which producer's lists are currently serving the home screen (`custom`, `reco`, `fallback`, or `empty`).
 
 ## Generation lifecycle
 

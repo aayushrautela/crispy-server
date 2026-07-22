@@ -1079,6 +1079,16 @@ export interface components {
             generatedAt: string;
             expiresAt: string | null;
             sections: components["schemas"]["ProfileHomeSection"][];
+            /**
+             * @description Home mode currently in effect for the profile.
+             * @enum {string}
+             */
+            mode: "recommended" | "custom";
+            /**
+             * @description Which producer's lists are currently serving the home screen.
+             * @enum {string}
+             */
+            source: "custom" | "reco" | "fallback" | "empty";
         };
         ProfileHomeSnapshotInput: {
             sourceKey?: string;
