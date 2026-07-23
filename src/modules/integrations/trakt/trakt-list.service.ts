@@ -26,6 +26,10 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function pluralMediaType(mediaType: 'movie' | 'show'): 'movies' | 'shows' {
+  return mediaType === 'movie' ? 'movies' : 'shows';
+}
+
 export class TraktListService {
   private readonly baseUrl = 'https://api.trakt.tv';
 
@@ -95,23 +99,23 @@ export class TraktListService {
 
   async fetchTrending(mediaType: 'movie' | 'show', limit = 50, filters?: { countries?: string; languages?: string }): Promise<TraktItem[]> {
     if (!this.isConfigured()) return [];
-    return this.fetchList(`/${mediaType}/trending`, mediaType, limit, filters);
+    return this.fetchList(`/${pluralMediaType(mediaType)}/trending`, mediaType, limit, filters);
   }
 
   async fetchPopular(mediaType: 'movie' | 'show', limit = 50, filters?: { countries?: string; languages?: string }): Promise<TraktItem[]> {
     if (!this.isConfigured()) return [];
-    return this.fetchList(`/${mediaType}/popular`, mediaType, limit, filters);
+    return this.fetchList(`/${pluralMediaType(mediaType)}/popular`, mediaType, limit, filters);
   }
 
   async fetchAnticipated(mediaType: 'movie' | 'show', limit = 50, filters?: { countries?: string; languages?: string }): Promise<TraktItem[]> {
     if (!this.isConfigured()) return [];
-    return this.fetchList(`/${mediaType}/anticipated`, mediaType, limit, filters);
+    return this.fetchList(`/${pluralMediaType(mediaType)}/anticipated`, mediaType, limit, filters);
   }
 
   /** Recently updated titles (new releases). dateISO = YYYY-MM-DD. */
   async fetchUpdates(mediaType: 'movie' | 'show', dateISO: string, limit = 50): Promise<TraktItem[]> {
     if (!this.isConfigured()) return [];
-    const raw = await this.fetchArray(`/${mediaType}/updates/${encodeURIComponent(dateISO)}`, { limit, extended: 'full' });
+    const raw = await this.fetchArray(`/${pluralMediaType(mediaType)}/updates/${encodeURIComponent(dateISO)}`, { limit, extended: 'full' });
     return raw
       .map((entry) => this.mapItem(entry, mediaType))
       .filter((item): item is TraktItem => item !== null)
