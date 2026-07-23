@@ -1,10 +1,4 @@
-import type { DbClient } from '../../lib/db.js';
-import { ProfileLocalService } from '../profiles/profile-local.service.js';
-import { HomeListsRepo } from './repos/home-lists.repo.js';
-import { getListSource } from './list-sources/list-source.registry.js';
-import type { HomeWriteItem, HomeWriteList } from './home-types.js';
-import type { ListSourceCtx } from './list-sources/list-source.types.js';
-import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
+import { normalizeMetadataLanguage } from '../../metadata/metadata-language.js';
 
 /** Build the ordered locale-candidate list for fall-through resolution. */
 export function localeCandidates(locale: string): string[] {
@@ -22,7 +16,7 @@ export function localeCandidates(locale: string): string[] {
 
 export type FallbackLocaleMode = 'auto' | 'specific' | 'en';
 
-type FallbackTemplate = {
+export type FallbackTemplate = {
   listKey: string;
   locale: string;
   localeMode: FallbackLocaleMode;
@@ -36,55 +30,6 @@ type FallbackTemplate = {
 };
 
 /**
- * Resolve fallback templates for a profile into home write lists by invoking the
- * configured list sources. Each template maps to one list; items come from the
- * source fetch. Deterministic; no ML.
- */
-export async function buildFallbackLists(
-  client: DbClient,
-  repo: HomeListsRepo,
-  profileId: string,
-  templates: FallbackTemplate[],
-  ctxBase: Omit<ListSourceCtx, 'client' | 'profileId' | 'limit'>,
-  limitsBySection: Record<string, number>,
-): Promise<HomeWriteList[]> {
-  const lists: HomeWriteList[] = [];
-  for (const template of templates) {
-    const source = getListSource(template.sourceId);
-    if (!source) continue;
-    const limit = limitsBySection[template.sectionType] ?? 40;
-    const ctx: ListSourceCtx = {
-      client,
-      profileId,
-      ...ctxBase,
-      limit,
-    };
-    let items: HomeWriteItem[] = [];
-    try {
-      const result = await source.fetchItems(template.sourceConfig as Record<string, unknown>, ctx);
-      items = result.items.map((item) => ({
-        type: item.type,
-        providerRefs: item.providerRefs.map((ref) => ({ provider: ref.provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu', providerId: ref.providerId })),
-        score: item.score ?? null,
-        reason: item.reason ?? null,
-        reasonCodes: item.reasonCodes ?? [],
-        metadata: item.metadata,
-      }));
-    } catch (error) {
-      console.error(`fallback source ${template.sourceId} failed for ${template.listKey}:`, error);
-    }
-    lists.push({
-      listKey: template.listKey,
-      sectionType: template.sectionType as HomeWriteList['sectionType'],
-      title: template.title,
-      subtitle: template.subtitle ?? null,
-      items,
-    });
-  }
-  return lists;
-}
-
-/**
  * Pick the best template row per (list_key) across locale candidates, preferring
  * the most specific locale. For auto-mode rows (locale_mode='auto'), the row
  * matches every viewer locale and ranks below any specific match for that locale.
@@ -96,7 +41,6 @@ export function resolveTemplatesByLocale(all: FallbackTemplate[], candidates: st
   for (const template of all) {
     let rank: number | undefined;
     if (template.localeMode === 'auto') {
-      // Auto rows apply to all viewer locales but lose to any specific match.
       rank = candidates.length;
     } else {
       rank = candidateRank.get(template.locale);
@@ -146,6 +90,3 @@ export const FALLBACK_SECTION_LIMITS: Record<string, number> = {
 export function emptyProfileContext() {
   return { locale: 'en', tmdbLanguage: 'en', region: null, tmdbRegion: undefined, isKids: false, connectedProviders: [] as Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'> };
 }
-
-export type { FallbackTemplate };
-export { ProfileLocalService };

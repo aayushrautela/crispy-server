@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { seedTestEnv } from '../../test-helpers.js';
+import { seedTestEnv } from '../../../test-helpers.js';
 
 seedTestEnv();
-const { localeCandidates, resolveTemplatesByLocale, resolveFallbackTemplatesForViewer, FALLBACK_SECTION_LIMITS } = await import('./home-fallback.service.js');
+const { localeCandidates, resolveTemplatesByLocale, resolveFallbackTemplatesForViewer, FALLBACK_SECTION_LIMITS } = await import('./fallback-templates.js');
 
 function template(partial: Partial<{
   listKey: string;
