@@ -45,8 +45,8 @@ test('TraktTrendingSource descriptor has movie + show presets', () => {
   const d = source.descriptor();
   assert.equal(d.id, 'trakt.trending');
   assert.ok(d.presets && d.presets.length === 2);
-  assert.equal(d.presets[0].label, 'Trending Movies');
-  assert.equal(d.presets[1].label, 'Trending Shows');
+  assert.equal(d.presets![0]!.label, 'Trending Movies');
+  assert.equal(d.presets![1]!.label, 'Trending Shows');
 });
 
 test('TraktAnticipatedSource descriptor has presets', () => {
