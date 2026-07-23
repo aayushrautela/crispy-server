@@ -178,7 +178,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
         const ref = item.providerRefs[0];
         throw new HttpError(422, `Unable to resolve item ${item.type} ${ref?.provider}:${ref?.providerId}.`, { ref }, 'ITEM_UNRESOLVABLE');
       }
-      const ref = item.providerRefs[0] as { provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string };
+      const ref = item.providerRefs[0] as { provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'; providerId: string };
       return {
         itemId: encodePublicItemId(contentId),
         contentId,

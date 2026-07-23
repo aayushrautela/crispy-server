@@ -37,7 +37,7 @@ function template(partial: Partial<{
     title: '',
     subtitle: null,
     rank: 0,
-    sourceId: 'tmdb.discover-filtered',
+    sourceId: 'trakt.trending',
     sourceConfig: {},
     ...partial,
   };

@@ -12,6 +12,16 @@ export function renderHomeFallbackView(): string {
         <div id="home-fallback-status" class="panel-note"></div>
         <form class="stack-form" data-home-form="fallback-create" hidden>
           <div class="form-grid">
+            <label>Source
+              <select name="sourceId" data-home-field="sourceId" required>
+                <option value="">— select source —</option>
+              </select>
+            </label>
+            <label>List
+              <select name="presetId" data-home-field="presetId" required>
+                <option value="">— select list —</option>
+              </select>
+            </label>
             <label>Locale mode
               <select name="localeMode" data-home-field="localeMode" required>
                 <option value="auto" selected>Auto (use viewer profile)</option>
@@ -20,34 +30,80 @@ export function renderHomeFallbackView(): string {
               </select>
             </label>
             <label data-home-field="overrideLocaleWrap" hidden>Specific locale<select name="overrideLocale">
-              <option value="en">en</option>
-              <option value="es">es</option>
-              <option value="fr">fr</option>
-              <option value="de">de</option>
-              <option value="hi">hi</option>
-              <option value="pl">pl</option>
-              <option value="ja">ja</option>
-              <option value="ko">ko</option>
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="it">Italian</option>
+              <option value="pt">Portuguese</option>
+              <option value="pt-BR">Portuguese (Brazil)</option>
+              <option value="ru">Russian</option>
+              <option value="ja">Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="zh">Chinese</option>
+              <option value="zh-CN">Chinese (Simplified)</option>
+              <option value="zh-TW">Chinese (Traditional)</option>
+              <option value="hi">Hindi</option>
+              <option value="pl">Polish</option>
+              <option value="nl">Dutch</option>
+              <option value="tr">Turkish</option>
+              <option value="ar">Arabic</option>
+              <option value="sv">Swedish</option>
+              <option value="da">Danish</option>
+              <option value="fi">Finnish</option>
+              <option value="no">Norwegian</option>
+              <option value="cs">Czech</option>
+              <option value="el">Greek</option>
+              <option value="he">Hebrew</option>
+              <option value="th">Thai</option>
+              <option value="vi">Vietnamese</option>
+              <option value="id">Indonesian</option>
+              <option value="ro">Romanian</option>
+              <option value="uk">Ukrainian</option>
+              <option value="fa">Persian</option>
+              <option value="bn">Bengali</option>
+              <option value="ta">Tamil</option>
+              <option value="te">Telugu</option>
+              <option value="ml">Malayalam</option>
+              <option value="fil">Filipino</option>
             </select></label>
             <label data-home-field="regionOverrideWrap" hidden>Region override<select name="regionOverride">
               <option value="">Any (use viewer region)</option>
-              <option value="US">US</option>
-              <option value="GB">GB</option>
-              <option value="IN">IN</option>
-              <option value="PL">PL</option>
-              <option value="JP">JP</option>
-              <option value="KR">KR</option>
-              <option value="DE">DE</option>
-              <option value="FR">FR</option>
+              <option value="US">United States</option>
+              <option value="GB">United Kingdom</option>
+              <option value="IN">India</option>
+              <option value="CA">Canada</option>
+              <option value="AU">Australia</option>
+              <option value="DE">Germany</option>
+              <option value="FR">France</option>
+              <option value="ES">Spain</option>
+              <option value="IT">Italy</option>
+              <option value="BR">Brazil</option>
+              <option value="MX">Mexico</option>
+              <option value="JP">Japan</option>
+              <option value="KR">South Korea</option>
+              <option value="CN">China</option>
+              <option value="RU">Russia</option>
+              <option value="NL">Netherlands</option>
+              <option value="PL">Poland</option>
+              <option value="SE">Sweden</option>
+              <option value="NO">Norway</option>
+              <option value="DK">Denmark</option>
+              <option value="FI">Finland</option>
+              <option value="TR">Turkey</option>
+              <option value="AE">United Arab Emirates</option>
+              <option value="SA">Saudi Arabia</option>
+              <option value="ZA">South Africa</option>
+              <option value="ID">Indonesia</option>
+              <option value="TH">Thailand</option>
+              <option value="VN">Vietnam</option>
+              <option value="PH">Philippines</option>
             </select></label>
             <label>Section type<select name="sectionType" required>
               <option value="contentRail">contentRail</option>
               <option value="heroCarousel">heroCarousel</option>
               <option value="categoryTabs">categoryTabs</option>
               <option value="collectionRail">collectionRail</option>
-            </select></label>
-            <label>Source<select name="sourceId" required data-home-field="sourceId">
-              <option value="">— select source —</option>
             </select></label>
             <label>Title<input name="title" placeholder="Trending Movies" required /></label>
             <label>Subtitle<input name="subtitle" placeholder="Popular right now" /></label>

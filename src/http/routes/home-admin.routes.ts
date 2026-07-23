@@ -5,7 +5,6 @@ import { HomeResolverService } from '../../modules/home/home-resolver.service.js
 import { HomeModeService, isHomeMode } from '../../modules/home/home-mode.service.js';
 import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
 import { listSourceDescriptors, getListSource } from '../../modules/home/list-sources/list-source.registry.js';
-import { suggestListKey } from '../../modules/home/list-sources/sources/tmdb.discover-filtered.js';
 import { enqueueHomeSeed } from '../../lib/queue.js';
 import { success, mutation } from '../response.js';
 
@@ -74,7 +73,7 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
 
     // Derive the list key server-side when not supplied; de-duplicate on collision.
     const suppliedKey = typeof body.listKey === 'string' && body.listKey.trim() ? body.listKey.trim() : null;
-    const baseKey = suppliedKey ?? (typeof source.suggestListKey === 'function' ? source.suggestListKey(sourceConfig) : suggestListKey(sourceConfig as never));
+    const baseKey = suppliedKey ?? (typeof source.suggestListKey === 'function' ? source.suggestListKey(sourceConfig) : `${sourceId}-rail`);
     const listKey = await withDbClient((client) => deriveUniqueListKey(repo, baseKey));
 
     const rank = numberField(body.rank, 'rank', 0);

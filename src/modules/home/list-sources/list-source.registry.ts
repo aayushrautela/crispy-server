@@ -1,16 +1,14 @@
 import type { ListSource, ListSourceDescriptor } from './list-source.types.js';
-import { TmdbDiscoverFilteredSource } from './sources/tmdb.discover-filtered.js';
-import { TraktTrendingSource, TraktPopularSource, TraktPublicListSource } from './sources/trakt.sources.js';
-import { HomeRecentHistoryByGenreSource } from './sources/home.recent-history-by-genre.js';
-import { HomePopularInRegionSource } from './sources/home.popular-in-region.js';
+import { TraktTrendingSource, TraktPopularSource, TraktAnticipatedSource, TraktNewReleasesSource, TraktCalendarSource, TraktPopularByRegionSource, TraktPublicListSource } from './sources/trakt.sources.js';
 
 const sources: ListSource[] = [
-  new TmdbDiscoverFilteredSource(),
   new TraktTrendingSource(),
   new TraktPopularSource(),
+  new TraktAnticipatedSource(),
+  new TraktNewReleasesSource(),
+  new TraktCalendarSource(),
+  new TraktPopularByRegionSource(),
   new TraktPublicListSource(),
-  new HomeRecentHistoryByGenreSource(),
-  new HomePopularInRegionSource(),
 ];
 
 const registry = new Map<string, ListSource>();

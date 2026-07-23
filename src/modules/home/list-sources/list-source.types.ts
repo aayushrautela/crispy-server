@@ -38,6 +38,13 @@ export type ListSourceConfigField = {
   required?: boolean;
   default?: unknown;
   options?: ListSourceConfigOption[];
+  placeholder?: string;
+};
+
+export type ListSourcePreset = {
+  id: string;
+  label: string;
+  sourceConfig: Record<string, unknown>;
 };
 
 export type ListSourceDescriptor = {
@@ -47,6 +54,7 @@ export type ListSourceDescriptor = {
   mediaTypes: ListMediaType[];
   requiresProvider?: ListSourceProvider;
   configFields: ListSourceConfigField[];
+  presets?: ListSourcePreset[];
 };
 
 export interface ListSource<IConfig = Record<string, unknown>> {

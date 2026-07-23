@@ -80,22 +80,54 @@ export class TraktListService {
     return Array.isArray(payload) ? (payload as Record<string, unknown>[]) : [];
   }
 
-  private async fetchList(pathname: string, mediaType: 'movie' | 'show', limit: number): Promise<TraktItem[]> {
-    const raw = await this.fetchArray(pathname, { limit, extended: 'full' });
+  private async fetchList(
+    pathname: string,
+    mediaType: 'movie' | 'show',
+    limit: number,
+    filters?: { countries?: string; languages?: string },
+  ): Promise<TraktItem[]> {
+    const raw = await this.fetchArray(pathname, { limit, extended: 'full', countries: filters?.countries, languages: filters?.languages });
     return raw
       .map((entry) => this.mapItem(entry, mediaType))
       .filter((item): item is TraktItem => item !== null)
       .slice(0, limit);
   }
 
-  async fetchTrending(mediaType: 'movie' | 'show', limit = 50): Promise<TraktItem[]> {
+  async fetchTrending(mediaType: 'movie' | 'show', limit = 50, filters?: { countries?: string; languages?: string }): Promise<TraktItem[]> {
     if (!this.isConfigured()) return [];
-    return this.fetchList(`/${mediaType}/trending`, mediaType, limit);
+    return this.fetchList(`/${mediaType}/trending`, mediaType, limit, filters);
   }
 
-  async fetchPopular(mediaType: 'movie' | 'show', limit = 50): Promise<TraktItem[]> {
+  async fetchPopular(mediaType: 'movie' | 'show', limit = 50, filters?: { countries?: string; languages?: string }): Promise<TraktItem[]> {
     if (!this.isConfigured()) return [];
-    return this.fetchList(`/${mediaType}/popular`, mediaType, limit);
+    return this.fetchList(`/${mediaType}/popular`, mediaType, limit, filters);
+  }
+
+  async fetchAnticipated(mediaType: 'movie' | 'show', limit = 50, filters?: { countries?: string; languages?: string }): Promise<TraktItem[]> {
+    if (!this.isConfigured()) return [];
+    return this.fetchList(`/${mediaType}/anticipated`, mediaType, limit, filters);
+  }
+
+  /** Recently updated titles (new releases). dateISO = YYYY-MM-DD. */
+  async fetchUpdates(mediaType: 'movie' | 'show', dateISO: string, limit = 50): Promise<TraktItem[]> {
+    if (!this.isConfigured()) return [];
+    const raw = await this.fetchArray(`/${mediaType}/updates/${encodeURIComponent(dateISO)}`, { limit, extended: 'full' });
+    return raw
+      .map((entry) => this.mapItem(entry, mediaType))
+      .filter((item): item is TraktItem => item !== null)
+      .slice(0, limit);
+  }
+
+  /** Airing calendar for shows. startDateISO = YYYY-MM-DD. */
+  async fetchCalendarShows(startDateISO: string, days: number, limit = 100): Promise<TraktItem[]> {
+    if (!this.isConfigured()) return [];
+    const raw = await this.fetchArray(`/calendars/all/shows/${encodeURIComponent(startDateISO)}/${encodeURIComponent(String(days))}`, { limit, extended: 'full' });
+    const items: TraktItem[] = [];
+    for (const entry of raw) {
+      const mapped = this.mapItem(entry, 'show');
+      if (mapped) items.push(mapped);
+    }
+    return items.slice(0, limit);
   }
 
   /** Fetch a public Trakt list by user slug + list slug. */

@@ -9,7 +9,7 @@ export type HomeWriteActor = RecommendationWriteActor;
 export type HomeSectionType = 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail';
 
 export type HomeWriteProviderRef = {
-  provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu';
+  provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt';
   providerId: string;
 };
 

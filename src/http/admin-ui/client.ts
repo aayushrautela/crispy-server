@@ -254,7 +254,10 @@ export const ADMIN_UI_CLIENT = String.raw`
         if (action === 'refresh-fallback') void loadHomeFallback();
         else if (action === 'create-fallback') {
           toggleHomeForm('fallback-create', true);
-          void renderHomeSourceConfig();
+          void loadListSources().then(() => {
+            renderHomePresets();
+            void renderHomeSourceConfig();
+          });
         }
         else if (action === 'cancel-fallback') toggleHomeForm('fallback-create', false);
         else if (action === 'preview-fallback') void previewHomeFallback();
@@ -274,7 +277,12 @@ export const ADMIN_UI_CLIENT = String.raw`
 
     const sourceSelect = document.querySelector('[data-home-field="sourceId"]');
     if (sourceSelect) {
-      sourceSelect.addEventListener('change', () => void renderHomeSourceConfig());
+      sourceSelect.addEventListener('change', () => { void renderHomePresets(); void renderHomeSourceConfig(); });
+    }
+
+    const presetSelect = document.querySelector('[data-home-field="presetId"]');
+    if (presetSelect) {
+      presetSelect.addEventListener('change', () => void applyHomePreset());
     }
 
     const localeModeSelect = document.querySelector('[data-home-field="localeMode"]');
@@ -282,11 +290,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       localeModeSelect.addEventListener('change', updateLocaleModeFields);
     }
     updateLocaleModeFields();
-
-    if (state.activeView === 'home-fallback') {
-      void loadListSources().then(() => loadHomeFallback());
-    }
-    if (state.activeView === 'home-profiles') void loadHomeProfilesEmpty();
   }
 
   async function loadListSources() {
@@ -302,6 +305,67 @@ export const ADMIN_UI_CLIENT = String.raw`
       select.innerHTML = '<option value="">— select source —</option>'
         + homeState.listSources.map((source) => '<option value="' + escapeHtml(source.id) + '">' + escapeHtml(source.name) + '</option>').join('');
     }
+    renderHomePresets();
+  }
+
+  function renderHomePresets() {
+    const sourceSelect = document.querySelector('[data-home-field="sourceId"]');
+    const presetSelect = document.querySelector('[data-home-field="presetId"]');
+    if (!presetSelect) return;
+    if (!sourceSelect || !sourceSelect.value) {
+      presetSelect.innerHTML = '<option value="">— select source first —</option>';
+      return;
+    }
+    const source = homeState.sourceById[sourceSelect.value];
+    if (!source || !Array.isArray(source.presets) || source.presets.length === 0) {
+      presetSelect.innerHTML = '<option value="">— no presets —</option>';
+      return;
+    }
+    presetSelect.innerHTML = '<option value="">— select list —</option>'
+      + source.presets.map((preset) => '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.label) + '</option>').join('');
+  }
+
+  function applyHomePreset() {
+    const sourceSelect = document.querySelector('[data-home-field="sourceId"]');
+    const presetSelect = document.querySelector('[data-home-field="presetId"]');
+    if (!sourceSelect || !presetSelect) return;
+    const source = homeState.sourceById[sourceSelect.value];
+    if (!source || !Array.isArray(source.presets)) return;
+    const presetId = presetSelect.value;
+    const preset = source.presets.find((p) => p.id === presetId);
+    if (!preset) return;
+    const form = document.querySelector('[data-home-form="fallback-create"]');
+    if (!form) return;
+    const titleField = form.querySelector('[name="title"]');
+    if (titleField && preset.label && !titleField.value) {
+      titleField.value = preset.label;
+    }
+    renderHomeSourceConfigFromPreset(source, preset.sourceConfig);
+  }
+
+  function renderHomeSourceConfigFromPreset(source, presetConfig) {
+    const container = document.querySelector('[data-home-field="source-config"]');
+    if (!container) return;
+    if (!Array.isArray(source.configFields) || source.configFields.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = '<div class="form-grid">' + source.configFields.map((field) => {
+      const presetValue = presetConfig ? presetConfig[field.key] : undefined;
+      const effectiveDefault = presetValue !== undefined ? String(presetValue) : (field.default !== undefined && field.default !== null ? String(field.default) : '');
+      const placeholder = field.placeholder ? ' placeholder="' + escapeHtml(field.placeholder) + '"' : '';
+      if (field.type === 'select') {
+        const options = (field.options || []).map((option) => '<option value="' + escapeHtml(option.value) + '"' + (option.value === effectiveDefault ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>').join('');
+        return '<label>' + escapeHtml(field.label) + '<select name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.required ? ' required' : '') + '>' + options + '</select></label>';
+      }
+      if (field.type === 'checkbox') {
+        return '<label class="checkbox"><input type="checkbox" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '" value="true"' + (presetValue !== undefined ? presetValue : field.default ? ' checked' : '') + ' /> ' + escapeHtml(field.label) + '</label>';
+      }
+      if (field.type === 'number') {
+        return '<label>' + escapeHtml(field.label) + '<input type="number" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (effectiveDefault ? ' value="' + escapeHtml(effectiveDefault) + '"' : '') + (field.required ? ' required' : '') + ' /></label>';
+      }
+      return '<label>' + escapeHtml(field.label) + '<input type="text" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (effectiveDefault ? ' value="' + escapeHtml(effectiveDefault) + '"' : '') + placeholder + (field.required ? ' required' : '') + ' /></label>';
+    }).join('') + '</div>';
   }
 
   function updateLocaleModeFields() {
@@ -317,7 +381,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     const select = document.querySelector('[data-home-field="sourceId"]');
     const container = document.querySelector('[data-home-field="source-config"]');
     if (!container) return;
-    if (!select) {
+    if (!select || !select.value) {
       container.innerHTML = '';
       return;
     }
@@ -326,20 +390,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       container.innerHTML = '';
       return;
     }
-    container.innerHTML = '<div class="form-grid">' + source.configFields.map((field) => {
-      const id = 'home-cfg-' + escapeHtml(field.key);
-      if (field.type === 'select') {
-        const options = (field.options || []).map((option) => '<option value="' + escapeHtml(option.value) + '"' + (String(field.default) === option.value ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>').join('');
-        return '<label>' + escapeHtml(field.label) + '<select name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.required ? ' required' : '') + '>' + options + '</select></label>';
-      }
-      if (field.type === 'checkbox') {
-        return '<label class="checkbox"><input type="checkbox" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '" value="true"' + (field.default ? ' checked' : '') + ' /> ' + escapeHtml(field.label) + '</label>';
-      }
-      if (field.type === 'number') {
-        return '<label>' + escapeHtml(field.label) + '<input type="number" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.default !== undefined && field.default !== null ? ' value="' + escapeHtml(String(field.default)) + '"' : '') + (field.required ? ' required' : '') + ' /></label>';
-      }
-      return '<label>' + escapeHtml(field.label) + '<input type="text" name="' + escapeHtml(field.key) + '" data-home-config="' + escapeHtml(field.key) + '"' + (field.default !== undefined && field.default !== null ? ' value="' + escapeHtml(String(field.default)) + '"' : '') + (field.required ? ' required' : '') + ' /></label>';
-    }).join('') + '</div>';
+    renderHomeSourceConfigFromPreset(source, {});
   }
 
   function collectHomeSourceConfig(form) {
@@ -391,6 +442,14 @@ export const ADMIN_UI_CLIENT = String.raw`
       return;
     }
     const config = collectHomeSourceConfig(form);
+    const localeMode = String(form.querySelector('[name="localeMode"]')?.value || 'auto');
+    let locale = 'en';
+    if (localeMode === 'specific') {
+      locale = String(form.querySelector('[name="overrideLocale"]')?.value || 'en').trim();
+    } else if (localeMode === 'en') {
+      locale = 'en';
+    }
+    const region = String(form.querySelector('[name="regionOverride"]')?.value || '').trim() || null;
     setHtmlMessage(statusEl, 'info', 'Previewing ' + escapeHtml(sourceId) + '...');
     statusEl.hidden = false;
     try {
@@ -399,7 +458,8 @@ export const ADMIN_UI_CLIENT = String.raw`
         body: JSON.stringify({
           sourceId,
           sourceConfig: config,
-          locale: String(form.querySelector('[name="locale"]')?.value || 'en').trim(),
+          locale,
+          region,
           profileId: '',
           limit: 20,
         }),
@@ -612,6 +672,10 @@ export const ADMIN_UI_CLIENT = String.raw`
       history.replaceState(null, '', '#' + viewId);
     }
     elements.body.classList.remove('sidebar-open');
+
+    if (viewId === 'home-fallback') {
+      void loadListSources().then(() => loadHomeFallback());
+    }
   }
 
   function readHashView() {
