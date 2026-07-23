@@ -3419,7 +3419,7 @@ components:
     ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, progress, parent]
+      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent]
       properties:
         itemId:
           $ref: "#/components/schemas/PublicItemId"
@@ -3462,6 +3462,10 @@ components:
             - type: "null"
         images:
           $ref: "#/components/schemas/ClientImages"
+        trailerUrl:
+          anyOf:
+            - type: string
+            - type: "null"
         progress:
           anyOf:
             - $ref: "#/components/schemas/ClientProgress"

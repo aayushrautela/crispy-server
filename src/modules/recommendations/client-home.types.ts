@@ -41,6 +41,7 @@ export type ClientMediaCard = {
   genres: string[];
   runtimeSeconds: number | null;
   images: ClientImages;
+  trailerUrl: string | null;
   progress: ClientProgress | null;
   parent: ClientParentRef | null;
 };

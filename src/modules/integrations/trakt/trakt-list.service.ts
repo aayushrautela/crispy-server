@@ -51,7 +51,8 @@ export class TraktListService {
   }
 
   private mapItem(raw: Record<string, unknown>, mediaType: 'movie' | 'show'): TraktItem | null {
-    const movieOrShow = asRecord(raw[mediaType]) ?? {};
+    const wrapped = asRecord(raw[mediaType]);
+    const movieOrShow = wrapped ?? raw;
     const ids = asRecord(movieOrShow.ids) ?? {};
     const traktId = asNumber(ids.trakt);
     const title = asString(movieOrShow.title) ?? asString(movieOrShow.name);

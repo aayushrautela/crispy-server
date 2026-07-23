@@ -166,97 +166,136 @@ Each item is a UI-ready card with canonical `itemId`, display fields, artwork, a
 
 RECO logs should avoid raw watch/rating payload retention and should include account/profile identifiers only when operationally necessary. Never log API keys, user access tokens, provider refresh tokens, bearer tokens, service API keys, AI provider/model/endpoint/proxy configuration, raw prompts, raw vendor request/response payloads, or confidential configuration.
 
-## Home ingest pipeline (target)
+## Home ingest pipeline
 
-The home screen is recommendations. Client apps call `/home` and read back
-whatever the pipeline wrote; the read path does not call external services
-on-the-fly. Three sources feed one pipeline:
+The home screen is recommendations. Client apps call `GET /home` and read back
+whatever was previously written; the read path does not call external services
+on-the-fly. A home is **stored per `(profile, source)` as a single atomic
+snapshot** — every write replaces every active rail for that source at once.
+The read response always carries rails from **one** source only; sources are
+never mixed.
 
-| Source | Type | Q | Push or pull | Notes |
-| --- | --- | --- | --- | --- |
-| `reco` | personalized recommendations | external reco engine | postalpush (RECO POSTs results) | already wired today via `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey` |
-| `custom` | curated lists from an external service | external | push (same endpoint, same fixed shape) | NOT admin-curated. Treated identically to `reco` from the pipeline's POV. |
-| `fallback` | deterministic default templates (the table we already built) | internal | **pull on miss/failure** | Exposed as an internal HTTP service returning the *same* shape as the external sources. |
+### Producers and sources
 
-All three sources return the same fixed input contract (`RecoListWriteRequest`)
-with `source` distinguishing the producer. The pipeline does not branch by
-source at the transform/write boundary — it canonicalizes provider refs to
-`itemId`, applies policy, and persists to the same per-profile storage target
-that `/home` reads from.
+Three producers feed the home store. Each is distinguished only by the
+`source` label it carries; the ingester's validation and storage logic is
+identical for all three.
 
-### Pipeline stages
+| Source | Owner | Push or pull | Notes |
+| --- | --- | --- | --- |
+| `reco` | External reco engine | push (RECO POSTs results) | Already wired today via `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`. Runs daily on the reco service's schedule. |
+| `custom` | External per-user service | push (same endpoint shape, different auth) | **Not** admin-curated. The external service authenticates with a per-user PAT carrying `recommendations:write`; API-key/PAT validation is **not** the ingester's job — it happens at the HTTP edge before the ingester is called. |
+| `fallback` | Crispy Server (in-process service) | produced on signup + on admin sync + on read-miss | Owns the templates table, the Trakt/TMDB list-source plugins, and locale/region resolution. Calls the ingester via the same `writeHome` service used by the push path. **Not** an HTTP endpoint — it is an in-process module owned by the home module. |
+
+### Component boundaries
+
+The pipeline is intentionally split so each concern can be tested and evolved
+without leaking into the others:
 
 ```text
-[ external reco service ]--push-->|
-[ external custom service ]--push-->|
-                                   |
-                                   v
-                       +---------------------------+
-                       |  Pipeline ingest endpoint |  (existing PUT /internal/apps/v1/.../lists/:listKey)
-                       +---------------------------+
-                                   |
-                                   v
-                       +---------------------------+
-                       |  Transform                |  provider refs -> canonical itemId,
-                       |  (canonicalize + policy)  |  section/item validation, eligibility
-                       +---------------------------+
-                                   |
-                                   v
-                       +---------------------------+
-                       |  Write to home store      |  per-profile materialized home rails
-                       |  (read by GET /home)      |  that GET /home serves from
-                       +---------------------------+
-                                   ^
-                                   |  (on miss / push failure)
-                       +---------------------------+
-                       |  Fallback source (HTTP)    |  returns same RecoListWriteRequest shape
-                       +---------------------------+
+                 ┌─────────────────┐
+                 │ external reco   │── push ──┐
+                 │ external custom │── push ──┤
+                 └─────────────────┘          │
+                                              ▼
+             ┌─────────────────────────────────────────────┐
+             │  HTTP edge (auth, PAT validation, scopes)    │
+             │  PUT /internal/apps/v1/.../lists/:listKey    │
+             └─────────────────────────────────────────────┘
+                                              │
+                                              ▼
+             ┌─────────────────────────────────────────────┐
+             │  Home ingester (writeHome)                   │
+             │  - validate whole-snapshot shape              │
+             │  - canonicalize provider refs -> itemId       │
+             │  - apply policy (items ≥1, ≤100, no dup keys)│
+             │  - atomic replace + versioning + retention    │
+             │  - idempotency-key replay/conflict detection  │
+             └─────────────────────────────────────────────┘
+                                              ▲
+                                              │ in-process call
+             ┌─────────────────────────────────────────────┐
+             │  Fallback service (in-process)               │
+             │  - reads home.fallback_list_templates         │
+             │  - resolves locale + region for viewer       │
+             │  - invokes list-source plugins (Trakt, TMDB) │
+             │  - either returns a fully-populated snapshot  │
+             │    OR returns empty (don't call ingester)    │
+             └─────────────────────────────────────────────┘
+                                              ▲
+                                              │ on signup
+                                              │ on admin sync
+                                              │ on read-miss (resolver self-heal)
 ```
 
-### Fallback source
+### Atomic, whole-snapshot writes
 
-Fallback is invoked in two eager scenarios and feeds through the *same*
-pipeline path — it is not layered at read time:
+The ingester never updates a single rail in isolation. A write call carries
+**every** rail for one source, and the storage routine (`replaceHomeForSource`)
+soft-deletes all existing active rows for `(profile, source)` in one UPDATE,
+then inserts the new rails, all inside a single DB transaction. A failed
+write leaves the previous snapshot intact — the read path keeps serving it.
 
-1. **Empty home on `/home` read.** A client calls `GET /home` for a profile
-   that has nothing materialized (new user, no reco/custom ever written, all
-   rows expired). The pipeline calls the fallback HTTP endpoint for that
-   profile, gets a `RecoListWriteRequest`-shaped payload, writes it, then the
-   resolver returns the now-populated home. Surfaced as `source: 'fallback'`
-   on the response.
-2. **External push attempt failed.** An external `reco`/`custom` push returns
-   a transform/validation/canonicalization error, or the external service is
-   unreachable and the outbox dispatcher marks the event permanently failed.
-   The pipeline eagerly calls the fallback endpoint for that profile and
-   writes a fallback home so the user is never left empty.
+Implications:
 
-The fallback HTTP endpoint is exposed internally and authenticated as a
-service principal (same `x-service-id` + bearer hash scheme as the RECO→MAIN
-contract). It is registered in `home.fallback_list_templates` (the table we
-built), and `locale_mode='auto'` rows are resolved per-viewer at fallback-pull
-time.
+- A producer that wants to change one rail must resend **all** rails of the
+  home. The ingester does not merge.
+- A producer may not submit a rail with zero items. The ingester hard-rejects
+  the whole snapshot with `400 INVALID_ITEMS` if any rail is empty.
+- Producers are therefore obligated to guarantee "every rail I submit is
+  non-empty" before calling the ingester. For `fallback`, this means the
+  fallback service drops any rail whose source-fetch returned 0 items, and
+  declines to call the ingester at all if zero rails remain (preserving the
+  previously-written fallback home).
 
-### What the pipeline replaces
+### Single-source resolution
 
-- The lazy fallback-on-cache-miss path in `home-resolver.service.ts`. Fallback
-  becomes an HTTP fetch + pipeline write, not an inline rail-build step.
+`GET /home` picks **one** source for the entire response based on the
+profile's `homeMode` and which source has populated rows:
+
+- `homeMode === 'custom'`: try `custom` rows; if none, return empty (custom
+  mode does not layer `reco` or `fallback`). Switching from `custom` to `reco`
+  requires a one-shot clear of custom rows for that profile so `reco` rows can
+  win — this is performed in the reco pipeline, not the ingester.
+- `homeMode === 'reco'` (default): try `reco` rows; if none, fall back to
+  `fallback` rows; if none, the resolver **self-heals**: it in-band calls the
+  fallback service, ingests a fresh fallback snapshot, and returns it. Only
+  if the fallback fetch itself fails (e.g. Trakt catastrophic outage) does
+  the read return `source: 'empty'`.
+
+**Never mixing sources** is a hard rule: a single home response is always 100%
+from one source. The resolver does not concatenate rails across sources.
+
+### Retention
+
+The home store keeps a bounded number of snapshots per `(profile, source)`:
+
+- `custom` — keep current + 1 previous snapshot
+- `reco` — keep current + 1 previous snapshot
+- `fallback` — keep current snapshot only (fallback is deterministic; older
+  snapshots carry no product-meaningful state to roll back to)
+
+A snapshot is identified by a `run_id` UUID shared by every rail written in a
+single atomic write. The prune step runs inside the write transaction, after
+the new rails are inserted, deleting `recommendation_list_versions` rows whose
+`run_id` is outside the keep-set.
+
+### What this pipeline replaces (vs. the prior design)
+
+- The "fallback is an HTTP endpoint returning `RecoListWriteRequest`"
+  framing. Fallback is an in-process service, not a service-to-service HTTP
+  call. The same `writeHome` ingester is reused; no separate fallback HTTP
+  endpoint exists or is planned.
+- The "eager fallback-pull on push failure" listener. Push failure →
+  previous snapshot stays intact (transaction rollback) → resolver reads the
+  previous rows on next request. No eager-fetch listener is required.
 - The read-time materialization branches. `/home` reads only from what the
   pipeline wrote; there is no "cached default home + freshly-built default
-  home" branch.
+  home" branch. The resolver's only read-time behavior is self-heal when a
+  profile has **zero rows across all sources**.
 - Continue-watching remains a separate, real-time, per-profile rail layered on
   top of the materialized home at read time (already migrated out of the
   list-source registry).
-
-### Open implementation work
-
-- Define and expose the fallback HTTP endpoint returning `RecoListWriteRequest`
-  for a given `(accountId, profileId, locale, region, isKids)`.
-- Implement the two eager fallback-pull triggers (push-failed listener, and
-  `/home` read with empty store).
-- Decide whether `custom` lists reuse the existing reco push endpoint or get a
-  sibling route (preferred: same endpoint, distinguished by `source` /
-  service-id).
-- Define the producer service-id for `custom` and update the auth allow-list.
 
 ## Explicit non-goals
 

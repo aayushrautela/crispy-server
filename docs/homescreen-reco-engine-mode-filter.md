@@ -8,30 +8,35 @@ sources feed one ingest pipeline:
 
 - `reco` — personalized recommendations from the external reco engine, pushed.
 - `custom` — curated lists from an external service, pushed (NOT admin-curated).
-- `fallback` — deterministic default templates, **pulled on miss/failure** via an internal HTTP endpoint that returns the same `RecoListWriteRequest` shape as the external sources.
+- `fallback` — deterministic default templates, produced **in-process** by the
+  fallback service (not pulled over HTTP). The fallback service calls the same
+  ingester (`writeHome`) the external push path uses.
 
 A profile's `homeMode` (`identity.profile_preferences.settings_json.homeMode`)
-controls whose pushed snapshot wins in the resolution chain:
+controls whose snapshot wins in the resolution chain. **A single `GET /home`
+response always carries rails from exactly one source — sources are never
+concatenated.**
 
-1. `custom` (user/custom snapshot) — highest priority
-2. `reco` (reco snapshot) — second priority
-3. fallback (pulled and written by the pipeline when the above are missing/failed)
+1. `custom` mode: serve `custom` rows if non-empty; **otherwise empty** — `custom`
+   mode does not layer `reco` or `fallback`. Switching `custom → reco` requires
+   a one-shot clear of the custom snapshot for that profile (performed by the
+   reco pipeline, not the ingester) so subsequent reads fall through to `reco`
+   (and then `fallback`) instead of the stale `custom` rows.
+2. `reco` mode (default): serve `reco` rows if non-empty; otherwise serve
+   `fallback` rows; otherwise the resolver **self-heals** by invoking the
+   fallback service in-band, ingesting a fresh fallback snapshot, and serving
+   that — so a brand new profile that slipped past the signup-time seed
+   (`enqueueHomeSeed` is fire-and-forget; failures are silent and not retried)
+   still gets a populated home on first read. If the fallback service itself
+   fails (e.g. Trakt catastrophic outage) the response is `source: 'empty'`.
 
 See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for
-the full flow, including the two eager fallback-pull triggers:
-
-- `/home` read with empty store for the profile → pipeline pulls fallback, writes, serves.
-- external `reco`/`custom` push attempt fails → pipeline eagerly pulls fallback so the user is not left empty.
-
-The server-side write guards already enforce the conflict rules
-(`HomeModeService.assertCanWrite`):
-
-- `user` write requires `homeMode === 'custom'` (else `409 home_mode_conflict`)
-- `service` (reco) write is blocked when `homeMode === 'custom'` (else `409`)
+the in-process fallback contract, atomic whole-snapshot write semantics,
+retention policy, and single-source resolution rule.
 
 Continue-watching is layered on top of the materialized home at read time
-(real-time, per-profile, sourced from `playback_progress`); it is not part of
-this pipeline.
+(real-time, per-profile, sourced from `playback_progress`); it is not part
+of this pipeline.
 
 ## Deferred work: engine-side skip-enqueue
 

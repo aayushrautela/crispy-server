@@ -75,6 +75,7 @@ type ClientMediaCard = {
   genres: string[];
   runtimeSeconds: number | null;
   images: ClientImages;
+  trailerUrl: string | null;
   progress: ClientProgress | null;
   parent: ClientParentRef | null;
 };
@@ -271,9 +272,13 @@ type RecoListWriteRequest = {
 type RecoWriteItem = {
   type: 'movie' | 'tv';
   providerRefs: ProviderRef[];
+  /** @deprecated tolerated but ignored; rank is array order */
   score: number | null;
+  /** @deprecated renamed to `subtitle` (per-item card subtitle override); keep inline for now */
   reason: string | null;
+  /** @deprecated tolerated but ignored; no downstream consumer in home response */
   reasonCodes: string[];
+  /** @deprecated open bag; replace with explicit `subtitle`/`description` in a future migration */
   metadata: Record<string, unknown>;
 };
 
@@ -287,16 +292,18 @@ type RecoModelInfo = {
 Rules:
 
 - `PUT /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}` is the production write contract. There is no service-list discovery preflight.
-- Official recommender may write only `category-tabs`/`categoryTabs` max 100, `hero-carousel`/`heroCarousel` max 10, `content-rails`/`contentRail` max 100, and `collection-rails`/`collectionRail` max 100.
-- MAIN rejects unknown official list keys, mismatched `sectionType`, too many items, ineligible profiles, bad provider refs, duplicate items, and idempotency conflicts with stable canonical errors.
+- **Atomic whole-snapshot writes.** The ingester never updates a single rail; a write soft-deletes every existing active row for `(profile, source)` and inserts the new rails in one transaction. A producer that wants to change one rail must resend **all** rails of the snapshot. Failed writes leave the previous snapshot intact.
+- Producers must not submit a rail with zero items. The ingester hard-rejects the whole snapshot with `400 INVALID_ITEMS` if any rail is empty. Producers are responsible for guaranteeing "every rail I submit is non-empty" before calling.
+- Single-source resolution: a `GET /home` response carries rails from exactly one `source`. Sources are never concatenated.
+- Allowed section types: `categoryTabs` (max 100), `heroCarousel` (max 10), `contentRail` (max 100), `collectionRail` (max 100).
+- MAIN rejects unknown list keys, mismatched `sectionType`, too many items, ineligible profiles, bad provider refs, duplicate items, and idempotency conflicts with stable canonical errors.
 - `Idempotency-Key` is required; reusing it with the same payload replays, reusing it with a different payload returns conflict.
-- `title` is required.
-- `subtitle` is nullable, not omitted.
+- `title` is required; `subtitle` is nullable, not omitted.
 - `sectionType` is required and must be one of `categoryTabs`, `heroCarousel`, `contentRail`, or `collectionRail`.
-- Rank is derived from array order.
+- Rank is derived from array order; do not send `rank`.
 - Every item must have `type` and at least one provider ref.
 - RECO must not send `itemId`, `contentId`, `mediaKey`, nested `item`/`ref` wrappers, or TMDB-specific top-level fields.
-- `score`, `reason`, and `reasonCodes` are stored for diagnostics/explainability but are not exposed to normal client UI by default.
+- `score`, `reason`, `reasonCodes`, and `metadata` are **tolerated but ignored** by the home response. They are kept in the OpenAPI schema for backward compatibility only. New producers should omit them.
 - RECO must not send posters, artwork, descriptions, display titles per item, or enriched card payloads.
 
 ### Batch write
@@ -354,6 +361,29 @@ Rules:
 - `collectionRail` currently uses the same provider-ref content-item write storage as every other section type.
 - Client response assembly enriches `itemId` through MAIN metadata/card services.
 
+## Storage retention
+
+The store keeps a bounded number of snapshots per `(profile, source)`. A
+snapshot is identified by a `run_id` UUID shared by every rail inserted in a
+single atomic write — all rails written in one `writeHome` call share the
+same `run_id`.
+
+| Source | Snapshots kept |
+| --- | --- |
+| `custom` | current + 1 previous |
+| `reco` | current + 1 previous |
+| `fallback` | current only |
+
+Snapshots older than the keep-set are pruned inside the write transaction
+(after the new rails are inserted and activated). The read path only ever
+serves the current active snapshot; the "previous" snapshot exists purely as
+an automatic rollback surface when a later write fails (its transaction
+rolls back, the previous snapshot's active pointers remain intact).
+
+For `fallback`, older snapshots are pruned immediately because fallback is
+deterministic — re-running the seed produces an equivalent list, so stale
+snapshots carry no rollback value worth the storage cost.
+
 ## Hard-cutover rules (completed)
 
 The following legacy paths have been removed. Do not reintroduce them:
@@ -369,8 +399,11 @@ The following legacy paths have been removed. Do not reintroduce them:
 
 - Public home recommendations contain `ClientHomeSection[]` and `ClientMediaCard[]` only.
 - Public home recommendations contain `title` and `subtitle` for each section.
+- Public home cards may carry a `trailerUrl` resolved by MAIN at read time from TMDB.
 - RECO signal bundle item fields are `RecoItemRef`, never `BaseItemDto`.
 - RECO signals and writes use provider refs plus `type`, not Crispy `itemId`.
 - MAIN resolves all writes to canonical public item IDs before storage.
 - No recommendation storage path writes provider media keys as `contentId`.
+- A single `GET /home` response carries sections from exactly one `source`; sources are never concatenated.
+- The home store keeps at most N snapshots per `(profile, source)` per the table above; old snapshots are pruned in the write transaction.
 - TVDB provider refs can be accepted without changing client contracts.

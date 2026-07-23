@@ -76,6 +76,7 @@ export class HomeHydrator {
         logo: card.images.logo,
         still: card.images.still,
       },
+      trailerUrl: card.trailerUrl,
       progress: null,
       parent: card.seriesItemId || card.seasonItemId || card.seasonNumber !== null || card.episodeNumber !== null
         ? {

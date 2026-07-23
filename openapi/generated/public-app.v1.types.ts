@@ -1154,6 +1154,7 @@ export interface components {
             genres: string[];
             runtimeSeconds: number | null;
             images: components["schemas"]["ClientImages"];
+            trailerUrl: string | null;
             progress: components["schemas"]["ClientProgress"] | null;
             parent: components["schemas"]["ClientParentRef"] | null;
         };

@@ -12,10 +12,10 @@ This guide defines the home section contract used by external recommendation eng
 The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`) is the unified write contract for **all** home producers, not just the reco engine. Producers authenticate differently depending on whether they're owned by us (reco, fallback) or custom per-user:
 
 - `reco` (reco engine, system-wide): Bearer token, hash matched against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`. Principal resolved from `app_registry.app_id='reco'`.
-- `fallback` (internal source, system-wide): Bearer AppKey, principal resolved from `app_registry.app_id='fallback'` rows. No fallback route required yet.
-- `custom` (per-user, PAT-authenticated): Bearer `cp_pat_...` carrying `recommendations:write`, with URL `:accountId` matching the PAT owner's `appUserId`. Principal synthesized from the user actor with `appId='custom'` and no system-wide scopes.
+- `fallback` (internal, in-process): Not authenticated via HTTP. The fallback service is an in-process module the resolver and seed worker call directly. It invokes the same `writeHome` service used by the push path, with `source='fallback'` and a service actor (`app:system:system`). No HTTP endpoint exists for fallback.
+- `custom` (per-user, PAT-authenticated): Bearer `cp_pat_...` carrying `recommendations:write`, with URL `:accountId` matching the PAT owner's `appUserId`. Principal synthesized from the user actor with `appId='custom'`. **PAT/API-key validation happens at the HTTP edge, not in the ingester.** The ingester just consumes the already-authenticated actor.
 
-All three producers share the same `RecoListWriteRequest` shape and the same canonicalize → policy → persist path. `/home` reads only from what the pipeline wrote. See `docs/architecture/recommendation-engine.md` → "Authentication" and "Home ingest pipeline" for details.
+All three producers share the same write shape and the same canonicalize → policy → persist path. `/home` reads only from what the pipeline wrote. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the in-process fallback contract, atomic whole-snapshot write semantics, retention policy, and single-source resolution rule.
 
 ## Home section model
 
@@ -41,7 +41,7 @@ Section types:
 
 RECO writes section metadata plus ordered provider identities. MAIN derives rank from array order, resolves provider refs to canonical internal item identity, applies policy/idempotency, persists versions, and enriches public client responses at read time.
 
-Single-list write body:
+A single-list write body is a single rail of the snapshot:
 
 ```json
 {
@@ -51,11 +51,7 @@ Single-list write body:
   "items": [
     {
       "type": "movie",
-      "providerRefs": [{ "provider": "tmdb", "providerId": "603" }],
-      "score": 0.98,
-      "reason": "Similar tone and themes",
-      "reasonCodes": ["similar_history"],
-      "metadata": {}
+      "providerRefs": [{ "provider": "tmdb", "providerId": "603" }]
     }
   ],
   "model": {
@@ -67,21 +63,28 @@ Single-list write body:
 }
 ```
 
-Rules:
+Contract rules (what a producer **must** send and what the ingester **requires**):
 
-- `sectionType` replaces the old `layout` field.
-- Allowed `sectionType` values are only `categoryTabs`, `heroCarousel`, `contentRail`, and `collectionRail`.
-- Item identity is `type` plus `providerRefs`; RECO must not send Crispy `itemId`, `contentId`, `mediaKey`, rank, or nested identity wrappers.
+- `sectionType` replaces the old `layout` field. Allowed values: `categoryTabs`, `heroCarousel`, `contentRail`, `collectionRail`.
+- Item identity is `type` plus `providerRefs`; producers must not send Crispy `itemId`, `contentId`, `mediaKey`, `rank`, or nested identity wrappers.
 - Provider refs may be TMDB, TVDB, IMDb, or Kitsu when supported by MAIN.
-- Rank is array order.
-- RECO may send bounded `score`, `reason`, `reasonCodes`, and `metadata` for diagnostics/explainability.
-- RECO must not send enriched card payloads, posters, backdrops, logos, descriptions, storage IDs, media keys, or client DTOs.
+- Rank is array order. Producers must not send `rank`.
+- `model` is required only for `source='reco'`. Pass `null` for `source='custom'` and `source='fallback'` (no model tracking).
+
+Currently tolerated but ignored fields (still accepted by the OpenAPI schema for backward compatibility; produced artifacts no longer carry them once PR 3 lands):
+
+- `score` — array order is the only ordering signal.
+- `reason` — folding into per-item `subtitle` override; producers that want per-card subtitle text send it as `subtitle` in the items.json blob.
+- `reasonCodes` — no downstream consumer in the home response; only useful for `reco` engine's own analytics, which producers should track on their own side.
+- `metadata` — open bag with no contract; not surfaced for `reco`/`fallback` producers.
+
+Producers must not send enriched card payloads, posters, backdrops, logos, descriptions, storage IDs, media keys, or client DTOs. The ingester canonicalizes identifiers at write time and TMDB enrichment happens at read time.
 
 ## Public home reads
 
-`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, and progress. Public responses do not expose provider refs, model scores, reason codes, storage `contentId`, media keys, or RECO internals.
+`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, reason codes, storage `contentId`, media keys, or RECO internals.
 
-`mode` is the profile's current home mode (`recommended` or `custom`); `source` is which producer's lists are currently serving the home screen (`custom`, `reco`, `fallback`, or `empty`).
+`mode` is the profile's current home mode (`recommended` or `custom`); `source` is which producer's snapshot is currently serving the home screen (`custom`, `reco`, `fallback`, or `empty`). A response always carries rails from exactly one `source` — sources are never concatenated.
 
 ## Generation lifecycle
 
