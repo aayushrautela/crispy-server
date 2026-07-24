@@ -1,4 +1,5 @@
 import type { QueryResult } from 'pg';
+import { randomUUID } from 'crypto';
 import type { DbClient } from '../../../lib/db.js';
 import type { HomeSource, HomeWriteActor, HomeWriteList } from '../home-types.js';
 
@@ -106,14 +107,15 @@ export class HomeListsRepo {
        WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3 AND deleted_at IS NULL`,
       [input.accountId, input.profileId, input.source],
     );
+    const runId = randomUUID();
     for (const list of input.lists) {
       const actorId = list.actor.type === 'app' ? list.actor.appId : list.actor.accountId;
       const actorKeyId = list.actor.type === 'app' ? list.actor.keyId : list.actor.userId ?? null;
       await client.query(
         `INSERT INTO recommendation_list_versions
-           (account_id, profile_id, source, list_key, version, title, subtitle, section_type, items_json, item_count, actor_type, actor_id, actor_key_id, created_at)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14)`,
-        [list.accountId, list.profileId, list.source, list.listKey, list.version, list.title, list.subtitle, list.sectionType, JSON.stringify(list.items), list.items.length, list.actor.type, actorId, actorKeyId, list.createdAt],
+           (account_id, profile_id, source, list_key, version, title, subtitle, section_type, items_json, item_count, actor_type, actor_id, actor_key_id, run_id, created_at)
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15)`,
+        [list.accountId, list.profileId, list.source, list.listKey, list.version, list.title, list.subtitle, list.sectionType, JSON.stringify(list.items), list.items.length, list.actor.type, actorId, actorKeyId, runId, list.createdAt],
       );
       await client.query(
         `INSERT INTO recommendation_active_lists (account_id, profile_id, source, list_key, active_version, updated_at)
@@ -141,6 +143,33 @@ export class HomeListsRepo {
        SET deleted_at = $5, updated_at = $5
        WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3 AND deleted_at IS NULL`,
       [input.accountId, input.profileId, input.source, input.source, input.clearedAt],
+    );
+  }
+
+  /**
+   * Bounding storage: keep only the `keep` most-recent snapshot runs for this
+   * (account, profile, source), identified by `run_id`. Older version rows
+   * (those whose `run_id` is not in the kept set, and is not null) are deleted.
+   * Versions lacking a `run_id` are preserved (they pre-date this retention
+   * policy and will be phased out over time).
+   */
+  async pruneSnapshots(
+    client: Queryable,
+    input: { accountId: string; profileId: string; source: HomeSource; keep: number },
+  ): Promise<void> {
+    await client.query(
+      `DELETE FROM recommendation_list_versions
+       WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3
+         AND run_id IS NOT NULL
+         AND run_id NOT IN (
+           SELECT DISTINCT run_id
+           FROM recommendation_list_versions
+           WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3
+             AND run_id IS NOT NULL
+           ORDER BY created_at DESC
+           LIMIT $4
+         )`,
+      [input.accountId, input.profileId, input.source, input.keep],
     );
   }
 

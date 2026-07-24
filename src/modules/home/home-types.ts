@@ -16,10 +16,6 @@ export type HomeWriteProviderRef = {
 export type HomeWriteItem = {
   type: 'movie' | 'tv';
   providerRefs: HomeWriteProviderRef[];
-  rank?: number;
-  score?: number | null;
-  reason?: string | null;
-  reasonCodes?: string[];
   metadata?: Record<string, unknown>;
 };
 

@@ -68,6 +68,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
     }
 
     const now = this.deps.clock.now();
+    if (input.lists.length > 25) throw new HttpError(400, `lists exceeds max of 25.`, { field: 'lists' }, 'TOO_MANY_LISTS');
     const lists = await this.normalizeLists(input);
     const result: HomeWriteResult = {
       accountId: input.accountId,
@@ -110,6 +111,12 @@ export class DefaultHomeWriteService implements HomeWriteService {
         profileId: input.profileId,
         source,
         lists: versioned,
+      });
+      await this.deps.repo.pruneSnapshots(client, {
+        accountId: input.accountId,
+        profileId: input.profileId,
+        source,
+        keep: source === 'fallback' ? 1 : 2,
       });
     });
 
@@ -183,10 +190,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
         itemId: encodePublicItemId(contentId),
         contentId,
         sourceRef: { provider: ref.provider, providerId: ref.providerId },
-        rank: item.rank ?? index + 1,
-        score: item.score ?? null,
-        reason: item.reason ?? null,
-        reasonCodes: item.reasonCodes ?? [],
+        rank: index + 1,
       };
     });
   }

@@ -13,6 +13,13 @@ import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, getOfficialRe
 
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
 const PROVIDERS = new Set(['tmdb', 'tvdb', 'imdb', 'kitsu']);
+
+/** Strip tolerated-but-ignored producer fields at the boundary. The ingester
+ *  only takes type + providerRefs + optional metadata hints; score, reason,
+ *  reasonCodes, rank are accepted by the wire contract but not persisted. */
+function toHomeWriteItem(item: RecoWriteItem): { type: RecoWriteItem['type']; providerRefs: RecoWriteItem['providerRefs']; metadata?: Record<string, unknown> } {
+  return { type: item.type, providerRefs: item.providerRefs, ...(item.metadata && Object.keys(item.metadata).length > 0 ? { metadata: item.metadata } : {}) };
+}
 const ITEM_TYPES = new Set(['movie', 'tv']);
 const HOME_SECTION_TYPES = new Set(['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail']);
 const TOP_LEVEL_REMOVED_FIELDS = ['source', 'purpose', 'writeMode', 'input', 'eligibilityVersion', 'signalsVersion', 'algorithm', 'batchId'];
@@ -63,7 +70,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         sectionType: request.sectionType,
         title: request.title,
         subtitle: request.subtitle,
-        items: request.items,
+        items: request.items.map(toHomeWriteItem),
       }],
     });
     return { accountId: input.accountId, profileId: input.profileId, listKey: input.listKey, source, version: 0, status: 'written', itemCount: request.items.length, idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: this.deps.clock.now(), eligibility: { checkedAt: eligibility.checkedAt, eligible: eligibility.eligible, eligibilityVersion: eligibility.eligibilityVersion } };
@@ -100,7 +107,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
               sectionType: list.sectionType,
               title: list.title,
               subtitle: list.subtitle,
-              items: list.items,
+              items: list.items.map(toHomeWriteItem),
             }],
           });
           writtenLists.push({ listKey: list.listKey, source, version: 0, itemCount: list.items.length });

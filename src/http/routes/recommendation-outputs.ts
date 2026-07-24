@@ -91,7 +91,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
   });
 }
 
-function parseHomeWriteBody(body: Record<string, unknown>): Array<{ listKey: string; sectionType: 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail'; title: string; subtitle: string | null; items: Array<{ type: 'movie' | 'tv'; providerRefs: Array<{ provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string }>; rank?: number; score?: number | null; reason?: string | null; reasonCodes?: string[] }> }> {
+function parseHomeWriteBody(body: Record<string, unknown>): Array<{ listKey: string; sectionType: 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail'; title: string; subtitle: string | null; items: Array<{ type: 'movie' | 'tv'; providerRefs: Array<{ provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string }>; metadata?: Record<string, unknown> }> }> {
   if (!Array.isArray(body.lists)) throw new HttpError(400, 'lists is required.', { field: 'lists' }, 'INVALID_HOME_WRITE');
   return body.lists.map((rawList, index) => {
     const listPath = `lists[${index}]`;
@@ -116,10 +116,7 @@ function parseHomeWriteBody(body: Record<string, unknown>): Array<{ listKey: str
       return {
         type: type as 'movie' | 'tv',
         providerRefs: [{ provider: provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu', providerId: String(ref.providerId) }],
-        rank: typeof item.rank === 'number' ? item.rank : undefined,
-        score: typeof item.score === 'number' ? item.score : null,
-        reason: typeof item.reason === 'string' ? item.reason : null,
-        reasonCodes: Array.isArray(item.reasonCodes) ? item.reasonCodes.filter((code) => typeof code === 'string') : [],
+        ...(item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata) ? { metadata: item.metadata as Record<string, unknown> } : {}),
       };
     });
     return {

@@ -152,8 +152,8 @@ test('upsertList normalizes item refs and delegates to the home writer', async (
   assert.equal(list.sectionType, 'contentRail');
   assert.deepEqual(list.title, 'For You');
   assert.deepEqual(list.items, [
-    { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }], score: null, reason: null, reasonCodes: [], metadata: {} },
-    { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '102' }], score: null, reason: null, reasonCodes: [], metadata: {} },
+    { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }] },
+    { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '102' }] },
   ]);
 });
 
@@ -214,7 +214,7 @@ test('batchUpsert normalizes list refs, derives per-list idempotency, and return
   assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1:for-you');
   const batchList = batchWrite.lists[0];
   assert.ok(batchList);
-  assert.deepEqual(batchList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }], score: null, reason: null, reasonCodes: [], metadata: {} }]);
+  assert.deepEqual(batchList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }] }]);
 });
 
 test('authorization allows wildcard owned list keys', () => {

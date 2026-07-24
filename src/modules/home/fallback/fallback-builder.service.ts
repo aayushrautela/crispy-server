@@ -46,8 +46,13 @@ export class FallbackBuilderService {
    * Build and persist fallback home for one profile. Returns metrics on
    * success or `'no-data'` when no templates resolved or all rails were
    * empty (in which case no write is attempted).
+   *
+   * `idempotencyKey` defaults to the stable seed-job key. Callers that
+   * re-seed on demand (e.g. resolver self-heal) must pass a unique key
+   * so the ingester doesn't 409 on a hash mismatch with a prior run whose
+   * items have since changed.
    */
-  async buildForProfile(accountId: string, profileId: string): Promise<{ listsWritten: number; itemCount: number } | 'no-data'> {
+  async buildForProfile(accountId: string, profileId: string, idempotencyKey: string = `home-seed:${accountId}:${profileId}`): Promise<{ listsWritten: number; itemCount: number } | 'no-data'> {
     const profile = await this.profileService.requireOwnedProfile(accountId, profileId);
     const locale = profile.interfaceLanguage || 'en';
 
@@ -66,7 +71,7 @@ export class FallbackBuilderService {
         accountId,
         profileId,
         source: 'fallback',
-        idempotencyKey: `home-seed:${accountId}:${profileId}`,
+        idempotencyKey,
         actor: SYSTEM_ACTOR,
         lists,
       });
@@ -101,9 +106,6 @@ export class FallbackBuilderService {
             provider: ref.provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu',
             providerId: ref.providerId,
           })),
-          score: item.score ?? null,
-          reason: item.reason ?? null,
-          reasonCodes: item.reasonCodes ?? [],
           metadata: item.metadata,
         }));
       } catch (error) {

@@ -6,6 +6,7 @@ import { HomeModeService } from './home-mode.service.js';
 import { HomeListsRepo } from './repos/home-lists.repo.js';
 import { HomeHydrator } from './home-hydrator.service.js';
 import { DefaultHomeWriteService, type HomeWriteService } from './home-write.service.js';
+import { FallbackBuilderService } from './fallback/index.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
 
@@ -31,6 +32,7 @@ export class HomeResolverService {
     private readonly repo = new HomeListsRepo({ db }),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly writeService: HomeWriteService = new DefaultHomeWriteService({ repo: new HomeListsRepo({ db }), contentIdentityService: new ContentIdentityService(), clock: { now: () => new Date() } }),
+    private readonly fallbackBuilder: FallbackBuilderService = new FallbackBuilderService(),
   ) {}
 
   async resolveHome(accountId: string, profileId: string): Promise<ResolveHomeResult> {
@@ -58,10 +60,20 @@ export class HomeResolverService {
         sections = await this.hydrator.hydrateSections(client, lists, locale);
         resolvedSource = source;
       } else {
-        // No rows for this profile under any source. Empty home screen --
-        // the seed job (or reco's push) will populate on its next run.
-        sections = [];
-        resolvedSource = 'empty';
+        // No rails under any source. Seed fallback in-band so the read is never
+        // empty when templates exist; the seed-job path is a separate,
+        // non-reliability enqueue. Use a unique idempotency key so the
+        // ingester doesn't 409 against a prior seed-job record whose items
+        // have since changed.
+        await this.fallbackBuilder.buildForProfile(accountId, profileId, `home-heal:${accountId}:${profileId}:${Date.now()}`);
+        const lists = await this.repo.listActiveForSource({ accountId, profileId, source: 'fallback' });
+        if (lists.length > 0) {
+          sections = await this.hydrator.hydrateSections(client, lists, locale);
+          resolvedSource = 'fallback';
+        } else {
+          sections = [];
+          resolvedSource = 'empty';
+        }
       }
 
       const generatedAt = new Date().toISOString();
