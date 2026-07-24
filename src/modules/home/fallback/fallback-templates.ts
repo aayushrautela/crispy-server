@@ -82,9 +82,9 @@ export function profileContextForFallback(
 
 export const FALLBACK_SECTION_LIMITS: Record<string, number> = {
   heroCarousel: 10,
-  contentRail: 100,
-  categoryTabs: 100,
-  collectionRail: 100,
+  contentRail: 50,
+  categoryTabs: 50,
+  collectionRail: 50,
 };
 
 export function emptyProfileContext() {

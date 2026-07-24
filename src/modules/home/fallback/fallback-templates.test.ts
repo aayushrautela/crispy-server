@@ -77,5 +77,5 @@ test('resolveFallbackTemplatesForViewer includes auto rows for any locale', () =
 
 test('FALLBACK_SECTION_LIMITS defines limits per section', () => {
   assert.equal(FALLBACK_SECTION_LIMITS.heroCarousel, 10);
-  assert.equal(FALLBACK_SECTION_LIMITS.contentRail, 100);
+  assert.equal(FALLBACK_SECTION_LIMITS.contentRail, 50);
 });
