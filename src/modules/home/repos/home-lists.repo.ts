@@ -162,12 +162,15 @@ export class HomeListsRepo {
        WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3
          AND run_id IS NOT NULL
          AND run_id NOT IN (
-           SELECT DISTINCT run_id
-           FROM recommendation_list_versions
-           WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3
-             AND run_id IS NOT NULL
-           ORDER BY created_at DESC
-           LIMIT $4
+           SELECT run_id FROM (
+             SELECT run_id, MAX(created_at) AS latest
+             FROM recommendation_list_versions
+             WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3
+               AND run_id IS NOT NULL
+             GROUP BY run_id
+             ORDER BY latest DESC
+             LIMIT $4
+           ) kept
          )`,
       [input.accountId, input.profileId, input.source, input.keep],
     );
