@@ -93,27 +93,26 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
     for (const profile of request.profiles) {
       try {
         const eligibility = await this.deps.profileEligibilityService.assertEligible({ principal: input.principal, accountId: profile.accountId, profileId: profile.profileId, purpose: RECOMMENDATION_WRITE_PURPOSE });
-        const writtenLists: Array<{ listKey: string; source: string; version: number; itemCount: number }> = [];
         for (const list of profile.lists) {
           await this.requireWritableList(input.principal, list.listKey, source, list.sectionType, profile.accountId, profile.profileId);
-          await this.deps.homeWriteService.writeHome({
-            accountId: profile.accountId,
-            profileId: profile.profileId,
-            source,
-            idempotencyKey: `${input.idempotencyKey}:${profile.accountId}:${profile.profileId}:${list.listKey}`,
-            actor: { type: 'app', appId: input.principal.appId, keyId: input.principal.keyId },
-            lists: [{
-              listKey: list.listKey,
-              sectionType: list.sectionType,
-              title: list.title,
-              subtitle: list.subtitle,
-              items: list.items.map(toHomeWriteItem),
-            }],
-          });
-          writtenLists.push({ listKey: list.listKey, source, version: 0, itemCount: list.items.length });
-          listsWritten += 1;
-          itemsWritten += list.items.length;
         }
+        await this.deps.homeWriteService.writeHome({
+          accountId: profile.accountId,
+          profileId: profile.profileId,
+          source,
+          idempotencyKey: `${input.idempotencyKey}:${profile.accountId}:${profile.profileId}`,
+          actor: { type: 'app', appId: input.principal.appId, keyId: input.principal.keyId },
+          lists: profile.lists.map((list) => ({
+            listKey: list.listKey,
+            sectionType: list.sectionType,
+            title: list.title,
+            subtitle: list.subtitle,
+            items: list.items.map(toHomeWriteItem),
+          })),
+        });
+        const writtenLists = profile.lists.map((list) => ({ listKey: list.listKey, source, version: 0, itemCount: list.items.length }));
+        listsWritten += profile.lists.length;
+        itemsWritten += profile.lists.reduce((sum, list) => sum + list.items.length, 0);
         results.push({ accountId: profile.accountId, profileId: profile.profileId, status: 'written', lists: writtenLists });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Profile write rejected.';

@@ -16,8 +16,8 @@ const rules: Rule[] = [
     message: 'Top-level personal-media callers should use PersonalMediaService instead of removed thin wrappers.',
   },
   {
-    pattern: 'registerHomeRoutes|canonical_home|homeCacheKey|refresh-home-cache|tracked-series|WatchV2TrackedQueryService|TrackedTitleRow|toTrackedTitleIdentity|syncTrackedTitleState|deleteTrackedTitleState|upsertTrackedTitleState|refreshProfileTrackedTitles|refreshProfileTrackedSeries',
-    message: 'Removed home/tracked-series architecture pieces must not be reintroduced into src runtime code.',
+    pattern: 'registerHomeRoutes|canonical_home|refresh-home-cache|tracked-series|WatchV2TrackedQueryService|TrackedTitleRow|toTrackedTitleIdentity|syncTrackedTitleState|deleteTrackedTitleState|upsertTrackedTitleState|refreshProfileTrackedTitles|refreshProfileTrackedSeries',
+    message: 'Removed home/tracked-series architecture pieces must not be reintroduced into src runtime code. Note: homeCacheKey is intentionally excluded - it is now a private helper inside the unified home-resolver/home-write services, distinct from the removed src/http/routes/home.ts implementation.',
   },
   {
     pattern: 'received[A-Z][A-Za-z0-9]*:',
@@ -65,6 +65,10 @@ const rules: Rule[] = [
   {
     pattern: 'profileIdAndMediaKeyParamsSchema|watchMediaKeyMutationRouteSchema|watchMediaKeyParamsRouteSchema|WatchMediaKeyParams',
     message: 'Retired public media-key route schemas and types must not be reintroduced. Use itemId-based schemas instead.',
+  },
+  {
+    pattern: 'IntegrationRecommendationService|IntegrationRecommendationRepository|IntegrationRecommendationError|integration-recommendation\\.(service|repo|types)\\.js|profile_recommendation_lists|profile_recommendation_list_items|recommendation_write_requests',
+    message: 'Retired per-rail integration-recommendations ingest module has been removed. The unified HomeWriteService pipeline (recommendation_active_lists + recommendation_list_versions) is the only home-feed ingest path.',
   },
 ];
 

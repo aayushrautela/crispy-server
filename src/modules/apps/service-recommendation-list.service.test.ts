@@ -193,28 +193,42 @@ test('official recommender rejects section type mismatches', async () => {
   );
 });
 
-test('batchUpsert normalizes list refs, derives per-list idempotency, and returns processed status', async () => {
+test('batchUpsert normalizes list refs, derives per-profile idempotency, and writes all of a profile\'s lists in one atomic writeHome call', async () => {
   const { service, serviceListRepo, homeWriteService } = buildService();
 
   const result = await service.batchUpsert({
     principal: buildPrincipal(),
     idempotencyKey: 'batch-1',
     request: {
-      profiles: [{ accountId: 'acc-1', profileId: 'prof-1', lists: [{ listKey: 'for-you', ...buildWriteRequest(['103']) }] }],
+      profiles: [{
+        accountId: 'acc-1',
+        profileId: 'prof-1',
+        lists: [
+          { listKey: 'for-you', ...buildWriteRequest(['103']) },
+          { listKey: 'hero-carousel', ...buildWriteRequest(['104']) },
+        ],
+      }],
     },
   });
 
   assert.equal(result.status, 'completed');
-  assert.equal(result.summary.listsWritten, 1);
-  assert.equal(result.summary.itemsWritten, 1);
+  assert.equal(result.summary.listsWritten, 2);
+  assert.equal(result.summary.itemsWritten, 2);
   assert.equal(serviceListRepo.savedBatchResultStatus, 'completed');
   assert.ok(serviceListRepo.savedBatchRequestHash);
+  assert.equal(homeWriteService.writes.length, 1, 'all of a profile\'s lists must reach writeHome in a single atomic call');
   const batchWrite = homeWriteService.writes[0];
   assert.ok(batchWrite);
-  assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1:for-you');
-  const batchList = batchWrite.lists[0];
-  assert.ok(batchList);
-  assert.deepEqual(batchList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }] }]);
+  assert.equal(batchWrite.idempotencyKey, 'batch-1:acc-1:prof-1');
+  assert.equal(batchWrite.lists.length, 2);
+  const firstList = batchWrite.lists[0];
+  const secondList = batchWrite.lists[1];
+  assert.ok(firstList);
+  assert.ok(secondList);
+  assert.equal(firstList.listKey, 'for-you');
+  assert.equal(secondList.listKey, 'hero-carousel');
+  assert.deepEqual(firstList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }] }]);
+  assert.deepEqual(secondList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '104' }] }]);
 });
 
 test('authorization allows wildcard owned list keys', () => {
