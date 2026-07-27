@@ -158,8 +158,8 @@ export function watchCacheRecordToBaseItemDto(record: WatchCacheRecordWithItemId
 
   const thumb: ResponsiveImageSet | null = singleOrEmpty(still);
   const poster = buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' });
-  const backdrop = buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' });
-  const logo = buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' });
+  const backdrop = buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'original' });
+  const logo = buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'original' });
 
   const itemId = record.itemId ?? record.item_id ?? overrides.Id;
   if (!itemId) {

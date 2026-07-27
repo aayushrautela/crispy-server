@@ -17,10 +17,10 @@ function buildParentImageTags(record: WatchMediaCardCacheRecord): ParentBaseItem
       ? buildResponsiveImageSet(record.posterUrl, { small: 'w342', medium: 'w500', large: 'w780' })
       : null,
     Backdrop: record.backdropUrl
-      ? [buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'w1280' })]
+      ? [buildResponsiveImageSet(record.backdropUrl, { small: 'w300', medium: 'w780', large: 'original' })]
       : [],
     Logo: record.logoUrl
-      ? buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'w500' })
+      ? buildResponsiveImageSet(record.logoUrl, { small: 'w185', medium: 'w300', large: 'original' })
       : null,
     Thumb: record.stillUrl
       ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
