@@ -31,6 +31,7 @@ services:
     networks:
       - default
       - supabase_default
+      - crispy-shared
 
   worker:
     build:
@@ -50,6 +51,7 @@ services:
     networks:
       - default
       - supabase_default
+      - crispy-shared
 
 volumes:
   redis-data:
@@ -58,3 +60,6 @@ networks:
   supabase_default:
     external: true
     name: supabase_default
+  crispy-shared:
+    external: true
+    name: crispy-shared
