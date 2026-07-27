@@ -92,19 +92,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle": {
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/history": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Return recommendation signal bundle for a profile
-         * @description Uses canonical provider limit query names: historyLimit, ratingsLimit, watchlistLimit, continueLimit.
-         */
-        get: operations["getInternalRecommendationSignalBundle"];
+        /** Read a profile's watch history (reco service-readable, shared shape with public) */
+        get: operations["getInternalProfileWatchHistory"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a profile's ratings (reco service-readable, shared shape with public) */
+        get: operations["getInternalProfileWatchRatings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/watchlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a profile's watchlist (reco service-readable, shared shape with public) */
+        get: operations["getInternalProfileWatchlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/continue-watching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a profile's continue-watching (reco service-readable, shared shape with public) */
+        get: operations["getInternalProfileContinueWatching"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/episodic-follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a profile's tracked series (reco service-readable, shared shape with public) */
+        get: operations["getInternalProfileEpisodicFollow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/profile-meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read profile-scoped metadata (profileName, isKids, language, region) for reco GenerateRequest.profileContext */
+        get: operations["getInternalProfileMeta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/taste": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a profile's stored taste profile (reco service-readable) */
+        get: operations["getInternalProfileTasteProfile"];
+        /** Push an updated taste profile back for a profile (reco pushes taste) */
+        put: operations["putInternalProfileTasteProfile"];
         post?: never;
         delete?: never;
         options?: never;
@@ -399,33 +499,6 @@ export interface components {
             BackdropColor: string | null;
             UserData: components["schemas"]["UserItemData"] | null;
         };
-        ProfileHistorySignal: {
-            item: components["schemas"]["RecoItemRef"];
-            /** Format: date-time */
-            watchedAt: string;
-            progressPercent: number;
-            /** @enum {string} */
-            completionState: "completed" | "partial" | "unknown";
-            durationSeconds: number | null;
-        };
-        ProfileRatingSignal: {
-            item: components["schemas"]["RecoItemRef"];
-            rating: number;
-            /** Format: date-time */
-            ratedAt: string;
-            ratingSource: string | null;
-        };
-        ProfileWatchlistSignal: {
-            item: components["schemas"]["RecoItemRef"];
-            /** Format: date-time */
-            addedAt: string;
-        };
-        ProfileContinueWatchingSignal: {
-            item: components["schemas"]["RecoItemRef"];
-            progressPercent: number;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         AppSelfResponse: {
             appId: string;
             name: string;
@@ -525,40 +598,67 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
-        RecommendationSignalBundleResponse: {
-            accountId: string;
+        /** @description Shared per-signal read envelope. Same shape as the public-app BaseItemDtoQueryResult envelope — a success envelope wrapping a paginated collection of BaseItemDto items. Consumed verbatim by the reco engine as one individual signal input. */
+        ProfileReadSignalResponse: {
+            data: {
+                items?: components["schemas"]["Metadata"][];
+                totalCount?: number;
+                startIndex?: number;
+                cursor?: string | null;
+            };
+            meta: {
+                requestId?: string;
+            };
+        };
+        /** @description Profile-scoped metadata returned by the per-signal profile-meta route. Consumed by the reco engine to assemble GenerateRequest.profileContext (profileName, isKids, language, region, watchDataOrigin). */
+        ProfileMetaReadResponse: {
+            data: {
+                profileName: string;
+                isKids: boolean;
+                language: string | null;
+                region: string | null;
+                watchDataOrigin: string;
+            };
+            meta: {
+                requestId?: string;
+            };
+        };
+        TasteProfileReadResponse: {
+            data: {
+                tasteProfile: components["schemas"]["TasteProfileRecord"] | null;
+            };
+        };
+        TasteProfileWriteRequest: {
+            sourceKey: string;
+            genres: string[];
+            preferredActors: string[];
+            preferredDirectors: string[];
+            contentTypePref: components["schemas"]["Metadata"];
+            ratingTendency: components["schemas"]["Metadata"];
+            decadePreferences: string[];
+            watchingPace: string | null;
+            aiSummary: string | null;
+            source: string;
+        };
+        TasteProfileRecord: {
             profileId: string;
-            purpose?: string;
-            eligibility: {
-                eligible: boolean;
-                eligibilityVersion?: number;
-                reason?: string;
-            } & {
-                [key: string]: unknown;
-            };
-            bundle: {
-                signalsVersion?: number;
-                /** Format: date-time */
-                generatedAt?: string;
-                profileContext: components["schemas"]["Metadata"];
-                history?: components["schemas"]["ProfileHistorySignal"][];
-                watchHistory?: components["schemas"]["ProfileHistorySignal"][];
-                ratings?: components["schemas"]["ProfileRatingSignal"][];
-                watchlist?: components["schemas"]["ProfileWatchlistSignal"][];
-                continueWatching?: components["schemas"]["ProfileContinueWatchingSignal"][];
-            } & {
-                [key: string]: unknown;
-            };
-            limits?: {
-                historyLimitApplied?: number;
-                ratingsLimitApplied?: number;
-                watchlistLimitApplied?: number;
-                continueLimitApplied?: number;
-            } & {
-                [key: string]: unknown;
-            };
-        } & {
-            [key: string]: unknown;
+            sourceKey: string;
+            genres: string[];
+            preferredActors: string[];
+            preferredDirectors: string[];
+            contentTypePref: components["schemas"]["Metadata"];
+            ratingTendency: components["schemas"]["Metadata"];
+            decadePreferences: string[];
+            watchingPace: string | null;
+            aiSummary: string | null;
+            source: string;
+            updatedByKind: string;
+            updatedById?: string | null;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         RecommendationListUpsertRequest: {
             title: string;
@@ -1036,17 +1136,11 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
-    getInternalRecommendationSignalBundle: {
+    getInternalProfileWatchHistory: {
         parameters: {
             query?: {
-                historyLimit?: number;
-                ratingsLimit?: number;
-                watchlistLimit?: number;
-                continueLimit?: number;
-                /** @description Comma-separated signal families to include. */
-                include?: string;
-                /** @description Optional lower bound for incremental signal reads. */
-                since?: string;
+                limit?: number;
+                cursor?: string;
             };
             header: {
                 /** @example Bearer <service-token> */
@@ -1067,13 +1161,296 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Recommendation signals. */
+            /** @description Watch history page (BaseItemDtoQueryResult envelope, shared with public app). */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RecommendationSignalBundleResponse"];
+                    "application/json": components["schemas"]["ProfileReadSignalResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalProfileWatchRatings: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ratings page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReadSignalResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalProfileWatchlist: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Watchlist page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReadSignalResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalProfileContinueWatching: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Continue-watching page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReadSignalResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalProfileEpisodicFollow: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tracked-series page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReadSignalResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalProfileMeta: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile metadata for reco. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileMetaReadResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalProfileTasteProfile: {
+        parameters: {
+            query?: {
+                sourceKey?: string;
+            };
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored taste profile for the profile (or null when not yet present). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TasteProfileReadResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            429: components["responses"]["RateLimitedError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    putInternalProfileTasteProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+                /** @example prof_example_reco_001 */
+                profileId: components["parameters"]["ProfileId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TasteProfileWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Stored taste profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TasteProfileReadResponse"];
                 };
             };
             401: components["responses"]["UnauthorizedError"];

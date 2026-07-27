@@ -70,6 +70,10 @@ const rules: Rule[] = [
     pattern: 'IntegrationRecommendationService|IntegrationRecommendationRepository|IntegrationRecommendationError|integration-recommendation\\.(service|repo|types)\\.js|profile_recommendation_lists|profile_recommendation_list_items|recommendation_write_requests',
     message: 'Retired per-rail integration-recommendations ingest module has been removed. The unified HomeWriteService pipeline (recommendation_active_lists + recommendation_list_versions) is the only home-feed ingest path.',
   },
+  {
+    pattern: 'ProfileSignalBundle|profile-signal-bundle|recommendation-bundle|ProfileInputSignal|profile-input-signal|/signals/recommendation-bundle|RecommendationSignalBundleResponse',
+    message: 'Retired recommendation-bundle ingest path has been removed. Use per-signal read routes at /internal/apps/v1/.../signals/watch/{history,ratings,watchlist,continue-watching,episodic-follow} and /signals/taste instead.',
+  },
 ];
 
 function runGrep(rule: Rule) {

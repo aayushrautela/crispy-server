@@ -10,6 +10,7 @@ import {
   type WatchReadRow,
 } from './watch-read.mapper.js';
 import { pageFromRows } from './watch-read-helpers.js';
+import type { ProfileRecord } from '../profiles/profile-local.service.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 
 type ListPageParams = {
@@ -102,8 +103,8 @@ export class AdminWatchReadService {
     return pageFromRows(rows as WatchReadRow[], params.limit, (row) => ({ sortValue: row.added_at as Date, tieBreaker: String(row.item_id) }), mapListItemRow);
   }
 
-  async assertProfileAccess(client: DbClient, params: { accountId: string; profileId: string }): Promise<void> {
-    await this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
+  async assertProfileAccess(client: DbClient, params: { accountId: string; profileId: string }): Promise<ProfileRecord> {
+    return this.profileAccessService.assertOwnedProfile(client, params.profileId, params.accountId);
   }
 
   async listRatingsPage(client: DbClient, params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {

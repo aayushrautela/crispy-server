@@ -12,7 +12,6 @@ import type { AppSelfService } from '../../modules/apps/app-self.service.js';
 import type { ProfileEligibilityService } from '../../modules/apps/profile-eligibility.service.js';
 import type { EligibleProfileChangeFeedService } from '../../modules/apps/eligible-profile-change-feed.service.js';
 import type { EligibleProfileSnapshotService } from '../../modules/apps/eligible-profile-snapshot.types.js';
-import type { ProfileSignalBundleService } from '../../modules/apps/profile-signal-bundle.types.js';
 import type { ServiceRecommendationListService } from '../../modules/apps/service-recommendation-list.service.js';
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
@@ -141,13 +140,24 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     profileEligibilityService: { async check() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, useOfficialRecommendationEngine: true, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async assertEligible() { throw new Error('not used'); }, async recomputeAndStore() { throw new Error('not used'); } } satisfies ProfileEligibilityService,
     eligibleProfileChangeFeedService: { async listChanges() { return { items: [], cursor: { hasMore: false, nextCursor: null } }; }, async recordProfileSignalChange() {}, async recordEligibilityChange() {} } satisfies EligibleProfileChangeFeedService,
     eligibleProfileSnapshotService: { async createSnapshot() { throw new Error('not used'); }, async listItems() { throw new Error('not used'); } } satisfies EligibleProfileSnapshotService,
-    profileSignalBundleService: { async getBundle() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligibility: { eligible: true, eligibilityVersion: 1 }, bundle: { signalsVersion: 1, generatedAt: new Date('2024-01-01T00:00:00.000Z'), profileContext: { profileName: 'Test Profile', isKids: false, watchDataOrigin: 'server_sync' }, history: [{ item: { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '550' }] }, watchedAt: new Date('2024-01-01T00:00:00.000Z'), progressPercent: 100, completionState: 'completed', durationSeconds: null }], ratings: [], watchlist: [], continueWatching: [] }, limits: {} }; } } satisfies ProfileSignalBundleService,
     serviceRecommendationListService: serviceRecommendationListService ?? { async upsertList() { return { accountId: 'acc-999', profileId: 'prof-888', listKey: 'for-you', source: 'official-recommender', version: 1, status: 'written', itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z'), eligibility: { checkedAt: new Date('2024-01-01T00:00:00.000Z'), eligible: true, eligibilityVersion: 1 } }; }, async batchUpsert() { throw new Error('not used'); } } satisfies ServiceRecommendationListService,
     recommendationRunService: { async createRun() { throw new Error('not used'); }, async updateRun() { throw new Error('not used'); } } satisfies RecommendationRunService,
     recommendationBatchService: { async createBatch() { throw new Error('not used'); }, async updateBatch() { throw new Error('not used'); } } satisfies RecommendationBatchService,
     recommendationBackfillService: { async getAssignments() { return { assignments: [], cursor: { hasMore: false, nextCursor: null } }; } } satisfies RecommendationBackfillService,
     appAuditRepo: auditRepo,
     profileService,
+    watchReadService: {
+      async listHistoryPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
+      async listRatingsPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
+      async listWatchlistPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
+      async listContinueWatchingPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
+      async assertProfileAccess() { return { id: 'prof-888', profileGroupId: 'group-1', name: 'Test Profile', interfaceLanguage: 'en', region: null, avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false, isKids: false, sortOrder: 0, createdByUserId: 'acc-999', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' }; },
+    },
+    episodicFollowService: { async listForProfile() { return []; } },
+    recommendationOutputService: {
+      async getTasteProfileForAccountService() { return null; },
+      async upsertTasteProfileForAccountService() { return null as never; },
+    },
   });
   return app;
 }
@@ -181,7 +191,6 @@ test('legacy integrations v1 RECO endpoints are absent', async (t) => {
   const retiredPaths = [
     `${retiredBase}/recommendations/batch-upsert`,
     `${retiredBase}/profiles/eligible/changes`,
-    `${retiredBase}/accounts/acc/profiles/prof/signals/recommendation-bundle`,
     `${retiredBase}/accounts/acc/profiles/prof/config-bundle`,
     `${retiredBase}/profiles/prof/recommendation-lists/for-you`,
   ];
@@ -208,13 +217,13 @@ test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility 
   assert.equal(response.json().error.message, 'Profile not found.');
 });
 
-test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle validates ownership', async (t) => {
-  const app = await buildServer(buildPrincipal(['apps:self:read', 'profiles:eligible:read']));
+test('GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/history validates ownership', async (t) => {
+  const app = await buildServer(buildPrincipal(['apps:self:read', 'profiles:signals:read']));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
-    url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/signals/recommendation-bundle',
+    url: '/internal/apps/v1/accounts/acc-123/profiles/prof-456/signals/watch/history',
   });
 
   assert.equal(response.statusCode, 404);
@@ -258,14 +267,11 @@ test('official recommender with accounts:all:read can access profile signals acr
 
   const response = await app.inject({
     method: 'GET',
-    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/signals/recommendation-bundle',
+    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/signals/watch/history',
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json().data.bundle.history[0].item.providerRefs, [{ provider: 'tmdb', providerId: '550' }]);
-  assert.equal('itemId' in response.json().data.bundle.history[0].item, false);
-  assert.equal('ProviderIds' in response.json().data.bundle.history[0].item, false);
-  assert.equal('hints' in response.json().data.bundle.history[0].item, false);
+  assert.ok(Array.isArray(response.json().data.Items));
 });
 
 test('official recommender with accounts:all:write can write recommendations across accounts', async (t) => {
@@ -348,7 +354,7 @@ test('normal app without accounts:all:read is denied cross-account profile signa
 
   const response = await app.inject({
     method: 'GET',
-    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/signals/recommendation-bundle',
+    url: '/internal/apps/v1/accounts/acc-999/profiles/prof-888/signals/watch/history',
   });
 
   assert.equal(response.statusCode, 404);

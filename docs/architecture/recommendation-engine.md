@@ -118,14 +118,16 @@ The current RECO ingestion response acknowledges acceptance and may include only
 
 ## Source data and AI generation flow
 
-RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. The profile signal bundle endpoint is hydrated by MAIN from profile context plus canonical watch history, ratings, watchlist, continue-watching state, negative signals, and impressions.
+RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. Per the per-signal refactor, MAIN no longer exposes a single bundle endpoint; RECO issues parallel `GET` requests against the per-signal read routes (history, ratings, watchlist, continue-watching, episodic-follow, taste) plus a `profile-meta` route that returns profile-scoped fields (profileName, isKids, language, region, watchDataOrigin) for `GenerateRequest.profileContext` assembly, plus the eligibility decision.
 
-Signal records carry `RecoItemRef` values with:
+Each watch signal route returns the same `BaseItemDtoQueryResult` envelope used by the public `/v1/profiles/:profileId/watch/*` routes — a `PaginatedWatchCollection<BaseItemDto>`. RECO's `signal_bundle_mapper` extracts from each row the `Tmdb` providerId (from `ProviderIds`), the media `type` (mapping `Type === 'Series'` to `'tv'`, `'Movie'` to `'movie'`), and the `UserData` fields it needs (`LastPlayedDate`, `PlayedPercentage`, `Played`, `Rating`, `PlayCount`) to construct `RecoItemRef`-shaped inputs for its internal `GenerateRequest`. The locally-assembled bundle never travels on the wire.
+
+Signal records that RECO constructs from these reads carry `RecoItemRef` values with:
 
 - media `type` (`movie` or `tv`)
 - provider refs such as TMDB, TVDB, IMDb, or Kitsu
 
-Signal records do not carry Crispy `itemId`, `BaseItemDto`, client `UserData`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, or enriched display card payloads.
+Signal records do not carry Crispy `itemId` on RECO's write side, and RECO never persists raw `BaseItemDto`, client `UserData`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, or enriched display card payloads back to MAIN.
 
 AI-assisted generation is owned entirely by RECO. MAIN does not expose an AI-plan endpoint and never sees provider credentials, model selection, prompts, or raw vendor traffic for recommendations.
 

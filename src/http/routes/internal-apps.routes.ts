@@ -8,8 +8,11 @@ import type { AppSelfService } from '../../modules/apps/app-self.service.js';
 import type { EligibleProfileChangeFeedService } from '../../modules/apps/eligible-profile-change-feed.service.js';
 import type { EligibleProfileSnapshotService } from '../../modules/apps/eligible-profile-snapshot.types.js';
 import type { ProfileEligibilityService } from '../../modules/apps/profile-eligibility.service.js';
-import type { ProfileSignalBundleService, ProfileSignalInclude } from '../../modules/apps/profile-signal-bundle.types.js';
 import type { ServiceRecommendationListService } from '../../modules/apps/service-recommendation-list.service.js';
+import { AdminWatchReadService } from '../../modules/integrations/admin-watch-read.service.js';
+import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
+import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { withDbClient } from '../../lib/db.js';
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
@@ -25,7 +28,11 @@ import {
   createEligibleProfileSnapshotRouteSchema,
   getEligibleProfileSnapshotItemsRouteSchema,
   profileEligibilityRouteSchema,
-  profileSignalBundleRouteSchema,
+  profileSignalReadRouteSchema,
+  profileMetaReadRouteSchema,
+  tasteProfileReadRouteSchema,
+  tasteProfileWriteRouteSchema,
+  type TasteProfileWriteBody,
   accountListUpsertRouteSchema,
   batchUpsertRouteSchema,
   createRecommendationRunRouteSchema,
@@ -50,13 +57,18 @@ export interface InternalAppsRoutesDeps {
   profileEligibilityService: ProfileEligibilityService;
   eligibleProfileChangeFeedService: EligibleProfileChangeFeedService;
   eligibleProfileSnapshotService: EligibleProfileSnapshotService;
-  profileSignalBundleService: ProfileSignalBundleService;
   serviceRecommendationListService: ServiceRecommendationListService;
   recommendationRunService: RecommendationRunService;
   recommendationBatchService: RecommendationBatchService;
   recommendationBackfillService: RecommendationBackfillService;
   appAuditRepo: AppAuditRepo;
   profileService?: ProfileOwnershipValidator;
+  /** Read service for per-signal watch routes. Defaults to AdminWatchReadService. */
+  watchReadService?: Pick<AdminWatchReadService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'assertProfileAccess'>;
+  /** Read service for episodic-follow signal route. Defaults to EpisodicFollowService. */
+  episodicFollowService?: Pick<EpisodicFollowService, 'listForProfile'>;
+  /** Service for taste read/write signal routes. Defaults to RecommendationOutputService. */
+  recommendationOutputService?: Pick<RecommendationOutputService, 'getTasteProfileForAccountService' | 'upsertTasteProfileForAccountService'>;
 }
 
 function hasScopedAllAccountAccess(principal: AppPrincipal, scope: AppScope): boolean {
@@ -200,29 +212,154 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     }), request);
   });
 
-  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/recommendation-bundle', { schema: profileSignalBundleRouteSchema }, async (request) => {
+  // ── Per-signal read routes (reco pulls each signal individually) ───────
+  //    These mirror the public /v1/profiles/:profileId/watch/* routes but
+  //    accept any (accountId, profileId) when the caller holds
+  //    accounts:all:read (reco). Same BaseItemDtoQueryResult envelope, same
+  //    paginated shape — no bundle-only DTOs.
+
+  const watchReadService = deps.watchReadService ?? new AdminWatchReadService();
+  const episodicFollowService = deps.episodicFollowService ?? new EpisodicFollowService();
+  const recommendationOutputService = deps.recommendationOutputService ?? new RecommendationOutputService();
+  const usingInjectedWatchReadService = deps.watchReadService !== undefined;
+  // When test deps inject a fake watchReadService, skip the withDbClient
+  // wrapper (the fake doesn't need a real Postgres client).
+  const runWithClient = <T>(work: (client: import('../../lib/db.js').DbClient) => Promise<T>): Promise<T> =>
+    usingInjectedWatchReadService ? work({} as import('../../lib/db.js').DbClient) : withDbClient(work);
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/profile-meta', { schema: profileMetaReadRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
-    const query = request.query as { include?: string; historyLimit?: string; ratingsLimit?: string; watchlistLimit?: string; continueLimit?: string; since?: string };
-    const hasAllAccountRead = hasScopedAllAccountAccess(principal, 'accounts:all:read');
-    if (!hasAllAccountRead) {
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    return success(await deps.profileSignalBundleService.getBundle({
-      principal,
+    const profile = await runWithClient(async (client) => watchReadService.assertProfileAccess(client, params));
+    return success({
+      profileName: profile.name,
+      isKids: profile.isKids,
+      language: profile.interfaceLanguage ?? null,
+      region: profile.region ?? null,
+      watchDataOrigin: 'internal',
+    }, request);
+  });
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/history', { schema: profileSignalReadRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    const query = request.query as { limit?: string; cursor?: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
+    const page = await runWithClient((client) => watchReadService.listHistoryPage(client, {
       accountId: params.accountId,
       profileId: params.profileId,
-      purpose: 'recommendation-generation',
-      include: query.include ? query.include.split(',').map((item) => item.trim()).filter(Boolean) as ProfileSignalInclude[] : undefined,
-      limits: {
-        historyLimit: query.historyLimit ? Number(query.historyLimit) : undefined,
-        ratingsLimit: query.ratingsLimit ? Number(query.ratingsLimit) : undefined,
-        watchlistLimit: query.watchlistLimit ? Number(query.watchlistLimit) : undefined,
-        continueLimit: query.continueLimit ? Number(query.continueLimit) : undefined,
-      },
-      since: query.since ? new Date(query.since) : undefined,
-    }), request);
+      limit: query.limit ? Number(query.limit) : 100,
+      cursor: query.cursor ?? null,
+    }));
+    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+  });
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/ratings', { schema: profileSignalReadRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    const query = request.query as { limit?: string; cursor?: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
+    const page = await runWithClient((client) => watchReadService.listRatingsPage(client, {
+      accountId: params.accountId,
+      profileId: params.profileId,
+      limit: query.limit ? Number(query.limit) : 100,
+      cursor: query.cursor ?? null,
+    }));
+    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+  });
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/watchlist', { schema: profileSignalReadRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    const query = request.query as { limit?: string; cursor?: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
+    const page = await runWithClient((client) => watchReadService.listWatchlistPage(client, {
+      accountId: params.accountId,
+      profileId: params.profileId,
+      limit: query.limit ? Number(query.limit) : 50,
+      cursor: query.cursor ?? null,
+    }));
+    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+  });
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/continue-watching', { schema: profileSignalReadRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    const query = request.query as { limit?: string; cursor?: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
+    const page = await runWithClient((client) => watchReadService.listContinueWatchingPage(client, {
+      accountId: params.accountId,
+      profileId: params.profileId,
+      limit: query.limit ? Number(query.limit) : 20,
+      cursor: query.cursor ?? null,
+    }));
+    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+  });
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/episodic-follow', { schema: profileSignalReadRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    const query = request.query as { limit?: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
+    const items = await runWithClient(async (client) => {
+      await watchReadService.assertProfileAccess(client, params);
+      return episodicFollowService.listForProfile(client, params.profileId, query.limit ? Number(query.limit) : 20);
+    });
+    return success({ Items: items, StartIndex: 0, TotalRecordCount: items.length, NextCursor: null, HasMore: false }, request);
+  });
+
+  // ── Taste profile read (GET) + write-back (PUT) ───────────────────────
+  //    Reco reads a previously stored taste here and pushes a refreshed one
+  //    back via PUT, using the same taste_profiles table as the public
+  //    /v1/.../taste-profile route. Both routes go through the existing
+  //    ...ForAccountService methods of RecommendationOutputService which
+  //    resolve cross-account access via requireOwnedProfileForAccount.
+
+  app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/taste', { schema: tasteProfileReadRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    const query = request.query as { sourceKey?: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
+    const sourceKey = typeof query.sourceKey === 'string' && query.sourceKey.trim() ? query.sourceKey : 'default';
+    const tasteProfile = await recommendationOutputService.getTasteProfileForAccountService(params.accountId, params.profileId, sourceKey);
+    return success({ tasteProfile }, request);
+  });
+
+  app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/taste', { schema: tasteProfileWriteRouteSchema }, async (request) => {
+    const principal = await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string; profileId: string };
+    if (!hasScopedAllAccountAccess(principal, 'accounts:all:write')) {
+      await profileService.requireOwnedProfile(params.accountId, params.profileId);
+    }
+    await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId });
+    const body = request.body as TasteProfileWriteBody;
+    const tasteProfile = await recommendationOutputService.upsertTasteProfileForAccountService(params.accountId, params.profileId, {
+      ...body,
+      updatedById: principal.keyId ?? null,
+    });
+    return success({ tasteProfile }, request);
   });
 
   app.get('/internal/apps/v1/accounts/lookup-by-email/:email/profiles', { schema: accountLookupRouteSchema }, async (request) => {

@@ -206,12 +206,11 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/recommendation-bundle:
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/history:
     get:
-      tags: [Signal Bundles]
-      operationId: getInternalRecommendationSignalBundle
-      summary: Return recommendation signal bundle for a profile
-      description: 'Uses canonical provider limit query names: historyLimit, ratingsLimit, watchlistLimit, continueLimit.'
+      tags: [Profile Signals]
+      operationId: getInternalProfileWatchHistory
+      summary: Read a profile's watch history (reco service-readable, shared shape with public)
       x-internal: true
       x-owner: crispy-server
       x-consumers: [crispy-recommendation-engine]
@@ -222,37 +221,228 @@ paths:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/RequestId'
         - $ref: '#/components/parameters/CorrelationId'
-        - name: historyLimit
+        - name: limit
           in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: ratingsLimit
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: cursor
           in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: watchlistLimit
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: continueLimit
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 500 }
-        - name: include
-          in: query
-          description: Comma-separated signal families to include.
-          schema: { type: string, example: history,ratings,watchlist,continue }
-        - name: since
-          in: query
-          description: Optional lower bound for incremental signal reads.
-          schema: { type: string, format: date-time }
+          schema: { type: string }
       responses:
         '200':
-          description: Recommendation signals.
+          description: Watch history page (BaseItemDtoQueryResult envelope, shared with public app).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/RecommendationSignalBundleResponse' }
-              examples:
-                full:
-                  externalValue: ./examples/signal-bundle/response.full.json
-                minimal:
-                  externalValue: ./examples/signal-bundle/response.minimal.json
+              schema: { $ref: '#/components/schemas/ProfileReadSignalResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/ratings:
+    get:
+      tags: [Profile Signals]
+      operationId: getInternalProfileWatchRatings
+      summary: Read a profile's ratings (reco service-readable, shared shape with public)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ratings page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileReadSignalResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/watchlist:
+    get:
+      tags: [Profile Signals]
+      operationId: getInternalProfileWatchlist
+      summary: Read a profile's watchlist (reco service-readable, shared shape with public)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Watchlist page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileReadSignalResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/continue-watching:
+    get:
+      tags: [Profile Signals]
+      operationId: getInternalProfileContinueWatching
+      summary: Read a profile's continue-watching (reco service-readable, shared shape with public)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Continue-watching page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileReadSignalResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/watch/episodic-follow:
+    get:
+      tags: [Profile Signals]
+      operationId: getInternalProfileEpisodicFollow
+      summary: Read a profile's tracked series (reco service-readable, shared shape with public)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Tracked-series page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileReadSignalResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/profile-meta:
+    get:
+      tags: [Profile Signals]
+      operationId: getInternalProfileMeta
+      summary: Read profile-scoped metadata (profileName, isKids, language, region) for reco GenerateRequest.profileContext
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Profile metadata for reco.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileMetaReadResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/signals/taste:
+    get:
+      tags: [Profile Signals]
+      operationId: getInternalProfileTasteProfile
+      summary: Read a profile's stored taste profile (reco service-readable)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: sourceKey
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Stored taste profile for the profile (or null when not yet present).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TasteProfileReadResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [Profile Signals]
+      operationId: putInternalProfileTasteProfile
+      summary: Push an updated taste profile back for a profile (reco pushes taste)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TasteProfileWriteRequest' }
+      responses:
+        '200':
+          description: Stored taste profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TasteProfileReadResponse' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
@@ -972,40 +1162,6 @@ components:
           oneOf:
             - $ref: '#/components/schemas/UserItemData'
             - type: 'null'
-    ProfileHistorySignal:
-      type: object
-      additionalProperties: false
-      required: [item, watchedAt, progressPercent, completionState, durationSeconds]
-      properties:
-        item: { $ref: '#/components/schemas/RecoItemRef' }
-        watchedAt: { type: string, format: date-time }
-        progressPercent: { type: number }
-        completionState: { type: string, enum: [completed, partial, unknown] }
-        durationSeconds: { type: [number, 'null'] }
-    ProfileRatingSignal:
-      type: object
-      additionalProperties: false
-      required: [item, rating, ratedAt, ratingSource]
-      properties:
-        item: { $ref: '#/components/schemas/RecoItemRef' }
-        rating: { type: number }
-        ratedAt: { type: string, format: date-time }
-        ratingSource: { type: [string, 'null'] }
-    ProfileWatchlistSignal:
-      type: object
-      additionalProperties: false
-      required: [item, addedAt]
-      properties:
-        item: { $ref: '#/components/schemas/RecoItemRef' }
-        addedAt: { type: string, format: date-time }
-    ProfileContinueWatchingSignal:
-      type: object
-      additionalProperties: false
-      required: [item, progressPercent, updatedAt]
-      properties:
-        item: { $ref: '#/components/schemas/RecoItemRef' }
-        progressPercent: { type: number }
-        updatedAt: { type: string, format: date-time }
     AppSelfResponse:
       type: object
       additionalProperties: false
@@ -1123,43 +1279,89 @@ components:
         reasons: { type: array, items: { type: string } }
         policy: { $ref: '#/components/schemas/Metadata' }
         checkedAt: { type: string, format: date-time }
-    RecommendationSignalBundleResponse:
+    ProfileReadSignalResponse:
+      description: 'Shared per-signal read envelope. Same shape as the public-app BaseItemDtoQueryResult envelope — a success envelope wrapping a paginated collection of BaseItemDto items. Consumed verbatim by the reco engine as one individual signal input.'
       type: object
-      additionalProperties: true
-      required: [accountId, profileId, eligibility, bundle]
+      required: [data, meta]
       properties:
-        accountId: { type: string }
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Metadata' }
+            totalCount: { type: integer, minimum: 0 }
+            startIndex: { type: integer, minimum: 0 }
+            cursor: { type: [string, 'null'] }
+        meta:
+          type: object
+          properties:
+            requestId: { type: string }
+    ProfileMetaReadResponse:
+      description: 'Profile-scoped metadata returned by the per-signal profile-meta route. Consumed by the reco engine to assemble GenerateRequest.profileContext (profileName, isKids, language, region, watchDataOrigin).'
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [profileName, isKids, language, region, watchDataOrigin]
+          properties:
+            profileName: { type: string }
+            isKids: { type: boolean }
+            language: { type: [string, 'null'] }
+            region: { type: [string, 'null'] }
+            watchDataOrigin: { type: string }
+        meta:
+          type: object
+          properties:
+            requestId: { type: string }
+    TasteProfileReadResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [tasteProfile]
+          properties:
+            tasteProfile:
+              oneOf:
+                - $ref: '#/components/schemas/TasteProfileRecord'
+                - type: 'null'
+    TasteProfileWriteRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceKey, genres, preferredActors, preferredDirectors, contentTypePref, ratingTendency, decadePreferences, watchingPace, aiSummary, source]
+      properties:
+        sourceKey: { type: string, minLength: 1 }
+        genres: { type: array, items: { type: string } }
+        preferredActors: { type: array, items: { type: string } }
+        preferredDirectors: { type: array, items: { type: string } }
+        contentTypePref: { $ref: '#/components/schemas/Metadata' }
+        ratingTendency: { $ref: '#/components/schemas/Metadata' }
+        decadePreferences: { type: array, items: { type: string } }
+        watchingPace: { type: [string, 'null'] }
+        aiSummary: { type: [string, 'null'] }
+        source: { type: string, minLength: 1 }
+    TasteProfileRecord:
+      type: object
+      required: [profileId, sourceKey, genres, preferredActors, preferredDirectors, contentTypePref, ratingTendency, decadePreferences, watchingPace, aiSummary, source, updatedByKind, version, createdAt, updatedAt]
+      properties:
         profileId: { type: string }
-        purpose: { type: string }
-        eligibility:
-          type: object
-          additionalProperties: true
-          required: [eligible]
-          properties:
-            eligible: { type: boolean }
-            eligibilityVersion: { type: integer, minimum: 0 }
-            reason: { type: string }
-        bundle:
-          type: object
-          additionalProperties: true
-          required: [profileContext]
-          properties:
-            signalsVersion: { type: integer, minimum: 0 }
-            generatedAt: { type: string, format: date-time }
-            profileContext: { $ref: '#/components/schemas/Metadata' }
-            history: { type: array, items: { $ref: '#/components/schemas/ProfileHistorySignal' } }
-            watchHistory: { type: array, items: { $ref: '#/components/schemas/ProfileHistorySignal' } }
-            ratings: { type: array, items: { $ref: '#/components/schemas/ProfileRatingSignal' } }
-            watchlist: { type: array, items: { $ref: '#/components/schemas/ProfileWatchlistSignal' } }
-            continueWatching: { type: array, items: { $ref: '#/components/schemas/ProfileContinueWatchingSignal' } }
-        limits:
-          type: object
-          additionalProperties: true
-          properties:
-            historyLimitApplied: { type: integer, minimum: 0 }
-            ratingsLimitApplied: { type: integer, minimum: 0 }
-            watchlistLimitApplied: { type: integer, minimum: 0 }
-            continueLimitApplied: { type: integer, minimum: 0 }
+        sourceKey: { type: string }
+        genres: { type: array, items: { type: string } }
+        preferredActors: { type: array, items: { type: string } }
+        preferredDirectors: { type: array, items: { type: string } }
+        contentTypePref: { $ref: '#/components/schemas/Metadata' }
+        ratingTendency: { $ref: '#/components/schemas/Metadata' }
+        decadePreferences: { type: array, items: { type: string } }
+        watchingPace: { type: [string, 'null'] }
+        aiSummary: { type: [string, 'null'] }
+        source: { type: string }
+        updatedByKind: { type: string }
+        updatedById: { type: [string, 'null'] }
+        version: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     RecommendationListUpsertRequest:
       type: object
       additionalProperties: false

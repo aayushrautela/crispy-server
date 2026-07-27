@@ -435,142 +435,21 @@ export const recoItemRefSchema = {
   },
 } as const;
 
-export const profileHistorySignalSchema = {
+// ── Per-signal read routes (history, ratings, watchlist, continue-watching,
+//    episodic-follow) — shared shape with the public watch routes. The reco
+//    engine hits these individually (parallel) instead of one bundle.
+//    Response is the same BaseItemDtoQueryResult envelope used by /v1. ▼▼▼
+
+export const profileSignalReadQuerySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['item', 'watchedAt', 'progressPercent', 'completionState', 'durationSeconds'],
   properties: {
-    item: recoItemRefSchema,
-    watchedAt: dateTimeSchema,
-    progressPercent: numberSchema,
-    completionState: { type: 'string', enum: ['completed', 'partial', 'unknown'] },
-    durationSeconds: nullableNumberSchema,
+    limit: stringSchema,
+    cursor: stringSchema,
   },
 } as const;
 
-export const profileRatingSignalSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['item', 'rating', 'ratedAt', 'ratingSource'],
-  properties: {
-    item: recoItemRefSchema,
-    rating: numberSchema,
-    ratedAt: dateTimeSchema,
-    ratingSource: nullableStringSchema,
-  },
-} as const;
-
-export const profileWatchlistSignalSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['item', 'addedAt'],
-  properties: {
-    item: recoItemRefSchema,
-    addedAt: dateTimeSchema,
-  },
-} as const;
-
-export const profileContinueWatchingSignalSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['item', 'progressPercent', 'updatedAt'],
-  properties: {
-    item: recoItemRefSchema,
-    progressPercent: numberSchema,
-    updatedAt: dateTimeSchema,
-  },
-} as const;
-
-export const profileNegativeSignalSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['item', 'reason', 'createdAt'],
-  properties: {
-    item: recoItemRefSchema,
-    reason: stringSchema,
-    createdAt: dateTimeSchema,
-  },
-} as const;
-
-export const profileRecentImpressionSignalSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['listKey', 'item', 'shownAt'],
-  properties: {
-    listKey: stringSchema,
-    item: recoItemRefSchema,
-    shownAt: dateTimeSchema,
-  },
-} as const;
-
-export const profileSignalBundleEligibilitySchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['eligible', 'eligibilityVersion'],
-  properties: {
-    eligible: booleanSchema,
-    eligibilityVersion: integerSchema,
-  },
-} as const;
-
-export const profileSignalBundleLimitsSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    historyLimitApplied: integerSchema,
-    ratingsLimitApplied: integerSchema,
-    watchlistLimitApplied: integerSchema,
-    continueLimitApplied: integerSchema,
-  },
-} as const;
-
-export const profileSignalBundleInnerSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['signalsVersion', 'generatedAt', 'profileContext'],
-  properties: {
-    signalsVersion: integerSchema,
-    generatedAt: dateTimeSchema,
-    profileContext: profileContextSignalSchema,
-    language: profileLanguageSignalsSchema,
-    taste: profileTasteSignalsSchema,
-    history: { type: 'array', items: profileHistorySignalSchema },
-    ratings: { type: 'array', items: profileRatingSignalSchema },
-    watchlist: { type: 'array', items: profileWatchlistSignalSchema },
-    continueWatching: { type: 'array', items: profileContinueWatchingSignalSchema },
-    negativeSignals: { type: 'array', items: profileNegativeSignalSchema },
-    recentImpressions: { type: 'array', items: profileRecentImpressionSignalSchema },
-  },
-} as const;
-
-export const profileSignalBundleDataSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['accountId', 'profileId', 'purpose', 'eligibility', 'bundle', 'limits'],
-  properties: {
-    accountId: stringSchema,
-    profileId: stringSchema,
-    purpose: { type: 'string', enum: ['recommendation-generation'] },
-    eligibility: profileSignalBundleEligibilitySchema,
-    bundle: profileSignalBundleInnerSchema,
-    limits: profileSignalBundleLimitsSchema,
-  },
-} as const;
-export const profileSignalBundleResponseSchema = successEnvelope(profileSignalBundleDataSchema);
-
-export const profileSignalBundleQuerySchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    include: stringSchema,
-    historyLimit: stringSchema,
-    ratingsLimit: stringSchema,
-    watchlistLimit: stringSchema,
-    continueLimit: stringSchema,
-    since: stringSchema,
-  },
-} as const;
-export const profileSignalBundleRouteSchema = withDefaultErrorResponses({
+export const profileSignalReadRouteSchema = withDefaultErrorResponses({
   params: {
     type: 'object',
     additionalProperties: false,
@@ -580,8 +459,146 @@ export const profileSignalBundleRouteSchema = withDefaultErrorResponses({
       profileId: nonEmptyStringSchema,
     },
   },
-  querystring: profileSignalBundleQuerySchema,
-  response: { 200: profileSignalBundleResponseSchema },
+  querystring: profileSignalReadQuerySchema,
+});
+
+// ── Profile metadata read (reco pulls profileContext fields) ──────────
+//    Returns the profile-scoped fields reco needs to assemble its
+//    GenerateRequest.profileContext (profileName, isKids, language,
+//    region, watchDataOrigin). These are not part of any watch signal.
+
+export const profileMetaReadResponseSchema = successEnvelope({
+  type: 'object',
+  additionalProperties: false,
+  required: ['profileName', 'isKids', 'language', 'region', 'watchDataOrigin'],
+  properties: {
+    profileName: stringSchema,
+    isKids: { type: 'boolean' },
+    language: nullableStringSchema,
+    region: nullableStringSchema,
+    watchDataOrigin: stringSchema,
+  },
+} as const);
+
+export const profileMetaReadRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['accountId', 'profileId'],
+    properties: {
+      accountId: nonEmptyStringSchema,
+      profileId: nonEmptyStringSchema,
+    },
+  },
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+  } as const,
+  response: { 200: profileMetaReadResponseSchema },
+});
+
+// ── Taste profile read (GET) and write-back (PUT) ─────────────────────
+
+export const tasteProfileReadQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    sourceKey: stringSchema,
+  },
+} as const;
+
+export const tasteProfileRecordSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['profileId', 'sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source', 'updatedByKind', 'version', 'createdAt', 'updatedAt'],
+  properties: {
+    profileId: stringSchema,
+    sourceKey: stringSchema,
+    genres: { type: 'array', items: stringSchema },
+    preferredActors: { type: 'array', items: stringSchema },
+    preferredDirectors: { type: 'array', items: stringSchema },
+    contentTypePref: recordSchema,
+    ratingTendency: recordSchema,
+    decadePreferences: { type: 'array', items: stringSchema },
+    watchingPace: nullableStringSchema,
+    aiSummary: nullableStringSchema,
+    source: stringSchema,
+    updatedByKind: stringSchema,
+    updatedById: nullableStringSchema,
+    version: integerSchema,
+    createdAt: dateTimeSchema,
+    updatedAt: dateTimeSchema,
+  },
+} as const;
+
+export const tasteProfileReadResponseSchema = successEnvelope({
+  type: 'object',
+  additionalProperties: false,
+  required: ['tasteProfile'],
+  properties: {
+    tasteProfile: {
+      anyOf: [tasteProfileRecordSchema, { type: 'null' }],
+    },
+  },
+} as const);
+
+export const tasteProfileReadRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['accountId', 'profileId'],
+    properties: {
+      accountId: nonEmptyStringSchema,
+      profileId: nonEmptyStringSchema,
+    },
+  },
+  querystring: tasteProfileReadQuerySchema,
+  response: { 200: tasteProfileReadResponseSchema },
+});
+
+export const tasteProfileWriteBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source'],
+  properties: {
+    sourceKey: nonEmptyStringSchema,
+    genres: { type: 'array', items: stringSchema },
+    preferredActors: { type: 'array', items: stringSchema },
+    preferredDirectors: { type: 'array', items: stringSchema },
+    contentTypePref: recordSchema,
+    ratingTendency: recordSchema,
+    decadePreferences: { type: 'array', items: stringSchema },
+    watchingPace: nullableStringSchema,
+    aiSummary: nullableStringSchema,
+    source: nonEmptyStringSchema,
+  },
+} as const;
+export type TasteProfileWriteBody = {
+  sourceKey: string;
+  genres: string[];
+  preferredActors: string[];
+  preferredDirectors: string[];
+  contentTypePref: Record<string, unknown>;
+  ratingTendency: Record<string, unknown>;
+  decadePreferences: string[];
+  watchingPace: string | null;
+  aiSummary: string | null;
+  source: string;
+};
+
+export const tasteProfileWriteRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['accountId', 'profileId'],
+    properties: {
+      accountId: nonEmptyStringSchema,
+      profileId: nonEmptyStringSchema,
+    },
+  },
+  body: tasteProfileWriteBodySchema,
+  response: { 200: tasteProfileReadResponseSchema },
 });
 
 // ── Upsert Service Recommendation List ────────────────────────

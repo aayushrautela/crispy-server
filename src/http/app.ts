@@ -44,12 +44,6 @@ import { DefaultEligibleProfileChangeFeedService } from '../modules/apps/eligibl
 import { SqlEligibleProfileChangeFeedRepo } from '../modules/apps/eligible-profile-change-feed.repo.js';
 import { DefaultEligibleProfileSnapshotService } from '../modules/apps/eligible-profile-snapshot.service.js';
 import { SqlEligibleProfileSnapshotRepo } from '../modules/apps/eligible-profile-snapshot.repo.js';
-import { DefaultProfileSignalBundleService } from '../modules/apps/profile-signal-bundle.service.js';
-import { ProfileAccessService } from '../modules/profiles/profile-access.service.js';
-import { ProfileInputSignalFacade } from '../modules/recommendations/profile-input-signal.facade.js';
-import { SqlProfileInputSignalCacheRepo } from '../modules/recommendations/profile-input-signal-cache.repo.js';
-import { ProfileInputSignalCacheService } from '../modules/recommendations/profile-input-signal-cache.service.js';
-import { PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION } from '../modules/recommendations/profile-input-signal-cache.types.js';
 import { SignedAppCursorCodec } from '../modules/apps/app-cursor-codec.js';
 import { SqlServiceRecommendationListRepo } from '../modules/apps/service-recommendation-list.repo.js';
 import { DefaultServiceRecommendationListService } from '../modules/apps/service-recommendation-list.service.js';
@@ -128,67 +122,6 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     maxSnapshotCreateLimit: 100000,
     maxSnapshotReadLimit: 500,
   });
-  const profileInputSignalCacheRepo = new SqlProfileInputSignalCacheRepo({ db });
-  const profileInputSignalCacheService = new ProfileInputSignalCacheService({
-    repo: profileInputSignalCacheRepo,
-    policy: {
-      forceLive: true,
-      readEnabled: false,
-      writeEnabled: false,
-      observeOnly: false,
-      schemaVersion: PROFILE_INPUT_SIGNAL_CACHE_SCHEMA_VERSION,
-      readRolloutPercent: 0,
-      ttlSecondsByFamily: {
-        history: 10 * 60,
-        ratings: 10 * 60,
-        watchlist: 10 * 60,
-        continueWatching: 2 * 60,
-        trackedSeries: 10 * 60,
-      },
-    },
-    logger: {
-      logCacheDecision: (event) => logger.debug({ event: 'profile_input_signal_cache_decision', ...event }),
-      logCacheRead: (event) => logger.info({ event: 'profile_input_signal_cache_read', ...event }),
-      logCacheWrite: (event) => logger.info({ event: 'profile_input_signal_cache_write', ...event }),
-      logCacheError: (event) => logger.warn({ event: 'profile_input_signal_cache_error', ...event }),
-    },
-  });
-  const profileInputSignalFacade = new ProfileInputSignalFacade({
-    cacheService: profileInputSignalCacheService,
-    defaults: {
-      historyDefault: 100,
-      historyMax: 500,
-      ratingsDefault: 100,
-      ratingsMax: 500,
-      watchlistDefault: 50,
-      watchlistMax: 200,
-      continueDefault: 20,
-      continueMax: 50,
-      trackedSeriesDefault: 20,
-      trackedSeriesMax: 100,
-    },
-  });
-  const profileSignalBundleService = new DefaultProfileSignalBundleService({
-    facade: profileInputSignalFacade,
-    profileEligibilityService,
-    appAuthorizationService,
-    profileAccessService: new ProfileAccessService(),
-    appAuditRepo: authDeps.appAuditRepo,
-    clock: authDeps.clock,
-    defaults: {
-      historyDefault: 100,
-      historyMax: 500,
-      ratingsDefault: 100,
-      ratingsMax: 500,
-      watchlistDefault: 50,
-      watchlistMax: 200,
-      continueDefault: 20,
-      continueMax: 50,
-      tasteGenresMax: 50,
-      tastePeopleMax: 50,
-      tasteKeywordsMax: 50,
-    },
-  });
   const homeListsRepo = new HomeListsRepo({ db });
   const homeWriteService = new DefaultHomeWriteService({
     repo: homeListsRepo,
@@ -235,8 +168,6 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     profileEligibilityService,
     eligibleProfileChangeFeedService,
     eligibleProfileSnapshotService,
-    profileSignalBundleService,
-    profileInputSignalFacade,
     serviceRecommendationListService,
     recommendationRunService,
     recommendationBatchService,

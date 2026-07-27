@@ -108,8 +108,6 @@ for (const [schema, file] of [
   ['EligibleProfileSnapshotItemsResponse', 'openapi/examples/eligible-snapshots/items.response.empty.json'],
   ['ProfileEligibilityResponse', 'openapi/examples/profile-eligibility/response.eligible.json'],
   ['ProfileEligibilityResponse', 'openapi/examples/profile-eligibility/response.ineligible.json'],
-  ['RecommendationSignalBundleResponse', 'openapi/examples/signal-bundle/response.full.json'],
-  ['RecommendationSignalBundleResponse', 'openapi/examples/signal-bundle/response.minimal.json'],
   ['RecommendationListUpsertRequest', 'openapi/examples/recommendation-list-upsert/request.valid.json'],
   ['CanonicalErrorEnvelope', 'openapi/examples/recommendation-list-upsert/error.unsupported-field.json'],
   ['RecommendationBatchUpsertRequest', 'openapi/examples/batch-upsert/request.valid.json'],

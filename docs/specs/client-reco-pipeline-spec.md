@@ -155,75 +155,61 @@ Rules:
 - RECO must not infer Crispy canonical identity from provider priority. MAIN owns canonicalization.
 - RECO signals must not include Crispy `itemId`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, client watch DTOs, or `BaseItemDto.UserData`.
 
-### RECO signal bundle
+### RECO signal pipeline (per-signal reads)
+
+Per the [per-signal refactor](per-signal-refactor-plan.md), MAIN no longer exposes
+a single bundle endpoint. RECO fetches individual signals in parallel via:
+
+- `GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/history`
+- `GET .../signals/watch/ratings`
+- `GET .../signals/watch/watchlist`
+- `GET .../signals/watch/continue-watching`
+- `GET .../signals/watch/episodic-follow`
+- `GET .../signals/profile-meta` — returns `{ profileName, isKids, language, region, watchDataOrigin }` for `GenerateRequest.profileContext` assembly
+- `GET .../signals/taste` (reco reads a previously stored taste record)
+- `PUT .../signals/taste` (reco pushes refreshed taste back, sharing the same `taste_profiles` table as the public list route)
+- `GET .../eligibility` — eligibility decision before reco proceeds
+
+All watch signal routes return the same `BaseItemDtoQueryResult` envelope used by the
+public `/v1/profiles/:profileId/watch/*` routes (a `PaginatedWatchCollection<BaseItemDto>`).
+RECO assembles a local `RecommendationBundle` from these results and feeds it to its
+`signal_bundle_mapper`. The mapper extracts each row's `ProviderIds.Tmdb`, `Type`
+(`'Series'` → `'tv'`, `'Movie'` → `'movie'`), and `UserData` fields (`LastPlayedDate`,
+`PlayedPercentage`, `Played`, `Rating`, `PlayCount`) into `RecoItemRef`-shaped inputs
+for `GenerateRequest`.
 
 ```ts
+// Local bundle reco assembles after the per-signal reads (no longer on the wire).
 type RecoSignalBundle = {
   accountId: string;
   profileId: string;
-  purpose: 'recommendation-generation';
-  generatedAt: string;
-  signalsVersion: number;
+  purpose?: 'recommendation-generation';
   eligibility: {
     eligible: boolean;
-    eligibilityVersion: number;
+    eligibilityVersion?: number;
+    reason?: string;
   };
-  profile: {
-    displayName: string;
-    isKids: boolean;
-    language: string | null;
-    region: string | null;
-    maturityRating: string | null;
+  bundle: {
+    profileContext: {
+      profileName: string;
+      isKids: boolean;
+      watchDataOrigin: string;
+      language?: string;
+      region?: string;
+    };
+    history: BaseItemDto[];          // rows from /watch/history
+    ratings: BaseItemDto[];          // rows from /watch/ratings
+    watchlist: BaseItemDto[];         // rows from /watch/watchlist
+    continueWatching: BaseItemDto[]; // rows from /watch/continue-watching
+    episodicFollow?: BaseItemDto[];  // rows from /watch/episodic-follow
+    taste?: TasteProfileRecord | null; // from /signals/taste
   };
-  signals: {
-    history: RecoHistorySignal[];
-    ratings: RecoRatingSignal[];
-    watchlist: RecoWatchlistSignal[];
-    continueWatching: RecoContinueSignal[];
-    negative: RecoNegativeSignal[];
-    impressions: RecoImpressionSignal[];
-  };
-  limits: Record<string, number>;
-};
-
-type RecoHistorySignal = {
-  item: RecoItemRef;
-  watchedAt: string;
-  progressPercent: number;
-  completionState: 'completed' | 'partial' | 'unknown';
-  durationSeconds: number | null;
-};
-
-type RecoRatingSignal = {
-  item: RecoItemRef;
-  rating: number;
-  ratedAt: string;
-  ratingSource: string | null;
-};
-
-type RecoWatchlistSignal = {
-  item: RecoItemRef;
-  addedAt: string;
-};
-
-type RecoContinueSignal = {
-  item: RecoItemRef;
-  progressPercent: number;
-  updatedAt: string;
-};
-
-type RecoNegativeSignal = {
-  item: RecoItemRef;
-  reason: string;
-  createdAt: string;
-};
-
-type RecoImpressionSignal = {
-  item: RecoItemRef;
-  listKey: string;
-  shownAt: string;
 };
 ```
+
+`RecoItemRef` is reconstructed by reco's mapper from the BaseItemDto rows (`Type` +
+`ProviderIds.Tmdb`). It still follows the rules below: RECO items are provider-ref +
+`type`; never `BaseItemDto` on the *write* side.
 
 ## RECO write pipeline
 
@@ -400,7 +386,7 @@ The following legacy paths have been removed. Do not reintroduce them:
 - Public home recommendations contain `ClientHomeSection[]` and `ClientMediaCard[]` only.
 - Public home recommendations contain `title` and `subtitle` for each section.
 - Public home cards may carry a `trailerUrl` resolved by MAIN at read time from TMDB.
-- RECO signal bundle item fields are `RecoItemRef`, never `BaseItemDto`.
+- RECO writes `RecoItemRef` to MAIN, never `BaseItemDto`. (On the *read* side, MAIN returns `BaseItemDto` rows for each watch signal; reco's signal_bundle_mapper extracts the `Tmdb` providerId and `Type` to construct `RecoItemRef` for its internal `GenerateRequest`.)
 - RECO signals and writes use provider refs plus `type`, not Crispy `itemId`.
 - MAIN resolves all writes to canonical public item IDs before storage.
 - No recommendation storage path writes provider media keys as `contentId`.
