@@ -1723,6 +1723,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: itemId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
@@ -1764,22 +1769,14 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
-            maxLength: 512
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
+            $ref: "#/components/schemas/PublicItemId"
       responses:
-        "204":
-          description: Resource deleted or cleared.
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1822,13 +1819,37 @@ paths:
               properties:
                 itemId:
                   $ref: "#/components/schemas/PublicItemId"
+                clientEventId:
+                  type: string
+                eventType:
+                  type: string
+                  enum: [playback_progress, playback_completed]
+                positionSeconds:
+                  type: number
+                  format: double
+                  nullable: true
+                durationSeconds:
+                  type: number
+                  format: double
+                  nullable: true
+                rating:
+                  type: number
+                  format: double
+                  nullable: true
+                occurredAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
-        "201":
+        "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1869,6 +1890,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: itemId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
@@ -1918,13 +1944,24 @@ paths:
               properties:
                 itemId:
                   $ref: "#/components/schemas/PublicItemId"
+                occurredAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                rating:
+                  type: number
+                  format: double
+                  nullable: true
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
-        "201":
+        "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1965,14 +2002,30 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              type: object
+              additionalProperties: false
+              required:
+                - rating
+              properties:
+                rating:
+                  type: number
+                  format: double
+                  minimum: 1
+                  maximum: 10
+                occurredAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
         "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2008,8 +2061,12 @@ paths:
           schema:
             $ref: "#/components/schemas/PublicItemId"
       responses:
-        "204":
-          description: Resource deleted or cleared.
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2050,6 +2107,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: itemId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
@@ -2098,7 +2160,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/BaseItemDtoEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2135,6 +2197,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required:
                 - items
               properties:
@@ -2142,13 +2205,14 @@ paths:
                   type: array
                   items:
                     type: object
+                    additionalProperties: false
                     required:
                       - itemId
                     properties:
                       itemId:
                         $ref: "#/components/schemas/PublicItemId"
       responses:
-        "201":
+        "200":
           description: Successful response.
           content:
             application/json:
@@ -2196,13 +2260,24 @@ paths:
               properties:
                 itemId:
                   $ref: "#/components/schemas/PublicItemId"
+                occurredAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                rating:
+                  type: number
+                  format: double
+                  nullable: true
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
-        "201":
+        "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2243,6 +2318,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: itemId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PublicItemId"
       responses:
         "200":
           description: Successful response.
@@ -2285,29 +2365,32 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/PublicItemId"
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenericObject"
+              type: object
+              additionalProperties: false
+              properties:
+                occurredAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                rating:
+                  type: number
+                  format: double
+                  nullable: true
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
         "200":
           description: Successful response.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2342,19 +2425,13 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/PublicItemId"
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
       responses:
-        "204":
-          description: Resource deleted or cleared.
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2610,6 +2687,24 @@ components:
     GenericObject:
       type: object
       additionalProperties: true
+    WatchActionResponse:
+      type: object
+      additionalProperties: false
+      required: [accepted, mode]
+      properties:
+        accepted:
+          type: boolean
+        mode:
+          type: string
+          enum: [synchronous]
+    WatchActionResponseEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/WatchActionResponse"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
     ProfilePinSetRequest:
       type: object
       additionalProperties: false

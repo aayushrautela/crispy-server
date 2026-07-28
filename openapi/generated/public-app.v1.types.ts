@@ -874,6 +874,15 @@ export interface components {
         GenericObject: {
             [key: string]: unknown;
         };
+        WatchActionResponse: {
+            accepted: boolean;
+            /** @enum {string} */
+            mode: "synchronous";
+        };
+        WatchActionResponseEnvelope: {
+            data: components["schemas"]["WatchActionResponse"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
         ProfilePinSetRequest: {
             /** @description A 4-digit PIN. */
             pin: string;
@@ -2634,6 +2643,7 @@ export interface operations {
             query?: {
                 limit?: string;
                 cursor?: string;
+                itemId?: components["schemas"]["PublicItemId"];
             };
             header?: never;
             path: {
@@ -2663,25 +2673,24 @@ export interface operations {
     };
     deleteV1ProfilesProfileIdWatchContinueWatchingId: {
         parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 profileId: string;
-                id: string;
+                id: components["schemas"]["PublicItemId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Resource deleted or cleared. */
-            204: {
+            /** @description Successful response. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
@@ -2705,17 +2714,31 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: components["schemas"]["PublicItemId"];
+                    clientEventId?: string;
+                    /** @enum {string} */
+                    eventType?: "playback_progress" | "playback_completed";
+                    /** Format: double */
+                    positionSeconds?: number | null;
+                    /** Format: double */
+                    durationSeconds?: number | null;
+                    /** Format: double */
+                    rating?: number | null;
+                    /** Format: date-time */
+                    occurredAt?: string | null;
+                    payload?: {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
         responses: {
             /** @description Successful response. */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2732,6 +2755,7 @@ export interface operations {
             query?: {
                 limit?: string;
                 cursor?: string;
+                itemId?: components["schemas"]["PublicItemId"];
             };
             header?: never;
             path: {
@@ -2772,17 +2796,24 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: components["schemas"]["PublicItemId"];
+                    /** Format: date-time */
+                    occurredAt?: string | null;
+                    /** Format: double */
+                    rating?: number | null;
+                    payload?: {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
         responses: {
             /** @description Successful response. */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2806,7 +2837,15 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    /** Format: double */
+                    rating: number;
+                    /** Format: date-time */
+                    occurredAt?: string | null;
+                    payload?: {
+                        [key: string]: unknown;
+                    };
+                };
             };
         };
         responses: {
@@ -2816,7 +2855,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2840,12 +2879,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Resource deleted or cleared. */
-            204: {
+            /** @description Successful response. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
@@ -2861,6 +2902,7 @@ export interface operations {
             query?: {
                 limit?: string;
                 cursor?: string;
+                itemId?: components["schemas"]["PublicItemId"];
             };
             header?: never;
             path: {
@@ -2907,7 +2949,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["BaseItemDtoEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2939,7 +2981,7 @@ export interface operations {
         };
         responses: {
             /** @description Successful response. */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2969,17 +3011,24 @@ export interface operations {
             content: {
                 "application/json": {
                     itemId: components["schemas"]["PublicItemId"];
+                    /** Format: date-time */
+                    occurredAt?: string | null;
+                    /** Format: double */
+                    rating?: number | null;
+                    payload?: {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
         responses: {
             /** @description Successful response. */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2996,6 +3045,7 @@ export interface operations {
             query?: {
                 limit?: string;
                 cursor?: string;
+                itemId?: components["schemas"]["PublicItemId"];
             };
             header?: never;
             path: {
@@ -3025,10 +3075,7 @@ export interface operations {
     };
     putV1ProfilesProfileIdWatchWatchlistItemId: {
         parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 profileId: string;
@@ -3038,7 +3085,15 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenericObject"];
+                "application/json": {
+                    /** Format: date-time */
+                    occurredAt?: string | null;
+                    /** Format: double */
+                    rating?: number | null;
+                    payload?: {
+                        [key: string]: unknown;
+                    };
+                };
             };
         };
         responses: {
@@ -3048,7 +3103,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -3062,10 +3117,7 @@ export interface operations {
     };
     deleteV1ProfilesProfileIdWatchWatchlistItemId: {
         parameters: {
-            query?: {
-                limit?: string;
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 profileId: string;
@@ -3075,12 +3127,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Resource deleted or cleared. */
-            204: {
+            /** @description Successful response. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
