@@ -58,6 +58,9 @@ test('notifyRecompute posts the expected event body to ${baseUrl}/events', async
   assert.equal(body.source, 'crispy-server');
   assert.equal(body.payload.reason, 'profile_created');
   assert.match(String(body.eventId), /^crispy-prof-1-\d+-[a-z0-9]+$/, 'eventId is deterministic-prefix + unique suffix');
+  assert.match(String(body.occurredAt), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/, 'occurredAt is ISO-8601 UTC');
+  assert.equal(typeof body.correlationId, 'string', 'correlationId is a string');
+  assert.ok(body.correlationId.length >= 8, 'correlationId is non-empty');
 });
 
 test('notifyRecompute returns synchronously (caller does not await the POST)', () => {

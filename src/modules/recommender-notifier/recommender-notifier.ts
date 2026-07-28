@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/env.js';
 
@@ -80,11 +81,13 @@ export class RecommenderNotifier {
           eventId: `crispy-${input.profileId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           eventType: 'recommendation.recompute_requested',
           eventVersion: 1,
+          occurredAt: new Date().toISOString(),
           aggregateType: 'profile',
           aggregateId: input.profileId,
           userId: input.accountId,
           profileId: input.profileId,
           source: 'crispy-server',
+          correlationId: randomUUID(),
           payload: { reason: input.reason },
         }),
         signal: controller.signal,
