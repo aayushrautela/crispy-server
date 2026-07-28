@@ -74,7 +74,6 @@ function makeTitleDetail(itemId = MOVIE_ITEM_ID) {
     NextEpisode: null,
     Videos: [],
     Cast: [],
-    Directors: [],
     Creators: [],
     Production: {
       originalLanguage: null,

@@ -188,7 +188,7 @@ const metadataProductionInfoViewSchema = {
 const metadataTitleDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Item', 'NextEpisode', 'Videos', 'Cast', 'Directors', 'Creators', 'Production'],
+  required: ['Item', 'NextEpisode', 'Videos', 'Cast', 'Creators', 'Production'],
   properties: {
     Item: baseItemDtoSchema,
     NextEpisode: {
@@ -199,7 +199,6 @@ const metadataTitleDetailResponseSchema = {
     },
     Videos: { type: 'array', items: metadataVideoViewSchema },
     Cast: { type: 'array', items: metadataPersonRefViewSchema },
-    Directors: { type: 'array', items: metadataPersonRefViewSchema },
     Creators: { type: 'array', items: metadataPersonRefViewSchema },
     Production: metadataProductionInfoViewSchema,
   },

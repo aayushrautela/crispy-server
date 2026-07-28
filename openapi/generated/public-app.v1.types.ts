@@ -977,7 +977,6 @@ export interface components {
             NextEpisode: components["schemas"]["BaseItemDto"] | null;
             Videos: components["schemas"]["MetadataVideoView"][];
             Cast: components["schemas"]["MetadataPersonRefView"][];
-            Directors: components["schemas"]["MetadataPersonRefView"][];
             Creators: components["schemas"]["MetadataPersonRefView"][];
             Production: components["schemas"]["MetadataProductionInfoView"];
         };

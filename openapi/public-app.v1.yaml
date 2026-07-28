@@ -2932,7 +2932,6 @@ components:
         - NextEpisode
         - Videos
         - Cast
-        - Directors
         - Creators
         - Production
       properties:
@@ -2947,10 +2946,6 @@ components:
           items:
             $ref: "#/components/schemas/MetadataVideoView"
         Cast:
-          type: array
-          items:
-            $ref: "#/components/schemas/MetadataPersonRefView"
-        Directors:
           type: array
           items:
             $ref: "#/components/schemas/MetadataPersonRefView"

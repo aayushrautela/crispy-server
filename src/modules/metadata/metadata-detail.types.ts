@@ -60,7 +60,6 @@ export type MetadataTitleDetail = {
   NextEpisode: BaseItemDto | null;
   Videos: MetadataVideoView[];
   Cast: MetadataPersonRefView[];
-  Directors: MetadataPersonRefView[];
   Creators: MetadataPersonRefView[];
   Production: MetadataProductionInfoView;
 };

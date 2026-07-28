@@ -41,11 +41,18 @@ export class MetadataTitleAggregateBuilder {
       Item: buildDetailBaseItemDto({ identity, itemId, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
       NextEpisode: nextEpisode,
       Videos: extractVideos(resolvedTitle),
-      Cast: await extractCast(client, this.contentIdentityService, resolvedTitle),
-      Directors: await extractCrewByJob(client, this.contentIdentityService, resolvedTitle, 'Director'),
+      Cast: await this.buildCastWithDirectors(client, resolvedTitle),
       Creators: await extractCreators(client, this.contentIdentityService, resolvedTitle),
       Production: extractProduction(resolvedTitle),
     };
+  }
+
+  private async buildCastWithDirectors(client: DbClient, title: NonNullable<Awaited<ReturnType<MetadataTitleSourceService['loadTitleSource']>>['tmdbTitle']>): Promise<MetadataTitleDetail['Cast']> {
+    const [cast, directors] = await Promise.all([
+      extractCast(client, this.contentIdentityService, title),
+      extractCrewByJob(client, this.contentIdentityService, title, 'Director'),
+    ]);
+    return [...directors, ...cast];
   }
 
   private async buildNextEpisode(client: DbClient, title: NonNullable<Awaited<ReturnType<MetadataTitleSourceService['loadTitleSource']>>['tmdbTitle']>, nextEpisode: Awaited<ReturnType<MetadataTitleSourceService['loadTitleSource']>>['tmdbNextEpisode']): Promise<MetadataTitleDetail['NextEpisode']> {
