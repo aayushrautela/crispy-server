@@ -4,10 +4,12 @@ import { assertPresent } from '../../lib/errors.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
+import { imdbTrailerService, type ImdbTrailerResolution } from './enrichment/imdb-trailer.service.js';
 import {
   buildDetailBaseItemDto,
   buildEpisodeBaseItemDto,
 } from './metadata-detail.builders.js';
+import type { BaseItemDto, RemoteTrailerDto } from './media-item.types.js';
 import type {
   MetadataTitleDetail,
 } from './metadata-detail.types.js';
@@ -15,9 +17,12 @@ import {
   extractCast,
   extractCreators,
   extractCrewByJob,
+  extractExternalIds,
+  extractPrimaryTrailer,
   extractProduction,
   extractVideos,
 } from './metadata-builder.shared.js';
+import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 
 export class MetadataTitleAggregateBuilder {
@@ -35,10 +40,16 @@ export class MetadataTitleAggregateBuilder {
 
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const itemId = encodePublicItemId(identity.contentId ?? await this.contentIdentityService.ensureContentId(client, identity));
-    const nextEpisode = await this.buildNextEpisode(client, resolvedTitle, source.tmdbNextEpisode);
+    const imdbId = extractExternalIds(resolvedTitle).imdb;
+
+    const [item, imdbTrailer, nextEpisode] = await Promise.all([
+      Promise.resolve(buildDetailBaseItemDto({ identity, itemId, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null })),
+      imdbId ? imdbTrailerService.resolveTrailer(imdbId) : Promise.resolve(null),
+      this.buildNextEpisode(client, resolvedTitle, source.tmdbNextEpisode),
+    ]);
 
     return {
-      Item: buildDetailBaseItemDto({ identity, itemId, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null }),
+      Item: applyImdbTrailer(item, imdbTrailer, resolvedTitle, language ?? null),
       NextEpisode: nextEpisode,
       Videos: extractVideos(resolvedTitle),
       Cast: await this.buildCastWithDirectors(client, resolvedTitle),
@@ -85,4 +96,25 @@ export class MetadataTitleAggregateBuilder {
     }
   }
 
+}
+
+function applyImdbTrailer(
+  dto: BaseItemDto,
+  imdbTrailer: ImdbTrailerResolution | null,
+  title: TmdbTitleRecord,
+  language: string | null,
+): BaseItemDto {
+  if (!imdbTrailer) {
+    return dto;
+  }
+
+  const trailers: RemoteTrailerDto[] = [];
+  trailers.push({ Name: null, Url: imdbTrailer.url, ThumbnailUrl: imdbTrailer.thumbnailUrl });
+
+  const youtube = extractPrimaryTrailer(title, language);
+  if (youtube?.url) {
+    trailers.push({ Name: null, Url: youtube.url, ThumbnailUrl: youtube.thumbnailUrl ?? null });
+  }
+
+  return { ...dto, RemoteTrailers: trailers };
 }
