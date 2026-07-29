@@ -119,7 +119,6 @@ export interface AppPrincipal {
   scopes: AppScope[];
   grants: AppGrant[];
   ownedSources: string[];
-  ownedListKeys: string[];
   rateLimitPolicy: AppRateLimitPolicy;
   registryEntry: AppRegistryEntry;
 }

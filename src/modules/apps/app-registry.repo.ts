@@ -19,7 +19,6 @@ export interface AppRegistryRepo {
   findAppById(appId: AppId): Promise<AppRegistryEntry | null>;
   listScopesForApp(appId: AppId): Promise<AppScope[]>;
   listOwnedSourcesForApp(appId: AppId): Promise<string[]>;
-  listOwnedListKeysForApp(appId: AppId): Promise<string[]>;
   getRateLimitPolicy(appId: AppId): Promise<AppRateLimitPolicy>;
 }
 
@@ -60,18 +59,6 @@ export class SqlAppRegistryRepo implements AppRegistryRepo {
       [appId],
     );
     return result.rows.map((row: { source: string }) => row.source);
-  }
-
-  async listOwnedListKeysForApp(appId: AppId): Promise<string[]> {
-    const result = await this.deps.db.query(
-      `SELECT DISTINCT jsonb_array_elements_text(allowed_list_keys) AS list_key
-         FROM app_source_ownership
-        WHERE app_id = $1
-          AND status = 'active'
-        ORDER BY list_key`,
-      [appId],
-    );
-    return result.rows.map((row: { list_key: string }) => row.list_key);
   }
 
   async getRateLimitPolicy(appId: AppId): Promise<AppRateLimitPolicy> {

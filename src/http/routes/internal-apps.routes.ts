@@ -110,7 +110,6 @@ function buildCustomPrincipalForUser(user: AuthActor): AppPrincipal {
     scopes: ['recommendations:service-lists:write'],
     grants: [],
     ownedSources: ['custom'],
-    ownedListKeys: ['*'],
     rateLimitPolicy: DEFAULT_RATE_LIMIT_POLICY,
     registryEntry: {
       appId: 'custom',

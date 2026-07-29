@@ -12,7 +12,6 @@ export interface AppSelfResponse {
   principalType: string;
   scopes: string[];
   ownedSources: string[];
-  ownedListKeys: string[];
   rateLimitPolicy: {
     profileChangesReadsPerMinute: number;
     profileSignalReadsPerMinute: number;
@@ -36,7 +35,6 @@ export class DefaultAppSelfService implements AppSelfService {
       principalType: principal.registryEntry.principalType,
       scopes: principal.scopes,
       ownedSources: principal.ownedSources,
-      ownedListKeys: principal.ownedListKeys,
       rateLimitPolicy: principal.rateLimitPolicy,
     };
   }

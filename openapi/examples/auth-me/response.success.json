@@ -22,7 +22,6 @@
     "apps:audit:write"
   ],
   "ownedSources": ["official-recommender"],
-  "ownedListKeys": ["category-tabs", "hero-carousel", "content-rails", "collection-rails"],
   "rateLimitPolicy": {
     "profileChangesReadsPerMinute": 600,
     "profileSignalReadsPerMinute": 1200,

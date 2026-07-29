@@ -34,7 +34,6 @@ function buildPrincipal(scopes: AppScope[] = ['apps:self:read']): AppPrincipal {
     scopes,
     grants: [],
     ownedSources: ['reco'],
-    ownedListKeys: ['for-you'],
     rateLimitPolicy: {
       profileChangesReadsPerMinute: 60,
       profileSignalReadsPerMinute: 60,
@@ -85,7 +84,6 @@ class FakeAuthorizationService implements AppAuthorizationService {
   }
   requireGrant(): AppGrant { return { grantId: 'grant', appId: 'test-app', resourceType: 'profileEligibility' as AppGrantResourceType, resourceId: '*', purpose: 'recommendation-generation' as AppPurpose, actions: ['read'] as AppGrantAction[], constraints: {}, status: 'active', createdAt: new Date('2024-01-01T00:00:00.000Z') }; }
   requireOwnedSource(): void {}
-  requireOwnedListKey(): void {}
 }
 
 async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = [], serviceRecommendationListService?: ServiceRecommendationListService) {
@@ -136,7 +134,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     appAuthService: authService,
     appAuthorizationService: new FakeAuthorizationService(),
     appRateLimitService: rateLimitService,
-    appSelfService: { async getAppSelf(p) { return { appId: p.appId, name: p.registryEntry.name, status: p.registryEntry.status, principalType: p.registryEntry.principalType, scopes: p.scopes, ownedSources: p.ownedSources, ownedListKeys: p.ownedListKeys, rateLimitPolicy: p.rateLimitPolicy }; } } satisfies AppSelfService,
+    appSelfService: { async getAppSelf(p) { return { appId: p.appId, name: p.registryEntry.name, status: p.registryEntry.status, principalType: p.registryEntry.principalType, scopes: p.scopes, ownedSources: p.ownedSources, rateLimitPolicy: p.rateLimitPolicy }; } } satisfies AppSelfService,
     profileEligibilityService: { async check() { return { accountId: 'acc-999', profileId: 'prof-888', purpose: 'recommendation-generation', eligible: true, eligibilityVersion: 1, reasons: [], policy: { accountActive: true, profileActive: true, profileDeleted: false, profileLocked: false, useOfficialRecommendationEngine: true, recommendationsEnabled: true, aiPersonalizationEnabled: true, accountAllowsPersonalization: true, consentAllowsProcessing: true, maturityPolicyAllowsReco: true, appGrantAllowsProfile: true }, checkedAt: new Date('2024-01-01T00:00:00.000Z') }; }, async assertEligible() { throw new Error('not used'); }, async recomputeAndStore() { throw new Error('not used'); } } satisfies ProfileEligibilityService,
     eligibleProfileChangeFeedService: { async listChanges() { return { items: [], cursor: { hasMore: false, nextCursor: null } }; }, async recordProfileSignalChange() {}, async recordEligibilityChange() {} } satisfies EligibleProfileChangeFeedService,
     eligibleProfileSnapshotService: { async createSnapshot() { throw new Error('not used'); }, async listItems() { throw new Error('not used'); } } satisfies EligibleProfileSnapshotService,
@@ -245,10 +243,9 @@ test('PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendati
   assert.equal(response.json().error.message, 'Profile not found.');
 });
 
-test('official recommender with accounts:all:read can access profile eligibility across accounts', async (t) => {
-  const officialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:read', 'profiles:eligible:read']);
-  officialPrincipal.appId = 'official-recommender';
-  const app = await buildServer(officialPrincipal, []);
+test('service app with accounts:all:read can access profile eligibility across accounts', async (t) => {
+  const principal = buildPrincipal(['apps:self:read', 'accounts:all:read', 'profiles:eligible:read']);
+  const app = await buildServer(principal, []);
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -259,10 +256,9 @@ test('official recommender with accounts:all:read can access profile eligibility
   assert.equal(response.statusCode, 200);
 });
 
-test('official recommender with accounts:all:read can access profile signals across accounts', async (t) => {
-  const officialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:read', 'profiles:signals:read']);
-  officialPrincipal.appId = 'official-recommender';
-  const app = await buildServer(officialPrincipal, []);
+test('service app with accounts:all:read can access profile signals across accounts', async (t) => {
+  const principal = buildPrincipal(['apps:self:read', 'accounts:all:read', 'profiles:signals:read']);
+  const app = await buildServer(principal, []);
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -274,11 +270,9 @@ test('official recommender with accounts:all:read can access profile signals acr
   assert.ok(Array.isArray(response.json().data.Items));
 });
 
-test('official recommender with accounts:all:write can write recommendations across accounts', async (t) => {
-  const officialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:write', 'recommendations:service-lists:write']);
-  officialPrincipal.appId = 'official-recommender';
-  officialPrincipal.ownedSources = ['official-recommender'];
-  const app = await buildServer(officialPrincipal, []);
+test('service app with accounts:all:write can write recommendations across accounts', async (t) => {
+  const principal = buildPrincipal(['apps:self:read', 'accounts:all:write', 'recommendations:service-lists:write']);
+  const app = await buildServer(principal, []);
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -291,10 +285,8 @@ test('official recommender with accounts:all:write can write recommendations acr
   assert.equal(response.statusCode, 201);
 });
 
-test('official recommender with accounts:all:write rejects unsupported write fields', async (t) => {
-  const officialPrincipal = buildPrincipal(['apps:self:read', 'accounts:all:write', 'recommendations:service-lists:write']);
-  officialPrincipal.appId = 'official-recommender';
-  officialPrincipal.ownedSources = ['official-recommender'];
+test('service app write rejects unsupported write fields', async (t) => {
+  const principal = buildPrincipal(['apps:self:read', 'accounts:all:write', 'recommendations:service-lists:write']);
   const writeService = new DefaultServiceRecommendationListService({
     serviceListRepo: {
       async findBatchIdempotency() { return null; },
@@ -313,8 +305,6 @@ test('official recommender with accounts:all:write rejects unsupported write fie
     maxProfilesPerBatch: 100,
     maxListsPerProfile: 10,
   });
-  const principal = buildPrincipal(['apps:self:read', 'recommendations:service-lists:write']);
-  principal.ownedListKeys = ['hero-carousel'];
   const app = await buildServer(principal, [{ accountId: 'acc-999', profileId: 'prof-888' }], writeService);
   t.after(async () => { await app.close(); });
 

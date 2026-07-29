@@ -27,7 +27,6 @@ function buildPrincipal(): AppPrincipal {
     scopes: ['apps:self:read'],
     grants: [],
     ownedSources: ['reco'],
-    ownedListKeys: ['for-you'],
     rateLimitPolicy: {
       profileChangesReadsPerMinute: 60,
       profileSignalReadsPerMinute: 60,

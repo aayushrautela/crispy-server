@@ -23,7 +23,6 @@ export interface AppAuthorizationService {
     source?: string;
   }): AppGrant;
   requireOwnedSource(input: { principal: AppPrincipal; source: string }): void;
-  requireOwnedListKey(input: { principal: AppPrincipal; source: string; listKey: string }): void;
 }
 
 export class DefaultAppAuthorizationService implements AppAuthorizationService {
@@ -78,17 +77,6 @@ export class DefaultAppAuthorizationService implements AppAuthorizationService {
       throw new AppAuthError({
         code: 'app_grant_missing',
         message: `App does not own source: ${input.source}`,
-        statusCode: 403,
-      });
-    }
-  }
-
-  requireOwnedListKey(input: { principal: AppPrincipal; source: string; listKey: string }): void {
-    this.requireOwnedSource({ principal: input.principal, source: input.source });
-    if (!input.principal.ownedListKeys.includes('*') && !input.principal.ownedListKeys.includes(input.listKey)) {
-      throw new AppAuthError({
-        code: 'app_grant_missing',
-        message: `App does not own list key: ${input.listKey}`,
         statusCode: 403,
       });
     }

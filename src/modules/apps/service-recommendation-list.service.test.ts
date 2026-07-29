@@ -1,12 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DefaultServiceRecommendationListService } from './service-recommendation-list.service.js';
-import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE } from './official-recommender-lists.js';
 import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, PaginatedAppAuditEvents } from './app-audit.repo.js';
 import type { AppAuthorizationService } from './app-authorization.service.js';
-import { DefaultAppAuthorizationService } from './app-authorization.service.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPrincipal, AppPurpose, AppScope } from './app-principal.types.js';
-import { SqlAppSourceOwnershipRepo } from './app-source-ownership.repo.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
 import type { HomeWriteService } from '../home/home-write.service.js';
@@ -20,7 +17,6 @@ function buildPrincipal(scopes: AppScope[] = ['recommendations:service-lists:wri
     scopes,
     grants: [],
     ownedSources: ['reco'],
-    ownedListKeys: ['for-you'],
     rateLimitPolicy: {
       profileChangesReadsPerMinute: 60,
       profileSignalReadsPerMinute: 60,
@@ -53,7 +49,6 @@ class FakeAuthorizationService implements AppAuthorizationService {
     return { grantId: 'grant', appId: 'test-app', resourceType: 'recommendationList' as AppGrantResourceType, resourceId: '*', purpose: 'recommendation-generation' as AppPurpose, actions: ['write'] as AppGrantAction[], constraints: {}, status: 'active', createdAt: new Date('2024-01-01T00:00:00.000Z') };
   }
   requireOwnedSource(): void {}
-  requireOwnedListKey(): void {}
 }
 
 class FakeAuditRepo implements AppAuditRepo {
@@ -173,26 +168,6 @@ test('upsertList rejects legacy writer-supplied fields', async () => {
   );
 });
 
-test('official recommender rejects section type mismatches', async () => {
-  const { service } = buildService();
-  const principal = buildPrincipal();
-  principal.appId = OFFICIAL_RECOMMENDER_APP_ID;
-  principal.ownedSources = [OFFICIAL_RECOMMENDER_SOURCE];
-  principal.ownedListKeys = ['hero-carousel'];
-
-  await assert.rejects(
-    service.upsertList({
-      principal,
-      accountId: 'acc-1',
-      profileId: 'prof-1',
-      listKey: 'hero-carousel',
-      idempotencyKey: 'idem-1',
-      request: buildWriteRequest(['101']),
-    }),
-    (error: unknown) => error instanceof HttpError && error.code === 'RECOMMENDATION_SECTION_TYPE_MISMATCH',
-  );
-});
-
 test('batchUpsert normalizes list refs, derives per-profile idempotency, and writes all of a profile\'s lists in one atomic writeHome call', async () => {
   const { service, serviceListRepo, homeWriteService } = buildService();
 
@@ -229,30 +204,4 @@ test('batchUpsert normalizes list refs, derives per-profile idempotency, and wri
   assert.equal(secondList.listKey, 'hero-carousel');
   assert.deepEqual(firstList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }] }]);
   assert.deepEqual(secondList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '104' }] }]);
-});
-
-test('authorization allows wildcard owned list keys', () => {
-  const authorization = new DefaultAppAuthorizationService();
-  const principal = buildPrincipal();
-  principal.ownedListKeys = ['*'];
-
-  assert.doesNotThrow(() => authorization.requireOwnedListKey({ principal, source: 'reco', listKey: 'hero-carousel' }));
-});
-
-test('source ownership allows wildcard owned list keys', async () => {
-  const repo = new SqlAppSourceOwnershipRepo({
-    db: {
-      async query() {
-        return {
-          command: 'SELECT',
-          rowCount: 1,
-          oid: 0,
-          fields: [],
-          rows: [{ source: 'reco', app_id: 'test-app', allowed_list_keys: ['*'], status: 'active' }],
-        };
-      },
-    },
-  });
-
-  await assert.doesNotReject(repo.assertAppOwnsListKey({ appId: 'test-app', source: 'reco', listKey: 'hero-carousel' }));
 });

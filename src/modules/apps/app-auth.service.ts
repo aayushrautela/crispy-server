@@ -111,7 +111,6 @@ export class DefaultAppAuthService implements AppAuthService {
       scopes,
       grants,
       ownedSources: ownerships.filter((item) => item.status === 'active').map((item) => item.source),
-      ownedListKeys: [...new Set(ownerships.flatMap((item) => item.allowedListKeys))],
       rateLimitPolicy,
       registryEntry,
     };

@@ -507,7 +507,6 @@ export interface components {
             principalType: string;
             scopes: string[];
             ownedSources: string[];
-            ownedListKeys: string[];
             rateLimitPolicy: {
                 profileChangesReadsPerMinute: number;
                 profileSignalReadsPerMinute: number;

@@ -54,7 +54,7 @@ export const rateLimitPolicySchema = {
 export const appSelfDataSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['appId', 'name', 'status', 'principalType', 'scopes', 'ownedSources', 'ownedListKeys', 'rateLimitPolicy'],
+  required: ['appId', 'name', 'status', 'principalType', 'scopes', 'ownedSources', 'rateLimitPolicy'],
   properties: {
     appId: stringSchema,
     name: stringSchema,
@@ -63,7 +63,6 @@ export const appSelfDataSchema = {
     principalType: stringSchema,
     scopes: { type: 'array', items: stringSchema },
     ownedSources: { type: 'array', items: stringSchema },
-    ownedListKeys: { type: 'array', items: stringSchema },
     rateLimitPolicy: rateLimitPolicySchema,
   },
 } as const;

@@ -1165,7 +1165,7 @@ components:
     AppSelfResponse:
       type: object
       additionalProperties: false
-      required: [appId, name, status, principalType, scopes, ownedSources, ownedListKeys, rateLimitPolicy]
+      required: [appId, name, status, principalType, scopes, ownedSources, rateLimitPolicy]
       properties:
         appId: { type: string }
         name: { type: string }
@@ -1174,7 +1174,6 @@ components:
         principalType: { type: string }
         scopes: { type: array, items: { type: string } }
         ownedSources: { type: array, items: { type: string } }
-        ownedListKeys: { type: array, items: { type: string } }
         rateLimitPolicy:
           type: object
           additionalProperties: false

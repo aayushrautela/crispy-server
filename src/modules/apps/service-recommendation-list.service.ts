@@ -9,7 +9,6 @@ import type { RecommendationListItemInput } from '../recommendations/recommendat
 import type { RecoHomeSectionType, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
 import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
-import { OFFICIAL_RECOMMENDER_APP_ID, OFFICIAL_RECOMMENDER_SOURCE, getOfficialRecommendationListConfig } from './official-recommender-lists.js';
 
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
 const PROVIDERS = new Set(['tmdb', 'tvdb', 'imdb', 'kitsu']);
@@ -142,22 +141,9 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
   }
 
   private async requireWritableList(principal: AppPrincipal, listKey: string, source: string, sectionType: RecoHomeSectionType, accountId: string, profileId: string): Promise<void> {
-    if (principal.appId === OFFICIAL_RECOMMENDER_APP_ID) {
-      if (source !== OFFICIAL_RECOMMENDER_SOURCE) throw new HttpError(403, 'official-recommender must use official-recommender source.', undefined, 'INVALID_SOURCE');
-      this.requireOfficialList(listKey, sectionType);
-      this.deps.appAuthorizationService.requireGrant({ principal, resourceType: 'recommendationList', resourceId: listKey, purpose: RECOMMENDATION_WRITE_PURPOSE, action: 'write', accountId, profileId, listKey, source });
-      return;
-    }
-    this.deps.appAuthorizationService.requireOwnedListKey({ principal, source, listKey });
+    void sectionType;
+    this.deps.appAuthorizationService.requireOwnedSource({ principal, source });
     this.deps.appAuthorizationService.requireGrant({ principal, resourceType: 'recommendationList', resourceId: listKey, purpose: RECOMMENDATION_WRITE_PURPOSE, action: 'write', accountId, profileId, listKey, source });
-  }
-
-  private requireOfficialList(listKey: string, sectionType: RecoHomeSectionType): void {
-    const config = getOfficialRecommendationListConfig(listKey);
-    if (!config) throw new HttpError(403, 'List key not in official-recommender contract.', undefined, 'LIST_KEY_NOT_ALLOWED');
-    if (config.sectionType !== sectionType) {
-      throw new HttpError(400, 'sectionType does not match listKey.', { listKey, expectedSectionType: config.sectionType, receivedSectionType: sectionType }, 'RECOMMENDATION_SECTION_TYPE_MISMATCH');
-    }
   }
 
   private validateBatchLimits(request: NormalizedBatchRequest): void {
