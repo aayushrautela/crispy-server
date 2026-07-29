@@ -91,12 +91,11 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
   });
 }
 
-function parseHomeWriteBody(body: Record<string, unknown>): Array<{ listKey: string; sectionType: 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail'; title: string; subtitle: string | null; items: Array<{ type: 'movie' | 'tv'; providerRefs: Array<{ provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string }>; metadata?: Record<string, unknown> }> }> {
+function parseHomeWriteBody(body: Record<string, unknown>): Array<{ sectionType: 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail'; title: string; subtitle: string | null; items: Array<{ type: 'movie' | 'tv'; providerRefs: Array<{ provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string }>; metadata?: Record<string, unknown> }> }> {
   if (!Array.isArray(body.lists)) throw new HttpError(400, 'lists is required.', { field: 'lists' }, 'INVALID_HOME_WRITE');
   return body.lists.map((rawList, index) => {
     const listPath = `lists[${index}]`;
     const list = asRecord(rawList);
-    if (typeof list.listKey !== 'string' || !list.listKey.trim()) throw new HttpError(400, `${listPath}.listKey is required.`, { field: `${listPath}.listKey` }, 'INVALID_LIST_KEY');
     const sectionType = list.sectionType;
     if (sectionType !== 'categoryTabs' && sectionType !== 'heroCarousel' && sectionType !== 'contentRail' && sectionType !== 'collectionRail') {
       throw new HttpError(400, `${listPath}.sectionType is invalid.`, { field: `${listPath}.sectionType` }, 'INVALID_SECTION_TYPE');
@@ -120,7 +119,6 @@ function parseHomeWriteBody(body: Record<string, unknown>): Array<{ listKey: str
       };
     });
     return {
-      listKey: list.listKey,
       sectionType,
       title: list.title,
       subtitle: typeof list.subtitle === 'string' ? list.subtitle : null,

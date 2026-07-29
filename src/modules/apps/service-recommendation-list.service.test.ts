@@ -74,7 +74,7 @@ class FakeHomeWriteService implements HomeWriteService {
   writes: Parameters<HomeWriteService['writeHome']>[0][] = [];
   async writeHome(input: Parameters<HomeWriteService['writeHome']>[0]) {
     this.writes.push(input);
-    return { accountId: input.accountId, profileId: input.profileId, source: 'reco' as const, status: 'written' as const, listsWritten: input.lists.length, itemCount: input.lists.reduce((sum, list) => sum + list.items.length, 0), idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
+    return { accountId: input.accountId, profileId: input.profileId, source: 'reco' as const, status: 'written' as const, listsWritten: input.lists.length, itemCount: input.lists.reduce((sum, list) => sum + list.items.length, 0), lists: input.lists.map((list, index) => ({ listId: `list-${index}`, sectionType: list.sectionType, title: list.title, itemCount: list.items.length, version: 1 })), idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
   }
   async clearHome(): Promise<import('../home/home-types.js').HomeWriteResult> { throw new Error('not used'); }
 }
@@ -143,7 +143,6 @@ test('upsertList normalizes item refs and delegates to the home writer', async (
   assert.equal(write.lists.length, 1);
   const list = write.lists[0];
   assert.ok(list);
-  assert.equal(list.listKey, 'for-you');
   assert.equal(list.sectionType, 'contentRail');
   assert.deepEqual(list.title, 'For You');
   assert.deepEqual(list.items, [
@@ -179,8 +178,8 @@ test('batchUpsert normalizes list refs, derives per-profile idempotency, and wri
         accountId: 'acc-1',
         profileId: 'prof-1',
         lists: [
-          { listKey: 'for-you', ...buildWriteRequest(['103']) },
-          { listKey: 'hero-carousel', ...buildWriteRequest(['104']) },
+          { ...buildWriteRequest(['103']) },
+          { ...buildWriteRequest(['104']) },
         ],
       }],
     },
@@ -200,8 +199,6 @@ test('batchUpsert normalizes list refs, derives per-profile idempotency, and wri
   const secondList = batchWrite.lists[1];
   assert.ok(firstList);
   assert.ok(secondList);
-  assert.equal(firstList.listKey, 'for-you');
-  assert.equal(secondList.listKey, 'hero-carousel');
   assert.deepEqual(firstList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }] }]);
   assert.deepEqual(secondList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '104' }] }]);
 });

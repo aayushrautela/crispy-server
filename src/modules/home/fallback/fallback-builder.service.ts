@@ -113,7 +113,6 @@ export class FallbackBuilderService {
       }
       if (items.length === 0) continue;
       lists.push({
-        listKey: template.listKey,
         sectionType: template.sectionType as HomeWriteList['sectionType'],
         title: template.title,
         subtitle: template.subtitle ?? null,

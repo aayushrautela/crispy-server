@@ -3,11 +3,10 @@ import type { HomeSectionType, HomeSource, HomeWriteActor, HomeWriteItem } from 
 
 export interface HomeWritePolicy {
   authorize(input: { actor: HomeWriteActor; source: HomeSource }): { allowed: boolean; rejectReason?: string };
-  validateListKey(listKey: string): void;
   validateSection(sectionType: HomeSectionType, items: HomeWriteItem[]): void;
 }
 
-const MAX_ITEMS_PER_LIST = 50;
+const MAX_ITEMS_PER_LIST = 100;
 
 const SECTIONS_REQUIRING_ITEMS: ReadonlySet<HomeSectionType> = new Set([
   'categoryTabs',
@@ -31,12 +30,6 @@ export class DefaultHomeWritePolicy implements HomeWritePolicy {
       return { allowed: true };
     }
     return { allowed: false, rejectReason: 'Unknown home source.' };
-  }
-
-  validateListKey(listKey: string): void {
-    if (typeof listKey !== 'string' || !listKey.trim()) {
-      throw new HttpError(400, 'listKey is required.', { field: 'listKey' }, 'INVALID_LIST_KEY');
-    }
   }
 
   validateSection(sectionType: HomeSectionType, items: HomeWriteItem[]): void {

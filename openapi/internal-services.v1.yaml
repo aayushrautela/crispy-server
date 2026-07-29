@@ -1454,9 +1454,8 @@ components:
                 items:
                   type: object
                   additionalProperties: false
-                  required: [listKey, title, subtitle, sectionType, items, model, context]
+                  required: [title, subtitle, sectionType, items, model, context]
                   properties:
-                    listKey: { type: string }
                     title: { type: string, minLength: 1 }
                     subtitle: { type: [string, 'null'] }
                     sectionType: { $ref: '#/components/schemas/RecoHomeSectionType' }

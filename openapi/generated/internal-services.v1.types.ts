@@ -707,7 +707,6 @@ export interface components {
                 accountId: string;
                 profileId: string;
                 lists: {
-                    listKey: string;
                     title: string;
                     subtitle: string | null;
                     sectionType: components["schemas"]["RecoHomeSectionType"];

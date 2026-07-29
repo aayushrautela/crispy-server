@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { withTransaction } from '../../lib/db.js';
 import { redis } from '../../lib/redis.js';
 import { HttpError } from '../../lib/errors.js';
@@ -14,6 +14,7 @@ import type {
   HomeWriteInput,
   HomeWriteItem,
   HomeWriteList,
+  HomeWriteListResult,
   HomeWriteResult,
 } from './home-types.js';
 
@@ -70,16 +71,8 @@ export class DefaultHomeWriteService implements HomeWriteService {
     const now = this.deps.clock.now();
     if (input.lists.length > 25) throw new HttpError(400, `lists exceeds max of 25.`, { field: 'lists' }, 'TOO_MANY_LISTS');
     const lists = await this.normalizeLists(input);
-    const result: HomeWriteResult = {
-      accountId: input.accountId,
-      profileId: input.profileId,
-      source,
-      status: 'written',
-      listsWritten: lists.length,
-      itemCount: lists.reduce((sum, list) => sum + list.items.length, 0),
-      idempotency: { key: input.idempotencyKey, replayed: false },
-      createdAt: now,
-    };
+    const writtenLists: HomeWriteListResult[] = [];
+    let itemCount = 0;
 
     await withTransaction(async (client) => {
       const versioned = await Promise.all(
@@ -88,13 +81,21 @@ export class DefaultHomeWriteService implements HomeWriteService {
             accountId: input.accountId,
             profileId: input.profileId,
             source,
-            listKey: list.listKey,
+            listId: list.listId,
           });
+          writtenLists.push({
+            listId: list.listId,
+            sectionType: list.sectionType,
+            title: list.title,
+            itemCount: list.items.length,
+            version,
+          });
+          itemCount += list.items.length;
           return {
             accountId: input.accountId,
             profileId: input.profileId,
             source,
-            listKey: list.listKey,
+            listId: list.listId,
             sectionType: list.sectionType,
             title: list.title,
             subtitle: list.subtitle ?? null,
@@ -120,6 +121,18 @@ export class DefaultHomeWriteService implements HomeWriteService {
       });
     });
 
+    const result: HomeWriteResult = {
+      accountId: input.accountId,
+      profileId: input.profileId,
+      source,
+      status: 'written',
+      listsWritten: writtenLists.length,
+      itemCount,
+      lists: writtenLists,
+      idempotency: { key: input.idempotencyKey, replayed: false },
+      createdAt: now,
+    };
+
     await redis.del(homeCacheKey(input.profileId));
     await this.deps.repo.saveIdempotencyRecord({ actorKey, operationKey, idempotencyKey: input.idempotencyKey, requestHash, responseBody: result, createdAt: now });
     return result;
@@ -140,6 +153,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
       status: 'cleared',
       listsWritten: 0,
       itemCount: 0,
+      lists: [],
       idempotency: { key: input.idempotencyKey, replayed: false },
       createdAt: now,
     };
@@ -149,16 +163,12 @@ export class DefaultHomeWriteService implements HomeWriteService {
     return result;
   }
 
-  private async normalizeLists(input: HomeWriteInput): Promise<Array<{ listKey: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; items: unknown[] }>> {
-    const normalized: Array<{ listKey: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; items: unknown[] }> = [];
-    const seenListKeys = new Set<string>();
+  private async normalizeLists(input: HomeWriteInput): Promise<Array<{ listId: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; items: unknown[] }>> {
+    const normalized: Array<{ listId: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; items: unknown[] }> = [];
     for (const list of input.lists) {
-      if (seenListKeys.has(list.listKey)) throw new HttpError(400, `Duplicate listKey ${list.listKey}.`, { field: 'lists' }, 'DUPLICATE_LIST_KEY');
-      seenListKeys.add(list.listKey);
-      this.policy.validateListKey(list.listKey);
       this.policy.validateSection(list.sectionType, list.items);
       const items = await this.resolveItems(list.items);
-      normalized.push({ listKey: list.listKey, sectionType: list.sectionType, title: list.title, subtitle: list.subtitle ?? null, items });
+      normalized.push({ listId: randomUUID(), sectionType: list.sectionType, title: list.title, subtitle: list.subtitle ?? null, items });
     }
     return normalized;
   }

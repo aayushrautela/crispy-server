@@ -20,7 +20,6 @@ export type HomeWriteItem = {
 };
 
 export type HomeWriteList = {
-  listKey: string;
   sectionType: HomeSectionType;
   title: string;
   subtitle?: string | null;
@@ -36,8 +35,16 @@ export type HomeWriteInput = {
   actor: HomeWriteActor;
 };
 
+export type HomeWriteListResult = {
+  listId: string;
+  sectionType: HomeSectionType;
+  title: string;
+  itemCount: number;
+  version: number;
+};
+
 export type ResolvedHomeRow = {
-  listKey: string;
+  listId: string;
   sectionType: HomeSectionType;
   title: string;
   subtitle: string | null;
@@ -57,6 +64,7 @@ export type HomeWriteResult = {
   status: 'written' | 'cleared' | 'idempotent_replay';
   listsWritten: number;
   itemCount: number;
+  lists: HomeWriteListResult[];
   idempotency: { key: string; replayed: boolean };
   createdAt: Date;
 };

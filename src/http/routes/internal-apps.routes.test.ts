@@ -294,7 +294,7 @@ test('service app write rejects unsupported write fields', async (t) => {
     },
     homeWriteService: {
       async writeHome() {
-        return { accountId: 'acc-999', profileId: 'prof-888', source: 'reco', status: 'written' as const, listsWritten: 1, itemCount: 0, idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
+        return { accountId: 'acc-999', profileId: 'prof-888', source: 'reco', status: 'written' as const, listsWritten: 1, itemCount: 0, lists: [{ listId: 'test-list', sectionType: 'contentRail' as const, title: 'Test', itemCount: 0, version: 1 }], idempotency: { replayed: false, key: 'test-key-123' }, createdAt: new Date('2024-01-01T00:00:00.000Z') };
       },
       async clearHome() { throw new Error('not used'); },
     },

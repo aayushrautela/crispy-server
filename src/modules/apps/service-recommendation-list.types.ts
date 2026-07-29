@@ -14,7 +14,7 @@ export interface BatchUpsertServiceRecommendationListsRequest {
   profiles: Array<{
     accountId: string;
     profileId: string;
-    lists: Array<UpsertServiceRecommendationListRequest & { listKey: string }>;
+    lists: Array<UpsertServiceRecommendationListRequest>;
   }>;
 }
 

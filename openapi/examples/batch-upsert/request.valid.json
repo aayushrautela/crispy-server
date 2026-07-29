@@ -5,7 +5,6 @@
       "profileId": "prof_example_reco_001",
       "lists": [
         {
-          "listKey": "hero-carousel",
           "title": "Hero",
           "subtitle": null,
           "sectionType": "heroCarousel",
@@ -23,7 +22,6 @@
       "profileId": "prof_example_reco_002",
       "lists": [
         {
-          "listKey": "content-rails",
           "title": "Because you watched crime dramas",
           "subtitle": "Dark, character-driven stories",
           "sectionType": "contentRail",

@@ -27,7 +27,7 @@ export interface CreateHomeListVersionInput {
   accountId: string;
   profileId: string;
   source: HomeSource;
-  listKey: string;
+  listId: string;
   sectionType: HomeWriteList['sectionType'];
   title: string;
   subtitle: string | null;
@@ -40,7 +40,7 @@ export interface HomeListVersionRecord {
   accountId: string;
   profileId: string;
   source: HomeSource;
-  listKey: string;
+  listId: string;
   version: number;
   itemCount: number;
   createdAt: Date;
@@ -115,24 +115,24 @@ export class HomeListsRepo {
         `INSERT INTO recommendation_list_versions
            (account_id, profile_id, source, list_key, version, title, subtitle, section_type, items_json, item_count, actor_type, actor_id, actor_key_id, run_id, created_at)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15)`,
-        [list.accountId, list.profileId, list.source, list.listKey, list.version, list.title, list.subtitle, list.sectionType, JSON.stringify(list.items), list.items.length, list.actor.type, actorId, actorKeyId, runId, list.createdAt],
+        [list.accountId, list.profileId, list.source, list.listId, list.version, list.title, list.subtitle, list.sectionType, JSON.stringify(list.items), list.items.length, list.actor.type, actorId, actorKeyId, runId, list.createdAt],
       );
       await client.query(
         `INSERT INTO recommendation_active_lists (account_id, profile_id, source, list_key, active_version, updated_at)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)
          ON CONFLICT (account_id, profile_id, source, list_key)
          DO UPDATE SET active_version = EXCLUDED.active_version, updated_at = EXCLUDED.updated_at, deleted_at = NULL`,
-        [list.accountId, list.profileId, list.source, list.listKey, list.version, list.updatedAt],
+        [list.accountId, list.profileId, list.source, list.listId, list.version, list.updatedAt],
       );
     }
   }
 
-  async nextVersion(input: { accountId: string; profileId: string; source: HomeSource; listKey: string }): Promise<number> {
+  async nextVersion(input: { accountId: string; profileId: string; source: HomeSource; listId: string }): Promise<number> {
     const result = await this.deps.db.query(
       `SELECT COALESCE(MAX(version), 0) + 1 AS version
        FROM recommendation_list_versions
        WHERE account_id = $1::uuid AND profile_id = $2::uuid AND source = $3 AND list_key = $4`,
-      [input.accountId, input.profileId, input.source, input.listKey],
+      [input.accountId, input.profileId, input.source, input.listId],
     );
     return Number(result.rows[0].version);
   }

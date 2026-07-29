@@ -5,7 +5,6 @@ import type { AppAuthorizationService } from './app-authorization.service.js';
 import type { AppPrincipal } from './app-principal.types.js';
 import type { ProfileEligibilityService } from './profile-eligibility.service.js';
 import type { HomeWriteService } from '../home/home-write.service.js';
-import type { RecommendationListItemInput } from '../recommendations/recommendation-list.types.js';
 import type { RecoHomeSectionType, RecoProvider, RecoWriteItem } from '../recommendations/reco-contract.types.js';
 import type { BatchUpsertServiceRecommendationListsRequest, BatchUpsertServiceRecommendationListsResult, UpsertServiceRecommendationListRequest, UpsertServiceRecommendationListResult } from './service-recommendation-list.types.js';
 import type { ServiceRecommendationListRepo } from './service-recommendation-list.repo.js';
@@ -13,9 +12,6 @@ import type { ServiceRecommendationListRepo } from './service-recommendation-lis
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
 const PROVIDERS = new Set(['tmdb', 'tvdb', 'imdb', 'kitsu']);
 
-/** Strip tolerated-but-ignored producer fields at the boundary. The ingester
- *  only takes type + providerRefs + optional metadata hints; score, reason,
- *  reasonCodes, rank are accepted by the wire contract but not persisted. */
 function toHomeWriteItem(item: RecoWriteItem): { type: RecoWriteItem['type']; providerRefs: RecoWriteItem['providerRefs']; metadata?: Record<string, unknown> } {
   return { type: item.type, providerRefs: item.providerRefs, ...(item.metadata && Object.keys(item.metadata).length > 0 ? { metadata: item.metadata } : {}) };
 }
@@ -44,7 +40,7 @@ interface NormalizedBatchRequest {
   profiles: Array<{
     accountId: string;
     profileId: string;
-    lists: Array<{ listKey: string } & NormalizedSingleRequest>;
+    lists: Array<NormalizedSingleRequest>;
   }>;
 }
 
@@ -58,21 +54,20 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
     const source = this.deriveSource(input.principal);
     await this.requireWritableList(input.principal, input.listKey, source, request.sectionType, input.accountId, input.profileId);
     const eligibility = await this.deps.profileEligibilityService.assertEligible({ principal: input.principal, accountId: input.accountId, profileId: input.profileId, purpose: RECOMMENDATION_WRITE_PURPOSE });
-    await this.deps.homeWriteService.writeHome({
+    const result = await this.deps.homeWriteService.writeHome({
       accountId: input.accountId,
       profileId: input.profileId,
       source,
       idempotencyKey: input.idempotencyKey,
       actor: { type: 'app', appId: input.principal.appId, keyId: input.principal.keyId },
       lists: [{
-        listKey: input.listKey,
         sectionType: request.sectionType,
         title: request.title,
         subtitle: request.subtitle,
         items: request.items.map(toHomeWriteItem),
       }],
     });
-    return { accountId: input.accountId, profileId: input.profileId, listKey: input.listKey, source, version: 0, status: 'written', itemCount: request.items.length, idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: this.deps.clock.now(), eligibility: { checkedAt: eligibility.checkedAt, eligible: eligibility.eligible, eligibilityVersion: eligibility.eligibilityVersion } };
+    return { accountId: input.accountId, profileId: input.profileId, listKey: input.listKey, source, version: result.lists[0]?.version ?? 0, status: 'written', itemCount: request.items.length, idempotency: { key: input.idempotencyKey, replayed: false }, createdAt: this.deps.clock.now(), eligibility: { checkedAt: eligibility.checkedAt, eligible: eligibility.eligible, eligibilityVersion: eligibility.eligibilityVersion } };
   }
 
   async batchUpsert(input: { principal: AppPrincipal; idempotencyKey: string; request: BatchUpsertServiceRecommendationListsRequest }): Promise<BatchUpsertServiceRecommendationListsResult> {
@@ -93,23 +88,23 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
       try {
         const eligibility = await this.deps.profileEligibilityService.assertEligible({ principal: input.principal, accountId: profile.accountId, profileId: profile.profileId, purpose: RECOMMENDATION_WRITE_PURPOSE });
         for (const list of profile.lists) {
-          await this.requireWritableList(input.principal, list.listKey, source, list.sectionType, profile.accountId, profile.profileId);
+          await this.requireWritableList(input.principal, '', source, list.sectionType, profile.accountId, profile.profileId);
         }
-        await this.deps.homeWriteService.writeHome({
+        const writeResult = await this.deps.homeWriteService.writeHome({
           accountId: profile.accountId,
           profileId: profile.profileId,
           source,
           idempotencyKey: `${input.idempotencyKey}:${profile.accountId}:${profile.profileId}`,
           actor: { type: 'app', appId: input.principal.appId, keyId: input.principal.keyId },
           lists: profile.lists.map((list) => ({
-            listKey: list.listKey,
             sectionType: list.sectionType,
             title: list.title,
             subtitle: list.subtitle,
             items: list.items.map(toHomeWriteItem),
           })),
         });
-        const writtenLists = profile.lists.map((list) => ({ listKey: list.listKey, source, version: 0, itemCount: list.items.length }));
+        const writtenLists = writeResult.lists.map((list) => ({ listKey: list.listId, source, version: list.version, itemCount: list.itemCount }));
+        void eligibility;
         listsWritten += profile.lists.length;
         itemsWritten += profile.lists.reduce((sum, list) => sum + list.items.length, 0);
         results.push({ accountId: profile.accountId, profileId: profile.profileId, status: 'written', lists: writtenLists });
@@ -142,8 +137,8 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
 
   private async requireWritableList(principal: AppPrincipal, listKey: string, source: string, sectionType: RecoHomeSectionType, accountId: string, profileId: string): Promise<void> {
     void sectionType;
+    void listKey;
     this.deps.appAuthorizationService.requireOwnedSource({ principal, source });
-    this.deps.appAuthorizationService.requireGrant({ principal, resourceType: 'recommendationList', resourceId: listKey, purpose: RECOMMENDATION_WRITE_PURPOSE, action: 'write', accountId, profileId, listKey, source });
   }
 
   private validateBatchLimits(request: NormalizedBatchRequest): void {
@@ -186,10 +181,8 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         const listPath = `${profilePath}.lists[${listIndex}]`;
         assertRecord(rawList, listPath);
         rejectRemovedFields(rawList, TOP_LEVEL_REMOVED_FIELDS, listPath);
-        assertOnlyKeys(rawList, ['listKey', 'title', 'subtitle', 'sectionType', 'items', 'model', 'context'], listPath);
-        if (typeof rawList.listKey !== 'string' || !rawList.listKey.trim()) throw new HttpError(400, `${listPath}.listKey is required.`, { field: `${listPath}.listKey` }, 'INVALID_LIST_KEY');
+        assertOnlyKeys(rawList, ['title', 'subtitle', 'sectionType', 'items', 'model', 'context'], listPath);
         lists.push({
-          listKey: rawList.listKey,
           title: readRequiredString(rawList.title, `${listPath}.title`),
           subtitle: readNullableString(rawList.subtitle, `${listPath}.subtitle`),
           sectionType: readHomeSectionType(rawList.sectionType, `${listPath}.sectionType`),
@@ -331,4 +324,3 @@ function readMetadata(value: unknown, path: string): Record<string, unknown> {
   assertRecord(value, path);
   return value;
 }
-

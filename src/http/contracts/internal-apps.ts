@@ -785,9 +785,8 @@ export const batchUpsertServiceRecommendationListsBodySchema = {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['listKey', 'title', 'subtitle', 'sectionType', 'items', 'model', 'context'],
+              required: ['title', 'subtitle', 'sectionType', 'items', 'model', 'context'],
               properties: {
-                listKey: stringSchema,
                 title: nonEmptyStringSchema,
                 subtitle: nullableStringSchema,
                 sectionType: recoHomeSectionTypeSchema,
