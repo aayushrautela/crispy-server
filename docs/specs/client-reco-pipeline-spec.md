@@ -172,6 +172,15 @@ a single bundle endpoint. RECO fetches individual signals in parallel via:
 
 All watch signal routes return the same `BaseItemDtoQueryResult` envelope used by the
 public `/v1/profiles/:profileId/watch/*` routes (a `PaginatedWatchCollection<BaseItemDto>`).
+
+**Enrichment note:** Internal signal routes do **not** run the `WatchMetadataEnrichmentService`
+pass that the public watch routes do. Items return with display fields (`Name`, `Overview`,
+`ProductionYear`, `Genres`, `ImageTags`, etc.) as null. The reco worker does not need these
+fields — it reads only `ProviderIds.Tmdb`, `Type`, and `UserData`. The reco webui (a
+display-facing consumer) enriches items on its own read path via its `CatalogService`,
+looking up TMDB metadata by `ProviderIds.Tmdb` and overlaying `title`, `posterUrl`,
+`overview`, `mediaType`, `year` on each row before returning to the browser.
+
 RECO assembles a local `RecommendationBundle` from these results and feeds it to its
 `signal_bundle_mapper`. The mapper extracts each row's `ProviderIds.Tmdb`, `Type`
 (`'Series'` → `'tv'`, `'Movie'` → `'movie'`), and `UserData` fields (`LastPlayedDate`,

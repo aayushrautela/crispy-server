@@ -120,7 +120,11 @@ The current RECO ingestion response acknowledges acceptance and may include only
 
 RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. Per the per-signal refactor, MAIN no longer exposes a single bundle endpoint; RECO issues parallel `GET` requests against the per-signal read routes (history, ratings, watchlist, continue-watching, episodic-follow, taste) plus a `profile-meta` route that returns profile-scoped fields (profileName, isKids, language, region, watchDataOrigin) for `GenerateRequest.profileContext` assembly, plus the eligibility decision.
 
-Each watch signal route returns the same `BaseItemDtoQueryResult` envelope used by the public `/v1/profiles/:profileId/watch/*` routes — a `PaginatedWatchCollection<BaseItemDto>`. RECO's `signal_bundle_mapper` extracts from each row the `Tmdb` providerId (from `ProviderIds`), the media `type` (mapping `Type === 'Series'` to `'tv'`, `'Movie'` to `'movie'`), and the `UserData` fields it needs (`LastPlayedDate`, `PlayedPercentage`, `Played`, `Rating`, `PlayCount`) to construct `RecoItemRef`-shaped inputs for its internal `GenerateRequest`. The locally-assembled bundle never travels on the wire.
+Each watch signal route returns the same `BaseItemDtoQueryResult` envelope used by the public `/v1/profiles/:profileId/watch/*` routes — a `PaginatedWatchCollection<BaseItemDto>`.
+
+**Enrichment note:** Internal signal routes skip the `WatchMetadataEnrichmentService` pass. Items return with display fields (`Name`, `Overview`, `ProductionYear`, `Genres`, `ImageTags`, etc.) as null. RECO's worker does not need these fields — it reads only `ProviderIds.Tmdb`, `Type`, and `UserData`. The reco webui, which is display-facing, enriches items on its read path via its `CatalogService` (looking up TMDB metadata by `ProviderIds.Tmdb`) and overlays `title`, `posterUrl`, `overview`, `mediaType`, `year` on each row before returning to the browser.
+
+RECO's `signal_bundle_mapper` extracts from each row the `Tmdb` providerId (from `ProviderIds`), the media `type` (mapping `Type === 'Series'` to `'tv'`, `'Movie'` to `'movie'`), and the `UserData` fields it needs (`LastPlayedDate`, `PlayedPercentage`, `Played`, `Rating`, `PlayCount`) to construct `RecoItemRef`-shaped inputs for its internal `GenerateRequest`. The locally-assembled bundle never travels on the wire.
 
 Signal records that RECO constructs from these reads carry `RecoItemRef` values with:
 

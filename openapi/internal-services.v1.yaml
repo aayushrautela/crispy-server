@@ -1279,19 +1279,34 @@ components:
         policy: { $ref: '#/components/schemas/Metadata' }
         checkedAt: { type: string, format: date-time }
     ProfileReadSignalResponse:
-      description: 'Shared per-signal read envelope. Same shape as the public-app BaseItemDtoQueryResult envelope — a success envelope wrapping a paginated collection of BaseItemDto items. Consumed verbatim by the reco engine as one individual signal input.'
+      description: >-
+        Shared per-signal read envelope. Returns the same BaseItemDtoQueryResult
+        shape as the public-app watch routes. Items are BaseItemDto objects with
+        display fields (Name, Overview, ProductionYear, Genres, ImageTags, etc.)
+        nullable — the internal signal routes do not run the enrichment pass.
+        Consumers that need display metadata (e.g. the reco webui) must enrich
+        on their read path using ProviderIds.Tmdb. The reco worker does not
+        need display fields and reads only Type, ProviderIds, and UserData.
       type: object
       required: [data, meta]
       properties:
         data:
           type: object
+          required: [Items, StartIndex, TotalRecordCount, NextCursor, HasMore]
           properties:
-            items:
+            Items:
               type: array
-              items: { $ref: '#/components/schemas/Metadata' }
-            totalCount: { type: integer, minimum: 0 }
-            startIndex: { type: integer, minimum: 0 }
-            cursor: { type: [string, 'null'] }
+              items: { $ref: '#/components/schemas/BaseItemDto' }
+            StartIndex:
+              type: integer
+              minimum: 0
+            TotalRecordCount:
+              type: integer
+              minimum: 0
+            NextCursor:
+              type: [string, 'null']
+            HasMore:
+              type: boolean
         meta:
           type: object
           properties:

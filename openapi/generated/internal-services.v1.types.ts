@@ -597,13 +597,14 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
-        /** @description Shared per-signal read envelope. Same shape as the public-app BaseItemDtoQueryResult envelope — a success envelope wrapping a paginated collection of BaseItemDto items. Consumed verbatim by the reco engine as one individual signal input. */
+        /** @description Shared per-signal read envelope. Returns the same BaseItemDtoQueryResult shape as the public-app watch routes. Items are BaseItemDto objects with display fields (Name, Overview, ProductionYear, Genres, ImageTags, etc.) nullable — the internal signal routes do not run the enrichment pass. Consumers that need display metadata (e.g. the reco webui) must enrich on their read path using ProviderIds.Tmdb. The reco worker does not need display fields and reads only Type, ProviderIds, and UserData. */
         ProfileReadSignalResponse: {
             data: {
-                items?: components["schemas"]["Metadata"][];
-                totalCount?: number;
-                startIndex?: number;
-                cursor?: string | null;
+                Items: components["schemas"]["BaseItemDto"][];
+                StartIndex: number;
+                TotalRecordCount: number;
+                NextCursor: string | null;
+                HasMore: boolean;
             };
             meta: {
                 requestId?: string;

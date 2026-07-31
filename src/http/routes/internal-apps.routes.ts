@@ -216,6 +216,12 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   //    accept any (accountId, profileId) when the caller holds
   //    accounts:all:read (reco). Same BaseItemDtoQueryResult envelope, same
   //    paginated shape — no bundle-only DTOs.
+  //
+  //    NOTE: These routes do NOT run the WatchMetadataEnrichmentService pass
+  //    that the public watch routes do. Items return with display fields
+  //    (Name, Overview, ProductionYear, Genres, ImageTags, etc.) as null.
+  //    Consumers needing display metadata must enrich using ProviderIds.Tmdb
+  //    on their own read path. The reco worker does not need display fields.
 
   const watchReadService = deps.watchReadService ?? new AdminWatchReadService();
   const episodicFollowService = deps.episodicFollowService ?? new EpisodicFollowService();

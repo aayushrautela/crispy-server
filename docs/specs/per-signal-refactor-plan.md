@@ -30,6 +30,8 @@ Each is **one route, one DB read, one result array**:
 
 We do **not** invent new shapes. Each per-signal route returns the same `PaginatedWatchCollection<BaseItemDto>` it already returns.
 
+> **Consequence for display consumers:** Because these routes skip the `WatchMetadataEnrichmentService` pass, items return with display fields (`Name`, `Overview`, `ProductionYear`, `Genres`, `ImageTags`, etc.) as null. The reco worker does not need display fields — it reads only `Type`, `ProviderIds`, and `UserData`. Display-facing consumers (e.g. the reco webui) must enrich on their own read path using `ProviderIds.Tmdb`.
+
 RECO calls these in parallel (one HTTP per signal) and assembles its own internal request in-process. The cost: 5 small HTTPs in parallel vs. 1 round-trip with a cached bundle. To compensate without losing responsiveness, we put a shared in-process read cache in front of each per-signal route so the second signal hit in the same window returns from memory — no bundle-shaped response, just transparent caching.
 
 ---
