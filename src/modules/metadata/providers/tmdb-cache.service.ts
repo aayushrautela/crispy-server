@@ -169,6 +169,49 @@ function toNoLanguagePosterPath(title: Record<string, unknown>): string | null {
   return poster ? toNullableString(poster.file_path) : null;
 }
 
+function toBestNoLanguageBackdropPath(title: Record<string, unknown>): string | null {
+  const images = title.images;
+  if (typeof images !== 'object' || images === null || !Array.isArray((images as Record<string, unknown>).backdrops)) {
+    return null;
+  }
+
+  const candidates = ((images as Record<string, unknown>).backdrops as unknown[])
+    .map((entry) => (typeof entry === 'object' && entry !== null ? entry as Record<string, unknown> : null))
+    .filter((entry): entry is Record<string, unknown> => entry !== null && entry.iso_639_1 === null)
+    .map((entry) => ({
+      filePath: toNullableString(entry.file_path),
+      voteAverage: typeof entry.vote_average === 'number' && Number.isFinite(entry.vote_average) ? entry.vote_average : 0,
+      voteCount: typeof entry.vote_count === 'number' && Number.isFinite(entry.vote_count) ? entry.vote_count : 0,
+    }))
+    .filter((entry): entry is { filePath: string; voteAverage: number; voteCount: number } => entry.filePath !== null);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const minVotes = 5;
+  const meanAverage = candidates.reduce((sum, entry) => sum + entry.voteAverage, 0) / candidates.length;
+  let best = candidates[0];
+  if (best === undefined) {
+    return null;
+  }
+  let bestScore = (meanAverage * minVotes + best.voteCount * best.voteAverage) / (best.voteCount + minVotes);
+
+  for (let index = 1; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    if (candidate === undefined) {
+      break;
+    }
+    const score = (meanAverage * minVotes + candidate.voteCount * candidate.voteAverage) / (candidate.voteCount + minVotes);
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  return best.filePath;
+}
+
 export class TmdbCacheService {
   constructor(
     private readonly tmdbRepository = new TmdbRepository(),
@@ -221,7 +264,7 @@ export class TmdbCacheService {
       firstAirDate: toNullableString(title.first_air_date),
       status: toNullableString(title.status),
       posterPath: toNoLanguagePosterPath(title) ?? toNullableString(title.poster_path),
-      backdropPath: toNullableString(title.backdrop_path),
+      backdropPath: toBestNoLanguageBackdropPath(title) ?? toNullableString(title.backdrop_path),
       runtime: toNullableNumber(title.runtime),
       episodeRunTime: Array.isArray(title.episode_run_time) ? title.episode_run_time.map((value) => Number(value)) : [],
       numberOfSeasons: toNullableNumber(title.number_of_seasons),
