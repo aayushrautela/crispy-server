@@ -1189,6 +1189,27 @@ export interface components {
             seasonNumber?: number | null;
             episodeNumber?: number | null;
         };
+        ClientMediaCardQueryResult: {
+            Items: components["schemas"]["ClientMediaCard"][];
+            StartIndex: number;
+            TotalRecordCount: number;
+            NextCursor: string | null;
+            HasMore: boolean;
+        };
+        ClientMediaCardQueryResultEnvelope: {
+            data: components["schemas"]["ClientMediaCardQueryResult"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        ClientMediaCardEnvelope: {
+            data: components["schemas"]["ClientMediaCard"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        ClientMediaCardArrayEnvelope: {
+            data: {
+                items: components["schemas"]["ClientMediaCard"][];
+            };
+            meta: components["schemas"]["ResponseMeta"];
+        };
         GenericArrayEnvelope: {
             data: components["schemas"]["SearchSuggestionItem"][];
             meta: components["schemas"]["ResponseMeta"];
@@ -2659,7 +2680,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2771,7 +2792,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2918,7 +2939,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2949,7 +2970,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2986,7 +3007,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoArrayEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardArrayEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -3061,7 +3082,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -3231,7 +3252,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BaseItemDtoQueryResultEnvelope"];
+                    "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];

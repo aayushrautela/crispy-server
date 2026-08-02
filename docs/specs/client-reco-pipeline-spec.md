@@ -1,19 +1,22 @@
 # Client and Home Ingest Pipeline Spec
 
-Status: target contract for the home ingest pipeline and the client home response shape.
+Status: target contract for the home ingest pipeline and the **single** read-path shape shared by every consumer.
 
 ## Goals
 
-- Separate client UI payloads from recommendation-engine machine payloads.
+- **One card shape for every read path.** Public clients, the reco worker, and the reco webui all read the same `ClientMediaCard[]` envelope. There is no parallel `BaseItemDto` leak on internal signal routes, and no per-consumer enrichment layer.
+- **One write shape for every producer.** All home ingest producers (`reco`, `custom`, `fallback`) push through the same `RecoListWriteRequest` body and the same `writeHome` ingester.
+- Separate client UI payloads from recommendation-engine machine payloads on the *write* side only.
 - Keep public client recommendations UI-ready and provider-free by default.
-- Give RECO explicit machine-readable provider refs, interaction signals, list metadata, and scoring metadata.
+- Give RECO explicit machine-readable provider refs, interaction signals, list metadata, and scoring metadata on the *write* side.
 - Let MAIN own canonicalization, authorization, storage, and metadata enrichment.
 - Support future provider refs such as TVDB without changing client app contracts.
 
 ## Non-goals
 
 - No enriched poster/title blobs stored as recommendation source data.
-- No compatibility endpoint or dual shape for old recommendation contracts.
+- No compatibility endpoint, dual shape, or per-consumer enrichment pass for any read path.
+- No legacy `BaseItemDto` shape carried alongside the card shape on internal routes "for backward compatibility." The internal signal routes return cards, not raw `BaseItemDto` rows.
 
 ## Identity rules
 
@@ -132,28 +135,30 @@ Rules:
 - `heroCarousel` represents the large featured carousel.
 - `contentRail` represents standard horizontal content rails.
 - `collectionRail` represents curated collection/folder rails.
-- Client cards are enriched by MAIN at read time.
+- **One read-time enrichment pass.** MAIN materializes `ClientMediaCard` for every read path (public `/v1` watch + home routes, internal `/internal/apps/v1` signal routes). The same card shape is served to the public client app, the reco worker, and the reco webui. No consumer runs its own enrichment pass on top.
 - Public recommendation responses must not include `ProviderIds`, `providerRefs`, `tmdbId`, `tvdbId`, `score`, `reasonCodes`, `modelVersion`, `contentId`, `mediaKey`, `UserData`, or PascalCase BaseItemDto fields.
 
 ## RECO signal pipeline
 
-RECO receives machine DTOs. It does not receive UI DTOs.
+RECO receives the same `ClientMediaCard[]` envelope the public client app receives. It does **not** receive raw `BaseItemDto` rows, and it does **not** run its own `CatalogService` or `signal_bundle_mapper` to re-enrich items.
 
 ### RECO item ref
 
+RECO's worker reads the card's `itemId` + `mediaType` directly off each `ClientMediaCard`. The provider-ref extraction needed by the generation pipeline (`GenerateRequest`) is performed by a single shared helper that maps `ClientMediaCard → { itemId, mediaType }`; no `RecoItemRef` type is shipped from Crispy Server.
+
 ```ts
 type RecoItemRef = {
-  type: 'movie' | 'tv';
-  providerRefs: ProviderRef[];
+  itemId: string;       // ClientMediaCard.itemId
+  mediaType: 'movie' | 'tv'; // ClientMediaCard.mediaType normalized to movie/tv
 };
 ```
 
 Rules:
 
-- RECO item identity is provider refs plus `type`.
-- `providerRefs` may contain TMDB, TVDB, IMDb, Kitsu, or future refs supported by MAIN.
-- RECO must not infer Crispy canonical identity from provider priority. MAIN owns canonicalization.
-- RECO signals must not include Crispy `itemId`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, client watch DTOs, or `BaseItemDto.UserData`.
+- The internal signal routes return `ClientMediaCard[]` (one card per row), not raw `BaseItemDto`.
+- RECO reads `itemId` and `mediaType` off each card; it does not re-resolve `ProviderIds.Tmdb` because MAIN already canonicalized identity at materialization time.
+- RECO must not carry enriched card payloads over to the *write* side. The read-shape card never reaches `RecoListWriteRequest.items`; the write side still uses `RecoWriteItem` (provider refs + `type`), as below.
+- RECO must not include titles, original titles, years, release dates, posters, backdrops, logos, trailers, or `BaseItemDto.UserData` in its write payload.
 
 ### RECO signal pipeline (per-signal reads)
 
@@ -170,22 +175,11 @@ a single bundle endpoint. RECO fetches individual signals in parallel via:
 - `PUT .../signals/taste` (reco pushes refreshed taste back, sharing the same `taste_profiles` table as the public list route)
 - `GET .../eligibility` — eligibility decision before reco proceeds
 
-All watch signal routes return the same `BaseItemDtoQueryResult` envelope used by the
-public `/v1/profiles/:profileId/watch/*` routes (a `PaginatedWatchCollection<BaseItemDto>`).
+All watch signal routes return the **same `ClientMediaCard`** payload the public `/v1/profiles/:profileId/watch/*` routes return — MAIN runs the unified read-time enrichment pass for every route. There is no `BaseItemDtoQueryResult` shape on the wire anywhere downstream of MAIN.
 
-**Enrichment note:** Internal signal routes do **not** run the `WatchMetadataEnrichmentService`
-pass that the public watch routes do. Items return with display fields (`Name`, `Overview`,
-`ProductionYear`, `Genres`, `ImageTags`, etc.) as null. The reco worker does not need these
-fields — it reads only `ProviderIds.Tmdb`, `Type`, and `UserData`. The reco webui (a
-display-facing consumer) enriches items on its own read path via its `CatalogService`,
-looking up TMDB metadata by `ProviderIds.Tmdb` and overlaying `title`, `posterUrl`,
-`overview`, `mediaType`, `year` on each row before returning to the browser.
+**Enrichment note:** Internal signal routes run the **same** read-time card materialization the public routes do. Items return as fully-enriched `ClientMediaCard` rows — `title`, `overview`, `year`, `images`, `trailerUrl`, `progress`, `parent` are all populated. The reco worker reads `itemId` and `mediaType` directly; the reco webui renders the cards as-is. Neither consumer runs a `CatalogService` pass, looks up TMDB metadata by `ProviderIds.Tmdb`, or overlays display fields on each row.
 
-RECO assembles a local `RecommendationBundle` from these results and feeds it to its
-`signal_bundle_mapper`. The mapper extracts each row's `ProviderIds.Tmdb`, `Type`
-(`'Series'` → `'tv'`, `'Movie'` → `'movie'`), and `UserData` fields (`LastPlayedDate`,
-`PlayedPercentage`, `Played`, `Rating`, `PlayCount`) into `RecoItemRef`-shaped inputs
-for `GenerateRequest`.
+RECO assembles a local `RecommendationBundle` from these card row results. A single shared `cardToRecoInput` helper extracts each card's `itemId` + `mediaType` into the provider-ref-free tuple `GenerateRequest` expects. (Crispy Server does not ship a separate `RecoItemRef` type or a `signal_bundle_mapper`; the helper is the only mapping step and lives next to the client contract.)
 
 ```ts
 // Local bundle reco assembles after the per-signal reads (no longer on the wire).
@@ -206,19 +200,17 @@ type RecoSignalBundle = {
       language?: string;
       region?: string;
     };
-    history: BaseItemDto[];          // rows from /watch/history
-    ratings: BaseItemDto[];          // rows from /watch/ratings
-    watchlist: BaseItemDto[];         // rows from /watch/watchlist
-    continueWatching: BaseItemDto[]; // rows from /watch/continue-watching
-    episodicFollow?: BaseItemDto[];  // rows from /watch/episodic-follow
-    taste?: TasteProfileRecord | null; // from /signals/taste
+    history: ClientMediaCard[];          // rows from /watch/history
+    ratings: ClientMediaCard[];          // rows from /watch/ratings
+    watchlist: ClientMediaCard[];        // rows from /watch/watchlist
+    continueWatching: ClientMediaCard[]; // rows from /watch/continue-watching
+    episodicFollow?: ClientMediaCard[];  // rows from /watch/episodic-follow
+    taste?: TasteProfileRecord | null;   // from /signals/taste
   };
 };
 ```
 
-`RecoItemRef` is reconstructed by reco's mapper from the BaseItemDto rows (`Type` +
-`ProviderIds.Tmdb`). It still follows the rules below: RECO items are provider-ref +
-`type`; never `BaseItemDto` on the *write* side.
+`RecoItemRef` is constructed by reco's helper from the `ClientMediaCard` rows (`itemId` + `mediaType`). It still follows the rules below: RECO items on the *write* side are provider-ref + `type`; never `ClientMediaCard` on the write side.
 
 ## RECO write pipeline
 
@@ -395,10 +387,27 @@ The following legacy paths have been removed. Do not reintroduce them:
 - Public home recommendations contain `ClientHomeSection[]` and `ClientMediaCard[]` only.
 - Public home recommendations contain `title` and `subtitle` for each section.
 - Public home cards may carry a `trailerUrl` resolved by MAIN at read time from TMDB.
-- RECO writes `RecoItemRef` to MAIN, never `BaseItemDto`. (On the *read* side, MAIN returns `BaseItemDto` rows for each watch signal; reco's signal_bundle_mapper extracts the `Tmdb` providerId and `Type` to construct `RecoItemRef` for its internal `GenerateRequest`.)
-- RECO signals and writes use provider refs plus `type`, not Crispy `itemId`.
+- **Internal signal routes return `ClientMediaCard[]`**, the same card shape the public routes return — not raw `BaseItemDto` rows with display fields null.
+- **One read-time enrichment pass.** The same `HomeHydrator`/`MetadataCardService` path that hydrates public `/home` cards also hydrates internal signal route rows. No `WatchMetadataEnrichmentService` exists alongside it.
+- **No reco-side enrichment layer.** Reco's worker reads `itemId` + `mediaType` off each card directly; reco's webui renders the cards as-is. There is no `CatalogService`, `signal_bundle_mapper`, or `signal_assembler` step that re-resolves TMDB metadata from `ProviderIds.Tmdb`.
+- No `AdminWatchReadService` duplicate of `LocalUserWatchService`; one read service per signal.
+- No parallel `parseHomeWriteBody` shape in the public `PUT /v1/.../home` route alongside the `RecoListWriteRequest` contract — one write parser.
+- RECO writes `RecoWriteItem`-shaped items to MAIN (provider refs + `type`), never `ClientMediaCard` or `BaseItemDto` on the write side.
+- RECO signals (read side) consume `ClientMediaCard[]`; RECO writes use provider refs plus `type`, not Crispy `itemId`.
 - MAIN resolves all writes to canonical public item IDs before storage.
 - No recommendation storage path writes provider media keys as `contentId`.
 - A single `GET /home` response carries sections from exactly one `source`; sources are never concatenated.
 - The home store keeps at most N snapshots per `(profile, source)` per the table above; old snapshots are pruned in the write transaction.
 - TVDB provider refs can be accepted without changing client contracts.
+
+## Layers to delete (no legacy compatibility retained)
+
+These are removed entirely under the single-card-shape contract. There is no dual-shape fallback and no shrunken-but-kept version of any of them:
+
+| Layer | File / Symbol | Why it goes away |
+| --- | --- | --- |
+| Dual enrichment pass | `src/modules/watch/watch-metadata-enrichment.service.ts` (`WatchMetadataEnrichmentService`) | Replaced by the single `MetadataCardService`/`HomeHydrator` card path used for both public and internal routes. |
+| Duplicate watch read service | `src/modules/integrations/admin-watch-read.service.ts` (`AdminWatchReadService`) | One read service (`LocalUserWatchService`) per signal; the internal route passes `(accountId, profileId)` explicitly. |
+| Reco-side re-enrichment | reco `src/app-api/CatalogService` (or equivalent) | Internal signal rows already arrive as `ClientMediaCard`; no TMDB re-resolution needed. |
+| Reco-side bundle mapper | reco `src/app-api/signal_bundle_mapper.ts` (and any renamed `signal_assembler`) | Replaced by a single `cardToRecoInput` helper that reads `itemId` + `mediaType` off each card. The `BaseItemDto → ProviderIds.Tmdb + Type + UserData` extraction no longer exists. |
+| Duplicate home write parser | `parseHomeWriteBody` in `src/http/routes/recommendation-outputs.ts` | Public `PUT /v1/profiles/:profileId/home` and internal `PUT /internal/apps/v1/.../recommendations/lists/:listKey` share the same `RecoListWriteRequest` parser. |

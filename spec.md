@@ -1,5 +1,7 @@
 # Supabase Layer Removal Spec
 
+> Status: **Implemented.** The files, services, and indirections named in this spec have all been removed from the runtime. This document is retained as a historical record of the migration; any code path it references (`ProfileInputSignalFacade`, `profile-signal-bundle.service.ts`, etc.) no longer exists in `src/`.
+
 ## Goal
 
 Remove the remaining Supabase app-data layer deeply, not cosmetically. After this work, Supabase is only the external identity provider and JWT issuer. All product data, service data, recommendation data, watch state, metadata cache, admin operations, and provider/import data use server-owned Postgres through local repositories/services.

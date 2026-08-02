@@ -39,7 +39,7 @@ Section types:
 
 ## Internal RECO writes
 
-RECO writes section metadata plus ordered provider identities. MAIN derives rank from array order, resolves provider refs to canonical internal item identity, applies policy/idempotency, persists versions, and enriches public client responses at read time.
+RECO writes section metadata plus ordered provider identities. MAIN derives rank from array order, resolves provider refs to canonical internal item identity, applies policy/idempotency, persists versions, and materializes `ClientMediaCard` rows for every read path (public client app, admin, and the reco worker/webui alike) at read time.
 
 A single-list write body is a single rail of the snapshot:
 
@@ -86,11 +86,28 @@ Producers must not send enriched card payloads, posters, backdrops, logos, descr
 
 `mode` is the profile's current home mode (`recommended` or `custom`); `source` is which producer's snapshot is currently serving the home screen (`custom`, `reco`, `fallback`, or `empty`). A response always carries rails from exactly one `source` — sources are never concatenated.
 
+## RECO read path
+
+RECO reads bounded machine inputs through MAIN's internal per-signal endpoints:
+
+```text
+GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/{history|ratings|watchlist|continue-watching|episodic-follow}
+GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/profile-meta
+GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/taste
+GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility
+```
+
+Every per-signal watch route returns the **same `ClientMediaCard[]` shape** the public `/v1/profiles/:profileId/watch/*` and `/v1/profiles/:profileId/home` routes return — fully-enriched cards with canonical `itemId`, `mediaType`, `title`, `overview`, `year`, `images`, `trailerUrl`, `progress`, `parent`. MAIN runs the single read-time card-enrichment pass for every path; there is no raw `BaseItemDto` leak on the internal signal routes and no parallel un-enriched shape for the reco worker.
+
+RECO's worker reads `itemId` + `mediaType` directly off each card via a single inline `cardToRecoInput` helper. RECO's webui renders the cards as-is. No consumer runs a `CatalogService` pass, re-resolves TMDB metadata by `ProviderIds.Tmdb`, or overlays `title`/`posterUrl`/`overview`/`mediaType`/`year` per row. The reco-side `signal_bundle_mapper`/`signal_assembler` type is deleted.
+
+The watch-progress fields RECO's worker needs (`played`, `playCount`, `positionSeconds`, `percent`, `lastPlayedAt`, `userRating`, `watchlisted`) are carried on the card's existing `progress` (`ClientProgress`) field — no `BaseItemDto.UserData` is read from the wire.
+
 ## Generation lifecycle
 
 1. MAIN emits durable `recommendation.recompute_requested` events through `service_outbox_events`.
 2. MAIN posts those envelopes to RECO's `POST /internal/recommender/v1/events` endpoint with service auth.
-3. RECO reads bounded machine inputs from `/internal/apps/v1` endpoints.
+3. RECO reads bounded machine inputs from `/internal/apps/v1` per-signal endpoints (returns `ClientMediaCard[]`, the same card shape the public app reads).
 4. RECO publishes final home sections back through internal app recommendation write endpoints.
 
 AI-assisted generation is owned by RECO: it uses its own server-funded key to call the OpenAI-compatible vendor directly and falls back to deterministic TMDB lists when AI is disabled or errors. RECO must not receive, cache, log, or forward raw account BYOK keys.

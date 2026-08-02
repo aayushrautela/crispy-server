@@ -3,6 +3,7 @@ import { HttpError } from '../../lib/errors.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { HomeResolverService } from '../../modules/home/home-resolver.service.js';
 import { HomeModeService } from '../../modules/home/home-mode.service.js';
+import { parseRecoListWriteRequest } from '../../modules/recommendations/reco-list-write-parser.js';
 import { success, successList } from '../response.js';
 import { resolveRecommendationAlgorithmVersion, resolveRecommendationSourceKey } from '../../modules/recommendations/recommendation-config.js';
 
@@ -68,8 +69,7 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
     if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) {
       throw new HttpError(400, 'Idempotency-Key is required.', undefined, 'IDEMPOTENCY_KEY_REQUIRED');
     }
-    const body = asRecord(request.body);
-    const lists = parseHomeWriteBody(body);
+    const lists = parseRecoListWriteRequest(request.body).lists;
     await homeModeService.assertCanWrite(actor.appUserId, params.profileId, 'custom');
     await homeResolver.writeHome({
       accountId: actor.appUserId,
@@ -88,42 +88,6 @@ export async function registerRecommendationOutputRoutes(app: FastifyInstance): 
       expiresAt: resolved.response.expiresAt,
       sections: resolved.response.sections,
     }, request);
-  });
-}
-
-function parseHomeWriteBody(body: Record<string, unknown>): Array<{ sectionType: 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail'; title: string; subtitle: string | null; items: Array<{ type: 'movie' | 'tv'; providerRefs: Array<{ provider: 'tmdb' | 'tvdb' | 'imdb' | 'kitsu'; providerId: string }>; metadata?: Record<string, unknown> }> }> {
-  if (!Array.isArray(body.lists)) throw new HttpError(400, 'lists is required.', { field: 'lists' }, 'INVALID_HOME_WRITE');
-  return body.lists.map((rawList, index) => {
-    const listPath = `lists[${index}]`;
-    const list = asRecord(rawList);
-    const sectionType = list.sectionType;
-    if (sectionType !== 'categoryTabs' && sectionType !== 'heroCarousel' && sectionType !== 'contentRail' && sectionType !== 'collectionRail') {
-      throw new HttpError(400, `${listPath}.sectionType is invalid.`, { field: `${listPath}.sectionType` }, 'INVALID_SECTION_TYPE');
-    }
-    if (typeof list.title !== 'string' || !list.title.trim()) throw new HttpError(400, `${listPath}.title is required.`, { field: `${listPath}.title` }, 'INVALID_TITLE');
-    if (!Array.isArray(list.items)) throw new HttpError(400, `${listPath}.items must be an array.`, { field: `${listPath}.items` }, 'INVALID_ITEMS');
-    const items = list.items.map((rawItem, itemIndex) => {
-      const itemPath = `${listPath}.items[${itemIndex}]`;
-      const item = asRecord(rawItem);
-      const type = item.type;
-      if (type !== 'movie' && type !== 'tv') throw new HttpError(400, `${itemPath}.type must be movie or tv.`, { field: `${itemPath}.type` }, 'INVALID_ITEM_TYPE');
-      if (!Array.isArray(item.providerRefs) || item.providerRefs.length === 0) throw new HttpError(400, `${itemPath}.providerRefs is required.`, { field: `${itemPath}.providerRefs` }, 'INVALID_PROVIDER_REF');
-      const ref = asRecord(item.providerRefs[0]);
-      const provider = ref.provider;
-      if (provider !== 'tmdb' && provider !== 'tvdb' && provider !== 'imdb' && provider !== 'kitsu') throw new HttpError(400, `${itemPath}.providerRefs[0].provider is invalid.`, { field: `${itemPath}.providerRefs[0].provider` }, 'INVALID_PROVIDER');
-      if (typeof ref.providerId !== 'string' || !ref.providerId.trim()) throw new HttpError(400, `${itemPath}.providerRefs[0].providerId is required.`, { field: `${itemPath}.providerRefs[0].providerId` }, 'INVALID_PROVIDER_ID');
-      return {
-        type: type as 'movie' | 'tv',
-        providerRefs: [{ provider: provider as 'tmdb' | 'tvdb' | 'imdb' | 'kitsu', providerId: String(ref.providerId) }],
-        ...(item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata) ? { metadata: item.metadata as Record<string, unknown> } : {}),
-      };
-    });
-    return {
-      sectionType,
-      title: list.title,
-      subtitle: typeof list.subtitle === 'string' ? list.subtitle : null,
-      items,
-    };
   });
 }
 

@@ -1,6 +1,6 @@
 import {
-  baseItemDtoQueryResultSchema,
-  baseItemDtoSchema,
+  clientMediaCardQueryResultSchema,
+  clientMediaCardSchema,
   nonEmptyStringSchema,
   nullableNumberSchema,
   positiveIntegerLikeSchema,
@@ -10,7 +10,6 @@ import {
   recordSchema,
   stringSchema,
   successEnvelope,
-  successListEnvelope,
   withDefaultErrorResponses,
 } from './shared.js';
 
@@ -103,28 +102,28 @@ export const historyListRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: successEnvelope(baseItemDtoQueryResultSchema),
+    200: successEnvelope(clientMediaCardQueryResultSchema),
   },
 });
 
 export const continueWatchingListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: successEnvelope(baseItemDtoQueryResultSchema),
+    200: successEnvelope(clientMediaCardQueryResultSchema),
   },
 });
 
 export const watchlistListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: successEnvelope(baseItemDtoQueryResultSchema),
+    200: successEnvelope(clientMediaCardQueryResultSchema),
   },
 });
 
 export const ratingsListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {
-    200: successEnvelope(baseItemDtoQueryResultSchema),
+    200: successEnvelope(clientMediaCardQueryResultSchema),
   },
 });
 
@@ -151,16 +150,16 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: successEnvelope(baseItemDtoSchema),
+    200: successEnvelope(clientMediaCardSchema),
   },
 });
 
-const baseItemDtoListSchema = {
+const clientMediaCardListSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['items'],
   properties: {
-    items: { type: 'array', items: baseItemDtoSchema },
+    items: { type: 'array', items: clientMediaCardSchema },
   },
 } as const;
 
@@ -185,7 +184,7 @@ export const watchStatesRouteSchema = withDefaultErrorResponses({
     },
   },
   response: {
-    200: successEnvelope(baseItemDtoListSchema),
+    200: successEnvelope(clientMediaCardListSchema),
   },
 });
 

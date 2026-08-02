@@ -1089,7 +1089,7 @@ export const appAuditActionSchema = {
     'app_authenticated', 'app_auth_failed', 'app_scope_denied', 'app_grant_denied',
     'eligible_profile_changes_read', 'eligible_profile_snapshot_created',
     'eligible_profile_snapshot_items_claimed', 'profile_eligibility_checked',
-    'profile_signal_bundle_read', 'service_recommendation_list_written',
+    'service_recommendation_list_written',
     'service_recommendation_batch_written', 'recommendation_run_created',
     'recommendation_run_updated', 'recommendation_batch_created',
     'recommendation_batch_updated', 'backfill_assignments_read',

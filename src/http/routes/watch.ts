@@ -21,7 +21,7 @@ import {
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
-import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
+import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { mutation, success } from '../response.js';
 import { assertPublicItemId, decodePublicItemId } from '../../modules/identity/public-item-id.js';
@@ -40,7 +40,7 @@ export async function registerWatchRoutes(
   deps: WatchRoutesDeps = {}
 ): Promise<void> {
   const localUserWatchService = new LocalUserWatchService();
-  const watchMetadataEnrichmentService = new WatchMetadataEnrichmentService();
+  const watchCardHydrator = new WatchCardHydrator();
   const metadataLanguageService = new MetadataLanguageService();
   const contentIdentityService = new ContentIdentityService();
   const contentIdentityRepo = new ContentIdentityRepository();
@@ -96,7 +96,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchMetadataEnrichmentService.enrichContinueWatchingItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -140,7 +140,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchMetadataEnrichmentService.enrichRegularMediaItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -168,7 +168,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchMetadataEnrichmentService.enrichRegularMediaItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -196,7 +196,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchMetadataEnrichmentService.enrichRegularMediaItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language),
       )
       : page.items;
     return success({
@@ -222,7 +222,7 @@ export async function registerWatchRoutes(
       itemIds: [itemId],
     });
     const enrichedItem = await withDbClient((client) =>
-      watchMetadataEnrichmentService.enrichRegularMediaItems(client, [item], language),
+      watchCardHydrator.hydrateItems(client, [item], language),
     );
     return success(enrichedItem[0] ?? item);
   });
@@ -244,7 +244,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = stateItems.length
       ? await withDbClient((client) =>
-        watchMetadataEnrichmentService.enrichRegularMediaItems(client, stateItems, language),
+        watchCardHydrator.hydrateItems(client, stateItems, language),
       )
       : stateItems;
     return success({ items: enrichedItems });

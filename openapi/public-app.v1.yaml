@@ -1734,7 +1734,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1901,7 +1901,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2118,7 +2118,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2160,7 +2160,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2217,7 +2217,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoArrayEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardArrayEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2329,7 +2329,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2575,7 +2575,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseItemDtoQueryResultEnvelope"
+                $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3631,6 +3631,62 @@ components:
           anyOf:
             - type: integer
             - type: "null"
+    ClientMediaCardQueryResult:
+      type: object
+      additionalProperties: false
+      required: [Items, StartIndex, TotalRecordCount, NextCursor, HasMore]
+      properties:
+        Items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientMediaCard"
+        StartIndex:
+          type: integer
+        TotalRecordCount:
+          type: integer
+        NextCursor:
+          anyOf:
+            - type: string
+            - type: "null"
+        HasMore:
+          type: boolean
+    ClientMediaCardQueryResultEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/ClientMediaCardQueryResult"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ClientMediaCardEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/ClientMediaCard"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ClientMediaCardArrayEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClientMediaCard"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
     GenericArrayEnvelope:
       type: object
       required:

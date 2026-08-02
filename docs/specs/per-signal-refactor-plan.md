@@ -1,14 +1,16 @@
 # Streamline plan: per-signal reads, no bundle
 
+> Status: **Partially implemented; this revision extends the contract to a single `ClientMediaCard` read shape for every consumer.** The single `recommendation-bundle` endpoint, the `ProfileSignalBundle`/`ProfileInputSignal` cache, and the `RecommendationSignalBundle` + `Reco*Signal` types have all been removed from Crispy Server. RECO already reads the per-signal routes directly. **Outstanding work:** collapse the per-signal read shape from raw `BaseItemDto` (with display fields null) to the same `ClientMediaCard` envelope the public routes return, delete `WatchMetadataEnrichmentService` + `AdminWatchReadService` + reco's `CatalogService` + reco's `signal_bundle_mapper`/`signal_assembler`, and collapse the duplicate `parseHomeWriteBody` into the unified `RecoListWriteRequest` parser. The §2 "dismantle" list, §5 stepwise phases, and §9 end state below describe both the work that has already landed **and** this remaining single-card-shape work.
+
 ## Goal
-Eliminate the `recommendation-bundle` endpoint and the duplicate reads behind it. RECO and a user read the **same** per-signal endpoints at `/v1/profiles/:profileId/...` and `/internal/apps/v1/...`. The only difference is who authenticates and what they can address:
+Eliminate the `recommendation-bundle` endpoint and the duplicate reads behind it. **Eliminate the parallel `BaseItemDto` read path for reco.** RECO and a user read the **same** per-signal endpoints at `/v1/profiles/:profileId/...` and `/internal/apps/v1/...` and receive the **same `ClientMediaCard` envelope**. The only difference is who authenticates and what they can address:
 
 - A user reads only their own profile (PAT/JWT → ownership check).
 - RECO reads any profile (app-token → `accounts:all:read` → skips ownership).
 
-Public-read shape (`BaseItemDto`), pagination, limits, sort order, and underlying SQL stay identical to today, so this is a refactor at the auth/identity layer, not a data-layer rewrite.
+Public read shape (`ClientMediaCard`), pagination, limits, sort order, and underlying SQL stay identical across the two routes, so this is a refactor at the auth/identity + read-time-enrichment layer, not a data-layer rewrite.
 
-System ends up with one set of per-signal read routes, one service per signal, one cache layer (optional, private to those routes), and zero bundle-specific plumbing.
+System ends up with one set of per-signal read routes, one service per signal, one cache layer (optional, private to those routes), one read-time card-enrichment pass, one write parser, and zero bundle-specific plumbing or dual-shape layers.
 
 ---
 
@@ -28,9 +30,9 @@ Each is **one route, one DB read, one result array**:
 | negative signals | if a real source appears later, add then | — |
 | impressions | if a real source appears later, add then | — |
 
-We do **not** invent new shapes. Each per-signal route returns the same `PaginatedWatchCollection<BaseItemDto>` it already returns.
+We do **not** invent new shapes. Each per-signal route returns the same `ClientMediaCard` envelope the public `/v1` route returns. The internal signal routes run the **same read-time card-enrichment pass** as the public routes; `BaseItemDto` is never returned on the wire to any consumer.
 
-> **Consequence for display consumers:** Because these routes skip the `WatchMetadataEnrichmentService` pass, items return with display fields (`Name`, `Overview`, `ProductionYear`, `Genres`, `ImageTags`, etc.) as null. The reco worker does not need display fields — it reads only `Type`, `ProviderIds`, and `UserData`. Display-facing consumers (e.g. the reco webui) must enrich on their own read path using `ProviderIds.Tmdb`.
+> **Single read-time enrichment pass for every consumer:** The internal signal routes do not skip enrichment. Every per-signal route returns fully-populated `ClientMediaCard` rows (`title`, `overview`, `year`, `images`, `trailerUrl`, `progress`, `parent`) produced by the unified `MetadataCardService`/`HomeHydrator` path. The reco worker reads `itemId` + `mediaType` directly off each card; the reco webui renders the cards as-is. No consumer runs its own `CatalogService` pass or looks up TMDB metadata by `ProviderIds.Tmdb`.
 
 RECO calls these in parallel (one HTTP per signal) and assembles its own internal request in-process. The cost: 5 small HTTPs in parallel vs. 1 round-trip with a cached bundle. To compensate without losing responsiveness, we put a shared in-process read cache in front of each per-signal route so the second signal hit in the same window returns from memory — no bundle-shaped response, just transparent caching.
 
@@ -94,7 +96,7 @@ Both routes:
    - JWT/PAT caller: `accountId` from token, `profileId`/`:S` from URL — must own the profile.
    - reco caller: `:accountId` and `:profileId` come from the URL (any path is acceptable).
 3. Call **the same service** `readSignalService.readS({ accountId, profileId, limit, cursor, since? })`.
-4. Same response shape: `PaginatedWatchCollection<BaseItemDto>` for watch signals.
+4. Same response shape: `ClientMediaCard[]` for watch signals (one card per row, produced by the unified read-time card-enrichment pass — same path as public `/home` cards). The raw `BaseItemDto`/`BaseItemDtoQueryResult` shape is no longer returned on any per-signal route.
 
 ### 3.2 One set of read services (no Admin copy)
 
@@ -105,6 +107,17 @@ Replace the binary `LocalUserWatchService / AdminWatchReadService` with a **sing
 - The internal reco route fills `accountId` and `profileId` from URL params.
 - `AdminWatchReadService` is **deleted**; the 5 callers (the bundle facade, recommendation-generation service) drop their `profiles-signals:read` indirection and call the unified service.
 - `ProfileAccessService.assertProfileAccess(client, { accountId, profileId })` is kept at the route layer to give "ownership on explicit args" semantics; the service no longer needs an explicit identity check.
+
+### 3.2.1 One read-time card-enrichment pass (no dual shape)
+
+The public `/v1/profiles/:profileId/watch/*` routes and the internal `/internal/apps/v1/.../signals/watch/*` routes run **the same** card-enrichment pass and return **the same** `ClientMediaCard[]` shape. There is no parallel raw-`BaseItemDto` path for the internal routes.
+
+Concretely:
+
+- `WatchMetadataEnrichmentService` (`src/modules/watch/watch-metadata-enrichment.service.ts`) is **deleted**. Its `enrichContinueWatchingItems` / `enrichRegularMediaItems` behavior is folded into the existing `MetadataCardService.buildCardView` + `HomeHydrator.hydrateCard` path that already materializes `ClientMediaCard`.
+- Both the public watch routes (`src/http/routes/watch.ts`) and the internal signal routes (`src/http/routes/internal-apps.routes.ts`) call the unified hydrator path; both return `ClientMediaCard[]`.
+- The reco worker reads `itemId` + `mediaType` directly off each card; the reco webui renders the cards as-is.
+- No consumer runs a `CatalogService` pass, looks up TMDB metadata by `ProviderIds.Tmdb`, or overlays display fields on each row.
 
 ### 3.3 Optional: an in-process read cache, *not* a bundle
 
@@ -186,13 +199,13 @@ const [profileContext, history, ratings, watchlist, continueWatching, episodicFo
   ])
 ```
 
-Each `get*` call hits the corresponding `/internal/apps/v1/.../watch/S` route and parses a `PaginatedWatchCollection<BaseItemDto>` exactly as the public route does. No new shape, no special envelope.
+Each `get*` call hits the corresponding `/internal/apps/v1/.../watch/S` route and parses a `ClientMediaCard[]` envelope exactly as the public route does. No new shape, no special envelope, **no `BaseItemDto` on the wire anywhere**.
 
-`signal_bundle_mapper.ts` becomes `signal_assembler.ts` and is shrunk to a 1-screen function that maps `BaseItemDto → CanonicalMediaIdentity` per signal and feeds into the existing `GenerateRequest` (which already accepts `watchHistory, ratings, watchlist, continueWatching`). Add an optional `episodicFollow` array (or fold it into `continueWatching` and `watchlist` producer-side; orthogonality is up to taste here).
+`signal_bundle_mapper.ts` (and any renamed `signal_assembler.ts`) is **deleted entirely**. Its `BaseItemDto → ProviderIds.Tmdb + Type + UserData` extraction no longer exists because the cards already carry canonical `itemId` + normalized `mediaType`. A single shared `cardToRecoInput` helper reads `itemId` + `mediaType` off each `ClientMediaCard` and feeds the existing `GenerateRequest` (which already accepts `watchHistory, ratings, watchlist, continueWatching`). Add an optional `episodicFollow` array (or fold it into `continueWatching` and `watchlist` producer-side; orthogonality is up to taste here).
 
-`webui.ts`'s two `getRecommendationBundle` calls get replaced with the same per-signal parallel fetch and an in-page aggregator.
+`webui.ts`'s two `getRecommendationBundle` calls get replaced with the same per-signal parallel fetch rendered directly off the returned `ClientMediaCard[]` (no `CatalogService`, no row overlay, no in-page aggregator beyond assembling the per-signal arrays).
 
-`generated/contracts/types.ts` regenerated after OpenAPI update drops `recommendation-bundle` types.
+`generated/contracts/types.ts` regenerated after OpenAPI update drops `recommendation-bundle` types and reflects the `ClientMediaCard` read shape.
 
 ---
 
@@ -248,28 +261,48 @@ Do this in **lockstep**, server first because reco depends on the new routes.
 ### Phase 5 — reco: assemble per-signal reads
 17. In reco `src/app-api/client.ts`:
     - Remove `getRecommendationBundle`, `RecommendationSignalBundleSchema`, `RecommendationSignalBundle`.
-    - Add: `getProfileContext`, `getHistory`, `getRatings`, `getWatchlist`, `getContinueWatching`, `getEpisodicFollow`. Each calls the corresponding `/internal/apps/v1/.../watch/S` route and parses back the same `PaginatedWatchCollection<BaseItemDto>` shape.
-    - Add a helper `assembleGenerateRequest({ accountId, profileId, profileContext, history, ratings, watchlist, continueWatching, episodicFollow })` that produces the existing `GenerateRequest`.
-18. Delete `src/app-api/signal_bundle_mapper.ts` and `src/app-api/types.ts`'s `RecommendationSignalBundle`, `RecommendationBundleEnvelope`, the eligibility/limits wrappers.
+    - Add: `getProfileContext`, `getHistory`, `getRatings`, `getWatchlist`, `getContinueWatching`, `getEpisodicFollow`. Each calls the corresponding `/internal/apps/v1/.../watch/S` route and parses back the same `ClientMediaCard[]` shape.
+    - Add a helper `assembleGenerateRequest({ accountId, profileId, profileContext, history, ratings, watchlist, continueWatching, episodicFollow })` that produces the existing `GenerateRequest`. The mapping is a single `cardToRecoInput` step that reads `itemId` + normalized `mediaType` (cards already carry `"movie" | "tv" | "season" | "episode"` -> map season/episode to `"tv"`) off each card; **no `ProviderIds.Tmdb` extraction, no `UserData` field reading, no `Type === 'Series'` mapping** because MAIN already canonicalized identity at materialization time.
+18. Delete `src/app-api/signal_bundle_mapper.ts` (and any renamed `signal_assembler.ts`) entirely. Delete `src/app-api/types.ts`'s `RecommendationSignalBundle`, `RecommendationBundleEnvelope`, the eligibility/limits wrappers. Delete reco's `CatalogService` (the TMDB-by-`ProviderIds.Tmdb` overlay). The `cardToRecoInput` helper does not inherit any responsibility from these — it is a fresh 5-line function.
 19. Update `src/app-worker/recompute_event_worker.ts` to call the new client methods (parallel `Promise.all`) and pass the assembled request to `jobService.submit`.
-20. Update `src/routes/webui.ts` (two call sites) the same way.
+20. Update `src/routes/webui.ts` (two call sites) the same way: the per-signal `ClientMediaCard[]` responses are rendered as-is; no per-row overlay, no `CatalogService` call.
 
 ### Phase 6 — reco: write back via batch (existing server fix, finally exercised)
 21. Update `src/jobs/execute.ts`: replace the per-listKey `upsertRecommendationList` loop with **one** `appClient.batchUpsertRecommendationLists(...)` call per profile, carrying all four rails (`category-tabs`, `hero-carousel`, `content-rails`, `collection-rails`) in one snapshot, with a per-profile idempotency key. Reuses server `batchUpsert` → `writeHome` (already atomic per `(profile, source)`).
 
-### Phase 7 — migration / cleanup
-22. Add `crispy server/migrations/0028_drop_recommendation_signal_bundle_tables.sql` (Phase 4 already).
-23. Update `docs/specs/client-reco-pipeline-spec.md`: replace "RECO signal bundle endpoint" with "RECO reads per-signal endpoints at `/internal/apps/v1/.../watch/{history,ratings,watchlist,continue-watching,episodic-follow,taste}`; payloads mirror the user-facing `/v1` shapes".
-24. Update `docs/architecture/recommendation-engine.md` → "Source data and AI generation flow" to enumerate per-signal reads instead of one bundle.
-25. Update `docs/api/recommendations.md` → same.
-26. `crispy recommendation engine/README.md` already implicitly says RECO pulls its own data; tighten the language: "RECO calls the same per-signal read endpoints the app uses, only with the reco service token."
+### Phase 6.5 — server: collapse to single card shape (the dual-shape fix)
+This is the key step that retires the parallel `BaseItemDto` read path and every consumer-side enrichment layer. It runs on the server before the matching reco side of Phase 5 is merged, and reco is co-deployed with it.
+
+22. In `src/modules/metadata/metadata-card.service.ts` (or `HomeHydrator.hydrateCard`): extend `buildCardView` to accept the internal-route row shape (provider-ref tuples for fallback templates and canonical `itemId` for stored rows) the same way it already does for the home path. This becomes the **only** path that materializes a `ClientMediaCard`.
+23. Update `src/http/routes/internal-apps.routes.ts`: every per-signal route calls the unified `LocalUserWatchService.list*` (the raw row reader) and then runs cards through the same hydrator the public `/home` route uses. The `BaseItemDtoQueryResult` envelope becomes a `ClientMediaCard`-shaped envelope. Drop the "enrichment is NOT run on these routes" comment block entirely.
+24. Update `src/http/routes/watch.ts`: every public `/v1/profiles/:profileId/watch/*` route switches from `WatchMetadataEnrichmentService.enrichContinueWatchingItems`/`enrichRegularMediaItems` to the unified hydrator path. Both `/v1` watch routes and `/internal/apps/v1` signal routes now produce `ClientMediaCard[]` through the same code path.
+25. Update `src/http/routes/admin-api.ts`: the four watch endpoints that currently call `watchMetadataEnrichmentService.enrich*` switch to the unified hydrator. No admin-specific enrichment path remains.
+26. Delete `src/modules/watch/watch-metadata-enrichment.service.ts` and its test `watch-metadata-enrichment.service.test.ts`. Its behavior lives inside `MetadataCardService`/`HomeHydrator` now.
+27. Fold `watch-media-card-cache.service.ts` (and any cache-miss refresh) into the unified card path if it is not already shared. The cache that backs enrichment is now one cache, used by every card materialization call.
+28. Update `openapi/internal-services.v1.yaml`: the per-signal `ProfileReadSignalResponse` schema is replaced (or its items' `$ref` is retargeted) to `ClientMediaCard[]`, not `BaseItemDtoQueryResult`. Regenerate `openapi/generated/internal-services.v1.types.ts`.
+29. Update `openapi/public-app.v1.yaml` watched-list response schemas if they still reference `BaseItemDtoQueryResult`: items become `ClientMediaCard` too. Regenerate generated types.
+30. Re-run the watch + internal-apps tests; the assert shapes change from `Items[].Name` / `Items[]ProviderIds.Tmdb` to `Items[].title` / `Items[].itemId` / `Items[].mediaType`.
+
+### Phase 7 — server: collapse duplicate write parser
+31. In `src/http/routes/recommendation-outputs.ts`: delete `parseHomeWriteBody` and route the public `PUT /v1/profiles/:profileId/home` body through the same `RecoListWriteRequest` parser the internal `PUT /internal/apps/v1/.../recommendations/lists/:listKey` route uses. The two routes shared the same shape already; they now share the same parser function.
+32. Move the shared parser into `src/modules/recommendations/` (next to `reco-contract.types.ts`) so both the public and internal routes import it rather than each having an inline copy.
+
+### Phase 8 — migration / cleanup
+33. Add `crispy server/migrations/0028_drop_recommendation_signal_bundle_tables.sql` (Phase 4 already).
+34. Update `docs/specs/client-reco-pipeline-spec.md` to reflect single-card-shape read paths (already done in this revision).
+35. Update `docs/architecture/recommendation-engine.md` → "Source data and AI generation flow" to enumerate per-signal reads returning `ClientMediaCard` and to remove the "enrichment note" / `CatalogService` paragraph (done in a sibling change).
+36. Update `docs/api/recommendations.md` → same.
+37. `crispy recommendation engine/README.md` already implicitly says RECO pulls its own data; tighten the language: "RECO calls the same per-signal read endpoints the app uses, only with the reco service token, and receives the same `ClientMediaCard[]` shape the app receives."
+38. Update `scripts/guard-retired-modules.ts` to add `WatchMetadataEnrichmentService|watch-metadata-enrichment|AdminWatchReadService|admin-watch-read|CatalogService|signal_bundle_mapper|signal_assembler|parseHomeWriteBody`. The guard must fail any future PR that reintroduces a dual-shape enrichment path or a duplicate read service.
 
 ---
 
 ## 6. Migration / compatibility
 
-- **Client apps**: nothing changes. They only ever hit `/v1` per-signal routes. Public input signal types untouched.
-- **RECO engine**: HTTP path changes from `/signals/recommendation-bundle` to per-signal paths **but only across release boundaries** — co-deploy server + reco, otherwise RECO calls fail (RECO is external, no graceful fallback available outside the engine's MQ retry).
+**There is no legacy compatibility kept.** This refactor deliberately removes the parallel `BaseItemDto` read path, all per-consumer enrichment layers, and the duplicate write parser, with no dual-shape fallback alongside. Co-deploy server + reco in one release boundary; RECO's old `BaseItemDto` assumptions, `CatalogService`, and `signal_bundle_mapper` must be gone from the reco repo before the server stops returning `BaseItemDtoQueryResult` on the internal signal routes.
+
+- **Client apps**: the public `/v1/profiles/:profileId/watch/*` routes switch their response shape from `BaseItemDtoQueryResult` (PascalCase `Items[]` with `Name`/`Overview`/`ImageTags`) to `ClientMediaCard[]` (camelCase cards with `title`/`overview`/`images`). This is a breaking change for any client already shipped against the old shape. Acceptable per the spec's **no-legacy-compatibility** non-goal: co-deploy clients with the server, or treat the migration as a coordinated client release.
+- **RECO engine**: HTTP path changes from `/signals/recommendation-bundle` to per-signal paths **and** the per-signal item shape changes from `BaseItemDto` to `ClientMediaCard`. Co-deploy server + reco; RECO's old `signal_bundle_mapper`/`CatalogService` must be deleted in the same release. No graceful fallback is available outside the engine's MQ retry.
 - **Operators**: drop the bundle schema migration on the next DB deploy.
 - **Admins**: the audit log still records per-principal signal reads; the bundle handler is gone but its logger/diagnostics entries vanish — keep an audit backup if needed.
 
@@ -281,10 +314,14 @@ Do this in **lockstep**, server first because reco depends on the new routes.
   - user-PAT caller → 200 own data only, 403 other account
   - reco app-token caller with `accounts:all:read` → 200 any profile
   - app-token without `accounts:all:read` → 403
+  - the response carries `ClientMediaCard` rows (assert `Items[0].itemId`, `Items[0].mediaType`, `Items[0].title`, `Items[0].images`), **not** `BaseItemDto` fields (`Name`, `ProviderIds.Tmdb`)
   - cache invalidation on a write (history cache evicts on `recordPlaybackState`)
-- Reco `client.test.ts`: assert per-signal methods issue `Promise.all` and assemble the `GenerateRequest` field shapes.
+- Server `watch.test.ts`: the watch route tests assert `ClientMediaCard` cards on the response, not the old `BaseItemDto` shape.
+- Server: add a new guard test that fails if `WatchMetadataEnrichmentService`, `AdminWatchReadService`, `catalogService`/`CatalogService`, `signal_bundle_mapper`/`signal_assembler`, or `parseHomeWriteBody` reappears in `src/`.
+- Reco `client.test.ts`: assert per-signal methods issue `Promise.all` and parse `ClientMediaCard[]` rows; assert `assembleGenerateRequest` reads `itemId` + `mediaType` off cards (not `ProviderIds.Tmdb` / `Type` / `UserData`).
 - Reco `recompute_event_worker.test.ts`: assert the per-signal calls succeed and the assembled request has the expected counts.
 - Reco `execute.ts` test: assert a single `batchUpsertRecommendationLists` call carries all four rails with a per-profile idempotency key.
+- Reco webui test: assert webui renders the per-signal `ClientMediaCard` rows directly; no `CatalogService` is invoked.
 
 ---
 
@@ -294,10 +331,13 @@ Do this in **lockstep**, server first because reco depends on the new routes.
 | --- | --- |
 | RECO becomes a higher-fanout client (5 calls instead of 1) | Per-family cache (Phase 3) covers bursty reads; serves all callers (user app can also benefit). |
 | Inconsistent identity assumptions between user route and reco route | Single `resolveProfileSignalPrincipal` helper; one ownership-vs-scope branch in one place; covered by tests. |
-| Removing bundle breaks WebUI if it relied on bundle-only fields | WebUI's two call sites are the only ones; switch them to per-signal calls. |
+| Removing bundle breaks WebUI if it relied on bundle-only fields | WebUI's two call sites are the only ones; switch them to per-signal `ClientMediaCard[]` reads rendered directly. |
 | Cache eviction race between writes and reco reads | Existing invalidator already runs inside the same DB transaction on watch writes; re-target it at the new cache. |
 | Auth drift (`accounts:all:read` accidentally given to a non-reco app) | Out of scope — already locked by migration `0022`. The `app_source_ownership` for `custom` apps is per-account, not all-account. |
 | OpenAPI drift between server specs | Phase 0 (publication/contract) before Phase 4 (delete bundle) keeps schema and handler in lockstep. |
+| Public watch route response shape change breaks shipped client apps | No legacy compatibility is kept (per spec non-goals); coordinate a single client release with the server deploy. The `ClientMediaCard` shape is the one shape going forward. |
+| Cards on internal routes lose signal-only fields (`UserData.PlayedPercentage`, `LastPlayedDate`, `PlayCount`, `Rating`) | The worker cannot read `UserData` from a `ClientMediaCard`. Choose one: (a) expose the needed fields as explicit card fields (`progress.playCount`, `progress.percent`, `progress.lastPlayedAt`, `progress.userRating` — already part of `ClientProgress`), or (b) keep the per-signal reads card-shaped but also pass a small immutable `signalMeta` block alongside the card for the worker-only fields. Option (a) is preferred — `ClientProgress` already covers all fields the worker needs. |
+| Cards lack the provider refs the worker still needs on the write side | The worker writes `RecoWriteItem` (provider refs + `type`) — these come from MAIN's canonical resolution at materialization, not from the card. The card carries `itemId`; MAIN resolves the write-side provider refs from `itemId` server-side. No provider refs leak onto the read side. |
 
 ---
 
@@ -307,14 +347,17 @@ Server:
 - one set of per-signal read routes at `/v1` and `/internal/apps/v1`,
 - one additional `profile-meta` route at `/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/profile-meta` returning `{ profileName, isKids, language, region, watchDataOrigin }` for reco's `GenerateRequest.profileContext` assembly — reco pulls this in parallel with the watch signal reads. Added a corresponding `ProfileMetaReadResponse` schema to `internal-apps.v1.yaml`,
 - taste read/write at `/internal/apps/v1/.../signals/taste`,
-- one unified read service (`LocalUserWatchService`) per signal,
+- one unified read service (`LocalUserWatchService`) per signal; `AdminWatchReadService` deleted,
+- one read-time card-enrichment pass (`MetadataCardService`/`HomeHydrator`) shared by every read path — public watch, public home, admin, internal signal routes; `WatchMetadataEnrichmentService` deleted,
 - one optional transparent cache,
 - one write path (`HomeWriteService.writeHome`) shared by `reco`, `custom`, `fallback`,
+- one write body parser (`RecoListWriteRequest`) shared by the public `PUT /v1/.../home` route and the internal `PUT /internal/apps/v1/.../recommendations/lists/:listKey` route; `parseHomeWriteBody` deleted,
 - one outbox notifier (`RecommenderNotifier`) fire-and-forget to RECO.
 
 Reco:
-- `signal_assembler.ts` issues a `Promise.all` of 8 calls: 6 per-signal reads (history, ratings, watchlist, continue-watching, episodic-follow, taste) + profile-meta + eligibility. It builds the local `RecommendationSignalBundle` from these responses,
-- `signal_bundle_mapper.ts` maps BaseItemDto rows into `GenerateRequest` fields (extracts `Tmdb` from `ProviderIds`, converts `Type === 'Series'` to `'tv'`, reads `LastPlayedDate` / `PlayedPercentage` / `Played` / `Rating` / `PlayCount` from `UserData`),
+- a single `assembleGenerateRequest` step issues a `Promise.all` of 8 calls: 6 per-signal reads (history, ratings, watchlist, continue-watching, episodic-follow, taste) + profile-meta + eligibility. Each per-signal response is `ClientMediaCard[]`; the helper applies `cardToRecoInput` (reads `itemId` + `mediaType` off each card) and feeds the existing `GenerateRequest`. No on-wire bundle envelope, no `BaseItemDto`, no `ProviderIds.Tmdb` extraction, no `UserData` field parsing,
+- `CatalogService` is deleted — the webui renders `ClientMediaCard[]` directly,
+- `signal_bundle_mapper.ts` / `signal_assembler.ts` is deleted — replaced by the inline `cardToRecoInput` 5-line helper,
 - one `batchUpsertRecommendations` per profile carrying all rails (Phase 6 removed the per-listKey `upsertRecommendationList` loop).
 
-Two repos, one auth framework, one set of route shapes, no bundle-only types or services anywhere.
+Two repos, one auth framework, one card shape on every read path, one write shape and one parser on every write path, no bundle-only types, no dual-shape enrichment, no per-consumer re-resolution of TMDB metadata, no legacy `BaseItemDto` on the wire anywhere downstream of MAIN.

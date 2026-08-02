@@ -1,4 +1,4 @@
-import test, { mock } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
@@ -7,16 +7,91 @@ seedTestEnv();
 const testItemId = '00000000000040008000000000000001';
 const testTitleItemId = '00000000000040008000000000000002';
 
+function makeMediaItem(id: string) {
+  return {
+    Id: id,
+    Type: 'Movie' as const,
+    Name: 'Test Movie',
+    OriginalTitle: null,
+    Overview: null,
+    Taglines: [],
+    ProductionYear: null,
+    PremiereDate: null,
+    CommunityRating: null,
+    OfficialRating: null,
+    Certification: null,
+    Genres: [],
+    RunTimeTicks: null,
+    Status: null,
+    ProviderIds: { Tmdb: '694', Imdb: null, Tvdb: null },
+    ImageTags: {
+      Primary: { small: null, medium: null, large: null },
+      Backdrop: [{ small: null, medium: null, large: null }],
+      Logo: null,
+      Thumb: null,
+      Screenshot: [],
+    },
+    ParentImageTags: null,
+    SeriesId: null,
+    SeriesName: null,
+    SeasonId: null,
+    SeasonName: null,
+    ParentIndexNumber: null,
+    IndexNumber: null,
+    AbsoluteIndexNumber: null,
+    EpisodeTitle: null,
+    AirDate: null,
+    RemoteTrailers: [],
+    PosterColor: null,
+    BackdropColor: null,
+    UserData: null,
+  };
+}
+
+function fakeCardFromBaseItem(item: Record<string, unknown>) {
+  const userData = item.UserData as Record<string, unknown> | null;
+  const ticksPerSecond = 10_000_000;
+  const progress = userData
+    ? {
+        played: Boolean(userData.Played),
+        playCount: Number(userData.PlayCount ?? 0),
+        positionSeconds: typeof userData.PlaybackPositionTicks === 'number' ? userData.PlaybackPositionTicks / ticksPerSecond : null,
+        durationSeconds: typeof userData.RuntimeTicks === 'number' ? userData.RuntimeTicks / ticksPerSecond : null,
+        percent: typeof userData.PlayedPercentage === 'number' ? userData.PlayedPercentage : null,
+        lastPlayedAt: typeof userData.LastPlayedDate === 'string' ? userData.LastPlayedDate : null,
+        watchlisted: Boolean(userData.IsFavorite),
+        userRating: typeof userData.Rating === 'number' ? userData.Rating : null,
+      }
+    : null;
+  return {
+    itemId: String(item.Id),
+    mediaType: 'movie',
+    title: String(item.Name ?? ''),
+    subtitle: null,
+    overview: null,
+    year: null,
+    releaseDate: null,
+    rating: null,
+    maturityRating: null,
+    genres: [],
+    runtimeSeconds: null,
+    images: { poster: null, backdrop: null, logo: null },
+    trailerUrl: null,
+    progress,
+    parent: null,
+  };
+}
+
 test('watch routes work with user actor auth subject', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
-   
+  const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
+
   const originals = {
     listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
     recordPlaybackState: LocalUserWatchService.prototype.recordPlaybackState,
     markWatched: LocalUserWatchService.prototype.markWatched,
     unmarkWatched: LocalUserWatchService.prototype.unmarkWatched,
-    enrichContinueWatchingItems: WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems,
+    hydrateItems: WatchCardHydrator.prototype.hydrateItems,
   };
   const { ContentIdentityService } = await import('../../modules/identity/content-identity.service.js');
   const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
@@ -28,7 +103,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     LocalUserWatchService.prototype.recordPlaybackState = originals.recordPlaybackState;
     LocalUserWatchService.prototype.markWatched = originals.markWatched;
     LocalUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
-    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+    WatchCardHydrator.prototype.hydrateItems = originals.hydrateItems;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
@@ -57,8 +132,8 @@ test('watch routes work with user actor auth subject', async (t) => {
     watchedCalls.push({ ...params, kind: 'unmark' });
   };
 
-  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async function (_client, items) {
-    return items;
+  WatchCardHydrator.prototype.hydrateItems = async function (_client, items) {
+    return items as never;
   };
 
   ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
@@ -181,47 +256,6 @@ test('watch routes reject requests without access token', async (t) => {
   assert.equal(body.error.message, 'Missing bearer token.');
 });
 
-function makeMediaItem(id: string) {
-  return {
-    Id: id,
-    Type: 'Movie' as const,
-    Name: 'Test Movie',
-    OriginalTitle: null,
-    Overview: null,
-    Taglines: [],
-    ProductionYear: null,
-    PremiereDate: null,
-    CommunityRating: null,
-    OfficialRating: null,
-    Certification: null,
-    Genres: [],
-    RunTimeTicks: null,
-    Status: null,
-    ProviderIds: { Tmdb: '694', Imdb: null, Tvdb: null },
-    ImageTags: {
-      Primary: { small: null, medium: null, large: null },
-      Backdrop: [{ small: null, medium: null, large: null }],
-      Logo: null,
-      Thumb: null,
-      Screenshot: [],
-    },
-    ParentImageTags: null,
-    SeriesId: null,
-    SeriesName: null,
-    SeasonId: null,
-    SeasonName: null,
-    ParentIndexNumber: null,
-    IndexNumber: null,
-    AbsoluteIndexNumber: null,
-    EpisodeTitle: null,
-    AirDate: null,
-    RemoteTrailers: [],
-    PosterColor: null,
-    BackdropColor: null,
-    UserData: null,
-  };
-}
-
 test('continue-watching serializes items with progress', async (t) => {
   const { db: pool } = await import('../../lib/db.js');
   (pool as any).connect = async () => ({
@@ -233,18 +267,18 @@ test('continue-watching serializes items with progress', async (t) => {
   });
 
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originals = {
     listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
-    enrichContinueWatchingItems: WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems,
+    hydrateItems: WatchCardHydrator.prototype.hydrateItems,
   };
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
-    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originals.enrichContinueWatchingItems;
+    WatchCardHydrator.prototype.hydrateItems = originals.hydrateItems;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
@@ -271,7 +305,9 @@ test('continue-watching serializes items with progress', async (t) => {
     pageInfo: { nextCursor: null, hasMore: false },
   });
 
-  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async (_client, items) => items;
+  WatchCardHydrator.prototype.hydrateItems = async (_client, items) => {
+    return (items as Array<Record<string, unknown>>).map(fakeCardFromBaseItem) as never;
+  };
 
   MetadataLanguageService.prototype.resolveForProfile = async function () {
     return 'en-US';
@@ -292,12 +328,12 @@ test('continue-watching serializes items with progress', async (t) => {
   assert.ok(Array.isArray(body.data.Items));
   assert.equal(body.data.Items.length, 1);
   const item = body.data.Items[0];
-  assert.equal(item.Id, testItemId);
-  assert.equal(item.Type, 'Movie');
-  assert.equal(item.UserData.PlaybackPositionTicks, 1_200_000_000);
-  assert.equal(item.UserData.RuntimeTicks, 72_000_000_000);
-  assert.equal(item.UserData.PlayedPercentage, 1.67);
-  assert.equal(item.UserData.LastPlayedDate, now);
+  assert.equal(item.itemId, testItemId);
+  assert.equal(item.mediaType, 'movie');
+  assert.equal(item.progress.positionSeconds, 120);
+  assert.equal(item.progress.durationSeconds, 7200);
+  assert.equal(item.progress.percent, 1.67);
+  assert.equal(item.progress.lastPlayedAt, now);
 });
 
 test('watch state serializes progress without status', async (t) => {
@@ -311,19 +347,19 @@ test('watch state serializes progress without status', async (t) => {
   });
 
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originals = {
     getState: LocalUserWatchService.prototype.getState,
-    enrichRegularMediaItems: WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems,
+    hydrateItems: WatchCardHydrator.prototype.hydrateItems,
   };
 
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
     LocalUserWatchService.prototype.getState = originals.getState;
-    WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = originals.enrichRegularMediaItems;
+    WatchCardHydrator.prototype.hydrateItems = originals.hydrateItems;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
@@ -345,7 +381,9 @@ test('watch state serializes progress without status', async (t) => {
     },
   });
 
-  WatchMetadataEnrichmentService.prototype.enrichRegularMediaItems = async (_client, items) => items;
+  WatchCardHydrator.prototype.hydrateItems = async (_client, items) => {
+    return (items as Array<Record<string, unknown>>).map(fakeCardFromBaseItem) as never;
+  };
 
   MetadataLanguageService.prototype.resolveForProfile = async function () {
     return 'en-US';
@@ -363,27 +401,27 @@ test('watch state serializes progress without status', async (t) => {
 
   const body = response.json();
   assert.equal(response.statusCode, 200, JSON.stringify(body, null, 2));
-  assert.equal(body.data.Id, testItemId);
-  assert.equal(body.data.UserData.PlaybackPositionTicks, 1_200_000_000);
-  assert.equal(body.data.UserData.RuntimeTicks, 72_000_000_000);
-  assert.equal(body.data.UserData.LastPlayedDate, now);
+  assert.equal(body.data.itemId, testItemId);
+  assert.equal(body.data.progress.positionSeconds, 120);
+  assert.equal(body.data.progress.durationSeconds, 7200);
+  assert.equal(body.data.progress.lastPlayedAt, now);
 });
 
 test('watch route requires unlock (locked profile) when profile has a PIN', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
   const { setProfileUnlocked, lockProfile } = await import('../../lib/profile-unlock-store.js');
   const { TEST_USER_AUTH } = await import('../../test-helpers.js');
 
   const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
-  const originalEnrich = WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems;
+  const originalHydrate = WatchCardHydrator.prototype.hydrateItems;
   const originalResolve = MetadataLanguageService.prototype.resolveForProfile;
 
   LocalUserWatchService.prototype.listContinueWatchingPage = async function () {
     return { items: [], pageInfo: { nextCursor: null, hasMore: false } } as never;
   };
-  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async function () {
+  WatchCardHydrator.prototype.hydrateItems = async function () {
     return [] as never;
   };
   MetadataLanguageService.prototype.resolveForProfile = async function () {
@@ -391,7 +429,7 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
   };
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
-    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originalEnrich;
+    WatchCardHydrator.prototype.hydrateItems = originalHydrate;
     MetadataLanguageService.prototype.resolveForProfile = originalResolve;
     void lockProfile('profile-1', TEST_USER_AUTH.appUserId);
     void lockProfile('profile-2', TEST_USER_AUTH.appUserId);
@@ -437,17 +475,17 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
 
 test('watch route allows access when profile has no PIN', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
-  const { WatchMetadataEnrichmentService } = await import('../../modules/watch/watch-metadata-enrichment.service.js');
+  const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
-  const originalEnrich = WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems;
+  const originalHydrate = WatchCardHydrator.prototype.hydrateItems;
   const originalResolve = MetadataLanguageService.prototype.resolveForProfile;
 
   LocalUserWatchService.prototype.listContinueWatchingPage = async function () {
     return { items: [], pageInfo: { nextCursor: null, hasMore: false } } as never;
   };
-  WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = async function () {
+  WatchCardHydrator.prototype.hydrateItems = async function () {
     return [] as never;
   };
   MetadataLanguageService.prototype.resolveForProfile = async function () {
@@ -455,7 +493,7 @@ test('watch route allows access when profile has no PIN', async (t) => {
   };
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
-    WatchMetadataEnrichmentService.prototype.enrichContinueWatchingItems = originalEnrich;
+    WatchCardHydrator.prototype.hydrateItems = originalHydrate;
     MetadataLanguageService.prototype.resolveForProfile = originalResolve;
   });
 

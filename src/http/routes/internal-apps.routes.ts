@@ -9,8 +9,9 @@ import type { EligibleProfileChangeFeedService } from '../../modules/apps/eligib
 import type { EligibleProfileSnapshotService } from '../../modules/apps/eligible-profile-snapshot.types.js';
 import type { ProfileEligibilityService } from '../../modules/apps/profile-eligibility.service.js';
 import type { ServiceRecommendationListService } from '../../modules/apps/service-recommendation-list.service.js';
-import { AdminWatchReadService } from '../../modules/integrations/admin-watch-read.service.js';
+import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
+import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
 import { withDbClient } from '../../lib/db.js';
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
@@ -63,8 +64,10 @@ export interface InternalAppsRoutesDeps {
   recommendationBackfillService: RecommendationBackfillService;
   appAuditRepo: AppAuditRepo;
   profileService?: ProfileOwnershipValidator;
-  /** Read service for per-signal watch routes. Defaults to AdminWatchReadService. */
-  watchReadService?: Pick<AdminWatchReadService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'assertProfileAccess'>;
+  /** Read service for per-signal watch routes. Defaults to LocalUserWatchService. */
+  watchReadService?: Pick<LocalUserWatchService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'getStates'>;
+  /** Card hydrator for per-signal watch routes. Defaults to WatchCardHydrator. */
+  watchCardHydrator?: Pick<WatchCardHydrator, 'hydrateItems'>;
   /** Read service for episodic-follow signal route. Defaults to EpisodicFollowService. */
   episodicFollowService?: Pick<EpisodicFollowService, 'listForProfile'>;
   /** Service for taste read/write signal routes. Defaults to RecommendationOutputService. */
@@ -214,16 +217,16 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   // ── Per-signal read routes (reco pulls each signal individually) ───────
   //    These mirror the public /v1/profiles/:profileId/watch/* routes but
   //    accept any (accountId, profileId) when the caller holds
-  //    accounts:all:read (reco). Same BaseItemDtoQueryResult envelope, same
-  //    paginated shape — no bundle-only DTOs.
+  //    accounts:all:read (reco). Same ClientMediaCard envelope, same
+  //    paginated shape — the unified WatchCardHydrator runs on every read path,
+  //    so reco (worker and webui) and the public client app consume the same
+  //    card shape.
   //
-  //    NOTE: These routes do NOT run the WatchMetadataEnrichmentService pass
-  //    that the public watch routes do. Items return with display fields
-  //    (Name, Overview, ProductionYear, Genres, ImageTags, etc.) as null.
-  //    Consumers needing display metadata must enrich using ProviderIds.Tmdb
-  //    on their own read path. The reco worker does not need display fields.
+  //    No per-consumer enrichment layer exists on the reco side; cards are
+  //    rendered as-is.
 
-  const watchReadService = deps.watchReadService ?? new AdminWatchReadService();
+  const watchReadService = deps.watchReadService ?? new LocalUserWatchService();
+  const watchCardHydrator = deps.watchCardHydrator ?? new WatchCardHydrator();
   const episodicFollowService = deps.episodicFollowService ?? new EpisodicFollowService();
   const recommendationOutputService = deps.recommendationOutputService ?? new RecommendationOutputService();
   const usingInjectedWatchReadService = deps.watchReadService !== undefined;
@@ -239,7 +242,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    const profile = await runWithClient(async (client) => watchReadService.assertProfileAccess(client, params));
+    const profile = await profileService.requireOwnedProfile(params.accountId, params.profileId);
     return success({
       profileName: profile.name,
       isKids: profile.isKids,
@@ -257,13 +260,16 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    const page = await runWithClient((client) => watchReadService.listHistoryPage(client, {
+    const page = await watchReadService.listHistoryPage({
       accountId: params.accountId,
       profileId: params.profileId,
       limit: query.limit ? Number(query.limit) : 100,
       cursor: query.cursor ?? null,
-    }));
-    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+    });
+    const cards = page.items.length
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      : [];
+    return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/ratings', { schema: profileSignalReadRouteSchema }, async (request) => {
@@ -274,13 +280,16 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    const page = await runWithClient((client) => watchReadService.listRatingsPage(client, {
+    const page = await watchReadService.listRatingsPage({
       accountId: params.accountId,
       profileId: params.profileId,
       limit: query.limit ? Number(query.limit) : 100,
       cursor: query.cursor ?? null,
-    }));
-    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+    });
+    const cards = page.items.length
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      : [];
+    return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/watchlist', { schema: profileSignalReadRouteSchema }, async (request) => {
@@ -291,13 +300,16 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    const page = await runWithClient((client) => watchReadService.listWatchlistPage(client, {
+    const page = await watchReadService.listWatchlistPage({
       accountId: params.accountId,
       profileId: params.profileId,
       limit: query.limit ? Number(query.limit) : 50,
       cursor: query.cursor ?? null,
-    }));
-    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+    });
+    const cards = page.items.length
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      : [];
+    return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/continue-watching', { schema: profileSignalReadRouteSchema }, async (request) => {
@@ -308,13 +320,16 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    const page = await runWithClient((client) => watchReadService.listContinueWatchingPage(client, {
+    const page = await watchReadService.listContinueWatchingPage({
       accountId: params.accountId,
       profileId: params.profileId,
       limit: query.limit ? Number(query.limit) : 20,
       cursor: query.cursor ?? null,
-    }));
-    return success({ Items: page.items, StartIndex: 0, TotalRecordCount: page.items.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
+    });
+    const cards = page.items.length
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      : [];
+    return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/episodic-follow', { schema: profileSignalReadRouteSchema }, async (request) => {
@@ -325,10 +340,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'profiles.signals', accountId: params.accountId, profileId: params.profileId });
-    const items = await runWithClient(async (client) => {
-      await watchReadService.assertProfileAccess(client, params);
-      return episodicFollowService.listForProfile(client, params.profileId, query.limit ? Number(query.limit) : 20);
-    });
+    const items = await runWithClient((client) => episodicFollowService.listForProfile(client, params.profileId, query.limit ? Number(query.limit) : 20));
     return success({ Items: items, StartIndex: 0, TotalRecordCount: items.length, NextCursor: null, HasMore: false }, request);
   });
 

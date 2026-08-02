@@ -12,7 +12,6 @@ export type AppAuditAction =
   | 'eligible_profile_snapshot_created'
   | 'eligible_profile_snapshot_items_claimed'
   | 'profile_eligibility_checked'
-  | 'profile_signal_bundle_read'
   | 'service_recommendation_list_written'
   | 'service_recommendation_batch_written'
   | 'recommendation_run_created'

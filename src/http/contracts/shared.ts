@@ -396,6 +396,114 @@ export const baseItemDtoQueryResultSchema = {
   },
 } as const;
 
+export const clientMediaTypeSchema = {
+  type: 'string',
+  enum: ['movie', 'tv', 'season', 'episode'],
+} as const;
+
+export const clientImageSetSchema = responsiveImageSetSchema;
+
+export const clientImagesSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['poster', 'backdrop', 'logo'],
+  properties: {
+    poster: { anyOf: [responsiveImageSetSchema, { type: 'null' }] },
+    backdrop: { anyOf: [responsiveImageSetSchema, { type: 'null' }] },
+    logo: { anyOf: [responsiveImageSetSchema, { type: 'null' }] },
+    still: { anyOf: [responsiveImageSetSchema, { type: 'null' }] },
+  },
+} as const;
+
+export const clientProgressSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'played',
+    'playCount',
+    'positionSeconds',
+    'durationSeconds',
+    'percent',
+    'lastPlayedAt',
+    'watchlisted',
+    'userRating',
+  ],
+  properties: {
+    played: { type: 'boolean' },
+    playCount: { type: 'integer', minimum: 0 },
+    positionSeconds: { type: ['number', 'null'] },
+    durationSeconds: { type: ['number', 'null'] },
+    percent: { type: ['number', 'null'] },
+    lastPlayedAt: { type: ['string', 'null'] },
+    watchlisted: { type: 'boolean' },
+    userRating: { type: ['number', 'null'] },
+  },
+} as const;
+
+export const clientParentRefSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    seriesItemId: { type: 'string' },
+    seriesTitle: { type: 'string' },
+    seasonItemId: { type: 'string' },
+    seasonNumber: { type: ['integer', 'null'] },
+    episodeNumber: { type: ['integer', 'null'] },
+  },
+} as const;
+
+export const clientMediaCardSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'itemId',
+    'mediaType',
+    'title',
+    'subtitle',
+    'overview',
+    'year',
+    'releaseDate',
+    'rating',
+    'maturityRating',
+    'genres',
+    'runtimeSeconds',
+    'images',
+    'trailerUrl',
+    'progress',
+    'parent',
+  ],
+  properties: {
+    itemId: publicItemIdSchema,
+    mediaType: clientMediaTypeSchema,
+    title: stringSchema,
+    subtitle: { type: ['string', 'null'] },
+    overview: { type: ['string', 'null'] },
+    year: { type: ['integer', 'null'] },
+    releaseDate: { type: ['string', 'null'] },
+    rating: { type: ['number', 'null'] },
+    maturityRating: { type: ['string', 'null'] },
+    genres: { type: 'array', items: stringSchema },
+    runtimeSeconds: { type: ['number', 'null'] },
+    images: clientImagesSchema,
+    trailerUrl: { type: ['string', 'null'] },
+    progress: { anyOf: [clientProgressSchema, { type: 'null' }] },
+    parent: { anyOf: [clientParentRefSchema, { type: 'null' }] },
+  },
+} as const;
+
+export const clientMediaCardQueryResultSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['Items', 'StartIndex', 'TotalRecordCount', 'NextCursor', 'HasMore'],
+  properties: {
+    Items: { type: 'array', items: clientMediaCardSchema },
+    StartIndex: { type: 'integer' },
+    TotalRecordCount: { type: 'integer' },
+    NextCursor: { type: ['string', 'null'] },
+    HasMore: { type: 'boolean' },
+  },
+} as const;
+
 export const metadataArtworkSchema = {
   type: 'object',
   additionalProperties: false,

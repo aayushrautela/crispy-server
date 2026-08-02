@@ -71,8 +71,20 @@ const rules: Rule[] = [
     message: 'Retired per-rail integration-recommendations ingest module has been removed. The unified HomeWriteService pipeline (recommendation_active_lists + recommendation_list_versions) is the only home-feed ingest path.',
   },
   {
-    pattern: 'ProfileSignalBundle|profile-signal-bundle|recommendation-bundle|ProfileInputSignal|profile-input-signal|/signals/recommendation-bundle|RecommendationSignalBundleResponse',
-    message: 'Retired recommendation-bundle ingest path has been removed. Use per-signal read routes at /internal/apps/v1/.../signals/watch/{history,ratings,watchlist,continue-watching,episodic-follow} and /signals/taste instead.',
+    pattern: 'ProfileSignalBundle|profile-signal-bundle|recommendation-bundle|ProfileInputSignal|profile-input-signal|/signals/recommendation-bundle|RecommendationSignalBundleResponse|RecommendationSignalBundle|recommendation-signal\\.types|RecoContinueSignal|RecoHistorySignal|RecoRatingSignal|RecoWatchlistSignal|RecoNegativeSignal|RecoImpressionSignal|RecoItemRef|profile_signal_bundle_read',
+    message: 'Retired recommendation-bundle ingest path and signal-bundle types have been removed. Use per-signal read routes at /internal/apps/v1/.../signals/watch/{history,ratings,watchlist,continue-watching,episodic-follow} and /signals/taste instead. Signal-bundle types (RecommendationSignalBundle, Reco*Signal, RecoItemRef) and the profile_signal_bundle_read audit action must not be reintroduced.',
+  },
+  {
+    pattern: 'WatchMetadataEnrichmentService|watch-metadata-enrichment|AdminWatchReadService|admin-watch-read',
+    message: 'The dual-shape enrichment layers have been collapsed. The single read-time card-enrichment pass lives in MetadataCardService/HomeHydrator and is the only enrichment path. WatchMetadataEnrichmentService and the duplicate AdminWatchReadService must not be reintroduced.',
+  },
+  {
+    pattern: 'signal_bundle_mapper|signal_assembler|signal-bundle-mapper|signal-assembler',
+    message: 'Reco-side bundle mapper and assembler have been deleted. The single cardToRecoInput helper reads itemId + mediaType directly off ClientMediaCard rows from the per-signal routes; no BaseItemDto→ProviderIds.Tmdb/Type/UserData extraction step exists. signal_bundle_mapper and signal_assembler must not be reintroduced.',
+  },
+  {
+    pattern: 'parseHomeWriteBody',
+    message: 'The hand-rolled home write parser has been replaced by the shared parseRecoListWriteRequest in src/modules/recommendations/reco-list-write-parser.ts. parseHomeWriteBody must not be reintroduced; the public PUT /v1/.../home route uses parseRecoListWriteRequest. The internal PUT /internal/apps/v1/.../recommendations/lists/:listKey route retains its own richer validation (ServiceRecommendationListService.validateSingleRequest) because it accepts score/reason/reasonCodes fields the public route does not.',
   },
 ];
 

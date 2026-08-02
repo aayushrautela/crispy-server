@@ -149,7 +149,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
       async listRatingsPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
       async listWatchlistPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
       async listContinueWatchingPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
-      async assertProfileAccess() { return { id: 'prof-888', profileGroupId: 'group-1', name: 'Test Profile', interfaceLanguage: 'en', region: null, avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false, isKids: false, sortOrder: 0, createdByUserId: 'acc-999', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' }; },
+      async getStates() { return []; },
     },
     episodicFollowService: { async listForProfile() { return []; } },
     recommendationOutputService: {

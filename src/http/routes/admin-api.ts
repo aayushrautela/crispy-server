@@ -24,9 +24,9 @@ import { RecommendationOutputService } from '../../modules/recommendations/recom
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
-import { AdminWatchReadService } from '../../modules/integrations/admin-watch-read.service.js';
+import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
-import { WatchMetadataEnrichmentService } from '../../modules/watch/watch-metadata-enrichment.service.js';
+import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { withDbClient, withTransaction, db } from '../../lib/db.js';
 import { success, mutation } from '../response.js';
 import { registerHomeAdminRoutes } from './home-admin.routes.js';
@@ -54,9 +54,9 @@ export async function registerAdminApiRoutes(
   const calendarService = new CalendarService();
   const accountSettingsService = new AccountSettingsService();
   const aiClient = new OpenAiCompatibleClient();
-  const adminWatchReadService = new AdminWatchReadService();
+  const adminWatchReadService = new LocalUserWatchService();
   const episodicFollowService = new EpisodicFollowService();
-  const watchMetadataEnrichmentService = new WatchMetadataEnrichmentService();
+  const watchCardHydrator = new WatchCardHydrator();
 
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
@@ -190,14 +190,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await adminWatchReadService.listHistoryPage(client, {
+      const result = await adminWatchReadService.listHistoryPage({
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchMetadataEnrichmentService.enrichRegularMediaItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items),
       };
     });
     return success({
@@ -216,14 +216,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await adminWatchReadService.listContinueWatchingPage(client, {
+      const result = await adminWatchReadService.listContinueWatchingPage({
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchMetadataEnrichmentService.enrichContinueWatchingItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items),
       };
     });
     return success({
@@ -242,14 +242,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await adminWatchReadService.listWatchlistPage(client, {
+      const result = await adminWatchReadService.listWatchlistPage({
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchMetadataEnrichmentService.enrichRegularMediaItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items),
       };
     });
     return success({
@@ -268,14 +268,14 @@ export async function registerAdminApiRoutes(
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
     const page = await withDbClient(async (client) => {
-      const result = await adminWatchReadService.listRatingsPage(client, {
+      const result = await adminWatchReadService.listRatingsPage({
         ...params,
         limit: parseLimit(query.limit),
         cursor: parseNullableString(query.cursor),
       });
       return {
         ...result,
-        items: await watchMetadataEnrichmentService.enrichRegularMediaItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items),
       };
     });
     return success({
@@ -293,10 +293,9 @@ export async function registerAdminApiRoutes(
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
-    const items = await withDbClient(async (client) => {
-      await adminWatchReadService.assertProfileAccess(client, params);
-      return episodicFollowService.listForProfile(client, params.profileId, parseLimit(query.limit));
-    });
+    const items = await withDbClient(async (client) =>
+      episodicFollowService.listForProfile(client, params.profileId, parseLimit(query.limit)),
+    );
     return success({
       profileId: params.profileId,
       kind: 'episodic-follow' as const,

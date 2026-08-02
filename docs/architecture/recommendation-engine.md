@@ -4,6 +4,8 @@
 
 Target architecture and security contract for integration between Crispy Server (MAIN) and the external recommendation engine (RECO).
 
+> Note: Crispy Server no longer ships `RecoItemRef` or any signal-bundle type. The per-signal read routes return `ClientMediaCard[]` (the same fully-enriched card shape the public `/v1/profiles/:profileId/watch/*` and `/v1/profiles/:profileId/home` routes return). RECO's worker applies a single `cardToRecoInput` helper that reads `itemId` + `mediaType` off each card; there is no `CatalogService`, no `signal_bundle_mapper`/`signal_assembler`, and no `ProviderIds.Tmdb` re-resolution on the reco side. The contract below describes RECO-side behavior; Crispy-Server-side types refer to `RecoWriteItem` (in `src/modules/recommendations/reco-contract.types.ts`) for the *write* side and `ClientMediaCard` for the *read* side.
+
 OpenAPI remains the machine-readable source of truth for exact endpoint shapes, status codes, examples, and error envelopes:
 
 - `openapi/internal-services.v1.yaml` for RECO calls into MAIN internal app and AI-plan APIs.
@@ -118,28 +120,28 @@ The current RECO ingestion response acknowledges acceptance and may include only
 
 ## Source data and AI generation flow
 
-RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. Per the per-signal refactor, MAIN no longer exposes a single bundle endpoint; RECO issues parallel `GET` requests against the per-signal read routes (history, ratings, watchlist, continue-watching, episodic-follow, taste) plus a `profile-meta` route that returns profile-scoped fields (profileName, isKids, language, region, watchDataOrigin) for `GenerateRequest.profileContext` assembly, plus the eligibility decision.
+RECO retrieves bounded, authorized machine inputs through MAIN internal APIs. Per the per-signal refactor, MAIN no longer exposes a single bundle endpoint; RECO issues parallel `GET` requests against the per-signal read routes (history, ratings, watchlist, continue-watching, episodic-follow, taste) plus a `profile-meta` route that returns profile-scoped fields (profileName, isKids, language, region, watchDataOrigin) for `GenerateRequest.profileContext` assembly, plus the eligibility decision. MAIN runs the **same read-time card-enrichment pass** for every per-signal route as it runs for the public `/v1` watch and `/home` routes.
 
-Each watch signal route returns the same `BaseItemDtoQueryResult` envelope used by the public `/v1/profiles/:profileId/watch/*` routes — a `PaginatedWatchCollection<BaseItemDto>`.
+Each watch signal route returns `ClientMediaCard[]` — the same fully-enriched card shape the public `/v1/profiles/:profileId/watch/*` and `/v1/profiles/:profileId/home` routes return. There is no `BaseItemDtoQueryResult` envelope and no raw `BaseItemDto` on the wire downstream of MAIN.
 
-**Enrichment note:** Internal signal routes skip the `WatchMetadataEnrichmentService` pass. Items return with display fields (`Name`, `Overview`, `ProductionYear`, `Genres`, `ImageTags`, etc.) as null. RECO's worker does not need these fields — it reads only `ProviderIds.Tmdb`, `Type`, and `UserData`. The reco webui, which is display-facing, enriches items on its read path via its `CatalogService` (looking up TMDB metadata by `ProviderIds.Tmdb`) and overlays `title`, `posterUrl`, `overview`, `mediaType`, `year` on each row before returning to the browser.
+**Single enrichment pass:** MAIN materializes `ClientMediaCard` (canonical `itemId`, `mediaType`, `title`, `overview`, `year`, `images`, `trailerUrl`, `progress`, `parent`) for every read path — public client app, admin, reco worker, and reco webui. The reco worker reads `itemId` + `mediaType` directly off each card; the reco webui renders the cards as-is. No consumer runs a `CatalogService` pass, looks up TMDB metadata by `ProviderIds.Tmdb`, or overlays display fields per row.
 
-RECO's `signal_bundle_mapper` extracts from each row the `Tmdb` providerId (from `ProviderIds`), the media `type` (mapping `Type === 'Series'` to `'tv'`, `'Movie'` to `'movie'`), and the `UserData` fields it needs (`LastPlayedDate`, `PlayedPercentage`, `Played`, `Rating`, `PlayCount`) to construct `RecoItemRef`-shaped inputs for its internal `GenerateRequest`. The locally-assembled bundle never travels on the wire.
+RECO's `cardToRecoInput` helper reads each card's `itemId` and normalizes `mediaType` (mapping `season`/`episode` to `tv`, `movie` to `movie`) into the tuple `GenerateRequest` expects. The locally-assembled bundle never travels on the wire, and no `ProviderIds`/`Type`/`UserData` extraction step exists.
 
-Signal records that RECO constructs from these reads carry `RecoItemRef` values with:
+Signal records that RECO constructs from these reads carry canonical-item + media-type values with:
 
+- `itemId` (the canonical Crispy public item id)
 - media `type` (`movie` or `tv`)
-- provider refs such as TMDB, TVDB, IMDb, or Kitsu
 
-Signal records do not carry Crispy `itemId` on RECO's write side, and RECO never persists raw `BaseItemDto`, client `UserData`, titles, original titles, years, release dates, posters, backdrops, logos, trailers, or enriched display card payloads back to MAIN.
+Signal records do not carry raw `BaseItemDto`, client `UserData`, `ProviderIds`, `Type` (PascalCase), titles (the worker does not echo card display fields back in its write payload), original titles, years, release dates, posters, backdrops, logos, trailers, or enriched display card payloads back to MAIN's write side.
 
 AI-assisted generation is owned entirely by RECO. MAIN does not expose an AI-plan endpoint and never sees provider credentials, model selection, prompts, or raw vendor traffic for recommendations.
 
-1. RECO prepares business inputs, a bounded TMDB-backed candidate pool, list key, algorithm version, and generation context using provider refs.
+1. RECO prepares business inputs, a bounded TMDB-backed candidate pool, list key, algorithm version, and generation context using the canonical `itemId`s it received on the read side.
 2. RECO selects the AI provider/model and uses its own server-funded API key (`RECO_AI_API_KEY`, `RECO_AI_ENDPOINT_URL`, `RECO_AI_MODEL`) to call the OpenAI-compatible vendor directly from the worker process.
 3. RECO builds the prompt, calls the vendor, parses and validates the response against the candidate pool, and resolves titles.
 4. On any AI error or when AI is disabled, RECO falls back to deterministic TMDB trending/popular/top-rated lists.
-5. RECO uses the typed plan to assemble final recommendation lists and writes generated outputs back through internal app recommendation endpoints.
+5. RECO uses the typed plan to assemble final recommendation lists and writes generated outputs back through internal app recommendation write endpoints.
 
 RECO must not request, receive, cache, log, or forward raw account BYOK keys. MAIN keeps its own server-funded key only for non-recommendation AI features (`ai search`, `ai insights`).
 
@@ -149,7 +151,7 @@ Generated outputs are published back through internal app recommendation write e
 
 See "Home ingest pipeline" below for the unified producer contract (reco, custom, fallback) and the transform/write path. The same endpoint and request shape are reused for every source; only the `source` field on the stored snapshot distinguishes provenance.
 
-RECO must not send Crispy `itemId`, nested identity wrappers, enriched card payloads, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata.
+RECO must not send nested identity wrappers, enriched card payloads, `ClientMediaCard`, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata. The write side carries only `RecoWriteItem` (provider refs + `type`); the read-side card shape never reaches the write side.
 
 Result ingestion is idempotent by profile, list key, and idempotency key where documented.
 
@@ -312,7 +314,7 @@ This contract does not define:
 - RECO's internal queue implementation.
 - Ranking algorithms or model internals.
 - Direct database, Supabase, Redis, or admin-UI scraping access by RECO.
-- A compatibility layer for old BaseItemDto recommendation sections, Crispy-itemId writes, or TMDB-only write bodies.
+- A compatibility layer for Crispy-itemId writes or TMDB-only write bodies. There is no dual-shape `BaseItemDto` fallback alongside the `ClientMediaCard` read shape; the card shape is the one shape going forward and consumer-side enrichment layers (`CatalogService`, `signal_bundle_mapper`, `WatchMetadataEnrichmentService`, `AdminWatchReadService`) are deleted, not retained.
 
 ## Future lifecycle gaps
 

@@ -414,6 +414,48 @@ export interface components {
             large: string | null;
         };
         PublicItemId: string;
+        ClientMediaCard: {
+            itemId: components["schemas"]["PublicItemId"];
+            /** @enum {string} */
+            mediaType: "movie" | "tv" | "season" | "episode";
+            title: string;
+            subtitle: string | null;
+            overview: string | null;
+            year: number | null;
+            releaseDate: string | null;
+            rating: number | null;
+            maturityRating: string | null;
+            genres: string[];
+            runtimeSeconds: number | null;
+            images: components["schemas"]["ClientImages"];
+            trailerUrl: string | null;
+            progress: components["schemas"]["ClientProgress"] | null;
+            parent: components["schemas"]["ClientParentRef"] | null;
+        };
+        ClientImages: {
+            poster: components["schemas"]["ResponsiveImageSet"] | null;
+            backdrop: components["schemas"]["ResponsiveImageSet"] | null;
+            logo: components["schemas"]["ResponsiveImageSet"] | null;
+            still?: components["schemas"]["ResponsiveImageSet"] | null;
+            thumb?: components["schemas"]["ResponsiveImageSet"] | null;
+        };
+        ClientProgress: {
+            played: boolean;
+            playCount: number;
+            positionSeconds: number;
+            durationSeconds: number;
+            percent: number | null;
+            lastPlayedAt: string | null;
+            watchlisted: boolean;
+            userRating: number | null;
+        };
+        ClientParentRef: {
+            seriesItemId?: components["schemas"]["PublicItemId"];
+            seriesTitle?: string;
+            seasonItemId?: components["schemas"]["PublicItemId"];
+            seasonNumber?: number | null;
+            episodeNumber?: number | null;
+        };
         /** @enum {string} */
         RecoProvider: "tmdb" | "tvdb" | "imdb" | "kitsu";
         /** @enum {string} */
@@ -426,10 +468,6 @@ export interface components {
         RecoProviderRef: {
             provider: components["schemas"]["RecoProvider"];
             providerId: string;
-        };
-        RecoItemRef: {
-            type: components["schemas"]["RecoMediaType"];
-            providerRefs: components["schemas"]["RecoProviderRef"][];
         };
         ProviderIds: {
             Tmdb: string | null;
@@ -597,10 +635,10 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
-        /** @description Shared per-signal read envelope. Returns the same BaseItemDtoQueryResult shape as the public-app watch routes. Items are BaseItemDto objects with display fields (Name, Overview, ProductionYear, Genres, ImageTags, etc.) nullable — the internal signal routes do not run the enrichment pass. Consumers that need display metadata (e.g. the reco webui) must enrich on their read path using ProviderIds.Tmdb. The reco worker does not need display fields and reads only Type, ProviderIds, and UserData. */
+        /** @description Shared per-signal read envelope. Returns the same ClientMediaCard shape as the public-app watch routes. Items are fully hydrated ClientMediaCard objects (itemId, mediaType, title, subtitle, overview, year, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent). The internal signal routes go through the same WatchCardHydrator as the public watch routes, so the reco worker and reco webui read the same card shape the client app reads. */
         ProfileReadSignalResponse: {
             data: {
-                Items: components["schemas"]["BaseItemDto"][];
+                Items: components["schemas"]["ClientMediaCard"][];
                 StartIndex: number;
                 TotalRecordCount: number;
                 NextCursor: string | null;
@@ -1160,7 +1198,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Watch history page (BaseItemDtoQueryResult envelope, shared with public app). */
+            /** @description Watch history page (ClientMediaCard query result envelope, shared with public app). */
             200: {
                 headers: {
                     [name: string]: unknown;
