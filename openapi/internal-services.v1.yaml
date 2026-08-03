@@ -1021,7 +1021,7 @@ components:
     ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent]
+      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
       properties:
         itemId: { $ref: '#/components/schemas/PublicItemId' }
         mediaType:
@@ -1047,6 +1047,10 @@ components:
         parent:
           oneOf:
             - $ref: '#/components/schemas/ClientParentRef'
+            - type: 'null'
+        providerIds:
+          oneOf:
+            - $ref: '#/components/schemas/ClientProviderIds'
             - type: 'null'
     ClientImages:
       type: object
@@ -1095,6 +1099,14 @@ components:
         seasonItemId: { $ref: '#/components/schemas/PublicItemId' }
         seasonNumber: { type: [integer, 'null'] }
         episodeNumber: { type: [integer, 'null'] }
+    ClientProviderIds:
+      type: object
+      additionalProperties: false
+      required: [tmdb, tvdb, imdb]
+      properties:
+        tmdb: { type: [string, 'null'] }
+        tvdb: { type: [string, 'null'] }
+        imdb: { type: [string, 'null'] }
     RecoProvider:
       type: string
       enum: [tmdb, tvdb, imdb, kitsu]

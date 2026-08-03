@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import type { BaseItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
-import type { ClientMediaCard, ClientMediaType, ClientProgress } from '../recommendations/client-home.types.js';
+import type { ClientMediaCard, ClientMediaType, ClientProgress, ClientProviderIds } from '../recommendations/client-home.types.js';
 
 const TICKS_PER_SECOND = 10_000_000;
 
@@ -34,6 +34,8 @@ export class WatchCardHydrator {
 
     const progress = progressFromUserData(item.UserData);
 
+    const providerIds = providerIdsFromBaseItem(item.ProviderIds);
+
     const card: ClientMediaCard = {
       itemId: cardView.itemId,
       mediaType: toClientMediaType(cardView.mediaType),
@@ -62,6 +64,7 @@ export class WatchCardHydrator {
             episodeNumber: cardView.episodeNumber,
           }
         : null,
+      providerIds,
     };
 
     return card;
@@ -154,5 +157,14 @@ function progressFromUserData(userData: UserItemDataDto | null): ClientProgress 
 function ticksToSeconds(ticks: number | null): number | null {
   if (ticks === null || !Number.isFinite(ticks)) return null;
   return ticks / TICKS_PER_SECOND;
+}
+
+function providerIdsFromBaseItem(providerIds: BaseItemDto['ProviderIds']): ClientProviderIds | null {
+  if (!providerIds) return null;
+  const tmdb = providerIds.Tmdb ?? null;
+  const tvdb = providerIds.Tvdb ?? null;
+  const imdb = providerIds.Imdb ?? null;
+  if (!tmdb && !tvdb && !imdb) return null;
+  return { tmdb: tmdb ?? null, tvdb: tvdb ?? null, imdb: imdb ?? null };
 }
 

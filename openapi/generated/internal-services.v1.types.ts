@@ -431,6 +431,7 @@ export interface components {
             trailerUrl: string | null;
             progress: components["schemas"]["ClientProgress"] | null;
             parent: components["schemas"]["ClientParentRef"] | null;
+            providerIds: components["schemas"]["ClientProviderIds"] | null;
         };
         ClientImages: {
             poster: components["schemas"]["ResponsiveImageSet"] | null;
@@ -455,6 +456,11 @@ export interface components {
             seasonItemId?: components["schemas"]["PublicItemId"];
             seasonNumber?: number | null;
             episodeNumber?: number | null;
+        };
+        ClientProviderIds: {
+            tmdb: string | null;
+            tvdb: string | null;
+            imdb: string | null;
         };
         /** @enum {string} */
         RecoProvider: "tmdb" | "tvdb" | "imdb" | "kitsu";

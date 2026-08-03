@@ -28,6 +28,12 @@ export type ClientParentRef = {
   episodeNumber?: number | null;
 };
 
+export type ClientProviderIds = {
+  tmdb: string | null;
+  tvdb: string | null;
+  imdb: string | null;
+};
+
 export type ClientMediaCard = {
   itemId: string;
   mediaType: ClientMediaType;
@@ -44,6 +50,7 @@ export type ClientMediaCard = {
   trailerUrl: string | null;
   progress: ClientProgress | null;
   parent: ClientParentRef | null;
+  providerIds: ClientProviderIds | null;
 };
 
 export type ClientHomeSectionType = 'categoryTabs' | 'heroCarousel' | 'contentRail' | 'collectionRail';

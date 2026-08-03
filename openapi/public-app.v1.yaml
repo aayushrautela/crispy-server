@@ -3509,7 +3509,7 @@ components:
     ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent]
+      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
       properties:
         itemId:
           $ref: "#/components/schemas/PublicItemId"
@@ -3563,6 +3563,10 @@ components:
         parent:
           anyOf:
             - $ref: "#/components/schemas/ClientParentRef"
+            - type: "null"
+        providerIds:
+          anyOf:
+            - $ref: "#/components/schemas/ClientProviderIds"
             - type: "null"
     ClientImages:
       type: object
@@ -3630,6 +3634,23 @@ components:
         episodeNumber:
           anyOf:
             - type: integer
+            - type: "null"
+    ClientProviderIds:
+      type: object
+      additionalProperties: false
+      required: [tmdb, tvdb, imdb]
+      properties:
+        tmdb:
+          anyOf:
+            - type: string
+            - type: "null"
+        tvdb:
+          anyOf:
+            - type: string
+            - type: "null"
+        imdb:
+          anyOf:
+            - type: string
             - type: "null"
     ClientMediaCardQueryResult:
       type: object

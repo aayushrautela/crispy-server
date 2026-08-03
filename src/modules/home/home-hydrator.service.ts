@@ -86,6 +86,9 @@ export class HomeHydrator {
             episodeNumber: card.episodeNumber,
           }
         : null,
+      providerIds: card.tmdbId !== null || card.showTmdbId !== null
+        ? { tmdb: card.tmdbId !== null ? String(card.tmdbId) : null, tvdb: null, imdb: null }
+        : null,
     };
   }
 

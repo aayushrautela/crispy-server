@@ -79,6 +79,7 @@ function fakeCardFromBaseItem(item: Record<string, unknown>) {
     trailerUrl: null,
     progress,
     parent: null,
+    providerIds: { tmdb: '694', tvdb: null, imdb: null },
   };
 }
 

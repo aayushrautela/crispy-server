@@ -452,6 +452,17 @@ export const clientParentRefSchema = {
   },
 } as const;
 
+export const clientProviderIdsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['tmdb', 'tvdb', 'imdb'],
+  properties: {
+    tmdb: { type: ['string', 'null'] },
+    tvdb: { type: ['string', 'null'] },
+    imdb: { type: ['string', 'null'] },
+  },
+} as const;
+
 export const clientMediaCardSchema = {
   type: 'object',
   additionalProperties: false,
@@ -471,6 +482,7 @@ export const clientMediaCardSchema = {
     'trailerUrl',
     'progress',
     'parent',
+    'providerIds',
   ],
   properties: {
     itemId: publicItemIdSchema,
@@ -488,6 +500,7 @@ export const clientMediaCardSchema = {
     trailerUrl: { type: ['string', 'null'] },
     progress: { anyOf: [clientProgressSchema, { type: 'null' }] },
     parent: { anyOf: [clientParentRefSchema, { type: 'null' }] },
+    providerIds: { anyOf: [clientProviderIdsSchema, { type: 'null' }] },
   },
 } as const;
 
