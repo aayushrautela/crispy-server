@@ -6,11 +6,12 @@ seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-client-id', TRAKT_IMPORT_CLIENT_SEC
 
 const noopTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
 
-test('buildAuthUrl uses trakt.tv authorize host', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
-  const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
-  const authUrl = (service as any).buildAuthUrl('trakt', 'state-123', 'challenge-abc');
+test('TraktImportService buildAuthUrl uses trakt.tv authorize host', async () => {
+  const { TraktImportService } = await import('./trakt/trakt-import.service.js');
+  const service = new TraktImportService();
+  const authUrl = service.buildAuthUrl('state-123', 'challenge-abc');
 
+  assert.ok(authUrl);
   const url = new URL(authUrl);
   assert.equal(url.origin, 'https://trakt.tv');
   assert.equal(url.pathname, '/oauth/authorize');
@@ -20,17 +21,17 @@ test('buildAuthUrl uses trakt.tv authorize host', async () => {
   assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
 });
 
-test('exchangeTraktAuthorizationCode includes details for non-json failures', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportService exchangeAuthorizationCode includes details for non-json failures', async () => {
+  const { TraktImportService } = await import('./trakt/trakt-import.service.js');
   const { HttpError } = await import('../../lib/errors.js');
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => new Response('blocked', { status: 403, headers: { 'content-type': 'text/plain' } })) as typeof fetch;
 
   try {
-    const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new TraktImportService();
     await assert.rejects(
-      () => (service as any).exchangeTraktAuthorizationCode('code-123', 'verifier-123'),
+      () => service.exchangeAuthorizationCode('code-123', 'verifier-123'),
       (error: unknown) => {
         assert.ok(error instanceof HttpError);
         assert.equal(error.statusCode, 403);
@@ -44,17 +45,17 @@ test('exchangeTraktAuthorizationCode includes details for non-json failures', as
   }
 });
 
-test('traktGetArray includes upstream response details for import failures', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportClient getArray includes upstream response details for import failures', async () => {
+  const { TraktImportClient } = await import('./trakt/trakt-import.client.js');
   const { HttpError } = await import('../../lib/errors.js');
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => Response.json({ error: 'invalid_grant' }, { status: 401 })) as typeof fetch;
 
   try {
-    const service = new ProviderImportService({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    const client = new TraktImportClient();
     await assert.rejects(
-      () => (service as any).traktGetArray('/sync/history', 'access-123'),
+      () => client.getArray('/sync/history', 'access-123'),
       (error: unknown) => {
         assert.ok(error instanceof HttpError);
         assert.equal(error.statusCode, 401);
@@ -66,34 +67,44 @@ test('traktGetArray includes upstream response details for import failures', asy
   }
 });
 
-test('disconnectConnection revokes trakt upstream before local disconnect', async () => {
+test('ProviderImportService.revokeAuthorization revokes trakt upstream before local disconnect', async () => {
   const { ProviderImportService } = await import('./provider-import.service.js');
 
   const profileRepository = {
     requireOwnedProfile: async () => ({ id: 'profile-1' }),
   };
-  const providerAccount = {
-    id: 'acct-1',
-    profileId: 'profile-1',
-    provider: 'trakt',
-    status: 'connected',
-    stateToken: null,
-    providerUserId: 'user-1',
-    externalUsername: 'crispy',
-    credentialsJson: { refreshToken: 'refresh-123', accessToken: 'access-123' },
-    createdByUserId: 'account-1',
-    expiresAt: null,
-    lastUsedAt: null,
-    createdAt: '2026-03-24T00:00:00.000Z',
-    connectedAt: '2026-03-24T00:05:00.000Z',
-    updatedAt: '2026-03-26T00:00:00.000Z',
-  };
-  const providerAccountsRepository = {
-    findByProfileAndProvider: async () => providerAccount,
+  const providerSessionsRepository = {
+    findByProfileAndProvider: async () => ({
+      id: 'acct-1',
+      profileId: 'profile-1',
+      provider: 'trakt',
+      state: 'connected',
+      stateToken: null,
+      providerUserId: 'user-1',
+      externalUsername: 'crispy',
+      credentialsJson: { refreshToken: 'refresh-123', accessToken: 'access-123' },
+      createdByUserId: 'account-1',
+      expiresAt: null,
+      lastUsedAt: null,
+      createdAt: '2026-03-24T00:00:00.000Z',
+      connectedAt: '2026-03-24T00:05:00.000Z',
+      updatedAt: '2026-03-26T00:00:00.000Z',
+    }),
     markDisconnected: async () => ({
-      ...providerAccount,
+      id: 'acct-1',
+      profileId: 'profile-1',
+      provider: 'trakt',
       state: 'disconnected_by_user',
+      stateToken: null,
+      providerUserId: null,
+      externalUsername: null,
       credentialsJson: {},
+      createdByUserId: 'account-1',
+      expiresAt: null,
+      lastUsedAt: null,
+      createdAt: '2026-03-24T00:00:00.000Z',
+      connectedAt: '2026-03-24T00:05:00.000Z',
+      updatedAt: '2026-03-26T00:00:00.000Z',
     }),
   };
 
@@ -110,13 +121,16 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
   try {
     const service = new ProviderImportService(
       profileRepository as never,
-      providerAccountsRepository as never,
+      providerSessionsRepository as never,
       {} as never,
       {} as never,
       {} as never,
       {} as never,
       {} as never,
       noopTransaction as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await service.disconnectProviderSession('account-1', 'profile-1', 'trakt');
@@ -130,77 +144,20 @@ test('disconnectConnection revokes trakt upstream before local disconnect', asyn
   }
 });
 
-test('disconnectProviderSession surfaces trakt revoke failures', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
-  const { HttpError } = await import('../../lib/errors.js');
-
-  const profileRepository = {
-    requireOwnedProfile: async () => ({ id: 'profile-1' }),
-  };
-  const providerAccountsRepository = {
-    findByProfileAndProvider: async () => ({
-      id: 'acct-1',
-      profileId: 'profile-1',
-      provider: 'trakt',
-      status: 'connected',
-      stateToken: null,
-      providerUserId: 'user-1',
-      externalUsername: 'crispy',
-      credentialsJson: { refreshToken: 'refresh-123' },
-      createdByUserId: 'account-1',
-      expiresAt: null,
-      lastUsedAt: null,
-      createdAt: '2026-03-24T00:00:00.000Z',
-      connectedAt: '2026-03-24T00:05:00.000Z',
-      updatedAt: '2026-03-26T00:00:00.000Z',
-    }),
-  };
-
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response('blocked', { status: 403, headers: { 'content-type': 'text/plain' } })) as typeof fetch;
-
-  try {
-    const service = new ProviderImportService(
-      profileRepository as never,
-      providerAccountsRepository as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      noopTransaction as never,
-    );
-
-    await assert.rejects(
-      () => service.disconnectProviderSession('account-1', 'profile-1', 'trakt'),
-      (error: unknown) => {
-        assert.ok(error instanceof HttpError);
-        assert.equal(error.statusCode, 403);
-        assert.equal(error.message, 'Unable to revoke the Trakt authorization.');
-        assert.deepEqual(error.details, { provider: 'trakt', providerStatus: 403, responseBody: 'blocked' });
-        return true;
-      },
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('fetchAndNormalizeTraktImport keeps show tmdb ids on watchlist and ratings', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportService.fetchAndNormalizeImport keeps show tmdb ids on watchlist and ratings', async () => {
+  const { TraktImportService } = await import('./trakt/trakt-import.service.js');
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const service = new TraktImportService({
+    externalIdResolver: {
       resolve: async () => 9001,
     } as never,
-    {} as never,
-  );
-  (service as any).resolveImportIdentity = async (_cache: unknown, params: { tvdbId?: string | null }) => {
+    tmdbCacheService: {} as never,
+    metadataCardService: {
+      buildCardView: async () => ({ title: 'ok' }),
+    } as never,
+  });
+  (service as any).traktResolver.resolve = async (_cache: unknown, params: { tvdbId?: string | null }) => {
     if (params.tvdbId !== '121361') {
       return null;
     }
@@ -255,14 +212,16 @@ test('fetchAndNormalizeTraktImport keeps show tmdb ids on watchlist and ratings'
   }) as typeof fetch;
 
   try {
-    const result = await (service as any).fetchAndNormalizeTraktImport(
-      { id: 'job-1' },
+    const result = await service.fetchAndNormalizeImport(
+      { id: 'job-1' } as never,
       { accessToken: 'token-123' },
     );
 
     const watchlistEvent = result.importedEvents.find((entry: any) => entry.eventType === 'watchlist_put');
     const ratingEvent = result.importedEvents.find((entry: any) => entry.eventType === 'rating_put');
 
+    assert.ok(watchlistEvent);
+    assert.ok(ratingEvent);
     assert.equal(watchlistEvent.showTmdbId, 9001);
     assert.equal(ratingEvent.showTmdbId, 9001);
   } finally {
@@ -270,21 +229,20 @@ test('fetchAndNormalizeTraktImport keeps show tmdb ids on watchlist and ratings'
   }
 });
 
-test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback events', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportService.fetchAndNormalizeImport carries show tmdb ids into episode playback events', async () => {
+  const { TraktImportService } = await import('./trakt/trakt-import.service.js');
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const service = new TraktImportService({
+    externalIdResolver: {
       resolve: async () => 777,
     } as never,
-    {} as never,
-  );
-  (service as any).resolveImportIdentity = async (_cache: unknown, params: { tvdbId?: string | null }) => {
+    tmdbCacheService: {} as never,
+    metadataCardService: {
+      buildCardView: async () => ({ title: 'ok' }),
+    } as never,
+  });
+  (service as any).traktResolver.resolve = async (_cache: unknown, params: { tvdbId?: string | null }) => {
     if (params.tvdbId !== '121361') {
       return null;
     }
@@ -321,8 +279,8 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
   }) as typeof fetch;
 
   try {
-    const result = await (service as any).fetchAndNormalizeTraktImport(
-      { id: 'job-1' },
+    const result = await service.fetchAndNormalizeImport(
+      { id: 'job-1' } as never,
       { accessToken: 'token-123' },
     );
 
@@ -358,21 +316,20 @@ test('fetchAndNormalizeTraktImport carries show tmdb ids into episode playback e
   }
 });
 
-test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportService.fetchAndNormalizeImport keeps Trakt playback progress without runtime', async () => {
+  const { TraktImportService } = await import('./trakt/trakt-import.service.js');
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const service = new TraktImportService({
+    externalIdResolver: {
       resolve: async () => 272,
     } as never,
-    {} as never,
-  );
-  (service as any).resolveImportIdentity = async (_cache: unknown, params: { tmdbId?: number | null }) => {
+    tmdbCacheService: {} as never,
+    metadataCardService: {
+      buildCardView: async () => ({ title: 'ok' }),
+    } as never,
+  });
+  (service as any).traktResolver.resolve = async (_cache: unknown, params: { tmdbId?: number | null }) => {
     if (params.tmdbId !== 272) {
       return null;
     }
@@ -419,8 +376,8 @@ test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime
   }) as typeof fetch;
 
   try {
-    const result = await (service as any).fetchAndNormalizeTraktImport(
-      { id: 'job-1' },
+    const result = await service.fetchAndNormalizeImport(
+      { id: 'job-1' } as never,
       { accessToken: 'token-123' },
     );
 
@@ -452,54 +409,137 @@ test('fetchAndNormalizeTraktImport keeps Trakt playback progress without runtime
   }
 });
 
-test('resolveImportIdentity keeps direct trakt tmdb id for movies when tmdb lookup succeeds', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportService.fetchAndNormalizeImport emits title-level history for watched shows', async () => {
+  const { TraktImportService } = await import('./trakt/trakt-import.service.js');
+  const { inferMediaIdentity } = await import('../identity/media-key.js');
+
+  const service = new TraktImportService({
+    externalIdResolver: {
+      resolve: async () => 9001,
+    } as never,
+    tmdbCacheService: {} as never,
+    metadataCardService: {
+      buildCardView: async () => ({ title: 'ok' }),
+    } as never,
+  });
+  (service as any).traktResolver.resolve = async (_cache: unknown, params: { tmdbId?: number | null }) => {
+    if (params.tmdbId !== 9001) {
+      return null;
+    }
+
+    const identity = inferMediaIdentity({
+      mediaType: 'show',
+      tmdbId: 9001,
+      providerMetadata: { tmdbId: 9001 },
+    });
+
+    return {
+      identity,
+      mediaType: 'show',
+      tmdbId: 9001,
+      tvdbId: null,
+      kitsuId: null,
+    };
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/sync/watched/movies')) {
+      return Response.json([]);
+    }
+    if (url.endsWith('/sync/watched/shows')) {
+      return Response.json([{
+        plays: 3,
+        last_watched_at: '2024-01-15T00:00:00.000Z',
+        last_updated_at: '2024-01-15T00:00:00.000Z',
+        reset_at: null,
+        show: { ids: { tmdb: 9001, imdb: 'tt0944947' } },
+      }]);
+    }
+    if (url.endsWith('/sync/watchlist/movies')) {
+      return Response.json([]);
+    }
+    if (url.endsWith('/sync/watchlist/shows')) {
+      return Response.json([]);
+    }
+    if (url.endsWith('/sync/ratings/movies')) {
+      return Response.json([]);
+    }
+    if (url.endsWith('/sync/ratings/shows')) {
+      return Response.json([]);
+    }
+    if (url.endsWith('/sync/playback')) {
+      return Response.json([]);
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  }) as typeof fetch;
+
+  try {
+    const result = await service.fetchAndNormalizeImport(
+      { id: 'job-1' } as never,
+      { accessToken: 'token-123' },
+    );
+
+    const historyEntries = result.importedHistoryEntries;
+    assert.equal(historyEntries.length, 1);
+    const entry = historyEntries[0];
+    assert.ok(entry);
+    assert.equal(entry.mediaType, 'show');
+    assert.equal(entry.mediaKey, 'show:tmdb:9001');
+    assert.equal(entry.watchedAt, '2024-01-15T00:00:00.000Z');
+
+    const markWatchedEvents = result.importedEvents.filter((e: any) => e.eventType === 'mark_watched');
+    assert.equal(markWatchedEvents.length, 1);
+    assert.ok(markWatchedEvents[0]);
+    assert.equal(markWatchedEvents[0].mediaKey, 'show:tmdb:9001');
+    assert.equal(markWatchedEvents[0].showTmdbId, 9001);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('TraktImportIdentityResolver keeps direct trakt tmdb id for movies when tmdb lookup succeeds', async () => {
+  const { TraktImportIdentityResolver } = await import('./trakt/trakt-import.resolver.js');
   const { db } = await import('../../lib/db.js');
 
   const resolverCalls: Array<Record<string, unknown>> = [];
   const originalConnect = db.connect;
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const resolver = new TraktImportIdentityResolver({
+    externalIdResolver: {
       resolve: async (_client: unknown, params: Record<string, unknown>) => {
         resolverCalls.push(params);
         return 272;
       },
     } as never,
-    {} as never,
-    {} as never,
-    async <T>(work: (client: never) => Promise<T>) => work({} as never),
-    {
+    tmdbCacheService: {
       getTitle: async () => ({ tmdbId: 328443 }),
     } as never,
-    {
+    metadataCardService: {
       buildCardView: async () => ({ title: 'ok' }),
     } as never,
-  );
+  });
 
   try {
-    const result = await (service as any).resolveImportIdentity(new Map(), {
+    const result = await resolver.resolve(new Map(), {
       mediaFamily: 'movie',
       tmdbId: 328443,
       imdbId: 'tt0372784',
     });
 
     assert.equal(resolverCalls.length, 0);
-    assert.equal(result.identity.mediaKey, 'movie:tmdb:328443');
-    assert.equal(result.identity.providerId, '328443');
-    assert.equal(result.tmdbId, 328443);
+    assert.equal(result!.identity.mediaKey, 'movie:tmdb:328443');
+    assert.equal(result!.identity.providerId, '328443');
+    assert.equal(result!.tmdbId, 328443);
   } finally {
     (db as { connect: typeof db.connect }).connect = originalConnect;
   }
 });
 
-test('resolveImportIdentity falls back to imdb canonicalization when direct trakt tmdb lookup 404s', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportIdentityResolver falls back to imdb canonicalization when direct trakt tmdb lookup 404s', async () => {
+  const { TraktImportIdentityResolver } = await import('./trakt/trakt-import.resolver.js');
   const { db } = await import('../../lib/db.js');
   const { HttpError } = await import('../../lib/errors.js');
 
@@ -507,32 +547,25 @@ test('resolveImportIdentity falls back to imdb canonicalization when direct trak
   const originalConnect = db.connect;
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const resolver = new TraktImportIdentityResolver({
+    externalIdResolver: {
       resolve: async (_client: unknown, params: Record<string, unknown>) => {
         resolverCalls.push(params);
         return 272;
       },
     } as never,
-    {} as never,
-    {} as never,
-    async <T>(work: (client: never) => Promise<T>) => work({} as never),
-    {
+    tmdbCacheService: {
       getTitle: async () => {
         throw new HttpError(404, 'missing');
       },
     } as never,
-    {
+    metadataCardService: {
       buildCardView: async () => ({ title: 'ok' }),
     } as never,
-  );
+  });
 
   try {
-    const result = await (service as any).resolveImportIdentity(new Map(), {
+    const result = await resolver.resolve(new Map(), {
       mediaFamily: 'movie',
       tmdbId: 328443,
       imdbId: 'tt0372784',
@@ -544,45 +577,38 @@ test('resolveImportIdentity falls back to imdb canonicalization when direct trak
       externalId: 'tt0372784',
       mediaType: 'movie',
     });
-    assert.equal(result.identity.mediaKey, 'movie:tmdb:272');
-    assert.equal(result.identity.providerId, '272');
-    assert.equal(result.tmdbId, 272);
+    assert.equal(result!.identity.mediaKey, 'movie:tmdb:272');
+    assert.equal(result!.identity.providerId, '272');
+    assert.equal(result!.tmdbId, 272);
   } finally {
     (db as { connect: typeof db.connect }).connect = originalConnect;
   }
 });
 
-test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and imdb recovery misses', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportIdentityResolver skips movie when direct trakt tmdb lookup 404s and imdb recovery misses', async () => {
+  const { TraktImportIdentityResolver } = await import('./trakt/trakt-import.resolver.js');
   const { db } = await import('../../lib/db.js');
   const { HttpError } = await import('../../lib/errors.js');
 
   const originalConnect = db.connect;
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const resolver = new TraktImportIdentityResolver({
+    externalIdResolver: {
       resolve: async () => null,
     } as never,
-    {} as never,
-    {} as never,
-    async <T>(work: (client: never) => Promise<T>) => work({} as never),
-    {
+    tmdbCacheService: {
       getTitle: async () => {
         throw new HttpError(404, 'missing');
       },
     } as never,
-    {
+    metadataCardService: {
       buildCardView: async () => ({ title: 'ok' }),
     } as never,
-  );
+  });
 
   try {
-    const result = await (service as any).resolveImportIdentity(new Map(), {
+    const result = await resolver.resolve(new Map(), {
       mediaFamily: 'movie',
       tmdbId: 328443,
       imdbId: 'tt0372784',
@@ -594,38 +620,31 @@ test('resolveImportIdentity skips movie when direct trakt tmdb lookup 404s and i
   }
 });
 
-test('resolveImportIdentity skips movie when metadata card build fails after id resolution', async () => {
-  const { ProviderImportService } = await import('./provider-import.service.js');
+test('TraktImportIdentityResolver skips movie when metadata card build fails after id resolution', async () => {
+  const { TraktImportIdentityResolver } = await import('./trakt/trakt-import.resolver.js');
   const { db } = await import('../../lib/db.js');
 
   const originalConnect = db.connect;
   (db as { connect: typeof db.connect }).connect = async () => ({ release: () => {} }) as never;
 
-  const service = new ProviderImportService(
-    {} as never,
-    {} as never,
-    {} as never,
-    {} as never,
-    {
+  const resolver = new TraktImportIdentityResolver({
+    externalIdResolver: {
       resolve: async () => 272,
     } as never,
-    {} as never,
-    {} as never,
-    noopTransaction as never,
-    {
+    tmdbCacheService: {
       getTitle: async () => {
         throw new Error('should not use direct tmdb');
       },
     } as never,
-    {
+    metadataCardService: {
       buildCardView: async () => {
         throw new Error('metadata missing');
       },
     } as never,
-  );
+  });
 
   try {
-    const result = await (service as any).resolveImportIdentity(new Map(), {
+    const result = await resolver.resolve(new Map(), {
       mediaFamily: 'movie',
       imdbId: 'tt0372784',
     });

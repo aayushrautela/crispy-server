@@ -13,6 +13,12 @@ export type ProviderImportJobStatus =
 
 export type ProfileWatchDataOrigin = 'native' | 'provider_import';
 
+export const PROVIDER_IMPORT_PROVIDERS: readonly ProviderImportProvider[] = ['trakt', 'simkl'] as const;
+
 export function isProviderImportProvider(value: unknown): value is ProviderImportProvider {
-  return value === 'trakt' || value === 'simkl';
+  return typeof value === 'string' && (PROVIDER_IMPORT_PROVIDERS as readonly string[]).includes(value);
+}
+
+export function providerLabel(provider: ProviderImportProvider): string {
+  return provider === 'trakt' ? 'Trakt' : 'Simkl';
 }
