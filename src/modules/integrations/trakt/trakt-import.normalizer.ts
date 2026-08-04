@@ -2,7 +2,7 @@ import {
   inferMediaIdentity,
   type MediaIdentity,
 } from '../../identity/media-key.js';
-import { firstIsoString, getRecord, asPositiveInt, asString, asFiniteNumber, normalizeProviderId, durationSecondsFromRuntime, clampProgressBps } from '../provider-import.utils.js';
+import { firstIsoString, getRecord, asArray, asPositiveInt, asString, asFiniteNumber, normalizeProviderId, durationSecondsFromRuntime, clampProgressBps } from '../provider-import.utils.js';
 import type {
   ImportAccumulator,
   ImportedHistoryEntryDraft,
@@ -222,12 +222,10 @@ export async function normalizeTraktWatchedMovies(
 }
 
 /**
- * Trakt's /sync/watched/shows endpoint returns each show as
- * {plays, last_watched_at, last_updated_at, reset_at, show} — without a
- * seasons/episodes breakdown. Per-show episode-level seasons/episodes are
- * NOT available from this endpoint. The History view shows title-level
- * entries, so we emit one history row per watched show using
- * `last_watched_at`.
+ * Trakt's /sync/watched/shows endpoint returns `{plays, last_watched_at, show}`
+ * by default. Adding `?extended=progress` returns the full per-season,
+ * per-episode breakdown we need to emit one history row per watched episode:
+ * `seasons: [{number, episodes: [{number, plays, last_watched_at}]}]`.
  */
 export async function normalizeTraktWatchedShows(
   items: Array<Record<string, unknown>>,
@@ -239,21 +237,56 @@ export async function normalizeTraktWatchedShows(
     if (!resolvedShow) {
       continue;
     }
-    const occurredAt = firstIsoString(item.last_watched_at, item.last_updated_at) ?? new Date().toISOString();
 
-    collector.importedEvents.push(buildImportedTitleEvent({
-      eventType: 'mark_watched',
-      resolved: resolvedShow,
-      occurredAt,
-      payload: traktPayload('watched_shows'),
-      includeShowTmdbId: true,
-    }));
-    collector.importedHistoryEntries.push(buildImportedTitleHistoryEntry({
-      resolved: resolvedShow,
-      watchedAt: occurredAt,
-      payload: traktPayload('watched_shows'),
-    }));
-    collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
+    const seasons = asArray(item.seasons);
+    if (seasons.length === 0) {
+      continue;
+    }
+
+    let emittedForShow = false;
+    for (const seasonValue of seasons) {
+      const season = getRecord(seasonValue);
+      const seasonNumber = asPositiveInt(season?.number);
+      if (!seasonNumber) {
+        continue;
+      }
+      for (const episodeValue of asArray(season?.episodes)) {
+        const episode = getRecord(episodeValue);
+        const episodeNumber = asPositiveInt(episode?.number);
+        if (!episodeNumber) {
+          continue;
+        }
+        const occurredAt = firstIsoString(episode?.last_watched_at)
+          ?? firstIsoString(item.last_watched_at, item.last_updated_at)
+          ?? new Date().toISOString();
+
+        const identity = buildImportedEpisodeIdentity(resolvedShow, seasonNumber, episodeNumber);
+        collector.importedEvents.push(buildImportedEpisodeEvent({
+          eventType: 'mark_watched',
+          identity,
+          resolvedShow,
+          occurredAt,
+          payload: traktPayload('watched_shows'),
+        }));
+        collector.importedHistoryEntries.push({
+          mediaKey: identity.mediaKey,
+          mediaType: 'episode',
+          provider: identity.provider,
+          providerId: identity.providerId,
+          tmdbId: identity.tmdbId,
+          tvdbId: resolvedShow.tvdbId,
+          kitsuId: resolvedShow.kitsuId,
+          watchedAt: occurredAt,
+          sourceKind: 'provider_import',
+          payload: traktPayload('watched_shows'),
+        });
+        collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
+        emittedForShow = true;
+      }
+    }
+    if (!emittedForShow) {
+      collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
+    }
   }
 }
 

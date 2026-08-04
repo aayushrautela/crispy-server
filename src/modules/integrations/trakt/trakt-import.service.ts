@@ -84,7 +84,7 @@ export class TraktImportService implements ProviderImportModule {
 
     const [watchedMovies, watchedShows, watchlistMovies, watchlistShows, ratingMovies, ratingShows, playback] = await Promise.all([
       this.traktClient.getArray('/sync/watched/movies', accessToken),
-      this.traktClient.getArray('/sync/watched/shows', accessToken),
+      this.traktClient.getArray('/sync/watched/shows', accessToken, { extended: 'progress' }),
       this.traktClient.getArray('/sync/watchlist/movies', accessToken),
       this.traktClient.getArray('/sync/watchlist/shows', accessToken),
       this.traktClient.getArray('/sync/ratings/movies', accessToken),

@@ -163,8 +163,17 @@ export class TraktImportClient {
     );
   }
 
-  async getArray(path: string, accessToken: string): Promise<Array<Record<string, unknown>>> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
+  async getArray(
+    path: string,
+    accessToken: string,
+    query?: Record<string, string>,
+  ): Promise<Array<Record<string, unknown>>> {
+    const url = new URL(`${this.baseUrl}${path}`);
+    for (const [key, value] of Object.entries(query ?? {})) {
+      url.searchParams.set(key, value);
+    }
+
+    const response = await fetch(url.toString(), {
       method: 'GET',
       headers: buildTraktHeaders({ accessToken }),
     });

@@ -183,7 +183,7 @@ test('TraktImportService.fetchAndNormalizeImport keeps show tmdb ids on watchlis
     if (url.endsWith('/sync/watched/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/watched/shows')) {
+    if (url.includes('/sync/watched/shows')) {
       return Response.json([]);
     }
     if (url.endsWith('/sync/watchlist/movies')) {
@@ -409,7 +409,7 @@ test('TraktImportService.fetchAndNormalizeImport keeps Trakt playback progress w
   }
 });
 
-test('TraktImportService.fetchAndNormalizeImport emits title-level history for watched shows', async () => {
+test('TraktImportService.fetchAndNormalizeImport emits per-episode history for watched shows', async () => {
   const { TraktImportService } = await import('./trakt/trakt-import.service.js');
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
@@ -448,13 +448,28 @@ test('TraktImportService.fetchAndNormalizeImport emits title-level history for w
     if (url.endsWith('/sync/watched/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/watched/shows')) {
+    if (url.includes('/sync/watched/shows')) {
       return Response.json([{
         plays: 3,
         last_watched_at: '2024-01-15T00:00:00.000Z',
         last_updated_at: '2024-01-15T00:00:00.000Z',
         reset_at: null,
         show: { ids: { tmdb: 9001, imdb: 'tt0944947' } },
+        seasons: [
+          {
+            number: 1,
+            episodes: [
+              { number: 1, plays: 1, last_watched_at: '2023-12-01T00:00:00.000Z' },
+              { number: 2, plays: 1, last_watched_at: '2023-12-08T00:00:00.000Z' },
+            ],
+          },
+          {
+            number: 2,
+            episodes: [
+              { number: 1, plays: 1, last_watched_at: '2024-01-15T00:00:00.000Z' },
+            ],
+          },
+        ],
       }]);
     }
     if (url.endsWith('/sync/watchlist/movies')) {
@@ -481,19 +496,24 @@ test('TraktImportService.fetchAndNormalizeImport emits title-level history for w
       { accessToken: 'token-123' },
     );
 
-    const historyEntries = result.importedHistoryEntries;
-    assert.equal(historyEntries.length, 1);
-    const entry = historyEntries[0];
-    assert.ok(entry);
-    assert.equal(entry.mediaType, 'show');
-    assert.equal(entry.mediaKey, 'show:tmdb:9001');
-    assert.equal(entry.watchedAt, '2024-01-15T00:00:00.000Z');
-
     const markWatchedEvents = result.importedEvents.filter((e: any) => e.eventType === 'mark_watched');
-    assert.equal(markWatchedEvents.length, 1);
-    assert.ok(markWatchedEvents[0]);
-    assert.equal(markWatchedEvents[0].mediaKey, 'show:tmdb:9001');
-    assert.equal(markWatchedEvents[0].showTmdbId, 9001);
+    assert.equal(markWatchedEvents.length, 3);
+
+    assert.deepEqual(
+      markWatchedEvents.map((e: any) => ({ mediaKey: e.mediaKey, showTmdbId: e.showTmdbId, seasonNumber: e.seasonNumber, episodeNumber: e.episodeNumber, occurredAt: e.occurredAt })),
+      [
+        { mediaKey: 'episode:tmdb:9001:1:1', showTmdbId: 9001, seasonNumber: 1, episodeNumber: 1, occurredAt: '2023-12-01T00:00:00.000Z' },
+        { mediaKey: 'episode:tmdb:9001:1:2', showTmdbId: 9001, seasonNumber: 1, episodeNumber: 2, occurredAt: '2023-12-08T00:00:00.000Z' },
+        { mediaKey: 'episode:tmdb:9001:2:1', showTmdbId: 9001, seasonNumber: 2, episodeNumber: 1, occurredAt: '2024-01-15T00:00:00.000Z' },
+      ],
+    );
+
+    const historyEntries = result.importedHistoryEntries;
+    assert.equal(historyEntries.length, 3);
+    assert.ok(historyEntries[0]);
+    assert.equal(historyEntries[0].mediaType, 'episode');
+    assert.equal(historyEntries[0].mediaKey, 'episode:tmdb:9001:1:1');
+    assert.equal(historyEntries[0].watchedAt, '2023-12-01T00:00:00.000Z');
   } finally {
     globalThis.fetch = originalFetch;
   }
