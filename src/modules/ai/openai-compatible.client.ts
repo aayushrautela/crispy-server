@@ -120,6 +120,8 @@ export class OpenAiCompatibleClient {
               : []),
             { role: 'user', content: args.userPrompt },
           ],
+          response_format: { type: 'json_object' },
+          tool_choice: 'none',
         }),
         ...(args.signal ? { signal: args.signal } : {}),
       });
