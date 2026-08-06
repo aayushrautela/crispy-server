@@ -117,7 +117,7 @@ export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
 
   const userData: UserItemDataDto = {
     ItemId: itemId,
-    IsFavorite: false,
+    IsFavorite: watchlistAddedAt !== null,
     Played: effectiveWatched,
     PlayCount: playCount,
     PlaybackPositionTicks: secondsToTicks(positionSeconds),

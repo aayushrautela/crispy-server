@@ -12,6 +12,17 @@ import {
   type WatchReadRow,
 } from './watch-read.mapper.js';
 
+/** Events that assert a title was watched. */
+export const WATCHED_EVENT_TYPES = ['playback_completed', 'marked_watched'] as const;
+
+/**
+ * Every event that participates in resolving watched state. Watched state is
+ * "latest event wins": the most recent of these (by occurred_at, then id)
+ * decides, so an explicit unwatch always beats an older completion — including
+ * completions replayed by a provider re-import with historical timestamps.
+ */
+export const WATCH_STATE_EVENT_TYPES = [...WATCHED_EVENT_TYPES, 'marked_unwatched'] as const;
+
 type RecordPlaybackParams = {
   accountId: string;
   profileId: string;
@@ -350,12 +361,15 @@ export class LocalUserWatchService {
          )
          SELECT
            req.item_id,
-           ws.media_type,
+           ci.entity_type                    AS media_type,
+           tmdb_ref.external_id              AS title_provider_id,
+           imdb_ref.external_id              AS imdb_id,
+           tvdb_ref.external_id              AS tvdb_id,
            pb.position_seconds,
            pb.duration_seconds,
            pb.progress_bps,
            pb.last_activity_at,
-           pb.title_item_id               AS continue_title_item_id,
+           pb.title_item_id                  AS continue_title_item_id,
            pb.position_seconds               AS continue_position_seconds,
            pb.duration_seconds               AS continue_duration_seconds,
            pb.progress_bps                   AS continue_progress_bps,
@@ -364,13 +378,24 @@ export class LocalUserWatchService {
            li.added_at                       AS watchlist_added_at,
            rt.rating,
            rt.rated_at,
-           ws.effective_watched,
-           ws.play_count,
-           ws.last_watched_at,
-           COALESCE(we.watched_episode_keys, ARRAY[]::uuid[]) AS watched_episode_keys
-         FROM requested req
-         LEFT JOIN user_state.media_watch_summary ws
-           ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id
+            COALESCE(wa.effective_watched, false) AS effective_watched,
+            COALESCE(wa.play_count, 0)            AS play_count,
+            wa.last_watched_at
+          FROM requested req
+         LEFT JOIN content_items ci
+           ON ci.id = req.item_id
+         LEFT JOIN content_provider_refs tmdb_ref
+           ON tmdb_ref.content_id = req.item_id
+          AND tmdb_ref.provider = 'tmdb'
+          AND tmdb_ref.entity_type = ci.entity_type
+         LEFT JOIN content_provider_refs imdb_ref
+           ON imdb_ref.content_id = req.item_id
+          AND imdb_ref.provider = 'imdb'
+          AND imdb_ref.entity_type = ci.entity_type
+         LEFT JOIN content_provider_refs tvdb_ref
+           ON tvdb_ref.content_id = req.item_id
+          AND tvdb_ref.provider = 'tvdb'
+          AND tvdb_ref.entity_type = ci.entity_type
          LEFT JOIN user_state.playback_progress pb
            ON pb.profile_id = $1::uuid AND pb.title_item_id = req.item_id AND pb.dismissed_at IS NULL
          LEFT JOIN user_state.profile_list_items li
@@ -378,14 +403,17 @@ export class LocalUserWatchService {
          LEFT JOIN user_state.profile_ratings rt
            ON rt.profile_id = $1::uuid AND rt.item_id = req.item_id
          LEFT JOIN LATERAL (
-           SELECT array_agg(s.item_id ORDER BY s.item_id) AS watched_episode_keys
-           FROM user_state.media_watch_summary s
-           WHERE s.profile_id = $1::uuid
-             AND s.title_item_id = req.item_id
-             AND s.media_type = 'episode'
-             AND s.effective_watched = true
-         ) we ON true`,
-        [params.profileId, itemIds],
+           SELECT
+             (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1]
+               = ANY ($3::text[])                                        AS effective_watched,
+             count(*) FILTER (WHERE ev.event_type = ANY ($3::text[]))    AS play_count,
+             max(ev.occurred_at) FILTER (WHERE ev.event_type = ANY ($3::text[])) AS last_watched_at
+           FROM user_state.watch_events ev
+           WHERE ev.profile_id = $1::uuid
+             AND ev.item_id = req.item_id
+             AND ev.event_type = ANY ($4::text[])
+          ) wa ON true`,
+         [params.profileId, itemIds, WATCHED_EVENT_TYPES, WATCH_STATE_EVENT_TYPES],
       );
 
       return result.rows.map((row) => mapWatchStateRow(row as Record<string, unknown>));
@@ -411,20 +439,6 @@ export class LocalUserWatchService {
           [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType,
            params.occurredAt ?? null, params.positionSeconds, params.durationSeconds, progressBps,
            params.clientEventId ?? null],
-        );
-
-        await client.query(
-          `INSERT INTO user_state.media_watch_summary
-             (profile_id, item_id, title_item_id, media_type, effective_watched, play_count,
-              last_watched_at, last_activity_at, source_kind, account_id)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, true, 1, now(), now(), 'local', $5::uuid)
-           ON CONFLICT (profile_id, item_id) DO UPDATE SET
-             effective_watched = true,
-             play_count = media_watch_summary.play_count + 1,
-             last_watched_at = now(),
-             last_activity_at = now(),
-             updated_at = now()`,
-          [params.profileId, params.itemId, params.titleItemId, params.mediaType, params.accountId],
         );
 
         await client.query(
@@ -519,20 +533,6 @@ export class LocalUserWatchService {
       );
 
       await client.query(
-        `INSERT INTO user_state.media_watch_summary
-           (profile_id, item_id, title_item_id, media_type, effective_watched, play_count,
-            last_watched_at, last_activity_at, source_kind, account_id)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, true, 1, $5::timestamptz, $5::timestamptz, 'local', $6::uuid)
-         ON CONFLICT (profile_id, item_id) DO UPDATE SET
-           effective_watched = true,
-           play_count = media_watch_summary.play_count + 1,
-           last_watched_at = $5::timestamptz,
-           last_activity_at = $5::timestamptz,
-           updated_at = now()`,
-        [params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt, params.accountId],
-      );
-
-      await client.query(
         `DELETE FROM user_state.playback_progress
          WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
         [params.profileId, params.titleItemId],
@@ -544,24 +544,14 @@ export class LocalUserWatchService {
     const occurredAt = params.occurredAt || new Date().toISOString();
     const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
 
-    await withDbClient(async (client) => {
-      await client.query(
-        `INSERT INTO user_state.watch_events
-           (account_id, profile_id, item_id, title_item_id, media_type, event_type,
-            occurred_at, source_kind, last_actor_account_id)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_unwatched',
-                 $6::timestamptz, 'local', $1::uuid)`,
-        [params.accountId, params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt],
-      );
-
-      await client.query(
-        `UPDATE user_state.media_watch_summary
-         SET effective_watched = false, last_unwatched_at = $3::timestamptz,
-             last_activity_at = $3::timestamptz, updated_at = now()
-         WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
-        [params.profileId, params.itemId, occurredAt],
-      );
-    });
+    await db.query(
+      `INSERT INTO user_state.watch_events
+         (account_id, profile_id, item_id, title_item_id, media_type, event_type,
+          occurred_at, source_kind, last_actor_account_id)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_unwatched',
+               $6::timestamptz, 'local', $1::uuid)`,
+      [params.accountId, params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt],
+    );
   }
 }
 

@@ -2,6 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { db } from '../../lib/db.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
+import { WATCHED_EVENT_TYPES, WATCH_STATE_EVENT_TYPES } from '../integrations/local-user-watch.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { MetadataProjectionService } from '../metadata/metadata-projection.service.js';
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
@@ -96,10 +97,14 @@ export class CalendarBuilderService {
   }
 
   private async isWatched(profileId: string, itemId: string): Promise<boolean> {
+    const resolvedItemId = assertPublicItemId(itemId);
     const result = await db.query(
-      `SELECT effective_watched FROM user_state.media_watch_summary
-       WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
-      [profileId, assertPublicItemId(itemId)],
+      `SELECT (
+         (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1] = ANY ($3::text[])
+       ) AS effective_watched
+       FROM user_state.watch_events ev
+       WHERE ev.profile_id = $1::uuid AND ev.item_id = $2::uuid AND ev.event_type = ANY ($4::text[])`,
+      [profileId, resolvedItemId, WATCHED_EVENT_TYPES, WATCH_STATE_EVENT_TYPES],
     );
     return result.rows[0]?.effective_watched === true;
   }

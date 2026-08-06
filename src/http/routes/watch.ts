@@ -224,7 +224,7 @@ export async function registerWatchRoutes(
     const enrichedItem = await withDbClient((client) =>
       watchCardHydrator.hydrateItems(client, [item], language),
     );
-    return success(enrichedItem[0] ?? item);
+    return success(enrichedItem[0]);
   });
 
   app.post('/v1/profiles/:profileId/watch/states', { schema: watchStatesRouteSchema }, async (request) => {
@@ -242,11 +242,9 @@ export async function registerWatchRoutes(
       profileId,
       itemIds,
     });
-    const enrichedItems = stateItems.length
-      ? await withDbClient((client) =>
-        watchCardHydrator.hydrateItems(client, stateItems, language),
-      )
-      : stateItems;
+    const enrichedItems = await withDbClient((client) =>
+      watchCardHydrator.hydrateItems(client, stateItems, language),
+    );
     return success({ items: enrichedItems });
   });
 
