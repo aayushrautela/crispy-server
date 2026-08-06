@@ -6,10 +6,7 @@ import { HttpError } from '../../lib/errors.js';
 import { OpenAiCompatibleClient } from '../../modules/ai/openai-compatible.client.js';
 import type { AiProviderFailureDetails, AiResolvedProviderConfig } from '../../modules/ai/ai.types.js';
 import { RecommendationAdminService } from '../../modules/recommendations/recommendation-admin.service.js';
-import {
-  resolveRecommendationAlgorithmVersion,
-  resolveRecommendationSourceKey,
-} from '../../modules/recommendations/recommendation-config.js';
+import { resolveRecommendationSourceKey } from '../../modules/recommendations/recommendation-config.js';
 import { ProviderAdminService } from '../../modules/integrations/provider-admin.service.js';
 import { ProviderImportService, parseImportProvider } from '../../modules/integrations/provider-import.service.js';
 import { ProviderTokenAccessService } from '../../modules/integrations/provider-token-access.service.js';
@@ -20,7 +17,7 @@ import type {
 import { isProviderImportProvider } from '../../modules/integrations/provider-import.types.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
-import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { TasteProfileService } from '../../modules/recommendations/taste-profile.service.js';
 import { mapProviderImportJobAdminView, mapProviderImportJobView } from '../../modules/integrations/provider-import.views.js';
 import { CalendarService } from '../../modules/calendar/calendar.service.js';
 import { AccountSettingsService } from '../../modules/users/account-settings.service.js';
@@ -50,7 +47,7 @@ export async function registerAdminApiRoutes(
   const providerTokenAccessService = new ProviderTokenAccessService();
   const accountLookupService = new AccountLookupService();
   const recommendationDataService = new RecommendationDataService();
-  const recommendationOutputService = new RecommendationOutputService();
+  const recommendationOutputService = new TasteProfileService();
   const calendarService = new CalendarService();
   const accountSettingsService = new AccountSettingsService();
   const aiClient = new OpenAiCompatibleClient();
@@ -327,22 +324,6 @@ export async function registerAdminApiRoutes(
         params.accountId,
         params.profileId,
         resolveRecommendationSourceKey(query.sourceKey),
-      ),
-    }, request);
-  });
-
-  app.get('/admin/api/accounts/:accountId/profiles/:profileId/recommendations', async (request, reply) => {
-    await requireAdmin(request);
-    const params = parseAccountProfileParams(request.params);
-    const query = asRecord(request.query);
-    const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
-    const algorithmVersion = resolveRecommendationAlgorithmVersion(query.algorithmVersion);
-    return success({
-      recommendations: await recommendationOutputService.getRecommendationsForAccountService(
-        params.accountId,
-        params.profileId,
-        sourceKey,
-        algorithmVersion,
       ),
     }, request);
   });

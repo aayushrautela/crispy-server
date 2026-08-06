@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../../lib/errors.js';
-import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { TasteProfileService } from '../../modules/recommendations/taste-profile.service.js';
 import { HomeResolverService } from '../../modules/home/home-resolver.service.js';
 import { HomeModeService } from '../../modules/home/home-mode.service.js';
 import { parseRecoListWriteRequest } from '../../modules/recommendations/reco-list-write-parser.js';
 import { success, successList } from '../response.js';
-import { resolveRecommendationAlgorithmVersion, resolveRecommendationSourceKey } from '../../modules/recommendations/recommendation-config.js';
+import { resolveRecommendationSourceKey } from '../../modules/recommendations/recommendation-config.js';
 
-export async function registerRecommendationOutputRoutes(app: FastifyInstance): Promise<void> {
-  const outputService = new RecommendationOutputService();
+export async function registerTasteProfileRoutes(app: FastifyInstance): Promise<void> {
+  const outputService = new TasteProfileService();
   const homeResolver = new HomeResolverService();
   const homeModeService = new HomeModeService();
 
@@ -104,33 +104,6 @@ function parseTasteProfileInput(body: unknown) {
     watchingPace: typeof value.watchingPace === 'string' ? value.watchingPace : null,
     aiSummary: typeof value.aiSummary === 'string' ? value.aiSummary : null,
     source: typeof value.source === 'string' && value.source.trim() ? value.source.trim() : 'manual',
-  };
-}
-
-function parseRecommendationSnapshotInput(body: unknown) {
-  const value = asRecord(body);
-  const algorithmVersion = resolveRecommendationAlgorithmVersion(value.algorithmVersion);
-
-  const historyGeneration = Number(value.historyGeneration);
-  if (!Number.isInteger(historyGeneration) || historyGeneration < 0) {
-    throw new HttpError(400, 'historyGeneration must be a non-negative integer.');
-  }
-
-  const generatedAt = typeof value.generatedAt === 'string' && value.generatedAt.trim() ? value.generatedAt : null;
-  if (!generatedAt) {
-    throw new HttpError(400, 'generatedAt is required.');
-  }
-
-  return {
-    sourceKey: resolveRecommendationSourceKey(value.sourceKey),
-    historyGeneration,
-    algorithmVersion,
-    sourceCursor: typeof value.sourceCursor === 'string' ? value.sourceCursor : null,
-    generatedAt,
-    expiresAt: typeof value.expiresAt === 'string' ? value.expiresAt : null,
-    source: typeof value.source === 'string' && value.source.trim() ? value.source.trim() : 'manual',
-    updatedById: typeof value.updatedById === 'string' ? value.updatedById : null,
-    sections: Array.isArray(value.sections) ? value.sections : [],
   };
 }
 

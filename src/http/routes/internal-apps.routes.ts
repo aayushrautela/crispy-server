@@ -12,7 +12,7 @@ import type { ServiceRecommendationListService } from '../../modules/apps/servic
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
-import { RecommendationOutputService } from '../../modules/recommendations/recommendation-output.service.js';
+import { TasteProfileService } from '../../modules/recommendations/taste-profile.service.js';
 import { withDbClient } from '../../lib/db.js';
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
@@ -70,8 +70,8 @@ export interface InternalAppsRoutesDeps {
   watchCardHydrator?: Pick<WatchCardHydrator, 'hydrateItems'>;
   /** Read service for episodic-follow signal route. Defaults to EpisodicFollowService. */
   episodicFollowService?: Pick<EpisodicFollowService, 'listForProfile'>;
-  /** Service for taste read/write signal routes. Defaults to RecommendationOutputService. */
-  recommendationOutputService?: Pick<RecommendationOutputService, 'getTasteProfileForAccountService' | 'upsertTasteProfileForAccountService'>;
+  /** Service for taste read/write signal routes. Defaults to TasteProfileService. */
+  recommendationOutputService?: Pick<TasteProfileService, 'getTasteProfileForAccountService' | 'upsertTasteProfileForAccountService'>;
 }
 
 function hasScopedAllAccountAccess(principal: AppPrincipal, scope: AppScope): boolean {
@@ -228,7 +228,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   const watchReadService = deps.watchReadService ?? new LocalUserWatchService();
   const watchCardHydrator = deps.watchCardHydrator ?? new WatchCardHydrator();
   const episodicFollowService = deps.episodicFollowService ?? new EpisodicFollowService();
-  const recommendationOutputService = deps.recommendationOutputService ?? new RecommendationOutputService();
+  const recommendationOutputService = deps.recommendationOutputService ?? new TasteProfileService();
   const usingInjectedWatchReadService = deps.watchReadService !== undefined;
   // When test deps inject a fake watchReadService, skip the withDbClient
   // wrapper (the fake doesn't need a real Postgres client).
@@ -348,7 +348,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   //    Reco reads a previously stored taste here and pushes a refreshed one
   //    back via PUT, using the same taste_profiles table as the public
   //    /v1/.../taste-profile route. Both routes go through the existing
-  //    ...ForAccountService methods of RecommendationOutputService which
+  //    ...ForAccountService methods of TasteProfileService which
   //    resolve cross-account access via requireOwnedProfileForAccount.
 
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/taste', { schema: tasteProfileReadRouteSchema }, async (request) => {

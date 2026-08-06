@@ -32,7 +32,7 @@ import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
 import { ProfileLocalService } from '../modules/profiles/profile-local.service.js';
 import { ProfilePinService } from '../modules/profiles/profile-pin.service.js';
-import { registerRecommendationOutputRoutes } from './routes/recommendation-outputs.js';
+import { registerTasteProfileRoutes } from './routes/taste-profile.routes.js';
 import { registerWatchRoutes } from './routes/watch.js';
 import { registerAccountPublicRoutes } from './routes/account-public.routes.js';
 import { registerInternalAppsRoutes } from './routes/internal-apps.routes.js';
@@ -229,7 +229,7 @@ export async function buildApp() {
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
   await registerWatchRoutes(app, { profilePinService });
-  await registerRecommendationOutputRoutes(app);
+  await registerTasteProfileRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
   await registerAdminApiRoutes(app);
   await registerCalendarRoutes(app, { profilePinService });
