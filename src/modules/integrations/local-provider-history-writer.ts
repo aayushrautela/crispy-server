@@ -139,25 +139,31 @@ export class LocalProviderHistoryWriter {
         );
 
         for (const s of params.playbackStates) {
-          const titleItemId = await this.contentIdentityService.ensureContentId(client, parseMediaKey(s.titleMediaKey));
-          const playableItemId = await this.contentIdentityService.ensureContentId(client, parseMediaKey(s.mediaKey));
+          const titleIdentity = parseMediaKey(s.titleMediaKey);
+          const playableIdentity = parseMediaKey(s.mediaKey);
+          const titleItemId = await this.contentIdentityService.ensureContentId(client, titleIdentity);
+          const playableItemId = await this.contentIdentityService.ensureContentId(client, playableIdentity);
+          const seasonNumber = playableIdentity.seasonNumber ?? null;
+          const episodeNumber = playableIdentity.episodeNumber ?? null;
           await client.query(
             `INSERT INTO user_state.playback_progress
                (profile_id, title_item_id, playable_item_id, media_type, position_seconds, duration_seconds, progress_bps,
-                last_activity_at, source_kind, source_provider, account_id)
-             VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::timestamptz, 'provider_import', $9, $10::uuid)
+                last_activity_at, season_number, episode_number, source_kind, source_provider, account_id)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::timestamptz, $9, $10, 'provider_import', $11, $12::uuid)
              ON CONFLICT (profile_id, title_item_id, playable_item_id) DO UPDATE SET
                playable_item_id = EXCLUDED.playable_item_id,
                position_seconds = EXCLUDED.position_seconds,
                duration_seconds = EXCLUDED.duration_seconds,
                progress_bps = EXCLUDED.progress_bps,
                last_activity_at = EXCLUDED.last_activity_at,
+               season_number = EXCLUDED.season_number,
+               episode_number = EXCLUDED.episode_number,
                source_kind = EXCLUDED.source_kind,
                source_provider = EXCLUDED.source_provider,
                dismissed_at = CASE WHEN EXCLUDED.dismissed_at IS NOT NULL THEN EXCLUDED.dismissed_at ELSE NULL END,
                updated_at = now()`,
             [profileId, titleItemId, playableItemId, s.mediaType, s.positionSeconds, s.durationSeconds, s.progressBps,
-             s.occurredAt, provider, accountId],
+             s.occurredAt, seasonNumber, episodeNumber, provider, accountId],
           );
         }
         playbackInserted = params.playbackStates.length;

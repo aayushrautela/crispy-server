@@ -77,6 +77,64 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - returns result f
   assert.equal(result.playbackInserted, 0);
 });
 
+test('LocalProviderHistoryWriter::replaceImportedInteractions - populates season/episode numbers for episodes', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentId: async (_client: any, identity: { mediaKey: string }) => {
+      return identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2';
+    },
+  };
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  const result = await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    historyGeneration: 1,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [
+      {
+        mediaKey: 'episode:tmdb:12345:2:3',
+        titleMediaKey: 'show:tmdb:12345',
+        mediaType: 'episode',
+        positionSeconds: 600,
+        durationSeconds: 1200,
+        progressBps: 5000,
+        occurredAt: '2026-05-14T00:00:00.000Z',
+        completed: false,
+      },
+    ],
+  });
+
+  assert.equal(result.skipped, false);
+  assert.equal(result.playbackInserted, 1);
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.playback_progress'));
+  assert.ok(insertQuery, 'should have an INSERT query for playback_progress');
+  assert.ok(insertQuery.includes('season_number'), 'INSERT should include season_number column');
+  assert.ok(insertQuery.includes('episode_number'), 'INSERT should include episode_number column');
+
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![8], 2, 'season_number should be 2');
+  assert.equal(insertParams![9], 3, 'episode_number should be 3');
+});
+
 test('LocalProviderHistoryWriter::replaceImportedInteractions - handles DB error gracefully', async (t) => {
   const writer = new LocalProviderHistoryWriter();
   const client = {
