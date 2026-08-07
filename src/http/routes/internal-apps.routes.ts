@@ -13,6 +13,7 @@ import { LocalUserWatchService } from '../../modules/integrations/local-user-wat
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { TasteProfileService } from '../../modules/recommendations/taste-profile.service.js';
+import { HomeModeService } from '../../modules/home/home-mode.service.js';
 import { withDbClient } from '../../lib/db.js';
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
@@ -364,6 +365,8 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     return success({ tasteProfile }, request);
   });
 
+  const homeModeService = new HomeModeService();
+
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/taste', { schema: tasteProfileWriteRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
@@ -371,6 +374,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId });
+    await homeModeService.assertCanWrite(params.accountId, params.profileId, 'reco');
     const body = request.body as TasteProfileWriteBody;
     const tasteProfile = await recommendationOutputService.upsertTasteProfileForAccountService(params.accountId, params.profileId, {
       ...body,
@@ -426,6 +430,10 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     const principal = await app.requireRecommenderAuth(request);
     const idempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined;
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.batch-write' });
+    const body = request.body as { profiles: Array<{ accountId: string; profileId: string }> };
+    for (const profile of body.profiles) {
+      await homeModeService.assertCanWrite(profile.accountId, profile.profileId, 'reco');
+    }
     const result = await deps.serviceRecommendationListService.batchUpsert({
       principal,
       idempotencyKey: idempotencyKey ?? '',

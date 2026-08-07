@@ -28,6 +28,7 @@ const profile = {
   isKids: false,
   sortOrder: 0,
   createdByUserId: 'local-user-1',
+  recommendationSource: 'reco',
   createdAt: '2026-05-15T00:00:00.000Z',
   updatedAt: '2026-05-15T00:00:00.000Z',
 };

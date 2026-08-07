@@ -98,7 +98,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
         const { HttpError } = await import('../../lib/errors.js');
         throw new HttpError(404, 'Profile not found.');
       }
-      return { id: profileId, profileGroupId: 'group-1', name: 'Test Profile', interfaceLanguage: 'en', region: null, avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false, isKids: false, sortOrder: 0, createdByUserId: accountId, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+      return { id: profileId, profileGroupId: 'group-1', name: 'Test Profile', interfaceLanguage: 'en', region: null, avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false, isKids: false, sortOrder: 0, createdByUserId: accountId, recommendationSource: 'reco', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     },
     async requireProfileOwnerAccountId(profileId: string): Promise<string> {
       const owned = ownedProfiles.find((profile) => profile.profileId === profileId);

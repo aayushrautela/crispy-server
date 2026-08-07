@@ -36,7 +36,7 @@ export interface AppAuthPluginOptions extends EnvVarPrincipalRepoDeps {
   clock: Clock;
 }
 
-const RECO_ENV_VAR_KEY_ID = 'reco-env-var-token';
+const RECO_ENV_VAR_KEY_ID = '00000000-0000-0000-0000-000000000001';
 
 type BuildPrincipalFromAppIdInput = {
   appId: string;
