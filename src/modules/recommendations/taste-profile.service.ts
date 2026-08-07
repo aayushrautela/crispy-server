@@ -14,6 +14,8 @@ export type RecommendationTasteProfileInput = {
   watchingPace?: string | null;
   aiSummary?: string | null;
   source: string;
+  tags?: unknown[];
+  mood?: unknown[];
 };
 
 export class TasteProfileService {
@@ -85,6 +87,8 @@ export class TasteProfileService {
         watchingPace: input.watchingPace,
         aiSummary: input.aiSummary,
         source: input.source,
+        tags: input.tags,
+        mood: input.mood,
       });
       return mapTasteProfile(row);
     });
@@ -113,6 +117,8 @@ function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {
     watchingPace: row.watchingPace,
     aiSummary: row.aiSummary,
     source: row.source,
+    tags: row.tags,
+    mood: row.mood,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -512,7 +512,7 @@ export const tasteProfileReadQuerySchema = {
 export const tasteProfileRecordSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['profileId', 'sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source', 'version', 'createdAt', 'updatedAt'],
+  required: ['profileId', 'sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source', 'tags', 'mood', 'version', 'createdAt', 'updatedAt'],
   properties: {
     profileId: stringSchema,
     sourceKey: stringSchema,
@@ -525,6 +525,8 @@ export const tasteProfileRecordSchema = {
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: stringSchema,
+    tags: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    mood: { type: 'array', items: { type: 'object', additionalProperties: true } },
     version: integerSchema,
     createdAt: dateTimeSchema,
     updatedAt: dateTimeSchema,
