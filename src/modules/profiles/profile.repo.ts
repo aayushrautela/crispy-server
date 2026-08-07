@@ -17,6 +17,7 @@ export type ProfileRecord = {
   hasPin: boolean;
   isKids: boolean;
   sortOrder: number;
+  recommendationSource: string;
   createdByUserId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -33,7 +34,8 @@ export type ProfilePinRow = {
 const PROFILE_COLUMNS = `
   id, account_id AS profile_group_id, name, interface_language, region, avatar_url,
   is_admin, pin_hash IS NOT NULL AS has_pin, require_pin_to_add_profiles,
-  is_kids, sort_order, created_by_account_id AS created_by_user_id, created_at, updated_at
+  is_kids, sort_order, recommendation_source,
+  created_by_account_id AS created_by_user_id, created_at, updated_at
 `;
 
 function normalizeRequiredProfileLanguage(value: unknown): string {
@@ -65,6 +67,7 @@ function mapProfile(row: Record<string, unknown>): ProfileRecord {
     hasPin: Boolean(row.has_pin),
     isKids: Boolean(row.is_kids),
     sortOrder: Number(row.sort_order),
+    recommendationSource: typeof row.recommendation_source === 'string' ? row.recommendation_source : 'reco',
     createdByUserId: typeof row.created_by_user_id === 'string' ? String(row.created_by_account_id) : null,
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'identity.profiles.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'identity.profiles.updated_at'),
@@ -231,6 +234,7 @@ export class ProfileRepository {
     avatarUrl?: string | null;
     isKids?: boolean;
     sortOrder?: number;
+    recommendationSource?: string;
   }): Promise<ProfileRecord | null> {
     const current = await this.findByIdForOwnerUser(client, params.profileId, params.ownerUserId);
     if (!current) {
@@ -247,6 +251,7 @@ export class ProfileRepository {
           avatar_url = $6,
           is_kids = $7,
           sort_order = $8,
+          recommendation_source = $9,
           updated_at = now()
         WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
         RETURNING ${PROFILE_COLUMNS}
@@ -260,6 +265,7 @@ export class ProfileRepository {
         params.avatarUrl === undefined ? current.avatarUrl : normalizeOptionalAvatarUrl(params.avatarUrl),
         params.isKids ?? current.isKids,
         params.sortOrder ?? current.sortOrder,
+        params.recommendationSource ?? current.recommendationSource,
       ],
     );
     return result.rows[0] ? mapProfile(result.rows[0]) : null;
@@ -278,6 +284,19 @@ export class ProfileRepository {
       `,
       [profileId, params.pinHash, params.failedAttempts, params.lockedUntil],
     );
+  }
+
+  async setRecommendationSource(client: DbClient, profileId: string, ownerUserId: string, value: string): Promise<ProfileRecord | null> {
+    const result = await client.query(
+      `
+        UPDATE identity.profiles
+        SET recommendation_source = $3, updated_at = now()
+        WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL
+        RETURNING ${PROFILE_COLUMNS}
+      `,
+      [profileId, ownerUserId, value],
+    );
+    return result.rows[0] ? mapProfile(result.rows[0]) : null;
   }
 
   async setRequirePinToAddProfiles(client: DbClient, adminProfileId: string, ownerUserId: string, value: boolean): Promise<ProfileRecord | null> {
