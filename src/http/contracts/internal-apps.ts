@@ -561,7 +561,7 @@ export const tasteProfileReadRouteSchema = withDefaultErrorResponses({
 export const tasteProfileWriteBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source'],
+  required: ['sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source', 'tags', 'mood'],
   properties: {
     sourceKey: nonEmptyStringSchema,
     genres: { type: 'array', items: stringSchema },
@@ -573,6 +573,8 @@ export const tasteProfileWriteBodySchema = {
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: nonEmptyStringSchema,
+    tags: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    mood: { type: 'array', items: { type: 'object', additionalProperties: true } },
   },
 } as const;
 export type TasteProfileWriteBody = {
@@ -586,6 +588,8 @@ export type TasteProfileWriteBody = {
   watchingPace: string | null;
   aiSummary: string | null;
   source: string;
+  tags: unknown[];
+  mood: unknown[];
 };
 
 export const tasteProfileWriteRouteSchema = withDefaultErrorResponses({
