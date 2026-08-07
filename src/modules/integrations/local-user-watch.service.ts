@@ -413,17 +413,20 @@ export class LocalUserWatchService {
            ON li.profile_id = $1::uuid AND li.list_kind = 'watchlist' AND li.item_id = req.item_id
          LEFT JOIN user_state.profile_ratings rt
            ON rt.profile_id = $1::uuid AND rt.item_id = req.item_id
-         LEFT JOIN LATERAL (
-           SELECT
-             (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1]
-               = ANY ($3::text[])                                        AS effective_watched,
-             count(*) FILTER (WHERE ev.event_type = ANY ($3::text[]))    AS play_count,
-             max(ev.occurred_at) FILTER (WHERE ev.event_type = ANY ($3::text[])) AS last_watched_at
-           FROM user_state.watch_events ev
-           WHERE ev.profile_id = $1::uuid
-             AND ev.item_id = req.item_id
-             AND ev.event_type = ANY ($4::text[])
-          ) wa ON true`,
+          LEFT JOIN LATERAL (
+            SELECT
+              (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1]
+                = ANY ($3::text[])                                        AS effective_watched,
+              CASE WHEN (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1]
+                = ANY ($3::text[])
+                THEN count(*) FILTER (WHERE ev.event_type = ANY ($3::text[]))
+                ELSE 0 END                                                AS play_count,
+              max(ev.occurred_at) FILTER (WHERE ev.event_type = ANY ($3::text[])) AS last_watched_at
+            FROM user_state.watch_events ev
+            WHERE ev.profile_id = $1::uuid
+              AND ev.item_id = req.item_id
+              AND ev.event_type = ANY ($4::text[])
+           ) wa ON true`,
          [params.profileId, itemIds, WATCHED_EVENT_TYPES, WATCH_STATE_EVENT_TYPES],
       );
 
