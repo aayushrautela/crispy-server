@@ -146,7 +146,7 @@ export class LocalProviderHistoryWriter {
                (profile_id, title_item_id, playable_item_id, media_type, position_seconds, duration_seconds, progress_bps,
                 last_activity_at, source_kind, source_provider, account_id)
              VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::timestamptz, 'provider_import', $9, $10::uuid)
-             ON CONFLICT (profile_id, title_item_id) DO UPDATE SET
+             ON CONFLICT (profile_id, title_item_id, playable_item_id) DO UPDATE SET
                playable_item_id = EXCLUDED.playable_item_id,
                position_seconds = EXCLUDED.position_seconds,
                duration_seconds = EXCLUDED.duration_seconds,

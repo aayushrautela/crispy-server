@@ -114,11 +114,17 @@ export async function registerWatchRoutes(
     const params = request.params as Partial<WatchContinueWatchingDismissParams> & { id: string };
     const profileId = getProfileIdFromParams(params);
     await assertProfileUnlocked(request, profileId);
-    const titleItemId = assertPublicItemId(params.id);
+    const playableItemId = assertPublicItemId(params.id);
+    const resolved = await withDbClient(async (client) => {
+      const publicTitleId = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, params.id!);
+      const titleItemId = decodePublicItemId(publicTitleId);
+      return { titleItemId };
+    });
     await localUserWatchService.dismissContinueWatching({
       accountId: actor.authSubject!,
       profileId,
-      titleItemId,
+      titleItemId: resolved.titleItemId,
+      playableItemId,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });

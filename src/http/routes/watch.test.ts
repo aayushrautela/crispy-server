@@ -234,6 +234,60 @@ test('watch routes work with user actor auth subject', async (t) => {
   ]);
 });
 
+test('dismiss continue-watching resolves titleItemId from playableItemId', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
+  const { ContentIdentityService } = await import('../../modules/identity/content-identity.service.js');
+  const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
+
+  const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
+  t.after(() => {
+    MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
+  });
+
+  const dismissParams: Partial<Record<string, string>> = {};
+  LocalUserWatchService.prototype.dismissContinueWatching = async function (params: { titleItemId: string; playableItemId: string; profileId: string }) {
+    Object.assign(dismissParams, params);
+  };
+  WatchCardHydrator.prototype.hydrateItems = async function () {
+    return [] as never;
+  };
+  ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
+    return itemId;
+  };
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'episode' as const };
+  };
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en' as never;
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'DELETE',
+    url: `/v1/profiles/profile-1/watch/continue-watching/${testTitleItemId}`,
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(dismissParams?.titleItemId, '00000000-0000-4000-8000-000000000002');
+  assert.equal(dismissParams?.playableItemId, '00000000-0000-4000-8000-000000000002');
+  assert.equal(dismissParams?.profileId, 'profile-1');
+});
+
 test('watch routes reject requests without access token', async (t) => {
   const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');

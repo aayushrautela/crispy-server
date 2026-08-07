@@ -134,7 +134,7 @@ export const watchContinueWatchingDismissRouteSchema = withDefaultErrorResponses
     required: ['profileId', 'id'],
     properties: {
       profileId: nonEmptyStringSchema,
-      id: nonEmptyStringSchema,
+      id: publicItemIdSchema,
     },
   },
 });

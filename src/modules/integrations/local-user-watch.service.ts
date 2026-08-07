@@ -1,4 +1,4 @@
-import { db, withDbClient } from '../../lib/db.js';
+import { db, withDbClient, type DbClient } from '../../lib/db.js';
 import { decodeWatchPageCursor } from '../watch/watch-pagination.js';
 import type { BaseItemDto } from '../metadata/media-item.types.js';
 import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
@@ -11,6 +11,8 @@ import {
   mapWatchStateRow,
   type WatchReadRow,
 } from './watch-read.mapper.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { inferMediaIdentity, showTmdbIdForIdentity } from '../identity/media-key.js';
 
 /** Events that assert a title was watched. */
 export const WATCHED_EVENT_TYPES = ['playback_completed', 'marked_watched'] as const;
@@ -40,6 +42,7 @@ type DismissContinueWatchingParams = {
   accountId: string;
   profileId: string;
   titleItemId: string;
+  playableItemId: string;
 };
 
 type SetListItemParams = {
@@ -107,40 +110,46 @@ type GetStateParams = {
 };
 
 export class LocalUserWatchService {
+  constructor(
+    private readonly contentIdentityService = new ContentIdentityService(),
+  ) {}
+
   async listContinueWatchingPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
       `SELECT pp.title_item_id, pp.playable_item_id, pp.media_type,
               pp.position_seconds, pp.duration_seconds, pp.progress_bps,
-              pp.last_activity_at, pp.source_kind, pp.source_provider,
-              tmdb_ref.external_id AS title_provider_id,
-              imdb_ref.external_id AS imdb_id,
-              tvdb_ref.external_id AS tvdb_id
+              pp.last_activity_at, pp.season_number, pp.episode_number,
+              pp.source_kind, pp.source_provider,
+              sh_tmdb.external_id AS title_provider_id,
+              sh_imdb.external_id AS imdb_id,
+              sh_tvdb.external_id AS tvdb_id
        FROM user_state.playback_progress pp
-       LEFT JOIN content_provider_refs tmdb_ref
-         ON tmdb_ref.content_id = pp.title_item_id
-        AND tmdb_ref.provider = 'tmdb'
-        AND tmdb_ref.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs imdb_ref
-         ON imdb_ref.content_id = pp.title_item_id
-        AND imdb_ref.provider = 'imdb'
-        AND imdb_ref.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs tvdb_ref
-         ON tvdb_ref.content_id = pp.title_item_id
-        AND tvdb_ref.provider = 'tvdb'
-        AND tvdb_ref.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs sh_tmdb
+         ON sh_tmdb.content_id = pp.title_item_id
+        AND sh_tmdb.provider = 'tmdb'
+        AND sh_tmdb.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs sh_imdb
+         ON sh_imdb.content_id = pp.title_item_id
+        AND sh_imdb.provider = 'imdb'
+        AND sh_imdb.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       LEFT JOIN content_provider_refs sh_tvdb
+         ON sh_tvdb.content_id = pp.title_item_id
+        AND sh_tvdb.provider = 'tvdb'
+        AND sh_tvdb.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
        WHERE pp.profile_id = $1::uuid AND pp.dismissed_at IS NULL
+         AND pp.last_activity_at > now() - interval '60 days'
          AND ($2::timestamptz IS NULL OR pp.last_activity_at < $2::timestamptz
-              OR (pp.last_activity_at = $2::timestamptz AND pp.title_item_id > $3::uuid))
-       ORDER BY pp.last_activity_at DESC, pp.title_item_id ASC
+              OR (pp.last_activity_at = $2::timestamptz AND pp.playable_item_id > $3::uuid))
+       ORDER BY pp.last_activity_at DESC, pp.playable_item_id ASC
        LIMIT $4`,
       [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.title_item_id) }),
+      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.playable_item_id) }),
       (row) => mapContinueWatchingRow(row),
     );
   }
@@ -439,8 +448,11 @@ export class LocalUserWatchService {
       ? Math.round((params.positionSeconds ?? 0) / params.durationSeconds * 10000)
       : null;
 
+    const isCompleted = params.eventKind === 'playback_completed'
+      && !LocalUserWatchService.isBelowCompletionThreshold(progressBps);
+
     await withDbClient(async (client) => {
-      if (params.eventKind === 'playback_completed') {
+      if (isCompleted) {
         await client.query(
           `INSERT INTO user_state.watch_events
              (account_id, profile_id, item_id, title_item_id, media_type, event_type,
@@ -457,37 +469,133 @@ export class LocalUserWatchService {
 
         await client.query(
           `DELETE FROM user_state.playback_progress
-           WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
-          [params.profileId, params.titleItemId],
+           WHERE profile_id = $1::uuid AND title_item_id = $2::uuid AND playable_item_id = $3::uuid`,
+          [params.profileId, params.titleItemId, params.itemId],
         );
+
+        if (params.mediaType === 'episode') {
+          await this.advanceToNextEpisode(client, params.profileId, params.titleItemId, params.itemId, params.accountId);
+        }
       } else {
+        const episodeNumbers = params.mediaType === 'episode'
+          ? await this.resolveEpisodeNumbers(client, params.itemId)
+          : null;
+
         await client.query(
           `INSERT INTO user_state.playback_progress
              (profile_id, title_item_id, playable_item_id, media_type,
               position_seconds, duration_seconds, progress_bps, last_activity_at,
+              season_number, episode_number,
               source_kind, account_id, last_actor_account_id)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, now(), 'local', $8::uuid, $8::uuid)
-           ON CONFLICT (profile_id, title_item_id) DO UPDATE SET
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, now(), $8, $9, 'local', $10::uuid, $10::uuid)
+           ON CONFLICT (profile_id, title_item_id, playable_item_id) DO UPDATE SET
              playable_item_id = EXCLUDED.playable_item_id,
              position_seconds = EXCLUDED.position_seconds,
              duration_seconds = EXCLUDED.duration_seconds,
              progress_bps = EXCLUDED.progress_bps,
              last_activity_at = now(),
+             season_number = EXCLUDED.season_number,
+             episode_number = EXCLUDED.episode_number,
              dismissed_at = NULL,
              updated_at = now()`,
           [params.profileId, params.titleItemId, params.itemId, params.mediaType,
-           params.positionSeconds, params.durationSeconds, progressBps, params.accountId],
+           params.positionSeconds, params.durationSeconds, progressBps,
+           episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null,
+           params.accountId],
         );
       }
     });
+  }
+
+  static isBelowCompletionThreshold(progressBps: number | null): boolean {
+    return progressBps !== null && progressBps < 9000;
+  }
+
+  private async resolveEpisodeNumbers(
+    client: DbClient,
+    playableItemId: string,
+  ): Promise<{ seasonNumber: number; episodeNumber: number } | null> {
+    try {
+      const identity = await this.contentIdentityService.resolveMediaIdentity(client, playableItemId);
+      if (identity.seasonNumber != null && identity.episodeNumber != null) {
+        return { seasonNumber: identity.seasonNumber, episodeNumber: identity.episodeNumber };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async advanceToNextEpisode(
+    client: DbClient,
+    profileId: string,
+    titleItemId: string,
+    completedPlayableItemId: string,
+    accountId: string,
+  ): Promise<void> {
+    const showIdentity = await this.resolveShowIdentity(client, titleItemId);
+    if (!showIdentity) return;
+
+    const showTmdbId = showTmdbIdForIdentity(showIdentity);
+    if (!showTmdbId) return;
+
+    const completedNumbers = await this.resolveEpisodeNumbers(client, completedPlayableItemId);
+    if (!completedNumbers) return;
+
+    const nextRow = await client.query(
+      `SELECT season_number, episode_number, tmdb_id
+       FROM tmdb_tv_episodes
+       WHERE show_tmdb_id = $1
+         AND (season_number > $2 OR (season_number = $2 AND episode_number > $3))
+       ORDER BY season_number ASC, episode_number ASC
+       LIMIT 1`,
+      [showTmdbId, completedNumbers.seasonNumber, completedNumbers.episodeNumber],
+    );
+    if (nextRow.rows.length === 0) return;
+
+    const next = nextRow.rows[0];
+    const nextIdentity = inferMediaIdentity({
+      mediaType: 'episode',
+      provider: 'tmdb',
+      parentProvider: 'tmdb',
+      parentProviderId: String(showTmdbId),
+      seasonNumber: next.season_number as number,
+      episodeNumber: next.episode_number as number,
+      providerMetadata: { tmdbId: showTmdbId, showTmdbId },
+    });
+
+    const nextContentId = await this.contentIdentityService.ensureContentId(client, nextIdentity);
+
+    await client.query(
+      `INSERT INTO user_state.playback_progress
+         (profile_id, title_item_id, playable_item_id, media_type,
+          position_seconds, duration_seconds, progress_bps, last_activity_at,
+          season_number, episode_number,
+          source_kind, account_id, last_actor_account_id)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'episode', 0, NULL, 0, now(), $4, $5, 'local', $6::uuid, $6::uuid)
+       ON CONFLICT (profile_id, title_item_id, playable_item_id) DO NOTHING`,
+      [profileId, titleItemId, nextContentId,
+       next.season_number as number, next.episode_number as number, accountId],
+    );
+  }
+
+  private async resolveShowIdentity(
+    client: DbClient,
+    titleItemId: string,
+  ): Promise<import('../identity/media-key.js').MediaIdentity | null> {
+    try {
+      return await this.contentIdentityService.resolveMediaIdentity(client, titleItemId);
+    } catch {
+      return null;
+    }
   }
 
   async dismissContinueWatching(params: DismissContinueWatchingParams): Promise<void> {
     await db.query(
       `UPDATE user_state.playback_progress
        SET dismissed_at = now(), updated_at = now()
-       WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
-      [params.profileId, params.titleItemId],
+       WHERE profile_id = $1::uuid AND title_item_id = $2::uuid AND playable_item_id = $3::uuid`,
+      [params.profileId, params.titleItemId, params.playableItemId],
     );
   }
 
@@ -534,7 +642,6 @@ export class LocalUserWatchService {
 
   async markWatched(params: MarkWatchedParams): Promise<void> {
     const occurredAt = params.occurredAt || new Date().toISOString();
-    const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
 
     await withDbClient(async (client) => {
       await client.query(
@@ -543,29 +650,56 @@ export class LocalUserWatchService {
             occurred_at, source_kind, last_actor_account_id)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_watched',
                  $6::timestamptz, 'local', $1::uuid)`,
-        [params.accountId, params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt],
+        [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType, occurredAt],
       );
 
       await client.query(
         `DELETE FROM user_state.playback_progress
-         WHERE profile_id = $1::uuid AND title_item_id = $2::uuid`,
-        [params.profileId, params.titleItemId],
+         WHERE profile_id = $1::uuid AND title_item_id = $2::uuid AND playable_item_id = $3::uuid`,
+        [params.profileId, params.titleItemId, params.itemId],
       );
+
+      if (params.mediaType === 'episode') {
+        await this.advanceToNextEpisode(client, params.profileId, params.titleItemId, params.itemId, params.accountId);
+      }
     });
   }
 
   async unmarkWatched(params: UnmarkWatchedParams): Promise<void> {
     const occurredAt = params.occurredAt || new Date().toISOString();
-    const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
 
-    await db.query(
-      `INSERT INTO user_state.watch_events
-         (account_id, profile_id, item_id, title_item_id, media_type, event_type,
-          occurred_at, source_kind, last_actor_account_id)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_unwatched',
-               $6::timestamptz, 'local', $1::uuid)`,
-      [params.accountId, params.profileId, params.itemId, params.titleItemId, canonicalType, occurredAt],
-    );
+    await withDbClient(async (client) => {
+      await db.query(
+        `INSERT INTO user_state.watch_events
+           (account_id, profile_id, item_id, title_item_id, media_type, event_type,
+            occurred_at, source_kind, last_actor_account_id)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_unwatched',
+                 $6::timestamptz, 'local', $1::uuid)`,
+        [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType, occurredAt],
+      );
+
+      const episodeNumbers = params.mediaType === 'episode'
+        ? await this.resolveEpisodeNumbers(client, params.itemId)
+        : null;
+
+      await client.query(
+        `INSERT INTO user_state.playback_progress
+           (profile_id, title_item_id, playable_item_id, media_type,
+            position_seconds, duration_seconds, progress_bps, last_activity_at,
+            season_number, episode_number,
+            source_kind, account_id, last_actor_account_id)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 0, NULL, 0, now(), $5, $6, 'local', $7::uuid, $7::uuid)
+         ON CONFLICT (profile_id, title_item_id, playable_item_id) DO UPDATE SET
+           position_seconds = 0,
+           progress_bps = 0,
+           last_activity_at = now(),
+           dismissed_at = NULL,
+           updated_at = now()`,
+        [params.profileId, params.titleItemId, params.itemId, params.mediaType,
+         episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null,
+         params.accountId],
+      );
+    });
   }
 }
 

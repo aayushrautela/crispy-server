@@ -13,6 +13,11 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
   const lastActivityAt = isoValue(row.last_activity_at);
   const mediaItem = playableMediaItemDtoFromRow(playableItemId, titleItemId, row);
 
+  if (mediaItem.Type === 'Episode') {
+    mediaItem.ParentIndexNumber = numberValue(row.season_number);
+    mediaItem.IndexNumber = numberValue(row.episode_number);
+  }
+
   return {
     ...mediaItem,
     UserData: {
