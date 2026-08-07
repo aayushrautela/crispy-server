@@ -117,8 +117,8 @@ export class TasteProfileRepository {
           $9,
           $10,
           $11,
-          $14::jsonb,
-          $15::jsonb
+          $12::jsonb,
+          $13::jsonb
         )
         ON CONFLICT (profile_id, source_key)
         DO UPDATE SET
