@@ -250,15 +250,26 @@ export class LocalUserWatchService {
                LIMIT $5`;
       queryParams.push(params.itemId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit);
     } else {
-      query = `WITH event_rows AS (
+      query = `WITH latest_state AS (
+                 SELECT we.title_item_id,
+                        (array_agg(we.event_type ORDER BY we.occurred_at DESC, we.id DESC))[1]
+                          = ANY (ARRAY['playback_completed', 'marked_watched']) AS is_watched
+                 FROM user_state.watch_events we
+                 WHERE we.profile_id = $1::uuid
+                   AND we.event_type = ANY (ARRAY['playback_completed', 'marked_watched', 'marked_unwatched'])
+                 GROUP BY we.title_item_id
+               ),
+               event_rows AS (
                  SELECT we.id,
                         we.title_item_id AS history_item_id,
                         CASE WHEN we.media_type = 'movie' THEN 'movie' ELSE 'show' END AS history_media_type,
                         we.event_type, we.occurred_at, we.source_kind, we.source_provider
                  FROM user_state.watch_events we
+                 JOIN latest_state ls
+                   ON ls.title_item_id = we.title_item_id AND ls.is_watched
                  WHERE we.profile_id = $1::uuid
                    AND we.event_type IN ('playback_completed', 'marked_watched')
-               ),
+                ),
                 title_ranked AS (
                   SELECT er.*,
                          ROW_NUMBER() OVER (
