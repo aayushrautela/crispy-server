@@ -10,8 +10,6 @@ export type TasteProfilePayload = {
   watchingPace: string | null;
   aiSummary: string | null;
   source: string;
-  updatedByKind: string;
-  updatedById: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;

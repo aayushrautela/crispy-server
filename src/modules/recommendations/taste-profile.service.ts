@@ -53,8 +53,6 @@ export class TasteProfileService {
         watchingPace: input.watchingPace,
         aiSummary: input.aiSummary,
         source: input.source,
-        updatedByKind: 'user',
-        updatedById: accountId,
       });
       return mapTasteProfile(row);
     });
@@ -71,7 +69,7 @@ export class TasteProfileService {
   async upsertTasteProfileForAccountService(
     accountId: string,
     profileId: string,
-    input: RecommendationTasteProfileInput & { updatedById?: string | null },
+    input: RecommendationTasteProfileInput,
   ): Promise<TasteProfilePayload> {
     return withDbClient(async (client) => {
       const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
@@ -87,8 +85,6 @@ export class TasteProfileService {
         watchingPace: input.watchingPace,
         aiSummary: input.aiSummary,
         source: input.source,
-        updatedByKind: 'service',
-        updatedById: input.updatedById ?? null,
       });
       return mapTasteProfile(row);
     });
@@ -117,8 +113,6 @@ function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {
     watchingPace: row.watchingPace,
     aiSummary: row.aiSummary,
     source: row.source,
-    updatedByKind: row.updatedByKind,
-    updatedById: row.updatedById,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -376,10 +376,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
     await deps.appRateLimitService.checkAndConsume({ principal, routeGroup: 'recommendations.single-write', accountId: params.accountId, profileId: params.profileId });
     await homeModeService.assertCanWrite(params.accountId, params.profileId, 'reco');
     const body = request.body as TasteProfileWriteBody;
-    const tasteProfile = await recommendationOutputService.upsertTasteProfileForAccountService(params.accountId, params.profileId, {
-      ...body,
-      updatedById: principal.keyId ?? null,
-    });
+    const tasteProfile = await recommendationOutputService.upsertTasteProfileForAccountService(params.accountId, params.profileId, body);
     return success({ tasteProfile }, request);
   });
 

@@ -13,8 +13,6 @@ export type TasteProfileRecord = {
   watchingPace: string | null;
   aiSummary: string | null;
   source: string;
-  updatedByKind: string;
-  updatedById: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -33,8 +31,6 @@ function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {
     watchingPace: typeof row.watching_pace === 'string' ? row.watching_pace : null,
     aiSummary: typeof row.ai_summary === 'string' ? row.ai_summary : null,
     source: String(row.source),
-    updatedByKind: String(row.updated_by_kind),
-    updatedById: typeof row.updated_by_id === 'string' ? row.updated_by_id : null,
     version: Number(row.version),
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'taste_profiles.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'taste_profiles.updated_at'),
@@ -47,7 +43,7 @@ export class TasteProfileRepository {
       `
         SELECT profile_id, source_key, genres, preferred_actors, preferred_directors, content_type_pref,
                rating_tendency, decade_preferences, watching_pace, ai_summary,
-               source, updated_by_kind, updated_by_id, version, created_at, updated_at
+               source, version, created_at, updated_at
         FROM taste_profiles
         WHERE profile_id = $1::uuid AND source_key = $2
       `,
@@ -62,7 +58,7 @@ export class TasteProfileRepository {
       `
         SELECT profile_id, source_key, genres, preferred_actors, preferred_directors, content_type_pref,
                rating_tendency, decade_preferences, watching_pace, ai_summary,
-               source, updated_by_kind, updated_by_id, version, created_at, updated_at
+               source, version, created_at, updated_at
         FROM taste_profiles
         WHERE profile_id = $1::uuid
         ORDER BY updated_at DESC, source_key ASC
@@ -85,8 +81,6 @@ export class TasteProfileRepository {
     watchingPace?: string | null;
     aiSummary?: string | null;
     source: string;
-    updatedByKind: string;
-    updatedById?: string | null;
   }): Promise<TasteProfileRecord> {
     const result = await client.query(
       `
@@ -101,9 +95,7 @@ export class TasteProfileRepository {
           decade_preferences,
           watching_pace,
           ai_summary,
-          source,
-          updated_by_kind,
-          updated_by_id
+          source
         )
         VALUES (
           $1::uuid,
@@ -116,9 +108,7 @@ export class TasteProfileRepository {
           $8::jsonb,
           $9,
           $10,
-          $11,
-          $12,
-          $13
+          $11
         )
         ON CONFLICT (profile_id, source_key)
         DO UPDATE SET
@@ -131,13 +121,11 @@ export class TasteProfileRepository {
           watching_pace = EXCLUDED.watching_pace,
           ai_summary = EXCLUDED.ai_summary,
           source = EXCLUDED.source,
-          updated_by_kind = EXCLUDED.updated_by_kind,
-          updated_by_id = EXCLUDED.updated_by_id,
           version = taste_profiles.version + 1,
           updated_at = now()
         RETURNING profile_id, source_key, genres, preferred_actors, preferred_directors, content_type_pref,
                   rating_tendency, decade_preferences, watching_pace, ai_summary,
-                  source, updated_by_kind, updated_by_id, version, created_at, updated_at
+                  source, version, created_at, updated_at
       `,
       [
         params.profileId,
@@ -151,8 +139,6 @@ export class TasteProfileRepository {
         params.watchingPace ?? null,
         params.aiSummary ?? null,
         params.source,
-        params.updatedByKind,
-        params.updatedById ?? null,
       ],
     );
 
