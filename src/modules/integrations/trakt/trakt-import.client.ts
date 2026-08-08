@@ -201,4 +201,31 @@ export class TraktImportClient {
 
     return payload.filter(isRecord);
   }
+
+  async getArrayPaginated(
+    path: string,
+    accessToken: string,
+    query?: Record<string, string | number>,
+    options?: { maxPages?: number; pageSize?: number },
+  ): Promise<Array<Record<string, unknown>>> {
+    const maxPages = options?.maxPages ?? 10
+    const pageSize = options?.pageSize ?? 100
+    const allResults: Record<string, unknown>[] = []
+
+    for (let page = 1; page <= maxPages; page++) {
+      const results = await this.getArray(path, accessToken, {
+        ...query,
+        page: String(page),
+        limit: String(pageSize),
+      })
+
+      if (!Array.isArray(results) || results.length === 0) break
+
+      allResults.push(...results)
+
+      if (results.length < pageSize) break
+    }
+
+    return allResults
+  }
 }

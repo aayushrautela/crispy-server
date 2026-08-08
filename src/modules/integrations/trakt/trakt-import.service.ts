@@ -83,13 +83,13 @@ export class TraktImportService implements ProviderImportModule {
     const accessToken = requireConnectedAccessToken(credentialsJson);
 
     const [watchedMovies, watchedShows, watchlistMovies, watchlistShows, ratingMovies, ratingShows, playback] = await Promise.all([
-      this.traktClient.getArray('/sync/watched/movies', accessToken),
-      this.traktClient.getArray('/sync/watched/shows', accessToken, { extended: 'progress' }),
-      this.traktClient.getArray('/sync/watchlist/movies', accessToken),
-      this.traktClient.getArray('/sync/watchlist/shows', accessToken),
-      this.traktClient.getArray('/sync/ratings/movies', accessToken),
-      this.traktClient.getArray('/sync/ratings/shows', accessToken),
-      this.traktClient.getArray('/sync/playback', accessToken),
+      this.traktClient.getArrayPaginated('/sync/watched/movies', accessToken),
+      this.traktClient.getArrayPaginated('/sync/watched/shows', accessToken, { extended: 'progress' }),
+      this.traktClient.getArrayPaginated('/sync/watchlist/movies', accessToken),
+      this.traktClient.getArrayPaginated('/sync/watchlist/shows', accessToken),
+      this.traktClient.getArrayPaginated('/sync/ratings/movies', accessToken),
+      this.traktClient.getArrayPaginated('/sync/ratings/shows', accessToken),
+      this.traktClient.getArrayPaginated('/sync/playback', accessToken),
     ]);
 
     const collector = createImportAccumulator();
