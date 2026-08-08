@@ -17,12 +17,14 @@ import { requireConnectedAccessToken } from '../provider-import.utils.js';
 import { TraktImportClient } from './trakt-import.client.js';
 import { TraktImportIdentityResolver } from './trakt-import.resolver.js';
 import {
+  deriveContinueWatching,
   normalizeTraktPlayback,
   normalizeTraktRatings,
   normalizeTraktWatchedMovies,
   normalizeTraktWatchedShows,
   normalizeTraktWatchlist,
   type ResolveIdentityFn,
+  type ShowProgress,
 } from './trakt-import.normalizer.js';
 import type { ProviderImportJobRecord } from '../provider-import-jobs.repo.js';
 
@@ -95,12 +97,14 @@ export class TraktImportService implements ProviderImportModule {
     const collector = createImportAccumulator();
     const resolveIdentityCache = new Map<string, ResolvedImportIdentity | null>();
     const resolveIdentity: ResolveIdentityFn = (params) => this.traktResolver.resolve(resolveIdentityCache, params);
+    const showProgress = new Map<string, ShowProgress>();
 
     await normalizeTraktWatchedMovies(watchedMovies, resolveIdentity, collector);
-    await normalizeTraktWatchedShows(watchedShows, resolveIdentity, collector);
+    await normalizeTraktWatchedShows(watchedShows, resolveIdentity, collector, showProgress);
     await normalizeTraktWatchlist([...watchlistMovies, ...watchlistShows], resolveIdentity, collector);
     await normalizeTraktRatings([...ratingMovies, ...ratingShows], resolveIdentity, collector);
     await normalizeTraktPlayback(playback, resolveIdentity, collector);
+    deriveContinueWatching(showProgress, collector);
 
     return {
       importedEvents: collector.importedEvents,

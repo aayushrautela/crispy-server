@@ -227,10 +227,36 @@ export async function normalizeTraktWatchedMovies(
  * per-episode breakdown we need to emit one history row per watched episode:
  * `seasons: [{number, episodes: [{number, plays, last_watched_at}]}]`.
  */
+type ShowProgress = {
+  resolvedShow: ResolvedImportIdentity;
+  highestSeason: number;
+  highestEpisode: number;
+};
+
+export function deriveContinueWatching(
+  showProgress: Map<string, ShowProgress>,
+  collector: ImportAccumulator,
+): void {
+  const now = new Date().toISOString();
+  for (const { resolvedShow, highestSeason, highestEpisode } of showProgress.values()) {
+    const identity = buildImportedEpisodeIdentity(resolvedShow, highestSeason, highestEpisode + 1);
+    collector.importedEvents.push(buildImportedEpisodeEvent({
+      eventType: 'playback_progress_snapshot',
+      identity,
+      resolvedShow,
+      occurredAt: now,
+      progressBps: 0,
+      payload: { provider: 'trakt', source: 'continue_watching_derived' },
+    }));
+    collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
+  }
+}
+
 export async function normalizeTraktWatchedShows(
   items: Array<Record<string, unknown>>,
   resolveIdentity: ResolveIdentityFn,
   collector: ImportAccumulator,
+  showProgress?: Map<string, ShowProgress>,
 ): Promise<void> {
   for (const item of items) {
     const resolvedShow = await resolveTraktTitleIdentity(resolveIdentity, item, 'show');
@@ -281,6 +307,11 @@ export async function normalizeTraktWatchedShows(
           payload: traktPayload('watched_shows'),
         });
         collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
+        showProgress?.set(resolvedShow.identity.mediaKey, {
+          resolvedShow,
+          highestSeason: seasonNumber,
+          highestEpisode: episodeNumber,
+        });
         emittedForShow = true;
       }
     }
@@ -423,4 +454,4 @@ export async function normalizeTraktPlayback(
 
 export { resolveTraktTitleIdentity, traktLookupFromNode, buildImportedEpisodeIdentity, buildImportedTitleEvent, buildImportedEpisodeEvent, buildImportedTitleHistoryEntry };
 
-export type { ResolveIdentityFn };
+export type { ResolveIdentityFn, ShowProgress };
