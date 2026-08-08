@@ -227,30 +227,12 @@ export async function normalizeTraktWatchedMovies(
  * per-episode breakdown we need to emit one history row per watched episode:
  * `seasons: [{number, episodes: [{number, plays, last_watched_at}]}]`.
  */
-type ShowProgress = {
+export type ShowProgress = {
   resolvedShow: ResolvedImportIdentity;
   highestSeason: number;
   highestEpisode: number;
+  episodeCount: number;
 };
-
-export function deriveContinueWatching(
-  showProgress: Map<string, ShowProgress>,
-  collector: ImportAccumulator,
-): void {
-  const now = new Date().toISOString();
-  for (const { resolvedShow, highestSeason, highestEpisode } of showProgress.values()) {
-    const identity = buildImportedEpisodeIdentity(resolvedShow, highestSeason, highestEpisode + 1);
-    collector.importedEvents.push(buildImportedEpisodeEvent({
-      eventType: 'playback_progress_snapshot',
-      identity,
-      resolvedShow,
-      occurredAt: now,
-      progressBps: 0,
-      payload: { provider: 'trakt', source: 'continue_watching_derived' },
-    }));
-    collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
-  }
-}
 
 export async function normalizeTraktWatchedShows(
   items: Array<Record<string, unknown>>,
@@ -307,11 +289,22 @@ export async function normalizeTraktWatchedShows(
           payload: traktPayload('watched_shows'),
         });
         collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
-        showProgress?.set(resolvedShow.identity.mediaKey, {
-          resolvedShow,
-          highestSeason: seasonNumber,
-          highestEpisode: episodeNumber,
-        });
+        const existing = showProgress?.get(resolvedShow.identity.mediaKey);
+        if (existing) {
+          existing.episodeCount += 1;
+          if (seasonNumber > existing.highestSeason ||
+              (seasonNumber === existing.highestSeason && episodeNumber > existing.highestEpisode)) {
+            existing.highestSeason = seasonNumber;
+            existing.highestEpisode = episodeNumber;
+          }
+        } else {
+          showProgress?.set(resolvedShow.identity.mediaKey, {
+            resolvedShow,
+            highestSeason: seasonNumber,
+            highestEpisode: episodeNumber,
+            episodeCount: 1,
+          });
+        }
         emittedForShow = true;
       }
     }
@@ -454,4 +447,4 @@ export async function normalizeTraktPlayback(
 
 export { resolveTraktTitleIdentity, traktLookupFromNode, buildImportedEpisodeIdentity, buildImportedTitleEvent, buildImportedEpisodeEvent, buildImportedTitleHistoryEntry };
 
-export type { ResolveIdentityFn, ShowProgress };
+export type { ResolveIdentityFn };

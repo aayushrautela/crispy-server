@@ -1,6 +1,8 @@
 import { TmdbExternalIdResolverService } from '../../metadata/providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from '../../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../../metadata/metadata-card.service.js';
+import type { DbClient } from '../../../lib/db.js';
+import { withDbClient } from '../../../lib/db.js';
 import type { ProviderImportProvider } from '../provider-import.types.js';
 import type {
   ProviderImportModule,
@@ -11,13 +13,15 @@ import type {
 } from '../provider-import.internals.js';
 import {
   createImportAccumulator,
+  type ImportAccumulator,
   type ImportIdentityLookup,
 } from '../provider-import.internals.js';
 import { requireConnectedAccessToken } from '../provider-import.utils.js';
 import { TraktImportClient } from './trakt-import.client.js';
 import { TraktImportIdentityResolver } from './trakt-import.resolver.js';
 import {
-  deriveContinueWatching,
+  buildImportedEpisodeEvent,
+  buildImportedEpisodeIdentity,
   normalizeTraktPlayback,
   normalizeTraktRatings,
   normalizeTraktWatchedMovies,
@@ -40,9 +44,11 @@ export class TraktImportService implements ProviderImportModule {
   readonly provider: ProviderImportProvider = 'trakt';
   private readonly traktClient: TraktImportClient;
   private readonly traktResolver: TraktImportIdentityResolver;
+  private readonly tmdbCache: TmdbCacheService;
 
   constructor(deps: TraktImportServiceDeps = {}) {
     this.traktClient = deps.client ?? new TraktImportClient();
+    this.tmdbCache = deps.tmdbCacheService ?? new TmdbCacheService();
     this.traktResolver = deps.resolver ?? new TraktImportIdentityResolver({
       externalIdResolver: deps.externalIdResolver ?? new TmdbExternalIdResolverService(),
       tmdbCacheService: deps.tmdbCacheService ?? new TmdbCacheService(),
@@ -77,6 +83,66 @@ export class TraktImportService implements ProviderImportModule {
     return this.traktResolver.resolve(cache, params);
   }
 
+  private async findNextAvailableEpisode(
+    client: DbClient,
+    showTmdbId: number,
+    highestSeason: number,
+    highestEpisode: number,
+  ): Promise<{ season: number; episode: number } | null> {
+    const title = await this.tmdbCache.getTitle(client, 'tv', showTmdbId);
+    if (!title) return null;
+
+    let targetSeason = highestSeason;
+    let targetEpisode = highestEpisode + 1;
+
+    const season = await this.tmdbCache.getSeason(client, showTmdbId, targetSeason);
+    if (season?.episodeCount && targetEpisode > season.episodeCount) {
+      targetSeason += 1;
+      targetEpisode = 1;
+      if (title.numberOfSeasons && targetSeason > title.numberOfSeasons) {
+        return null;
+      }
+    }
+
+    const episode = await this.tmdbCache.getEpisode(client, showTmdbId, targetSeason, targetEpisode);
+    if (!episode) {
+      const freshSeason = await this.tmdbCache.ensureSeasonCached(client, showTmdbId, targetSeason).catch(() => null);
+      if (!freshSeason) return null;
+      if (freshSeason.episodeCount && targetEpisode > freshSeason.episodeCount) {
+        return null;
+      }
+    }
+
+    return { season: targetSeason, episode: targetEpisode };
+  }
+
+  private async deriveContinueWatching(
+    showProgress: Map<string, ShowProgress>,
+    collector: ImportAccumulator,
+  ): Promise<void> {
+    await withDbClient(async (client) => {
+      const now = new Date().toISOString();
+      for (const { resolvedShow, highestSeason, highestEpisode, episodeCount } of showProgress.values()) {
+        if (episodeCount < 2) continue;
+        if (!resolvedShow.tmdbId) continue;
+
+        const next = await this.findNextAvailableEpisode(client, resolvedShow.tmdbId, highestSeason, highestEpisode);
+        if (!next) continue;
+
+        const identity = buildImportedEpisodeIdentity(resolvedShow, next.season, next.episode);
+        collector.importedEvents.push(buildImportedEpisodeEvent({
+          eventType: 'playback_progress_snapshot',
+          identity,
+          resolvedShow,
+          occurredAt: now,
+          progressBps: 0,
+          payload: { provider: 'trakt', source: 'continue_watching_derived' },
+        }));
+        collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
+      }
+    });
+  }
+
   async fetchAndNormalizeImport(
     job: ProviderImportJobRecord,
     credentialsJson: Record<string, unknown>,
@@ -104,7 +170,7 @@ export class TraktImportService implements ProviderImportModule {
     await normalizeTraktWatchlist([...watchlistMovies, ...watchlistShows], resolveIdentity, collector);
     await normalizeTraktRatings([...ratingMovies, ...ratingShows], resolveIdentity, collector);
     await normalizeTraktPlayback(playback, resolveIdentity, collector);
-    deriveContinueWatching(showProgress, collector);
+    await this.deriveContinueWatching(showProgress, collector);
 
     return {
       importedEvents: collector.importedEvents,
