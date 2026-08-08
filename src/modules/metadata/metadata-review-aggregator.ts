@@ -11,8 +11,8 @@ import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { TraktClient } from './providers/trakt.client.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
-export const PRIMARY_REVIEW_THRESHOLD = 3;
-export const REVIEW_LIMIT = 10;
+export const PRIMARY_REVIEW_THRESHOLD = 5;
+export const REVIEW_LIMIT = 15;
 
 type ReviewMediaType = 'movie' | 'show';
 
@@ -150,7 +150,7 @@ export function mergeReviews(primary: MetadataReviewView[], fallback: MetadataRe
   const merged: MetadataReviewView[] = [];
   const seen = new Set<string>();
 
-  for (const review of [...primary, ...fallback]) {
+  for (const review of [...fallback, ...primary]) {
     const dedupeKey = `${review.author ?? ''}:${review.username ?? ''}:${review.content.trim().toLowerCase()}`;
     if (seen.has(dedupeKey)) {
       continue;

@@ -344,7 +344,7 @@ export function extractReviewsFromRaw(raw: Record<string, unknown> | null): Meta
       } satisfies MetadataReviewView;
     })
     .filter((review): review is MetadataReviewView => review !== null)
-    .slice(0, 10);
+    .slice(0, 15);
 }
 
 export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewView[] {
