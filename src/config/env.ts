@@ -154,6 +154,7 @@ export const env = {
   simklImportRedirectUri: process.env.SIMKL_IMPORT_REDIRECT_URI?.trim() || '',
   recommendationAlgorithmVersion: optionalEnv('RECOMMENDATION_ALGORITHM_VERSION') ?? 'v3.2.1',
   recommendationGenerationTtlSeconds: parseNumber('RECOMMENDATION_GENERATION_TTL_SECONDS', 86400),
+  continueWatchingTtlDays: parseNumber('CONTINUE_WATCHING_TTL_DAYS', 60),
   homescreenDefaultTtlSeconds: parseNumber('HOMESCREEN_DEFAULT_TTL_SECONDS', 21600),
   homescreenDefaultRebuildCron: optionalEnv('HOMESCREEN_DEFAULT_REBUILD_CRON') ?? '0 */6 * * *',
   homescreenTraktSyncCron: optionalEnv('HOMESCREEN_TRAKT_SYNC_CRON') ?? '0 3 * * *',

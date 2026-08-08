@@ -24,6 +24,9 @@ import { AccountSettingsService } from '../../modules/users/account-settings.ser
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
+import { HomeHydrator } from '../../modules/home/home-hydrator.service.js';
+import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
+import type { ClientHomeSection } from '../../modules/recommendations/client-home.types.js';
 import { withDbClient, withTransaction, db } from '../../lib/db.js';
 import { success, mutation } from '../response.js';
 import { registerHomeAdminRoutes } from './home-admin.routes.js';
@@ -325,6 +328,44 @@ export async function registerAdminApiRoutes(
         params.profileId,
         resolveRecommendationSourceKey(query.sourceKey),
       ),
+    }, request);
+  });
+
+  app.get('/admin/api/accounts/:accountId/profiles/:profileId/recommendations', async (request, reply) => {
+    await requireAdmin(request);
+    const params = parseAccountProfileParams(request.params);
+    const query = asRecord(request.query);
+    const sourceKey = resolveRecommendationSourceKey(query.sourceKey);
+    const algorithmVersion = typeof query.algorithmVersion === 'string' ? query.algorithmVersion : env.recommendationAlgorithmVersion;
+    const generatedAt = new Date().toISOString();
+
+    const { sections, source } = await withDbClient(async (client) => {
+      const repo = new HomeListsRepo({ db });
+      const hydrator = new HomeHydrator();
+      const sources = ['reco', 'fallback'] as const;
+      for (const src of sources) {
+        const lists = await repo.listActiveForSource({ accountId: params.accountId, profileId: params.profileId, source: src });
+        if (lists.length > 0) {
+          const hydrated = await hydrator.hydrateSections(client, lists, null);
+          return { sections: hydrated, source: src };
+        }
+      }
+      return { sections: [] as ClientHomeSection[], source: 'empty' };
+    });
+
+    return success({
+      recommendations: {
+        sourceKey,
+        algorithmVersion,
+        generatedAt,
+        activeSource: source,
+        sections: sections.map((s) => ({
+          id: s.listKey,
+          title: s.title,
+          sectionType: s.sectionType,
+          items: s.items,
+        })),
+      },
     }, request);
   });
 

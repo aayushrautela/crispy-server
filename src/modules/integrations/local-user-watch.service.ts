@@ -1,4 +1,5 @@
 import { db, withDbClient, type DbClient } from '../../lib/db.js';
+import { env } from '../../config/env.js';
 import { decodeWatchPageCursor } from '../watch/watch-pagination.js';
 import type { BaseItemDto } from '../metadata/media-item.types.js';
 import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
@@ -138,10 +139,10 @@ export class LocalUserWatchService {
          ON sh_tvdb.content_id = pp.title_item_id
         AND sh_tvdb.provider = 'tvdb'
         AND sh_tvdb.entity_type = CASE WHEN pp.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       WHERE pp.profile_id = $1::uuid AND pp.dismissed_at IS NULL
-         AND pp.last_activity_at > now() - interval '60 days'
-         AND ($2::timestamptz IS NULL OR pp.last_activity_at < $2::timestamptz
-              OR (pp.last_activity_at = $2::timestamptz AND pp.playable_item_id > $3::uuid))
+        WHERE pp.profile_id = $1::uuid AND pp.dismissed_at IS NULL
+          AND pp.last_activity_at > now() - interval '${env.continueWatchingTtlDays} days'
+          AND ($2::timestamptz IS NULL OR pp.last_activity_at < $2::timestamptz
+               OR (pp.last_activity_at = $2::timestamptz AND pp.playable_item_id > $3::uuid))
        ORDER BY pp.last_activity_at DESC, pp.playable_item_id ASC
        LIMIT $4`,
       [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
