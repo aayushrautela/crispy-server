@@ -454,17 +454,20 @@ export class LocalUserWatchService {
 
     await withDbClient(async (client) => {
       if (isCompleted) {
+        const completedEpisodeNumbers = params.mediaType === 'episode'
+          ? await this.resolveEpisodeNumbers(client, params.itemId)
+          : null;
         await client.query(
           `INSERT INTO user_state.watch_events
              (account_id, profile_id, item_id, title_item_id, media_type, event_type,
-              occurred_at, position_seconds, duration_seconds, progress_bps,
+              occurred_at, season_number, episode_number, position_seconds, duration_seconds, progress_bps,
               source_kind, last_actor_account_id, client_event_id)
            VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'playback_completed',
-                   COALESCE($6::timestamptz, now()), $7, $8, $9,
-                   'local', $1::uuid, $10)
+                   COALESCE($6::timestamptz, now()), $7, $8, $9, $10, $11,
+                   'local', $1::uuid, $12)
            RETURNING id`,
           [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType,
-           params.occurredAt ?? null, params.positionSeconds, params.durationSeconds, progressBps,
+           params.occurredAt ?? null, completedEpisodeNumbers?.seasonNumber ?? null, completedEpisodeNumbers?.episodeNumber ?? null, params.positionSeconds, params.durationSeconds, progressBps,
            params.clientEventId ?? null],
         );
 
@@ -645,13 +648,16 @@ export class LocalUserWatchService {
     const occurredAt = params.occurredAt || new Date().toISOString();
 
     await withDbClient(async (client) => {
+      const episodeNumbers = params.mediaType === 'episode'
+        ? await this.resolveEpisodeNumbers(client, params.itemId)
+        : null;
       await client.query(
         `INSERT INTO user_state.watch_events
            (account_id, profile_id, item_id, title_item_id, media_type, event_type,
-            occurred_at, source_kind, last_actor_account_id)
+            occurred_at, season_number, episode_number, source_kind, last_actor_account_id)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'marked_watched',
-                 $6::timestamptz, 'local', $1::uuid)`,
-        [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType, occurredAt],
+                 $6::timestamptz, $7, $8, 'local', $1::uuid)`,
+        [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType, occurredAt, episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null],
       );
 
       await client.query(

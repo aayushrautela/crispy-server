@@ -121,8 +121,7 @@ export class TraktImportService implements ProviderImportModule {
     collector: ImportAccumulator,
   ): Promise<void> {
     await withDbClient(async (client) => {
-      const now = new Date().toISOString();
-      for (const { resolvedShow, highestSeason, highestEpisode, episodeCount } of showProgress.values()) {
+      for (const { resolvedShow, highestSeason, highestEpisode, episodeCount, latestWatchedAt } of showProgress.values()) {
         if (episodeCount < 2) continue;
         if (!resolvedShow.tmdbId) continue;
 
@@ -134,7 +133,7 @@ export class TraktImportService implements ProviderImportModule {
           eventType: 'playback_progress_snapshot',
           identity,
           resolvedShow,
-          occurredAt: now,
+          occurredAt: latestWatchedAt,
           progressBps: 0,
           payload: { provider: 'trakt', source: 'continue_watching_derived' },
         }));

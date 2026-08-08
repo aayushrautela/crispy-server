@@ -781,6 +781,8 @@ export class ProviderImportService {
       mediaKey: entry.mediaKey,
       mediaType: entry.mediaType,
       watchedAt: entry.watchedAt,
+      seasonNumber: entry.seasonNumber ?? null,
+      episodeNumber: entry.episodeNumber ?? null,
     }));
     const watchlistItems: ImportedProviderListItem[] = [];
     const ratings: ImportedProviderRating[] = [];

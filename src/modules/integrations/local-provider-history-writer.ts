@@ -11,6 +11,8 @@ export type ImportedProviderHistoryEntry = {
   mediaKey: string;
   mediaType: 'movie' | 'show' | 'episode';
   watchedAt: string;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 };
 
 export type ImportedProviderListItem = {
@@ -227,9 +229,9 @@ export class LocalProviderHistoryWriter {
       await client.query(
         `INSERT INTO user_state.watch_events
            (account_id, profile_id, item_id, title_item_id, media_type, event_type,
-            occurred_at, source_kind, source_provider)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'playback_completed', $6::timestamptz, 'provider_import', $7)`,
-        [accountId, profileId, contentId, titleContentId, canonicalTitleMediaType(identity), entry.watchedAt, provider],
+            occurred_at, season_number, episode_number, source_kind, source_provider)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'playback_completed', $6::timestamptz, $7, $8, 'provider_import', $9)`,
+        [accountId, profileId, contentId, titleContentId, canonicalTitleMediaType(identity), entry.watchedAt, entry.seasonNumber ?? null, entry.episodeNumber ?? null, provider],
       );
       inserted++;
     }

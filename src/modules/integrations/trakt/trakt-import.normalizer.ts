@@ -232,6 +232,7 @@ export type ShowProgress = {
   highestSeason: number;
   highestEpisode: number;
   episodeCount: number;
+  latestWatchedAt: string;
 };
 
 export async function normalizeTraktWatchedShows(
@@ -297,12 +298,16 @@ export async function normalizeTraktWatchedShows(
             existing.highestSeason = seasonNumber;
             existing.highestEpisode = episodeNumber;
           }
+          if (occurredAt > existing.latestWatchedAt) {
+            existing.latestWatchedAt = occurredAt;
+          }
         } else {
           showProgress?.set(resolvedShow.identity.mediaKey, {
             resolvedShow,
             highestSeason: seasonNumber,
             highestEpisode: episodeNumber,
             episodeCount: 1,
+            latestWatchedAt: occurredAt,
           });
         }
         emittedForShow = true;
