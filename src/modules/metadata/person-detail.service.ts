@@ -127,8 +127,7 @@ async function buildKnownForItems(
   }
 
   const top = items
-    .sort((left, right) => right.popularity - left.popularity)
-    .slice(0, 20);
+    .sort((left, right) => right.popularity - left.popularity);
 
   if (top.length === 0) {
     return [];
