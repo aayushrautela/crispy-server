@@ -129,6 +129,8 @@ export type MetadataPersonKnownForItem = {
   logo: ResponsiveImageSet;
   rating: number | null;
   releaseYear: number | null;
+  overview: string | null;
+  genres: string[];
 };
 
 export type MetadataPersonDetail = {

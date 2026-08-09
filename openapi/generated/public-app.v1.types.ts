@@ -1248,6 +1248,8 @@ export interface components {
             logo: components["schemas"]["ResponsiveImageSet"];
             rating: number | null;
             releaseYear: number | null;
+            overview: string | null;
+            genres: string[];
         };
         MetadataPersonDetail: {
             personId: components["schemas"]["PublicItemId"];

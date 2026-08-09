@@ -3780,7 +3780,7 @@ components:
     MetadataPersonKnownForItem:
       type: object
       additionalProperties: false
-      required: [mediaType, itemId, title, poster, backdrop, logo, rating, releaseYear]
+      required: [mediaType, itemId, title, poster, backdrop, logo, rating, releaseYear, overview, genres]
       properties:
         mediaType:
           type: string
@@ -3802,6 +3802,14 @@ components:
           anyOf:
             - type: integer
             - type: "null"
+        overview:
+          anyOf:
+            - type: string
+            - type: "null"
+        genres:
+          type: array
+          items:
+            type: string
     MetadataPersonDetail:
       type: object
       additionalProperties: false

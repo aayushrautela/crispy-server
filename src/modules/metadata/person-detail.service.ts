@@ -121,6 +121,8 @@ async function buildKnownForItems(
       popularity: asFiniteNumber(record.popularity) ?? 0,
       tmdbId,
       tmdbMediaType: mediaType === 'movie' ? 'movie' : 'tv',
+      overview: null,
+      genres: [],
     });
   }
 
@@ -155,6 +157,8 @@ async function buildKnownForItems(
         medium: 'w300',
         large: 'original',
       }),
+      overview: titleRecord?.overview ?? null,
+      genres: extractGenres(titleRecord?.raw ?? {}),
     };
   });
 }
@@ -215,4 +219,14 @@ function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: s
       ?? logos[0]);
 
   return preferred ? asString(preferred.file_path) : null;
+}
+
+function extractGenres(raw: Record<string, unknown>): string[] {
+  const genres = asArray(raw.genres)
+    .map((genre) => asRecord(genre))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+  return genres
+    .map((genre) => asString(genre.name))
+    .filter((value): value is string => value !== null);
 }
