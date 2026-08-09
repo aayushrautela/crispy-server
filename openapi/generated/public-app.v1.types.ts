@@ -1245,6 +1245,7 @@ export interface components {
             title: string;
             poster: components["schemas"]["ResponsiveImageSet"];
             backdrop: components["schemas"]["ResponsiveImageSet"];
+            logo: components["schemas"]["ResponsiveImageSet"];
             rating: number | null;
             releaseYear: number | null;
         };

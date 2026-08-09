@@ -115,6 +115,7 @@ async function buildKnownForItems(
         large: 'w780',
       }),
       backdrop: emptyResponsiveImageSet(),
+      logo: emptyResponsiveImageSet(),
       rating: asFiniteNumber(record.vote_average),
       releaseYear: releaseDate ? parseYear(releaseDate) : null,
       popularity: asFiniteNumber(record.popularity) ?? 0,
@@ -140,12 +141,18 @@ async function buildKnownForItems(
   return top.map((item) => {
     const titleRecord = titleMap.get(`${item.tmdbMediaType}:${item.tmdbId}`);
     const backdropPath = titleRecord?.backdropPath ?? null;
+    const logoPath = extractBestLogoPath(titleRecord?.raw ?? {}, language);
     const { popularity: _popularity, tmdbId: _tmdbId, tmdbMediaType: _tmdbMediaType, ...rest } = item;
     return {
       ...rest,
       backdrop: buildResponsiveImageSet(backdropPath, {
         small: 'w300',
         medium: 'w780',
+        large: 'original',
+      }),
+      logo: buildResponsiveImageSet(logoPath, {
+        small: 'w185',
+        medium: 'w300',
         large: 'original',
       }),
     };
@@ -192,4 +199,20 @@ function asPositiveNumber(value: unknown): number | null {
 function asFiniteNumber(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: string | null): string | null {
+  const images = asRecord(raw.images);
+  const logos = asArray(images?.logos)
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+  const preferred = preferredLanguage
+    ? (logos.find((logo) => asString(logo.iso_639_1) === preferredLanguage)
+      ?? logos.find((logo) => asString(logo.iso_639_1) === 'en')
+      ?? logos[0])
+    : (logos.find((logo) => asString(logo.iso_639_1) === 'en')
+      ?? logos[0]);
+
+  return preferred ? asString(preferred.file_path) : null;
 }

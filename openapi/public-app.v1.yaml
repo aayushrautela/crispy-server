@@ -3780,7 +3780,7 @@ components:
     MetadataPersonKnownForItem:
       type: object
       additionalProperties: false
-      required: [mediaType, itemId, title, poster, backdrop, rating, releaseYear]
+      required: [mediaType, itemId, title, poster, backdrop, logo, rating, releaseYear]
       properties:
         mediaType:
           type: string
@@ -3791,6 +3791,8 @@ components:
         poster:
           $ref: "#/components/schemas/ResponsiveImageSet"
         backdrop:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        logo:
           $ref: "#/components/schemas/ResponsiveImageSet"
         rating:
           anyOf:
