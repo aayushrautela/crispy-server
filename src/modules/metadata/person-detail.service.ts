@@ -1,10 +1,12 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { buildImageUrl, buildResponsiveImageSet } from './metadata-builder.shared.js';
+import { buildImageUrl, buildResponsiveImageSet, emptyResponsiveImageSet } from './metadata-builder.shared.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { TmdbClient } from './providers/tmdb.client.js';
 import { TmdbResponseCacheService } from './providers/tmdb-response-cache.service.js';
+import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import type { TmdbTitleType } from './providers/tmdb.types.js';
 import type { MetadataPersonDetail, MetadataPersonKnownForItem } from './metadata-detail.types.js';
 import type { MetadataTitleMediaType } from './metadata-card.types.js';
 import { normalizeMetadataLanguage, toTmdbLanguageQuery } from './metadata-language.js';
@@ -14,6 +16,7 @@ export class PersonDetailService {
     private readonly tmdbClient = new TmdbClient(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly responseCache = new TmdbResponseCacheService(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async getPersonDetail(personId: string, language?: string | null): Promise<MetadataPersonDetail> {
@@ -59,7 +62,7 @@ export class PersonDetailService {
         birthday: asString(payload.birthday),
         placeOfBirth: asString(payload.place_of_birth),
         profileUrl: buildImageUrl(asString(payload.profile_path), 'h632'),
-        knownFor: await buildKnownForItems(client, payload, this.contentIdentityService),
+        knownFor: await buildKnownForItems(client, payload, this.contentIdentityService, this.tmdbCacheService, normalizedLanguage),
       };
     });
   }
@@ -69,10 +72,12 @@ async function buildKnownForItems(
   client: DbClient,
   payload: Record<string, unknown>,
   contentIdentityService: ContentIdentityService,
+  tmdbCacheService: TmdbCacheService,
+  language: string | null,
 ): Promise<MetadataPersonKnownForItem[]> {
   const cast = asArray(asRecord(payload.combined_credits)?.cast);
   const seen = new Set<string>();
-  const items: Array<MetadataPersonKnownForItem & { popularity: number }> = [];
+  const items: Array<MetadataPersonKnownForItem & { popularity: number; tmdbId: number; tmdbMediaType: TmdbTitleType }> = [];
 
   for (const value of cast) {
     const record = asRecord(value);
@@ -109,16 +114,42 @@ async function buildKnownForItems(
         medium: 'w500',
         large: 'w780',
       }),
+      backdrop: emptyResponsiveImageSet(),
       rating: asFiniteNumber(record.vote_average),
       releaseYear: releaseDate ? parseYear(releaseDate) : null,
       popularity: asFiniteNumber(record.popularity) ?? 0,
+      tmdbId,
+      tmdbMediaType: mediaType === 'movie' ? 'movie' : 'tv',
     });
   }
 
-  return items
+  const top = items
     .sort((left, right) => right.popularity - left.popularity)
-    .slice(0, 20)
-    .map(({ popularity: _popularity, ...item }) => item);
+    .slice(0, 20);
+
+  if (top.length === 0) {
+    return [];
+  }
+
+  const titleMap = await tmdbCacheService.getTitles(
+    client,
+    top.map((item) => ({ mediaType: item.tmdbMediaType, tmdbId: item.tmdbId })),
+    language,
+  );
+
+  return top.map((item) => {
+    const titleRecord = titleMap.get(`${item.tmdbMediaType}:${item.tmdbId}`);
+    const backdropPath = titleRecord?.backdropPath ?? null;
+    const { popularity: _popularity, tmdbId: _tmdbId, tmdbMediaType: _tmdbMediaType, ...rest } = item;
+    return {
+      ...rest,
+      backdrop: buildResponsiveImageSet(backdropPath, {
+        small: 'w300',
+        medium: 'w780',
+        large: 'original',
+      }),
+    };
+  });
 }
 
 async function ensureKnownForItemId(client: DbClient, contentIdentityService: ContentIdentityService, mediaType: MetadataTitleMediaType, tmdbId: number): Promise<string> {

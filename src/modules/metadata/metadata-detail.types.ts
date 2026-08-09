@@ -125,6 +125,7 @@ export type MetadataPersonKnownForItem = {
   itemId: string;
   title: string;
   poster: ResponsiveImageSet;
+  backdrop: ResponsiveImageSet;
   rating: number | null;
   releaseYear: number | null;
 };
