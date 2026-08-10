@@ -123,8 +123,10 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
       idempotency: { key: input.idempotencyKey, replayed: false },
       requestHash: this.hashRequest(request),
     };
-    await this.deps.serviceListRepo.saveBatchIdempotency({ appId: input.principal.appId, idempotencyKey: input.idempotencyKey, requestHash: this.hashRequest(request), result: finalResult, createdAt: this.deps.clock.now() });
-    await this.deps.appAuditRepo.insert({ appId: input.principal.appId, keyId: input.principal.keyId, action: 'service_recommendation_batch_written', runId: null, batchId: null, resourceType: 'recommendationBatch', resourceId: input.idempotencyKey, metadata: finalResult.summary });
+    if (finalResult.status !== 'failed') {
+      await this.deps.serviceListRepo.saveBatchIdempotency({ appId: input.principal.appId, idempotencyKey: input.idempotencyKey, requestHash: this.hashRequest(request), result: finalResult, createdAt: this.deps.clock.now() });
+      await this.deps.appAuditRepo.insert({ appId: input.principal.appId, keyId: input.principal.keyId, action: 'service_recommendation_batch_written', runId: null, batchId: null, resourceType: 'recommendationBatch', resourceId: input.idempotencyKey, metadata: finalResult.summary });
+    }
     return finalResult;
   }
 

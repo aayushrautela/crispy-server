@@ -202,3 +202,36 @@ test('batchUpsert normalizes list refs, derives per-profile idempotency, and wri
   assert.deepEqual(firstList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '103' }] }]);
   assert.deepEqual(secondList.items, [{ type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '104' }] }]);
 });
+
+test('batchUpsert does not save idempotency record when all profiles are rejected (no split-brain)', async () => {
+  const failingHomeWriteService: HomeWriteService = {
+    async writeHome() { throw new HttpError(400, 'items exceeds max of 100.', undefined, 'TOO_MANY_ITEMS'); },
+    async clearHome() { throw new Error('not used'); },
+  };
+  const serviceListRepo = new FakeServiceListRepo();
+  const service = new DefaultServiceRecommendationListService({
+    serviceListRepo,
+    homeWriteService: failingHomeWriteService,
+    profileEligibilityService: eligibilityService,
+    appAuthorizationService: new FakeAuthorizationService(),
+    appAuditRepo: new FakeAuditRepo(),
+    clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
+    maxProfilesPerBatch: 10,
+    maxListsPerProfile: 5,
+  });
+
+  const result = await service.batchUpsert({
+    principal: buildPrincipal(),
+    idempotencyKey: 'batch-fail',
+    request: {
+      profiles: [{
+        accountId: 'acc-1',
+        profileId: 'prof-1',
+        lists: [buildWriteRequest(['101'])],
+      }],
+    },
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(serviceListRepo.savedBatchRequestHash, null, 'idempotency record must not be saved on total failure');
+});
