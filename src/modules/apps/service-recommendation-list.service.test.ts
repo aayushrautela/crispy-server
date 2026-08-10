@@ -96,7 +96,7 @@ function buildWriteRequest(providerIds: string[] = ['101']) {
     title: 'For You',
     subtitle: null,
     sectionType: 'contentRail' as const,
-    items: providerIds.map((providerId) => ({ type: 'movie' as const, providerRefs: [{ provider: 'tmdb' as const, providerId }], score: null, reason: null, reasonCodes: [], metadata: {} })),
+    items: providerIds.map((providerId) => ({ type: 'movie' as const, providerRefs: [{ provider: 'tmdb' as const, providerId }], score: null, metadata: {} })),
     model: null,
     context: {},
   };

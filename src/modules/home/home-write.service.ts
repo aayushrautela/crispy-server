@@ -201,6 +201,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
         contentId,
         sourceRef: { provider: ref.provider, providerId: ref.providerId },
         rank: index + 1,
+        ...(item.description ? { description: item.description } : {}),
       };
     });
   }

@@ -12,8 +12,8 @@ import type { ServiceRecommendationListRepo } from './service-recommendation-lis
 const RECOMMENDATION_WRITE_PURPOSE = 'recommendation-generation' as const;
 const PROVIDERS = new Set(['tmdb', 'tvdb', 'imdb', 'kitsu']);
 
-function toHomeWriteItem(item: RecoWriteItem): { type: RecoWriteItem['type']; providerRefs: RecoWriteItem['providerRefs']; metadata?: Record<string, unknown> } {
-  return { type: item.type, providerRefs: item.providerRefs, ...(item.metadata && Object.keys(item.metadata).length > 0 ? { metadata: item.metadata } : {}) };
+function toHomeWriteItem(item: RecoWriteItem): { type: RecoWriteItem['type']; providerRefs: RecoWriteItem['providerRefs']; description?: string; metadata?: Record<string, unknown> } {
+  return { type: item.type, providerRefs: item.providerRefs, ...(item.description ? { description: item.description } : {}), ...(item.metadata && Object.keys(item.metadata).length > 0 ? { metadata: item.metadata } : {}) };
 }
 const ITEM_TYPES = new Set(['movie', 'tv']);
 const HOME_SECTION_TYPES = new Set(['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail']);
@@ -283,15 +283,12 @@ function asRecordOrEmpty(value: unknown): Record<string, unknown> {
 function validateWriteItem(value: unknown, path: string): RecoWriteItem {
   assertRecord(value, path);
   rejectRemovedFields(value, ITEM_REMOVED_FIELDS, path);
-  assertOnlyKeys(value, ['type', 'providerRefs', 'score', 'reason', 'reasonCodes', 'metadata'], path);
-  const reasonCodes = value.reasonCodes === undefined ? [] : value.reasonCodes;
-  if (!Array.isArray(reasonCodes) || reasonCodes.some((code) => typeof code !== 'string')) throw new HttpError(400, `${path}.reasonCodes must be an array of strings.`, { field: `${path}.reasonCodes` }, 'INVALID_RECOMMENDATION_REASON_CODES');
+  assertOnlyKeys(value, ['type', 'providerRefs', 'score', 'description', 'metadata'], path);
   return {
     type: readRecoType(value.type, `${path}.type`),
     providerRefs: validateProviderRefs(value.providerRefs, `${path}.providerRefs`),
     score: readNullableNumber(value.score, `${path}.score`),
-    reason: readOptionalString(value.reason ?? null, `${path}.reason`),
-    reasonCodes,
+    description: readOptionalString(value.description ?? null, `${path}.description`) ?? undefined,
     metadata: value.metadata === undefined ? {} : readMetadata(value.metadata, `${path}.metadata`),
   };
 }

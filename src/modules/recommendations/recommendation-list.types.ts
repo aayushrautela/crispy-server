@@ -7,8 +7,7 @@ export interface RecommendationListItemInput {
   rank: number;
   sourceRef?: { provider: string; providerId: string } | null;
   score?: number | null;
-  reason?: string | null;
-  reasonCodes?: string[];
+  description?: string;
   metadata?: Record<string, unknown>;
 }
 

@@ -16,6 +16,7 @@ export type HomeWriteProviderRef = {
 export type HomeWriteItem = {
   type: 'movie' | 'tv';
   providerRefs: HomeWriteProviderRef[];
+  description?: string;
   metadata?: Record<string, unknown>;
 };
 
