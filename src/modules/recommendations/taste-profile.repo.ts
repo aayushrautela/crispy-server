@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import { requireDbIsoString } from '../../lib/time.js';
+import type { TasteTagEntry, TasteMoodEntry } from '../../http/contracts/internal-apps.js';
 
 export type TasteProfileRecord = {
   profileId: string;
@@ -13,8 +14,8 @@ export type TasteProfileRecord = {
   watchingPace: string | null;
   aiSummary: string | null;
   source: string;
-  tags: unknown[];
-  mood: unknown[];
+  tags: TasteTagEntry[];
+  mood: TasteMoodEntry[];
   version: number;
   createdAt: string;
   updatedAt: string;

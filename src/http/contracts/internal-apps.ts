@@ -558,6 +558,37 @@ export const tasteProfileReadRouteSchema = withDefaultErrorResponses({
   response: { 200: tasteProfileReadResponseSchema },
 });
 
+export const tasteTagConnectionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['to', 'weight'],
+  properties: {
+    to: nonEmptyStringSchema,
+    weight: numberSchema,
+  },
+} as const;
+
+export const tasteTagEntrySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'score'],
+  properties: {
+    name: nonEmptyStringSchema,
+    score: numberSchema,
+    connections: { type: 'array', items: tasteTagConnectionSchema, maxItems: 8 },
+  },
+} as const;
+
+export const tasteMoodEntrySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'score'],
+  properties: {
+    name: nonEmptyStringSchema,
+    score: numberSchema,
+  },
+} as const;
+
 export const tasteProfileWriteBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -573,10 +604,26 @@ export const tasteProfileWriteBodySchema = {
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: nonEmptyStringSchema,
-    tags: { type: 'array', items: { type: 'object', additionalProperties: true } },
-    mood: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    tags: { type: 'array', items: tasteTagEntrySchema, default: [] },
+    mood: { type: 'array', items: tasteMoodEntrySchema, default: [] },
   },
 } as const;
+export type TasteTagConnection = {
+  to: string;
+  weight: number;
+};
+
+export type TasteTagEntry = {
+  name: string;
+  score: number;
+  connections?: TasteTagConnection[];
+};
+
+export type TasteMoodEntry = {
+  name: string;
+  score: number;
+};
+
 export type TasteProfileWriteBody = {
   sourceKey: string;
   genres: string[];
@@ -588,8 +635,8 @@ export type TasteProfileWriteBody = {
   watchingPace: string | null;
   aiSummary: string | null;
   source: string;
-  tags: unknown[];
-  mood: unknown[];
+  tags: TasteTagEntry[];
+  mood: TasteMoodEntry[];
 };
 
 export const tasteProfileWriteRouteSchema = withDefaultErrorResponses({

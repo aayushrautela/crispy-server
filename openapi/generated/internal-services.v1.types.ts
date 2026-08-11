@@ -672,6 +672,26 @@ export interface components {
                 tasteProfile: components["schemas"]["TasteProfileRecord"] | null;
             };
         };
+        TasteTagConnection: {
+            /** @description Name of the connected entity - a genre, person, or another tag */
+            to: string;
+            /** @description Connection strength derived from co-occurrence frequency in the user's watch history */
+            weight: number;
+        };
+        TasteTagEntry: {
+            /** @description Canonical tag name (lowercase, hyphenated), e.g. cyberpunk, neo-noir */
+            name: string;
+            /** @description Weighted tag preference score aggregated across watch events */
+            score: number;
+            /** @description Top co-occurring genres, people, and other tags for this tag, sorted by weight */
+            connections?: components["schemas"]["TasteTagConnection"][];
+        };
+        TasteMoodEntry: {
+            /** @description Mood dimension name, e.g. dark, cerebral, surreal, gritty */
+            name: string;
+            /** @description Weighted mood preference score */
+            score: number;
+        };
         TasteProfileWriteRequest: {
             sourceKey: string;
             genres: string[];
@@ -683,6 +703,10 @@ export interface components {
             watchingPace: string | null;
             aiSummary: string | null;
             source: string;
+            /** @default [] */
+            tags: components["schemas"]["TasteTagEntry"][];
+            /** @default [] */
+            mood: components["schemas"]["TasteMoodEntry"][];
         };
         TasteProfileRecord: {
             profileId: string;
@@ -696,6 +720,8 @@ export interface components {
             watchingPace: string | null;
             aiSummary: string | null;
             source: string;
+            tags: components["schemas"]["TasteTagEntry"][];
+            mood: components["schemas"]["TasteMoodEntry"][];
             updatedByKind: string;
             updatedById?: string | null;
             version: number;
