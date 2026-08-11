@@ -51,7 +51,8 @@ A single-list write body is a single rail of the snapshot:
   "items": [
     {
       "type": "movie",
-      "providerRefs": [{ "provider": "tmdb", "providerId": "603" }]
+      "providerRefs": [{ "provider": "tmdb", "providerId": "603" }],
+      "description": "Because you watched The Matrix"
     }
   ],
   "model": {
@@ -78,7 +79,11 @@ Currently tolerated but ignored fields (still accepted by the OpenAPI schema for
 - `reasonCodes` — no downstream consumer in the home response; only useful for `reco` engine's own analytics, which producers should track on their own side.
 - `metadata` — open bag with no contract; not surfaced for `reco`/`fallback` producers.
 
-Producers must not send enriched card payloads, posters, backdrops, logos, descriptions, storage IDs, media keys, or client DTOs. The ingester canonicalizes identifiers at write time and TMDB enrichment happens at read time.
+Optional per-item fields that are persisted:
+
+- `description` — per-card subtext (for example a "Because you watched X" line). Stored with the item and available to home materialization; not a replacement for TMDB-sourced overviews.
+
+Producers must not send enriched card payloads, posters, backdrops, logos, TMDB overview text, storage IDs, media keys, or client DTOs. The ingester canonicalizes identifiers at write time and TMDB enrichment happens at read time.
 
 ## Public home reads
 

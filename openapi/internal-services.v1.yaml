@@ -1536,6 +1536,7 @@ components:
           minItems: 1
           items: { $ref: '#/components/schemas/RecoProviderRef' }
         score: { type: [number, 'null'] }
+        description: { type: [string, 'null'] }
         reason: { type: [string, 'null'] }
         reasonCodes:
           type: array
