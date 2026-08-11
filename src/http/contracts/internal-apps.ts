@@ -509,24 +509,84 @@ export const tasteProfileReadQuerySchema = {
   },
 } as const;
 
+export const tasteTagConnectionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['to', 'weight'],
+  properties: {
+    to: nonEmptyStringSchema,
+    weight: numberSchema,
+  },
+} as const;
+
+export const tasteWeightedEntrySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'shortScore', 'shortCount', 'longScore', 'longCount'],
+  properties: {
+    name: nonEmptyStringSchema,
+    shortScore: numberSchema,
+    shortCount: numberSchema,
+    longScore: numberSchema,
+    longCount: numberSchema,
+  },
+} as const;
+
+export const tastePersonEntrySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'shortScore', 'shortCount', 'longScore', 'longCount', 'roles'],
+  properties: {
+    name: nonEmptyStringSchema,
+    shortScore: numberSchema,
+    shortCount: numberSchema,
+    longScore: numberSchema,
+    longCount: numberSchema,
+    roles: { type: 'array', items: { type: 'string', enum: ['actor', 'director'] } },
+  },
+} as const;
+
+export const tasteTagVectorEntrySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'shortScore', 'shortCount', 'longScore', 'longCount'],
+  properties: {
+    name: nonEmptyStringSchema,
+    shortScore: numberSchema,
+    shortCount: numberSchema,
+    longScore: numberSchema,
+    longCount: numberSchema,
+    connections: { type: 'array', items: tasteTagConnectionSchema, maxItems: 8 },
+  },
+} as const;
+
+export const tasteVectorsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['schemaVersion', 'genres', 'tags', 'people', 'mood', 'decades'],
+  properties: {
+    schemaVersion: { type: 'integer', enum: [1] },
+    genres: { type: 'array', items: tasteWeightedEntrySchema },
+    tags: { type: 'array', items: tasteTagVectorEntrySchema },
+    people: { type: 'array', items: tastePersonEntrySchema },
+    mood: { type: 'array', items: tasteWeightedEntrySchema },
+    decades: { type: 'array', items: tasteWeightedEntrySchema },
+  },
+} as const;
+
 export const tasteProfileRecordSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['profileId', 'sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source', 'tags', 'mood', 'version', 'createdAt', 'updatedAt'],
+  required: ['profileId', 'sourceKey', 'contentTypePref', 'ratingTendency', 'watchingPace', 'aiSummary', 'source', 'version', 'createdAt', 'updatedAt', 'vectors'],
   properties: {
     profileId: stringSchema,
     sourceKey: stringSchema,
-    genres: { type: 'array', items: stringSchema },
-    preferredActors: { type: 'array', items: stringSchema },
-    preferredDirectors: { type: 'array', items: stringSchema },
     contentTypePref: recordSchema,
     ratingTendency: recordSchema,
-    decadePreferences: { type: 'array', items: stringSchema },
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: stringSchema,
-    tags: { type: 'array', items: { type: 'object', additionalProperties: true } },
-    mood: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    vectors: tasteVectorsSchema,
     version: integerSchema,
     createdAt: dateTimeSchema,
     updatedAt: dateTimeSchema,
@@ -558,54 +618,18 @@ export const tasteProfileReadRouteSchema = withDefaultErrorResponses({
   response: { 200: tasteProfileReadResponseSchema },
 });
 
-export const tasteTagConnectionSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['to', 'weight'],
-  properties: {
-    to: nonEmptyStringSchema,
-    weight: numberSchema,
-  },
-} as const;
-
-export const tasteTagEntrySchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['name', 'score'],
-  properties: {
-    name: nonEmptyStringSchema,
-    score: numberSchema,
-    connections: { type: 'array', items: tasteTagConnectionSchema, maxItems: 8 },
-  },
-} as const;
-
-export const tasteMoodEntrySchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['name', 'score'],
-  properties: {
-    name: nonEmptyStringSchema,
-    score: numberSchema,
-  },
-} as const;
-
 export const tasteProfileWriteBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceKey', 'genres', 'preferredActors', 'preferredDirectors', 'contentTypePref', 'ratingTendency', 'decadePreferences', 'watchingPace', 'aiSummary', 'source', 'tags', 'mood'],
+  required: ['sourceKey', 'contentTypePref', 'ratingTendency', 'watchingPace', 'aiSummary', 'source', 'vectors'],
   properties: {
     sourceKey: nonEmptyStringSchema,
-    genres: { type: 'array', items: stringSchema },
-    preferredActors: { type: 'array', items: stringSchema },
-    preferredDirectors: { type: 'array', items: stringSchema },
     contentTypePref: recordSchema,
     ratingTendency: recordSchema,
-    decadePreferences: { type: 'array', items: stringSchema },
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: nonEmptyStringSchema,
-    tags: { type: 'array', items: tasteTagEntrySchema, default: [] },
-    mood: { type: 'array', items: tasteMoodEntrySchema, default: [] },
+    vectors: tasteVectorsSchema,
   },
 } as const;
 export type TasteTagConnection = {
@@ -613,30 +637,39 @@ export type TasteTagConnection = {
   weight: number;
 };
 
-export type TasteTagEntry = {
+export type TasteWeightedEntry = {
   name: string;
-  score: number;
+  shortScore: number;
+  shortCount: number;
+  longScore: number;
+  longCount: number;
+};
+
+export type TastePersonEntry = TasteWeightedEntry & {
+  roles: ('actor' | 'director')[];
+};
+
+export type TasteTagVectorEntry = TasteWeightedEntry & {
   connections?: TasteTagConnection[];
 };
 
-export type TasteMoodEntry = {
-  name: string;
-  score: number;
+export type TasteVectors = {
+  schemaVersion: 1;
+  genres: TasteWeightedEntry[];
+  tags: TasteTagVectorEntry[];
+  people: TastePersonEntry[];
+  mood: TasteWeightedEntry[];
+  decades: TasteWeightedEntry[];
 };
 
 export type TasteProfileWriteBody = {
   sourceKey: string;
-  genres: string[];
-  preferredActors: string[];
-  preferredDirectors: string[];
   contentTypePref: Record<string, unknown>;
   ratingTendency: Record<string, unknown>;
-  decadePreferences: string[];
   watchingPace: string | null;
   aiSummary: string | null;
   source: string;
-  tags: TasteTagEntry[];
-  mood: TasteMoodEntry[];
+  vectors: TasteVectors;
 };
 
 export const tasteProfileWriteRouteSchema = withDefaultErrorResponses({

@@ -678,50 +678,23 @@ export interface components {
             /** @description Connection strength derived from co-occurrence frequency in the user's watch history */
             weight: number;
         };
-        TasteTagEntry: {
-            /** @description Canonical tag name (lowercase, hyphenated), e.g. cyberpunk, neo-noir */
-            name: string;
-            /** @description Weighted tag preference score aggregated across watch events */
-            score: number;
-            /** @description Top co-occurring genres, people, and other tags for this tag, sorted by weight */
-            connections?: components["schemas"]["TasteTagConnection"][];
-        };
-        TasteMoodEntry: {
-            /** @description Mood dimension name, e.g. dark, cerebral, surreal, gritty */
-            name: string;
-            /** @description Weighted mood preference score */
-            score: number;
-        };
         TasteProfileWriteRequest: {
             sourceKey: string;
-            genres: string[];
-            preferredActors: string[];
-            preferredDirectors: string[];
             contentTypePref: components["schemas"]["Metadata"];
             ratingTendency: components["schemas"]["Metadata"];
-            decadePreferences: string[];
             watchingPace: string | null;
             aiSummary: string | null;
             source: string;
-            /** @default [] */
-            tags: components["schemas"]["TasteTagEntry"][];
-            /** @default [] */
-            mood: components["schemas"]["TasteMoodEntry"][];
+            vectors: components["schemas"]["TasteVectors"];
         };
         TasteProfileRecord: {
             profileId: string;
             sourceKey: string;
-            genres: string[];
-            preferredActors: string[];
-            preferredDirectors: string[];
             contentTypePref: components["schemas"]["Metadata"];
             ratingTendency: components["schemas"]["Metadata"];
-            decadePreferences: string[];
             watchingPace: string | null;
             aiSummary: string | null;
             source: string;
-            tags: components["schemas"]["TasteTagEntry"][];
-            mood: components["schemas"]["TasteMoodEntry"][];
             updatedByKind: string;
             updatedById?: string | null;
             version: number;
@@ -729,6 +702,29 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            vectors: components["schemas"]["TasteVectors"];
+        };
+        TasteWeightedEntry: {
+            name: string;
+            shortScore: number;
+            shortCount: number;
+            longScore: number;
+            longCount: number;
+        };
+        TastePersonEntry: components["schemas"]["TasteWeightedEntry"] & {
+            roles: ("actor" | "director")[];
+        };
+        TasteTagVectorEntry: components["schemas"]["TasteWeightedEntry"] & {
+            connections?: components["schemas"]["TasteTagConnection"][];
+        };
+        TasteVectors: {
+            /** @enum {integer} */
+            schemaVersion: 1;
+            genres: components["schemas"]["TasteWeightedEntry"][];
+            tags: components["schemas"]["TasteTagVectorEntry"][];
+            people: components["schemas"]["TastePersonEntry"][];
+            mood: components["schemas"]["TasteWeightedEntry"][];
+            decades: components["schemas"]["TasteWeightedEntry"][];
         };
         RecommendationListUpsertRequest: {
             title: string;

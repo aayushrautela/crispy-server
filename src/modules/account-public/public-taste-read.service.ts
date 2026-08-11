@@ -40,18 +40,14 @@ export class PublicTasteReadService {
 
       const profiles = await this.tasteProfileRepo.listForProfile(client, profileId);
       const latest = profiles[0];
-      
+
       if (!latest) {
         return null;
       }
 
-      const genres = Array.isArray(latest.genres)
-        ? latest.genres
-            .filter((g): g is { name: string; weight: number } => 
-              typeof g === 'object' && g !== null && 'name' in g && 'weight' in g
-            )
-            .slice(0, 10)
-        : [];
+      const genres = latest.vectors.genres
+        .slice(0, 10)
+        .map((entry) => ({ name: entry.name, weight: entry.shortScore }));
 
       return {
         id: `${latest.profileId}:${latest.sourceKey}`,

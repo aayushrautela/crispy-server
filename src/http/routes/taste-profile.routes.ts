@@ -95,15 +95,12 @@ function parseTasteProfileInput(body: unknown) {
   const value = asRecord(body);
   return {
     sourceKey: resolveRecommendationSourceKey(value.sourceKey),
-    genres: Array.isArray(value.genres) ? value.genres : [],
-    preferredActors: Array.isArray(value.preferredActors) ? value.preferredActors : [],
-    preferredDirectors: Array.isArray(value.preferredDirectors) ? value.preferredDirectors : [],
     contentTypePref: asRecord(value.contentTypePref),
     ratingTendency: asRecord(value.ratingTendency),
-    decadePreferences: Array.isArray(value.decadePreferences) ? value.decadePreferences : [],
     watchingPace: typeof value.watchingPace === 'string' ? value.watchingPace : null,
     aiSummary: typeof value.aiSummary === 'string' ? value.aiSummary : null,
     source: typeof value.source === 'string' && value.source.trim() ? value.source.trim() : 'manual',
+    vectors: value.vectors as import('../../modules/recommendations/recommendation.types.js').TasteVectors,
   };
 }
 

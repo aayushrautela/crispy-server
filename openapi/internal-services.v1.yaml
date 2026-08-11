@@ -1427,64 +1427,85 @@ components:
       properties:
         to: { type: string, minLength: 1, description: "Name of the connected entity - a genre, person, or another tag" }
         weight: { type: number, description: "Connection strength derived from co-occurrence frequency in the user's watch history" }
-    TasteTagEntry:
-      type: object
-      additionalProperties: false
-      required: [name, score]
-      properties:
-        name: { type: string, minLength: 1, description: "Canonical tag name (lowercase, hyphenated), e.g. cyberpunk, neo-noir" }
-        score: { type: number, description: "Weighted tag preference score aggregated across watch events" }
-        connections:
-          type: array
-          maxItems: 8
-          items: { $ref: '#/components/schemas/TasteTagConnection' }
-          description: "Top co-occurring genres, people, and other tags for this tag, sorted by weight"
-    TasteMoodEntry:
-      type: object
-      additionalProperties: false
-      required: [name, score]
-      properties:
-        name: { type: string, minLength: 1, description: "Mood dimension name, e.g. dark, cerebral, surreal, gritty" }
-        score: { type: number, description: "Weighted mood preference score" }
     TasteProfileWriteRequest:
       type: object
       additionalProperties: false
-      required: [sourceKey, genres, preferredActors, preferredDirectors, contentTypePref, ratingTendency, decadePreferences, watchingPace, aiSummary, source, tags, mood]
+      required: [sourceKey, contentTypePref, ratingTendency, watchingPace, aiSummary, source, vectors]
       properties:
         sourceKey: { type: string, minLength: 1 }
-        genres: { type: array, items: { type: string } }
-        preferredActors: { type: array, items: { type: string } }
-        preferredDirectors: { type: array, items: { type: string } }
         contentTypePref: { $ref: '#/components/schemas/Metadata' }
         ratingTendency: { $ref: '#/components/schemas/Metadata' }
-        decadePreferences: { type: array, items: { type: string } }
         watchingPace: { type: [string, 'null'] }
         aiSummary: { type: [string, 'null'] }
         source: { type: string, minLength: 1 }
-        tags: { type: array, items: { $ref: '#/components/schemas/TasteTagEntry' }, default: [] }
-        mood: { type: array, items: { $ref: '#/components/schemas/TasteMoodEntry' }, default: [] }
+        vectors: { $ref: '#/components/schemas/TasteVectors' }
     TasteProfileRecord:
       type: object
-      required: [profileId, sourceKey, genres, preferredActors, preferredDirectors, contentTypePref, ratingTendency, decadePreferences, watchingPace, aiSummary, source, tags, mood, updatedByKind, version, createdAt, updatedAt]
+      required: [profileId, sourceKey, contentTypePref, ratingTendency, watchingPace, aiSummary, source, updatedByKind, version, createdAt, updatedAt, vectors]
       properties:
         profileId: { type: string }
         sourceKey: { type: string }
-        genres: { type: array, items: { type: string } }
-        preferredActors: { type: array, items: { type: string } }
-        preferredDirectors: { type: array, items: { type: string } }
         contentTypePref: { $ref: '#/components/schemas/Metadata' }
         ratingTendency: { $ref: '#/components/schemas/Metadata' }
-        decadePreferences: { type: array, items: { type: string } }
         watchingPace: { type: [string, 'null'] }
         aiSummary: { type: [string, 'null'] }
         source: { type: string }
-        tags: { type: array, items: { $ref: '#/components/schemas/TasteTagEntry' } }
-        mood: { type: array, items: { $ref: '#/components/schemas/TasteMoodEntry' } }
         updatedByKind: { type: string }
         updatedById: { type: [string, 'null'] }
         version: { type: integer, minimum: 0 }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        vectors: { $ref: '#/components/schemas/TasteVectors' }
+    TasteWeightedEntry:
+      type: object
+      additionalProperties: false
+      required: [name, shortScore, shortCount, longScore, longCount]
+      properties:
+        name: { type: string, minLength: 1 }
+        shortScore: { type: number }
+        shortCount: { type: number }
+        longScore: { type: number }
+        longCount: { type: number }
+    TastePersonEntry:
+      allOf:
+        - $ref: '#/components/schemas/TasteWeightedEntry'
+        - type: object
+          additionalProperties: false
+          required: [roles]
+          properties:
+            roles:
+              type: array
+              items: { type: string, enum: [actor, director] }
+    TasteTagVectorEntry:
+      allOf:
+        - $ref: '#/components/schemas/TasteWeightedEntry'
+        - type: object
+          additionalProperties: false
+          properties:
+            connections:
+              type: array
+              items: { $ref: '#/components/schemas/TasteTagConnection' }
+    TasteVectors:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, genres, tags, people, mood, decades]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        genres:
+          type: array
+          items: { $ref: '#/components/schemas/TasteWeightedEntry' }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/TasteTagVectorEntry' }
+        people:
+          type: array
+          items: { $ref: '#/components/schemas/TastePersonEntry' }
+        mood:
+          type: array
+          items: { $ref: '#/components/schemas/TasteWeightedEntry' }
+        decades:
+          type: array
+          items: { $ref: '#/components/schemas/TasteWeightedEntry' }
     RecommendationListUpsertRequest:
       type: object
       additionalProperties: false

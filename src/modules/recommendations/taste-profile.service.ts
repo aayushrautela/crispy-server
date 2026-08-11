@@ -1,21 +1,16 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
 import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
-import type { TasteProfilePayload } from './recommendation.types.js';
+import type { TasteProfilePayload, TasteVectors } from './recommendation.types.js';
 
 export type RecommendationTasteProfileInput = {
   sourceKey: string;
-  genres?: unknown[];
-  preferredActors?: unknown[];
-  preferredDirectors?: unknown[];
   contentTypePref?: Record<string, unknown>;
   ratingTendency?: Record<string, unknown>;
-  decadePreferences?: unknown[];
   watchingPace?: string | null;
   aiSummary?: string | null;
   source: string;
-  tags?: unknown[];
-  mood?: unknown[];
+  vectors: TasteVectors;
 };
 
 export class TasteProfileService {
@@ -46,15 +41,12 @@ export class TasteProfileService {
       const row = await this.tasteProfileRepository.upsert(client, {
         profileId,
         sourceKey: input.sourceKey,
-        genres: input.genres,
-        preferredActors: input.preferredActors,
-        preferredDirectors: input.preferredDirectors,
         contentTypePref: input.contentTypePref,
         ratingTendency: input.ratingTendency,
-        decadePreferences: input.decadePreferences,
         watchingPace: input.watchingPace,
         aiSummary: input.aiSummary,
         source: input.source,
+        vectors: input.vectors,
       });
       return mapTasteProfile(row);
     });
@@ -78,17 +70,12 @@ export class TasteProfileService {
       const row = await this.tasteProfileRepository.upsert(client, {
         profileId: targetProfileId,
         sourceKey: input.sourceKey,
-        genres: input.genres,
-        preferredActors: input.preferredActors,
-        preferredDirectors: input.preferredDirectors,
         contentTypePref: input.contentTypePref,
         ratingTendency: input.ratingTendency,
-        decadePreferences: input.decadePreferences,
         watchingPace: input.watchingPace,
         aiSummary: input.aiSummary,
         source: input.source,
-        tags: input.tags,
-        mood: input.mood,
+        vectors: input.vectors,
       });
       return mapTasteProfile(row);
     });
@@ -108,17 +95,12 @@ function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {
   return {
     profileId: row.profileId,
     sourceKey: row.sourceKey,
-    genres: row.genres,
-    preferredActors: row.preferredActors,
-    preferredDirectors: row.preferredDirectors,
     contentTypePref: row.contentTypePref,
     ratingTendency: row.ratingTendency,
-    decadePreferences: row.decadePreferences,
     watchingPace: row.watchingPace,
     aiSummary: row.aiSummary,
     source: row.source,
-    tags: row.tags,
-    mood: row.mood,
+    vectors: row.vectors,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
