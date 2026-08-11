@@ -7,16 +7,12 @@
       "type": "movie",
       "providerRefs": [{ "provider": "tmdb", "providerId": "550" }],
       "score": 0.98,
-      "reason": "Because you watched Fight Club",
-      "reasonCodes": ["similar-history"],
       "metadata": {}
     },
     {
       "type": "tv",
       "providerRefs": [{ "provider": "tvdb", "providerId": "81189" }],
       "score": 0.91,
-      "reason": null,
-      "reasonCodes": [],
       "metadata": {}
     }
   ],

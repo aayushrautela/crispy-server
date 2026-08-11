@@ -9,8 +9,8 @@
           "subtitle": null,
           "sectionType": "heroCarousel",
           "items": [
-            { "type": "movie", "providerRefs": [{ "provider": "tmdb", "providerId": "550" }], "score": 0.98, "reason": "Because you watched Fight Club", "reasonCodes": ["similar-history"], "metadata": {} },
-            { "type": "tv", "providerRefs": [{ "provider": "tvdb", "providerId": "81189" }], "score": 0.91, "reason": null, "reasonCodes": [], "metadata": {} }
+            { "type": "movie", "providerRefs": [{ "provider": "tmdb", "providerId": "550" }], "score": 0.98, "metadata": {} },
+            { "type": "tv", "providerRefs": [{ "provider": "tvdb", "providerId": "81189" }], "score": 0.91, "metadata": {} }
           ],
           "model": { "runId": "run_example_001", "algorithmVersion": "reco-v2", "modelVersion": "2026-05-07" },
           "context": {}
@@ -26,7 +26,7 @@
           "subtitle": "Dark, character-driven stories",
           "sectionType": "contentRail",
           "items": [
-            { "type": "movie", "providerRefs": [{ "provider": "tmdb", "providerId": "680" }], "score": null, "reason": null, "reasonCodes": [], "metadata": {} }
+            { "type": "movie", "providerRefs": [{ "provider": "tmdb", "providerId": "680" }], "score": null, "metadata": {} }
           ],
           "model": null,
           "context": {}

@@ -72,11 +72,9 @@ Contract rules (what a producer **must** send and what the ingester **requires**
 - Rank is array order. Producers must not send `rank`.
 - `model` is required only for `source='reco'`. Pass `null` for `source='custom'` and `source='fallback'` (no model tracking).
 
-Currently tolerated but ignored fields (still accepted by the OpenAPI schema for backward compatibility; produced artifacts no longer carry them once PR 3 lands):
+Currently tolerated but ignored fields (still accepted by the OpenAPI schema for backward compatibility; produced artifacts no longer carry them):
 
 - `score` — array order is the only ordering signal.
-- `reason` — folding into per-item `subtitle` override; producers that want per-card subtitle text send it as `subtitle` in the items.json blob.
-- `reasonCodes` — no downstream consumer in the home response; only useful for `reco` engine's own analytics, which producers should track on their own side.
 - `metadata` — open bag with no contract; not surfaced for `reco`/`fallback` producers.
 
 Optional per-item fields that are persisted:
@@ -87,7 +85,7 @@ Producers must not send enriched card payloads, posters, backdrops, logos, TMDB 
 
 ## Public home reads
 
-`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, reason codes, storage `contentId`, media keys, or RECO internals.
+`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, storage `contentId`, media keys, or RECO internals.
 
 `mode` is the profile's current home mode (`recommended` or `custom`); `source` is which producer's snapshot is currently serving the home screen (`custom`, `reco`, `fallback`, or `empty`). A response always carries rails from exactly one `source` — sources are never concatenated.
 

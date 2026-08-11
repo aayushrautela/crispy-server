@@ -84,7 +84,7 @@ const rules: Rule[] = [
   },
   {
     pattern: 'parseHomeWriteBody',
-    message: 'The hand-rolled home write parser has been replaced by the shared parseRecoListWriteRequest in src/modules/recommendations/reco-list-write-parser.ts. parseHomeWriteBody must not be reintroduced; the public PUT /v1/.../home route uses parseRecoListWriteRequest. The internal PUT /internal/apps/v1/.../recommendations/lists/:listKey route retains its own richer validation (ServiceRecommendationListService.validateSingleRequest) because it accepts score/reason/reasonCodes fields the public route does not.',
+    message: 'The hand-rolled home write parser has been replaced by the shared parseRecoListWriteRequest in src/modules/recommendations/reco-list-write-parser.ts. parseHomeWriteBody must not be reintroduced; the public PUT /v1/.../home route uses parseRecoListWriteRequest. The internal PUT /internal/apps/v1/.../recommendations/lists/:listKey route retains its own richer validation (ServiceRecommendationListService.validateSingleRequest) because it accepts score/description/metadata fields the public route does not.',
   },
 ];
 

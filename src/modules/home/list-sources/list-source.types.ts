@@ -6,8 +6,6 @@ export type HomeWriteItemLite = {
   type: ListMediaType;
   providerRefs: Array<{ provider: ListSourceProvider; providerId: string }>;
   score?: number | null;
-  reason?: string | null;
-  reasonCodes?: string[];
   metadata?: Record<string, unknown>;
 };
 

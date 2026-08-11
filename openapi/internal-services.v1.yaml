@@ -1537,10 +1537,6 @@ components:
           items: { $ref: '#/components/schemas/RecoProviderRef' }
         score: { type: [number, 'null'] }
         description: { type: [string, 'null'] }
-        reason: { type: [string, 'null'] }
-        reasonCodes:
-          type: array
-          items: { type: string }
         metadata: { $ref: '#/components/schemas/Metadata' }
     RecoModelInfo:
       type: object

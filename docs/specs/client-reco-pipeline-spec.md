@@ -136,7 +136,7 @@ Rules:
 - `contentRail` represents standard horizontal content rails.
 - `collectionRail` represents curated collection/folder rails.
 - **One read-time enrichment pass.** MAIN materializes `ClientMediaCard` for every read path (public `/v1` watch + home routes, internal `/internal/apps/v1` signal routes). The same card shape is served to the public client app, the reco worker, and the reco webui. No consumer runs its own enrichment pass on top.
-- Public recommendation responses must not include `ProviderIds`, `providerRefs`, `tmdbId`, `tvdbId`, `score`, `reasonCodes`, `modelVersion`, `contentId`, `mediaKey`, `UserData`, or PascalCase BaseItemDto fields.
+- Public recommendation responses must not include `ProviderIds`, `providerRefs`, `tmdbId`, `tvdbId`, `score`, `modelVersion`, `contentId`, `mediaKey`, `UserData`, or PascalCase BaseItemDto fields.
 
 ## RECO signal pipeline
 
@@ -261,11 +261,8 @@ type RecoWriteItem = {
   providerRefs: ProviderRef[];
   /** @deprecated tolerated but ignored; rank is array order */
   score: number | null;
-  /** @deprecated renamed to `subtitle` (per-item card subtitle override); keep inline for now */
-  reason: string | null;
-  /** @deprecated tolerated but ignored; no downstream consumer in home response */
-  reasonCodes: string[];
-  /** @deprecated open bag; replace with explicit `subtitle`/`description` in a future migration */
+  description?: string;
+  /** @deprecated open bag; replace with explicit `description` in a future migration */
   metadata: Record<string, unknown>;
 };
 
@@ -290,7 +287,7 @@ Rules:
 - Rank is derived from array order; do not send `rank`.
 - Every item must have `type` and at least one provider ref.
 - RECO must not send `itemId`, `contentId`, `mediaKey`, nested `item`/`ref` wrappers, or TMDB-specific top-level fields.
-- `score`, `reason`, `reasonCodes`, and `metadata` are **tolerated but ignored** by the home response. They are kept in the OpenAPI schema for backward compatibility only. New producers should omit them.
+- `score` and `metadata` are **tolerated but ignored** by the home response. They are kept in the OpenAPI schema for backward compatibility only. New producers should omit them.
 - RECO must not send posters, artwork, descriptions, display titles per item, or enriched card payloads.
 
 ### Batch write
@@ -335,8 +332,7 @@ type StoredRecommendationItem = {
   rank: number;
   sourceRef: ProviderRef | null;
   score: number | null;
-  reason: string | null;
-  reasonCodes: string[];
+  description?: string;
   metadata: Record<string, unknown>;
 };
 ```

@@ -2,7 +2,7 @@ import { TraktListService } from '../../../integrations/trakt/trakt-list.service
 import type { HomeWriteItemLite, ListSource, ListSourceCtx, ListSourceDescriptor, ListSourceResult, ListSourceProvider } from '../list-source.types.js';
 import { limitFromCtx } from './helpers.js';
 
-function traktItemToLite(traktId: number | null, mediaType: 'movie' | 'show', ids: { tmdb?: number | null; imdb?: string | null; tvdb?: number | null }, reason: string, reasonCodes: string[]): HomeWriteItemLite | null {
+function traktItemToLite(traktId: number | null, mediaType: 'movie' | 'show', ids: { tmdb?: number | null; imdb?: string | null; tvdb?: number | null }): HomeWriteItemLite | null {
   const providerRefs: Array<{ provider: ListSourceProvider; providerId: string }> = [];
   if (typeof ids.tmdb === 'number') providerRefs.push({ provider: 'tmdb', providerId: String(ids.tmdb) });
   if (typeof ids.tvdb === 'number') providerRefs.push({ provider: 'tvdb', providerId: String(ids.tvdb) });
@@ -14,8 +14,6 @@ function traktItemToLite(traktId: number | null, mediaType: 'movie' | 'show', id
   return {
     type: mediaType === 'show' ? 'tv' : 'movie',
     providerRefs,
-    reason,
-    reasonCodes,
   };
 }
 
@@ -56,7 +54,7 @@ export class TraktTrendingSource implements ListSource<MediaTypeConfig> {
     const items = await this.trakt.fetchTrending(traktMediaType, limitFromCtx(ctx, config.limit ?? 40));
     return {
       items: items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, 'Trending on Trakt', ['trakt-trending']))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: items.length },
     };
@@ -93,7 +91,7 @@ export class TraktPopularSource implements ListSource<MediaTypeConfig> {
     const items = await this.trakt.fetchPopular(traktMediaType, limitFromCtx(ctx, config.limit ?? 40));
     return {
       items: items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, 'Popular on Trakt', ['trakt-popular']))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: items.length },
     };
@@ -130,7 +128,7 @@ export class TraktAnticipatedSource implements ListSource<MediaTypeConfig> {
     const items = await this.trakt.fetchAnticipated(traktMediaType, limitFromCtx(ctx, config.limit ?? 40));
     return {
       items: items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, 'Most anticipated on Trakt', ['trakt-anticipated']))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: items.length },
     };
@@ -170,7 +168,7 @@ export class TraktNewReleasesSource implements ListSource<{ limit?: number; days
     const items = await this.trakt.fetchUpdates('movie', dateISO, limitFromCtx(ctx, config.limit ?? 40));
     return {
       items: items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, 'New on Trakt', ['trakt-new-releases']))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: items.length },
     };
@@ -207,7 +205,7 @@ export class TraktCalendarSource implements ListSource<{ days?: number; limit?: 
     const items = await this.trakt.fetchCalendarShows(dateISO, days, limitFromCtx(ctx, config.limit ?? 40));
     return {
       items: items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, 'Airing this week', ['trakt-calendar']))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: items.length },
     };
@@ -241,14 +239,10 @@ export class TraktPopularByRegionSource implements ListSource<MediaTypeConfig> {
 
   async fetchItems(config: MediaTypeConfig, ctx: ListSourceCtx): Promise<ListSourceResult> {
     const traktMediaType = config.mediaType === 'tv' ? 'show' : 'movie';
-    const country = ctx.region ?? undefined;
-    const hasRegion = Boolean(country);
-    const items = await this.trakt.fetchPopular(traktMediaType, limitFromCtx(ctx, config.limit ?? 40), { countries: country });
-    const reason = hasRegion ? `Popular in your region` : 'Popular right now';
-    const reasonCodes = hasRegion ? ['popular-region', `popular-region-${country}`] : ['popular-global'];
+    const items = await this.trakt.fetchPopular(traktMediaType, limitFromCtx(ctx, config.limit ?? 40), { countries: ctx.region ?? undefined });
     return {
       items: items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, reason, reasonCodes))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: items.length },
     };
@@ -317,7 +311,7 @@ export class TraktPublicListSource implements ListSource<PublicListConfig> {
     const result = await this.trakt.fetchPublicList(userSlug, listSlug, mediaType, limitFromCtx(ctx, config.limit ?? 40));
     return {
       items: result.items
-        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids, 'Trakt list', ['trakt-list']))
+        .map((it) => traktItemToLite(it.traktId, it.mediaType, it.ids))
         .filter((it): it is HomeWriteItemLite => it !== null),
       meta: { sourceCount: result.items.length, name: result.name },
     };

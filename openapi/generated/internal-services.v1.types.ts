@@ -739,8 +739,6 @@ export interface components {
             providerRefs: components["schemas"]["RecoProviderRef"][];
             score?: number | null;
             description?: string | null;
-            reason?: string | null;
-            reasonCodes?: string[];
             metadata?: components["schemas"]["Metadata"];
         };
         RecoModelInfo: {

@@ -54,8 +54,6 @@ export type ResolvedHomeRow = {
   itemId: string;
   rank: number;
   score: number | null;
-  reason: string | null;
-  reasonCodes: string[];
 };
 
 export type HomeWriteResult = {
