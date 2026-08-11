@@ -8,7 +8,6 @@ export type PublicAccountScope =
   | 'watch:read'
   | 'taste-profile:read'
   | 'taste-profile:write'
-  | 'taste:write'
   | 'recommendations:read'
   | 'recommendations:write';
 
@@ -16,7 +15,7 @@ const SCOPE_HIERARCHY: Record<string, PublicAccountScope[]> = {
   'profiles:read': ['profiles:read'],
   'watch:read': ['watch:read'],
   'taste-profile:read': ['taste-profile:read'],
-  'taste:write': ['taste:write', 'taste-profile:write'],
+  'taste-profile:write': ['taste-profile:write'],
   'recommendations:read': ['recommendations:read'],
   'recommendations:write': ['recommendations:write'],
 };

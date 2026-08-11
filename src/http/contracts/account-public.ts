@@ -88,14 +88,6 @@ export interface PublicLanguageProfileDto {
   primaryLanguage: string | null;
 }
 
-export interface PublicTasteDto {
-  id: string;
-  profileId: string;
-  computedAt: string;
-  summary: string | null;
-  genres: Array<{ name: string; weight: number }>;
-}
-
 export interface PublicPageDto<T> {
   items: T[];
   page: { limit: number; nextCursor: string | null };

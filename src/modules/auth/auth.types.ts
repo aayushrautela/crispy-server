@@ -5,7 +5,6 @@ export const AUTH_SCOPES = [
   'watch:read',
   'taste-profile:read',
   'taste-profile:write',
-  'taste:write',
   'recommendations:read',
   'recommendations:write',
   'profile-secrets:read',
@@ -39,7 +38,6 @@ export const USER_DEFAULT_SCOPES: AuthScope[] = [
   'watch:read',
   'taste-profile:read',
   'taste-profile:write',
-  'taste:write',
   'recommendations:read',
   'recommendations:write',
 ];
@@ -56,7 +54,6 @@ export const PAT_ALLOWED_SCOPES: AuthScope[] = [
   'watch:read',
   'taste-profile:read',
   'taste-profile:write',
-  'taste:write',
   'recommendations:read',
   'recommendations:write',
 ];

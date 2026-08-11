@@ -1,11 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { AuthActor } from '../../modules/auth/auth.types.js';
 import { HttpError } from '../../lib/errors.js';
+import type { AuthActor } from '../../modules/auth/auth.types.js';
 import { PublicAccountReadService } from '../../modules/account-public/public-account-read.service.js';
-import { PublicTasteReadService } from '../../modules/account-public/public-taste-read.service.js';
 import { LanguageProfileReadService } from '../../modules/language-profile/language-profile-read.service.js';
-import { PublicAccountWriteService } from '../../modules/account-public/public-account-write.service.js';
-import { success, mutation } from '../response.js';
+import { success } from '../response.js';
 
 export interface PublicAccountRateLimitDecision {
   allowed: boolean;
@@ -51,9 +49,7 @@ const defaultRateLimitService = new InMemoryPublicAccountRateLimitService();
 
 export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimitService: PublicAccountRateLimitService = defaultRateLimitService): Promise<void> {
   const accountReadService = new PublicAccountReadService();
-  const tasteReadService = new PublicTasteReadService();
   const languageProfileReadService = new LanguageProfileReadService();
-  const writeService = new PublicAccountWriteService();
 
   app.get('/api/account/v1/account', async (request: FastifyRequest, reply: FastifyReply) => {
     await app.requireAuth(request);
@@ -89,47 +85,6 @@ export async function registerAccountPublicRoutes(app: FastifyInstance, rateLimi
     const languageProfile = await languageProfileReadService.getForProfile(actor, params.profileId);
 
     return success({ languageProfile }, request);
-  });
-
-  app.get('/api/account/v1/profiles/:profileId/taste/current', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-
-    const taste = await tasteReadService.getCurrentForProfile(actor, params.profileId);
-
-    return success({ taste }, request);
-  });
-
-  app.put('/api/account/v1/profiles/:profileId/taste/current', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const result = await writeService.replaceTasteProfile({
-      actor,
-      profileId: params.profileId,
-      body: request.body,
-      idempotencyKey: getHeader(request, 'idempotency-key'),
-      ifMatch: getHeader(request, 'if-match'),
-    });
-    reply.header('ETag', result.etag).code(result.status);
-    return mutation(result.response as unknown as Record<string, unknown>, request);
-  });
-
-  app.delete('/api/account/v1/profiles/:profileId/taste/current', async (request: FastifyRequest, reply: FastifyReply) => {
-    await app.requireAuth(request);
-    await enforcePublicAccountRateLimit(request, reply, rateLimitService);
-    const actor = request.auth as AuthActor;
-    const params = request.params as { profileId: string };
-    const result = await writeService.clearTasteProfile({
-      actor,
-      profileId: params.profileId,
-      idempotencyKey: getHeader(request, 'idempotency-key'),
-      ifMatch: getHeader(request, 'if-match'),
-    });
-    reply.code(result.status).send();
   });
 }
 
@@ -168,11 +123,6 @@ async function enforcePublicAccountRateLimit(
   }
 }
 
-function getPublicAccountRateLimit(method: string): number {
-  return method.toUpperCase() === 'GET' ? 6 : 2;
-}
-
-function getHeader(request: FastifyRequest, name: string): string | undefined {
-  const value = request.headers[name];
-  return typeof value === 'string' ? value : undefined;
+function getPublicAccountRateLimit(_method: string): number {
+  return 6;
 }
