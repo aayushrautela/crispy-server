@@ -147,8 +147,8 @@ async function buildKnownForItems(
     return {
       ...rest,
       backdrop: buildResponsiveImageSet(backdropPath, {
-        small: 'w300',
-        medium: 'w780',
+        small: 'w780',
+        medium: 'w1280',
         large: 'original',
       }),
       logo: buildResponsiveImageSet(logoPath, {

@@ -423,8 +423,8 @@ export function extractCollection(title: TmdbTitleRecord | null): {
       large: 'w780',
     }),
     backdrop: buildResponsiveImageSet(asString(collection.backdrop_path), {
-      small: 'w300',
-      medium: 'w780',
+      small: 'w780',
+      medium: 'w1280',
       large: 'original',
     }),
     parts: [],
@@ -603,8 +603,8 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
       large: 'w780',
     }),
     backdrop: buildResponsiveImageSet(episode?.stillPath ?? title?.backdropPath ?? null, {
-      small: 'w300',
-      medium: 'w780',
+      small: 'w780',
+      medium: 'w1280',
       large: 'original',
     }),
     still: buildResponsiveImageSet(episode?.stillPath ?? null, {
