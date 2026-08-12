@@ -188,6 +188,36 @@ export class TmdbRepository {
     return result.rows[0] ? mapEpisode(result.rows[0]) : null;
   }
 
+  async getEpisodes(client: DbClient, requests: Array<{ showTmdbId: number; seasonNumber: number; episodeNumber: number }>): Promise<Map<string, TmdbEpisodeRecord>> {
+    if (!requests.length) {
+      return new Map();
+    }
+
+    const values: unknown[] = [];
+    const conditions = requests.map((req, index) => {
+      const base = index * 3;
+      values.push(req.showTmdbId, req.seasonNumber, req.episodeNumber);
+      return `(show_tmdb_id = $${base + 1}::integer AND season_number = $${base + 2}::integer AND episode_number = $${base + 3}::integer)`;
+    });
+
+    const result = await client.query(
+      `
+        SELECT show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
+               runtime, still_path, vote_average, raw, fetched_at, expires_at
+        FROM tmdb_tv_episodes
+        WHERE ${conditions.join(' OR ')}
+      `,
+      values,
+    );
+
+    const map = new Map<string, TmdbEpisodeRecord>();
+    for (const row of result.rows) {
+      const record = mapEpisode(row);
+      map.set(`${record.showTmdbId}:${record.seasonNumber}:${record.episodeNumber}`, record);
+    }
+    return map;
+  }
+
   async getTitles(client: DbClient, requests: Array<{ mediaType: TmdbTitleType; tmdbId: number }>, language: string): Promise<Map<string, TmdbTitleRecord>> {
     if (!requests.length) {
       return new Map();

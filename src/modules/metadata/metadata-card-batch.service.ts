@@ -50,10 +50,19 @@ export class MetadataCardBatchService {
       const cards = await this.metadataCardService.buildCardViews(client, identities.map(({ identity }) => identity), input.language ?? null);
       const metadataRefreshedAt = new Date().toISOString();
 
-      return cards.map((card, index): HydratedMediaCard => ({
-        mediaItem: mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId: identities[index]?.itemId })),
-        metadataRefreshedAt,
-      }));
+      return cards.flatMap((card, index): HydratedMediaCard[] => {
+        if (!card) {
+          return [];
+        }
+        const identity = identities[index];
+        if (!identity) {
+          return [];
+        }
+        return [{
+          mediaItem: mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId: identity.itemId })),
+          metadataRefreshedAt,
+        }];
+      });
     });
 
     return { items, missing };

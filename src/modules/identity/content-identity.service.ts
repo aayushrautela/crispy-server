@@ -412,6 +412,48 @@ export class ContentIdentityService {
     };
   }
 
+  async resolveParentItemIdsForEpisodes(client: DbClient, itemIds: string[]): Promise<Map<string, EpisodeParentItemIds>> {
+    const decoded = new Map<string, string>();
+    for (const itemId of itemIds) {
+      try {
+        const contentId = assertPublicItemId(itemId);
+        if (!decoded.has(contentId)) {
+          decoded.set(contentId, itemId);
+        }
+      } catch {
+        // skip unparseable item id
+      }
+    }
+
+    const result = new Map<string, EpisodeParentItemIds>();
+    for (const itemId of itemIds) {
+      result.set(itemId, { seriesItemId: null, seasonItemId: null });
+    }
+    if (!decoded.size) {
+      return result;
+    }
+
+    const relationships = await this.repository.listParentRelationshipsBatch(client, [...decoded.keys()], ['series', 'season']);
+    const byChild = new Map<string, ContentRelationshipRecord[]>();
+    for (const relationship of relationships) {
+      const existing = byChild.get(relationship.childContentId);
+      if (existing) {
+        existing.push(relationship);
+      } else {
+        byChild.set(relationship.childContentId, [relationship]);
+      }
+    }
+
+    for (const [contentId, itemId] of decoded) {
+      const childRelationships = byChild.get(contentId) ?? [];
+      result.set(itemId, {
+        seriesItemId: encodeRelationshipParent(childRelationships, 'series'),
+        seasonItemId: encodeRelationshipParent(childRelationships, 'season'),
+      });
+    }
+    return result;
+  }
+
   async resolveTitleItemIdForPlayableItemId(client: DbClient, itemId: string): Promise<string> {
     const contentId = assertPublicItemId(itemId);
     const item = await this.repository.findContentItemById(client, contentId);

@@ -1,5 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { BaseItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
+import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
 import type { ClientMediaCard, ClientMediaType, ClientProgress, ClientProviderIds } from '../recommendations/client-home.types.js';
@@ -15,28 +16,33 @@ export class WatchCardHydrator {
 
   async hydrateItems(client: DbClient, items: BaseItemDto[], language?: string | null): Promise<ClientMediaCard[]> {
     if (items.length === 0) return [];
-    const cards = await Promise.all(items.map((item) => this.hydrateItem(client, item, language)));
-    return cards.filter((card): card is ClientMediaCard => card !== null);
+
+    const resolved = items
+      .map((item) => ({ item, identity: identityFromBaseItemDto(item) }))
+      .filter((entry): entry is { item: BaseItemDto; identity: MediaIdentity } => entry.identity !== null);
+    if (resolved.length === 0) return [];
+
+    const views = await this.metadataCardService.buildCardViews(client, resolved.map((entry) => entry.identity), language ?? null);
+
+    const cards: ClientMediaCard[] = [];
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const view = views[index];
+      if (!entry || !view) continue;
+      const card = this.toClientMediaCard(entry.item, view);
+      if (card) cards.push(card);
+    }
+    return cards;
   }
 
-  private async hydrateItem(client: DbClient, item: BaseItemDto, language?: string | null): Promise<ClientMediaCard | null> {
-    const identity = identityFromBaseItemDto(item);
-    if (!identity) return null;
-
-    let cardView;
-    try {
-      cardView = await this.metadataCardService.buildCardView(client, identity, language ?? null);
-    } catch {
-      return null;
-    }
-
+  private toClientMediaCard(item: BaseItemDto, cardView: MetadataCardView): ClientMediaCard | null {
     if (!cardView.title) return null;
 
     const progress = progressFromUserData(item.UserData);
 
     const providerIds = providerIdsFromBaseItem(item.ProviderIds);
 
-    const card: ClientMediaCard = {
+    return {
       itemId: cardView.itemId,
       mediaType: toClientMediaType(cardView.mediaType),
       title: cardView.title,
@@ -65,8 +71,6 @@ export class WatchCardHydrator {
         : null,
       providerIds,
     };
-
-    return card;
   }
 }
 

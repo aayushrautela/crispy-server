@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { MediaIdentity } from '../identity/media-key.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { ContentIdentityService, type EpisodeParentItemIds } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import type { MetadataCardView } from './metadata-card.types.js';
 import { buildMetadataCardView } from './metadata-card.builders.js';
@@ -30,7 +30,49 @@ export class MetadataCardService {
     });
   }
 
-  async buildCardViews(client: DbClient, identities: MediaIdentity[], language?: string | null): Promise<MetadataCardView[]> {
-    return Promise.all(identities.map((identity) => this.buildCardView(client, identity, language)));
+  async buildCardViews(client: DbClient, identities: MediaIdentity[], language?: string | null): Promise<(MetadataCardView | null)[]> {
+    if (!identities.length) {
+      return [];
+    }
+    const normalizedLanguage = language ?? null;
+
+    const titleSources = await this.titleSourceService.loadTitleSources(client, identities, normalizedLanguage);
+    const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
+
+    const episodeItemIds: string[] = [];
+    for (const identity of identities) {
+      if (identity.mediaType === 'episode') {
+        const contentId = contentIds.get(identity.mediaKey);
+        if (contentId) {
+          episodeItemIds.push(encodePublicItemId(contentId));
+        }
+      }
+    }
+    const parentIds = episodeItemIds.length
+      ? await this.contentIdentityService.resolveParentItemIdsForEpisodes(client, episodeItemIds)
+      : new Map<string, EpisodeParentItemIds>();
+
+    return identities.map((identity) => {
+      const contentId = contentIds.get(identity.mediaKey);
+      if (!contentId) {
+        return null;
+      }
+
+      const source = titleSources.get(identity.mediaKey);
+      const itemId = encodePublicItemId(contentId);
+      const parents = identity.mediaType === 'episode'
+        ? (parentIds.get(itemId) ?? { seriesItemId: null, seasonItemId: null })
+        : { seriesItemId: null, seasonItemId: null };
+
+      return buildMetadataCardView({
+        identity,
+        itemId,
+        seriesItemId: parents.seriesItemId,
+        seasonItemId: parents.seasonItemId,
+        title: source?.tmdbTitle ?? null,
+        currentEpisode: source?.tmdbCurrentEpisode ?? null,
+        language: normalizedLanguage,
+      });
+    });
   }
 }
