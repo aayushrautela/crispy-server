@@ -153,7 +153,7 @@ async function buildKnownForItems(
       }),
       logo: buildResponsiveImageSet(logoPath, {
         small: 'w185',
-        medium: 'w300',
+        medium: 'w500',
         large: 'original',
       }),
       overview: titleRecord?.overview ?? null,

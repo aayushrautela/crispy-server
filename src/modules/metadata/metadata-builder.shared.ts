@@ -614,7 +614,7 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
     }),
     logo: buildResponsiveImageSet(extractBestLogoPath(title?.raw ?? {}, preferredLanguage), {
       small: 'w185',
-      medium: 'w300',
+      medium: 'w500',
       large: 'original',
     }),
   };
