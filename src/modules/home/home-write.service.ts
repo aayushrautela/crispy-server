@@ -69,7 +69,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
     }
 
     const now = this.deps.clock.now();
-    if (input.lists.length > 25) throw new HttpError(400, `lists exceeds max of 25.`, { field: 'lists' }, 'TOO_MANY_LISTS');
+    if (input.lists.length > 50) throw new HttpError(400, `lists exceeds max of 50.`, { field: 'lists' }, 'TOO_MANY_LISTS');
     const lists = await this.normalizeLists(input);
     const writtenLists: HomeWriteListResult[] = [];
     let itemCount = 0;
