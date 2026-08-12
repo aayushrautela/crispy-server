@@ -545,6 +545,8 @@ export const tastePersonEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
+    shortHistogram: { type: 'array', items: numberSchema },
+    longHistogram: { type: 'array', items: numberSchema },
     roles: { type: 'array', items: { type: 'string', enum: ['actor', 'director'] } },
   },
 } as const;
@@ -559,6 +561,8 @@ export const tasteTagVectorEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
+    shortHistogram: { type: 'array', items: numberSchema },
+    longHistogram: { type: 'array', items: numberSchema },
     connections: { type: 'array', items: tasteTagConnectionSchema, maxItems: 8 },
   },
 } as const;
