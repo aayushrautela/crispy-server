@@ -112,9 +112,9 @@ export class TmdbRepository {
           external_ids, raw, fetched_at, expires_at
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7::date, $8::date, $9,
-          $10, $11, $12, $13::jsonb, $14, $15,
-          $16::jsonb, $17::jsonb, $18::timestamptz, $19::timestamptz
+          $1, $2, $3, $4, $5, $6, $7, $8::date, $9::date,
+          $10, $11, $12, $13, $14::jsonb, $15,
+          $16, $17::jsonb, $18::jsonb, $19::timestamptz, $20::timestamptz
         )
         ON CONFLICT (media_type, tmdb_id, language)
         DO UPDATE SET
