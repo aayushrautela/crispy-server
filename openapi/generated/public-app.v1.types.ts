@@ -2674,6 +2674,7 @@ export interface operations {
                 limit?: string;
                 cursor?: string;
                 itemId?: components["schemas"]["PublicItemId"];
+                extended?: true | false;
             };
             header?: never;
             path: {
@@ -2786,6 +2787,7 @@ export interface operations {
                 limit?: string;
                 cursor?: string;
                 itemId?: components["schemas"]["PublicItemId"];
+                extended?: true | false;
             };
             header?: never;
             path: {
@@ -2933,6 +2935,7 @@ export interface operations {
                 limit?: string;
                 cursor?: string;
                 itemId?: components["schemas"]["PublicItemId"];
+                extended?: true | false;
             };
             header?: never;
             path: {
@@ -2964,6 +2967,7 @@ export interface operations {
         parameters: {
             query: {
                 itemId: components["schemas"]["PublicItemId"];
+                extended?: true | false;
             };
             header?: never;
             path: {
@@ -3076,6 +3080,7 @@ export interface operations {
                 limit?: string;
                 cursor?: string;
                 itemId?: components["schemas"]["PublicItemId"];
+                extended?: true | false;
             };
             header?: never;
             path: {

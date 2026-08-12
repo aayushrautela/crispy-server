@@ -709,6 +709,8 @@ export interface components {
             shortCount: number;
             longScore: number;
             longCount: number;
+            shortHistogram?: number[];
+            longHistogram?: number[];
         };
         TastePersonEntry: components["schemas"]["TasteWeightedEntry"] & {
             roles: ("actor" | "director")[];
@@ -718,12 +720,13 @@ export interface components {
         };
         TasteVectors: {
             /** @enum {integer} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             genres: components["schemas"]["TasteWeightedEntry"][];
             tags: components["schemas"]["TasteTagVectorEntry"][];
             people: components["schemas"]["TastePersonEntry"][];
             mood: components["schemas"]["TasteWeightedEntry"][];
             decades: components["schemas"]["TasteWeightedEntry"][];
+            ratingTiers?: components["schemas"]["TasteWeightedEntry"][];
         };
         RecommendationListUpsertRequest: {
             title: string;
@@ -1204,6 +1207,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 cursor?: string;
+                extended?: true | false;
             };
             header: {
                 /** @example Bearer <service-token> */
@@ -1245,6 +1249,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 cursor?: string;
+                extended?: true | false;
             };
             header: {
                 /** @example Bearer <service-token> */
@@ -1286,6 +1291,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 cursor?: string;
+                extended?: true | false;
             };
             header: {
                 /** @example Bearer <service-token> */
@@ -1327,6 +1333,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 cursor?: string;
+                extended?: true | false;
             };
             header: {
                 /** @example Bearer <service-token> */

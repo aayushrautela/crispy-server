@@ -9,6 +9,8 @@ export type TasteWeightedEntry = {
   shortCount: number;
   longScore: number;
   longCount: number;
+  shortHistogram?: number[];
+  longHistogram?: number[];
 };
 
 export type TastePersonEntry = TasteWeightedEntry & {
@@ -20,12 +22,13 @@ export type TasteTagVectorEntry = TasteWeightedEntry & {
 };
 
 export type TasteVectors = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   genres: TasteWeightedEntry[];
   tags: TasteTagVectorEntry[];
   people: TastePersonEntry[];
   mood: TasteWeightedEntry[];
   decades: TasteWeightedEntry[];
+  ratingTiers: TasteWeightedEntry[];
 };
 
 export type TasteProfilePayload = {

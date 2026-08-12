@@ -530,6 +530,8 @@ export const tasteWeightedEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
+    shortHistogram: { type: 'array', items: numberSchema },
+    longHistogram: { type: 'array', items: numberSchema },
   },
 } as const;
 
@@ -566,12 +568,13 @@ export const tasteVectorsSchema = {
   additionalProperties: false,
   required: ['schemaVersion', 'genres', 'tags', 'people', 'mood', 'decades'],
   properties: {
-    schemaVersion: { type: 'integer', enum: [1] },
+    schemaVersion: { type: 'integer', enum: [2] },
     genres: { type: 'array', items: tasteWeightedEntrySchema },
     tags: { type: 'array', items: tasteTagVectorEntrySchema },
     people: { type: 'array', items: tastePersonEntrySchema },
     mood: { type: 'array', items: tasteWeightedEntrySchema },
     decades: { type: 'array', items: tasteWeightedEntrySchema },
+    ratingTiers: { type: 'array', items: tasteWeightedEntrySchema },
   },
 } as const;
 
@@ -644,6 +647,8 @@ export type TasteWeightedEntry = {
   shortCount: number;
   longScore: number;
   longCount: number;
+  shortHistogram?: number[];
+  longHistogram?: number[];
 };
 
 export type TastePersonEntry = TasteWeightedEntry & {
@@ -655,12 +660,13 @@ export type TasteTagVectorEntry = TasteWeightedEntry & {
 };
 
 export type TasteVectors = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   genres: TasteWeightedEntry[];
   tags: TasteTagVectorEntry[];
   people: TastePersonEntry[];
   mood: TasteWeightedEntry[];
   decades: TasteWeightedEntry[];
+  ratingTiers: TasteWeightedEntry[];
 };
 
 export type TasteProfileWriteBody = {
