@@ -57,6 +57,7 @@ export type MetadataCardView = {
   subtitle: string | null;
   summary: string | null;
   overview: string | null;
+  tagline: string | null;
   artwork: MetadataArtwork;
   images: MetadataImages;
   releaseDate: string | null;

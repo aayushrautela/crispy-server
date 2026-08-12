@@ -124,6 +124,7 @@ export function buildMetadataCardView(params: {
     subtitle,
     summary: currentEpisode?.overview ?? title?.overview ?? null,
     overview: currentEpisode?.overview ?? title?.overview ?? null,
+    tagline: title?.tagline ?? (typeof title?.raw?.tagline === 'string' ? title.raw.tagline : null),
     artwork,
     images,
     releaseDate,

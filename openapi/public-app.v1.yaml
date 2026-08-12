@@ -3509,7 +3509,7 @@ components:
     ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
+      required: [itemId, mediaType, title, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
       properties:
         itemId:
           $ref: "#/components/schemas/PublicItemId"
@@ -3518,10 +3518,6 @@ components:
           enum: [movie, tv, season, episode]
         title:
           type: string
-        subtitle:
-          anyOf:
-            - type: string
-            - type: "null"
         overview:
           anyOf:
             - type: string

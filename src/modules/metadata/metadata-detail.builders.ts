@@ -64,6 +64,7 @@ export function buildEpisodeBaseItemDto(
     subtitle: title.name ?? title.originalName,
     summary: preview.summary,
     overview: preview.summary,
+    tagline: title.tagline ?? (typeof title.raw?.tagline === 'string' ? title.raw.tagline : null),
     artwork: { poster: images.poster, backdrop: images.backdrop, still: images.still },
     images,
     releaseDate: preview.airDate,

@@ -13,6 +13,7 @@ function makeTitle(overrides: Partial<TmdbTitleRecord> = {}): TmdbTitleRecord {
     name: 'Example Title',
     originalName: 'Example Title',
     overview: null,
+    tagline: null,
     releaseDate: '2020-01-01',
     firstAirDate: null,
     status: null,

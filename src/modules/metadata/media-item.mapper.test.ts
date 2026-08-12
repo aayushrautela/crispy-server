@@ -21,6 +21,7 @@ const baseCard: MetadataCardView = {
   subtitle: null,
   summary: 'Summary',
   overview: null,
+  tagline: null,
   artwork: {
     poster: imageSet('poster.jpg'),
     backdrop: imageSet('backdrop.jpg'),

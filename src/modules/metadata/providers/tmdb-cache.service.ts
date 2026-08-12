@@ -29,6 +29,7 @@ type SearchPayloadItem = {
   poster_path?: unknown;
   backdrop_path?: unknown;
   status?: unknown;
+  tagline?: unknown;
 };
 
 function searchRank(query: string, candidate: string | null): number {
@@ -73,6 +74,7 @@ function toSearchTitleRecord(mediaType: TmdbTitleType, item: SearchPayloadItem, 
     name: toNullableString(item.title) ?? toNullableString(item.name),
     originalName: toNullableString(item.original_title) ?? toNullableString(item.original_name),
     overview: toNullableString(item.overview),
+    tagline: toNullableString(item.tagline),
     releaseDate: toNullableString(item.release_date),
     firstAirDate: toNullableString(item.first_air_date),
     status: toNullableString(item.status),
@@ -260,6 +262,7 @@ export class TmdbCacheService {
       name: toNullableString(title.title) ?? toNullableString(title.name),
       originalName: toNullableString(title.original_title) ?? toNullableString(title.original_name),
       overview: toNullableString(title.overview),
+      tagline: toNullableString(title.tagline),
       releaseDate: toNullableString(title.release_date),
       firstAirDate: toNullableString(title.first_air_date),
       status: toNullableString(title.status),

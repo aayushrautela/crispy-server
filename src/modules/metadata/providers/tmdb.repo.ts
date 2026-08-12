@@ -10,6 +10,7 @@ function mapTitle(row: Record<string, unknown>): TmdbTitleRecord {
     name: typeof row.name === 'string' ? row.name : null,
     originalName: typeof row.original_name === 'string' ? row.original_name : null,
     overview: typeof row.overview === 'string' ? row.overview : null,
+    tagline: typeof row.tagline === 'string' ? row.tagline : null,
     releaseDate: normalizeDateOnlyString(row.release_date as Date | string | null | undefined),
     firstAirDate: normalizeDateOnlyString(row.first_air_date as Date | string | null | undefined),
     status: typeof row.status === 'string' ? row.status : null,
@@ -63,7 +64,7 @@ export class TmdbRepository {
   async searchTitles(client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[]): Promise<TmdbTitleRecord[]> {
     const result = await client.query(
       `
-        SELECT media_type, tmdb_id, name, original_name, overview, release_date, first_air_date, status,
+        SELECT media_type, tmdb_id, name, original_name, overview, tagline, release_date, first_air_date, status,
                poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
                external_ids, raw, fetched_at, expires_at,
                CASE
@@ -91,7 +92,7 @@ export class TmdbRepository {
   async getTitle(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string): Promise<TmdbTitleRecord | null> {
     const result = await client.query(
       `
-        SELECT media_type, tmdb_id, language, name, original_name, overview, release_date, first_air_date, status,
+        SELECT media_type, tmdb_id, language, name, original_name, overview, tagline, release_date, first_air_date, status,
                poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
                external_ids, raw, fetched_at, expires_at
         FROM tmdb_titles
@@ -106,7 +107,7 @@ export class TmdbRepository {
     await client.query(
       `
         INSERT INTO tmdb_titles (
-          media_type, tmdb_id, language, name, original_name, overview, release_date, first_air_date, status,
+          media_type, tmdb_id, language, name, original_name, overview, tagline, release_date, first_air_date, status,
           poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
           external_ids, raw, fetched_at, expires_at
         )
@@ -120,6 +121,7 @@ export class TmdbRepository {
           name = EXCLUDED.name,
           original_name = EXCLUDED.original_name,
           overview = EXCLUDED.overview,
+          tagline = EXCLUDED.tagline,
           release_date = EXCLUDED.release_date,
           first_air_date = EXCLUDED.first_air_date,
           status = EXCLUDED.status,
@@ -141,6 +143,7 @@ export class TmdbRepository {
         record.name,
         record.originalName,
         record.overview,
+        record.tagline,
         record.releaseDate,
         record.firstAirDate,
         record.status,
@@ -198,7 +201,7 @@ export class TmdbRepository {
     });
 
     const result = await client.query(
-      `SELECT media_type, tmdb_id, language, name, original_name, overview, release_date, first_air_date, status,
+       `SELECT media_type, tmdb_id, language, name, original_name, overview, tagline, release_date, first_air_date, status,
               poster_path, backdrop_path, runtime, episode_run_time, number_of_seasons, number_of_episodes,
               external_ids, raw, fetched_at, expires_at
        FROM tmdb_titles

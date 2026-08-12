@@ -8,6 +8,7 @@ export type TmdbTitleRecord = {
   name: string | null;
   originalName: string | null;
   overview: string | null;
+  tagline: string | null;
   releaseDate: string | null;
   firstAirDate: string | null;
   status: string | null;

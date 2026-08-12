@@ -1153,7 +1153,6 @@ export interface components {
             /** @enum {string} */
             mediaType: "movie" | "tv" | "season" | "episode";
             title: string;
-            subtitle: string | null;
             overview: string | null;
             year: number | null;
             releaseDate: string | null;
