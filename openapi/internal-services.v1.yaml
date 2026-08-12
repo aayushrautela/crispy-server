@@ -1501,9 +1501,9 @@ components:
     TasteVectors:
       type: object
       additionalProperties: false
-      required: [schemaVersion, genres, tags, people, mood, decades]
+      required: [schemaVersion, genres, tags, people, mood, decades, languages]
       properties:
-        schemaVersion: { type: integer, enum: [2] }
+        schemaVersion: { type: integer, enum: [2, 3] }
         genres:
           type: array
           items: { $ref: '#/components/schemas/TasteWeightedEntry' }
@@ -1522,6 +1522,19 @@ components:
         ratingTiers:
           type: array
           items: { $ref: '#/components/schemas/TasteWeightedEntry' }
+        languages:
+          type: array
+          items: { $ref: '#/components/schemas/TasteLanguageEntry' }
+    TasteLanguageEntry:
+      type: object
+      additionalProperties: false
+      required: [code, shortMovie, shortShow, longMovie, longShow]
+      properties:
+        code: { type: string, minLength: 1 }
+        shortMovie: { type: number }
+        shortShow: { type: number }
+        longMovie: { type: number }
+        longShow: { type: number }
     RecommendationListUpsertRequest:
       type: object
       additionalProperties: false

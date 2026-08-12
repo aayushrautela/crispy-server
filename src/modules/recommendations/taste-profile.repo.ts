@@ -25,7 +25,7 @@ function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {
     watchingPace: typeof row.watching_pace === 'string' ? row.watching_pace : null,
     aiSummary: typeof row.ai_summary === 'string' ? row.ai_summary : null,
     source: String(row.source),
-    vectors: isRecord(row.vectors) && Object.keys(row.vectors).length > 0 ? row.vectors as TasteVectors : { schemaVersion: 2, genres: [], tags: [], people: [], mood: [], decades: [], ratingTiers: [] },
+    vectors: isRecord(row.vectors) && Object.keys(row.vectors).length > 0 ? row.vectors as TasteVectors : { schemaVersion: 3, genres: [], tags: [], people: [], mood: [], decades: [], ratingTiers: [], languages: [] },
     version: Number(row.version),
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'taste_profiles.created_at'),
     updatedAt: requireDbIsoString(row.updated_at as Date | string | null | undefined, 'taste_profiles.updated_at'),
@@ -115,7 +115,7 @@ export class TasteProfileRepository {
         params.watchingPace ?? null,
         params.aiSummary ?? null,
         params.source,
-        JSON.stringify(params.vectors ?? { schemaVersion: 2, genres: [], tags: [], people: [], mood: [], decades: [], ratingTiers: [] }),
+        JSON.stringify(params.vectors ?? { schemaVersion: 3, genres: [], tags: [], people: [], mood: [], decades: [], ratingTiers: [], languages: [] }),
       ],
     );
 

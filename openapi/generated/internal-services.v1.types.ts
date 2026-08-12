@@ -720,13 +720,21 @@ export interface components {
         };
         TasteVectors: {
             /** @enum {integer} */
-            schemaVersion: 2;
+            schemaVersion: 2 | 3;
             genres: components["schemas"]["TasteWeightedEntry"][];
             tags: components["schemas"]["TasteTagVectorEntry"][];
             people: components["schemas"]["TastePersonEntry"][];
             mood: components["schemas"]["TasteWeightedEntry"][];
             decades: components["schemas"]["TasteWeightedEntry"][];
             ratingTiers?: components["schemas"]["TasteWeightedEntry"][];
+            languages: components["schemas"]["TasteLanguageEntry"][];
+        };
+        TasteLanguageEntry: {
+            code: string;
+            shortMovie: number;
+            shortShow: number;
+            longMovie: number;
+            longShow: number;
         };
         RecommendationListUpsertRequest: {
             title: string;

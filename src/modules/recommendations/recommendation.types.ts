@@ -21,14 +21,23 @@ export type TasteTagVectorEntry = TasteWeightedEntry & {
   connections?: TasteTagConnection[];
 };
 
+export type TasteLanguageEntry = {
+  code: string;
+  shortMovie: number;
+  shortShow: number;
+  longMovie: number;
+  longShow: number;
+};
+
 export type TasteVectors = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   genres: TasteWeightedEntry[];
   tags: TasteTagVectorEntry[];
   people: TastePersonEntry[];
   mood: TasteWeightedEntry[];
   decades: TasteWeightedEntry[];
   ratingTiers: TasteWeightedEntry[];
+  languages: TasteLanguageEntry[];
 };
 
 export type TasteProfilePayload = {

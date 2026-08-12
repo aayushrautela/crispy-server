@@ -567,18 +567,32 @@ export const tasteTagVectorEntrySchema = {
   },
 } as const;
 
+export const tasteLanguageEntrySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['code', 'shortMovie', 'shortShow', 'longMovie', 'longShow'],
+  properties: {
+    code: nonEmptyStringSchema,
+    shortMovie: numberSchema,
+    shortShow: numberSchema,
+    longMovie: numberSchema,
+    longShow: numberSchema,
+  },
+} as const;
+
 export const tasteVectorsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['schemaVersion', 'genres', 'tags', 'people', 'mood', 'decades'],
+  required: ['schemaVersion', 'genres', 'tags', 'people', 'mood', 'decades', 'languages'],
   properties: {
-    schemaVersion: { type: 'integer', enum: [2] },
+    schemaVersion: { type: 'integer', enum: [2, 3] },
     genres: { type: 'array', items: tasteWeightedEntrySchema },
     tags: { type: 'array', items: tasteTagVectorEntrySchema },
     people: { type: 'array', items: tastePersonEntrySchema },
     mood: { type: 'array', items: tasteWeightedEntrySchema },
     decades: { type: 'array', items: tasteWeightedEntrySchema },
     ratingTiers: { type: 'array', items: tasteWeightedEntrySchema },
+    languages: { type: 'array', items: tasteLanguageEntrySchema },
   },
 } as const;
 
@@ -663,14 +677,23 @@ export type TasteTagVectorEntry = TasteWeightedEntry & {
   connections?: TasteTagConnection[];
 };
 
+export type TasteLanguageEntry = {
+  code: string;
+  shortMovie: number;
+  shortShow: number;
+  longMovie: number;
+  longShow: number;
+};
+
 export type TasteVectors = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   genres: TasteWeightedEntry[];
   tags: TasteTagVectorEntry[];
   people: TastePersonEntry[];
   mood: TasteWeightedEntry[];
   decades: TasteWeightedEntry[];
   ratingTiers: TasteWeightedEntry[];
+  languages: TasteLanguageEntry[];
 };
 
 export type TasteProfileWriteBody = {
