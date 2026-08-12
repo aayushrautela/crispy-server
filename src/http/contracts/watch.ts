@@ -26,10 +26,12 @@ export type WatchPaginationQuery = {
   limit?: number | string;
   cursor?: string;
   itemId?: string;
+  extended?: string;
 };
 
 export type WatchStateLookupContract = {
   itemId?: string;
+  extended?: string;
 };
 
 export type WatchEventBody = {
@@ -63,6 +65,7 @@ const watchListRouteSchema = withDefaultErrorResponses({
       limit: positiveIntegerLikeSchema,
       cursor: stringSchema,
       itemId: publicItemIdSchema,
+      extended: { type: 'string', enum: ['true', 'false'] },
     },
   },
 });
@@ -99,6 +102,7 @@ export const historyListRouteSchema = withDefaultErrorResponses({
       limit: positiveIntegerLikeSchema,
       cursor: stringSchema,
       itemId: publicItemIdSchema,
+      extended: { type: 'string', enum: ['true', 'false'] },
     },
   },
   response: {
@@ -147,6 +151,7 @@ export const watchStateRouteSchema = withDefaultErrorResponses({
     required: ['itemId'],
     properties: {
       itemId: publicItemIdSchema,
+      extended: { type: 'string', enum: ['true', 'false'] },
     },
   },
   response: {

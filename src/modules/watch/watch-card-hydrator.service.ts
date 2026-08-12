@@ -14,13 +14,17 @@ export class WatchCardHydrator {
     this.metadataCardService = metadataCardService;
   }
 
-  async hydrateItems(client: DbClient, items: BaseItemDto[], language?: string | null): Promise<ClientMediaCard[]> {
+  async hydrateItems(client: DbClient, items: BaseItemDto[], language?: string | null, extended = true): Promise<ClientMediaCard[]> {
     if (items.length === 0) return [];
 
     const resolved = items
       .map((item) => ({ item, identity: identityFromBaseItemDto(item) }))
       .filter((entry): entry is { item: BaseItemDto; identity: MediaIdentity } => entry.identity !== null);
     if (resolved.length === 0) return [];
+
+    if (!extended) {
+      return resolved.map(({ item, identity }) => this.toLightweightCard(item, identity));
+    }
 
     const views = await this.metadataCardService.buildCardViews(client, resolved.map((entry) => entry.identity), language ?? null);
 
@@ -33,6 +37,26 @@ export class WatchCardHydrator {
       if (card) cards.push(card);
     }
     return cards;
+  }
+
+  private toLightweightCard(item: BaseItemDto, identity: MediaIdentity): ClientMediaCard {
+    return {
+      itemId: item.Id,
+      mediaType: toClientMediaType(identity.mediaType),
+      title: item.Name,
+      overview: null,
+      year: null,
+      releaseDate: null,
+      rating: null,
+      maturityRating: null,
+      genres: [],
+      runtimeSeconds: null,
+      images: { poster: null, backdrop: null, logo: null, still: null },
+      trailerUrl: null,
+      progress: progressFromUserData(item.UserData),
+      parent: null,
+      providerIds: providerIdsFromBaseItem(item.ProviderIds),
+    };
   }
 
   private toClientMediaCard(item: BaseItemDto, cardView: MetadataCardView): ClientMediaCard | null {

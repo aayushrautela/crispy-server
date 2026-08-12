@@ -96,7 +96,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchCardHydrator.hydrateItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language, query.extended === 'true'),
       )
       : page.items;
     return success({
@@ -146,7 +146,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchCardHydrator.hydrateItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language, query.extended === 'true'),
       )
       : page.items;
     return success({
@@ -174,7 +174,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchCardHydrator.hydrateItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language, query.extended === 'true'),
       )
       : page.items;
     return success({
@@ -202,7 +202,7 @@ export async function registerWatchRoutes(
     });
     const enrichedItems = page.items.length
       ? await withDbClient((client) =>
-        watchCardHydrator.hydrateItems(client, page.items, language),
+        watchCardHydrator.hydrateItems(client, page.items, language, query.extended === 'true'),
       )
       : page.items;
     return success({
@@ -228,7 +228,7 @@ export async function registerWatchRoutes(
       itemIds: [itemId],
     });
     const enrichedItem = await withDbClient((client) =>
-      watchCardHydrator.hydrateItems(client, [item], language),
+      watchCardHydrator.hydrateItems(client, [item], language, query.extended === 'true'),
     );
     return success(enrichedItem[0]);
   });
@@ -249,7 +249,7 @@ export async function registerWatchRoutes(
       itemIds,
     });
     const enrichedItems = await withDbClient((client) =>
-      watchCardHydrator.hydrateItems(client, stateItems, language),
+      watchCardHydrator.hydrateItems(client, stateItems, language, true),
     );
     return success({ items: enrichedItems });
   });

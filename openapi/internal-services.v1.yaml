@@ -227,6 +227,9 @@ paths:
         - name: cursor
           in: query
           schema: { type: string }
+        - name: extended
+          in: query
+          schema: { type: string, enum: [true, false] }
       responses:
         '200':
           description: Watch history page (ClientMediaCard query result envelope, shared with public app).
@@ -255,10 +258,13 @@ paths:
         - $ref: '#/components/parameters/CorrelationId'
         - name: limit
           in: query
-          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
         - name: cursor
           in: query
           schema: { type: string }
+        - name: extended
+          in: query
+          schema: { type: string, enum: [true, false] }
       responses:
         '200':
           description: Ratings page.
@@ -291,6 +297,9 @@ paths:
         - name: cursor
           in: query
           schema: { type: string }
+        - name: extended
+          in: query
+          schema: { type: string, enum: [true, false] }
       responses:
         '200':
           description: Watchlist page.
@@ -323,6 +332,9 @@ paths:
         - name: cursor
           in: query
           schema: { type: string }
+        - name: extended
+          in: query
+          schema: { type: string, enum: [true, false] }
       responses:
         '200':
           description: Continue-watching page.

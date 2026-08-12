@@ -256,7 +256,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/history', { schema: profileSignalReadRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
+    const query = request.query as { limit?: string; cursor?: string; extended?: string };
     if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
@@ -268,7 +268,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
@@ -276,7 +276,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/ratings', { schema: profileSignalReadRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
+    const query = request.query as { limit?: string; cursor?: string; extended?: string };
     if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
@@ -288,7 +288,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
@@ -296,7 +296,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/watchlist', { schema: profileSignalReadRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
+    const query = request.query as { limit?: string; cursor?: string; extended?: string };
     if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
@@ -308,7 +308,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
@@ -316,7 +316,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
   app.get('/internal/apps/v1/accounts/:accountId/profiles/:profileId/signals/watch/continue-watching', { schema: profileSignalReadRouteSchema }, async (request) => {
     const principal = await app.requireRecommenderAuth(request);
     const params = request.params as { accountId: string; profileId: string };
-    const query = request.query as { limit?: string; cursor?: string };
+    const query = request.query as { limit?: string; cursor?: string; extended?: string };
     if (!hasScopedAllAccountAccess(principal, 'accounts:all:read')) {
       await profileService.requireOwnedProfile(params.accountId, params.profileId);
     }
@@ -328,7 +328,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items))
+      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });

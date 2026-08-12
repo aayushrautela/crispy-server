@@ -447,6 +447,7 @@ export const profileSignalReadQuerySchema = {
   properties: {
     limit: stringSchema,
     cursor: stringSchema,
+    extended: { type: 'string', enum: ['true', 'false'] },
   },
 } as const;
 

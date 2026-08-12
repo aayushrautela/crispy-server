@@ -1728,6 +1728,12 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/PublicItemId"
+        - name: extended
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
       responses:
         "200":
           description: Successful response.
@@ -1895,6 +1901,12 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/PublicItemId"
+        - name: extended
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
       responses:
         "200":
           description: Successful response.
@@ -2112,6 +2124,12 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/PublicItemId"
+        - name: extended
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
       responses:
         "200":
           description: Successful response.
@@ -2154,6 +2172,12 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/PublicItemId"
+        - name: extended
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
       responses:
         "200":
           description: Successful response.
@@ -2323,6 +2347,12 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/PublicItemId"
+        - name: extended
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
       responses:
         "200":
           description: Successful response.

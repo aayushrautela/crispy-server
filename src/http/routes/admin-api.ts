@@ -197,7 +197,7 @@ export async function registerAdminApiRoutes(
       });
       return {
         ...result,
-        items: await watchCardHydrator.hydrateItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items, undefined, true),
       };
     });
     return success({
@@ -223,7 +223,7 @@ export async function registerAdminApiRoutes(
       });
       return {
         ...result,
-        items: await watchCardHydrator.hydrateItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items, undefined, true),
       };
     });
     return success({
@@ -249,7 +249,7 @@ export async function registerAdminApiRoutes(
       });
       return {
         ...result,
-        items: await watchCardHydrator.hydrateItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items, undefined, true),
       };
     });
     return success({
@@ -275,7 +275,7 @@ export async function registerAdminApiRoutes(
       });
       return {
         ...result,
-        items: await watchCardHydrator.hydrateItems(client, result.items),
+        items: await watchCardHydrator.hydrateItems(client, result.items, undefined, true),
       };
     });
     return success({
