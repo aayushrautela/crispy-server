@@ -1021,14 +1021,13 @@ components:
     ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [itemId, mediaType, title, subtitle, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
+      required: [itemId, mediaType, title, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
       properties:
         itemId: { $ref: '#/components/schemas/PublicItemId' }
         mediaType:
           type: string
           enum: [movie, tv, season, episode]
         title: { type: string }
-        subtitle: { type: [string, 'null'] }
         overview: { type: [string, 'null'] }
         year: { type: [integer, 'null'] }
         releaseDate: { type: [string, 'null'] }
