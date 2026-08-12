@@ -14,6 +14,7 @@ import {
 } from './watch-read.mapper.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { inferMediaIdentity, showTmdbIdForIdentity } from '../identity/media-key.js';
+import { publishWatchChanged } from '../watch/watch-change.publisher.js';
 
 /** Events that assert a title was watched. */
 export const WATCHED_EVENT_TYPES = ['playback_completed', 'marked_watched'] as const;
@@ -509,6 +510,10 @@ export class LocalUserWatchService {
         );
       }
     });
+
+    await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', {
+      force: params.eventKind === 'playback_completed',
+    });
   }
 
   static isBelowCompletionThreshold(progressBps: number | null): boolean {
@@ -601,6 +606,8 @@ export class LocalUserWatchService {
        WHERE profile_id = $1::uuid AND title_item_id = $2::uuid AND playable_item_id = $3::uuid`,
       [params.profileId, params.titleItemId, params.playableItemId],
     );
+
+    await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
   }
 
   async setListItem(params: SetListItemParams): Promise<void> {

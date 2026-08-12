@@ -182,6 +182,24 @@ Rules:
 - episodic follow tracks shows only
 - watched-title expansion uses TMDB episode listings, not removed provider-context episode bundles
 
+### Real-time continue-watching sync
+
+Continue-watching is cross-device: a user may watch on one client (e.g. TV) and expect the
+row to update on another (e.g. phone/web). Watch-state writes are the source of truth; clients
+are notified via a push invalidation channel, not polling.
+
+- The canonical writers `LocalUserWatchService.recordPlaybackState` and `dismissContinueWatching`
+  publish a lightweight invalidation (never the payload) over Redis pub/sub channel `cw:{accountId}`
+  after their DB commit, via `modules/watch/watch-change.publisher.ts`.
+- Progress ticks are debounced per profile (`cw-dirty:{accountId}:{profileId}`, ~5s window) so a
+  long playback session cannot flood Redis; `playback_completed` and dismiss bypass the debounce.
+- `GET /v1/profiles/:profileId/watch/stream` is an SSE endpoint sharing the same auth +
+  profile-unlock guard as the other watch routes. It subscribes (per-account, only while a client
+  is connected) to `cw:{accountId}`, filters by `profileId`, heartbeats every 30s, enforces a
+  per-profile connection cap, and cleans up on disconnect. The client refetches the
+  continue-watching page on each `watch_changed` event; the DB remains authoritative, so a missed
+  event during disconnect is self-healing on reconnect.
+
 ## Import Model
 
 Trakt and Simkl are source systems.

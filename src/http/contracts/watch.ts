@@ -233,3 +233,7 @@ export const watchItemIdMutationRouteSchema = withDefaultErrorResponses({
 export const watchItemIdParamsRouteSchema = withDefaultErrorResponses({
   params: profileIdAndItemIdParamsSchema,
 });
+
+export const watchStreamRouteSchema = withDefaultErrorResponses({
+  params: profileIdParamsSchema,
+});

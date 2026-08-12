@@ -10,6 +10,7 @@ import {
   watchMutationRouteSchema,
   watchStateRouteSchema,
   watchStatesRouteSchema,
+  watchStreamRouteSchema,
   watchlistListRouteSchema,
   type WatchContinueWatchingDismissParams,
   type WatchEventBody,
@@ -28,11 +29,33 @@ import { assertPublicItemId, decodePublicItemId } from '../../modules/identity/p
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
 import { requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
+import { redis } from '../../lib/redis.js';
 
 export interface WatchRoutesDeps {
   profilePinService?: {
     hasPin(profileId: string): Promise<boolean>;
   };
+}
+
+const MAX_WATCH_STREAMS_PER_PROFILE = 5;
+const activeWatchStreams = new Map<string, number>();
+
+function acquireWatchStream(streamKey: string): boolean {
+  const current = activeWatchStreams.get(streamKey) ?? 0;
+  if (current >= MAX_WATCH_STREAMS_PER_PROFILE) {
+    return false;
+  }
+  activeWatchStreams.set(streamKey, current + 1);
+  return true;
+}
+
+function releaseWatchStream(streamKey: string): void {
+  const current = activeWatchStreams.get(streamKey) ?? 0;
+  if (current <= 1) {
+    activeWatchStreams.delete(streamKey);
+  } else {
+    activeWatchStreams.set(streamKey, current - 1);
+  }
 }
 
 export async function registerWatchRoutes(
@@ -379,6 +402,65 @@ export async function registerWatchRoutes(
       itemId,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
+  });
+
+  app.get('/v1/profiles/:profileId/watch/stream', { schema: watchStreamRouteSchema }, async (request, reply) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserSessionActor(request);
+    const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
+    const accountId = actor.authSubject!;
+    const streamKey = `${accountId}:${profileId}`;
+
+    if (!acquireWatchStream(streamKey)) {
+      return reply.code(429).send({ error: 'too_many_connections', retry_after_ms: 1000 });
+    }
+
+    reply.hijack();
+    const raw = reply.raw;
+    raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    raw.write('retry: 3000\n\n');
+
+    const channel = `cw:${accountId}`;
+    const subscriber = redis.duplicate();
+    let closed = false;
+
+    const heartbeat = setInterval(() => {
+      if (closed) return;
+      raw.write(': ping\n\n');
+    }, 30000);
+
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      subscriber.unsubscribe(channel).catch(() => {});
+      subscriber.quit().catch(() => {});
+      releaseWatchStream(streamKey);
+    };
+
+    await subscriber.subscribe(channel);
+    subscriber.on('message', (...args: unknown[]) => {
+      if (closed) return;
+      const message = typeof args[1] === 'string' ? args[1] : '';
+      try {
+        const parsed = JSON.parse(message) as { profileId?: string; kind?: string; at_ms?: number };
+        if (parsed.profileId !== profileId) return;
+        const id = String(parsed.at_ms ?? Date.now());
+        const data = JSON.stringify({ profileId: parsed.profileId, kind: parsed.kind, at_ms: parsed.at_ms });
+        raw.write(`id: ${id}\nevent: watch_changed\ndata: ${data}\n\n`);
+      } catch {
+        // ignore malformed messages
+      }
+    });
+
+    request.raw.on('close', finish);
+    raw.on('close', finish);
   });
 }
 

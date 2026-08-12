@@ -1870,6 +1870,43 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/stream:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchStream
+      summary: Server-sent stream of continue-watching invalidations for cross-device sync.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: >
+            Server-Sent Events stream. Each event is `event: watch_changed` with a
+            `data` JSON payload `{ profileId, kind, at_ms }`. The connection is
+            debounced server-side; clients refetch the continue-watching page on
+            receipt. Heartbeats are sent as comment lines (`: ping`).
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/ProfileLocked"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/watch/history:
     get:
       tags:

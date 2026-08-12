@@ -5,12 +5,17 @@ type RedisValue = string | number;
 
 type RedisLike = {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string, ...args: RedisValue[]): Promise<'OK'>;
+  set(key: string, value: string, ...args: RedisValue[]): Promise<'OK' | null>;
   del(...keys: string[]): Promise<number>;
   sadd(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
   eval(script: string, numKeys: number, ...args: string[]): Promise<number | null>;
   scan(cursor: number | string, ...args: RedisValue[]): Promise<[string, string[]]>;
+  publish(channel: string, message: string): Promise<number>;
+  subscribe(...channels: string[]): Promise<unknown>;
+  unsubscribe(...channels: string[]): Promise<unknown>;
+  duplicate(): RedisLike;
+  quit(): Promise<void>;
   disconnect(): void;
   on(event: string, listener: (...args: unknown[]) => void): RedisLike;
 };
@@ -29,9 +34,29 @@ class TestRedis implements RedisLike {
     return this.kv.get(key) ?? null;
   }
 
-  async set(key: string, value: string, ..._args: unknown[]): Promise<'OK'> {
+  async set(key: string, value: string, ..._args: unknown[]): Promise<'OK' | null> {
     this.kv.set(key, value);
     return 'OK';
+  }
+
+  async publish(_channel: string, _message: string): Promise<number> {
+    return 0;
+  }
+
+  async subscribe(..._channels: string[]): Promise<unknown> {
+    return 0;
+  }
+
+  async unsubscribe(..._channels: string[]): Promise<unknown> {
+    return 0;
+  }
+
+  duplicate(): RedisLike {
+    return new TestRedis();
+  }
+
+  async quit(): Promise<void> {
+    this.disconnect();
   }
 
   async del(...keys: string[]): Promise<number> {
