@@ -136,7 +136,7 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
     appAuditRepo: authDeps.appAuditRepo,
     clock: authDeps.clock,
     maxProfilesPerBatch: 100,
-    maxListsPerProfile: 10,
+    maxListsPerProfile: 50,
   });
   const recommendationRunRepo = new SqlRecommendationRunRepo({ db });
   const recommendationRunService = new DefaultRecommendationRunService({
