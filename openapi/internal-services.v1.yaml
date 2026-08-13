@@ -1489,6 +1489,7 @@ components:
             roles:
               type: array
               items: { type: string, enum: [actor, director] }
+            popularity: { type: number }
     TasteTagVectorEntry:
       allOf:
         - $ref: '#/components/schemas/TasteWeightedEntry'
@@ -1503,7 +1504,7 @@ components:
       additionalProperties: false
       required: [schemaVersion, genres, tags, people, mood, decades, languages]
       properties:
-        schemaVersion: { type: integer, enum: [2, 3] }
+        schemaVersion: { type: integer, enum: [2, 3, 4] }
         genres:
           type: array
           items: { $ref: '#/components/schemas/TasteWeightedEntry' }

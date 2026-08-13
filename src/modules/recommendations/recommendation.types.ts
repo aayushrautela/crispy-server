@@ -15,6 +15,7 @@ export type TasteWeightedEntry = {
 
 export type TastePersonEntry = TasteWeightedEntry & {
   roles: ('actor' | 'director')[];
+  popularity?: number;
 };
 
 export type TasteTagVectorEntry = TasteWeightedEntry & {
@@ -30,7 +31,7 @@ export type TasteLanguageEntry = {
 };
 
 export type TasteVectors = {
-  schemaVersion: 3;
+  schemaVersion: 3 | 4;
   genres: TasteWeightedEntry[];
   tags: TasteTagVectorEntry[];
   people: TastePersonEntry[];

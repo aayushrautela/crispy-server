@@ -548,6 +548,7 @@ export const tastePersonEntrySchema = {
     shortHistogram: { type: 'array', items: numberSchema },
     longHistogram: { type: 'array', items: numberSchema },
     roles: { type: 'array', items: { type: 'string', enum: ['actor', 'director'] } },
+    popularity: numberSchema,
   },
 } as const;
 
@@ -585,7 +586,7 @@ export const tasteVectorsSchema = {
   additionalProperties: false,
   required: ['schemaVersion', 'genres', 'tags', 'people', 'mood', 'decades', 'languages'],
   properties: {
-    schemaVersion: { type: 'integer', enum: [2, 3] },
+    schemaVersion: { type: 'integer', enum: [2, 3, 4] },
     genres: { type: 'array', items: tasteWeightedEntrySchema },
     tags: { type: 'array', items: tasteTagVectorEntrySchema },
     people: { type: 'array', items: tastePersonEntrySchema },
@@ -671,6 +672,7 @@ export type TasteWeightedEntry = {
 
 export type TastePersonEntry = TasteWeightedEntry & {
   roles: ('actor' | 'director')[];
+  popularity?: number;
 };
 
 export type TasteTagVectorEntry = TasteWeightedEntry & {

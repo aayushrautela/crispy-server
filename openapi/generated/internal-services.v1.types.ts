@@ -714,13 +714,14 @@ export interface components {
         };
         TastePersonEntry: components["schemas"]["TasteWeightedEntry"] & {
             roles: ("actor" | "director")[];
+            popularity?: number;
         };
         TasteTagVectorEntry: components["schemas"]["TasteWeightedEntry"] & {
             connections?: components["schemas"]["TasteTagConnection"][];
         };
         TasteVectors: {
             /** @enum {integer} */
-            schemaVersion: 2 | 3;
+            schemaVersion: 2 | 3 | 4;
             genres: components["schemas"]["TasteWeightedEntry"][];
             tags: components["schemas"]["TasteTagVectorEntry"][];
             people: components["schemas"]["TastePersonEntry"][];
