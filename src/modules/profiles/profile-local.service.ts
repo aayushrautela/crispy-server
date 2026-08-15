@@ -1,5 +1,5 @@
 import { HttpError } from '../../lib/errors.js';
-import { withDbClient } from '../../lib/db.js';
+import { withDbClient, withTransaction } from '../../lib/db.js';
 import { normalizeLanguageCode } from '../i18n/supported-languages.js';
 import { normalizeCountryCode } from '../i18n/supported-countries.js';
 import { validateAvatarId } from './avatars.js';
@@ -80,7 +80,7 @@ function mapRow(row: Record<string, unknown>): ProfileRecord {
   };
 }
 
-function normalizeRequiredAvatar(value: unknown): string {
+export function normalizeRequiredAvatar(value: unknown): string {
   const result = validateAvatarId(value);
   if (!result.ok) {
     throw new HttpError(400, result.reason);
@@ -88,7 +88,7 @@ function normalizeRequiredAvatar(value: unknown): string {
   return result.id;
 }
 
-function normalizeRequiredName(value: unknown): string {
+export function normalizeRequiredName(value: unknown): string {
   const name = typeof value === 'string' ? value.trim() : '';
   if (!name) {
     throw new HttpError(400, 'Profile name is required.');
@@ -224,6 +224,95 @@ export class ProfileLocalService {
       );
 
       return mapRow(profile);
+    });
+  }
+
+  /**
+   * Idempotently create the account's first (primary) profile during onboarding.
+   *
+   * The primary profile is always the account admin and is never a kids
+   * profile: those invariants are enforced here (not by the caller) so a
+   * partially-onboarded account can never end up without an admin, or with a
+   * kids primary profile.
+   *
+   * If the account already has at least one live profile (a retried bootstrap,
+   * or a profile created through another path), the existing profile is
+   * returned instead of creating a duplicate. This makes the endpoint safe to
+   * call more than once (network retry, double-submit, back/forward nav).
+   *
+   * Race-safety is provided by two layers:
+   *  1. A per-account `pg_advisory_xact_lock` serializes concurrent first
+   *     logins so only one bootstrap runs at a time (released on commit).
+   *  2. `ON CONFLICT DO NOTHING` lets the database reject any duplicate; the
+   *     per-account admin unique index resolves races atomically, with no
+   *     check-then-insert window.
+   *
+   * Callers own any downstream side effects (home seed, recommender notify)
+   * via `notifyProfileCreated` so they fire exactly once, on real creation.
+   */
+  async bootstrapPrimaryProfile(
+    accountId: string,
+    input: { name: string; interfaceLanguage: string; region?: string | null; avatarUrl: string },
+  ): Promise<{ created: boolean; profile: ProfileRecord }> {
+    return withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [accountId]);
+
+      const existing = await client.query<Record<string, unknown>>(
+        `SELECT ${LOCAL_PROFILE_COLUMNS}
+         FROM identity.profiles
+         WHERE account_id = $1::uuid AND deleted_at IS NULL
+         ORDER BY sort_order ASC, created_at ASC, id ASC
+         LIMIT 1`,
+        [accountId],
+      );
+      if (existing.rows[0]) {
+        return { created: false, profile: mapRow(existing.rows[0]) };
+      }
+
+      const name = normalizeRequiredName(input.name);
+      const interfaceLanguage = normalizeRequiredProfileLanguage(input.interfaceLanguage);
+      const region = normalizeOptionalProfileRegion(input.region);
+      const avatarUrl = normalizeRequiredAvatar(input.avatarUrl);
+
+      const insert = await client.query<Record<string, unknown>>(
+        `INSERT INTO identity.profiles
+           (account_id, name, interface_language, region, avatar_url, is_admin, is_kids, sort_order, created_by_account_id)
+         VALUES ($1::uuid, $2, $3, $4, $5, true, false, 0, $1::uuid)
+         ON CONFLICT DO NOTHING
+         RETURNING ${LOCAL_PROFILE_COLUMNS}`,
+        [accountId, name, interfaceLanguage, region, avatarUrl],
+      );
+
+      if (insert.rows[0]) {
+        const profile = mapRow(insert.rows[0]);
+        await client.query(
+          `INSERT INTO identity.profile_members (profile_id, account_id, role)
+           VALUES ($1::uuid, $2::uuid, 'owner')`,
+          [profile.id, accountId],
+        );
+        await client.query(
+          `INSERT INTO identity.profile_preferences (profile_id, settings_json)
+           VALUES ($1::uuid, '{}'::jsonb)`,
+          [profile.id],
+        );
+        return { created: true, profile };
+      }
+
+      // Another request won the race (or the per-account admin index
+      // conflicted). Reuse the existing profile instead of creating a duplicate.
+      const fallback = await client.query<Record<string, unknown>>(
+        `SELECT ${LOCAL_PROFILE_COLUMNS}
+         FROM identity.profiles
+         WHERE account_id = $1::uuid AND deleted_at IS NULL
+         ORDER BY sort_order ASC, created_at ASC, id ASC
+         LIMIT 1`,
+        [accountId],
+      );
+      const existingRow = fallback.rows[0];
+      if (!existingRow) {
+        throw new HttpError(500, 'Failed to resolve bootstrapped profile after conflict.');
+      }
+      return { created: false, profile: mapRow(existingRow) };
     });
   }
 

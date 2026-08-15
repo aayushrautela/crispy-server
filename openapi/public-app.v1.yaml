@@ -395,6 +395,42 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/account/bootstrap:
+    post:
+      tags:
+        - Identity
+      operationId: postV1AccountBootstrap
+      summary: Create the account's primary profile during onboarding.
+      description: >
+        Idempotently creates the account's first (primary) profile. The profile
+        name is required, and the resulting profile is always the account admin
+        and is never a kids profile. A retried call returns the existing primary
+        profile instead of creating a duplicate.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/metadata/people/{personId}:
     get:
       tags:

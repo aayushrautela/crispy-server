@@ -16,6 +16,7 @@ import { DefaultAppRateLimitService, InMemoryRateLimitStore } from '../modules/a
 import { SqlAppAuditRepo } from '../modules/apps/app-audit.repo.js';
 import { SystemClock } from '../modules/apps/clock.js';
 import { registerAccountRoutes } from './routes/account.js';
+import { registerAccountBootstrapRoutes } from './routes/account-bootstrap.js';
 import { registerAdminApiRoutes } from './routes/admin-api.js';
 import { registerAdminUiRoutes } from './routes/admin-ui.js';
 import { registerAiRoutes } from './routes/ai.js';
@@ -223,6 +224,7 @@ export async function buildApp() {
   await registerAvatarRoutes(app);
   await registerAdminUiRoutes(app);
   await registerAccountRoutes(app, { accountSettingsService });
+  await registerAccountBootstrapRoutes(app, { profileService });
   await registerAiRoutes(app, { profilePinService });
   await registerMeRoutes(app, { profileService, accountSettingsService });
   await registerPersonalAccessTokenRoutes(app, { patService });

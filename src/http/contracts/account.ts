@@ -131,3 +131,32 @@ export const meRouteSchema = withDefaultErrorResponses({
     }),
   },
 });
+
+const accountBootstrapBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'interfaceLanguage', 'avatarUrl'],
+  properties: {
+    name: nonEmptyStringSchema,
+    interfaceLanguage: nonEmptyStringSchema,
+    avatarUrl: nonEmptyStringSchema,
+    region: { anyOf: [nonEmptyStringSchema, { type: 'null' }] },
+  },
+} as const;
+
+const accountBootstrapEnvelopeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['profile', 'created'],
+  properties: {
+    profile: recordSchema,
+    created: booleanSchema,
+  },
+} as const;
+
+export const accountBootstrapRouteSchema = withDefaultErrorResponses({
+  body: accountBootstrapBodySchema,
+  response: {
+    200: successEnvelope(accountBootstrapEnvelopeSchema),
+  },
+});
