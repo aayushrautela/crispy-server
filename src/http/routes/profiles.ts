@@ -304,7 +304,7 @@ export async function registerProfileRoutes(
     const body = (request.body ?? {}) as Record<string, unknown>;
     const profile = await profileService.requireOwnedProfile(actor.authSubject, params.profileId);
     if (!profile.isAdmin) {
-      throw Object.assign(new Error('Admin profile required.'), { statusCode: 403 });
+      throw new HttpError(403, 'Admin profile required.', undefined, 'admin_profile_required');
     }
     const value = Boolean(body.requirePinToAddProfiles);
     await pinService.setRequirePinToAddProfiles(actor.authSubject, params.profileId, value);

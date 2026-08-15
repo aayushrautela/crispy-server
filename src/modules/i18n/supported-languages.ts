@@ -1,3 +1,5 @@
+import { HttpError } from '../../lib/errors.js';
+
 export interface SupportedLanguage {
   code: string;
   name: string;
@@ -72,7 +74,7 @@ export function normalizeLanguageCode(value: unknown): string | null {
 export function requireSupportedLanguage(value: unknown, label = 'Language'): string {
   const normalized = normalizeLanguageCode(value);
   if (!normalized) {
-    throw Object.assign(new Error(`${label} is required and must be a supported language code.`), { statusCode: 400 });
+    throw new HttpError(400, `${label} is required and must be a supported language code.`, undefined, 'invalid_language');
   }
   return normalized;
 }
