@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { HttpError } from '../../lib/errors.js';
-import { withDbClient } from '../../lib/db.js';
-import { ProfileRepository, type ProfilePinRow } from './profile.repo.js';
+import { withDbClient, type DbClient } from '../../lib/db.js';
 import { setProfileUnlocked, lockProfile } from '../../lib/profile-unlock-store.js';
 
 const DEFAULT_PIN_COST = 10;
@@ -15,6 +14,14 @@ const LOCKOUT_WINDOWS_MS: readonly number[] = [
 ];
 
 const MAX_ATTEMPTS_BEFORE_LOCKOUT = 5;
+
+export type ProfilePinRow = {
+  profileId: string;
+  pinHash: string | null;
+  failedAttempts: number;
+  lockedUntil: string | null;
+  requirePinToAddProfiles: boolean;
+};
 
 export type VerifyPinResult = {
   valid: boolean;
@@ -61,7 +68,7 @@ export class ProfilePinService {
   private readonly runner: DbRunner<unknown>;
 
   constructor(
-    private readonly repo: ProfilePinRepo = new ProfileRepository(),
+    private readonly repo: ProfilePinRepo = new ProfilePinDatabase(),
     private readonly pinCost: number = DEFAULT_PIN_COST,
     runner?: DbRunner<unknown>,
   ) {
@@ -222,3 +229,70 @@ export class ProfilePinService {
     await lockProfile(profileId, authSubject);
   }
 }
+
+class ProfilePinDatabase implements ProfilePinRepo {
+  async findByIdForOwnerUser(client: unknown, profileId: string, ownerUserId: string): Promise<{ id: string } | null> {
+    const result = await (client as DbClient).query(
+      `SELECT id FROM identity.profiles WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL`,
+      [profileId, ownerUserId],
+    );
+    return result.rows[0] ? { id: String(result.rows[0].id) } : null;
+  }
+
+  async findPinRow(client: unknown, profileId: string): Promise<ProfilePinRow | null> {
+    const result = await (client as DbClient).query(
+      `SELECT id, pin_hash, pin_failed_attempts, pin_locked_until, require_pin_to_add_profiles
+       FROM identity.profiles
+       WHERE id = $1::uuid AND deleted_at IS NULL`,
+      [profileId],
+    );
+    return result.rows[0] ? mapPinRow(result.rows[0]) : null;
+  }
+
+  async findAdminProfileForOwner(client: unknown, ownerUserId: string): Promise<{ id: string; requirePinToAddProfiles: boolean; hasPin: boolean } | null> {
+    const result = await (client as DbClient).query(
+      `SELECT id, require_pin_to_add_profiles, pin_hash IS NOT NULL AS has_pin
+       FROM identity.profiles
+       WHERE account_id = $1::uuid AND is_admin AND deleted_at IS NULL
+       LIMIT 1`,
+      [ownerUserId],
+    );
+    const row = result.rows[0];
+    return row
+      ? { id: String(row.id), requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles), hasPin: Boolean(row.has_pin) }
+      : null;
+  }
+
+  async updatePin(client: unknown, profileId: string, params: { pinHash: string | null; failedAttempts: number; lockedUntil: string | null }): Promise<void> {
+    await (client as DbClient).query(
+      `UPDATE identity.profiles
+       SET pin_hash = $2, pin_failed_attempts = $3, pin_locked_until = $4::timestamptz, updated_at = now()
+       WHERE id = $1::uuid AND deleted_at IS NULL`,
+      [profileId, params.pinHash, params.failedAttempts, params.lockedUntil],
+    );
+  }
+
+  async setRequirePinToAddProfiles(client: unknown, adminProfileId: string, ownerUserId: string, value: boolean): Promise<unknown | null> {
+    const result = await (client as DbClient).query(
+      `UPDATE identity.profiles
+       SET require_pin_to_add_profiles = $3, updated_at = now()
+       WHERE id = $1::uuid AND account_id = $2::uuid AND is_admin AND deleted_at IS NULL
+       RETURNING id`,
+      [adminProfileId, ownerUserId, value],
+    );
+    return result.rows[0] ? result.rows[0] : null;
+  }
+}
+
+function mapPinRow(row: Record<string, unknown>): ProfilePinRow {
+  return {
+    profileId: String(row.id),
+    pinHash: typeof row.pin_hash === 'string' ? row.pin_hash : null,
+    failedAttempts: Number(row.pin_failed_attempts ?? 0),
+    lockedUntil: row.pin_locked_until instanceof Date || typeof row.pin_locked_until === 'string'
+      ? String(row.pin_locked_until)
+      : null,
+    requirePinToAddProfiles: Boolean(row.require_pin_to_add_profiles),
+  };
+}
+

@@ -9,7 +9,6 @@ import { calendarCacheKey } from '../cache/cache-keys.js';
 import { TmdbExternalIdResolverService } from '../metadata/providers/tmdb-external-id-resolver.service.js';
 import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js';
 import { inferMediaIdentity, canonicalTitleMediaKey, canonicalTitleMediaType, type MediaIdentity } from '../identity/media-key.js';
-import type { ProfileRecord } from '../profiles/profile.repo.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
@@ -748,29 +747,14 @@ export class ProviderImportService {
     });
   }
 
-  private async getLocalProfile(profileId: string): Promise<ProfileRecord | null> {
+  private async getLocalProfile(profileId: string): Promise<{ id: string } | null> {
     try {
       const result = await db.query(
-        `SELECT id, account_id AS profile_group_id, name, interface_language, region, avatar_url, is_kids, sort_order, created_by_account_id, created_at, updated_at
-         FROM identity.profiles
-         WHERE id = $1::uuid AND deleted_at IS NULL`,
+        `SELECT id FROM identity.profiles WHERE id = $1::uuid AND deleted_at IS NULL`,
         [profileId],
       );
       if (!result.rows[0]) return null;
-      const r = result.rows[0];
-      return {
-        id: String(r.id),
-        profileGroupId: String(r.profile_group_id),
-        name: String(r.name),
-        interfaceLanguage: typeof r.interface_language === 'string' ? r.interface_language : 'en',
-        region: typeof r.region === 'string' ? r.region : null,
-        avatarUrl: typeof r.avatar_url === 'string' ? r.avatar_url : null,
-        isKids: Boolean(r.is_kids),
-        sortOrder: Number(r.sort_order),
-        createdByUserId: typeof r.created_by_account_id === 'string' ? r.created_by_account_id : null,
-        createdAt: String(r.created_at),
-        updatedAt: String(r.updated_at),
-      } as ProfileRecord;
+      return { id: String(result.rows[0].id) };
     } catch {
       return null;
     }

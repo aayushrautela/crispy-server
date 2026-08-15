@@ -16,7 +16,7 @@ import type { ServiceRecommendationListService } from '../../modules/apps/servic
 import type { RecommendationRunService } from '../../modules/apps/recommendation-run.service.js';
 import type { RecommendationBatchService } from '../../modules/apps/recommendation-batch.service.js';
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
-import type { ProfileRecord } from '../../modules/profiles/profile.repo.js';
+import type { ProfileRecord } from '../../modules/profiles/profile-local.service.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPurpose, AppScope } from '../../modules/apps/app-principal.types.js';
 
 setTestEnv({
@@ -98,7 +98,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
         const { HttpError } = await import('../../lib/errors.js');
         throw new HttpError(404, 'Profile not found.');
       }
-      return { id: profileId, profileGroupId: 'group-1', name: 'Test Profile', interfaceLanguage: 'en', region: null, avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false, isKids: false, sortOrder: 0, createdByUserId: accountId, recommendationSource: 'reco', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+      return { id: profileId, name: 'Test Profile', interfaceLanguage: 'en', region: null, avatarUrl: null, isAdmin: false, requirePinToAddProfiles: false, hasPin: false, isKids: false, sortOrder: 0, createdByUserId: accountId, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     },
     async requireProfileOwnerAccountId(profileId: string): Promise<string> {
       const owned = ownedProfiles.find((profile) => profile.profileId === profileId);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
-import type { ProfilePinRow } from './profile.repo.js';
+import type { ProfilePinRow } from './profile-pin.service.js';
 import type { ProfilePinService, ProfilePinRepo } from './profile-pin.service.js';
 
 seedTestEnv();

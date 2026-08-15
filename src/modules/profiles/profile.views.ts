@@ -1,8 +1,7 @@
-import type { ProfileRecord } from './profile.repo.js';
+import type { ProfileRecord } from './profile-local.service.js';
 
-export type ProfileView = Omit<ProfileRecord, 'profileGroupId'>;
+export type ProfileView = ProfileRecord;
 
 export function mapProfileView(profile: ProfileRecord): ProfileView {
-  const { profileGroupId: _profileGroupId, ...view } = profile;
-  return view;
+  return profile;
 }

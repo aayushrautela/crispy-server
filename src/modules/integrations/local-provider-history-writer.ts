@@ -2,7 +2,9 @@ import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
-import type { ProfileRecord } from '../profiles/profile.repo.js';
+import type { ProfileRecord } from '../profiles/profile-local.service.js';
+
+type ProfileRef = Pick<ProfileRecord, 'id'>;
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderSessionRecord } from './provider-sessions.repo.js';
 import type { AppUser } from '../users/user.types.js';
@@ -58,7 +60,7 @@ export class LocalProviderHistoryWriter {
     params: {
       appUser: AppUser;
       job: ProviderImportJobRecord;
-      profile: ProfileRecord;
+      profile: ProfileRef;
       providerSession: ProviderSessionRecord;
       historyGeneration: number;
       importedAt: string;

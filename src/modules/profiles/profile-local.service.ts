@@ -2,7 +2,7 @@ import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
 import { normalizeLanguageCode } from '../i18n/supported-languages.js';
 import { normalizeCountryCode } from '../i18n/supported-countries.js';
-import { validateAvatarUrl } from './avatar-url.js';
+import { validateAvatarId } from './avatars.js';
 import type { RecommenderNotifier } from '../recommender-notifier/recommender-notifier.js';
 import { enqueueHomeSeed } from '../../lib/queue.js';
 
@@ -41,6 +41,27 @@ export type ProfileUpdateInput = {
   sortOrder?: number;
 };
 
+/**
+ * Profile fields that are first-class columns on identity.profiles, not free-form
+ * profile preferences. They must never be written into profile_preferences.settings_json
+ * (e.g. via the settings PATCH) or they become divergent shadow copies of the column.
+ */
+const RESERVED_PROFILE_SETTING_KEYS = new Set([
+  'interfaceLanguage',
+]);
+
+function stripReservedProfileSettingKeys(
+  settings: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (!RESERVED_PROFILE_SETTING_KEYS.has(key)) {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
 function mapRow(row: Record<string, unknown>): ProfileRecord {
   return {
     id: String(row.id),
@@ -59,12 +80,12 @@ function mapRow(row: Record<string, unknown>): ProfileRecord {
   };
 }
 
-function normalizeOptionalAvatarUrl(value: unknown): string | null {
-  const result = validateAvatarUrl(value);
+function normalizeRequiredAvatar(value: unknown): string {
+  const result = validateAvatarId(value);
   if (!result.ok) {
     throw new HttpError(400, result.reason);
   }
-  return result.url === '' ? null : result.url;
+  return result.id;
 }
 
 function normalizeRequiredName(value: unknown): string {
@@ -142,7 +163,7 @@ export class ProfileLocalService {
       const name = normalizeRequiredName(input.name);
       const interfaceLanguage = normalizeRequiredProfileLanguage(input.interfaceLanguage);
       const region = normalizeOptionalProfileRegion(input.region);
-      const avatarUrl = normalizeOptionalAvatarUrl(input.avatarUrl);
+      const avatarUrl = normalizeRequiredAvatar(input.avatarUrl);
       const countResult = await client.query(
         `SELECT COUNT(*) AS cnt FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL`,
         [authSubject],
@@ -215,7 +236,7 @@ export class ProfileLocalService {
       }
       if (input.avatarUrl !== undefined) {
         updates.push(`avatar_url = $${paramIdx}`);
-        params.push(normalizeOptionalAvatarUrl(input.avatarUrl));
+        params.push(normalizeRequiredAvatar(input.avatarUrl));
         paramIdx++;
       }
       if (input.isKids !== undefined) {
@@ -269,6 +290,51 @@ export class ProfileLocalService {
     });
   }
 
+  async getRecommendationSource(authSubject: string, profileId: string): Promise<string> {
+    await this.requireOwnedProfile(authSubject, profileId);
+    return withDbClient(async (client) => {
+      const result = await client.query(
+        `SELECT recommendation_source FROM identity.profiles WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL`,
+        [profileId, authSubject],
+      );
+      const value = result.rows[0]?.recommendation_source;
+      return typeof value === 'string' && value.trim() ? value : 'reco';
+    });
+  }
+
+  async setRecommendationSource(authSubject: string, profileId: string, value: string): Promise<string> {
+    await this.requireOwnedProfile(authSubject, profileId);
+    return withDbClient(async (client) => {
+      await client.query(
+        `UPDATE identity.profiles SET recommendation_source = $3, updated_at = now() WHERE id = $1::uuid AND account_id = $2::uuid AND deleted_at IS NULL`,
+        [profileId, authSubject, value],
+      );
+      return value;
+    });
+  }
+
+  async getRecommendationSourceUnsafe(profileId: string): Promise<string> {
+    return withDbClient(async (client) => {
+      const result = await client.query(
+        `SELECT recommendation_source FROM identity.profiles WHERE id = $1::uuid AND deleted_at IS NULL`,
+        [profileId],
+      );
+      const value = result.rows[0]?.recommendation_source;
+      return typeof value === 'string' && value.trim() ? value : 'reco';
+    });
+  }
+
+  async getInterfaceLanguage(profileId: string): Promise<string | null> {
+    return withDbClient(async (client) => {
+      const result = await client.query(
+        `SELECT interface_language FROM identity.profiles WHERE id = $1::uuid AND deleted_at IS NULL`,
+        [profileId],
+      );
+      const raw = result.rows[0]?.interface_language;
+      return typeof raw === 'string' ? raw : null;
+    });
+  }
+
   async getSettings(authSubject: string, profileId: string): Promise<Record<string, unknown>> {
     const profile = await this.requireOwnedProfile(authSubject, profileId);
 
@@ -288,13 +354,16 @@ export class ProfileLocalService {
   ): Promise<Record<string, unknown>> {
     await this.requireOwnedProfile(authSubject, profileId);
 
+    const patchWithoutReserved = stripReservedProfileSettingKeys(patch);
     return withDbClient(async (client) => {
       const currentResult = await client.query(
         `SELECT settings_json FROM identity.profile_preferences WHERE profile_id = $1::uuid`,
         [profileId],
       );
-      const current = (currentResult.rows[0]?.settings_json as Record<string, unknown>) ?? {};
-      const merged = { ...current, ...patch };
+      const current = stripReservedProfileSettingKeys(
+        (currentResult.rows[0]?.settings_json as Record<string, unknown>) ?? {},
+      );
+      const merged = { ...current, ...patchWithoutReserved };
 
       const result = await client.query(
         `INSERT INTO identity.profile_preferences (profile_id, settings_json, updated_at)

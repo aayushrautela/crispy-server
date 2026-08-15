@@ -1,7 +1,5 @@
-import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { ProfileRepository } from '../profiles/profile.repo.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import type { HomeMode, HomeSource } from './home-types.js';
 
 export const DEFAULT_HOME_MODE: HomeMode = 'recommended';
@@ -20,27 +18,19 @@ export function fromHomeMode(mode: HomeMode): string {
 
 export class HomeModeService {
   constructor(
-    private readonly profileAccessService = new ProfileAccessService(),
-    private readonly profileRepository = new ProfileRepository(),
+    private readonly profileLocalService = new ProfileLocalService(),
   ) {}
 
   async getMode(accountId: string, profileId: string): Promise<HomeMode> {
-    return withDbClient(async (client) => {
-      await this.profileAccessService.assertOwnedProfile(client, profileId, accountId);
-      const profile = await this.profileRepository.findByIdForOwnerUser(client, profileId, accountId);
-      return toHomeMode(profile?.recommendationSource ?? null);
-    });
+    return toHomeMode(await this.profileLocalService.getRecommendationSource(accountId, profileId));
   }
 
   async setMode(accountId: string, profileId: string, mode: HomeMode): Promise<HomeMode> {
     if (!isHomeMode(mode)) {
       throw new HttpError(400, 'Invalid homeMode. Expected "recommended" or "custom".');
     }
-    return withDbClient(async (client) => {
-      await this.profileAccessService.assertOwnedProfile(client, profileId, accountId);
-      await this.profileRepository.setRecommendationSource(client, profileId, accountId, fromHomeMode(mode));
-      return mode;
-    });
+    await this.profileLocalService.setRecommendationSource(accountId, profileId, fromHomeMode(mode));
+    return mode;
   }
 
   /**
@@ -70,9 +60,6 @@ export class HomeModeService {
 
   /** Read mode without ownership assertion (used by the resolver for display). */
   async getModeUnsafe(profileId: string): Promise<HomeMode> {
-    return withDbClient(async (client) => {
-      const profile = await this.profileRepository.findById(client, profileId);
-      return toHomeMode(profile?.recommendationSource ?? null);
-    });
+    return toHomeMode(await this.profileLocalService.getRecommendationSourceUnsafe(profileId));
   }
 }

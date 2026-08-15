@@ -1,11 +1,11 @@
-import { withTransaction } from '../../lib/db.js';
-import { ProfileSettingsRepository } from '../profiles/profile-settings.repo.js';
+import { withDbClient } from '../../lib/db.js';
+import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { AccountSettingsRepository } from '../users/account-settings.repo.js';
 import { resolveEffectiveMetadataLanguage, normalizeMetadataLanguage } from './metadata-language.js';
 
 export class MetadataLanguageService {
   constructor(
-    private readonly profileSettingsRepository = new ProfileSettingsRepository(),
+    private readonly profileLocalService = new ProfileLocalService(),
     private readonly accountSettingsRepository = new AccountSettingsRepository(),
   ) {}
 
@@ -36,22 +36,12 @@ export class MetadataLanguageService {
   }
 
   private async getProfileLanguage(profileId: string): Promise<string | null> {
-    return withTransaction(async (client) => {
-      const result = await client.query(
-        `SELECT interface_language FROM identity.profiles WHERE id = $1::uuid AND deleted_at IS NULL`,
-        [profileId],
-      );
-      const profileLanguage = normalizeMetadataLanguage(typeof result.rows[0]?.interface_language === 'string' ? result.rows[0].interface_language : null);
-      if (profileLanguage) {
-        return profileLanguage;
-      }
-      const value = await this.profileSettingsRepository.getFieldForProfile(client, profileId, 'interfaceLanguage');
-      return normalizeMetadataLanguage(typeof value === 'string' ? value : null);
-    });
+    const fromProfile = await this.profileLocalService.getInterfaceLanguage(profileId);
+    return normalizeMetadataLanguage(fromProfile);
   }
 
   private async getAccountLanguage(accountId: string): Promise<string | null> {
-    return withTransaction(async (client) => {
+    return withDbClient(async (client) => {
       const settings = await this.accountSettingsRepository.getSettingsForUser(client, accountId);
       return normalizeMetadataLanguage(typeof settings.interfaceLanguage === 'string' ? settings.interfaceLanguage : null);
     });
