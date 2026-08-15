@@ -20,6 +20,7 @@ import {
   type WatchStateLookupContract,
 } from '../contracts/watch.js';
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
+import { getPlaybackProgressBuffer } from '../../modules/watch/playback-progress-buffer.service.js';
 import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
@@ -85,7 +86,7 @@ export async function registerWatchRoutes(
       const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
       return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
     });
-    await localUserWatchService.recordPlaybackState({
+    await getPlaybackProgressBuffer(localUserWatchService).bufferProgress({
       accountId: actor.authSubject!,
       profileId,
       itemId: playableItemId,
@@ -93,9 +94,11 @@ export async function registerWatchRoutes(
       mediaType: resolved.mediaType,
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
+      progressBps: null,
+      seasonNumber: null,
+      episodeNumber: null,
       eventKind: String(body.eventType ?? '') === 'playback_completed' ? 'playback_completed' : 'playback_progress',
-      occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : null,
-      clientEventId: typeof body.clientEventId === 'string' ? body.clientEventId : null,
+      lastActivityAt: typeof body.occurredAt === 'string' ? body.occurredAt : new Date().toISOString(),
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });

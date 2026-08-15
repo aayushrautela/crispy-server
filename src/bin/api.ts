@@ -4,6 +4,8 @@ import { withDbClient, db } from '../lib/db.js';
 import { buildApp } from '../http/app.js';
 import { assertJwksReachable } from '../lib/jwks-healthcheck.js';
 import { imdbRatingsService } from '../modules/metadata/enrichment/imdb-ratings.service.js';
+import { LocalUserWatchService } from '../modules/integrations/local-user-watch.service.js';
+import { getPlaybackProgressBuffer } from '../modules/watch/playback-progress-buffer.service.js';
 
 await assertJwksReachable();
 
@@ -15,6 +17,12 @@ withDbClient(async (client) => {
 }).catch((err) => {
   logger.error({ err }, 'failed to initialize imdb ratings');
 });
+
+const playbackProgressBuffer = getPlaybackProgressBuffer(new LocalUserWatchService());
+playbackProgressBuffer.flushPendingOnBoot().catch((err) => {
+  logger.error({ err }, 'failed to drain buffered playback progress on boot');
+});
+playbackProgressBuffer.start();
 
 try {
   await app.listen({

@@ -186,6 +186,10 @@ test('watch routes work with user actor auth subject', async (t) => {
     },
   });
   assert.equal(eventResponse.statusCode, 200);
+
+  const { getPlaybackProgressBuffer } = await import('../../modules/watch/playback-progress-buffer.service.js');
+  await getPlaybackProgressBuffer().flush();
+
   assert.equal(receivedAccountId, 'auth-subject');
 
   receivedAccountId = null;

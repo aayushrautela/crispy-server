@@ -10,6 +10,7 @@ type RedisLike = {
   keys(pattern: string): Promise<string[]>;
   sadd(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
+  smove(source: string, destination: string, member: string): Promise<number>;
   eval(script: string, numKeys: number, ...args: string[]): Promise<number | null>;
   scan(cursor: number | string, ...args: RedisValue[]): Promise<[string, string[]]>;
   publish(channel: string, message: string): Promise<number>;
@@ -75,7 +76,8 @@ class TestRedis implements RedisLike {
 
   async keys(pattern: string): Promise<string[]> {
     const prefix = pattern.endsWith('*') ? pattern.slice(0, -1) : pattern;
-    return Array.from(this.kv.keys()).filter((key) => key.startsWith(prefix));
+    const allKeys = [...this.kv.keys(), ...this.sets.keys()];
+    return allKeys.filter((key) => key.startsWith(prefix));
   }
 
   async sadd(key: string, ...members: string[]): Promise<number> {
@@ -92,7 +94,19 @@ class TestRedis implements RedisLike {
   }
 
   async smembers(key: string): Promise<string[]> {
-    return Array.from(this.sets.get(key) ?? []);
+    return Array.from(this.sets.get(key) ?? new Set<string>());
+  }
+
+  async smove(source: string, destination: string, member: string): Promise<number> {
+    const src = this.sets.get(source);
+    if (!src || !src.has(member)) {
+      return 0;
+    }
+    src.delete(member);
+    const dst = this.sets.get(destination) ?? new Set<string>();
+    dst.add(member);
+    this.sets.set(destination, dst);
+    return 1;
   }
 
   async eval(_script: string, numKeys: number, ...args: string[]): Promise<number | null> {
@@ -117,7 +131,7 @@ class TestRedis implements RedisLike {
       return ['0', []];
     }
 
-    return ['0', Array.from(this.kv.keys())];
+    return ['0', [...this.kv.keys(), ...this.sets.keys()]];
   }
 
   disconnect(): void {
