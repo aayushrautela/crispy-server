@@ -27,25 +27,9 @@ export class AccountDeletionService {
     const warnings: string[] = [];
 
     const deletion = await this.transactionRunner(async (client) => {
-      const avatarResult = await client.query(
-        `SELECT avatar_url
-         FROM identity.profiles
-         WHERE account_id = $1::uuid
-           AND avatar_url IS NOT NULL
-           AND btrim(avatar_url) <> ''`,
-        [params.appUserId],
-      );
-      const avatarUrls = avatarResult.rows.map((row) => String(row.avatar_url));
-
       await client.query('DELETE FROM private.account_secrets WHERE account_id = $1::uuid', [params.appUserId]);
       await client.query('DELETE FROM identity.account_preferences WHERE account_id = $1::uuid', [params.appUserId]);
       const profileResult = await client.query('DELETE FROM identity.profiles WHERE account_id = $1::uuid RETURNING id', [params.appUserId]);
-
-      if (avatarUrls.length > 0) {
-        warnings.push(
-          `Deleted account referenced ${avatarUrls.length} external avatar URL(s); no local avatar storage cleanup is configured.`,
-        );
-      }
 
       const deletedUser = await this.userRepository.deleteById(client, params.appUserId);
       if (!deletedUser) {

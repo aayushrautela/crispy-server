@@ -25,6 +25,7 @@ RUN npm ci --omit=dev
 
 COPY migrations ./migrations
 COPY config ./config
+COPY assets ./assets
 COPY --from=build /app/dist ./dist
 
 EXPOSE 18765

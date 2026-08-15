@@ -122,7 +122,7 @@ These endpoints are the source of truth for any UI rendering signup, profile-edi
 
 ### Avatar URL
 
-`identity.profiles.avatar_url` stores a full avatar URL. On write (profile create/update) the value is validated as a Dicebear URL by `src/modules/profiles/avatar-url.ts`: only `https://api.dicebear.com/v9/<style>/<format>` is accepted, where `<style>` is one of `SUPPORTED_DICEBEAR_STYLES` and `<format>` is `svg` | `png` | `webp` | `avif`. Empty/null means no avatar. Avatar rendering is the client's responsibility; the backend only stores and validates the URL.
+`identity.profiles.avatar_url` stores a built-in avatar id (e.g. `toon_1` or `vibrent_7`). The catalog and validation live in `src/modules/profiles/avatars.ts` (`SUPPORTED_AVATARS`); only those ids are accepted on write. Images are static files under `assets/avatars/<id>.png` and are served publicly at `GET /v1/avatars/:id` with long-lived cache headers. The backend stores and validates the id only; avatar selection is mandatory on signup and when creating a profile.
 
 ### Strict signup bootstrap
 
@@ -130,7 +130,7 @@ The first authenticated request bootstraps the account and its admin profile. Re
 
 - `name` is required (derived from token `full_name`/`name`/`display_name`, else the email local-part).
 - `interfaceLanguage` is required and must be a supported language code.
-- `avatarUrl` is required and must be a valid Dicebear URL.
+- `avatarUrl` is required and must be one of the built-in avatar ids (`SUPPORTED_AVATARS` in `src/modules/profiles/avatars.ts`).
 
 If any required field is missing or invalid, the request is rejected with `409 signup_incomplete` and a `fields` list; the admin profile is not created until the client supplies complete metadata (e.g. via Supabase user metadata). Once a profile exists, subsequent requests succeed.
 

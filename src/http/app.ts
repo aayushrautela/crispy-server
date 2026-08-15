@@ -21,6 +21,7 @@ import { registerAdminUiRoutes } from './routes/admin-ui.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerAvatarRoutes } from './routes/avatars.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
@@ -219,6 +220,7 @@ export async function buildApp() {
   const appLoginHandoffService = new AppLoginHandoffService();
 
   await registerHealthRoutes(app);
+  await registerAvatarRoutes(app);
   await registerAdminUiRoutes(app);
   await registerAccountRoutes(app, { accountSettingsService });
   await registerAiRoutes(app, { profilePinService });

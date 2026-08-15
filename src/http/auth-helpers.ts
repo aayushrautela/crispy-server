@@ -3,7 +3,7 @@ import { db } from '../lib/db.js';
 import { USER_DEFAULT_SCOPES, type UserAuthActor } from '../modules/auth/auth.types.js';
 import { normalizeLanguageCode } from '../modules/i18n/supported-languages.js';
 import { normalizeCountryCode } from '../modules/i18n/supported-countries.js';
-import { validateAvatarUrl } from '../modules/profiles/avatar-url.js';
+import { validateAvatarId } from '../modules/profiles/avatars.js';
 import { enqueueHomeSeed } from '../lib/queue.js';
 import { getRecommenderNotifier } from '../modules/recommender-notifier/recommender-notifier.js';
 
@@ -106,7 +106,7 @@ function deriveSignupProfile(payload: Record<string, unknown>): SignupProfile {
 
   const rawAvatar = readMetadataString(payload, 'avatarUrl')
     ?? readMetadataString(payload, 'avatar_url');
-  const avatar = validateAvatarUrl(rawAvatar);
+  const avatar = validateAvatarId(rawAvatar);
   if (!avatar.ok) missing.push('avatarUrl');
 
   if (missing.length > 0) {
@@ -118,7 +118,7 @@ function deriveSignupProfile(payload: Record<string, unknown>): SignupProfile {
     name: name as string,
     interfaceLanguage: interfaceLanguage as string,
     region,
-    avatarUrl: (avatar as { ok: true; url: string }).url,
+    avatarUrl: (avatar as { ok: true; id: string }).id,
   };
 }
 

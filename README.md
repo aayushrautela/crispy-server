@@ -46,7 +46,7 @@ The external recommendation engine is a separate event-driven service. It is not
 - Per-profile 4-digit PINs are stored as bcrypt hashes with exponential backoff on invalid attempts. A successful verify unlocks the profile in Redis for 30 days (Netflix-style: once unlocked, no per-request token needed); `POST /v1/profiles/:profileId/lock` re-locks. Profile-scoped routes (`watch`, `ai`, `calendar`) require an unlocked profile when the profile has a PIN set.
 - The admin profile may require a valid PIN when new profiles are added; the PIN set/change/remove/verify endpoints live under `/v1/profiles/:profileId/pin`.
 - Profile `interface_language` and country code are validated against code-only catalogs exposed at `/v1/i18n/languages` and `/v1/i18n/countries`.
-- Profile `avatar_url` must be a valid Dicebear URL (`https://api.dicebear.com/v9/<style>/<format>`); avatar rendering is client-side.
+- Profile `avatar_url` must be one of the built-in avatar ids (e.g. `toon_1`, `vibrent_7`); the catalog lives in `src/modules/profiles/avatars.ts` and images are served at `GET /v1/avatars/:id`. Avatar selection is required on signup and when creating a profile.
 - First authenticated request bootstraps the account + admin profile; if `name`, `interfaceLanguage`, or `avatarUrl` are missing/invalid, the API returns `409 signup_incomplete`.
 - Account-shared data includes profile roster management, addons, PATs, account deletion, metadata-enrichment availability flags, and AI provider/secret settings.
 - Profile-personal data includes profile settings, watch state, history, continue watching, watchlist, ratings, episodic follow state, provider connections/imports, taste profiles, and recommendations.
