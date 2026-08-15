@@ -124,6 +124,27 @@ const LOCAL_PROFILE_COLUMNS = `
   is_kids, sort_order, created_by_account_id, created_at, updated_at
 `;
 
+/**
+ * Name of the partial unique index added by migration 0044. A violation of
+ * this index means the account already has a live profile with the same
+ * (case/space-insensitive) name.
+ */
+export const PROFILE_NAME_UNIQUE_INDEX = 'identity_profiles_account_name_uniq';
+
+/**
+ * True when a thrown database error is a unique-constraint violation on the
+ * per-account profile name index. Used to surface a clean 409 instead of a 500
+ * when a client attempts to create a duplicate-named profile.
+ */
+export function isProfileNameConflict(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as { code?: unknown; constraint?: unknown; message?: unknown };
+  if (e.code !== '23505') return false;
+  const constraint = typeof e.constraint === 'string' ? e.constraint : '';
+  const message = typeof e.message === 'string' ? e.message : '';
+  return constraint === PROFILE_NAME_UNIQUE_INDEX || message.includes(PROFILE_NAME_UNIQUE_INDEX);
+}
+
 export class ProfileLocalService {
   constructor(
     private readonly recommenderNotifier: RecommenderNotifier | null = null,
@@ -170,14 +191,25 @@ export class ProfileLocalService {
       );
       const count = Number(countResult.rows[0]?.cnt ?? 0);
 
-      const result = await client.query(
-        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_url, is_admin, is_kids, sort_order, created_by_account_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
-         RETURNING ${LOCAL_PROFILE_COLUMNS}`,
-        [authSubject, name, interfaceLanguage, region, avatarUrl, input.isAdmin ?? false, input.isKids ?? false, input.sortOrder ?? count, authSubject],
-      );
-
-      const profile = result.rows[0];
+      let profile: Record<string, unknown>;
+      try {
+        const insertResult = await client.query(
+          `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_url, is_admin, is_kids, sort_order, created_by_account_id)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
+           RETURNING ${LOCAL_PROFILE_COLUMNS}`,
+          [authSubject, name, interfaceLanguage, region, avatarUrl, input.isAdmin ?? false, input.isKids ?? false, input.sortOrder ?? count, authSubject],
+        );
+        const created = insertResult.rows[0];
+        if (!created) {
+          throw new HttpError(500, 'Profile insert did not return a row.');
+        }
+        profile = created;
+      } catch (err) {
+        if (isProfileNameConflict(err)) {
+          throw new HttpError(409, 'A profile with this name already exists.', undefined, 'profile_name_exists');
+        }
+        throw err;
+      }
 
       await client.query(
         `INSERT INTO identity.profile_members (profile_id, account_id, role)

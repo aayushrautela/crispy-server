@@ -1,5 +1,5 @@
 import { verifyAuthJwt, type AuthTokenPayload } from '../lib/jwks.js';
-import { db } from '../lib/db.js';
+import { withTransaction, type DbClient } from '../lib/db.js';
 import { HttpError } from '../lib/errors.js';
 import { USER_DEFAULT_SCOPES, type UserAuthActor } from '../modules/auth/auth.types.js';
 import { normalizeLanguageCode } from '../modules/i18n/supported-languages.js';
@@ -7,6 +7,7 @@ import { normalizeCountryCode } from '../modules/i18n/supported-countries.js';
 import { validateAvatarId } from '../modules/profiles/avatars.js';
 import { enqueueHomeSeed } from '../lib/queue.js';
 import { getRecommenderNotifier } from '../modules/recommender-notifier/recommender-notifier.js';
+import { logger } from '../config/logger.js';
 
 export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthActor> {
   let payload: AuthTokenPayload;
@@ -16,59 +17,35 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
     throw new HttpError(401, 'Invalid bearer token.', undefined, 'invalid_bearer_token');
   }
 
-  const client = await db.connect();
-  try {
+  await withTransaction(async (client) => {
     await client.query('SELECT identity.upsert_account($1, $2, $3)', [
       payload.sub,
       typeof payload.email === 'string' ? payload.email : null,
       deriveProfileName(payload),
     ]);
 
-    const profileCheck = await client.query(
-      `SELECT id FROM identity.profiles WHERE account_id = $1::uuid AND deleted_at IS NULL LIMIT 1`,
-      [payload.sub],
-    );
-    if (profileCheck.rows.length === 0) {
-      const signup = deriveSignupProfile(payload);
-      if (!signup.ok) {
-        throw new HttpError(
-          409,
-          'Signup is incomplete; profile name, language, and avatar are required.',
-          { fields: signup.missing },
-          'signup_incomplete',
-        );
-      }
+    const signup = deriveSignupProfile(payload);
+    if (!signup.ok) {
+      throw new HttpError(
+        409,
+        'Signup is incomplete; profile name, language, and avatar are required.',
+        { fields: signup.missing },
+        'signup_incomplete',
+      );
+    }
 
-      const profileResult = await client.query(
-        `INSERT INTO identity.profiles (account_id, name, interface_language, region, avatar_url, sort_order, created_by_account_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, 0, $1::uuid)
-         RETURNING id`,
-        [payload.sub, signup.name, signup.interfaceLanguage, signup.region, signup.avatarUrl],
-      );
-      const profileId = profileResult.rows[0].id;
-      await client.query(
-        `INSERT INTO identity.profile_members (profile_id, account_id, role)
-         VALUES ($1::uuid, $2::uuid, 'owner')`,
-        [profileId, payload.sub],
-      );
-      await client.query(
-        `INSERT INTO identity.profile_preferences (profile_id, settings_json)
-         VALUES ($1::uuid, '{}'::jsonb)`,
-        [profileId],
-      );
-
-      void enqueueHomeSeed({ accountId: payload.sub, profileId }).catch(() => {
+    const result = await ensureAccountProfile(client, payload.sub, signup);
+    if (result.created) {
+      void enqueueHomeSeed({ accountId: payload.sub, profileId: result.profileId }).catch(() => {
         /* seed is best-effort; home falls back to empty state until seed completes */
       });
       getRecommenderNotifier()?.notifyRecompute({
         accountId: payload.sub,
-        profileId,
+        profileId: result.profileId,
         reason: 'profile_created',
       });
     }
-  } finally {
-    client.release();
-  }
+  });
 
   return {
     type: 'user',
@@ -83,11 +60,79 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
   };
 }
 
+/**
+ * Idempotently create the account's first profile during onboarding.
+ *
+ * Race-safety is provided by two layers:
+ *  1. A per-account `pg_advisory_xact_lock` serializes concurrent first-login
+ *     requests so only one bootstrap runs at a time (released on commit).
+ *  2. `ON CONFLICT DO NOTHING` (no target) lets the database reject any
+ *     duplicate — the new `(account_id, lower(trim(name)))` partial unique
+ *     index, plus the existing per-account admin unique index — atomically,
+ *     with no check-then-insert window.
+ *
+ * The bootstrapped profile is the account's admin (primary) profile. This
+ * function only performs the idempotent DB writes and reports whether it
+ * created the profile; callers own any downstream side effects so they fire
+ * exactly once (on real creation, never when reusing a raced profile).
+ */
+let bootstrapConflictTotal = 0;
+
+export async function ensureAccountProfile(
+  client: DbClient,
+  accountId: string,
+  signup: { name: string; interfaceLanguage: string; region: string | null; avatarUrl: string },
+): Promise<{ created: boolean; profileId: string }> {
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [accountId]);
+
+  const insert = await client.query<{ id: string }>(
+    `INSERT INTO identity.profiles
+       (account_id, name, interface_language, region, avatar_url, is_admin, sort_order, created_by_account_id)
+     VALUES ($1::uuid, $2, $3, $4, $5, true, 0, $1::uuid)
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [accountId, signup.name, signup.interfaceLanguage, signup.region, signup.avatarUrl],
+  );
+
+  const created = insert.rows[0];
+  if (created) {
+    const profileId = created.id;
+    await client.query(
+      `INSERT INTO identity.profile_members (profile_id, account_id, role)
+       VALUES ($1::uuid, $2::uuid, 'owner')`,
+      [profileId, accountId],
+    );
+    await client.query(
+      `INSERT INTO identity.profile_preferences (profile_id, settings_json)
+       VALUES ($1::uuid, '{}'::jsonb)`,
+      [profileId],
+    );
+    return { created: true, profileId };
+  }
+
+  // Another request won the race (or the per-account admin index conflicted).
+  // Reuse the existing profile instead of creating a duplicate.
+  bootstrapConflictTotal += 1;
+  logger.info(
+    { event: 'profile_bootstrap_conflict_resolved', accountId, total: bootstrapConflictTotal },
+    'profile bootstrap race resolved by unique constraint',
+  );
+
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM identity.profiles
+     WHERE account_id = $1::uuid AND deleted_at IS NULL
+     ORDER BY sort_order ASC, created_at ASC, id ASC
+     LIMIT 1`,
+    [accountId],
+  );
+  return { created: false, profileId: existing.rows[0]?.id ?? '' };
+}
+
 type SignupProfile =
   | { ok: true; name: string; interfaceLanguage: string; region: string | null; avatarUrl: string }
   | { ok: false; missing: string[] };
 
-function deriveSignupProfile(payload: Record<string, unknown>): SignupProfile {
+export function deriveSignupProfile(payload: Record<string, unknown>): SignupProfile {
   const missing: string[] = [];
 
   const name = deriveProfileName(payload);
