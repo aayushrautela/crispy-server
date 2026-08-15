@@ -4,6 +4,7 @@ import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
 import type { ClientHomeSection, ClientHomeSectionType, ClientMediaCard } from '../recommendations/client-home.types.js';
+import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 
 export class HomeHydrator {
   constructor(
@@ -34,11 +35,59 @@ export class HomeHydrator {
     items: unknown[];
   }, locale: string | null): Promise<ClientHomeSection | null> {
     const sectionType = readSectionType(list.sectionType);
-    const cards = (
-      await Promise.all((list.items ?? []).map((item) => this.hydrateCard(client, item, locale)))
-    ).filter((card): card is ClientMediaCard => card !== null);
+    const rows = (list.items ?? []).map(asRecord);
 
-    if (cards.length === 0) {
+    // Rows written by the unified ingester carry a resolved itemId and can be hydrated in
+    // two batched passes (identity resolution + card view). Rows without an itemId fall back
+    // to the per-item path.
+    const batchRows: { rowIndex: number; contentId: string }[] = [];
+    const fallbackRows: { rowIndex: number; row: Record<string, unknown> }[] = [];
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const itemId = readPublicItemId(rows[rowIndex]!.itemId);
+      if (itemId) {
+        batchRows.push({ rowIndex, contentId: assertPublicItemId(itemId) });
+      } else {
+        fallbackRows.push({ rowIndex, row: rows[rowIndex]! });
+      }
+    }
+
+    const cards: (ClientMediaCard | null)[] = new Array(rows.length).fill(null);
+
+    if (batchRows.length) {
+      const contentIds = batchRows.map((entry) => entry.contentId);
+      const identityMap = await this.contentIdentityService.resolveMediaIdentitiesBatched(client, contentIds);
+      const resolvable: { rowIndex: number; identity: MediaIdentity }[] = [];
+      batchRows.forEach((entry, index) => {
+        const identity = identityMap.get(entry.contentId);
+        if (identity) {
+          resolvable.push({ rowIndex: entry.rowIndex, identity });
+        }
+      });
+
+      if (resolvable.length) {
+        const views = await this.metadataCardService.buildCardViews(
+          client,
+          resolvable.map((entry) => entry.identity),
+          locale,
+        );
+        resolvable.forEach((entry, viewIndex) => {
+          const view = views[viewIndex];
+          cards[entry.rowIndex] = view && view.title ? this.toClientCard(view, rows[entry.rowIndex]!) : null;
+        });
+      }
+    }
+
+    await Promise.all(
+      fallbackRows.map(async ({ rowIndex, row }) => {
+        const identity = await this.resolveIdentity(client, row);
+        if (!identity) return;
+        const view = await this.metadataCardService.buildCardView(client, identity, locale);
+        cards[rowIndex] = view && view.title ? this.toClientCard(view, row) : null;
+      }),
+    );
+
+    const sectionCards = cards.filter((card): card is ClientMediaCard => card !== null);
+    if (sectionCards.length === 0) {
       return null;
     }
 
@@ -47,21 +96,16 @@ export class HomeHydrator {
       title: list.title,
       subtitle: list.subtitle,
       sectionType,
-      items: cards,
+      items: sectionCards,
       meta: {},
     };
   }
 
-  private async hydrateCard(client: DbClient, value: unknown, locale: string | null): Promise<ClientMediaCard | null> {
-    const row = asRecord(value);
-    const identity = await this.resolveIdentity(client, row);
-    if (!identity) return null;
-    const card = await this.metadataCardService.buildCardView(client, identity, locale);
-    if (!card.title) return null;
+  private toClientCard(card: MetadataCardView, row: Record<string, unknown>): ClientMediaCard {
     return {
       itemId: card.itemId,
-      mediaType: toClientMediaType(card.mediaType),
-      title: card.title,
+      mediaType: toClientMediaType(card.mediaType ?? 'movie'),
+      title: card.title ?? '',
       overview: readNullableText(row.description) ?? card.tagline ?? card.overview ?? card.summary,
       year: card.releaseYear,
       releaseDate: card.releaseDate,

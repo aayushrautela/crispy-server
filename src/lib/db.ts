@@ -8,6 +8,10 @@ types.setTypeParser(1082, (value) => value);
 export const db = new Pool({
   connectionString: env.databaseUrl,
   max: env.databasePoolMax,
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 30_000,
+  maxLifetimeSeconds: 1_800,
+  application_name: 'crispy-server',
 });
 
 export type DbClient = pg.PoolClient;

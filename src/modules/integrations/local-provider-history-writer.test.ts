@@ -85,6 +85,13 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - populates season
     ensureContentId: async (_client: any, identity: { mediaKey: string }) => {
       return identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2';
     },
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      const map = new Map<string, string>();
+      for (const identity of identities) {
+        map.set(identity.mediaKey, identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2');
+      }
+      return map;
+    },
   };
 
   const writer = new LocalProviderHistoryWriter(contentIdentityService as any);

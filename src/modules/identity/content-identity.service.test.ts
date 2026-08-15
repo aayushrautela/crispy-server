@@ -331,11 +331,11 @@ test('resolveTitleItemIdForPlayableItemId returns self for movies and series par
   const service = new ContentIdentityService(repository as never);
 
   assert.equal(
-    await service.resolveTitleItemIdForPlayableItemId({} as never, encodePublicItemId(MOVIE_UUID)),
+    (await service.resolveTitleItemIdForPlayableItemId({} as never, encodePublicItemId(MOVIE_UUID))).publicTitleItemId,
     encodePublicItemId(MOVIE_UUID),
   );
   assert.equal(
-    await service.resolveTitleItemIdForPlayableItemId({} as never, encodePublicItemId(EPISODE_UUID)),
+    (await service.resolveTitleItemIdForPlayableItemId({} as never, encodePublicItemId(EPISODE_UUID))).publicTitleItemId,
     encodePublicItemId(SHOW_UUID),
   );
 });

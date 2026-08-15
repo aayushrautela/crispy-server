@@ -7,6 +7,7 @@ type RedisLike = {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ...args: RedisValue[]): Promise<'OK' | null>;
   del(...keys: string[]): Promise<number>;
+  keys(pattern: string): Promise<string[]>;
   sadd(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
   eval(script: string, numKeys: number, ...args: string[]): Promise<number | null>;
@@ -70,6 +71,11 @@ class TestRedis implements RedisLike {
       }
     }
     return deleted;
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    const prefix = pattern.endsWith('*') ? pattern.slice(0, -1) : pattern;
+    return Array.from(this.kv.keys()).filter((key) => key.startsWith(prefix));
   }
 
   async sadd(key: string, ...members: string[]): Promise<number> {

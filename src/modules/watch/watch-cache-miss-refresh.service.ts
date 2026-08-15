@@ -42,6 +42,17 @@ export class WatchCacheMissRefreshService {
       identities.map((identity) => this.projectionService.buildWatchProjection(client, identity, language)),
     );
 
+    const upsertEntries: Array<{
+      params: {
+        itemId: string;
+        mediaType: 'movie' | 'show' | 'season' | 'episode';
+        titleProvider: 'tmdb';
+        titleProviderId: string | null;
+        titleMediaType: 'movie' | 'show';
+      };
+      projection: Parameters<WatchMediaCardCacheService['upsertFromProjection']>[2];
+    }> = [];
+
     let refreshed = 0;
     let failed = 0;
 
@@ -54,25 +65,33 @@ export class WatchCacheMissRefreshService {
       }
 
       if (result.status === 'fulfilled') {
-        try {
-          const titleProviderId = identity.tmdbId
-            ? String(identity.tmdbId)
-            : (identity.showTmdbId ? String(identity.showTmdbId) : null);
+        const titleProviderId = identity.tmdbId
+          ? String(identity.tmdbId)
+          : (identity.showTmdbId ? String(identity.showTmdbId) : null);
 
-          await this.cacheService.upsertFromProjection(client, {
+        upsertEntries.push({
+          params: {
             itemId: identity.contentId ?? identity.mediaKey,
             mediaType: identity.mediaType,
             titleProvider: 'tmdb',
             titleProviderId,
             titleMediaType: identity.mediaType === 'movie' ? 'movie' : 'show',
-          }, result.value, language);
-          refreshed++;
-        } catch (error) {
-          logger.warn({ error, itemId: identity.mediaKey }, 'failed to cache projection');
-          failed++;
-        }
+          },
+          projection: result.value,
+        });
+        refreshed++;
       } else {
         failed++;
+      }
+    }
+
+    if (upsertEntries.length) {
+      try {
+        await this.cacheService.upsertManyFromProjections(client, upsertEntries, language);
+      } catch (error) {
+        logger.warn({ error }, 'failed to batch cache projections');
+        failed = upsertEntries.length;
+        refreshed = 0;
       }
     }
 

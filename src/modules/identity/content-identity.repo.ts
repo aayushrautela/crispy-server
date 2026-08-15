@@ -169,6 +169,66 @@ export class ContentIdentityRepository {
     };
   }
 
+  async findContentItemsByIds(client: DbClient, contentIds: string[]): Promise<ContentItemRecord[]> {
+    if (!contentIds.length) {
+      return [];
+    }
+
+    const result = await client.query(
+      `
+        SELECT id, entity_type
+        FROM content_items
+        WHERE id = ANY($1::uuid[])
+      `,
+      [contentIds],
+    );
+
+    return result.rows.map((row) => ({
+      contentId: String(row.id),
+      entityType: String(row.entity_type) as ContentEntityType,
+    }));
+  }
+
+  async listProviderRefsByContentIds(client: DbClient, contentIds: string[]): Promise<ContentProviderRefRecord[]> {
+    if (!contentIds.length) {
+      return [];
+    }
+
+    const result = await client.query(
+      `
+        SELECT content_id, provider, entity_type, external_id, metadata
+        FROM content_provider_refs
+        WHERE content_id = ANY($1::uuid[])
+        ORDER BY provider ASC, entity_type ASC, external_id ASC
+      `,
+      [contentIds],
+    );
+
+    return result.rows.map((row) => mapProviderRef(row));
+  }
+
+  async findParentRelationshipsByChildIds(
+    client: DbClient,
+    childContentIds: string[],
+    relationshipType: ContentRelationshipType,
+  ): Promise<ContentRelationshipRecord[]> {
+    if (!childContentIds.length) {
+      return [];
+    }
+
+    const result = await client.query(
+      `
+        SELECT child_content_id, parent_content_id, relationship_type, metadata
+        FROM content_item_relationships
+        WHERE child_content_id = ANY($1::uuid[])
+          AND relationship_type = $2::text
+      `,
+      [childContentIds, relationshipType],
+    );
+
+    return result.rows.map((row) => mapRelationship(row));
+  }
+
   async upsertContentRelationship(
     client: DbClient,
     relationship: ContentRelationshipInput,

@@ -2,6 +2,7 @@ import { withDbClient } from '../../lib/db.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { AccountSettingsRepository } from '../users/account-settings.repo.js';
 import { resolveEffectiveMetadataLanguage, normalizeMetadataLanguage } from './metadata-language.js';
+import { requestMemoize } from '../../lib/request-context.js';
 
 export class MetadataLanguageService {
   constructor(
@@ -36,14 +37,18 @@ export class MetadataLanguageService {
   }
 
   private async getProfileLanguage(profileId: string): Promise<string | null> {
-    const fromProfile = await this.profileLocalService.getInterfaceLanguage(profileId);
-    return normalizeMetadataLanguage(fromProfile);
+    return requestMemoize(`lang:profile:${profileId}`, async () => {
+      const fromProfile = await this.profileLocalService.getInterfaceLanguage(profileId);
+      return normalizeMetadataLanguage(fromProfile);
+    });
   }
 
   private async getAccountLanguage(accountId: string): Promise<string | null> {
-    return withDbClient(async (client) => {
-      const settings = await this.accountSettingsRepository.getSettingsForUser(client, accountId);
-      return normalizeMetadataLanguage(typeof settings.interfaceLanguage === 'string' ? settings.interfaceLanguage : null);
+    return requestMemoize(`lang:account:${accountId}`, async () => {
+      return withDbClient(async (client) => {
+        const settings = await this.accountSettingsRepository.getSettingsForUser(client, accountId);
+        return normalizeMetadataLanguage(typeof settings.interfaceLanguage === 'string' ? settings.interfaceLanguage : null);
+      });
     });
   }
 }

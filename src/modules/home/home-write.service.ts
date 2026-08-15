@@ -1,11 +1,11 @@
 import { randomUUID, createHash } from 'crypto';
 import { withTransaction } from '../../lib/db.js';
-import { redis } from '../../lib/redis.js';
 import { HttpError } from '../../lib/errors.js';
 import type { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
 import type { HomeListsRepo } from './repos/home-lists.repo.js';
+import { invalidateHomeCache } from './home-cache.js';
 import { DefaultHomeWritePolicy, type HomeWritePolicy } from './home-list-policy.js';
 import type {
   HomeMode,
@@ -33,10 +33,6 @@ export function toStorageSource(source: string): HomeSource {
   if (source === 'custom') return 'custom';
   if (source === 'fallback') return 'fallback';
   return 'reco';
-}
-
-function homeCacheKey(profileId: string): string {
-  return `home:${profileId}`;
 }
 
 export class DefaultHomeWriteService implements HomeWriteService {
@@ -133,7 +129,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
       createdAt: now,
     };
 
-    await redis.del(homeCacheKey(input.profileId));
+    await invalidateHomeCache(input.profileId);
     await this.deps.repo.saveIdempotencyRecord({ actorKey, operationKey, idempotencyKey: input.idempotencyKey, requestHash, responseBody: result, createdAt: now });
     return result;
   }
@@ -145,7 +141,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
     if (!decision.allowed) throw new HttpError(403, decision.rejectReason ?? 'Home write denied.', undefined, 'HOME_WRITE_DENIED');
     const now = this.deps.clock.now();
     await this.deps.repo.clearHomeForSource({ accountId: input.accountId, profileId: input.profileId, source, clearedAt: now });
-    await redis.del(homeCacheKey(input.profileId));
+    await invalidateHomeCache(input.profileId);
     const result: HomeWriteResult = {
       accountId: input.accountId,
       profileId: input.profileId,

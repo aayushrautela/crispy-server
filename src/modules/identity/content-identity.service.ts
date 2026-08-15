@@ -12,6 +12,7 @@ import {
 import {
   ContentIdentityRepository,
   type ContentEntityType,
+  type ContentItemRecord,
   type ContentProviderRefInput,
   type ContentProviderRefRecord,
   type ContentRelationshipRecord,
@@ -395,6 +396,21 @@ export class ContentIdentityService {
     return refs;
   }
 
+  async resolveProviderRefsForItemIds(client: DbClient, itemIds: string[]): Promise<Map<string, ContentProviderRefRecord[]>> {
+    const contentIds = itemIds.map(assertPublicItemId);
+    const refs = await this.repository.listProviderRefsByContentIds(client, contentIds);
+    const grouped = new Map<string, ContentProviderRefRecord[]>();
+    for (const ref of refs) {
+      const existing = grouped.get(ref.contentId);
+      if (existing) {
+        existing.push(ref);
+      } else {
+        grouped.set(ref.contentId, [ref]);
+      }
+    }
+    return grouped;
+  }
+
   async resolveParentItemIdsForEpisode(client: DbClient, itemId: string): Promise<EpisodeParentItemIds> {
     const contentId = assertPublicItemId(itemId);
     const item = await this.repository.findContentItemById(client, contentId);
@@ -454,7 +470,7 @@ export class ContentIdentityService {
     return result;
   }
 
-  async resolveTitleItemIdForPlayableItemId(client: DbClient, itemId: string): Promise<string> {
+  async resolveTitleItemIdForPlayableItemId(client: DbClient, itemId: string): Promise<{ publicTitleItemId: string; mediaType: string }> {
     const contentId = assertPublicItemId(itemId);
     const item = await this.repository.findContentItemById(client, contentId);
     if (!item) {
@@ -463,7 +479,7 @@ export class ContentIdentityService {
 
     const entityType = toReferenceEntityType(item.entityType);
     if (entityType === 'movie' || entityType === 'show') {
-      return encodePublicItemId(contentId);
+      return { publicTitleItemId: encodePublicItemId(contentId), mediaType: item.entityType };
     }
 
     if (entityType !== 'episode') {
@@ -475,7 +491,7 @@ export class ContentIdentityService {
       throw new HttpError(404, 'Metadata not found.');
     }
 
-    return encodePublicItemId(relationship.parentContentId);
+    return { publicTitleItemId: encodePublicItemId(relationship.parentContentId), mediaType: item.entityType };
   }
 
   private async ensureProviderRefRecords(
@@ -548,7 +564,84 @@ export class ContentIdentityService {
     }
 
     const refs = await this.repository.listProviderRefsByContentId(client, normalized);
-    if (!refs.length) {
+    const entityType = toReferenceEntityType(item.entityType);
+    const authorityRef = selectAuthorityRef(entityType, refs);
+    const parentRelationship =
+      authorityRef && toReferenceEntityType(authorityRef.entityType) === 'episode'
+        ? await this.repository.findParentRelationship(client, normalized, 'series')
+        : null;
+
+    return this.buildContentReference(normalized, item, refs, parentRelationship);
+  }
+
+  /**
+   * Resolve many content references in a fixed number of queries (content items, provider
+   * refs, and episode parent relationships are each loaded once). Returns `null` for any
+   * content id that cannot be resolved instead of throwing, so callers can skip bad rows.
+   */
+  async resolveContentReferencesBatched(
+    client: DbClient,
+    contentIds: string[],
+  ): Promise<Map<string, CanonicalContentReference | null>> {
+    const normalizedIds = contentIds.map(normalizeContentId);
+    const items = await this.repository.findContentItemsByIds(client, normalizedIds);
+    const itemById = new Map(items.map((item) => [item.contentId, item]));
+
+    const refs = await this.repository.listProviderRefsByContentIds(client, normalizedIds);
+    const refsByContentId = new Map<string, ContentProviderRefRecord[]>();
+    for (const ref of refs) {
+      const existing = refsByContentId.get(ref.contentId);
+      if (existing) {
+        existing.push(ref);
+      } else {
+        refsByContentId.set(ref.contentId, [ref]);
+      }
+    }
+
+    const episodeIds = normalizedIds.filter((id) => {
+      const item = itemById.get(id);
+      const refsForId = refsByContentId.get(id) ?? [];
+      const authorityRef = item ? selectAuthorityRef(toReferenceEntityType(item.entityType), refsForId) : null;
+      return authorityRef !== null && toReferenceEntityType(authorityRef.entityType) === 'episode';
+    });
+    const parentRelationships = episodeIds.length
+      ? await this.repository.findParentRelationshipsByChildIds(client, episodeIds, 'series')
+      : [];
+    const parentRelationshipByChildId = new Map(parentRelationships.map((relationship) => [relationship.childContentId, relationship]));
+
+    const result = new Map<string, CanonicalContentReference | null>();
+    for (const id of normalizedIds) {
+      const item = itemById.get(id) ?? null;
+      const refsForId = refsByContentId.get(id) ?? [];
+      try {
+        result.set(id, this.buildContentReference(id, item, refsForId, parentRelationshipByChildId.get(id) ?? null));
+      } catch {
+        result.set(id, null);
+      }
+    }
+    return result;
+  }
+
+  async resolveMediaIdentitiesBatched(
+    client: DbClient,
+    contentIds: string[],
+  ): Promise<Map<string, MediaIdentity | null>> {
+    const references = await this.resolveContentReferencesBatched(client, contentIds);
+    const identities = new Map<string, MediaIdentity | null>();
+    for (const [contentId, reference] of references) {
+      const identity = reference && 'mediaIdentity' in reference ? reference.mediaIdentity : null;
+      identities.set(contentId, identity);
+    }
+    return identities;
+  }
+
+  private buildContentReference(
+    contentId: string,
+    item: ContentItemRecord | null,
+    refs: ContentProviderRefRecord[],
+    parentRelationship: ContentRelationshipRecord | null,
+  ): CanonicalContentReference {
+    if (!item || !refs.length) {
       throw new HttpError(404, 'Metadata not found.');
     }
 
@@ -561,11 +654,11 @@ export class ContentIdentityService {
 
     if (authorityEntityType === 'movie' || authorityEntityType === 'show') {
       return {
-        contentId: normalized,
-        itemId: encodePublicItemId(normalized),
+        contentId,
+        itemId: encodePublicItemId(contentId),
         entityType: authorityEntityType,
         mediaIdentity: inferMediaIdentity({
-          contentId: normalized,
+          contentId,
           mediaType: authorityEntityType,
           provider: authorityRef.provider as SupportedProvider,
           providerId: authorityRef.externalId,
@@ -578,18 +671,17 @@ export class ContentIdentityService {
 
     if (authorityEntityType === 'episode') {
       const parsed = parseEpisodeExternalId(authorityRef.externalId, authorityRef.metadata);
-      const seriesRelationship = await this.repository.findParentRelationship(client, normalized, 'series');
       return {
-        contentId: normalized,
-        itemId: encodePublicItemId(normalized),
+        contentId,
+        itemId: encodePublicItemId(contentId),
         entityType: 'episode',
         mediaIdentity: inferMediaIdentity({
-          contentId: normalized,
+          contentId,
           mediaType: 'episode',
           provider: authorityRef.provider as SupportedProvider,
           parentProvider: authorityRef.provider as SupportedProvider,
           parentProviderId: parsed.parentProviderId,
-          parentContentId: seriesRelationship?.parentContentId ?? null,
+          parentContentId: parentRelationship?.parentContentId ?? null,
           seasonNumber: parsed.seasonNumber,
           episodeNumber: parsed.episodeNumber,
           providerMetadata: authorityRef.metadata,
@@ -602,8 +694,8 @@ export class ContentIdentityService {
     if (authorityEntityType === 'season') {
       const parsed = parseSeasonExternalId(authorityRef.externalId, authorityRef.metadata);
       return {
-        contentId: normalized,
-        itemId: encodePublicItemId(normalized),
+        contentId,
+        itemId: encodePublicItemId(contentId),
         entityType: 'season',
         parentMediaType: parsed.parentMediaType,
         provider: authorityRef.provider as SupportedProvider,
@@ -616,8 +708,8 @@ export class ContentIdentityService {
     }
 
     return {
-      contentId: normalized,
-      itemId: encodePublicItemId(normalized),
+      contentId,
+      itemId: encodePublicItemId(contentId),
       entityType: 'person',
       provider: authorityRef.provider as SupportedProvider,
       providerId: authorityRef.externalId,

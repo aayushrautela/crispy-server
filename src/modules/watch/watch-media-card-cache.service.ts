@@ -2,7 +2,7 @@ import type { DbClient } from '../../lib/db.js';
 import { buildResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import type { MetadataTitleMediaType, RegularCardView } from '../metadata/metadata-card.types.js';
 import type { SupportedProvider } from '../identity/media-key.js';
-import { WatchMediaCardCacheRepository, type WatchMediaCardCacheRecord } from './watch-media-card-cache.repo.js';
+import { WatchMediaCardCacheRepository, type WatchMediaCardCacheRecord, type WatchMediaCardUpsert } from './watch-media-card-cache.repo.js';
 
 export class WatchMediaCardCacheService {
   constructor(
@@ -86,6 +86,59 @@ export class WatchMediaCardCacheService {
     return new Map(
       Array.from(records.entries()).map(([id, record]) => [id, toRegularCard(record)]),
     );
+  }
+
+  async upsertManyFromProjections(client: DbClient, entries: Array<{
+    params: {
+      itemId: string;
+      mediaType: 'movie' | 'show' | 'season' | 'episode';
+      titleProvider: SupportedProvider;
+      titleProviderId: string | null;
+      titleMediaType: MetadataTitleMediaType | null;
+    };
+    projection: Parameters<WatchMediaCardCacheService['upsertFromProjection']>[2];
+  }>, language?: string | null): Promise<void> {
+    const upserts: WatchMediaCardUpsert[] = [];
+    for (const { params, projection } of entries) {
+      if (!projection.title) {
+        continue;
+      }
+      const titleProviderId = params.titleProviderId ?? null;
+      const titleMediaType = resolveTitleMediaType(params.mediaType, params.titleMediaType);
+      if (!titleProviderId || !titleMediaType) {
+        continue;
+      }
+      upserts.push({
+        itemId: params.itemId,
+        mediaType: params.mediaType,
+        titleProvider: params.titleProvider,
+        titleProviderId,
+        titleMediaType,
+        title: projection.title,
+        subtitle: projection.subtitle,
+        posterUrl: projection.posterUrl,
+        backdropUrl: projection.backdropUrl,
+        stillUrl: projection.episodeStillUrl ?? null,
+        logoUrl: projection.logoUrl,
+        trailerUrl: projection.trailerUrl,
+        trailerThumbnailUrl: projection.trailerThumbnailUrl,
+        posterColor: projection.posterColor,
+        backdropColor: projection.backdropColor,
+        releaseYear: projection.detailsReleaseYear,
+        rating: projection.detailsRating,
+        maturityRating: projection.maturityRating,
+        genres: projection.genres,
+        language: language ?? undefined,
+        overview: projection.detailsOverview,
+        runtimeMinutes: projection.episodeRuntimeMinutes ?? projection.detailsRuntimeMinutes,
+        releaseDate: projection.detailsReleaseDate,
+        status: projection.detailsStatus,
+        episodeTitle: projection.episodeTitle,
+        episodeAirDate: projection.episodeAirDate,
+      });
+    }
+
+    await this.repository.upsertMany(client, upserts);
   }
 
   async listCardCacheRecords(client: DbClient, itemIds: string[], language?: string | null): Promise<Map<string, WatchMediaCardCacheRecord>> {

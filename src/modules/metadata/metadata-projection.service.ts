@@ -55,6 +55,54 @@ export class MetadataProjectionService {
     return null;
   }
 
+  async resolveNextEpisodes(client: DbClient, identities: MediaIdentity[]): Promise<Map<string, CanonicalNextEpisodeRef | null>> {
+    const result = new Map<string, CanonicalNextEpisodeRef | null>();
+    if (!identities.length) {
+      return result;
+    }
+
+    const sources = await this.titleSourceService.loadTitleSources(client, identities);
+
+    const nextIdentities: MediaIdentity[] = [];
+    const nextKeyBySourceKey = new Map<string, string>();
+    for (const identity of identities) {
+      const source = sources.get(identity.mediaKey);
+      const tmdbNextEpisode = source?.tmdbNextEpisode ?? null;
+      const nextIdentity = tmdbNextEpisode ? this.resolveTmdbNextEpisodeIdentity(identity, tmdbNextEpisode) : null;
+      if (nextIdentity) {
+        nextIdentities.push(nextIdentity);
+        nextKeyBySourceKey.set(identity.mediaKey, nextIdentity.mediaKey);
+      }
+    }
+
+    const nextContentIds = nextIdentities.length
+      ? await this.contentIdentityService.ensureContentIds(client, nextIdentities)
+      : new Map<string, string>();
+
+    for (const identity of identities) {
+      const source = sources.get(identity.mediaKey);
+      const tmdbNextEpisode = source?.tmdbNextEpisode ?? null;
+      const nextIdentity = tmdbNextEpisode ? this.resolveTmdbNextEpisodeIdentity(identity, tmdbNextEpisode) : null;
+      if (!nextIdentity || !tmdbNextEpisode) {
+        result.set(identity.mediaKey, null);
+        continue;
+      }
+      const nextContentId = nextContentIds.get(nextIdentity.mediaKey);
+      result.set(
+        identity.mediaKey,
+        nextContentId
+          ? this.toCanonicalNextEpisodeRef(nextIdentity, {
+            itemId: encodePublicItemId(nextContentId),
+            airDate: tmdbNextEpisode.airDate,
+            title: tmdbNextEpisode.name,
+          })
+          : null,
+      );
+    }
+
+    return result;
+  }
+
   private async buildTitleProjection(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<WatchMediaProjection> {
     const detailsMedia = await this.buildDisplayCard(client, identity, language);
 

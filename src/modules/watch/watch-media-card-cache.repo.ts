@@ -32,36 +32,85 @@ export type WatchMediaCardCacheRecord = {
   episodeAirDate: string | null;
 };
 
+export type WatchMediaCardUpsert = {
+  itemId: string;
+  mediaType: string;
+  titleProvider: SupportedProvider;
+  titleProviderId: string;
+  titleMediaType: MetadataTitleMediaType;
+  title: string;
+  subtitle?: string | null;
+  posterUrl: string | null;
+  backdropUrl?: string | null;
+  stillUrl?: string | null;
+  logoUrl?: string | null;
+  trailerUrl?: string | null;
+  trailerThumbnailUrl?: string | null;
+  posterColor?: string | null;
+  backdropColor?: string | null;
+  releaseYear?: number | null;
+  rating?: number | null;
+  maturityRating?: string | null;
+  genres?: string[] | null;
+  language?: string;
+  overview?: string | null;
+  runtimeMinutes?: number | null;
+  releaseDate?: string | null;
+  status?: string | null;
+  episodeTitle?: string | null;
+  episodeAirDate?: string | null;
+};
+
 export class WatchMediaCardCacheRepository {
-  async upsert(client: DbClient, params: {
-    itemId: string;
-    mediaType: string;
-    titleProvider: SupportedProvider;
-    titleProviderId: string;
-    titleMediaType: MetadataTitleMediaType;
-    title: string;
-    subtitle?: string | null;
-    posterUrl: string | null;
-    backdropUrl?: string | null;
-    stillUrl?: string | null;
-    logoUrl?: string | null;
-    trailerUrl?: string | null;
-    trailerThumbnailUrl?: string | null;
-    posterColor?: string | null;
-    backdropColor?: string | null;
-    releaseYear?: number | null;
-    rating?: number | null;
-    maturityRating?: string | null;
-    genres?: string[] | null;
-    language?: string;
-    overview?: string | null;
-    runtimeMinutes?: number | null;
-    releaseDate?: string | null;
-    status?: string | null;
-    episodeTitle?: string | null;
-    episodeAirDate?: string | null;
-  }): Promise<void> {
-    const effectiveLanguage = params.language ?? 'en-US';
+  async upsert(client: DbClient, params: WatchMediaCardUpsert): Promise<void> {
+    await this.upsertMany(client, [params]);
+  }
+
+  async upsertMany(client: DbClient, records: WatchMediaCardUpsert[]): Promise<void> {
+    if (!records.length) {
+      return;
+    }
+
+    const columnCount = 26;
+    const values: unknown[] = [];
+    const tuples: string[] = [];
+    for (const [rowIndex, record] of records.entries()) {
+      const base = rowIndex * columnCount;
+      const placeholders: string[] = [];
+      for (let column = 1; column <= columnCount; column++) {
+        placeholders.push(`$${base + column}`);
+      }
+      tuples.push(`(${placeholders.join(', ')})`);
+      values.push(
+        record.itemId,
+        record.mediaType,
+        record.titleProvider,
+        record.titleProviderId,
+        record.titleMediaType,
+        record.title,
+        record.subtitle ?? null,
+        record.posterUrl,
+        record.backdropUrl ?? null,
+        record.stillUrl ?? null,
+        record.logoUrl ?? null,
+        record.trailerUrl ?? null,
+        record.trailerThumbnailUrl ?? null,
+        record.posterColor ?? null,
+        record.backdropColor ?? null,
+        record.releaseYear ?? null,
+        record.rating ?? null,
+        record.maturityRating ?? null,
+        JSON.stringify(normalizeGenres(record.genres)),
+        record.language ?? 'en-US',
+        record.overview ?? null,
+        record.runtimeMinutes ?? null,
+        record.releaseDate ?? null,
+        record.status ?? null,
+        record.episodeTitle ?? null,
+        record.episodeAirDate ?? null,
+      );
+    }
+
     await client.query(
       `
         INSERT INTO watch_media_card_cache (
@@ -71,7 +120,7 @@ export class WatchMediaCardCacheRepository {
           release_year, rating, maturity_rating, genres, language, updated_at,
           overview, runtime_minutes, release_date, status, episode_title, episode_air_date
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, now(), $21, $22, $23, $24, $25, $26)
+        VALUES ${tuples.join(', ')}
         ON CONFLICT (item_id, language)
         DO UPDATE SET
           media_type = EXCLUDED.media_type,
@@ -100,34 +149,7 @@ export class WatchMediaCardCacheRepository {
           episode_air_date = EXCLUDED.episode_air_date,
           updated_at = now()
       `,
-      [
-        params.itemId,
-        params.mediaType,
-        params.titleProvider,
-        params.titleProviderId,
-        params.titleMediaType,
-        params.title,
-        params.subtitle ?? null,
-        params.posterUrl,
-        params.backdropUrl ?? null,
-        params.stillUrl ?? null,
-        params.logoUrl ?? null,
-        params.trailerUrl ?? null,
-        params.trailerThumbnailUrl ?? null,
-        params.posterColor ?? null,
-        params.backdropColor ?? null,
-        params.releaseYear ?? null,
-        params.rating ?? null,
-        params.maturityRating ?? null,
-        JSON.stringify(normalizeGenres(params.genres)),
-        effectiveLanguage,
-        params.overview ?? null,
-        params.runtimeMinutes ?? null,
-        params.releaseDate ?? null,
-        params.status ?? null,
-        params.episodeTitle ?? null,
-        params.episodeAirDate ?? null,
-      ],
+      values,
     );
   }
 

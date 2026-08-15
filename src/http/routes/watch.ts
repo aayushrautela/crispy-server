@@ -82,11 +82,8 @@ export async function registerWatchRoutes(
     const body = (request.body ?? {}) as WatchEventBody;
     const playableItemId = assertPublicItemId(body.itemId!);
     const resolved = await withDbClient(async (client) => {
-      const publicTitleId = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      const titleItemId = decodePublicItemId(publicTitleId);
-      const contentItem = await contentIdentityRepo.findContentItemById(client, playableItemId);
-      if (!contentItem) throw new HttpError(404, 'Content item not found');
-      return { titleItemId, mediaType: toPlayableMediaType(contentItem.entityType) };
+      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
+      return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
     });
     await localUserWatchService.recordPlaybackState({
       accountId: actor.authSubject!,
@@ -139,9 +136,8 @@ export async function registerWatchRoutes(
     await assertProfileUnlocked(request, profileId);
     const playableItemId = assertPublicItemId(params.id);
     const resolved = await withDbClient(async (client) => {
-      const publicTitleId = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, params.id!);
-      const titleItemId = decodePublicItemId(publicTitleId);
-      return { titleItemId };
+      const { publicTitleItemId } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, params.id!);
+      return { titleItemId: decodePublicItemId(publicTitleItemId) };
     });
     await localUserWatchService.dismissContinueWatching({
       accountId: actor.authSubject!,
@@ -285,11 +281,8 @@ export async function registerWatchRoutes(
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
     const resolved = await withDbClient(async (client) => {
-      const publicTitleId = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      const titleItemId = decodePublicItemId(publicTitleId);
-      const contentItem = await contentIdentityRepo.findContentItemById(client, playableItemId);
-      if (!contentItem) throw new HttpError(404, 'Content item not found');
-      return { titleItemId, mediaType: toPlayableMediaType(contentItem.entityType) };
+      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
+      return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
     });
     await localUserWatchService.markWatched({
       accountId: actor.authSubject!,
@@ -310,11 +303,8 @@ export async function registerWatchRoutes(
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
     const resolved = await withDbClient(async (client) => {
-      const publicTitleId = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      const titleItemId = decodePublicItemId(publicTitleId);
-      const contentItem = await contentIdentityRepo.findContentItemById(client, playableItemId);
-      if (!contentItem) throw new HttpError(404, 'Content item not found');
-      return { titleItemId, mediaType: toPlayableMediaType(contentItem.entityType) };
+      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
+      return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
     });
     await localUserWatchService.unmarkWatched({
       accountId: actor.authSubject!,

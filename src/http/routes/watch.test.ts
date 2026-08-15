@@ -138,7 +138,7 @@ test('watch routes work with user actor auth subject', async (t) => {
   };
 
   ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
-    return itemId;
+    return { publicTitleItemId: itemId, mediaType: 'movie' };
   };
 
   ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
@@ -263,7 +263,7 @@ test('dismiss continue-watching resolves titleItemId from playableItemId', async
     return [] as never;
   };
   ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
-    return itemId;
+    return { publicTitleItemId: itemId, mediaType: 'episode' };
   };
   ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
     return { contentId: _contentId, entityType: 'episode' as const };
