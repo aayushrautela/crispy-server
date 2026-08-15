@@ -1,5 +1,6 @@
 import { verifyAuthJwt, type AuthTokenPayload } from '../lib/jwks.js';
 import { db } from '../lib/db.js';
+import { HttpError } from '../lib/errors.js';
 import { USER_DEFAULT_SCOPES, type UserAuthActor } from '../modules/auth/auth.types.js';
 import { normalizeLanguageCode } from '../modules/i18n/supported-languages.js';
 import { normalizeCountryCode } from '../modules/i18n/supported-countries.js';
@@ -12,7 +13,7 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
   try {
     payload = await verifyAuthJwt(token);
   } catch {
-    throw Object.assign(new Error('Invalid bearer token.'), { statusCode: 401 });
+    throw new HttpError(401, 'Invalid bearer token.', undefined, 'invalid_bearer_token');
   }
 
   const client = await db.connect();
@@ -30,11 +31,12 @@ export async function verifyAndUpsertAuthJwt(token: string): Promise<UserAuthAct
     if (profileCheck.rows.length === 0) {
       const signup = deriveSignupProfile(payload);
       if (!signup.ok) {
-        throw Object.assign(new Error('Signup is incomplete; profile name, language, and avatar are required.'), {
-          statusCode: 409,
-          code: 'signup_incomplete',
-          fields: signup.missing,
-        });
+        throw new HttpError(
+          409,
+          'Signup is incomplete; profile name, language, and avatar are required.',
+          { fields: signup.missing },
+          'signup_incomplete',
+        );
       }
 
       const profileResult = await client.query(
