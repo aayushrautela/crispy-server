@@ -78,6 +78,7 @@ export function buildEpisodeBaseItemDto(
     posterColor: null,
     backdropColor: null,
     genres: extractGenres(title),
+    externalIds: extractExternalIds(title),
   };
 
   const mediaItem = metadataCardToMediaItem(card, {

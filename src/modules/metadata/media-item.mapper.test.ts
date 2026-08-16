@@ -44,6 +44,7 @@ const baseCard: MetadataCardView = {
   posterColor: null,
   backdropColor: null,
   genres: [],
+  externalIds: { tmdb: null, imdb: null, tvdb: null },
 };
 
 test('metadataCardToMediaItem maps common metadata with artwork fallbacks', () => {

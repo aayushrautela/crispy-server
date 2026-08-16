@@ -49,6 +49,7 @@ test('MetadataCardBatchService hydrates valid item ids and reports invalid ids',
         posterColor: null,
         backdropColor: null,
         genres: [],
+        externalIds: { tmdb: null, imdb: null, tvdb: null },
       }));
     },
   } satisfies Pick<MetadataCardService, 'buildCardViews'>;

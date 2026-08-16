@@ -39,6 +39,7 @@ export type MetadataEpisodePreview = {
   runtimeMinutes: number | null;
   rating: number | null;
   images: MetadataImages;
+  externalIds: MetadataExternalIds;
 };
 
 export type MetadataCardView = {
@@ -71,6 +72,7 @@ export type MetadataCardView = {
   posterColor: string | null;
   backdropColor: string | null;
   genres: string[];
+  externalIds: MetadataExternalIds;
 };
 
 export type RegularCardView = {

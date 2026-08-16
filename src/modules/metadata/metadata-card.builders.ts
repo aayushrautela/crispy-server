@@ -17,6 +17,7 @@ import {
   extractReleaseDate,
   extractReleaseYear,
   extractCertification,
+  extractExternalIds,
   extractPrimaryTrailer,
   metadataMediaTypeFromTitle,
   padded,
@@ -70,6 +71,7 @@ export function buildEpisodePreview(params: {
     runtimeMinutes: deriveRuntimeMinutes(title, episode),
     rating: episode.voteAverage,
     images: buildMetadataImages(title, episode, language),
+    externalIds: title ? extractExternalIds(title) : { tmdb: episode.tmdbId ?? null, imdb: null, tvdb: null },
   };
 }
 
@@ -138,5 +140,6 @@ export function buildMetadataCardView(params: {
     posterColor: null,
     backdropColor: null,
     genres: extractGenres(title),
+    externalIds: title ? extractExternalIds(title) : { tmdb: identity.tmdbId ?? null, imdb: null, tvdb: null },
   };
 }
