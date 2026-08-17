@@ -285,6 +285,8 @@ export async function normalizeTraktWatchedShows(
           tmdbId: identity.tmdbId,
           tvdbId: resolvedShow.tvdbId,
           kitsuId: resolvedShow.kitsuId,
+          seasonNumber: identity.seasonNumber,
+          episodeNumber: identity.episodeNumber,
           watchedAt: occurredAt,
           sourceKind: 'provider_import',
           payload: traktPayload('watched_shows'),

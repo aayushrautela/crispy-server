@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { canonicalTitleMediaKey, canonicalTitleMediaType, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
+import { canonicalTitleMediaKey, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import type { ProfileRecord } from '../profiles/profile-local.service.js';
 
 type ProfileRef = Pick<ProfileRecord, 'id'>;
@@ -297,7 +297,7 @@ export class LocalProviderHistoryWriter {
         `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, 'playback_completed', $${base + 6}::timestamptz, $${base + 7}, $${base + 8}, 'provider_import', $${base + 9})`,
       );
       values.push(
-        accountId, profileId, contentId, titleContentId, canonicalTitleMediaType(identity),
+        accountId, profileId, contentId, titleContentId, identity.mediaType,
         entry.watchedAt, entry.seasonNumber ?? null, entry.episodeNumber ?? null, provider,
       );
     });

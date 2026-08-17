@@ -164,3 +164,63 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - handles DB error
   assert.equal(result.skipped, true);
   assert.ok(result.warnings.length > 0);
 });
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - stores episode history as media_type episode', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentId: async (_client: any, identity: { mediaKey: string }) => {
+      return identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2';
+    },
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      const map = new Map<string, string>();
+      for (const identity of identities) {
+        map.set(identity.mediaKey, identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2');
+      }
+      return map;
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  const result = await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    historyGeneration: 1,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      {
+        mediaKey: 'episode:tmdb:12345:2:3',
+        mediaType: 'episode',
+        watchedAt: '2026-05-10T00:00:00.000Z',
+        seasonNumber: 2,
+        episodeNumber: 3,
+      },
+    ],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [],
+  });
+
+  assert.equal(result.skipped, false);
+  assert.equal(result.historyInserted, 1);
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_events'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_events');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![4], 'episode', 'episode history must be stored with media_type episode, not show');
+  assert.equal(insertParams![6], 2, 'season_number should be 2');
+  assert.equal(insertParams![7], 3, 'episode_number should be 3');
+});
