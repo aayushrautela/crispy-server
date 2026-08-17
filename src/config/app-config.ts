@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { AiFeatureId, ServerAiTier } from '../modules/ai/ai.types.js';
 
+const DEFAULT_HOME_FRESH_SECONDS = 60;
+const DEFAULT_HOME_STALE_SECONDS = 300;
+
 export type AppServerAiConfig = {
   id: string;
   label: string;
@@ -79,19 +82,29 @@ function loadAppConfig(filePath: string): AppConfig {
 function parseCache(root: Record<string, unknown>): AppConfig['cache'] {
   const cache = expectRecord(root.cache, 'cache');
   const tmdb = expectRecord(cache.tmdb, 'cache.tmdb');
-  const home = expectRecord(cache.home, 'cache.home');
 
   return {
     calendarTtlSeconds: expectPositiveNumber(cache.calendarTtlSeconds, 'cache.calendarTtlSeconds'),
-    home: {
-      freshSeconds: expectPositiveNumber(home.freshSeconds, 'cache.home.freshSeconds'),
-      staleSeconds: expectPositiveNumber(home.staleSeconds, 'cache.home.staleSeconds'),
-    },
+    home: parseHomeCache(cache),
     tmdb: {
       movieTtlHours: expectPositiveNumber(tmdb.movieTtlHours, 'cache.tmdb.movieTtlHours'),
       showTtlHours: expectPositiveNumber(tmdb.showTtlHours, 'cache.tmdb.showTtlHours'),
       seasonTtlHours: expectPositiveNumber(tmdb.seasonTtlHours, 'cache.tmdb.seasonTtlHours'),
     },
+  };
+}
+
+/**
+ * `cache.home` is optional so deployments that predate stale-while-revalidate
+ * (or the example-only config) keep booting with sensible defaults instead of
+ * the parser throwing on a missing block. Each sub-field also defaults
+ * independently so a partially-specified `home` object does not crash.
+ */
+function parseHomeCache(cache: Record<string, unknown>): { freshSeconds: number; staleSeconds: number } {
+  const home = isRecord(cache.home) ? (cache.home as Record<string, unknown>) : null;
+  return {
+    freshSeconds: home ? expectPositiveNumber(home.freshSeconds, 'cache.home.freshSeconds', DEFAULT_HOME_FRESH_SECONDS) : DEFAULT_HOME_FRESH_SECONDS,
+    staleSeconds: home ? expectPositiveNumber(home.staleSeconds, 'cache.home.staleSeconds', DEFAULT_HOME_STALE_SECONDS) : DEFAULT_HOME_STALE_SECONDS,
   };
 }
 
@@ -171,7 +184,11 @@ function expectNonEmptyString(value: unknown, label: string): string {
   return normalized;
 }
 
-function expectPositiveNumber(value: unknown, label: string): number {
+function expectPositiveNumber(value: unknown, label: string, fallback?: number): number {
+  if (value === undefined) {
+    if (fallback !== undefined) return fallback;
+    throw new Error(`Invalid ${label}: expected a positive number.`);
+  }
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     throw new Error(`Invalid ${label}: expected a positive number.`);
   }
