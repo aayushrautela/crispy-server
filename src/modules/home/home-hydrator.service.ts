@@ -36,20 +36,22 @@ export class HomeHydrator {
     const sections: ClientHomeSection[] = [];
     if (!lists.length) return sections;
 
-    type FlatRow = { listIndex: number; rowIndex: number; row: Record<string, unknown>; itemId: string | null };
+    type FlatRow = { listIndex: number; rowIndex: number; row: Record<string, unknown>; itemId: string | null; contentId: string | null };
     const flats: FlatRow[] = [];
     for (let listIndex = 0; listIndex < lists.length; listIndex++) {
       const rows = (lists[listIndex]!.items ?? []).map(asRecord);
       for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
         const row = rows[rowIndex]!;
-        flats.push({ listIndex, rowIndex, row, itemId: readPublicItemId(row.itemId) });
+        const publicItemId = readPublicItemId(row.itemId);
+        const contentId = publicItemId ? assertPublicItemId(publicItemId) : null;
+        flats.push({ listIndex, rowIndex, row, itemId: publicItemId, contentId });
       }
     }
 
-    const batchRows: Array<FlatRow & { itemId: string }> = [];
+    const batchRows: Array<FlatRow & { contentId: string }> = [];
     const fallbackRows: FlatRow[] = [];
     for (const flat of flats) {
-      if (flat.itemId) batchRows.push(flat as FlatRow & { itemId: string });
+      if (flat.contentId) batchRows.push(flat as FlatRow & { contentId: string });
       else fallbackRows.push(flat);
     }
 
@@ -57,12 +59,12 @@ export class HomeHydrator {
     const keyFor = (listIndex: number, rowIndex: number) => `${listIndex}:${rowIndex}`;
 
     if (batchRows.length) {
-      const contentIds = batchRows.map((row) => assertPublicItemId(row.itemId));
+      const contentIds = batchRows.map((row) => row.contentId);
       const identityByContentId = await this.contentIdentityService.resolveMediaIdentitiesBatched(client, contentIds);
 
-      const orderedIdentities: Array<{ flat: FlatRow & { itemId: string }; identity: MediaIdentity }> = [];
+      const orderedIdentities: Array<{ flat: FlatRow & { contentId: string }; identity: MediaIdentity }> = [];
       for (const row of batchRows) {
-        const identity = identityByContentId.get(row.itemId);
+        const identity = identityByContentId.get(row.contentId);
         if (identity) orderedIdentities.push({ flat: row, identity });
       }
 
