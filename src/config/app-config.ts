@@ -12,6 +12,10 @@ export type AppServerAiConfig = {
 type AppConfig = {
   cache: {
     calendarTtlSeconds: number;
+    home: {
+      freshSeconds: number;
+      staleSeconds: number;
+    };
     tmdb: {
       movieTtlHours: number;
       showTtlHours: number;
@@ -75,9 +79,14 @@ function loadAppConfig(filePath: string): AppConfig {
 function parseCache(root: Record<string, unknown>): AppConfig['cache'] {
   const cache = expectRecord(root.cache, 'cache');
   const tmdb = expectRecord(cache.tmdb, 'cache.tmdb');
+  const home = expectRecord(cache.home, 'cache.home');
 
   return {
     calendarTtlSeconds: expectPositiveNumber(cache.calendarTtlSeconds, 'cache.calendarTtlSeconds'),
+    home: {
+      freshSeconds: expectPositiveNumber(home.freshSeconds, 'cache.home.freshSeconds'),
+      staleSeconds: expectPositiveNumber(home.staleSeconds, 'cache.home.staleSeconds'),
+    },
     tmdb: {
       movieTtlHours: expectPositiveNumber(tmdb.movieTtlHours, 'cache.tmdb.movieTtlHours'),
       showTtlHours: expectPositiveNumber(tmdb.showTtlHours, 'cache.tmdb.showTtlHours'),

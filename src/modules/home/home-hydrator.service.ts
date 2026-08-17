@@ -6,99 +6,115 @@ import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type S
 import type { ClientHomeSection, ClientHomeSectionType, ClientMediaCard } from '../recommendations/client-home.types.js';
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 
+type HomeListInput = {
+  listKey: string;
+  title: string;
+  subtitle: string | null;
+  sectionType: string;
+  items: unknown[];
+};
+
 export class HomeHydrator {
   constructor(
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly metadataCardService = new MetadataCardService(),
   ) {}
 
-  async hydrateSections(client: DbClient, lists: Array<{
-    listKey: string;
-    title: string;
-    subtitle: string | null;
-    sectionType: string;
-    items: unknown[];
-  }>, locale: string | null): Promise<ClientHomeSection[]> {
+  /**
+   * Hydrate every section in one pass. Identity resolution and card
+   * construction are batched across ALL rows in ALL lists instead of being
+   * awaited per section, collapsing the previous round-trip multiplier.
+   *
+   * Two row populations are handled separately:
+   *  - Rows carrying an `itemId` (the unified-ingester path): resolved in
+   *    one batched identity + one batched card-view call, with no
+   *    `ensureContentIds` writes.
+   *  - Rows carrying only provider refs (legacy fallback templates):
+   *    resolved per-item because there is no canonical contentId yet.
+   */
+  async hydrateSections(client: DbClient, lists: HomeListInput[], locale: string | null): Promise<ClientHomeSection[]> {
     const sections: ClientHomeSection[] = [];
-    for (const list of lists) {
-      const section = await this.hydrateSection(client, list, locale);
-      if (section) sections.push(section);
-    }
-    return sections;
-  }
+    if (!lists.length) return sections;
 
-  private async hydrateSection(client: DbClient, list: {
-    listKey: string;
-    title: string;
-    subtitle: string | null;
-    sectionType: string;
-    items: unknown[];
-  }, locale: string | null): Promise<ClientHomeSection | null> {
-    const sectionType = readSectionType(list.sectionType);
-    const rows = (list.items ?? []).map(asRecord);
-
-    // Rows written by the unified ingester carry a resolved itemId and can be hydrated in
-    // two batched passes (identity resolution + card view). Rows without an itemId fall back
-    // to the per-item path.
-    const batchRows: { rowIndex: number; contentId: string }[] = [];
-    const fallbackRows: { rowIndex: number; row: Record<string, unknown> }[] = [];
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-      const itemId = readPublicItemId(rows[rowIndex]!.itemId);
-      if (itemId) {
-        batchRows.push({ rowIndex, contentId: assertPublicItemId(itemId) });
-      } else {
-        fallbackRows.push({ rowIndex, row: rows[rowIndex]! });
+    type FlatRow = { listIndex: number; rowIndex: number; row: Record<string, unknown>; itemId: string | null };
+    const flats: FlatRow[] = [];
+    for (let listIndex = 0; listIndex < lists.length; listIndex++) {
+      const rows = (lists[listIndex]!.items ?? []).map(asRecord);
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex]!;
+        flats.push({ listIndex, rowIndex, row, itemId: readPublicItemId(row.itemId) });
       }
     }
 
-    const cards: (ClientMediaCard | null)[] = new Array(rows.length).fill(null);
+    const batchRows: Array<FlatRow & { itemId: string }> = [];
+    const fallbackRows: FlatRow[] = [];
+    for (const flat of flats) {
+      if (flat.itemId) batchRows.push(flat as FlatRow & { itemId: string });
+      else fallbackRows.push(flat);
+    }
+
+    const cardByKey = new Map<string, ClientMediaCard | null>();
+    const keyFor = (listIndex: number, rowIndex: number) => `${listIndex}:${rowIndex}`;
 
     if (batchRows.length) {
-      const contentIds = batchRows.map((entry) => entry.contentId);
-      const identityMap = await this.contentIdentityService.resolveMediaIdentitiesBatched(client, contentIds);
-      const resolvable: { rowIndex: number; identity: MediaIdentity }[] = [];
-      batchRows.forEach((entry, index) => {
-        const identity = identityMap.get(entry.contentId);
-        if (identity) {
-          resolvable.push({ rowIndex: entry.rowIndex, identity });
-        }
-      });
+      const contentIds = batchRows.map((row) => assertPublicItemId(row.itemId));
+      const identityByContentId = await this.contentIdentityService.resolveMediaIdentitiesBatched(client, contentIds);
 
-      if (resolvable.length) {
-        const views = await this.metadataCardService.buildCardViews(
+      const orderedIdentities: Array<{ flat: FlatRow & { itemId: string }; identity: MediaIdentity }> = [];
+      for (const row of batchRows) {
+        const identity = identityByContentId.get(row.itemId);
+        if (identity) orderedIdentities.push({ flat: row, identity });
+      }
+
+      if (orderedIdentities.length) {
+        const views = await this.metadataCardService.buildCardViewsForIdentities(
           client,
-          resolvable.map((entry) => entry.identity),
+          orderedIdentities.map((entry) => entry.identity),
           locale,
         );
-        resolvable.forEach((entry, viewIndex) => {
-          const view = views[viewIndex];
-          cards[entry.rowIndex] = view && view.title ? this.toClientCard(view, rows[entry.rowIndex]!) : null;
+        orderedIdentities.forEach((entry, i) => {
+          const view = views[i];
+          cardByKey.set(
+            keyFor(entry.flat.listIndex, entry.flat.rowIndex),
+            view && view.title ? this.toClientCard(view, entry.flat.row) : null,
+          );
         });
       }
     }
 
-    await Promise.all(
-      fallbackRows.map(async ({ rowIndex, row }) => {
-        const identity = await this.resolveIdentity(client, row);
-        if (!identity) return;
-        const view = await this.metadataCardService.buildCardView(client, identity, locale);
-        cards[rowIndex] = view && view.title ? this.toClientCard(view, row) : null;
-      }),
-    );
+    await Promise.all(fallbackRows.map(async (flat) => {
+      const identity = await this.resolveIdentity(client, flat.row);
+      if (!identity) {
+        cardByKey.set(keyFor(flat.listIndex, flat.rowIndex), null);
+        return;
+      }
+      const view = await this.metadataCardService.buildCardView(client, identity, locale);
+      cardByKey.set(
+        keyFor(flat.listIndex, flat.rowIndex),
+        view && view.title ? this.toClientCard(view, flat.row) : null,
+      );
+    }));
 
-    const sectionCards = cards.filter((card): card is ClientMediaCard => card !== null);
-    if (sectionCards.length === 0) {
-      return null;
+    for (let listIndex = 0; listIndex < lists.length; listIndex++) {
+      const list = lists[listIndex]!;
+      const rows = (list.items ?? []).map(asRecord);
+      const sectionCards: ClientMediaCard[] = [];
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const card = cardByKey.get(keyFor(listIndex, rowIndex));
+        if (card) sectionCards.push(card);
+      }
+      if (sectionCards.length === 0) continue;
+      sections.push({
+        listKey: list.listKey,
+        title: list.title,
+        subtitle: list.subtitle,
+        sectionType: readSectionType(list.sectionType),
+        items: sectionCards,
+        meta: {},
+      });
     }
 
-    return {
-      listKey: list.listKey,
-      title: list.title,
-      subtitle: list.subtitle,
-      sectionType,
-      items: sectionCards,
-      meta: {},
-    };
+    return sections;
   }
 
   private toClientCard(card: MetadataCardView, row: Record<string, unknown>): ClientMediaCard {

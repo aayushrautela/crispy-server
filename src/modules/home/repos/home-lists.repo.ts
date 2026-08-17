@@ -88,6 +88,29 @@ export class HomeListsRepo {
   }
 
   /**
+   * Pick the first candidate source that has any active rows for this profile,
+   * in one query. Resolves the precedence in the caller order — `sources[0]`
+   * wins over `sources[1]` when both have rows. Replaces up to N
+   * `hasActiveSourceRows` round-trips on the home cold path.
+   */
+  async findActiveSource(input: {
+    accountId: string;
+    profileId: string;
+    sources: readonly HomeSource[];
+  }): Promise<HomeSource | null> {
+    if (!input.sources.length) return null;
+    const result = await this.deps.db.query(
+      `SELECT source FROM recommendation_active_lists
+       WHERE account_id = $1::uuid AND profile_id = $2::uuid AND deleted_at IS NULL
+         AND source = ANY($3::text[])
+       GROUP BY source`,
+      [input.accountId, input.profileId, [...input.sources]],
+    );
+    const present = new Set(result.rows.map((row) => String(row.source)));
+    return input.sources.find((source) => present.has(source)) ?? null;
+  }
+
+  /**
    * Whole-home atomic replace for a single source: deactivate every active list
    * row for this source, then insert fresh versions and activate them. Called
    * inside a single transaction so a failure leaves the previous rows intact.

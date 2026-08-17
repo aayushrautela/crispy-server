@@ -1,6 +1,9 @@
 {
   "cache": {
-    "homeTtlSeconds": 120,
+    "home": {
+      "freshSeconds": 60,
+      "staleSeconds": 300
+    },
     "calendarTtlSeconds": 300,
     "tmdb": {
       "movieTtlHours": 168,

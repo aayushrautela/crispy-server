@@ -342,12 +342,16 @@ export async function registerAdminApiRoutes(
     const { sections, source } = await withDbClient(async (client) => {
       const repo = new HomeListsRepo({ db });
       const hydrator = new HomeHydrator();
-      const sources = ['reco', 'fallback'] as const;
-      for (const src of sources) {
-        const lists = await repo.listActiveForSource({ accountId: params.accountId, profileId: params.profileId, source: src });
+      const picked = await repo.findActiveSource({
+        accountId: params.accountId,
+        profileId: params.profileId,
+        sources: ['reco', 'fallback'] as const,
+      });
+      if (picked) {
+        const lists = await repo.listActiveForSource({ accountId: params.accountId, profileId: params.profileId, source: picked });
         if (lists.length > 0) {
           const hydrated = await hydrator.hydrateSections(client, lists, null);
-          return { sections: hydrated, source: src };
+          return { sections: hydrated, source: picked };
         }
       }
       return { sections: [] as ClientHomeSection[], source: 'empty' };

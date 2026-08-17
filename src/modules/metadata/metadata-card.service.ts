@@ -75,4 +75,69 @@ export class MetadataCardService {
       });
     });
   }
+
+  /**
+   * Same shape as {@link buildCardViews}, but for callers that already hold
+   * the canonical `contentId` for every identity and don't need the
+   * identity-service upsert path. Used by read-only surfaces (home, admin
+   * recommendations preview) so a GET doesn't churn `content_provider_refs`
+   * on every request.
+   *
+   * Identities missing a `contentId` resolve to `null` in the returned array
+   * at the same index — the caller is responsible for either skipping them
+   * or running them through `ensureContentId` first.
+   */
+  async buildCardViewsForIdentities(client: DbClient, identities: MediaIdentity[], language?: string | null): Promise<(MetadataCardView | null)[]> {
+    if (!identities.length) {
+      return [];
+    }
+    const normalizedLanguage = language ?? null;
+
+    const resolvedIndexes: number[] = [];
+    const resolvedIdentities: MediaIdentity[] = [];
+    for (let i = 0; i < identities.length; i++) {
+      const identity = identities[i]!;
+      if (identity.contentId) {
+        resolvedIndexes.push(i);
+        resolvedIdentities.push(identity);
+      }
+    }
+
+    const views: (MetadataCardView | null)[] = new Array(identities.length).fill(null);
+    if (!resolvedIdentities.length) {
+      return views;
+    }
+
+    const titleSources = await this.titleSourceService.loadTitleSources(client, resolvedIdentities, normalizedLanguage);
+
+    const episodeItemIds: string[] = [];
+    for (const identity of resolvedIdentities) {
+      if (identity.mediaType === 'episode' && identity.contentId) {
+        episodeItemIds.push(encodePublicItemId(identity.contentId));
+      }
+    }
+    const parentIds = episodeItemIds.length
+      ? await this.contentIdentityService.resolveParentItemIdsForEpisodes(client, episodeItemIds)
+      : new Map<string, EpisodeParentItemIds>();
+
+    resolvedIdentities.forEach((identity, i) => {
+      const originalIndex = resolvedIndexes[i]!;
+      const itemId = encodePublicItemId(identity.contentId!);
+      const source = titleSources.get(identity.mediaKey);
+      const parents = identity.mediaType === 'episode'
+        ? (parentIds.get(itemId) ?? { seriesItemId: null, seasonItemId: null })
+        : { seriesItemId: null, seasonItemId: null };
+      views[originalIndex] = buildMetadataCardView({
+        identity,
+        itemId,
+        seriesItemId: parents.seriesItemId,
+        seasonItemId: parents.seasonItemId,
+        title: source?.tmdbTitle ?? null,
+        currentEpisode: source?.tmdbCurrentEpisode ?? null,
+        language: normalizedLanguage,
+      });
+    });
+
+    return views;
+  }
 }

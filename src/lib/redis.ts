@@ -7,6 +7,7 @@ type RedisLike = {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ...args: RedisValue[]): Promise<'OK' | null>;
   del(...keys: string[]): Promise<number>;
+  incr(key: string): Promise<number>;
   keys(pattern: string): Promise<string[]>;
   sadd(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
@@ -72,6 +73,12 @@ class TestRedis implements RedisLike {
       }
     }
     return deleted;
+  }
+
+  async incr(key: string): Promise<number> {
+    const next = (Number(this.kv.get(key) ?? '0') || 0) + 1;
+    this.kv.set(key, String(next));
+    return next;
   }
 
   async keys(pattern: string): Promise<string[]> {
