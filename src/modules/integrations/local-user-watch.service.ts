@@ -248,8 +248,8 @@ export class LocalUserWatchService {
          AND ($2::uuid IS NULL OR COALESCE(cir.parent_content_id, ws.item_id) = $2::uuid)
          AND ($3::timestamptz IS NULL OR ws.last_played_at < $3::timestamptz
               OR (ws.last_played_at = $3::timestamptz AND COALESCE(cir.parent_content_id, ws.item_id) > $4::uuid))
-       GROUP BY item_id, ci.entity_type
-       ORDER BY occurred_at DESC, item_id DESC
+        GROUP BY COALESCE(cir.parent_content_id, ws.item_id), ci.entity_type
+        ORDER BY occurred_at DESC, item_id DESC
        LIMIT $5`,
       [params.profileId, params.itemId ?? null, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
