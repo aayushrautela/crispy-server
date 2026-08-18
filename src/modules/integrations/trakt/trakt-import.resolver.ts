@@ -1,5 +1,6 @@
 import { db, type DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
+import { logger } from '../../../config/logger.js';
 import {
   inferMediaIdentity,
   type MediaIdentity,
@@ -165,6 +166,14 @@ export class TraktImportIdentityResolver {
       return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
     }
 
+    logger.warn({
+      mediaFamily: params.mediaFamily,
+      tmdbId: params.tmdbId ?? null,
+      imdbId: params.imdbId?.trim() ?? null,
+      tvdbId: params.tvdbId?.trim() ?? null,
+      kitsuId: params.kitsuId ?? null,
+      reason: 'no_resolvable_external_ids',
+    }, 'trakt_import_resolve_failed');
     cache.set(cacheKey, null);
     return null;
   }
@@ -180,6 +189,15 @@ export class TraktImportIdentityResolver {
     try {
       const cardView = await this.deps.metadataCardService.buildCardView(client, resolved.identity);
       if (sourceTitle && !titlesMatch(sourceTitle, cardView.title)) {
+        logger.warn({
+          mediaFamily: resolved.mediaType,
+          tmdbId: resolved.identity.tmdbId,
+          tvdbId: resolved.tvdbId,
+          kitsuId: resolved.kitsuId,
+          sourceTitle,
+          resolvedTitle: cardView.title,
+          reason: 'title_mismatch',
+        }, 'trakt_import_resolve_rejected');
         cache.set(cacheKey, null);
         return null;
       }
