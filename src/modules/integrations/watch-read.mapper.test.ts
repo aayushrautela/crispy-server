@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { mapContinueWatchingRow, mapHistoryRow } from './watch-read.mapper.js';
+import { mapContinueWatchingRow, mapHistoryRow, mapWatchStateRow } from './watch-read.mapper.js';
 
 const showId = '00000000-0000-4000-8000-000000000001';
 const movieId = '00000000-0000-4000-8000-000000000002';
@@ -134,4 +134,27 @@ test('mapContinueWatchingRow maps percentage-only imported progress (no seconds)
   assert.equal(item.UserData!.PlayedPercentage, 48.89);
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-15T00:00:00.000Z');
   assert.equal(item.UserData!.Played, false);
+});
+
+test('mapWatchStateRow resolves episode identity via show tmdb id + season/episode', () => {
+  const item = mapWatchStateRow({
+    item_id: episodeId,
+    media_type: 'episode',
+    title_provider_id: '52814',
+    imdb_id: null,
+    tvdb_id: null,
+    show_tmdb_id: '32726',
+    season_number: 1,
+    episode_number: 1,
+    effective_watched: true,
+    play_count: 1,
+    last_watched_at: '2026-05-16T00:00:00.000Z',
+  });
+
+  assert.equal(item.Id, encodePublicItemId(episodeId));
+  assert.equal(item.Type, 'Episode');
+  assert.equal(item.ParentIndexNumber, 1);
+  assert.equal(item.IndexNumber, 1);
+  assert.deepEqual(item.ProviderIds, { Tmdb: '32726', Imdb: null, Tvdb: null });
+  assert.equal(item.UserData!.Played, true);
 });

@@ -384,10 +384,11 @@ export class LocalUserWatchService {
          SELECT
            req.item_id,
            ci.entity_type                    AS media_type,
-           tmdb_ref.external_id              AS title_provider_id,
-           imdb_ref.external_id              AS imdb_id,
-           tvdb_ref.external_id              AS tvdb_id,
-           pb.position_seconds,
+            tmdb_ref.external_id              AS title_provider_id,
+            imdb_ref.external_id              AS imdb_id,
+            tvdb_ref.external_id              AS tvdb_id,
+            wa.show_tmdb_id,
+            pb.position_seconds,
            pb.duration_seconds,
            pb.progress_bps,
            pb.last_activity_at,
@@ -397,12 +398,14 @@ export class LocalUserWatchService {
            pb.progress_bps                   AS continue_progress_bps,
            pb.last_activity_at               AS continue_last_activity_at,
            pb.dismissed_at                   AS continue_dismissed_at,
-           li.added_at                       AS watchlist_added_at,
-           rt.rating,
-           rt.rated_at,
-            COALESCE(wa.effective_watched, false) AS effective_watched,
-            COALESCE(wa.play_count, 0)            AS play_count,
-            wa.last_watched_at
+             li.added_at                       AS watchlist_added_at,
+            rt.rating,
+            rt.rated_at,
+             COALESCE(wa.effective_watched, false) AS effective_watched,
+             COALESCE(wa.play_count, 0)            AS play_count,
+             wa.last_watched_at,
+             wa.season_number,
+             wa.episode_number
           FROM requested req
          LEFT JOIN content_items ci
            ON ci.id = req.item_id
@@ -414,30 +417,37 @@ export class LocalUserWatchService {
            ON imdb_ref.content_id = req.item_id
           AND imdb_ref.provider = 'imdb'
           AND imdb_ref.entity_type = ci.entity_type
-         LEFT JOIN content_provider_refs tvdb_ref
-           ON tvdb_ref.content_id = req.item_id
-          AND tvdb_ref.provider = 'tvdb'
-          AND tvdb_ref.entity_type = ci.entity_type
-         LEFT JOIN user_state.playback_progress pb
+           LEFT JOIN content_provider_refs tvdb_ref
+             ON tvdb_ref.content_id = req.item_id
+            AND tvdb_ref.provider = 'tvdb'
+            AND tvdb_ref.entity_type = ci.entity_type
+           LEFT JOIN user_state.playback_progress pb
            ON pb.profile_id = $1::uuid AND pb.title_item_id = req.item_id AND pb.dismissed_at IS NULL
          LEFT JOIN user_state.profile_list_items li
            ON li.profile_id = $1::uuid AND li.list_kind = 'watchlist' AND li.item_id = req.item_id
          LEFT JOIN user_state.profile_ratings rt
            ON rt.profile_id = $1::uuid AND rt.item_id = req.item_id
           LEFT JOIN LATERAL (
-            SELECT
+             SELECT
               (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1]
                 = ANY ($3::text[])                                        AS effective_watched,
               CASE WHEN (array_agg(ev.event_type ORDER BY ev.occurred_at DESC, ev.id DESC))[1]
                 = ANY ($3::text[])
                 THEN count(*) FILTER (WHERE ev.event_type = ANY ($3::text[]))
                 ELSE 0 END                                                AS play_count,
-              max(ev.occurred_at) FILTER (WHERE ev.event_type = ANY ($3::text[])) AS last_watched_at
-            FROM user_state.watch_events ev
-            WHERE ev.profile_id = $1::uuid
-              AND ev.item_id = req.item_id
-              AND ev.event_type = ANY ($4::text[])
-           ) wa ON true`,
+              max(ev.occurred_at) FILTER (WHERE ev.event_type = ANY ($3::text[])) AS last_watched_at,
+              max(ev.season_number)                                       AS season_number,
+              max(ev.episode_number)                                      AS episode_number,
+              max(title_tmdb_ref.external_id)                             AS show_tmdb_id
+             FROM user_state.watch_events ev
+             LEFT JOIN content_provider_refs title_tmdb_ref
+               ON title_tmdb_ref.content_id = ev.title_item_id
+              AND title_tmdb_ref.provider = 'tmdb'
+              AND title_tmdb_ref.entity_type = 'show'
+             WHERE ev.profile_id = $1::uuid
+               AND ev.item_id = req.item_id
+               AND ev.event_type = ANY ($4::text[])
+            ) wa ON true`,
          [params.profileId, itemIds, WATCHED_EVENT_TYPES, WATCH_STATE_EVENT_TYPES],
       );
 

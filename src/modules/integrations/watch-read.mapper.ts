@@ -133,8 +133,26 @@ export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
     DismissedFromContinueWatching: continueProgressBps !== null && row.continue_dismissed_at !== null,
   };
 
+  const mediaType = stringValue(row.media_type);
+  const isEpisode = mediaType === 'episode';
+  const overrides: Partial<BaseItemDto> = { UserData: userData };
+  if (isEpisode) {
+    const seasonNumber = numberValue(row.season_number);
+    const episodeNumber = numberValue(row.episode_number);
+    if (seasonNumber !== null) overrides.ParentIndexNumber = seasonNumber;
+    if (episodeNumber !== null) overrides.IndexNumber = episodeNumber;
+    const showTmdbId = nullableStringValue(row.show_tmdb_id);
+    if (showTmdbId != null) {
+      overrides.ProviderIds = {
+        Tmdb: showTmdbId,
+        Imdb: nullableStringValue(row.imdb_id),
+        Tvdb: nullableStringValue(row.tvdb_id),
+      };
+    }
+  }
+
   return {
-    ...mediaItemDtoFromRow(itemId, row, { UserData: userData }),
+    ...mediaItemDtoFromRow(itemId, row, overrides),
   };
 }
 
