@@ -491,10 +491,6 @@ export class LocalUserWatchService {
            WHERE profile_id = $1::uuid AND title_item_id = $2::uuid AND playable_item_id = $3::uuid`,
           [params.profileId, params.titleItemId, params.itemId],
         );
-
-        if (params.mediaType === 'episode') {
-          await this.advanceToNextEpisode(client, params.profileId, params.titleItemId, params.itemId, params.accountId);
-        }
       } else {
         const episodeNumbers = params.mediaType === 'episode'
           ? await this.resolveEpisodeNumbers(client, params.itemId)
@@ -547,59 +543,6 @@ export class LocalUserWatchService {
     } catch {
       return null;
     }
-  }
-
-  private async advanceToNextEpisode(
-    client: DbClient,
-    profileId: string,
-    titleItemId: string,
-    completedPlayableItemId: string,
-    accountId: string,
-  ): Promise<void> {
-    const showIdentity = await this.resolveShowIdentity(client, titleItemId);
-    if (!showIdentity) return;
-
-    const showTmdbId = showTmdbIdForIdentity(showIdentity);
-    if (!showTmdbId) return;
-
-    const completedNumbers = await this.resolveEpisodeNumbers(client, completedPlayableItemId);
-    if (!completedNumbers) return;
-
-    const nextRow = await client.query(
-      `SELECT season_number, episode_number, tmdb_id
-       FROM tmdb_tv_episodes
-       WHERE show_tmdb_id = $1
-         AND (season_number > $2 OR (season_number = $2 AND episode_number > $3))
-       ORDER BY season_number ASC, episode_number ASC
-       LIMIT 1`,
-      [showTmdbId, completedNumbers.seasonNumber, completedNumbers.episodeNumber],
-    );
-    if (nextRow.rows.length === 0) return;
-
-    const next = nextRow.rows[0];
-    const nextIdentity = inferMediaIdentity({
-      mediaType: 'episode',
-      provider: 'tmdb',
-      parentProvider: 'tmdb',
-      parentProviderId: String(showTmdbId),
-      seasonNumber: next.season_number as number,
-      episodeNumber: next.episode_number as number,
-      providerMetadata: { tmdbId: showTmdbId, showTmdbId },
-    });
-
-    const nextContentId = await this.contentIdentityService.ensureContentId(client, nextIdentity);
-
-    await client.query(
-      `INSERT INTO user_state.playback_progress
-         (profile_id, title_item_id, playable_item_id, media_type,
-          position_seconds, duration_seconds, progress_bps, last_activity_at,
-          season_number, episode_number,
-          source_kind, account_id, last_actor_account_id)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, 'episode', 0, NULL, 0, now(), $4, $5, 'local', $6::uuid, $6::uuid)
-       ON CONFLICT (profile_id, title_item_id, playable_item_id) DO NOTHING`,
-      [profileId, titleItemId, nextContentId,
-       next.season_number as number, next.episode_number as number, accountId],
-    );
   }
 
   private async resolveShowIdentity(
@@ -713,10 +656,6 @@ export class LocalUserWatchService {
          WHERE profile_id = $1::uuid AND title_item_id = $2::uuid AND playable_item_id = $3::uuid`,
         [params.profileId, params.titleItemId, params.itemId],
       );
-
-      if (params.mediaType === 'episode') {
-        await this.advanceToNextEpisode(client, params.profileId, params.titleItemId, params.itemId, params.accountId);
-      }
     });
   }
 
