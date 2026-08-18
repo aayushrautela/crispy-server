@@ -188,7 +188,7 @@ export class LocalProviderHistoryWriter {
     [...deduped.values()].forEach((entry, index) => {
       const contentId = contentIds.get(entry.mediaKey)!;
       const titleContentId = contentIds.get(canonicalTitleMediaKey(parseMediaKey(entry.mediaKey)))!;
-      const base = index * 11;
+      const base = index * 6;
       tuples.push(
         `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, true, 1, $${base + 6}::timestamptz, 0, NULL, now())`,
       );
@@ -242,7 +242,7 @@ export class LocalProviderHistoryWriter {
       const titleItemId = contentIds.get(state.titleMediaKey)!;
       const playableItemId = contentIds.get(state.mediaKey)!;
       const playableIdentity = parseMediaKey(state.mediaKey);
-      const base = index * 13;
+      const base = index * 12;
       tuples.push(
         `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}::timestamptz, $${base + 11}, $${base + 12}, now())`,
       );
@@ -352,7 +352,7 @@ export class LocalProviderHistoryWriter {
     const values: unknown[] = [];
     const tuples: string[] = [];
     [...deduped.values()].forEach((row, index) => {
-      const base = index * 6;
+      const base = index * 5;
       tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, true, now())`);
       values.push(profileId, accountId, row.itemId, row.titleItemId, row.item.mediaType);
     });
