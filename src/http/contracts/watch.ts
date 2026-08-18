@@ -40,6 +40,8 @@ export type WatchEventBody = {
   itemId?: string;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
   rating?: number | null;
   occurredAt?: string | null;
   payload?: Record<string, unknown>;
@@ -47,6 +49,8 @@ export type WatchEventBody = {
 
 export type WatchMutationBody = {
   itemId?: string;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
   occurredAt?: string | null;
   rating?: number | null;
   payload?: Record<string, unknown>;
@@ -81,6 +85,8 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
       itemId: publicItemIdSchema,
       positionSeconds: nullableNumberSchema,
       durationSeconds: nullableNumberSchema,
+      seasonNumber: nullableNumberSchema,
+      episodeNumber: nullableNumberSchema,
       rating: nullableNumberSchema,
       occurredAt: {
         anyOf: [
@@ -200,6 +206,8 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
     additionalProperties: false,
     properties: {
       itemId: publicItemIdSchema,
+      seasonNumber: nullableNumberSchema,
+      episodeNumber: nullableNumberSchema,
       occurredAt: {
         anyOf: [
           stringSchema,

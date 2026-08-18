@@ -613,6 +613,33 @@ export class LocalUserWatchService {
     }
   }
 
+  async resolveEpisodePlayableItemId(
+    seriesTitleItemId: string,
+    season: number,
+    episode: number,
+  ): Promise<string | null> {
+    try {
+      return await withDbClient(async (client) => {
+        const showIdentity = await this.resolveShowIdentity(client, seriesTitleItemId);
+        if (!showIdentity) return null;
+        const showTmdbId = showTmdbIdForIdentity(showIdentity);
+        if (!showTmdbId) return null;
+        const episodeIdentity = inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'tmdb',
+          parentProvider: 'tmdb',
+          parentProviderId: String(showTmdbId),
+          seasonNumber: season,
+          episodeNumber: episode,
+          providerMetadata: { tmdbId: showTmdbId, showTmdbId },
+        });
+        return this.contentIdentityService.ensureContentId(client, episodeIdentity);
+      });
+    } catch {
+      return null;
+    }
+  }
+
   async dismissContinueWatching(params: DismissContinueWatchingParams): Promise<void> {
     await db.query(
       `UPDATE user_state.playback_progress

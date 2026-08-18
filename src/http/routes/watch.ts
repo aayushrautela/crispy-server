@@ -27,7 +27,7 @@ import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { mutation, success } from '../response.js';
-import { assertPublicItemId, decodePublicItemId } from '../../modules/identity/public-item-id.js';
+import { assertPublicItemId, decodePublicItemId, encodePublicItemId } from '../../modules/identity/public-item-id.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
 import { requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
@@ -88,17 +88,28 @@ export async function registerWatchRoutes(
       const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
       return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
     });
+    const seasonNumber = typeof body.seasonNumber === 'number' ? Math.trunc(body.seasonNumber) : null;
+    const episodeNumber = typeof body.episodeNumber === 'number' ? Math.trunc(body.episodeNumber) : null;
+    let effectiveItemId = playableItemId;
+    let effectiveMediaType = resolved.mediaType;
+    if (effectiveMediaType === 'show' && seasonNumber != null && episodeNumber != null) {
+      const episodeContentId = await localUserWatchService.resolveEpisodePlayableItemId(resolved.titleItemId, seasonNumber, episodeNumber);
+      if (episodeContentId) {
+        effectiveItemId = encodePublicItemId(episodeContentId);
+        effectiveMediaType = 'episode';
+      }
+    }
     await getPlaybackProgressBuffer(localUserWatchService).bufferProgress({
       accountId: actor.authSubject!,
       profileId,
-      itemId: playableItemId,
+      itemId: effectiveItemId,
       titleItemId: resolved.titleItemId,
-      mediaType: resolved.mediaType,
+      mediaType: effectiveMediaType,
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
       progressBps: null,
-      seasonNumber: null,
-      episodeNumber: null,
+      seasonNumber,
+      episodeNumber,
       eventKind: String(body.eventType ?? '') === 'playback_completed' ? 'playback_completed' : 'playback_progress',
       lastActivityAt: typeof body.occurredAt === 'string' ? body.occurredAt : new Date().toISOString(),
     });
@@ -310,12 +321,21 @@ export async function registerWatchRoutes(
       const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
       return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
     });
+    let effectiveItemId = playableItemId;
+    let effectiveMediaType = resolved.mediaType;
+    if (effectiveMediaType === 'show' && Number.isInteger(body.seasonNumber) && Number.isInteger(body.episodeNumber)) {
+      const episodeContentId = await localUserWatchService.resolveEpisodePlayableItemId(resolved.titleItemId, body.seasonNumber as number, body.episodeNumber as number);
+      if (episodeContentId) {
+        effectiveItemId = encodePublicItemId(episodeContentId);
+        effectiveMediaType = 'episode';
+      }
+    }
     await localUserWatchService.markWatched({
       accountId: actor.authSubject!,
       profileId,
-      itemId: playableItemId,
+      itemId: effectiveItemId,
       titleItemId: resolved.titleItemId,
-      mediaType: resolved.mediaType,
+      mediaType: effectiveMediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
