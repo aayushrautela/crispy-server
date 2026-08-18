@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { mapContinueWatchingRow, mapHistoryRow, mapWatchStateRow } from './watch-read.mapper.js';
+import type { BaseItemDto } from '../metadata/media-item.types.js';
+import { mapContinueWatchingRow, mapHistoryRow, mapWatchStateRow, type WatchReadRow } from './watch-read.mapper.js';
+
+function cwRow(row: WatchReadRow): BaseItemDto {
+  const item = mapContinueWatchingRow(row);
+  if (!item) throw new Error('expected a non-null Continue Watching row');
+  return item;
+}
 
 const showId = '00000000-0000-4000-8000-000000000001';
 const movieId = '00000000-0000-4000-8000-000000000002';
@@ -49,7 +56,7 @@ test('mapHistoryRow uses actual provider IDs when present', () => {
   assert.deepEqual(item.ProviderIds, { Tmdb: '550', Imdb: 'tt0137523', Tvdb: '12345' });
 });
 test('mapContinueWatchingRow maps movie progress', () => {
-  const item = mapContinueWatchingRow({
+  const item = cwRow({
     title_item_id: movieId,
     playable_item_id: movieId,
     media_type: 'movie',
@@ -77,7 +84,7 @@ test('mapContinueWatchingRow maps movie progress', () => {
 });
 
 test('mapContinueWatchingRow maps episode progress with playable key', () => {
-  const item = mapContinueWatchingRow({
+  const item = cwRow({
     title_item_id: showId,
     playable_item_id: episodeId,
     media_type: 'episode',
@@ -109,7 +116,7 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
 });
 
 test('mapContinueWatchingRow maps show-level progress with season/episode as episode card', () => {
-  const item = mapContinueWatchingRow({
+  const item = cwRow({
     title_item_id: showId,
     playable_item_id: episodeId,
     media_type: 'show',
@@ -134,8 +141,23 @@ test('mapContinueWatchingRow maps show-level progress with season/episode as epi
   assert.equal(item.UserData!.PlaybackPositionTicks, 6_000_000_000);
 });
 
-test('mapContinueWatchingRow maps percentage-only imported progress (no seconds)', () => {
+test('mapContinueWatchingRow excludes legacy series-level rows without season/episode', () => {
   const item = mapContinueWatchingRow({
+    title_item_id: showId,
+    playable_item_id: showId,
+    media_type: 'show',
+    position_seconds: 600,
+    duration_seconds: 1800,
+    progress_bps: 3333,
+    last_activity_at: '2026-05-14T08:00:00.000Z',
+    source_provider: 'trakt',
+  });
+
+  assert.equal(item, null);
+});
+
+test('mapContinueWatchingRow maps percentage-only imported progress (no seconds)', () => {
+  const item = cwRow({
     title_item_id: movieId,
     playable_item_id: movieId,
     media_type: 'movie',

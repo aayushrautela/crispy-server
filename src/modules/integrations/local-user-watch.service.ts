@@ -148,12 +148,16 @@ export class LocalUserWatchService {
        LIMIT $4`,
       [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
-    return pageFromRows(
+    const page = pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
       (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.playable_item_id) }),
       (row) => mapContinueWatchingRow(row),
     );
+    return {
+      items: page.items.filter((item): item is BaseItemDto => item !== null),
+      pageInfo: page.pageInfo,
+    };
   }
 
   async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {

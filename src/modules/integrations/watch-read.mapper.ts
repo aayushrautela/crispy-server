@@ -4,7 +4,7 @@ import type { BaseItemDto, ProviderIdsDto, UserItemDataDto } from '../metadata/m
 
 export type WatchReadRow = Record<string, unknown>;
 
-export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
+export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto | null {
   const titleItemId = encodePublicItemId(stringValue(row.title_item_id));
   const playableItemId = encodePublicItemId(stringValue(row.playable_item_id) || stringValue(row.title_item_id));
   const positionSeconds = numberValue(row.position_seconds);
@@ -15,6 +15,13 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
   const episodeNumber = numberValue(row.episode_number);
   const isEpisode = stringValue(row.media_type) === 'episode'
     || (seasonNumber !== null && episodeNumber !== null);
+
+  // Continue Watching entries are strictly Movie or Episode. TV is always stored as
+  // 'episode' with season/episode, so a 'show' row without them is legacy/garbage data
+  // and must not surface as a series-level card.
+  if (stringValue(row.media_type) !== 'movie' && !isEpisode) {
+    return null;
+  }
 
   const mediaItem = playableMediaItemDtoFromRow(playableItemId, titleItemId, row, isEpisode);
 
