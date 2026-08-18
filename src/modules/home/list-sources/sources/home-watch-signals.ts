@@ -13,22 +13,25 @@ export async function topGenresForProfile(
   limit: number,
   maxGenres: number,
 ): Promise<HistoryGenreHit[]> {
-  const result = await client.query<{ genre_id: number; media_type: string; count: string }>(
-    `WITH recent AS (
-       SELECT ws.title_item_id, ws.media_type
-       FROM user_state.watch_state ws
-       WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
-       ORDER BY ws.last_played_at DESC
-       LIMIT $2
-     ), tmdb_refs AS (
-       SELECT r.title_item_id, r.media_type, r.external_id::integer AS tmdb_id
-       FROM recent r
-       JOIN content_provider_refs tmdb_ref
-         ON tmdb_ref.content_id = r.title_item_id
-        AND tmdb_ref.provider = 'tmdb'
-        AND tmdb_ref.entity_type = CASE WHEN r.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LIMIT $2
-     ), exploded AS (
+   const result = await client.query<{ genre_id: number; media_type: string; count: string }>(
+     `WITH recent AS (
+        SELECT COALESCE(cir.parent_content_id, ws.item_id) AS title_item_id,
+               CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END AS media_type
+        FROM user_state.watch_state ws
+        JOIN content_items ci ON ci.id = ws.item_id
+        LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+        WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
+        ORDER BY ws.last_played_at DESC
+        LIMIT $2
+      ), tmdb_refs AS (
+        SELECT r.title_item_id, r.media_type, r.external_id::integer AS tmdb_id
+        FROM recent r
+        JOIN content_provider_refs tmdb_ref
+          ON tmdb_ref.content_id = r.title_item_id
+         AND tmdb_ref.provider = 'tmdb'
+         AND tmdb_ref.entity_type = CASE WHEN r.media_type = 'movie' THEN 'movie' ELSE 'show' END
+        LIMIT $2
+      ), exploded AS (
        SELECT tr.media_type, (jsonb_array_elements(t.genre_ids)::text)::integer AS genre_id
        FROM tmdb_refs tr
        JOIN tmdb_titles t
@@ -56,19 +59,22 @@ export async function recentWatchedTmdbIds(
   profileId: string,
   limit: number,
 ): Promise<Array<{ mediaType: 'movie' | 'tv'; tmdbId: number }>> {
-  const result = await client.query<{ media_type: string; tmdb_id: number }>(
-    `SELECT DISTINCT r.media_type, tr.external_id::integer AS tmdb_id
-     FROM (
-       SELECT ws.title_item_id, ws.media_type
-       FROM user_state.watch_state ws
-       WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
-       ORDER BY ws.last_played_at DESC
-       LIMIT $2
-     ) r
-     JOIN content_provider_refs tr
-       ON tr.content_id = r.title_item_id
-      AND tr.provider = 'tmdb'
-      AND tr.entity_type = CASE WHEN r.media_type = 'movie' THEN 'movie' ELSE 'show' END`,
+   const result = await client.query<{ media_type: string; tmdb_id: number }>(
+     `SELECT DISTINCT r.media_type, tr.external_id::integer AS tmdb_id
+      FROM (
+        SELECT COALESCE(cir.parent_content_id, ws.item_id) AS title_item_id,
+               CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END AS media_type
+        FROM user_state.watch_state ws
+        JOIN content_items ci ON ci.id = ws.item_id
+        LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+        WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
+        ORDER BY ws.last_played_at DESC
+        LIMIT $2
+      ) r
+      JOIN content_provider_refs tr
+        ON tr.content_id = r.title_item_id
+       AND tr.provider = 'tmdb'
+       AND tr.entity_type = CASE WHEN r.media_type = 'movie' THEN 'movie' ELSE 'show' END`,
     [profileId, limit],
   );
   return result.rows

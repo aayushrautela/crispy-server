@@ -131,13 +131,13 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - populates season
 
   const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
   assert.ok(insertQuery, 'should have an INSERT query for watch_state');
-  assert.ok(insertQuery.includes('season_number'), 'INSERT should include season_number column');
-  assert.ok(insertQuery.includes('episode_number'), 'INSERT should include episode_number column');
+  assert.ok(!insertQuery.includes('season_number'), 'INSERT must no longer store season_number');
+  assert.ok(!insertQuery.includes('episode_number'), 'INSERT must no longer store episode_number');
+  assert.ok(!insertQuery.includes('media_type'), 'INSERT must no longer store media_type');
 
   const insertParams = params.find((_, i) => queries[i] === insertQuery);
   assert.ok(insertParams, 'should have params for the INSERT');
-  assert.equal(insertParams![10], 2, 'season_number should be 2');
-  assert.equal(insertParams![11], 3, 'episode_number should be 3');
+  assert.equal(insertParams![5], 600, 'position_seconds should be 600');
 });
 
 test('LocalProviderHistoryWriter::replaceImportedInteractions - handles DB error gracefully', async (t) => {
@@ -214,7 +214,10 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - stores episode h
 
   const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
   assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  assert.ok(!insertQuery.includes('media_type'), 'INSERT must no longer store media_type');
+  assert.ok(insertQuery.includes('played'), 'history must store played');
+  assert.ok(insertQuery.includes('play_count'), 'history must store play_count');
   const insertParams = params.find((_, i) => queries[i] === insertQuery);
   assert.ok(insertParams, 'should have params for the INSERT');
-  assert.equal(insertParams![4], 'episode', 'episode history must be stored with media_type episode, not show');
+  assert.equal(insertParams![2], '2026-05-10T00:00:00.000Z', 'watched_at should be bound as a parameter');
 });

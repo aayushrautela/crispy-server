@@ -194,9 +194,9 @@ test('mapWatchStateRow resolves episode identity via show tmdb id + season/episo
     show_tmdb_id: '32726',
     season_number: 1,
     episode_number: 1,
-    effective_watched: true,
+    played: true,
     play_count: 1,
-    last_watched_at: '2026-05-16T00:00:00.000Z',
+    last_played_at: '2026-05-16T00:00:00.000Z',
   });
 
   assert.equal(item.Id, encodePublicItemId(episodeId));

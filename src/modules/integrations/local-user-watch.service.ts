@@ -103,6 +103,55 @@ type GetStateParams = {
   itemIds: string[];
 };
 
+/**
+ * Jellyfin-style read model: user_state.watch_state stores only per-(profile,item)
+ * user state. Descriptive attributes (media type, series linkage, season/episode,
+ * provider ids, runtime) live on the content graph and are derived at read time via
+ * these joins — mirroring how Jellyfin resolves UserData attributes from the Item.
+ */
+const WATCH_ITEM_CONTENT_JOIN = `
+  JOIN content_items ci ON ci.id = ws.item_id
+  LEFT JOIN content_item_relationships cir
+    ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+  LEFT JOIN content_provider_refs cpr_tmdb
+    ON cpr_tmdb.content_id = ws.item_id AND cpr_tmdb.provider = 'tmdb'
+  LEFT JOIN content_provider_refs cpr_tmdb_show
+    ON cpr_tmdb_show.content_id = cir.parent_content_id AND cpr_tmdb_show.provider = 'tmdb'
+  LEFT JOIN content_provider_refs cpr_imdb
+    ON cpr_imdb.content_id = ws.item_id AND cpr_imdb.provider = 'imdb'
+  LEFT JOIN content_provider_refs cpr_imdb_show
+    ON cpr_imdb_show.content_id = cir.parent_content_id AND cpr_imdb_show.provider = 'imdb'
+  LEFT JOIN content_provider_refs cpr_tvdb
+    ON cpr_tvdb.content_id = ws.item_id AND cpr_tvdb.provider = 'tvdb'
+  LEFT JOIN content_provider_refs cpr_tvdb_show
+    ON cpr_tvdb_show.content_id = cir.parent_content_id AND cpr_tvdb_show.provider = 'tvdb'
+  LEFT JOIN tmdb_titles tt
+    ON tt.media_type = 'movie' AND tt.tmdb_id = cpr_tmdb.external_id::integer AND tt.language = 'en-US'
+  LEFT JOIN tmdb_tv_episodes tve
+    ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
+   AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
+   AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
+`;
+
+const WATCH_ITEM_CONTENT_COLS = `
+  CASE WHEN ci.entity_type = 'movie' THEN 'movie'
+       WHEN ci.entity_type = 'episode' THEN 'episode'
+       ELSE 'show' END AS media_type,
+  cir.parent_content_id AS title_item_id,
+  NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer AS season_number,
+  NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer AS episode_number,
+  CASE WHEN ci.entity_type = 'episode' THEN cpr_tmdb_show.external_id
+       ELSE cpr_tmdb.external_id END AS title_provider_id,
+  CASE WHEN ci.entity_type = 'episode' THEN cpr_imdb_show.external_id
+       ELSE cpr_imdb.external_id END AS imdb_id,
+  CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
+       ELSE cpr_tvdb.external_id END AS tvdb_id,
+  COALESCE(tve.runtime, tt.runtime) * 60 AS duration_seconds,
+  CASE WHEN COALESCE(tve.runtime, tt.runtime) > 0 AND ws.position_seconds > 0
+       THEN round(ws.position_seconds / (COALESCE(tve.runtime, tt.runtime) * 60) * 10000)
+       END AS progress_bps
+`;
+
 export class LocalUserWatchService {
   constructor(
     private readonly contentIdentityService = new ContentIdentityService(),
@@ -112,30 +161,16 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT ws.item_id AS playable_item_id, ws.title_item_id, ws.media_type,
-              ws.position_seconds, ws.duration_seconds, ws.progress_bps,
-              ws.updated_at AS last_activity_at, ws.season_number, ws.episode_number,
-              sh_tmdb.external_id AS title_provider_id,
-              sh_imdb.external_id AS imdb_id,
-              sh_tvdb.external_id AS tvdb_id
+      `SELECT ws.item_id AS playable_item_id,
+              ws.position_seconds, ws.last_played_at AS last_activity_at,
+              ${WATCH_ITEM_CONTENT_COLS}
        FROM user_state.watch_state ws
-       LEFT JOIN content_provider_refs sh_tmdb
-         ON sh_tmdb.content_id = ws.title_item_id
-        AND sh_tmdb.provider = 'tmdb'
-        AND sh_tmdb.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs sh_imdb
-         ON sh_imdb.content_id = ws.title_item_id
-        AND sh_imdb.provider = 'imdb'
-        AND sh_imdb.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs sh_tvdb
-         ON sh_tvdb.content_id = ws.title_item_id
-        AND sh_tvdb.provider = 'tvdb'
-        AND sh_tvdb.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-        WHERE ws.profile_id = $1::uuid AND NOT ws.played AND ws.position_seconds > 0
-          AND ws.updated_at > now() - interval '${env.continueWatchingTtlDays} days'
-          AND ($2::timestamptz IS NULL OR ws.updated_at < $2::timestamptz
-               OR (ws.updated_at = $2::timestamptz AND ws.item_id > $3::uuid))
-       ORDER BY ws.updated_at DESC, ws.item_id ASC
+       ${WATCH_ITEM_CONTENT_JOIN}
+       WHERE ws.profile_id = $1::uuid AND NOT ws.played AND ws.position_seconds > 0
+         AND ws.last_played_at > now() - interval '${env.continueWatchingTtlDays} days'
+         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
+              OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
        LIMIT $4`,
       [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
@@ -155,37 +190,22 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT ws.item_id, ws.title_item_id, ws.media_type,
-              ws.played, ws.play_count, ws.last_played_at,
-              ws.position_seconds, ws.duration_seconds, ws.progress_bps,
-              ws.season_number, ws.episode_number, ws.rating, ws.is_favorite,
-              sh_tmdb.external_id AS title_provider_id,
-              sh_imdb.external_id AS imdb_id,
-              sh_tvdb.external_id AS tvdb_id
+      `SELECT ws.item_id, ws.played, ws.play_count, ws.last_played_at,
+              ws.position_seconds, ws.rating, ws.is_favorite,
+              ${WATCH_ITEM_CONTENT_COLS}
        FROM user_state.watch_state ws
-       LEFT JOIN content_provider_refs sh_tmdb
-         ON sh_tmdb.content_id = ws.title_item_id
-        AND sh_tmdb.provider = 'tmdb'
-        AND sh_tmdb.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs sh_imdb
-         ON sh_imdb.content_id = ws.title_item_id
-        AND sh_imdb.provider = 'imdb'
-        AND sh_imdb.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs sh_tvdb
-         ON sh_tvdb.content_id = ws.title_item_id
-        AND sh_tvdb.provider = 'tvdb'
-        AND sh_tvdb.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       ${WATCH_ITEM_CONTENT_JOIN}
        WHERE ws.profile_id = $1::uuid AND ws.is_favorite
-         AND ($2::timestamptz IS NULL OR ws.updated_at < $2::timestamptz
-              OR (ws.updated_at = $2::timestamptz AND ws.item_id > $3::uuid))
-       ORDER BY ws.updated_at DESC, ws.item_id ASC
+         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
+              OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
        LIMIT $4`,
       [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
     return pageFromRows(
       rows.rows as Record<string, unknown>[],
       params.limit,
-      (row) => ({ sortValue: row.updated_at as Date, tieBreaker: String(row.item_id) }),
+      (row) => ({ sortValue: row.last_played_at as Date, tieBreaker: String(row.item_id) }),
       (row) => mapWatchStateRow(row),
     );
   }
@@ -194,27 +214,14 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT ws.item_id, ws.media_type, ws.rating, ws.updated_at AS rated_at,
-              tmdb_ref.external_id AS title_provider_id,
-              imdb_ref.external_id AS imdb_id,
-              tvdb_ref.external_id AS tvdb_id
+      `SELECT ws.item_id, ws.rating, ws.last_played_at AS rated_at,
+              ${WATCH_ITEM_CONTENT_COLS}
        FROM user_state.watch_state ws
-       LEFT JOIN content_provider_refs tmdb_ref
-         ON tmdb_ref.content_id = ws.item_id
-        AND tmdb_ref.provider = 'tmdb'
-        AND tmdb_ref.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs imdb_ref
-         ON imdb_ref.content_id = ws.item_id
-        AND imdb_ref.provider = 'imdb'
-        AND imdb_ref.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs tvdb_ref
-         ON tvdb_ref.content_id = ws.item_id
-        AND tvdb_ref.provider = 'tvdb'
-        AND tvdb_ref.entity_type = CASE WHEN ws.media_type = 'movie' THEN 'movie' ELSE 'show' END
+       ${WATCH_ITEM_CONTENT_JOIN}
        WHERE ws.profile_id = $1::uuid AND ws.rating IS NOT NULL
-         AND ($2::timestamptz IS NULL OR ws.updated_at < $2::timestamptz
-              OR (ws.updated_at = $2::timestamptz AND ws.item_id > $3::uuid))
-       ORDER BY ws.updated_at DESC, ws.item_id ASC
+         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
+              OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
        LIMIT $4`,
       [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
@@ -230,32 +237,19 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT ws.title_item_id AS item_id,
+      `SELECT COALESCE(cir.parent_content_id, ws.item_id) AS item_id,
               CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END AS media_type,
-              MAX(ws.last_played_at) AS occurred_at,
-              sh_tmdb.external_id AS title_provider_id,
-              sh_imdb.external_id AS imdb_id,
-              sh_tvdb.external_id AS tvdb_id
+              MAX(ws.last_played_at) AS occurred_at
        FROM user_state.watch_state ws
-       JOIN content_items ci ON ci.id = ws.title_item_id
-       LEFT JOIN content_provider_refs sh_tmdb
-         ON sh_tmdb.content_id = ws.title_item_id
-        AND sh_tmdb.provider = 'tmdb'
-        AND sh_tmdb.entity_type = CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs sh_imdb
-         ON sh_imdb.content_id = ws.title_item_id
-        AND sh_imdb.provider = 'imdb'
-        AND sh_imdb.entity_type = CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END
-       LEFT JOIN content_provider_refs sh_tvdb
-         ON sh_tvdb.content_id = ws.title_item_id
-        AND sh_tvdb.provider = 'tvdb'
-        AND sh_tvdb.entity_type = CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END
+       JOIN content_items ci ON ci.id = ws.item_id
+       LEFT JOIN content_item_relationships cir
+         ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
        WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
-         AND ($2::uuid IS NULL OR ws.title_item_id = $2::uuid)
+         AND ($2::uuid IS NULL OR COALESCE(cir.parent_content_id, ws.item_id) = $2::uuid)
          AND ($3::timestamptz IS NULL OR ws.last_played_at < $3::timestamptz
-              OR (ws.last_played_at = $3::timestamptz AND ws.title_item_id > $4::uuid))
-       GROUP BY ws.title_item_id, ci.entity_type, sh_tmdb.external_id, sh_imdb.external_id, sh_tvdb.external_id
-       ORDER BY occurred_at DESC, ws.title_item_id DESC
+              OR (ws.last_played_at = $3::timestamptz AND COALESCE(cir.parent_content_id, ws.item_id) > $4::uuid))
+       GROUP BY item_id, ci.entity_type
+       ORDER BY occurred_at DESC, item_id DESC
        LIMIT $5`,
       [params.profileId, params.itemId ?? null, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );
@@ -321,43 +315,66 @@ export class LocalUserWatchService {
          )
          SELECT
            req.item_id,
-           ci.entity_type                    AS media_type,
-           tmdb_ref.external_id             AS title_provider_id,
-           imdb_ref.external_id             AS imdb_id,
-           tvdb_ref.external_id             AS tvdb_id,
-           ws.title_item_id,
+           CASE WHEN ci.entity_type = 'movie' THEN 'movie'
+                WHEN ci.entity_type = 'episode' THEN 'episode'
+                ELSE 'show' END         AS media_type,
+           cir.parent_content_id        AS title_item_id,
+           NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer  AS season_number,
+           NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer AS episode_number,
+           CASE WHEN ci.entity_type = 'episode' THEN cpr_tmdb_show.external_id
+                ELSE cpr_tmdb.external_id END  AS title_provider_id,
+           CASE WHEN ci.entity_type = 'episode' THEN cpr_imdb_show.external_id
+                ELSE cpr_imdb.external_id END  AS imdb_id,
+           CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
+                ELSE cpr_tvdb.external_id END  AS tvdb_id,
+           COALESCE(tve.runtime, tt.runtime) * 60 AS duration_seconds,
+           CASE WHEN COALESCE(tve.runtime, tt.runtime) > 0 AND ws.position_seconds > 0
+                THEN round(ws.position_seconds / (COALESCE(tve.runtime, tt.runtime) * 60) * 10000)
+                END AS progress_bps,
+           cpr_tmdb_show.external_id    AS show_tmdb_id,
            ws.played,
            ws.play_count,
            ws.last_played_at,
            ws.position_seconds,
-           ws.duration_seconds,
-           ws.progress_bps,
-           ws.season_number,
-           ws.episode_number,
            ws.rating,
-           ws.is_favorite,
-           show_tmdb_ref.external_id        AS show_tmdb_id
+           ws.is_favorite
          FROM requested req
          LEFT JOIN content_items ci
            ON ci.id = req.item_id
-         LEFT JOIN content_provider_refs tmdb_ref
-           ON tmdb_ref.content_id = req.item_id
-          AND tmdb_ref.provider = 'tmdb'
-          AND tmdb_ref.entity_type = ci.entity_type
-         LEFT JOIN content_provider_refs imdb_ref
-           ON imdb_ref.content_id = req.item_id
-          AND imdb_ref.provider = 'imdb'
-          AND imdb_ref.entity_type = ci.entity_type
-         LEFT JOIN content_provider_refs tvdb_ref
-           ON tvdb_ref.content_id = req.item_id
-          AND tvdb_ref.provider = 'tvdb'
-          AND tvdb_ref.entity_type = ci.entity_type
+         LEFT JOIN content_provider_refs cpr_tmdb
+           ON cpr_tmdb.content_id = req.item_id
+          AND cpr_tmdb.provider = 'tmdb'
+          AND cpr_tmdb.entity_type = ci.entity_type
+         LEFT JOIN content_provider_refs cpr_imdb
+           ON cpr_imdb.content_id = req.item_id
+          AND cpr_imdb.provider = 'imdb'
+          AND cpr_imdb.entity_type = ci.entity_type
+         LEFT JOIN content_provider_refs cpr_tvdb
+           ON cpr_tvdb.content_id = req.item_id
+          AND cpr_tvdb.provider = 'tvdb'
+          AND cpr_tvdb.entity_type = ci.entity_type
+         LEFT JOIN content_item_relationships cir
+           ON cir.child_content_id = req.item_id AND cir.relationship_type = 'series'
+         LEFT JOIN content_provider_refs cpr_tmdb_show
+           ON cpr_tmdb_show.content_id = cir.parent_content_id
+          AND cpr_tmdb_show.provider = 'tmdb'
+          AND cpr_tmdb_show.entity_type = 'show'
+         LEFT JOIN content_provider_refs cpr_imdb_show
+           ON cpr_imdb_show.content_id = cir.parent_content_id
+          AND cpr_imdb_show.provider = 'imdb'
+          AND cpr_imdb_show.entity_type = 'show'
+         LEFT JOIN content_provider_refs cpr_tvdb_show
+           ON cpr_tvdb_show.content_id = cir.parent_content_id
+          AND cpr_tvdb_show.provider = 'tvdb'
+          AND cpr_tvdb_show.entity_type = 'show'
+         LEFT JOIN tmdb_titles tt
+           ON tt.media_type = 'movie' AND tt.tmdb_id = cpr_tmdb.external_id::integer AND tt.language = 'en-US'
+         LEFT JOIN tmdb_tv_episodes tve
+           ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
+          AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
+          AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
          LEFT JOIN user_state.watch_state ws
-           ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id
-         LEFT JOIN content_provider_refs show_tmdb_ref
-           ON show_tmdb_ref.content_id = ws.title_item_id
-          AND show_tmdb_ref.provider = 'tmdb'
-          AND show_tmdb_ref.entity_type = 'show'`,
+           ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id`,
         [params.profileId, itemIds],
       );
 
@@ -366,62 +383,30 @@ export class LocalUserWatchService {
   }
 
   async recordPlaybackState(params: RecordPlaybackParams): Promise<void> {
-    const progressBps = params.durationSeconds && params.durationSeconds > 0
-      ? Math.round((params.positionSeconds ?? 0) / params.durationSeconds * 10000)
-      : null;
     const playState = LocalUserWatchService.resolvePlayState(params.positionSeconds, params.durationSeconds);
 
     await withDbClient(async (client) => {
-      const providedEpisodeNumbers = (params.seasonNumber != null && params.episodeNumber != null)
-        ? { seasonNumber: params.seasonNumber, episodeNumber: params.episodeNumber }
-        : null;
-      const episodeNumbers = params.mediaType === 'episode'
-        ? (providedEpisodeNumbers ?? await this.resolveEpisodeNumbers(client, params.itemId))
-        : providedEpisodeNumbers;
-
       if (playState.played) {
         await client.query(
           `INSERT INTO user_state.watch_state
-             (profile_id, account_id, item_id, title_item_id, media_type,
-              season_number, episode_number, played, play_count,
-              last_played_at, position_seconds, duration_seconds, progress_bps, updated_at)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, true, 1,
-                   now(), 0, $8, NULL, now())
+             (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+           VALUES ($1::uuid, $2::uuid, true, 1, now(), 0)
            ON CONFLICT (profile_id, item_id) DO UPDATE SET
              played = true,
              play_count = user_state.watch_state.play_count + 1,
              last_played_at = now(),
-             position_seconds = 0,
-             progress_bps = 0,
-              duration_seconds = EXCLUDED.duration_seconds,
-              title_item_id = EXCLUDED.title_item_id,
-              media_type = EXCLUDED.media_type,
-             season_number = EXCLUDED.season_number,
-             episode_number = EXCLUDED.episode_number,
-             updated_at = now()`,
-          [params.profileId, params.accountId, params.itemId, params.titleItemId, params.mediaType,
-           episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null, params.durationSeconds],
+             position_seconds = 0`,
+          [params.profileId, params.itemId],
         );
       } else {
         await client.query(
           `INSERT INTO user_state.watch_state
-             (profile_id, account_id, item_id, title_item_id, media_type,
-              season_number, episode_number, played, play_count,
-              last_played_at, position_seconds, duration_seconds, progress_bps, updated_at)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, false, 0,
-                   NULL, $8, $9, $10, now())
+             (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+           VALUES ($1::uuid, $2::uuid, false, 0, now(), $3)
            ON CONFLICT (profile_id, item_id) DO UPDATE SET
              position_seconds = EXCLUDED.position_seconds,
-             duration_seconds = EXCLUDED.duration_seconds,
-             progress_bps = EXCLUDED.progress_bps,
-             title_item_id = EXCLUDED.title_item_id,
-             media_type = EXCLUDED.media_type,
-             season_number = EXCLUDED.season_number,
-             episode_number = EXCLUDED.episode_number,
-             updated_at = now()`,
-          [params.profileId, params.accountId, params.itemId, params.titleItemId, params.mediaType,
-           episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null,
-           playState.positionSeconds, params.durationSeconds, progressBps],
+             last_played_at = now()`,
+          [params.profileId, params.itemId, playState.positionSeconds],
         );
       }
     });
@@ -462,21 +447,6 @@ export class LocalUserWatchService {
       return { played: true, positionSeconds: 0 };
     }
     return { played: false, positionSeconds: pos };
-  }
-
-  private async resolveEpisodeNumbers(
-    client: DbClient,
-    playableItemId: string,
-  ): Promise<{ seasonNumber: number; episodeNumber: number } | null> {
-    try {
-      const identity = await this.contentIdentityService.resolveMediaIdentity(client, playableItemId);
-      if (identity.seasonNumber != null && identity.episodeNumber != null) {
-        return { seasonNumber: identity.seasonNumber, episodeNumber: identity.episodeNumber };
-      }
-      return null;
-    } catch {
-      return null;
-    }
   }
 
   private async resolveShowIdentity(
@@ -520,7 +490,7 @@ export class LocalUserWatchService {
   async dismissContinueWatching(params: DismissContinueWatchingParams): Promise<void> {
     await db.query(
       `UPDATE user_state.watch_state
-       SET position_seconds = 0, progress_bps = 0, updated_at = now()
+       SET position_seconds = 0
        WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.playableItemId],
     );
@@ -529,14 +499,12 @@ export class LocalUserWatchService {
   }
 
   async setListItem(params: SetListItemParams): Promise<void> {
-    const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
     await db.query(
       `INSERT INTO user_state.watch_state
-         (profile_id, account_id, item_id, title_item_id, media_type, is_favorite, updated_at)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, true, now())
-       ON CONFLICT (profile_id, item_id) DO UPDATE SET
-         is_favorite = true, updated_at = now()`,
-      [params.profileId, params.accountId, params.itemId, params.titleItemId, canonicalType],
+        (profile_id, item_id, is_favorite)
+       VALUES ($1::uuid, $2::uuid, true)
+       ON CONFLICT (profile_id, item_id) DO UPDATE SET is_favorite = true`,
+      [params.profileId, params.itemId],
     );
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
   }
@@ -544,7 +512,7 @@ export class LocalUserWatchService {
   async deleteListItem(params: DeleteListItemParams): Promise<void> {
     await db.query(
       `UPDATE user_state.watch_state
-       SET is_favorite = false, updated_at = now()
+       SET is_favorite = false
        WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.itemId],
     );
@@ -552,14 +520,13 @@ export class LocalUserWatchService {
   }
 
   async setRating(params: SetRatingParams): Promise<void> {
-    const canonicalType = params.mediaType === 'movie' ? 'movie' : 'show';
     await db.query(
       `INSERT INTO user_state.watch_state
-         (profile_id, account_id, item_id, title_item_id, media_type, rating, updated_at)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $3::uuid, $4, $5, now())
+        (profile_id, item_id, rating, last_played_at)
+       VALUES ($1::uuid, $2::uuid, $3, now())
        ON CONFLICT (profile_id, item_id) DO UPDATE SET
-         rating = EXCLUDED.rating, updated_at = now()`,
-      [params.accountId, params.profileId, params.itemId, canonicalType, params.rating],
+         rating = EXCLUDED.rating, last_played_at = EXCLUDED.last_played_at`,
+      [params.profileId, params.itemId, params.rating],
     );
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
   }
@@ -567,8 +534,8 @@ export class LocalUserWatchService {
   async deleteRating(params: DeleteRatingParams): Promise<void> {
     await db.query(
       `UPDATE user_state.watch_state
-       SET rating = NULL, updated_at = now()
-       WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
+        SET rating = NULL
+        WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.itemId],
     );
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
@@ -576,28 +543,16 @@ export class LocalUserWatchService {
 
   async markWatched(params: MarkWatchedParams): Promise<void> {
     await withDbClient(async (client) => {
-      const episodeNumbers = (params.seasonNumber != null && params.episodeNumber != null)
-        ? { seasonNumber: params.seasonNumber, episodeNumber: params.episodeNumber }
-        : (params.mediaType === 'episode' ? await this.resolveEpisodeNumbers(client, params.itemId) : null);
       await client.query(
         `INSERT INTO user_state.watch_state
-           (profile_id, account_id, item_id, title_item_id, media_type,
-            season_number, episode_number, played, play_count,
-            last_played_at, position_seconds, progress_bps, updated_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, true, 1,
-                 now(), 0, NULL, now())
-         ON CONFLICT (profile_id, item_id) DO UPDATE SET
-           played = true,
-           play_count = user_state.watch_state.play_count + 1,
-           last_played_at = now(),
-           position_seconds = 0,
-           progress_bps = 0,
-           title_item_id = EXCLUDED.title_item_id,
-           season_number = EXCLUDED.season_number,
-           episode_number = EXCLUDED.episode_number,
-           updated_at = now()`,
-        [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType,
-         episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null],
+            (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+          VALUES ($1::uuid, $2::uuid, true, 1, now(), 0)
+          ON CONFLICT (profile_id, item_id) DO UPDATE SET
+            played = true,
+            play_count = user_state.watch_state.play_count + 1,
+            last_played_at = now(),
+            position_seconds = 0`,
+        [params.profileId, params.itemId],
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
@@ -605,24 +560,14 @@ export class LocalUserWatchService {
 
   async unmarkWatched(params: UnmarkWatchedParams): Promise<void> {
     await withDbClient(async (client) => {
-      const episodeNumbers = (params.seasonNumber != null && params.episodeNumber != null)
-        ? { seasonNumber: params.seasonNumber, episodeNumber: params.episodeNumber }
-        : (params.mediaType === 'episode' ? await this.resolveEpisodeNumbers(client, params.itemId) : null);
       await client.query(
         `INSERT INTO user_state.watch_state
-           (profile_id, account_id, item_id, title_item_id, media_type,
-            season_number, episode_number, played, play_count, updated_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, false, 0, now())
-         ON CONFLICT (profile_id, item_id) DO UPDATE SET
-           played = false,
-           position_seconds = 0,
-           progress_bps = 0,
-           title_item_id = EXCLUDED.title_item_id,
-           season_number = EXCLUDED.season_number,
-           episode_number = EXCLUDED.episode_number,
-           updated_at = now()`,
-        [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType,
-         episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null],
+            (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+          VALUES ($1::uuid, $2::uuid, false, 0, NULL, 0)
+          ON CONFLICT (profile_id, item_id) DO UPDATE SET
+            played = false,
+            position_seconds = 0`,
+        [params.profileId, params.itemId],
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });

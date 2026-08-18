@@ -97,7 +97,6 @@ export class LocalProviderHistoryWriter {
     },
   ): Promise<LocalProviderImportSyncResult> {
     const warnings: string[] = [];
-    const accountId = params.appUser.authSubject;
     const profileId = params.profile.id;
 
     let historyInserted = 0;
@@ -111,16 +110,16 @@ export class LocalProviderHistoryWriter {
       await this.runQuery(client, 'DELETE FROM user_state.watch_state WHERE profile_id = $1::uuid', [profileId]);
 
       if (params.historyEntries.length > 0) {
-        historyInserted = await this.upsertHistory(client, accountId, profileId, params.historyEntries, warnings);
+        historyInserted = await this.upsertHistory(client, profileId, params.historyEntries, warnings);
       }
       if (params.playbackStates.length > 0) {
-        playbackInserted = await this.upsertPlayback(client, accountId, profileId, params.playbackStates, warnings);
+        playbackInserted = await this.upsertPlayback(client, profileId, params.playbackStates, warnings);
       }
       if (params.ratings.length > 0) {
-        ratingsInserted = await this.upsertRatings(client, accountId, profileId, params.ratings, warnings);
+        ratingsInserted = await this.upsertRatings(client, profileId, params.ratings, warnings);
       }
       if (params.watchlistItems.length > 0) {
-        watchlistInserted = await this.upsertWatchlist(client, accountId, profileId, params.watchlistItems, warnings);
+        watchlistInserted = await this.upsertWatchlist(client, profileId, params.watchlistItems, warnings);
       }
 
       await client.query('COMMIT');
@@ -157,29 +156,23 @@ export class LocalProviderHistoryWriter {
 
   private async upsertHistory(
     client: DbClient,
-    accountId: string,
     profileId: string,
     entries: ImportedProviderHistoryEntry[],
     warnings: string[],
   ): Promise<number> {
-    const identities = entries.flatMap((entry) => {
-      const identity = parseMediaKey(entry.mediaKey);
-      return [identity, parseMediaKey(canonicalTitleMediaKey(identity))];
-    });
+    const identities = entries.map((entry) => parseMediaKey(entry.mediaKey));
     const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
     const deduped = new Map<string, ImportedProviderHistoryEntry>();
     for (const entry of entries) {
       const contentId = contentIds.get(entry.mediaKey);
-      const titleContentId = contentIds.get(canonicalTitleMediaKey(parseMediaKey(entry.mediaKey)));
-      if (!contentId || !titleContentId) {
+      if (!contentId) {
         warnings.push(`skipped history item ${entry.mediaKey}: unresolved content id`);
         continue;
       }
-      const key = `${titleContentId}|${contentId}`;
-      const existing = deduped.get(key);
+      const existing = deduped.get(contentId);
       if (!existing || entry.watchedAt > existing.watchedAt) {
-        deduped.set(key, entry);
+        deduped.set(contentId, entry);
       }
     }
 
@@ -187,23 +180,16 @@ export class LocalProviderHistoryWriter {
     const tuples: string[] = [];
     [...deduped.values()].forEach((entry, index) => {
       const contentId = contentIds.get(entry.mediaKey)!;
-      const titleContentId = contentIds.get(canonicalTitleMediaKey(parseMediaKey(entry.mediaKey)))!;
-      const base = index * 6;
-      tuples.push(
-        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, true, 1, $${base + 6}::timestamptz, 0, NULL, now())`,
-      );
-      values.push(
-        profileId, accountId, contentId, titleContentId,
-        entry.mediaType, entry.watchedAt,
-      );
+      const base = index * 3;
+      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, true, 1, $${base + 3}::timestamptz, 0)`);
+      values.push(profileId, contentId, entry.watchedAt);
     });
 
     if (tuples.length) {
       await this.runQuery(
         client,
         `INSERT INTO user_state.watch_state
-           (profile_id, account_id, item_id, title_item_id, media_type,
-            played, play_count, last_played_at, position_seconds, progress_bps, updated_at)
+           (profile_id, item_id, played, play_count, last_played_at, position_seconds)
          VALUES ${tuples.join(', ')}
          ON CONFLICT (profile_id, item_id) DO NOTHING`,
         values,
@@ -214,7 +200,6 @@ export class LocalProviderHistoryWriter {
 
   private async upsertPlayback(
     client: DbClient,
-    accountId: string,
     profileId: string,
     states: ImportedProviderPlaybackState[],
     warnings: string[],
@@ -233,25 +218,21 @@ export class LocalProviderHistoryWriter {
         warnings.push(`skipped playback state ${state.mediaKey}: unresolved content id`);
         continue;
       }
-      deduped.set(`${titleItemId}|${playableItemId}`, state);
+      deduped.set(playableItemId, state);
     }
 
     const values: unknown[] = [];
     const tuples: string[] = [];
     [...deduped.values()].forEach((state, index) => {
-      const titleItemId = contentIds.get(state.titleMediaKey)!;
       const playableItemId = contentIds.get(state.mediaKey)!;
-      const playableIdentity = parseMediaKey(state.mediaKey);
-      const base = index * 12;
+      const base = index * 6;
       tuples.push(
-        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}::timestamptz, $${base + 11}, $${base + 12}, now())`,
+        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}, $${base + 4}, $${base + 5}::timestamptz, $${base + 6})`,
       );
       values.push(
-        profileId, accountId, playableItemId, titleItemId,
-        state.mediaType,
+        profileId, playableItemId,
         state.completed, 1,
-        state.positionSeconds, state.durationSeconds, state.occurredAt,
-        playableIdentity.seasonNumber ?? null, playableIdentity.episodeNumber ?? null,
+        state.occurredAt, state.positionSeconds,
       );
     });
 
@@ -259,9 +240,7 @@ export class LocalProviderHistoryWriter {
       await this.runQuery(
         client,
         `INSERT INTO user_state.watch_state
-           (profile_id, account_id, item_id, title_item_id, media_type,
-            played, play_count, position_seconds, duration_seconds, last_played_at,
-            season_number, episode_number, updated_at)
+           (profile_id, item_id, played, play_count, last_played_at, position_seconds)
          VALUES ${tuples.join(', ')}
          ON CONFLICT (profile_id, item_id) DO NOTHING`,
         values,
@@ -272,7 +251,6 @@ export class LocalProviderHistoryWriter {
 
   private async upsertRatings(
     client: DbClient,
-    accountId: string,
     profileId: string,
     ratings: ImportedProviderRating[],
     warnings: string[],
@@ -299,21 +277,19 @@ export class LocalProviderHistoryWriter {
     const tuples: string[] = [];
     [...deduped.values()].forEach((rating, index) => {
       const ratingItemId = contentIds.get(rating.mediaKey)!;
-      const base = index * 6;
-      tuples.push(
-        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}, $${base + 5}, $${base + 6}::timestamptz, now())`,
-      );
-      values.push(profileId, accountId, ratingItemId, rating.mediaType, rating.rating, rating.ratedAt);
+      const base = index * 4;
+      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}, $${base + 4}::timestamptz)`);
+      values.push(profileId, ratingItemId, rating.rating, rating.ratedAt);
     });
 
     if (tuples.length) {
       await this.runQuery(
         client,
         `INSERT INTO user_state.watch_state
-           (profile_id, account_id, item_id, media_type, rating, last_played_at, updated_at)
+           (profile_id, item_id, rating, last_played_at)
          VALUES ${tuples.join(', ')}
          ON CONFLICT (profile_id, item_id) DO UPDATE SET
-           rating = EXCLUDED.rating, updated_at = now()`,
+           rating = EXCLUDED.rating, last_played_at = EXCLUDED.last_played_at`,
         values,
       );
     }
@@ -322,7 +298,6 @@ export class LocalProviderHistoryWriter {
 
   private async upsertWatchlist(
     client: DbClient,
-    accountId: string,
     profileId: string,
     items: ImportedProviderListItem[],
     warnings: string[],
@@ -352,18 +327,18 @@ export class LocalProviderHistoryWriter {
     const values: unknown[] = [];
     const tuples: string[] = [];
     [...deduped.values()].forEach((row, index) => {
-      const base = index * 5;
-      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, true, now())`);
-      values.push(profileId, accountId, row.itemId, row.titleItemId, row.item.mediaType);
+      const base = index * 3;
+      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, true)`);
+      values.push(profileId, row.itemId);
     });
 
     if (tuples.length) {
       await this.runQuery(
         client,
         `INSERT INTO user_state.watch_state
-           (profile_id, account_id, item_id, title_item_id, media_type, is_favorite, updated_at)
+           (profile_id, item_id, is_favorite)
          VALUES ${tuples.join(', ')}
-         ON CONFLICT (profile_id, item_id) DO UPDATE SET is_favorite = true, updated_at = now()`,
+         ON CONFLICT (profile_id, item_id) DO UPDATE SET is_favorite = true`,
         values,
       );
     }

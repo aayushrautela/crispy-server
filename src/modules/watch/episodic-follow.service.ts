@@ -241,10 +241,11 @@ export class EpisodicFollowService {
     limit: number,
   ): Promise<Array<{ title_item_id: string; playable_item_id: string; last_activity_at: string }>> {
     const result = await client.query(
-      `SELECT title_item_id, item_id AS playable_item_id, updated_at AS last_activity_at
-       FROM user_state.watch_state
-       WHERE profile_id = $1::uuid AND NOT played AND position_seconds > 0
-       ORDER BY updated_at DESC
+      `SELECT COALESCE(cir.parent_content_id, ws.item_id) AS title_item_id, ws.item_id AS playable_item_id, ws.last_played_at AS last_activity_at
+       FROM user_state.watch_state ws
+       LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+       WHERE ws.profile_id = $1::uuid AND NOT ws.played AND ws.position_seconds > 0
+       ORDER BY ws.last_played_at DESC
        LIMIT $2`,
       [profileId, limit],
     );
@@ -257,10 +258,12 @@ export class EpisodicFollowService {
     limit: number,
   ): Promise<Array<{ title_item_id: string; occurred_at: string }>> {
     const result = await client.query(
-       `SELECT title_item_id, last_played_at AS occurred_at
-        FROM user_state.watch_state
-        WHERE profile_id = $1::uuid AND media_type = 'episode' AND played AND last_played_at IS NOT NULL
-        ORDER BY last_played_at DESC
+       `SELECT COALESCE(cir.parent_content_id, ws.item_id) AS title_item_id, ws.last_played_at AS occurred_at
+        FROM user_state.watch_state ws
+        JOIN content_items ci ON ci.id = ws.item_id
+        LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+        WHERE ws.profile_id = $1::uuid AND ci.entity_type = 'episode' AND ws.played AND ws.last_played_at IS NOT NULL
+        ORDER BY ws.last_played_at DESC
         LIMIT $2`,
       [profileId, limit],
     );
@@ -273,10 +276,12 @@ export class EpisodicFollowService {
     limit: number,
   ): Promise<Array<{ item_id: string; added_at: string }>> {
     const result = await client.query(
-      `SELECT title_item_id AS item_id, updated_at AS added_at
-       FROM user_state.watch_state
-       WHERE profile_id = $1::uuid AND is_favorite AND media_type IN ('show', 'episode')
-       ORDER BY updated_at DESC
+      `SELECT COALESCE(cir.parent_content_id, ws.item_id) AS item_id, ws.last_played_at AS added_at
+       FROM user_state.watch_state ws
+       JOIN content_items ci ON ci.id = ws.item_id
+       LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+       WHERE ws.profile_id = $1::uuid AND ws.is_favorite AND ci.entity_type IN ('show', 'episode')
+       ORDER BY ws.last_played_at DESC
        LIMIT $2`,
       [profileId, limit],
     );
@@ -289,10 +294,17 @@ export class EpisodicFollowService {
     showItemIds: string[],
   ): Promise<Map<string, LastWatchedRef>> {
     const result = await client.query(
-       `SELECT title_item_id, season_number, episode_number
-        FROM user_state.watch_state
-        WHERE profile_id = $1::uuid AND title_item_id = ANY($2::uuid[])
-          AND media_type = 'episode' AND season_number IS NOT NULL AND episode_number IS NOT NULL`,
+       `SELECT COALESCE(cir.parent_content_id, ws.item_id) AS title_item_id,
+               NULLIF(cpr.metadata->>'seasonNumber', '')::integer AS season_number,
+               NULLIF(cpr.metadata->>'episodeNumber', '')::integer AS episode_number
+        FROM user_state.watch_state ws
+        JOIN content_items ci ON ci.id = ws.item_id
+        LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+        LEFT JOIN content_provider_refs cpr ON cpr.content_id = ws.item_id AND cpr.provider = 'tmdb'
+        WHERE ws.profile_id = $1::uuid AND COALESCE(cir.parent_content_id, ws.item_id) = ANY($2::uuid[])
+          AND ci.entity_type = 'episode'
+          AND NULLIF(cpr.metadata->>'seasonNumber', '')::integer IS NOT NULL
+          AND NULLIF(cpr.metadata->>'episodeNumber', '')::integer IS NOT NULL`,
       [profileId, showItemIds],
     );
 
