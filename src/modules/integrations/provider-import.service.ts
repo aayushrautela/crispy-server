@@ -475,6 +475,12 @@ export class ProviderImportService {
         payload: importedPayload,
       });
 
+      if (interactionSummary.skipped) {
+        throw new Error(
+          `provider import write failed: ${interactionSummary.warnings.join('; ') || 'unknown write failure'}`,
+        );
+      }
+
       const warnings: string[] = [...interactionSummary.warnings];
       let metadataSummary: Record<string, unknown> = {
         refreshedTitles: 0,

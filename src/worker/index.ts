@@ -22,7 +22,7 @@ export function startWorker(): Worker {
         importJobId?: string;
         provider?: string;
       } & Record<string, unknown>;
-      switch (payload.reason) {
+      switch (job.name) {
         case 'refresh-calendar-cache':
           await runRefreshCalendarCacheJob(payload);
           return;
@@ -45,7 +45,7 @@ export function startWorker(): Worker {
           await runTmdbCachePurgeExpiredJob(payload as unknown as TmdbCachePurgeExpiredJob);
           return;
         default:
-          throw new Error(`Unsupported worker job reason: ${payload.reason}`);
+          throw new Error(`Unsupported worker job reason: ${String(job.name)}`);
       }
     },
     { connection: bullConnection },

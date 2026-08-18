@@ -100,17 +100,28 @@ export class LocalProviderHistoryWriter {
           params.watchlistItems.map((item) => parseMediaKey(item.mediaKey)),
         );
 
+        const resolved = params.watchlistItems
+          .map((item) => {
+            const itemId = contentIds.get(item.mediaKey);
+            if (!itemId) {
+              warnings.push(`skipped watchlist item ${item.mediaKey}: unresolved content id`);
+              return null;
+            }
+            return { itemId, item };
+          })
+          .filter((row): row is { itemId: string; item: ImportedProviderListItem } => row !== null);
+
+        const deduped = new Map<string, { itemId: string; item: ImportedProviderListItem }>();
+        for (const row of resolved) {
+          deduped.set(row.itemId, row);
+        }
+
         const values: unknown[] = [];
         const tuples: string[] = [];
-        params.watchlistItems.forEach((item, index) => {
-          const itemId = contentIds.get(item.mediaKey);
-          if (!itemId) {
-            warnings.push(`skipped watchlist item ${item.mediaKey}: unresolved content id`);
-            return;
-          }
+        [...deduped.values()].forEach((row, index) => {
           const base = index * 6;
           tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, 'watchlist', $${base + 3}::uuid, $${base + 4}, $${base + 5}::timestamptz, 'provider_import', $${base + 6})`);
-          values.push(accountId, profileId, itemId, item.mediaType, item.addedAt, provider);
+          values.push(accountId, profileId, row.itemId, row.item.mediaType, row.item.addedAt, provider);
         });
 
         if (tuples.length) {
@@ -140,17 +151,28 @@ export class LocalProviderHistoryWriter {
           params.ratings.map((rating) => parseMediaKey(rating.mediaKey)),
         );
 
+        const resolved = params.ratings
+          .map((rating) => {
+            const ratingItemId = contentIds.get(rating.mediaKey);
+            if (!ratingItemId) {
+              warnings.push(`skipped rating ${rating.mediaKey}: unresolved content id`);
+              return null;
+            }
+            return { ratingItemId, rating };
+          })
+          .filter((row): row is { ratingItemId: string; rating: ImportedProviderRating } => row !== null);
+
+        const deduped = new Map<string, { ratingItemId: string; rating: ImportedProviderRating }>();
+        for (const row of resolved) {
+          deduped.set(row.ratingItemId, row);
+        }
+
         const values: unknown[] = [];
         const tuples: string[] = [];
-        params.ratings.forEach((rating, index) => {
-          const ratingItemId = contentIds.get(rating.mediaKey);
-          if (!ratingItemId) {
-            warnings.push(`skipped rating ${rating.mediaKey}: unresolved content id`);
-            return;
-          }
+        [...deduped.values()].forEach((row, index) => {
           const base = index * 7;
           tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}, $${base + 5}, $${base + 6}::timestamptz, 'provider_import', $${base + 7})`);
-          values.push(accountId, profileId, ratingItemId, rating.mediaType, rating.rating, rating.ratedAt, provider);
+          values.push(accountId, profileId, row.ratingItemId, row.rating.mediaType, row.rating.rating, row.rating.ratedAt, provider);
         });
 
         if (tuples.length) {
@@ -182,25 +204,54 @@ export class LocalProviderHistoryWriter {
         ]);
         const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
+        const resolved = params.playbackStates
+          .map((state) => {
+            const titleItemId = contentIds.get(state.titleMediaKey);
+            const playableItemId = contentIds.get(state.mediaKey);
+            if (!titleItemId || !playableItemId) {
+              warnings.push(`skipped playback state ${state.mediaKey}: unresolved content id`);
+              return null;
+            }
+            const playableIdentity = parseMediaKey(state.mediaKey);
+            return {
+              titleItemId,
+              playableItemId,
+              mediaType: state.mediaType,
+              positionSeconds: state.positionSeconds,
+              durationSeconds: state.durationSeconds,
+              progressBps: state.progressBps,
+              occurredAt: state.occurredAt,
+              seasonNumber: playableIdentity.seasonNumber ?? null,
+              episodeNumber: playableIdentity.episodeNumber ?? null,
+            };
+          })
+          .filter((row): row is {
+            titleItemId: string;
+            playableItemId: string;
+            mediaType: 'movie' | 'show' | 'episode';
+            positionSeconds: number;
+            durationSeconds: number;
+            progressBps: number;
+            occurredAt: string;
+            seasonNumber: number | null;
+            episodeNumber: number | null;
+          } => row !== null);
+
+        const deduped = new Map<string, typeof resolved[number]>();
+        for (const row of resolved) {
+          deduped.set(`${row.titleItemId}|${row.playableItemId}`, row);
+        }
+
         const values: unknown[] = [];
         const tuples: string[] = [];
-        params.playbackStates.forEach((state, index) => {
-          const titleItemId = contentIds.get(state.titleMediaKey);
-          const playableItemId = contentIds.get(state.mediaKey);
-          if (!titleItemId || !playableItemId) {
-            warnings.push(`skipped playback state ${state.mediaKey}: unresolved content id`);
-            return;
-          }
-          const playableIdentity = parseMediaKey(state.mediaKey);
-          const seasonNumber = playableIdentity.seasonNumber ?? null;
-          const episodeNumber = playableIdentity.episodeNumber ?? null;
+        [...deduped.values()].forEach((row, index) => {
           const base = index * 12;
           tuples.push(
             `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}::timestamptz, $${base + 9}, $${base + 10}, 'provider_import', $${base + 11}, $${base + 12}::uuid)`,
           );
           values.push(
-            profileId, titleItemId, playableItemId, state.mediaType, state.positionSeconds, state.durationSeconds,
-            state.progressBps, state.occurredAt, seasonNumber, episodeNumber, provider, accountId,
+            profileId, row.titleItemId, row.playableItemId, row.mediaType, row.positionSeconds, row.durationSeconds,
+            row.progressBps, row.occurredAt, row.seasonNumber, row.episodeNumber, provider, accountId,
           );
         });
 
