@@ -11,12 +11,12 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto {
   const durationSeconds = numberValue(row.duration_seconds);
   const progressBps = numberValue(row.progress_bps);
   const lastActivityAt = isoValue(row.last_activity_at);
-  const mediaItem = playableMediaItemDtoFromRow(playableItemId, titleItemId, row);
+  const seasonNumber = numberValue(row.season_number);
+  const episodeNumber = numberValue(row.episode_number);
+  const isEpisode = stringValue(row.media_type) === 'episode'
+    || (seasonNumber !== null && episodeNumber !== null);
 
-  if (mediaItem.Type === 'Episode') {
-    mediaItem.ParentIndexNumber = numberValue(row.season_number);
-    mediaItem.IndexNumber = numberValue(row.episode_number);
-  }
+  const mediaItem = playableMediaItemDtoFromRow(playableItemId, titleItemId, row, isEpisode);
 
   return {
     ...mediaItem,
@@ -156,13 +156,12 @@ export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
   };
 }
 
-function playableMediaItemDtoFromRow(playableItemId: string, titleItemId: string, row: WatchReadRow): BaseItemDto {
-  const isEpisode = stringValue(row.media_type) === 'episode';
+function playableMediaItemDtoFromRow(playableItemId: string, titleItemId: string, row: WatchReadRow, isEpisode: boolean): BaseItemDto {
   const seriesName = isEpisode ? stringValue(row.title) || undefined : undefined;
 
   return watchCacheRecordToBaseItemDto({
     itemId: playableItemId,
-    mediaType: stringValue(row.media_type) || (isEpisode ? 'episode' : 'movie'),
+    mediaType: isEpisode ? 'episode' : (stringValue(row.media_type) || 'movie'),
     titleProvider: 'tmdb',
     titleProviderId: stringValue(row.title_provider_id) || stringValue(row.tmdb_id) || '',
     titleMediaType: isEpisode ? 'show' : (row.media_type === 'movie' ? 'movie' : 'show'),

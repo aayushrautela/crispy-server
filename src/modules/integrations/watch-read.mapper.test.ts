@@ -108,6 +108,32 @@ test('mapContinueWatchingRow maps episode progress with playable key', () => {
   assert.equal(item.UserData!.LastPlayedDate, '2026-05-14T08:00:00.000Z');
 });
 
+test('mapContinueWatchingRow maps show-level progress with season/episode as episode card', () => {
+  const item = mapContinueWatchingRow({
+    title_item_id: showId,
+    playable_item_id: episodeId,
+    media_type: 'show',
+    position_seconds: 600,
+    duration_seconds: 1800,
+    progress_bps: 3333,
+    last_activity_at: '2026-05-14T08:00:00.000Z',
+    source_provider: 'trakt',
+    title_provider_id: '52814',
+    imdb_id: 'tt0118415',
+    tvdb_id: null,
+    season_number: 2,
+    episode_number: 5,
+  });
+
+  assert.equal(item.Id, encodePublicItemId(episodeId));
+  assert.equal(item.Type, 'Episode');
+  assert.equal(item.SeriesId, encodePublicItemId(showId));
+  assert.equal(item.ParentIndexNumber, 2);
+  assert.equal(item.IndexNumber, 5);
+  assert.deepEqual(item.ProviderIds, { Tmdb: '52814', Imdb: 'tt0118415', Tvdb: null });
+  assert.equal(item.UserData!.PlaybackPositionTicks, 6_000_000_000);
+});
+
 test('mapContinueWatchingRow maps percentage-only imported progress (no seconds)', () => {
   const item = mapContinueWatchingRow({
     title_item_id: movieId,
