@@ -46,11 +46,10 @@ export class TraktImportIdentityResolver {
         providerId: String(directTmdbId),
         tmdbId: directTmdbId,
       });
-      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
+      return this.validate(cache, cacheKey, resolved);
     }
 
     if (params.mediaFamily === 'movie' && directTmdbId && imdbId) {
-      const sourceTitle = params.title?.trim() || null;
       const client = await db.connect();
       try {
         try {
@@ -59,8 +58,7 @@ export class TraktImportIdentityResolver {
             providerId: String(directTmdbId),
             tmdbId: directTmdbId,
           });
-          const validated = await this.validate(cache, cacheKey, resolved, sourceTitle, client);
-          if (validated) return validated;
+          return this.validate(cache, cacheKey, resolved, client);
         } catch (error) {
           if (!(error instanceof HttpError) || error.statusCode !== 404) {
             throw error;
@@ -81,7 +79,7 @@ export class TraktImportIdentityResolver {
           cache.set(cacheKey, null);
           return null;
         }
-        return this.validate(cache, cacheKey, resolved, sourceTitle, client);
+        return this.validate(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
@@ -97,7 +95,7 @@ export class TraktImportIdentityResolver {
         providerId: String(directTvdbId),
         tmdbId: directTmdbId,
       });
-      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
+      return this.validate(cache, cacheKey, resolved);
     }
 
     if (params.mediaFamily === 'anime' && directKitsuId) {
@@ -105,7 +103,7 @@ export class TraktImportIdentityResolver {
         providerId: directKitsuId,
         tmdbId: directTmdbId,
       });
-      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
+      return this.validate(cache, cacheKey, resolved);
     }
 
     if (imdbId) {
@@ -127,7 +125,7 @@ export class TraktImportIdentityResolver {
           tvdbId: directTvdbId,
           kitsuId: directKitsuId,
         });
-        return this.validate(cache, cacheKey, resolved, params.title?.trim() || null, client);
+        return this.validate(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
@@ -151,7 +149,7 @@ export class TraktImportIdentityResolver {
           tmdbId: resolvedTmdbId,
           tvdbId: Number(tvdbId),
         });
-        return this.validate(cache, cacheKey, resolved, params.title?.trim() || null, client);
+        return this.validate(cache, cacheKey, resolved, client);
       } finally {
         client.release();
       }
@@ -163,7 +161,7 @@ export class TraktImportIdentityResolver {
         tmdbId: directTmdbId,
         kitsuId: directKitsuId,
       });
-      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
+      return this.validate(cache, cacheKey, resolved);
     }
 
     logger.warn({
@@ -182,25 +180,11 @@ export class TraktImportIdentityResolver {
     cache: Map<string, ResolvedImportIdentity | null>,
     cacheKey: string,
     resolved: ResolvedImportIdentity,
-    sourceTitle?: string | null,
     existingClient?: DbClient,
   ): Promise<ResolvedImportIdentity | null> {
-    const client = existingClient ?? (await db.connect());
+    const client = existingClient ?? await db.connect();
     try {
-      const cardView = await this.deps.metadataCardService.buildCardView(client, resolved.identity);
-      if (sourceTitle && !titlesMatch(sourceTitle, cardView.title)) {
-        logger.warn({
-          mediaFamily: resolved.mediaType,
-          tmdbId: resolved.identity.tmdbId,
-          tvdbId: resolved.tvdbId,
-          kitsuId: resolved.kitsuId,
-          sourceTitle,
-          resolvedTitle: cardView.title,
-          reason: 'title_mismatch',
-        }, 'trakt_import_resolve_rejected');
-        cache.set(cacheKey, null);
-        return null;
-      }
+      await this.deps.metadataCardService.buildCardView(client, resolved.identity);
       cache.set(cacheKey, resolved);
       return resolved;
     } catch {
@@ -212,24 +196,6 @@ export class TraktImportIdentityResolver {
       }
     }
   }
-}
-
-function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function titlesMatch(sourceTitle: string, resolvedTitle: string | null): boolean {
-  if (!resolvedTitle) return false;
-  const a = normalizeTitle(sourceTitle);
-  const b = normalizeTitle(resolvedTitle);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  return a.startsWith(b) || b.startsWith(a);
 }
 
 export function buildResolvedImportIdentity(
