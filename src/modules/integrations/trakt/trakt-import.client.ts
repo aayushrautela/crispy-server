@@ -208,7 +208,7 @@ export class TraktImportClient {
     query?: Record<string, string | number>,
     options?: { maxPages?: number; pageSize?: number },
   ): Promise<Array<Record<string, unknown>>> {
-    const maxPages = options?.maxPages ?? 10
+    const maxPages = options?.maxPages ?? 200
     const pageSize = options?.pageSize ?? 100
     const allResults: Record<string, unknown>[] = []
 
