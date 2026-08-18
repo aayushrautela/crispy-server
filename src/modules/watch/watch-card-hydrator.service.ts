@@ -1,6 +1,6 @@
 import type { DbClient } from '../../lib/db.js';
 import type { BaseItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
-import type { MetadataCardView } from '../metadata/metadata-card.types.js';
+import type { MetadataCardView, MetadataExternalIds } from '../metadata/metadata-card.types.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
 import type { ClientMediaCard, ClientMediaType, ClientProgress, ClientProviderIds } from '../recommendations/client-home.types.js';
@@ -64,7 +64,7 @@ export class WatchCardHydrator {
 
     const progress = progressFromUserData(item.UserData);
 
-    const providerIds = providerIdsFromBaseItem(item.ProviderIds);
+    const providerIds = providerIdsFromExternalIds(cardView.externalIds) ?? providerIdsFromBaseItem(item.ProviderIds);
 
     return {
       itemId: cardView.itemId,
@@ -193,5 +193,14 @@ function providerIdsFromBaseItem(providerIds: BaseItemDto['ProviderIds']): Clien
   const imdb = providerIds.Imdb ?? null;
   if (!tmdb && !tvdb && !imdb) return null;
   return { tmdb: tmdb ?? null, tvdb: tvdb ?? null, imdb: imdb ?? null };
+}
+
+function providerIdsFromExternalIds(externalIds: MetadataExternalIds | null | undefined): ClientProviderIds | null {
+  if (!externalIds) return null;
+  const tmdb = externalIds.tmdb != null ? String(externalIds.tmdb) : null;
+  const tvdb = externalIds.tvdb != null ? String(externalIds.tvdb) : null;
+  const imdb = externalIds.imdb ?? null;
+  if (!tmdb && !tvdb && !imdb) return null;
+  return { tmdb, tvdb, imdb };
 }
 
