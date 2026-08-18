@@ -51,9 +51,31 @@ export type LocalProviderImportSyncResult = {
 };
 
 export class LocalProviderHistoryWriter {
-  constructor(
-    private readonly contentIdentityService = new ContentIdentityService(),
-  ) {}
+    constructor(
+      private readonly contentIdentityService = new ContentIdentityService(),
+    ) {}
+
+    /**
+     * Runs a query and, on failure, logs the SQL text together with the bound
+     * parameter values and count. This is the diagnostic surface used to
+     * capture malformed parameter sets (e.g. "could not determine data type of
+     * parameter $N") during provider imports.
+     */
+    private async runQuery(
+      client: DbClient,
+      sql: string,
+      params?: unknown[],
+    ): Promise<unknown> {
+      try {
+        return await client.query(sql, params);
+      } catch (error) {
+        logger.error(
+          { err: error, sql, params, paramCount: params?.length ?? 0 },
+          'local provider import query failed',
+        );
+        throw error;
+      }
+    }
 
   /**
    * Replaces all watch data for the profile with the imported set. This is the
@@ -86,7 +108,7 @@ export class LocalProviderHistoryWriter {
     try {
       await client.query('BEGIN');
 
-      await client.query('DELETE FROM user_state.watch_state WHERE profile_id = $1::uuid', [profileId]);
+      await this.runQuery(client, 'DELETE FROM user_state.watch_state WHERE profile_id = $1::uuid', [profileId]);
 
       if (params.historyEntries.length > 0) {
         historyInserted = await this.upsertHistory(client, accountId, profileId, params.historyEntries, warnings);
@@ -177,7 +199,8 @@ export class LocalProviderHistoryWriter {
     });
 
     if (tuples.length) {
-      await client.query(
+      await this.runQuery(
+        client,
         `INSERT INTO user_state.watch_state
            (profile_id, account_id, item_id, title_item_id, media_type,
             played, play_count, last_played_at, position_seconds, progress_bps, updated_at)
@@ -233,7 +256,8 @@ export class LocalProviderHistoryWriter {
     });
 
     if (tuples.length) {
-      await client.query(
+      await this.runQuery(
+        client,
         `INSERT INTO user_state.watch_state
            (profile_id, account_id, item_id, title_item_id, media_type,
             played, play_count, position_seconds, duration_seconds, last_played_at,
@@ -283,7 +307,8 @@ export class LocalProviderHistoryWriter {
     });
 
     if (tuples.length) {
-      await client.query(
+      await this.runQuery(
+        client,
         `INSERT INTO user_state.watch_state
            (profile_id, account_id, item_id, media_type, rating, last_played_at, updated_at)
          VALUES ${tuples.join(', ')}
@@ -333,7 +358,8 @@ export class LocalProviderHistoryWriter {
     });
 
     if (tuples.length) {
-      await client.query(
+      await this.runQuery(
+        client,
         `INSERT INTO user_state.watch_state
            (profile_id, account_id, item_id, title_item_id, media_type, is_favorite, updated_at)
          VALUES ${tuples.join(', ')}
