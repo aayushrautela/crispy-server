@@ -66,27 +66,11 @@ const providerStateSchema = {
 const providerConnectionsResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['providerStates', 'watchDataState'],
+  required: ['providerStates'],
   properties: {
     providerStates: {
       type: 'array',
       items: providerStateSchema,
-    },
-    watchDataState: {
-      anyOf: [
-        {
-          type: 'object',
-          additionalProperties: false,
-          required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
-          properties: {
-            profileId: stringSchema,
-            watchDataUpdatedAt: stringSchema,
-            watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
-            lastImportCompletedAt: { anyOf: [stringSchema, { type: 'null' }] },
-          },
-        },
-        { type: 'null' },
-      ],
     },
   },
 } as const;
@@ -126,26 +110,10 @@ const providerConnectionDeleteRouteSchema = withDefaultErrorResponses({
 const providerImportResultSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['job', 'providerState', 'watchDataState', 'authUrl', 'nextAction'],
+  required: ['job', 'providerState', 'authUrl', 'nextAction'],
   properties: {
     job: { anyOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
     providerState: providerStateSchema,
-    watchDataState: {
-      anyOf: [
-        {
-          type: 'object',
-          additionalProperties: false,
-          required: ['profileId', 'watchDataUpdatedAt', 'watchDataOrigin', 'lastImportCompletedAt'],
-          properties: {
-            profileId: stringSchema,
-            watchDataUpdatedAt: stringSchema,
-            watchDataOrigin: { type: 'string', enum: ['native', 'provider_import'] },
-            lastImportCompletedAt: nullableStringSchema,
-          },
-        },
-        { type: 'null' },
-      ],
-    },
     authUrl: nullableStringSchema,
     nextAction: { type: 'string', enum: ['authorize_provider', 'queued'] },
   },

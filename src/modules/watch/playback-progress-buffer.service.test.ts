@@ -9,7 +9,6 @@ type Call = {
   itemId: string;
   positionSeconds: number | null;
   durationSeconds: number | null;
-  eventKind: 'playback_progress' | 'playback_completed';
 };
 
 function makeBuffer(calls: Call[]): PlaybackProgressBuffer {
@@ -32,7 +31,6 @@ const base: BufferedPlaybackProgress = {
   progressBps: 1000,
   seasonNumber: null,
   episodeNumber: null,
-  eventKind: 'playback_progress',
   lastActivityAt: '2026-05-13T00:00:00.000Z',
 };
 
@@ -54,15 +52,6 @@ test('flushes distinct items as separate writes', async () => {
   await buffer.bufferProgress({ ...base, itemId: '00000000-0000-4000-8000-000000000002', positionSeconds: 20 });
   await buffer.flush();
   assert.equal(calls.length, 2);
-});
-
-test('forwards eventKind to recordPlaybackState', async () => {
-  const calls: Call[] = [];
-  const buffer = makeBuffer(calls);
-  await buffer.bufferProgress({ ...base, eventKind: 'playback_completed' });
-  await buffer.flush();
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0]!.eventKind, 'playback_completed');
 });
 
 test('drains leftover processing set from a crash on boot', async () => {

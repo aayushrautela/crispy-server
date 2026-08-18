@@ -1176,7 +1176,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       return sectionCard('Provider + import state', '<div class="message error">' + escapeHtml(result.error) + '</div>');
     }
 
-    const watchDataState = result && result.watchDataState ? result.watchDataState : null;
     const jobs = result && Array.isArray(result.jobs) ? result.jobs : [];
     const providers = result && Array.isArray(result.providers) ? result.providers : [];
 
@@ -1194,12 +1193,6 @@ export const ADMIN_UI_CLIENT = String.raw`
         + '<button type="button" data-recompute-profile="true">Notify recommender</button>'
         + '<button type="button" data-start-import="trakt">Import Trakt watch data</button>'
         + '<button type="button" data-start-import="simkl">Import Simkl watch data</button>'
-      + '</div>'
-      + '<div class="kv-grid">'
-        + kvPair('Current origin', watchDataState && watchDataState.currentOrigin ? watchDataState.currentOrigin : 'native')
-        + kvPair('History generation', watchDataState && watchDataState.historyGeneration !== undefined ? String(watchDataState.historyGeneration) : 'n/a')
-        + kvPair('Last import provider', watchDataState && watchDataState.lastImportProvider ? watchDataState.lastImportProvider : 'none')
-        + kvPair('Last import completed', watchDataState && watchDataState.lastImportCompletedAt ? formatDate(watchDataState.lastImportCompletedAt) : 'n/a')
       + '</div>'
       + providerCards
       + '<div class="section-spacer">' + jobsMarkup + '</div>'

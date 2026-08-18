@@ -112,7 +112,7 @@ export async function registerWatchRoutes(
         effectiveMediaType,
         bufferedSeason: seasonNumber,
         bufferedEpisode: episodeNumber,
-        eventKind: String(body.eventType ?? ''),
+        eventType: String(body.eventType ?? ''),
       },
       'watch/events received',
     );
@@ -127,7 +127,6 @@ export async function registerWatchRoutes(
       progressBps: null,
       seasonNumber,
       episodeNumber,
-      eventKind: String(body.eventType ?? '') === 'playback_completed' ? 'playback_completed' : 'playback_progress',
       lastActivityAt: typeof body.occurredAt === 'string' ? body.occurredAt : new Date().toISOString(),
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
@@ -408,11 +407,14 @@ export async function registerWatchRoutes(
       const contentItem = await contentIdentityRepo.findContentItemById(client, itemId);
       return toPlayableMediaType(contentItem?.entityType ?? 'movie');
     });
+    const { publicTitleItemId } = await withDbClient((client) =>
+      contentIdentityService.resolveTitleItemIdForPlayableItemId(client, params.itemId!),
+    );
     await localUserWatchService.setListItem({
       accountId: actor.authSubject!,
       profileId,
-      listKind: 'watchlist',
       itemId,
+      titleItemId: decodePublicItemId(publicTitleItemId),
       mediaType: resolvedMediaType,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
@@ -428,7 +430,6 @@ export async function registerWatchRoutes(
     await localUserWatchService.deleteListItem({
       accountId: actor.authSubject!,
       profileId,
-      listKind: 'watchlist',
       itemId,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });

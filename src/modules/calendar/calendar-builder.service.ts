@@ -2,7 +2,6 @@ import type { DbClient } from '../../lib/db.js';
 import { db } from '../../lib/db.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
-import { WATCHED_EVENT_TYPES, WATCH_STATE_EVENT_TYPES } from '../integrations/local-user-watch.service.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import type { BaseItemDto } from '../metadata/media-item.types.js';
@@ -129,7 +128,7 @@ export class CalendarBuilderService {
     const result = await client.query(
       `SELECT DISTINCT ON (title_item_id)
          title_item_id, season_number, episode_number
-       FROM user_state.watch_events
+       FROM user_state.watch_state
        WHERE profile_id = $1::uuid
          AND media_type = 'episode'
          AND title_item_id = ANY($2::uuid[])
@@ -291,10 +290,10 @@ export class CalendarBuilderService {
 
   private async queryContinueWatching(profileId: string, limit: number): Promise<Array<{ show_item_id: string; last_activity_at: string }>> {
     const result = await db.query(
-      `SELECT title_item_id AS show_item_id, last_activity_at
-       FROM user_state.playback_progress
-       WHERE profile_id = $1::uuid AND dismissed_at IS NULL AND title_item_id IS NOT NULL
-       ORDER BY last_activity_at DESC
+      `SELECT title_item_id AS show_item_id, updated_at AS last_activity_at
+       FROM user_state.watch_state
+       WHERE profile_id = $1::uuid AND NOT played AND position_seconds > 0 AND title_item_id IS NOT NULL
+       ORDER BY updated_at DESC
        LIMIT $2`,
       [profileId, limit],
     );
@@ -303,10 +302,10 @@ export class CalendarBuilderService {
 
   private async queryHistory(profileId: string, limit: number): Promise<Array<{ show_item_id: string; occurred_at: string }>> {
     const result = await db.query(
-      `SELECT title_item_id AS show_item_id, occurred_at
-       FROM user_state.watch_events
-       WHERE profile_id = $1::uuid AND media_type = 'episode' AND event_type = 'playback_completed' AND title_item_id IS NOT NULL
-       ORDER BY occurred_at DESC
+      `SELECT title_item_id AS show_item_id, last_played_at AS occurred_at
+       FROM user_state.watch_state
+       WHERE profile_id = $1::uuid AND media_type = 'episode' AND played AND last_played_at IS NOT NULL AND title_item_id IS NOT NULL
+       ORDER BY last_played_at DESC
        LIMIT $2`,
       [profileId, limit],
     );
@@ -315,13 +314,10 @@ export class CalendarBuilderService {
 
   private async queryWatchlist(profileId: string, limit: number): Promise<Array<{ show_item_id: string; added_at: string }>> {
     const result = await db.query(
-      `SELECT COALESCE(series_rel.parent_content_id, profile_list_items.item_id) AS show_item_id, added_at
-       FROM user_state.profile_list_items
-       LEFT JOIN content_item_relationships series_rel
-         ON series_rel.child_content_id = profile_list_items.item_id
-        AND series_rel.relationship_type = 'series'
-       WHERE profile_id = $1::uuid AND list_kind = 'watchlist' AND media_type IN ('show', 'episode')
-       ORDER BY added_at DESC
+      `SELECT title_item_id AS show_item_id, updated_at AS added_at
+       FROM user_state.watch_state
+       WHERE profile_id = $1::uuid AND is_favorite AND media_type IN ('show', 'episode')
+       ORDER BY updated_at DESC
        LIMIT $2`,
       [profileId, limit],
     );

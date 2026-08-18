@@ -42,26 +42,6 @@ export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto | null {
   };
 }
 
-export function mapListItemRow(row: WatchReadRow): BaseItemDto {
-  const itemId = encodePublicItemId(stringValue(row.item_id));
-  const addedAt = isoValue(row.added_at);
-  return {
-    ...mediaItemDtoFromRow(itemId, row),
-    UserData: {
-      ItemId: itemId,
-      IsFavorite: false,
-      Played: false,
-      PlayCount: 0,
-      PlaybackPositionTicks: null,
-      RuntimeTicks: null,
-      PlayedPercentage: null,
-      LastPlayedDate: addedAt,
-      Rating: null,
-      DismissedFromContinueWatching: false,
-    },
-  };
-}
-
 export function mapRatingRow(row: WatchReadRow): BaseItemDto {
   const itemId = encodePublicItemId(stringValue(row.item_id));
   const ratedAt = isoValue(row.rated_at);
@@ -106,38 +86,25 @@ export function mapHistoryRow(row: WatchReadRow): BaseItemDto {
 export function mapWatchStateRow(row: WatchReadRow): BaseItemDto {
   const itemId = encodePublicItemId(stringValue(row.item_id));
   const progressBps = numberValue(row.progress_bps);
-  const continueProgressBps = numberValue(row.continue_progress_bps);
-  const lastActivityAt = nullableIsoValue(row.last_activity_at);
-  const continueLastActivityAt = nullableIsoValue(row.continue_last_activity_at);
-  const lastWatchedAt = nullableIsoValue(row.last_watched_at);
-  const watchlistAddedAt = nullableIsoValue(row.watchlist_added_at);
+  const positionSeconds = numberValue(row.position_seconds);
+  const durationSeconds = numberValue(row.duration_seconds);
+  const lastPlayedAt = nullableIsoValue(row.last_played_at);
   const rating = numberValue(row.rating);
-  const ratedAt = nullableIsoValue(row.rated_at);
-  const effectiveWatched = row.effective_watched === true;
+  const played = row.played === true;
   const playCount = numberValue(row.play_count) ?? 0;
-
-  const positionSeconds = continueProgressBps !== null
-    ? numberValue(row.continue_position_seconds)
-    : (progressBps !== null ? numberValue(row.position_seconds) : null);
-  const durationSeconds = continueProgressBps !== null
-    ? numberValue(row.continue_duration_seconds)
-    : (progressBps !== null ? numberValue(row.duration_seconds) : null);
-  const lastPlayedDate = effectiveWatched && lastWatchedAt
-    ? lastWatchedAt
-    : (continueLastActivityAt ?? lastActivityAt);
-  const ratingValue = rating !== null && ratedAt ? rating : null;
+  const isFavorite = row.is_favorite === true;
 
   const userData: UserItemDataDto = {
     ItemId: itemId,
-    IsFavorite: watchlistAddedAt !== null,
-    Played: effectiveWatched,
+    IsFavorite: isFavorite,
+    Played: played,
     PlayCount: playCount,
     PlaybackPositionTicks: secondsToTicks(positionSeconds),
     RuntimeTicks: secondsToTicks(durationSeconds),
-    PlayedPercentage: continueProgressBps !== null ? continueProgressBps / 100 : (progressBps !== null ? progressBps / 100 : null),
-    LastPlayedDate: lastPlayedDate,
-    Rating: ratingValue,
-    DismissedFromContinueWatching: continueProgressBps !== null && row.continue_dismissed_at !== null,
+    PlayedPercentage: progressBps !== null ? progressBps / 100 : null,
+    LastPlayedDate: lastPlayedAt,
+    Rating: rating !== null ? rating : null,
+    DismissedFromContinueWatching: false,
   };
 
   const mediaType = stringValue(row.media_type);
@@ -249,15 +216,6 @@ function providerIdsFromRow(row: WatchReadRow): ProviderIdsDto {
     Imdb: nullableStringValue(row.imdb_id),
     Tvdb: nullableStringValue(row.tvdb_id),
   };
-}
-
-function origins(row: WatchReadRow): string[] {
-  const sourceProvider = nullableStringValue(row.source_provider);
-  if (sourceProvider) {
-    return [sourceProvider];
-  }
-  const sourceKind = nullableStringValue(row.source_kind);
-  return sourceKind ? [sourceKind] : [];
 }
 
 function stringValue(value: unknown): string {

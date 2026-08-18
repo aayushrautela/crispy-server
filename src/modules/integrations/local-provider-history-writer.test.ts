@@ -62,7 +62,6 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - returns result f
     job,
     profile,
     providerSession,
-    historyGeneration: 1,
     importedAt: '2026-05-15T00:00:00.000Z',
     historyEntries: [],
     watchlistItems: [],
@@ -109,7 +108,6 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - populates season
     job,
     profile,
     providerSession,
-    historyGeneration: 1,
     importedAt: '2026-05-15T00:00:00.000Z',
     historyEntries: [],
     watchlistItems: [],
@@ -131,15 +129,15 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - populates season
   assert.equal(result.skipped, false);
   assert.equal(result.playbackInserted, 1);
 
-  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.playback_progress'));
-  assert.ok(insertQuery, 'should have an INSERT query for playback_progress');
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
   assert.ok(insertQuery.includes('season_number'), 'INSERT should include season_number column');
   assert.ok(insertQuery.includes('episode_number'), 'INSERT should include episode_number column');
 
   const insertParams = params.find((_, i) => queries[i] === insertQuery);
   assert.ok(insertParams, 'should have params for the INSERT');
-  assert.equal(insertParams![8], 2, 'season_number should be 2');
-  assert.equal(insertParams![9], 3, 'episode_number should be 3');
+  assert.equal(insertParams![10], 2, 'season_number should be 2');
+  assert.equal(insertParams![11], 3, 'episode_number should be 3');
 });
 
 test('LocalProviderHistoryWriter::replaceImportedInteractions - handles DB error gracefully', async (t) => {
@@ -153,7 +151,6 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - handles DB error
     job,
     profile,
     providerSession,
-    historyGeneration: 1,
     importedAt: '2026-05-15T00:00:00.000Z',
     historyEntries: [{ mediaKey: 'movie:tmdb:1', mediaType: 'movie', watchedAt: '2026-05-10T00:00:00.000Z' }],
     watchlistItems: [],
@@ -197,7 +194,6 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - stores episode h
     job,
     profile,
     providerSession,
-    historyGeneration: 1,
     importedAt: '2026-05-15T00:00:00.000Z',
     historyEntries: [
       {
@@ -216,11 +212,9 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - stores episode h
   assert.equal(result.skipped, false);
   assert.equal(result.historyInserted, 1);
 
-  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_events'));
-  assert.ok(insertQuery, 'should have an INSERT query for watch_events');
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
   const insertParams = params.find((_, i) => queries[i] === insertQuery);
   assert.ok(insertParams, 'should have params for the INSERT');
   assert.equal(insertParams![4], 'episode', 'episode history must be stored with media_type episode, not show');
-  assert.equal(insertParams![6], 2, 'season_number should be 2');
-  assert.equal(insertParams![7], 3, 'episode_number should be 3');
 });

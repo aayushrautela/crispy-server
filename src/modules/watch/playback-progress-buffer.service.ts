@@ -18,7 +18,6 @@ export type BufferedPlaybackProgress = {
   progressBps: number | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
-  eventKind: 'playback_progress' | 'playback_completed';
   lastActivityAt: string;
 };
 
@@ -138,7 +137,6 @@ export class PlaybackProgressBuffer {
           mediaType: data.mediaType,
           positionSeconds: data.positionSeconds,
           durationSeconds: data.durationSeconds,
-          eventKind: data.eventKind,
           occurredAt: data.lastActivityAt,
           clientEventId: null,
           seasonNumber: data.seasonNumber,

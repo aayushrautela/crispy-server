@@ -15,10 +15,10 @@ export async function topGenresForProfile(
 ): Promise<HistoryGenreHit[]> {
   const result = await client.query<{ genre_id: number; media_type: string; count: string }>(
     `WITH recent AS (
-       SELECT we.title_item_id, we.media_type
-       FROM user_state.watch_events we
-       WHERE we.profile_id = $1::uuid
-       ORDER BY we.occurred_at DESC
+       SELECT ws.title_item_id, ws.media_type
+       FROM user_state.watch_state ws
+       WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
+       ORDER BY ws.last_played_at DESC
        LIMIT $2
      ), tmdb_refs AS (
        SELECT r.title_item_id, r.media_type, r.external_id::integer AS tmdb_id
@@ -59,10 +59,10 @@ export async function recentWatchedTmdbIds(
   const result = await client.query<{ media_type: string; tmdb_id: number }>(
     `SELECT DISTINCT r.media_type, tr.external_id::integer AS tmdb_id
      FROM (
-       SELECT we.title_item_id, we.media_type
-       FROM user_state.watch_events we
-       WHERE we.profile_id = $1::uuid
-       ORDER BY we.occurred_at DESC
+       SELECT ws.title_item_id, ws.media_type
+       FROM user_state.watch_state ws
+       WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
+       ORDER BY ws.last_played_at DESC
        LIMIT $2
      ) r
      JOIN content_provider_refs tr

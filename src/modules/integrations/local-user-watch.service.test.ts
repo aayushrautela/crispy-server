@@ -4,21 +4,26 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('isBelowCompletionThreshold: below 90% returns true', async (t) => {
+test('resolvePlayState: no runtime, position > 0 is played', async () => {
   const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(5000), true);
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(8999), true);
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(0), true);
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(120, null), { played: true, positionSeconds: 0 });
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(0, null), { played: false, positionSeconds: 0 });
 });
 
-test('isBelowCompletionThreshold: at or above 90% returns false', async (t) => {
+test('resolvePlayState: ignores near-zero starts (below MinResumePct)', async () => {
   const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(9000), false);
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(9500), false);
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(10000), false);
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(2, 1000), { played: false, positionSeconds: 0 });
 });
 
-test('isBelowCompletionThreshold: null progressBps returns false', async (t) => {
+test('resolvePlayState: mid-progress stores resume position', async () => {
   const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.equal(LocalUserWatchService.isBelowCompletionThreshold(null), false);
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(500, 1000), { played: false, positionSeconds: 500 });
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(800, 1000), { played: false, positionSeconds: 800 });
+});
+
+test('resolvePlayState: >= MaxResumePct or at end is played and clears position', async () => {
+  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(910, 1000), { played: true, positionSeconds: 0 });
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(999, 1000), { played: true, positionSeconds: 0 });
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(1000, 1000), { played: true, positionSeconds: 0 });
 });

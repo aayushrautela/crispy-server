@@ -11,7 +11,6 @@ import { MetadataRefreshService } from '../metadata/metadata-refresh.service.js'
 import { inferMediaIdentity, canonicalTitleMediaKey, canonicalTitleMediaType, type MediaIdentity } from '../identity/media-key.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { ProviderImportJobsRepository, type ProviderImportJobRecord } from './provider-import-jobs.repo.js';
-import { ProfileWatchDataStateRepository, type ProfileWatchDataStateRecord } from './profile-watch-data-state.repo.js';
 import { isProviderImportProvider, providerLabel, type ProviderImportProvider } from './provider-import.types.js';
 import { mapProviderSessionStateView, type ProviderStateView } from './provider-import.views.js';
 import {
@@ -58,7 +57,6 @@ import { SimklImportService } from './simkl/simkl-import.service.js';
 export type StartedProviderImport = {
   job: ProviderImportJobRecord;
   providerState: ProviderStateView;
-  watchDataState: ProviderWatchDataStateView;
   authUrl: string | null;
   nextAction: 'authorize_provider' | 'queued';
 };
@@ -72,7 +70,6 @@ export type CompletedProviderImportCallback = {
 export type ProviderSessionActionResult = {
   job: ProviderImportJobRecord | null;
   providerState: ProviderStateView;
-  watchDataState: ProviderWatchDataStateView;
   authUrl: string | null;
   nextAction: 'authorize_provider' | 'queued';
 };
@@ -82,13 +79,6 @@ type ProviderCallbackParams = {
   code?: string;
   error?: string;
   errorDescription?: string;
-};
-
-type ProviderWatchDataStateView = {
-  profileId: string;
-  watchDataUpdatedAt: string;
-  watchDataOrigin: 'native' | 'provider_import';
-  lastImportCompletedAt: string | null;
 };
 
 type ProviderImportFacts = {
@@ -103,18 +93,6 @@ function pickProviderSession(
   provider: ProviderImportProvider,
 ): ProviderSessionRecord | null {
   return providerSessions.find((providerSession) => providerSession.provider === provider) ?? null;
-}
-
-function mapWatchDataStateView(watchDataState: ProfileWatchDataStateRecord | null): ProviderWatchDataStateView | null {
-  if (!watchDataState) {
-    return null;
-  }
-  return {
-    profileId: watchDataState.profileId,
-    watchDataUpdatedAt: watchDataState.updatedAt,
-    watchDataOrigin: watchDataState.currentOrigin,
-    lastImportCompletedAt: watchDataState.lastImportCompletedAt,
-  };
 }
 
 function generatePkcePair(): { codeVerifier: string; codeChallenge: string } {
@@ -157,7 +135,6 @@ export class ProviderImportService {
     private readonly profileService = new ProfileLocalService(),
     private readonly providerSessionsRepository = new ProviderSessionsRepository(),
     private readonly jobsRepository = new ProviderImportJobsRepository(),
-    private readonly watchDataStateRepository = new ProfileWatchDataStateRepository(),
     private readonly externalIdResolver = new TmdbExternalIdResolverService(),
     private readonly metadataRefreshService = new MetadataRefreshService(),
     private readonly tokenRefreshService = new ProviderTokenRefreshService(),
@@ -213,7 +190,6 @@ export class ProviderImportService {
     const started = await this.runInTransaction(async (client) => {
       await this.profileService.requireOwnedProfile(userId, profileId);
 
-      const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
       const providerSession = await this.providerSessionsRepository.getConnectedSession(client, profileId, provider);
       if (!providerSession) {
         const providerState = mapProviderSessionStateView(provider, providerSession);
@@ -236,7 +212,6 @@ export class ProviderImportService {
       return {
         job: queuedJob,
         providerState: mapProviderSessionStateView(provider, activeProviderSession),
-        watchDataState: mapWatchDataStateView(watchDataState) as ProviderWatchDataStateView,
         authUrl: null,
         nextAction: 'queued' as const,
       };
@@ -252,21 +227,17 @@ export class ProviderImportService {
   async listProviderSessions(
     userId: string,
     profileId: string,
-  ): Promise<{ providerStates: ProviderStateView[]; watchDataState: ProviderWatchDataStateView | null }> {
+  ): Promise<{ providerStates: ProviderStateView[] }> {
     return this.runInTransaction(async (client) => {
       await this.profileService.requireOwnedProfile(userId, profileId);
 
-      const [providerSessions, watchDataState] = await Promise.all([
-        this.providerSessionsRepository.listForProfile(client, profileId),
-        this.watchDataStateRepository.getForProfile(client, profileId),
-      ]);
+      const providerSessions = await this.providerSessionsRepository.listForProfile(client, profileId);
 
       return {
         providerStates: [
           mapProviderSessionStateView('trakt', pickProviderSession(providerSessions, 'trakt')),
           mapProviderSessionStateView('simkl', pickProviderSession(providerSessions, 'simkl')),
         ],
-        watchDataState: mapWatchDataStateView(watchDataState),
       };
     });
   }
@@ -407,14 +378,11 @@ export class ProviderImportService {
     return completed;
   }
 
-  async listJobs(userId: string, profileId: string): Promise<{ jobs: ProviderImportJobRecord[]; watchDataState: ProfileWatchDataStateRecord | null }> {
+  async listJobs(userId: string, profileId: string): Promise<{ jobs: ProviderImportJobRecord[] }> {
     return this.runInTransaction(async (client) => {
       await this.profileService.requireOwnedProfile(userId, profileId);
-      const [jobs, watchDataState] = await Promise.all([
-        this.jobsRepository.listForProfile(client, profileId),
-        this.watchDataStateRepository.getForProfile(client, profileId),
-      ]);
-      return { jobs, watchDataState };
+      const jobs = await this.jobsRepository.listForProfile(client, profileId);
+      return { jobs };
     });
   }
 
@@ -459,18 +427,9 @@ export class ProviderImportService {
 
       const importedPayload = await this.moduleFor(runningJob.provider).fetchAndNormalizeImport(runningJob, activeProviderSession.credentialsJson);
 
-      const watchDataState = await this.runInTransaction((client) => this.watchDataStateRepository.markResetForImport(client, {
-        profileId: runningJob.profileId,
-        provider: runningJob.provider,
-        importJobId: runningJob.id,
-        resetAt: importedPayload.importedAt,
-      }));
-      const historyGeneration = watchDataState.historyGeneration;
-
       const interactionSummary = await this.syncProviderInteractionsToLocal({
         job: runningJob,
         providerSession: activeProviderSession,
-        historyGeneration,
         importedAt: importedPayload.importedAt,
         payload: importedPayload,
       });
@@ -506,17 +465,6 @@ export class ProviderImportService {
       }
 
       try {
-        await this.runInTransaction((client) => this.watchDataStateRepository.markImportCompleted(client, {
-          profileId: runningJob.profileId,
-          provider: runningJob.provider,
-          importJobId: runningJob.id,
-          completedAt: importedPayload.importedAt,
-        }));
-      } catch (error) {
-        warnings.push(`failed to mark watch data state import completed: ${error instanceof Error ? error.message : 'unknown error'}`);
-      }
-
-      try {
         await this.scheduleProviderRefresh(activeProviderSession.profileId, activeProviderSession.provider);
       } catch (error) {
         warnings.push(`failed to schedule provider refresh: ${error instanceof Error ? error.message : 'unknown error'}`);
@@ -538,7 +486,6 @@ export class ProviderImportService {
             projectionSummary: { titleProjections: 0, trackedTitleStates: 0 },
             metadataSummary,
             interactionSummary,
-            historyGeneration,
             warnings,
           },
         };
@@ -593,7 +540,6 @@ export class ProviderImportService {
     const started = await this.runInTransaction(async (client) => {
       await this.profileService.requireOwnedProfile(userId, profileId);
 
-      const watchDataState = await this.watchDataStateRepository.ensure(client, profileId);
       const currentSession = await this.providerSessionsRepository.findByProfileAndProvider(client, profileId, provider);
       const stateToken = randomUUID();
       const pkce = generatePkcePair();
@@ -631,7 +577,6 @@ export class ProviderImportService {
       return {
         job: pendingJob,
         providerState: mapProviderSessionStateView(provider, providerSession),
-        watchDataState: mapWatchDataStateView(watchDataState) as ProviderWatchDataStateView,
         authUrl,
         nextAction: 'authorize_provider' as const,
       };
@@ -714,7 +659,6 @@ export class ProviderImportService {
   private async syncProviderInteractionsToLocal(params: {
     job: ProviderImportJobRecord;
     providerSession: ProviderSessionRecord;
-    historyGeneration: number;
     importedAt: string;
     payload: ProviderReplaceImportPayload;
   }): Promise<LocalProviderImportSyncResult> {
@@ -746,7 +690,6 @@ export class ProviderImportService {
         job: params.job,
         profile: profileRow,
         providerSession: params.providerSession,
-        historyGeneration: params.historyGeneration,
         importedAt: params.importedAt,
         ...facts,
       });

@@ -241,10 +241,10 @@ export class EpisodicFollowService {
     limit: number,
   ): Promise<Array<{ title_item_id: string; playable_item_id: string; last_activity_at: string }>> {
     const result = await client.query(
-      `SELECT title_item_id, playable_item_id, last_activity_at
-       FROM user_state.playback_progress
-       WHERE profile_id = $1::uuid AND dismissed_at IS NULL
-       ORDER BY last_activity_at DESC
+      `SELECT title_item_id, item_id AS playable_item_id, updated_at AS last_activity_at
+       FROM user_state.watch_state
+       WHERE profile_id = $1::uuid AND NOT played AND position_seconds > 0
+       ORDER BY updated_at DESC
        LIMIT $2`,
       [profileId, limit],
     );
@@ -257,10 +257,10 @@ export class EpisodicFollowService {
     limit: number,
   ): Promise<Array<{ title_item_id: string; occurred_at: string }>> {
     const result = await client.query(
-       `SELECT title_item_id, occurred_at
-        FROM user_state.watch_events
-        WHERE profile_id = $1::uuid AND media_type = 'episode' AND event_type IN ('playback_completed', 'marked_watched')
-        ORDER BY occurred_at DESC
+       `SELECT title_item_id, last_played_at AS occurred_at
+        FROM user_state.watch_state
+        WHERE profile_id = $1::uuid AND media_type = 'episode' AND played AND last_played_at IS NOT NULL
+        ORDER BY last_played_at DESC
         LIMIT $2`,
       [profileId, limit],
     );
@@ -273,10 +273,10 @@ export class EpisodicFollowService {
     limit: number,
   ): Promise<Array<{ item_id: string; added_at: string }>> {
     const result = await client.query(
-      `SELECT item_id, added_at
-       FROM user_state.profile_list_items
-       WHERE profile_id = $1::uuid AND list_kind = 'watchlist' AND media_type IN ('show', 'episode')
-       ORDER BY added_at DESC
+      `SELECT title_item_id AS item_id, updated_at AS added_at
+       FROM user_state.watch_state
+       WHERE profile_id = $1::uuid AND is_favorite AND media_type IN ('show', 'episode')
+       ORDER BY updated_at DESC
        LIMIT $2`,
       [profileId, limit],
     );
@@ -290,14 +290,9 @@ export class EpisodicFollowService {
   ): Promise<Map<string, LastWatchedRef>> {
     const result = await client.query(
        `SELECT title_item_id, season_number, episode_number
-        FROM user_state.watch_events
+        FROM user_state.watch_state
         WHERE profile_id = $1::uuid AND title_item_id = ANY($2::uuid[])
-          AND media_type = 'episode' AND event_type IN ('playback_completed', 'marked_watched')
-        UNION ALL
-       SELECT title_item_id, season_number, episode_number
-       FROM user_state.playback_progress
-       WHERE profile_id = $1::uuid AND title_item_id = ANY($2::uuid[])
-         AND media_type = 'episode' AND season_number IS NOT NULL AND episode_number IS NOT NULL`,
+          AND media_type = 'episode' AND season_number IS NOT NULL AND episode_number IS NOT NULL`,
       [profileId, showItemIds],
     );
 

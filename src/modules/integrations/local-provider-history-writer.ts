@@ -3,11 +3,11 @@ import { logger } from '../../config/logger.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { canonicalTitleMediaKey, parseMediaKey, type MediaIdentity } from '../identity/media-key.js';
 import type { ProfileRecord } from '../profiles/profile-local.service.js';
-
-type ProfileRef = Pick<ProfileRecord, 'id'>;
 import type { ProviderImportJobRecord } from './provider-import-jobs.repo.js';
 import type { ProviderSessionRecord } from './provider-sessions.repo.js';
 import type { AppUser } from '../users/user.types.js';
+
+type ProfileRef = Pick<ProfileRecord, 'id'>;
 
 export type ImportedProviderHistoryEntry = {
   mediaKey: string;
@@ -55,6 +55,11 @@ export class LocalProviderHistoryWriter {
     private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
+  /**
+   * Replaces all watch data for the profile with the imported set. This is the
+   * Jellyfin-style "reimport clears everything" semantics: provider origin is no
+   * longer tracked, so the imported set is authoritative for the profile.
+   */
   async replaceImportedInteractions(
     client: DbClient,
     params: {
@@ -62,7 +67,6 @@ export class LocalProviderHistoryWriter {
       job: ProviderImportJobRecord;
       profile: ProfileRef;
       providerSession: ProviderSessionRecord;
-      historyGeneration: number;
       importedAt: string;
       historyEntries: ImportedProviderHistoryEntry[];
       watchlistItems: ImportedProviderListItem[];
@@ -73,7 +77,6 @@ export class LocalProviderHistoryWriter {
     const warnings: string[] = [];
     const accountId = params.appUser.authSubject;
     const profileId = params.profile.id;
-    const provider = params.job.provider;
 
     let historyInserted = 0;
     let watchlistInserted = 0;
@@ -83,195 +86,25 @@ export class LocalProviderHistoryWriter {
     try {
       await client.query('BEGIN');
 
+      await client.query('DELETE FROM user_state.watch_state WHERE profile_id = $1::uuid', [profileId]);
+
       if (params.historyEntries.length > 0) {
-        const histResult = await this.replaceHistory(client, accountId, profileId, provider, params);
-        historyInserted = histResult;
+        historyInserted = await this.upsertHistory(client, accountId, profileId, params.historyEntries, warnings);
       }
-
-      if (params.watchlistItems.length > 0) {
-        await client.query(
-          `DELETE FROM user_state.profile_list_items
-           WHERE profile_id = $1::uuid AND source_provider = $2 AND source_kind = 'provider_import'`,
-          [profileId, provider],
-        );
-
-        const contentIds = await this.contentIdentityService.ensureContentIds(
-          client,
-          params.watchlistItems.map((item) => parseMediaKey(item.mediaKey)),
-        );
-
-        const resolved = params.watchlistItems
-          .map((item) => {
-            const itemId = contentIds.get(item.mediaKey);
-            if (!itemId) {
-              warnings.push(`skipped watchlist item ${item.mediaKey}: unresolved content id`);
-              return null;
-            }
-            return { itemId, item };
-          })
-          .filter((row): row is { itemId: string; item: ImportedProviderListItem } => row !== null);
-
-        const deduped = new Map<string, { itemId: string; item: ImportedProviderListItem }>();
-        for (const row of resolved) {
-          deduped.set(row.itemId, row);
-        }
-
-        const values: unknown[] = [];
-        const tuples: string[] = [];
-        [...deduped.values()].forEach((row, index) => {
-          const base = index * 6;
-          tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, 'watchlist', $${base + 3}::uuid, $${base + 4}, $${base + 5}::timestamptz, 'provider_import', $${base + 6})`);
-          values.push(accountId, profileId, row.itemId, row.item.mediaType, row.item.addedAt, provider);
-        });
-
-        if (tuples.length) {
-          await client.query(
-            `INSERT INTO user_state.profile_list_items (account_id, profile_id, list_kind, item_id, media_type, added_at, source_kind, source_provider)
-             VALUES ${tuples.join(', ')}
-             ON CONFLICT (profile_id, list_kind, item_id) DO UPDATE SET
-               added_at = EXCLUDED.added_at,
-               source_kind = EXCLUDED.source_kind,
-               source_provider = EXCLUDED.source_provider,
-               updated_at = now()`,
-            values,
-          );
-        }
-        watchlistInserted = tuples.length;
-      }
-
-      if (params.ratings.length > 0) {
-        await client.query(
-          `DELETE FROM user_state.profile_ratings
-           WHERE profile_id = $1::uuid AND source_provider = $2 AND source_kind = 'provider_import'`,
-          [profileId, provider],
-        );
-
-        const contentIds = await this.contentIdentityService.ensureContentIds(
-          client,
-          params.ratings.map((rating) => parseMediaKey(rating.mediaKey)),
-        );
-
-        const resolved = params.ratings
-          .map((rating) => {
-            const ratingItemId = contentIds.get(rating.mediaKey);
-            if (!ratingItemId) {
-              warnings.push(`skipped rating ${rating.mediaKey}: unresolved content id`);
-              return null;
-            }
-            return { ratingItemId, rating };
-          })
-          .filter((row): row is { ratingItemId: string; rating: ImportedProviderRating } => row !== null);
-
-        const deduped = new Map<string, { ratingItemId: string; rating: ImportedProviderRating }>();
-        for (const row of resolved) {
-          deduped.set(row.ratingItemId, row);
-        }
-
-        const values: unknown[] = [];
-        const tuples: string[] = [];
-        [...deduped.values()].forEach((row, index) => {
-          const base = index * 7;
-          tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}, $${base + 5}, $${base + 6}::timestamptz, 'provider_import', $${base + 7})`);
-          values.push(accountId, profileId, row.ratingItemId, row.rating.mediaType, row.rating.rating, row.rating.ratedAt, provider);
-        });
-
-        if (tuples.length) {
-          await client.query(
-            `INSERT INTO user_state.profile_ratings (account_id, profile_id, item_id, media_type, rating, rated_at, source_kind, source_provider)
-             VALUES ${tuples.join(', ')}
-             ON CONFLICT (profile_id, item_id) DO UPDATE SET
-               rating = EXCLUDED.rating,
-               rated_at = EXCLUDED.rated_at,
-               source_kind = EXCLUDED.source_kind,
-               source_provider = EXCLUDED.source_provider,
-               updated_at = now()`,
-            values,
-          );
-        }
-        ratingsInserted = tuples.length;
-      }
-
       if (params.playbackStates.length > 0) {
-        await client.query(
-          `DELETE FROM user_state.playback_progress
-           WHERE profile_id = $1::uuid AND source_provider = $2 AND source_kind = 'provider_import'`,
-          [profileId, provider],
-        );
-
-        const identities = params.playbackStates.flatMap((state) => [
-          parseMediaKey(state.titleMediaKey),
-          parseMediaKey(state.mediaKey),
-        ]);
-        const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
-
-        const resolved = params.playbackStates
-          .map((state) => {
-            const titleItemId = contentIds.get(state.titleMediaKey);
-            const playableItemId = contentIds.get(state.mediaKey);
-            if (!titleItemId || !playableItemId) {
-              warnings.push(`skipped playback state ${state.mediaKey}: unresolved content id`);
-              return null;
-            }
-            const playableIdentity = parseMediaKey(state.mediaKey);
-            return {
-              titleItemId,
-              playableItemId,
-              mediaType: state.mediaType,
-              positionSeconds: state.positionSeconds,
-              durationSeconds: state.durationSeconds,
-              progressBps: state.progressBps,
-              occurredAt: state.occurredAt,
-              seasonNumber: playableIdentity.seasonNumber ?? null,
-              episodeNumber: playableIdentity.episodeNumber ?? null,
-            };
-          })
-          .filter((row): row is {
-            titleItemId: string;
-            playableItemId: string;
-            mediaType: 'movie' | 'show' | 'episode';
-            positionSeconds: number;
-            durationSeconds: number;
-            progressBps: number;
-            occurredAt: string;
-            seasonNumber: number | null;
-            episodeNumber: number | null;
-          } => row !== null);
-
-        const deduped = new Map<string, typeof resolved[number]>();
-        for (const row of resolved) {
-          deduped.set(`${row.titleItemId}|${row.playableItemId}`, row);
-        }
-
-        const values: unknown[] = [];
-        const tuples: string[] = [];
-        [...deduped.values()].forEach((row, index) => {
-          const base = index * 12;
-          tuples.push(
-            `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}::timestamptz, $${base + 9}, $${base + 10}, 'provider_import', $${base + 11}, $${base + 12}::uuid)`,
-          );
-          values.push(
-            profileId, row.titleItemId, row.playableItemId, row.mediaType, row.positionSeconds, row.durationSeconds,
-            row.progressBps, row.occurredAt, row.seasonNumber, row.episodeNumber, provider, accountId,
-          );
-        });
-
-        if (tuples.length) {
-          await client.query(
-            `INSERT INTO user_state.playback_progress
-               (profile_id, title_item_id, playable_item_id, media_type, position_seconds, duration_seconds, progress_bps,
-                last_activity_at, season_number, episode_number, source_kind, source_provider, account_id)
-             VALUES ${tuples.join(', ')}
-             ON CONFLICT (profile_id, title_item_id, playable_item_id) DO NOTHING`,
-            values,
-          );
-        }
-        playbackInserted = tuples.length;
+        playbackInserted = await this.upsertPlayback(client, accountId, profileId, params.playbackStates, warnings);
+      }
+      if (params.ratings.length > 0) {
+        ratingsInserted = await this.upsertRatings(client, accountId, profileId, params.ratings, warnings);
+      }
+      if (params.watchlistItems.length > 0) {
+        watchlistInserted = await this.upsertWatchlist(client, accountId, profileId, params.watchlistItems, warnings);
       }
 
       await client.query('COMMIT');
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
-      logger.error({ error, profileId, provider }, 'local provider import write failed');
+      logger.error({ error, profileId }, 'local provider import write failed');
       return {
         historyInserted: 0,
         watchlistInserted: 0,
@@ -284,7 +117,6 @@ export class LocalProviderHistoryWriter {
 
     logger.info({
       profileId,
-      provider,
       historyInserted,
       watchlistInserted,
       ratingsInserted,
@@ -301,57 +133,214 @@ export class LocalProviderHistoryWriter {
     };
   }
 
-  private async replaceHistory(
+  private async upsertHistory(
     client: DbClient,
     accountId: string,
     profileId: string,
-    provider: string,
-    params: {
-      historyEntries: ImportedProviderHistoryEntry[];
-      importedAt: string;
-    },
+    entries: ImportedProviderHistoryEntry[],
+    warnings: string[],
   ): Promise<number> {
-    await client.query(
-      `DELETE FROM user_state.watch_events
-       WHERE profile_id = $1::uuid AND source_provider = $2 AND source_kind = 'provider_import'`,
-      [profileId, provider],
-    );
-
-    const identities = params.historyEntries.flatMap((entry) => {
+    const identities = entries.flatMap((entry) => {
       const identity = parseMediaKey(entry.mediaKey);
       return [identity, parseMediaKey(canonicalTitleMediaKey(identity))];
     });
     const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
+    const deduped = new Map<string, ImportedProviderHistoryEntry>();
+    for (const entry of entries) {
+      const contentId = contentIds.get(entry.mediaKey);
+      const titleContentId = contentIds.get(canonicalTitleMediaKey(parseMediaKey(entry.mediaKey)));
+      if (!contentId || !titleContentId) {
+        warnings.push(`skipped history item ${entry.mediaKey}: unresolved content id`);
+        continue;
+      }
+      const key = `${titleContentId}|${contentId}`;
+      const existing = deduped.get(key);
+      if (!existing || entry.watchedAt > existing.watchedAt) {
+        deduped.set(key, entry);
+      }
+    }
+
     const values: unknown[] = [];
     const tuples: string[] = [];
-    params.historyEntries.forEach((entry, index) => {
-      const identity = parseMediaKey(entry.mediaKey);
-      const contentId = contentIds.get(entry.mediaKey);
-      const titleContentId = contentIds.get(canonicalTitleMediaKey(identity));
-      if (!contentId || !titleContentId) {
-        return;
-      }
-      const base = index * 9;
+    [...deduped.values()].forEach((entry, index) => {
+      const contentId = contentIds.get(entry.mediaKey)!;
+      const titleContentId = contentIds.get(canonicalTitleMediaKey(parseMediaKey(entry.mediaKey)))!;
+      const base = index * 11;
       tuples.push(
-        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, 'playback_completed', $${base + 6}::timestamptz, $${base + 7}, $${base + 8}, 'provider_import', $${base + 9})`,
+        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, true, 1, $${base + 6}::timestamptz, 0, NULL, now())`,
       );
       values.push(
-        accountId, profileId, contentId, titleContentId, identity.mediaType,
-        entry.watchedAt, entry.seasonNumber ?? null, entry.episodeNumber ?? null, provider,
+        profileId, accountId, contentId, titleContentId,
+        entry.mediaType, entry.watchedAt,
       );
     });
 
     if (tuples.length) {
       await client.query(
-        `INSERT INTO user_state.watch_events
-           (account_id, profile_id, item_id, title_item_id, media_type, event_type,
-            occurred_at, season_number, episode_number, source_kind, source_provider)
-         VALUES ${tuples.join(', ')}`,
+        `INSERT INTO user_state.watch_state
+           (profile_id, account_id, item_id, title_item_id, media_type,
+            played, play_count, last_played_at, position_seconds, progress_bps, updated_at)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (profile_id, item_id) DO NOTHING`,
         values,
       );
     }
+    return tuples.length;
+  }
 
+  private async upsertPlayback(
+    client: DbClient,
+    accountId: string,
+    profileId: string,
+    states: ImportedProviderPlaybackState[],
+    warnings: string[],
+  ): Promise<number> {
+    const identities = states.flatMap((state) => [
+      parseMediaKey(state.titleMediaKey),
+      parseMediaKey(state.mediaKey),
+    ]);
+    const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
+
+    const deduped = new Map<string, ImportedProviderPlaybackState>();
+    for (const state of states) {
+      const titleItemId = contentIds.get(state.titleMediaKey);
+      const playableItemId = contentIds.get(state.mediaKey);
+      if (!titleItemId || !playableItemId) {
+        warnings.push(`skipped playback state ${state.mediaKey}: unresolved content id`);
+        continue;
+      }
+      deduped.set(`${titleItemId}|${playableItemId}`, state);
+    }
+
+    const values: unknown[] = [];
+    const tuples: string[] = [];
+    [...deduped.values()].forEach((state, index) => {
+      const titleItemId = contentIds.get(state.titleMediaKey)!;
+      const playableItemId = contentIds.get(state.mediaKey)!;
+      const playableIdentity = parseMediaKey(state.mediaKey);
+      const base = index * 13;
+      tuples.push(
+        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}::timestamptz, $${base + 11}, $${base + 12}, now())`,
+      );
+      values.push(
+        profileId, accountId, playableItemId, titleItemId,
+        state.mediaType,
+        state.completed, 1,
+        state.positionSeconds, state.durationSeconds, state.occurredAt,
+        playableIdentity.seasonNumber ?? null, playableIdentity.episodeNumber ?? null,
+      );
+    });
+
+    if (tuples.length) {
+      await client.query(
+        `INSERT INTO user_state.watch_state
+           (profile_id, account_id, item_id, title_item_id, media_type,
+            played, play_count, position_seconds, duration_seconds, last_played_at,
+            season_number, episode_number, updated_at)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (profile_id, item_id) DO NOTHING`,
+        values,
+      );
+    }
+    return tuples.length;
+  }
+
+  private async upsertRatings(
+    client: DbClient,
+    accountId: string,
+    profileId: string,
+    ratings: ImportedProviderRating[],
+    warnings: string[],
+  ): Promise<number> {
+    const contentIds = await this.contentIdentityService.ensureContentIds(
+      client,
+      ratings.map((rating) => parseMediaKey(rating.mediaKey)),
+    );
+
+    const deduped = new Map<string, ImportedProviderRating>();
+    for (const rating of ratings) {
+      const ratingItemId = contentIds.get(rating.mediaKey);
+      if (!ratingItemId) {
+        warnings.push(`skipped rating ${rating.mediaKey}: unresolved content id`);
+        continue;
+      }
+      const existing = deduped.get(ratingItemId);
+      if (!existing || rating.ratedAt > existing.ratedAt) {
+        deduped.set(ratingItemId, rating);
+      }
+    }
+
+    const values: unknown[] = [];
+    const tuples: string[] = [];
+    [...deduped.values()].forEach((rating, index) => {
+      const ratingItemId = contentIds.get(rating.mediaKey)!;
+      const base = index * 6;
+      tuples.push(
+        `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}, $${base + 5}, $${base + 6}::timestamptz, now())`,
+      );
+      values.push(profileId, accountId, ratingItemId, rating.mediaType, rating.rating, rating.ratedAt);
+    });
+
+    if (tuples.length) {
+      await client.query(
+        `INSERT INTO user_state.watch_state
+           (profile_id, account_id, item_id, media_type, rating, last_played_at, updated_at)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (profile_id, item_id) DO UPDATE SET
+           rating = EXCLUDED.rating, updated_at = now()`,
+        values,
+      );
+    }
+    return tuples.length;
+  }
+
+  private async upsertWatchlist(
+    client: DbClient,
+    accountId: string,
+    profileId: string,
+    items: ImportedProviderListItem[],
+    warnings: string[],
+  ): Promise<number> {
+    const contentIds = await this.contentIdentityService.ensureContentIds(
+      client,
+      items.flatMap((item) => [parseMediaKey(item.mediaKey), parseMediaKey(canonicalTitleMediaKey(parseMediaKey(item.mediaKey)))]),
+    );
+
+    const resolved = items
+      .map((item) => {
+        const itemId = contentIds.get(item.mediaKey);
+        const titleItemId = contentIds.get(canonicalTitleMediaKey(parseMediaKey(item.mediaKey)));
+        if (!itemId || !titleItemId) {
+          warnings.push(`skipped watchlist item ${item.mediaKey}: unresolved content id`);
+          return null;
+        }
+        return { itemId, titleItemId, item };
+      })
+      .filter((row): row is { itemId: string; titleItemId: string; item: ImportedProviderListItem } => row !== null);
+
+    const deduped = new Map<string, { itemId: string; titleItemId: string; item: ImportedProviderListItem }>();
+    for (const row of resolved) {
+      deduped.set(row.itemId, row);
+    }
+
+    const values: unknown[] = [];
+    const tuples: string[] = [];
+    [...deduped.values()].forEach((row, index) => {
+      const base = index * 6;
+      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, true, now())`);
+      values.push(profileId, accountId, row.itemId, row.titleItemId, row.item.mediaType);
+    });
+
+    if (tuples.length) {
+      await client.query(
+        `INSERT INTO user_state.watch_state
+           (profile_id, account_id, item_id, title_item_id, media_type, is_favorite, updated_at)
+         VALUES ${tuples.join(', ')}
+         ON CONFLICT (profile_id, item_id) DO UPDATE SET is_favorite = true, updated_at = now()`,
+        values,
+      );
+    }
     return tuples.length;
   }
 }

@@ -383,7 +383,6 @@ export async function registerAdminApiRoutes(
     ]);
 
     return success({
-      watchDataState: jobsResult.watchDataState,
       providerDiagnostics: connectionsResult.connections.filter((row) => row.profileId === params.profileId),
       jobs: jobsResult.jobs.map((job) => mapProviderImportJobView(job)),
       providers: providerStates,
@@ -405,7 +404,6 @@ export async function registerAdminApiRoutes(
     return mutation({
       nextAction: started.nextAction,
       authUrl: started.authUrl,
-      watchDataState: started.watchDataState,
       providerState: started.providerState,
       job: started.job ? mapProviderImportJobView(started.job) : null,
     }, request);

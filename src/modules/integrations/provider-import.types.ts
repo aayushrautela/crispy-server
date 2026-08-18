@@ -11,8 +11,6 @@ export type ProviderImportJobStatus =
   | 'failed'
   | 'cancelled';
 
-export type ProfileWatchDataOrigin = 'native' | 'provider_import';
-
 export const PROVIDER_IMPORT_PROVIDERS: readonly ProviderImportProvider[] = ['trakt', 'simkl'] as const;
 
 export function isProviderImportProvider(value: unknown): value is ProviderImportProvider {
