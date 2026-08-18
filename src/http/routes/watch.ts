@@ -20,6 +20,7 @@ import {
   type WatchStateLookupContract,
 } from '../contracts/watch.js';
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
+import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { getPlaybackProgressBuffer } from '../../modules/watch/playback-progress-buffer.service.js';
 import { HttpError } from '../../lib/errors.js';
 import { withDbClient } from '../../lib/db.js';
@@ -68,6 +69,7 @@ export async function registerWatchRoutes(
   const metadataLanguageService = new MetadataLanguageService();
   const contentIdentityService = new ContentIdentityService();
   const contentIdentityRepo = new ContentIdentityRepository();
+  const episodicFollowService = new EpisodicFollowService();
   const { profilePinService } = deps;
 
   async function assertProfileUnlocked(request: import('fastify').FastifyRequest, profileId: string) {
@@ -128,6 +130,27 @@ export async function registerWatchRoutes(
       TotalRecordCount: enrichedItems.length,
       NextCursor: page.pageInfo.nextCursor,
       HasMore: page.pageInfo.hasMore,
+    });
+  });
+
+  app.get('/v1/profiles/:profileId/watch/episodic-follow', async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserSessionActor(request);
+    const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
+    const query = (request.query ?? {}) as WatchPaginationQuery;
+    const limit = Number(query.limit ?? 20);
+    const generatedAt = new Date().toISOString();
+    const items = await withDbClient(async (client) =>
+      episodicFollowService.listForProfile(client, profileId, limit),
+    );
+    return success({
+      profileId,
+      kind: 'episodic-follow' as const,
+      source: 'canonical_watch' as const,
+      generatedAt,
+      items,
+      pageInfo: { hasMore: false, nextCursor: null },
     });
   });
 
