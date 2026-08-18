@@ -261,18 +261,7 @@ export class LocalProviderHistoryWriter {
                (profile_id, title_item_id, playable_item_id, media_type, position_seconds, duration_seconds, progress_bps,
                 last_activity_at, season_number, episode_number, source_kind, source_provider, account_id)
              VALUES ${tuples.join(', ')}
-             ON CONFLICT (profile_id, title_item_id, playable_item_id) DO UPDATE SET
-               playable_item_id = EXCLUDED.playable_item_id,
-               position_seconds = EXCLUDED.position_seconds,
-               duration_seconds = EXCLUDED.duration_seconds,
-               progress_bps = EXCLUDED.progress_bps,
-               last_activity_at = EXCLUDED.last_activity_at,
-               season_number = EXCLUDED.season_number,
-               episode_number = EXCLUDED.episode_number,
-               source_kind = EXCLUDED.source_kind,
-               source_provider = EXCLUDED.source_provider,
-               dismissed_at = CASE WHEN EXCLUDED.dismissed_at IS NOT NULL THEN EXCLUDED.dismissed_at ELSE NULL END,
-               updated_at = now()`,
+             ON CONFLICT (profile_id, title_item_id, playable_item_id) DO NOTHING`,
             values,
           );
         }
