@@ -18,6 +18,7 @@ export type ImportIdentityLookup = {
   imdbId?: string | null;
   tvdbId?: string | null;
   kitsuId?: number | string | null;
+  title?: string | null;
 };
 
 export type ImportIdentityResolver = (

@@ -45,10 +45,11 @@ export class TraktImportIdentityResolver {
         providerId: String(directTmdbId),
         tmdbId: directTmdbId,
       });
-      return this.validate(cache, cacheKey, resolved);
+      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
     }
 
     if (params.mediaFamily === 'movie' && directTmdbId && imdbId) {
+      const sourceTitle = params.title?.trim() || null;
       const client = await db.connect();
       try {
         try {
@@ -57,7 +58,8 @@ export class TraktImportIdentityResolver {
             providerId: String(directTmdbId),
             tmdbId: directTmdbId,
           });
-          return this.validate(cache, cacheKey, resolved, client);
+          const validated = await this.validate(cache, cacheKey, resolved, sourceTitle, client);
+          if (validated) return validated;
         } catch (error) {
           if (!(error instanceof HttpError) || error.statusCode !== 404) {
             throw error;
@@ -78,7 +80,7 @@ export class TraktImportIdentityResolver {
           cache.set(cacheKey, null);
           return null;
         }
-        return this.validate(cache, cacheKey, resolved, client);
+        return this.validate(cache, cacheKey, resolved, sourceTitle, client);
       } finally {
         client.release();
       }
@@ -94,7 +96,7 @@ export class TraktImportIdentityResolver {
         providerId: String(directTvdbId),
         tmdbId: directTmdbId,
       });
-      return this.validate(cache, cacheKey, resolved);
+      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
     }
 
     if (params.mediaFamily === 'anime' && directKitsuId) {
@@ -102,7 +104,7 @@ export class TraktImportIdentityResolver {
         providerId: directKitsuId,
         tmdbId: directTmdbId,
       });
-      return this.validate(cache, cacheKey, resolved);
+      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
     }
 
     if (imdbId) {
@@ -124,7 +126,7 @@ export class TraktImportIdentityResolver {
           tvdbId: directTvdbId,
           kitsuId: directKitsuId,
         });
-        return this.validate(cache, cacheKey, resolved, client);
+        return this.validate(cache, cacheKey, resolved, params.title?.trim() || null, client);
       } finally {
         client.release();
       }
@@ -148,7 +150,7 @@ export class TraktImportIdentityResolver {
           tmdbId: resolvedTmdbId,
           tvdbId: Number(tvdbId),
         });
-        return this.validate(cache, cacheKey, resolved, client);
+        return this.validate(cache, cacheKey, resolved, params.title?.trim() || null, client);
       } finally {
         client.release();
       }
@@ -160,7 +162,7 @@ export class TraktImportIdentityResolver {
         tmdbId: directTmdbId,
         kitsuId: directKitsuId,
       });
-      return this.validate(cache, cacheKey, resolved);
+      return this.validate(cache, cacheKey, resolved, params.title?.trim() || null);
     }
 
     cache.set(cacheKey, null);
@@ -171,11 +173,16 @@ export class TraktImportIdentityResolver {
     cache: Map<string, ResolvedImportIdentity | null>,
     cacheKey: string,
     resolved: ResolvedImportIdentity,
+    sourceTitle?: string | null,
     existingClient?: DbClient,
   ): Promise<ResolvedImportIdentity | null> {
-    const client = existingClient ?? await db.connect();
+    const client = existingClient ?? (await db.connect());
     try {
-      await this.deps.metadataCardService.buildCardView(client, resolved.identity);
+      const cardView = await this.deps.metadataCardService.buildCardView(client, resolved.identity);
+      if (sourceTitle && !titlesMatch(sourceTitle, cardView.title)) {
+        cache.set(cacheKey, null);
+        return null;
+      }
       cache.set(cacheKey, resolved);
       return resolved;
     } catch {
@@ -187,6 +194,24 @@ export class TraktImportIdentityResolver {
       }
     }
   }
+}
+
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function titlesMatch(sourceTitle: string, resolvedTitle: string | null): boolean {
+  if (!resolvedTitle) return false;
+  const a = normalizeTitle(sourceTitle);
+  const b = normalizeTitle(resolvedTitle);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.startsWith(b) || b.startsWith(a);
 }
 
 export function buildResolvedImportIdentity(

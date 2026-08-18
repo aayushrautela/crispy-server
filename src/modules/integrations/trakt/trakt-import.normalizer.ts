@@ -16,6 +16,7 @@ type ResolveIdentityFn = (params: {
   imdbId?: string | null;
   tvdbId?: string | null;
   kitsuId?: number | string | null;
+  title?: string | null;
 }) => Promise<ResolvedImportIdentity | null>;
 
 function traktPayload(source: 'watched_movies' | 'watched_shows' | 'watchlist' | 'ratings'): Record<string, unknown> {
@@ -41,6 +42,7 @@ function traktLookupFromNode(
   imdbId?: string | null;
   tvdbId?: string | null;
   kitsuId?: number | string | null;
+  title?: string | null;
 } {
   const ids = getRecord(node?.ids);
   return {
@@ -49,6 +51,7 @@ function traktLookupFromNode(
     imdbId: asString(ids?.imdb),
     tvdbId: mediaFamily === 'show' ? normalizeProviderId(ids?.tvdb) : null,
     kitsuId: mediaFamily === 'anime' ? normalizeProviderId(ids?.kitsu) : null,
+    title: typeof node?.title === 'string' ? node.title : null,
   };
 }
 

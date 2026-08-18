@@ -28,6 +28,7 @@ type SimklResolveFn = (params: {
   imdbId?: string | null;
   tvdbId?: string | null;
   kitsuId?: number | string | null;
+  title?: string | null;
 }) => Promise<ResolvedImportIdentity | null>;
 
 function simklPayload(source: string, extra?: Record<string, unknown>): Record<string, unknown> {
@@ -65,6 +66,7 @@ export async function normalizeSimklMovies(
         mediaFamily: 'movie',
         tmdbId: asPositiveInt(ids?.tmdb),
         imdbId: asString(ids?.imdb),
+        title: asString(movie?.title),
       });
       if (!resolved) {
         continue;
@@ -138,6 +140,7 @@ export async function normalizeSimklShowsAndAnime(
         imdbId: asString(ids?.imdb),
         tvdbId: asString(ids?.tvdb),
         kitsuId: asPositiveInt(ids?.kitsu) ?? asString(ids?.kitsu),
+        title: asString(show?.title),
       });
       if (!resolvedShow) {
         continue;
@@ -250,6 +253,7 @@ export async function normalizeSimklRatings(
       imdbId: asString(ids?.imdb),
       tvdbId: mediaFamily === 'show' ? asString(ids?.tvdb) : null,
       kitsuId: mediaFamily === 'anime' ? (asPositiveInt(ids?.kitsu) ?? asString(ids?.kitsu)) : null,
+      title: asString(node?.title),
     });
     const rating = asPositiveInt(item.user_rating);
     if (!resolved || !rating) {
@@ -289,6 +293,7 @@ export async function normalizeSimklPlayback(
       mediaFamily: 'movie',
       tmdbId: asPositiveInt(ids?.tmdb),
       imdbId: asString(ids?.imdb),
+      title: asString(movie?.title),
     });
     if (!resolved) {
       continue;
@@ -329,6 +334,7 @@ export async function normalizeSimklPlayback(
       imdbId: asString(ids?.imdb),
       tvdbId: asString(ids?.tvdb),
       kitsuId: asPositiveInt(ids?.kitsu) ?? asString(ids?.kitsu),
+      title: asString(show?.title),
     });
     const seasonNumber = asPositiveInt(episode?.tvdb_season) ?? asPositiveInt(episode?.season);
     const episodeNumber = asPositiveInt(episode?.tvdb_number) ?? asPositiveInt(episode?.episode);
