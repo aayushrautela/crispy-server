@@ -23,6 +23,7 @@ import { LocalUserWatchService } from '../../modules/integrations/local-user-wat
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { getPlaybackProgressBuffer } from '../../modules/watch/playback-progress-buffer.service.js';
 import { HttpError } from '../../lib/errors.js';
+import { logger } from '../../config/logger.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
@@ -99,6 +100,22 @@ export async function registerWatchRoutes(
         effectiveMediaType = 'episode';
       }
     }
+    logger.info(
+      {
+        profileId,
+        bodyItemId: body.itemId,
+        bodySeason: body.seasonNumber,
+        bodyEpisode: body.episodeNumber,
+        resolvedMediaType: resolved.mediaType,
+        titleItemId: resolved.titleItemId,
+        effectiveItemId,
+        effectiveMediaType,
+        bufferedSeason: seasonNumber,
+        bufferedEpisode: episodeNumber,
+        eventKind: String(body.eventType ?? ''),
+      },
+      'watch/events received',
+    );
     await getPlaybackProgressBuffer(localUserWatchService).bufferProgress({
       accountId: actor.authSubject!,
       profileId,
@@ -135,6 +152,23 @@ export async function registerWatchRoutes(
         watchCardHydrator.hydrateItems(client, page.items, language, query.extended === 'true'),
       )
       : page.items;
+    logger.info(
+      {
+        profileId,
+        rawCount: page.items.length,
+        rawSummary: page.items.map((i) => ({
+          id: i.Id,
+          name: i.Name,
+          series: i.SeriesName,
+          season: i.ParentIndexNumber,
+          episode: i.IndexNumber,
+          type: i.Type,
+          positionTicks: i.UserData?.PlaybackPositionTicks,
+        })),
+        enrichedCount: enrichedItems.length,
+      },
+      'continue-watching query result',
+    );
     return success({
       Items: enrichedItems,
       StartIndex: 0,

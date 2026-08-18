@@ -38,6 +38,8 @@ type RecordPlaybackParams = {
   eventKind: 'playback_progress' | 'playback_completed';
   occurredAt?: string | null;
   clientEventId?: string | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 };
 
 type DismissContinueWatchingParams = {
@@ -83,6 +85,8 @@ type MarkWatchedParams = {
   titleItemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
   occurredAt?: string;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 };
 
 type UnmarkWatchedParams = {
@@ -92,6 +96,8 @@ type UnmarkWatchedParams = {
   titleItemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
   occurredAt?: string;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 };
 
 type ListPageParams = {
@@ -468,10 +474,14 @@ export class LocalUserWatchService {
       && !LocalUserWatchService.isBelowCompletionThreshold(progressBps);
 
     await withDbClient(async (client) => {
+      const providedEpisodeNumbers = (params.seasonNumber != null && params.episodeNumber != null)
+        ? { seasonNumber: params.seasonNumber, episodeNumber: params.episodeNumber }
+        : null;
+      const episodeNumbers = params.mediaType === 'episode'
+        ? (providedEpisodeNumbers ?? await this.resolveEpisodeNumbers(client, params.itemId))
+        : providedEpisodeNumbers;
+
       if (isCompleted) {
-        const completedEpisodeNumbers = params.mediaType === 'episode'
-          ? await this.resolveEpisodeNumbers(client, params.itemId)
-          : null;
         await client.query(
           `INSERT INTO user_state.watch_events
              (account_id, profile_id, item_id, title_item_id, media_type, event_type,
@@ -482,7 +492,7 @@ export class LocalUserWatchService {
                    'local', $1::uuid, $12)
            RETURNING id`,
           [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType,
-           params.occurredAt ?? null, completedEpisodeNumbers?.seasonNumber ?? null, completedEpisodeNumbers?.episodeNumber ?? null, params.positionSeconds, params.durationSeconds, progressBps,
+           params.occurredAt ?? null, episodeNumbers?.seasonNumber ?? null, episodeNumbers?.episodeNumber ?? null, params.positionSeconds, params.durationSeconds, progressBps,
            params.clientEventId ?? null],
         );
 
@@ -492,10 +502,6 @@ export class LocalUserWatchService {
           [params.profileId, params.titleItemId, params.itemId],
         );
       } else {
-        const episodeNumbers = params.mediaType === 'episode'
-          ? await this.resolveEpisodeNumbers(client, params.itemId)
-          : null;
-
         await client.query(
           `INSERT INTO user_state.playback_progress
              (profile_id, title_item_id, playable_item_id, media_type,
@@ -639,9 +645,9 @@ export class LocalUserWatchService {
     const occurredAt = params.occurredAt || new Date().toISOString();
 
     await withDbClient(async (client) => {
-      const episodeNumbers = params.mediaType === 'episode'
-        ? await this.resolveEpisodeNumbers(client, params.itemId)
-        : null;
+      const episodeNumbers = (params.seasonNumber != null && params.episodeNumber != null)
+        ? { seasonNumber: params.seasonNumber, episodeNumber: params.episodeNumber }
+        : (params.mediaType === 'episode' ? await this.resolveEpisodeNumbers(client, params.itemId) : null);
       await client.query(
         `INSERT INTO user_state.watch_events
            (account_id, profile_id, item_id, title_item_id, media_type, event_type,
@@ -672,9 +678,9 @@ export class LocalUserWatchService {
         [params.accountId, params.profileId, params.itemId, params.titleItemId, params.mediaType, occurredAt],
       );
 
-      const episodeNumbers = params.mediaType === 'episode'
-        ? await this.resolveEpisodeNumbers(client, params.itemId)
-        : null;
+      const episodeNumbers = (params.seasonNumber != null && params.episodeNumber != null)
+        ? { seasonNumber: params.seasonNumber, episodeNumber: params.episodeNumber }
+        : (params.mediaType === 'episode' ? await this.resolveEpisodeNumbers(client, params.itemId) : null);
 
       await client.query(
         `INSERT INTO user_state.playback_progress

@@ -141,6 +141,8 @@ export class PlaybackProgressBuffer {
           eventKind: data.eventKind,
           occurredAt: data.lastActivityAt,
           clientEventId: null,
+          seasonNumber: data.seasonNumber,
+          episodeNumber: data.episodeNumber,
         });
       }
       await redis.del(pKey);
