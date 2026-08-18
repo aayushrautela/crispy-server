@@ -208,7 +208,13 @@ test('TraktImportService.fetchAndNormalizeImport keeps show tmdb ids on watchlis
     if (url.endsWith('/sync/playback')) {
       return Response.json([]);
     }
-    throw new Error(`Unexpected fetch url: ${url}`);
+    if (url.endsWith('/sync/history/movies')) {
+      return Response.json([]);
+    }
+    if (url.endsWith('/sync/history/shows')) {
+      return Response.json([]);
+    }
+    return Response.json([]);
   }) as typeof fetch;
 
   try {
@@ -445,7 +451,7 @@ test('TraktImportService.fetchAndNormalizeImport emits per-episode history for w
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.endsWith('/sync/watched/movies')) {
+    if (url.includes('/sync/watched/movies')) {
       return Response.json([]);
     }
     if (url.includes('/sync/watched/shows')) {
@@ -472,22 +478,28 @@ test('TraktImportService.fetchAndNormalizeImport emits per-episode history for w
         ],
       }]);
     }
-    if (url.endsWith('/sync/watchlist/movies')) {
+    if (url.includes('/sync/watchlist/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/watchlist/shows')) {
+    if (url.includes('/sync/watchlist/shows')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/ratings/movies')) {
+    if (url.includes('/sync/ratings/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/ratings/shows')) {
+    if (url.includes('/sync/ratings/shows')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/playback')) {
+    if (url.includes('/sync/playback')) {
       return Response.json([]);
     }
-    throw new Error(`Unexpected fetch url: ${url}`);
+    if (url.includes('/sync/history/movies')) {
+      return Response.json([]);
+    }
+    if (url.includes('/sync/history/shows')) {
+      return Response.json([]);
+    }
+    return Response.json([]);
   }) as typeof fetch;
 
   try {

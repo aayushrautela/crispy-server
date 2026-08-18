@@ -22,6 +22,8 @@ import { TraktImportIdentityResolver } from './trakt-import.resolver.js';
 import {
   buildImportedEpisodeEvent,
   buildImportedEpisodeIdentity,
+  normalizeTraktHistoryMovies,
+  normalizeTraktHistoryShows,
   normalizeTraktPlayback,
   normalizeTraktRatings,
   normalizeTraktWatchedMovies,
@@ -149,9 +151,11 @@ export class TraktImportService implements ProviderImportModule {
     void job;
     const accessToken = requireConnectedAccessToken(credentialsJson);
 
-    const [watchedMovies, watchedShows, watchlistMovies, watchlistShows, ratingMovies, ratingShows, playback] = await Promise.all([
+    const [watchedMovies, watchedShows, historyMovies, historyShows, watchlistMovies, watchlistShows, ratingMovies, ratingShows, playback] = await Promise.all([
       this.traktClient.getArrayPaginated('/sync/watched/movies', accessToken),
       this.traktClient.getArrayPaginated('/sync/watched/shows', accessToken, { extended: 'progress' }),
+      this.traktClient.getArrayPaginated('/sync/history/movies', accessToken),
+      this.traktClient.getArrayPaginated('/sync/history/shows', accessToken),
       this.traktClient.getArrayPaginated('/sync/watchlist/movies', accessToken),
       this.traktClient.getArrayPaginated('/sync/watchlist/shows', accessToken),
       this.traktClient.getArrayPaginated('/sync/ratings/movies', accessToken),
@@ -166,6 +170,8 @@ export class TraktImportService implements ProviderImportModule {
 
     await normalizeTraktWatchedMovies(watchedMovies, resolveIdentity, collector);
     await normalizeTraktWatchedShows(watchedShows, resolveIdentity, collector, showProgress);
+    await normalizeTraktHistoryMovies(historyMovies, resolveIdentity, collector);
+    await normalizeTraktHistoryShows(historyShows, resolveIdentity, collector);
     await normalizeTraktWatchlist([...watchlistMovies, ...watchlistShows], resolveIdentity, collector);
     await normalizeTraktRatings([...ratingMovies, ...ratingShows], resolveIdentity, collector);
     await normalizeTraktPlayback(playback, resolveIdentity, collector);
