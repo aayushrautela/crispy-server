@@ -61,6 +61,7 @@ export type MetadataTitleDetail = {
   Videos: MetadataVideoView[];
   Cast: MetadataPersonRefView[];
   Creators: MetadataPersonRefView[];
+  Directors: MetadataPersonRefView[];
   Production: MetadataProductionInfoView;
 };
 

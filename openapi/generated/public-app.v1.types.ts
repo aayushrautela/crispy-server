@@ -987,6 +987,7 @@ export interface components {
             Videos: components["schemas"]["MetadataVideoView"][];
             Cast: components["schemas"]["MetadataPersonRefView"][];
             Creators: components["schemas"]["MetadataPersonRefView"][];
+            Directors: components["schemas"]["MetadataPersonRefView"][];
             Production: components["schemas"]["MetadataProductionInfoView"];
         };
         MetadataVideoView: {

@@ -75,6 +75,7 @@ function makeTitleDetail(itemId = MOVIE_ITEM_ID) {
     Videos: [],
     Cast: [],
     Creators: [],
+    Directors: [],
     Production: {
       originalLanguage: null,
       originCountries: [],
