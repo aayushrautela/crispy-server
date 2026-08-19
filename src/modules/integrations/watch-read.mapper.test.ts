@@ -108,6 +108,26 @@ test('mapContinueWatchingRow maps movie progress', () => {
   assert.equal(item.UserData!.Played, false);
 });
 
+test('mapContinueWatchingRow tolerates null title_item_id for movies', () => {
+  // The Continue Watching query joins series relationships, so movie rows have a
+  // null title_item_id. The mapper must fall back to playable_item_id rather than
+  // throwing "Invalid item id." (which previously broke the whole response).
+  const item = cwRow({
+    title_item_id: null,
+    playable_item_id: movieId,
+    media_type: 'movie',
+    position_seconds: 120,
+    duration_seconds: 7200,
+    progress_bps: 167,
+    last_activity_at: '2026-05-13T00:00:00.000Z',
+    source_kind: 'local',
+  });
+
+  assert.equal(item.Id, encodePublicItemId(movieId));
+  assert.equal(item.Type, 'Movie');
+  assert.equal(item.UserData!.Played, false);
+});
+
 test('mapContinueWatchingRow maps episode progress with playable key', () => {
   const item = cwRow({
     title_item_id: showId,

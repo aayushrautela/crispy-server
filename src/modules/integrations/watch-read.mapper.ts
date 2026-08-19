@@ -5,8 +5,10 @@ import type { BaseItemDto, ProviderIdsDto, UserItemDataDto } from '../metadata/m
 export type WatchReadRow = Record<string, unknown>;
 
 export function mapContinueWatchingRow(row: WatchReadRow): BaseItemDto | null {
-  const titleItemId = encodePublicItemId(stringValue(row.title_item_id));
-  const playableItemId = encodePublicItemId(stringValue(row.playable_item_id) || stringValue(row.title_item_id));
+  const rawPlayableItemId = stringValue(row.playable_item_id) || stringValue(row.title_item_id);
+  const rawTitleItemId = stringValue(row.title_item_id) || rawPlayableItemId;
+  const titleItemId = encodePublicItemId(rawTitleItemId);
+  const playableItemId = encodePublicItemId(rawPlayableItemId);
   const positionSeconds = numberValue(row.position_seconds);
   const durationSeconds = numberValue(row.duration_seconds);
   const progressBps = numberValue(row.progress_bps);
