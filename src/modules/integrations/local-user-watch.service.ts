@@ -109,7 +109,7 @@ type GetStateParams = {
  * provider ids, runtime) live on the content graph and are derived at read time via
  * these joins — mirroring how Jellyfin resolves UserData attributes from the Item.
  */
-const WATCH_ITEM_CONTENT_JOIN = `
+export const WATCH_ITEM_CONTENT_JOIN = `
   JOIN content_items ci ON ci.id = ws.item_id
   LEFT JOIN content_item_relationships cir
     ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
@@ -126,7 +126,7 @@ const WATCH_ITEM_CONTENT_JOIN = `
   LEFT JOIN content_provider_refs cpr_tvdb_show
     ON cpr_tvdb_show.content_id = cir.parent_content_id AND cpr_tvdb_show.provider = 'tvdb'
   LEFT JOIN tmdb_titles tt
-    ON tt.media_type = 'movie' AND tt.tmdb_id = cpr_tmdb.external_id::integer AND tt.language = 'en-US'
+    ON tt.media_type = 'movie' AND tt.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END AND tt.language = 'en-US'
   LEFT JOIN tmdb_tv_episodes tve
     ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
    AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
@@ -364,8 +364,8 @@ export class LocalUserWatchService {
            ON cpr_tvdb_show.content_id = cir.parent_content_id
           AND cpr_tvdb_show.provider = 'tvdb'
           AND cpr_tvdb_show.entity_type = 'show'
-         LEFT JOIN tmdb_titles tt
-           ON tt.media_type = 'movie' AND tt.tmdb_id = cpr_tmdb.external_id::integer AND tt.language = 'en-US'
+          LEFT JOIN tmdb_titles tt
+            ON tt.media_type = 'movie' AND tt.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END AND tt.language = 'en-US'
          LEFT JOIN tmdb_tv_episodes tve
            ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
           AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
