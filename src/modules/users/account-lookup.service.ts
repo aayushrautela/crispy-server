@@ -33,7 +33,12 @@ export class AccountLookupService {
     return withTransaction(async (client) => {
       const users = await this.userRepository.listByEmail(client, normalizedEmail);
       if (users.length === 0) {
-        const synced = await this.trySyncFromAuthAdmin(normalizedEmail, client);
+        // Self-heal from the authoritative auth source. Prefer a direct
+        // auth.users lookup (no external dependency); fall back to the HTTP
+        // auth-admin API if needed.
+        const synced =
+          (await this.trySyncFromAuthUsers(normalizedEmail, client)) ??
+          (await this.trySyncFromAuthAdmin(normalizedEmail, client));
         if (synced) {
           return synced;
         }
@@ -49,6 +54,31 @@ export class AccountLookupService {
         email: user.email,
       } satisfies AccountLookupResult;
     });
+  }
+
+  private async trySyncFromAuthUsers(
+    email: string,
+    client: import('../../lib/db.js').DbClient,
+  ): Promise<AccountLookupResult | null> {
+    let authUser: { authSubject: string; email: string | null } | null = null;
+    try {
+      authUser = await this.userRepository.findAuthUserByEmail(client, email);
+    } catch {
+      return null;
+    }
+    if (!authUser || !authUser.authSubject) {
+      return null;
+    }
+
+    const synced = await this.userRepository.upsertFromAuthSubject(client, {
+      authSubject: authUser.authSubject,
+      email: authUser.email,
+    });
+
+    return {
+      accountId: synced.id,
+      email: synced.email,
+    };
   }
 
   private async trySyncFromAuthAdmin(

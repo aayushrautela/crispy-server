@@ -117,6 +117,10 @@ export function parseImportAllowedReturnUris(name: string): Map<ImportClientId, 
 const authBaseUrl = requireBaseUrl('AUTH_BASE_URL');
 const authAuthBaseUrl = `${authBaseUrl}/auth/v1`;
 const authAdminApiKey = requireEnv('AUTH_ADMIN_API_KEY');
+// GoTrue exposes its admin API at the instance root (e.g. /admin/users), not
+// under /auth/v1. Strip a trailing /auth/v1 so the admin client builds the
+// correct path regardless of how AUTH_BASE_URL is configured.
+const authAdminBaseUrl = authBaseUrl.replace(/\/auth\/v1\/?$/, '');
 const authJwtIssuer = optionalBaseUrl('AUTH_JWT_ISSUER') ?? authAuthBaseUrl;
 
 export const env = {
@@ -141,7 +145,7 @@ export const env = {
   authJwksUrl: requireBaseUrl('AUTH_JWKS_URL'),
   authJwtIssuer,
   authJwtAudience: requireEnv('AUTH_JWT_AUDIENCE'),
-  authAdminUrl: authAuthBaseUrl,
+  authAdminUrl: authAdminBaseUrl,
   tmdbApiKey: requireEnv('TMDB_API_KEY'),
   mdblistApiKey: optionalEnv('MDBLIST_API_KEY') ?? '',
   aiServerApiKey: optionalEnv('AI_SERVER_API_KEY') ?? '',

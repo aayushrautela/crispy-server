@@ -54,6 +54,27 @@ export class UserRepository {
     return rowOrNull(result.rows[0]);
   }
 
+  async findAuthUserByEmail(
+    client: DbClient,
+    email: string,
+  ): Promise<{ authSubject: string; email: string | null } | null> {
+    const result = await client.query(
+      `SELECT id, email
+       FROM auth.users
+       WHERE lower(email) = lower($1)
+       LIMIT 1`,
+      [email.trim()],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      authSubject: String(row.id),
+      email: typeof row.email === 'string' ? row.email : null,
+    };
+  }
+
   async upsertFromAuthSubject(client: DbClient, params: { authSubject: string; email: string | null }): Promise<AppUser> {
     await client.query(
       `SELECT identity.upsert_account($1::uuid, $2, $3)`,
