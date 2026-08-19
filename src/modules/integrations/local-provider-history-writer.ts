@@ -327,7 +327,7 @@ export class LocalProviderHistoryWriter {
     const values: unknown[] = [];
     const tuples: string[] = [];
     [...deduped.values()].forEach((row, index) => {
-      const base = index * 3;
+      const base = index * 2;
       tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, true)`);
       values.push(profileId, row.itemId);
     });
