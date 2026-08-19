@@ -25,6 +25,7 @@ import { EpisodicFollowService } from '../../modules/watch/episodic-follow.servi
 import { getPlaybackProgressBuffer } from '../../modules/watch/playback-progress-buffer.service.js';
 import { HttpError } from '../../lib/errors.js';
 import { logger } from '../../config/logger.js';
+import { env } from '../../config/env.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
@@ -518,12 +519,23 @@ export async function registerWatchRoutes(
 
     reply.hijack();
     const raw = reply.raw;
-    raw.writeHead(200, {
+    // @fastify/cors injects CORS headers via an onSend hook, but reply.hijack()
+    // bypasses that lifecycle. Reflect the allowed Origin here so cross-origin
+    // browser clients (which cannot use EventSource with a bearer header and
+    // rely on fetch) are permitted to read the stream.
+    const requestOrigin = request.headers.origin;
+    const corsOrigin = requestOrigin && env.corsOrigins.includes(requestOrigin) ? requestOrigin : undefined;
+    const headers: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
-    });
+    };
+    if (corsOrigin) {
+      headers['Access-Control-Allow-Origin'] = corsOrigin;
+      headers['Vary'] = 'Origin';
+    }
+    raw.writeHead(200, headers);
     raw.write('retry: 3000\n\n');
 
     const channel = `cw:${accountId}`;
