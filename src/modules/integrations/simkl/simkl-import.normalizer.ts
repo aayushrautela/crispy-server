@@ -16,6 +16,7 @@ import type {
   ImportedHistoryEntryDraft,
   ImportedWatchEventDraft,
   ResolvedImportIdentity,
+  RuntimeLookup,
 } from '../provider-import.internals.js';
 
 type SimklStatus = 'watching' | 'plantowatch' | 'hold' | 'completed' | 'dropped';
@@ -281,6 +282,7 @@ export async function normalizeSimklPlayback(
   episodePlayback: Array<Record<string, unknown>>,
   resolveIdentity: SimklResolveFn,
   collector: ImportAccumulator,
+  runtimeLookup?: RuntimeLookup,
 ): Promise<void> {
   for (const item of moviePlayback) {
     const movie = getRecord(item.movie);
@@ -295,7 +297,8 @@ export async function normalizeSimklPlayback(
     }
 
     const progress = asFiniteNumber(item.progress);
-    const durationSeconds = durationSecondsFromRuntime(movie?.runtime);
+    const localRuntime = runtimeLookup ? await runtimeLookup({ mediaType: 'movie', tmdbId: resolved.tmdbId }) : null;
+    const durationSeconds = durationSecondsFromRuntime(localRuntime ?? movie?.runtime);
     const positionSeconds = progress !== null && durationSeconds !== null
       ? Math.max(1, Math.round((durationSeconds * progress) / 100))
       : null;
@@ -337,7 +340,10 @@ export async function normalizeSimklPlayback(
     }
 
     const progress = asFiniteNumber(item.progress);
-    const durationSeconds = durationSecondsFromRuntime(episode?.runtime);
+    const localRuntime = runtimeLookup
+      ? await runtimeLookup({ mediaType: 'episode', showTmdbId: resolvedShow.tmdbId, seasonNumber, episodeNumber })
+      : null;
+    const durationSeconds = durationSecondsFromRuntime(localRuntime ?? episode?.runtime);
     const positionSeconds = progress !== null && durationSeconds !== null
       ? Math.max(1, Math.round((durationSeconds * progress) / 100))
       : null;

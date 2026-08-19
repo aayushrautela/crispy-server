@@ -66,7 +66,7 @@ export interface InternalAppsRoutesDeps {
   appAuditRepo: AppAuditRepo;
   profileService?: ProfileOwnershipValidator;
   /** Read service for per-signal watch routes. Defaults to LocalUserWatchService. */
-  watchReadService?: Pick<LocalUserWatchService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'getStates'>;
+  watchReadService?: Pick<LocalUserWatchService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'listNextUpPage' | 'getStates'>;
   /** Card hydrator for per-signal watch routes. Defaults to WatchCardHydrator. */
   watchCardHydrator?: Pick<WatchCardHydrator, 'hydrateItems'>;
   /** Read service for episodic-follow signal route. Defaults to EpisodicFollowService. */

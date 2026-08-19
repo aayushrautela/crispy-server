@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   continueWatchingListRouteSchema,
   historyListRouteSchema,
+  nextUpListRouteSchema,
   ratingsListRouteSchema,
   watchContinueWatchingDismissRouteSchema,
   watchEventsRouteSchema,
@@ -195,6 +196,34 @@ export async function registerWatchRoutes(
       generatedAt,
       items,
       pageInfo: { hasMore: false, nextCursor: null },
+    });
+  });
+
+  app.get('/v1/profiles/:profileId/watch/next-up', { schema: nextUpListRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserSessionActor(request);
+    const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
+    const query = (request.query ?? {}) as WatchPaginationQuery;
+    const limit = Number(query.limit ?? 20);
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
+    const page = await localUserWatchService.listNextUpPage({
+      accountId: actor.authSubject!,
+      profileId,
+      limit,
+      cursor: parseNullableString(query.cursor),
+    });
+    const enrichedItems = page.items.length
+      ? await withDbClient((client) =>
+        watchCardHydrator.hydrateItems(client, page.items, language, query.extended === 'true'),
+      )
+      : page.items;
+    return success({
+      Items: enrichedItems,
+      StartIndex: 0,
+      TotalRecordCount: enrichedItems.length,
+      NextCursor: page.pageInfo.nextCursor,
+      HasMore: page.pageInfo.hasMore,
     });
   });
 

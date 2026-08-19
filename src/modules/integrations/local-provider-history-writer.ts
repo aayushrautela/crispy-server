@@ -223,16 +223,20 @@ export class LocalProviderHistoryWriter {
 
     const values: unknown[] = [];
     const tuples: string[] = [];
-    [...deduped.values()].forEach((state, index) => {
+    const playbackStates = [...deduped.values()];
+    playbackStates.forEach((state, index) => {
       const playableItemId = contentIds.get(state.mediaKey)!;
       const base = index * 6;
       tuples.push(
         `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}, $${base + 4}, $${base + 5}::timestamptz, $${base + 6})`,
       );
       values.push(
-        profileId, playableItemId,
-        state.completed, 1,
-        state.occurredAt, state.positionSeconds,
+        profileId,
+        playableItemId,
+        state.completed,
+        1,
+        state.occurredAt,
+        state.positionSeconds,
       );
     });
 
@@ -240,9 +244,13 @@ export class LocalProviderHistoryWriter {
       await this.runQuery(
         client,
         `INSERT INTO user_state.watch_state
-           (profile_id, item_id, played, play_count, last_played_at, position_seconds)
-         VALUES ${tuples.join(', ')}
-         ON CONFLICT (profile_id, item_id) DO NOTHING`,
+            (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+          VALUES ${tuples.join(', ')}
+          ON CONFLICT (profile_id, item_id) DO UPDATE SET
+            played = user_state.watch_state.played OR EXCLUDED.played,
+            play_count = GREATEST(user_state.watch_state.play_count, EXCLUDED.play_count),
+            last_played_at = GREATEST(user_state.watch_state.last_played_at, EXCLUDED.last_played_at),
+            position_seconds = EXCLUDED.position_seconds`,
         values,
       );
     }

@@ -186,6 +186,88 @@ export class LocalUserWatchService {
     };
   }
 
+  /**
+   * Next Up: the first not-yet-play episode that follows the furthest episode a
+   * profile has watched in each series. Built entirely from the existing Jellyfin
+   * style content graph + watch_state (no provider-specific continuation hacks).
+   */
+  async listNextUpPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const limit = params.limit + 1;
+    const rows = await db.query(
+      `WITH watched_episodes AS (
+          SELECT ws.item_id,
+                 ws.last_played_at,
+                 NULLIF(cpr.metadata->>'seasonNumber', '')::integer AS season,
+                 NULLIF(cpr.metadata->>'episodeNumber', '')::integer AS episode,
+                 cir.parent_content_id AS show_id
+          FROM user_state.watch_state ws
+          JOIN content_items ci ON ci.id = ws.item_id AND ci.entity_type = 'episode'
+          JOIN content_provider_refs cpr
+            ON cpr.content_id = ws.item_id AND cpr.provider = 'tmdb'
+          JOIN content_item_relationships cir
+            ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+          WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
+        ),
+        latest_watched AS (
+          SELECT DISTINCT ON (show_id) show_id, season, episode, last_played_at
+          FROM watched_episodes
+          ORDER BY show_id, season DESC, episode DESC, last_played_at DESC
+        ),
+        next_episodes AS (
+          SELECT DISTINCT ON (lw.show_id) lw.show_id, ep.id AS next_item_id, lw.last_played_at
+          FROM latest_watched lw
+          JOIN content_item_relationships cir2
+            ON cir2.parent_content_id = lw.show_id AND cir2.relationship_type = 'series'
+          JOIN content_items ep ON ep.id = cir2.child_content_id AND ep.entity_type = 'episode'
+          JOIN content_provider_refs ep_cpr
+            ON ep_cpr.content_id = ep.id AND ep_cpr.provider = 'tmdb'
+          WHERE (NULLIF(ep_cpr.metadata->>'seasonNumber', '')::integer,
+                 NULLIF(ep_cpr.metadata->>'episodeNumber', '')::integer)
+                > (lw.season, lw.episode)
+          ORDER BY lw.show_id,
+                   NULLIF(ep_cpr.metadata->>'seasonNumber', '')::integer ASC,
+                   NULLIF(ep_cpr.metadata->>'episodeNumber', '')::integer ASC
+        ),
+        candidate AS (
+          SELECT ne.show_id, ne.next_item_id, ne.last_played_at
+          FROM next_episodes ne
+          LEFT JOIN user_state.watch_state ws2
+            ON ws2.profile_id = $1::uuid AND ws2.item_id = ne.next_item_id
+          WHERE ws2.played IS NOT TRUE
+        ),
+        ws AS (
+          SELECT c.next_item_id AS item_id,
+                 0 AS position_seconds,
+                 c.last_played_at AS last_played_at,
+                 $1::uuid AS profile_id
+          FROM candidate c
+        )
+        SELECT ws.item_id AS playable_item_id,
+               ws.position_seconds,
+               ws.last_played_at AS last_activity_at,
+               ${WATCH_ITEM_CONTENT_COLS}
+        FROM ws
+        ${WATCH_ITEM_CONTENT_JOIN}
+        WHERE ws.profile_id = $1::uuid
+          AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
+               OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
+        ORDER BY ws.last_played_at DESC, ws.item_id ASC
+        LIMIT $4`,
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
+    );
+    const page = pageFromRows(
+      rows.rows as Record<string, unknown>[],
+      params.limit,
+      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.playable_item_id) }),
+      (row) => mapContinueWatchingRow(row),
+    );
+    return {
+      items: page.items.filter((item): item is BaseItemDto => item !== null),
+      pageInfo: page.pageInfo,
+    };
+  }
+
   async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;

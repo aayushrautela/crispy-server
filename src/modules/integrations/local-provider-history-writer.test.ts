@@ -214,10 +214,72 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - stores episode h
 
   const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
   assert.ok(insertQuery, 'should have an INSERT query for watch_state');
-  assert.ok(!insertQuery.includes('media_type'), 'INSERT must no longer store media_type');
+  assert.ok(!insertQuery.includes('media_type'), 'history must no longer store media_type');
   assert.ok(insertQuery.includes('played'), 'history must store played');
   assert.ok(insertQuery.includes('play_count'), 'history must store play_count');
   const insertParams = params.find((_, i) => queries[i] === insertQuery);
   assert.ok(insertParams, 'should have params for the INSERT');
   assert.equal(insertParams![2], '2026-05-10T00:00:00.000Z', 'watched_at should be bound as a parameter');
 });
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - playback upsert merges instead of dropping', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentId: async (_client: any, identity: { mediaKey: string }) => {
+      return identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2';
+    },
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      const map = new Map<string, string>();
+      for (const identity of identities) {
+        map.set(identity.mediaKey, identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2');
+      }
+      return map;
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [
+      {
+        mediaKey: 'movie:tmdb:555',
+        titleMediaKey: 'movie:tmdb:555',
+        mediaType: 'movie',
+        positionSeconds: 600,
+        durationSeconds: 1200,
+        progressBps: 5000,
+        occurredAt: '2026-05-14T00:00:00.000Z',
+        completed: false,
+      },
+    ],
+  });
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  assert.ok(
+    insertQuery.includes('ON CONFLICT (profile_id, item_id) DO UPDATE SET'),
+    'playback upsert must merge on conflict instead of dropping',
+  );
+  assert.ok(!insertQuery.includes('DO NOTHING'), 'playback upsert must not be a no-op on conflict');
+  assert.ok(insertQuery.includes('GREATEST(user_state.watch_state.play_count, EXCLUDED.play_count)'), 'must keep the max play count');
+  assert.ok(insertQuery.includes('user_state.watch_state.played OR EXCLUDED.played'), 'must keep played=true if either side is played');
+});
+

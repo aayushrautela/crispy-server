@@ -130,6 +130,13 @@ export const watchlistListRouteSchema = withDefaultErrorResponses({
   },
 });
 
+export const nextUpListRouteSchema = withDefaultErrorResponses({
+  ...watchListRouteSchema,
+  response: {
+    200: successEnvelope(clientMediaCardQueryResultSchema),
+  },
+});
+
 export const ratingsListRouteSchema = withDefaultErrorResponses({
   ...watchListRouteSchema,
   response: {

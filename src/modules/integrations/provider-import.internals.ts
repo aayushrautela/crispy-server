@@ -20,6 +20,24 @@ export type ImportIdentityLookup = {
   kitsuId?: number | string | null;
 };
 
+/**
+ * Resolves a content item's runtime (in minutes) from the local catalog, keyed
+ * the same way the import resolves identity. External providers (Trakt/SIMKL)
+ * report playback `progress%` without a duration, so the ingestor derives the
+ * resume position from the item's known runtime — mirroring how Jellyfin reports
+ * a `position` and looks up `RunTimeTicks` from the item. Returns null when no
+ * local runtime is available (callers then fall back to the provider value, if any).
+ */
+export type RuntimeLookupParams = {
+  mediaType: 'movie' | 'episode';
+  tmdbId?: number | null;
+  showTmdbId?: number | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+};
+
+export type RuntimeLookup = (params: RuntimeLookupParams) => Promise<number | null>;
+
 export type ImportIdentityResolver = (
   cache: Map<string, ResolvedImportIdentity | null>,
   params: ImportIdentityLookup,

@@ -10,6 +10,7 @@ import type {
   ProviderReplaceImportPayload,
   ProviderTokenExchangeResult,
   ResolvedImportIdentity,
+  RuntimeLookup,
 } from '../provider-import.internals.js';
 import {
   createImportAccumulator,
@@ -30,7 +31,6 @@ import {
   normalizeTraktWatchedShows,
   normalizeTraktWatchlist,
   type ResolveIdentityFn,
-  type ShowProgress,
 } from './trakt-import.normalizer.js';
 import type { ProviderImportJobRecord } from '../provider-import-jobs.repo.js';
 
@@ -85,63 +85,42 @@ export class TraktImportService implements ProviderImportModule {
     return this.traktResolver.resolve(cache, params);
   }
 
-  private async findNextAvailableEpisode(
-    client: DbClient,
-    showTmdbId: number,
-    highestSeason: number,
-    highestEpisode: number,
-  ): Promise<{ season: number; episode: number } | null> {
-    const title = await this.tmdbCache.getTitle(client, 'tv', showTmdbId);
-    if (!title) return null;
-
-    let targetSeason = highestSeason;
-    let targetEpisode = highestEpisode + 1;
-
-    const season = await this.tmdbCache.getSeason(client, showTmdbId, targetSeason);
-    if (season?.episodeCount && targetEpisode > season.episodeCount) {
-      targetSeason += 1;
-      targetEpisode = 1;
-      if (title.numberOfSeasons && targetSeason > title.numberOfSeasons) {
-        return null;
+  /**
+   * Resolves a content item's runtime (minutes) from the local catalog so the
+   * ingestor can turn a provider's `progress%` into an absolute resume position.
+   * Mirrors Jellyfin, where the client reports a position and the item supplies
+   * its `RunTimeTicks`. Episodes fall back to the show's average episode runtime.
+   */
+  private buildRuntimeLookup(client: DbClient): RuntimeLookup {
+    return async (params) => {
+      if (params.mediaType === 'movie' && params.tmdbId) {
+        const result = await client.query(
+          `SELECT runtime FROM public.tmdb_titles WHERE media_type = 'movie' AND tmdb_id = $1 LIMIT 1`,
+          [params.tmdbId],
+        );
+        const runtime = result.rows[0]?.runtime;
+        return typeof runtime === 'number' && runtime > 0 ? runtime : null;
       }
-    }
-
-    const episode = await this.tmdbCache.getEpisode(client, showTmdbId, targetSeason, targetEpisode);
-    if (!episode) {
-      const freshSeason = await this.tmdbCache.ensureSeasonCached(client, showTmdbId, targetSeason).catch(() => null);
-      if (!freshSeason) return null;
-      if (freshSeason.episodeCount && targetEpisode > freshSeason.episodeCount) {
-        return null;
+      if (params.mediaType === 'episode' && params.showTmdbId && params.seasonNumber && params.episodeNumber) {
+        const episodeResult = await client.query(
+          `SELECT runtime FROM public.tmdb_tv_episodes WHERE show_tmdb_id = $1 AND season_number = $2 AND episode_number = $3 LIMIT 1`,
+          [params.showTmdbId, params.seasonNumber, params.episodeNumber],
+        );
+        const episodeRuntime = episodeResult.rows[0]?.runtime;
+        if (typeof episodeRuntime === 'number' && episodeRuntime > 0) {
+          return episodeRuntime;
+        }
+        const showResult = await client.query(
+          `SELECT episode_run_time FROM public.tmdb_titles WHERE media_type = 'tv' AND tmdb_id = $1 LIMIT 1`,
+          [params.showTmdbId],
+        );
+        const runTimes = showResult.rows[0]?.episode_run_time;
+        if (Array.isArray(runTimes) && typeof runTimes[0] === 'number' && runTimes[0] > 0) {
+          return runTimes[0];
+        }
       }
-    }
-
-    return { season: targetSeason, episode: targetEpisode };
-  }
-
-  private async deriveContinueWatching(
-    showProgress: Map<string, ShowProgress>,
-    collector: ImportAccumulator,
-  ): Promise<void> {
-    await withDbClient(async (client) => {
-      for (const { resolvedShow, highestSeason, highestEpisode, episodeCount, latestWatchedAt } of showProgress.values()) {
-        if (episodeCount < 2) continue;
-        if (!resolvedShow.tmdbId) continue;
-
-        const next = await this.findNextAvailableEpisode(client, resolvedShow.tmdbId, highestSeason, highestEpisode);
-        if (!next) continue;
-
-        const identity = buildImportedEpisodeIdentity(resolvedShow, next.season, next.episode);
-        collector.importedEvents.push(buildImportedEpisodeEvent({
-          eventType: 'playback_progress_snapshot',
-          identity,
-          resolvedShow,
-          occurredAt: latestWatchedAt,
-          progressBps: 0,
-          payload: { provider: 'trakt', source: 'continue_watching_derived' },
-        }));
-        collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
-      }
-    });
+      return null;
+    };
   }
 
   async fetchAndNormalizeImport(
@@ -166,16 +145,17 @@ export class TraktImportService implements ProviderImportModule {
     const collector = createImportAccumulator();
     const resolveIdentityCache = new Map<string, ResolvedImportIdentity | null>();
     const resolveIdentity: ResolveIdentityFn = (params) => this.traktResolver.resolve(resolveIdentityCache, params);
-    const showProgress = new Map<string, ShowProgress>();
 
     await normalizeTraktWatchedMovies(watchedMovies, resolveIdentity, collector);
-    await normalizeTraktWatchedShows(watchedShows, resolveIdentity, collector, showProgress);
+    await normalizeTraktWatchedShows(watchedShows, resolveIdentity, collector);
     await normalizeTraktHistoryMovies(historyMovies, resolveIdentity, collector);
     await normalizeTraktHistoryShows(historyShows, resolveIdentity, collector);
     await normalizeTraktWatchlist([...watchlistMovies, ...watchlistShows], resolveIdentity, collector);
     await normalizeTraktRatings([...ratingMovies, ...ratingShows], resolveIdentity, collector);
-    await normalizeTraktPlayback(playback, resolveIdentity, collector);
-    await this.deriveContinueWatching(showProgress, collector);
+    await withDbClient(async (client) => {
+      const runtimeLookup = this.buildRuntimeLookup(client);
+      await normalizeTraktPlayback(playback, resolveIdentity, collector, runtimeLookup);
+    });
 
     return {
       importedEvents: collector.importedEvents,

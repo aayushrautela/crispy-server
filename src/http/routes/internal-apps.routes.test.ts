@@ -149,6 +149,7 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
       async listRatingsPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
       async listWatchlistPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
       async listContinueWatchingPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
+      async listNextUpPage() { return { items: [], pageInfo: { hasMore: false, nextCursor: null } }; },
       async getStates() { return []; },
     },
     episodicFollowService: { async listForProfile() { return []; } },

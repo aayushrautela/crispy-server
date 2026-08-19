@@ -1,6 +1,8 @@
 import { TmdbExternalIdResolverService } from '../../metadata/providers/tmdb-external-id-resolver.service.js';
 import { TmdbCacheService } from '../../metadata/providers/tmdb-cache.service.js';
 import { MetadataCardService } from '../../metadata/metadata-card.service.js';
+import type { DbClient } from '../../../lib/db.js';
+import { withDbClient } from '../../../lib/db.js';
 import type { ProviderImportProvider } from '../provider-import.types.js';
 import type {
   ProviderImportModule,
@@ -8,6 +10,7 @@ import type {
   ProviderReplaceImportPayload,
   ProviderTokenExchangeResult,
   ResolvedImportIdentity,
+  RuntimeLookup,
 } from '../provider-import.internals.js';
 import type { ImportIdentityLookup } from '../provider-import.internals.js';
 import {
@@ -77,6 +80,43 @@ export class SimklImportService implements ProviderImportModule {
     return this.identityResolver.resolve(cache, params);
   }
 
+  /**
+   * Resolves a content item's runtime (minutes) from the local catalog so the
+   * ingestor can turn a provider's `progress%` into an absolute resume position.
+   * See TraktImportService.buildRuntimeLookup for the rationale (Jellyfin model).
+   */
+  private buildRuntimeLookup(client: DbClient): RuntimeLookup {
+    return async (params) => {
+      if (params.mediaType === 'movie' && params.tmdbId) {
+        const result = await client.query(
+          `SELECT runtime FROM public.tmdb_titles WHERE media_type = 'movie' AND tmdb_id = $1 LIMIT 1`,
+          [params.tmdbId],
+        );
+        const runtime = result.rows[0]?.runtime;
+        return typeof runtime === 'number' && runtime > 0 ? runtime : null;
+      }
+      if (params.mediaType === 'episode' && params.showTmdbId && params.seasonNumber && params.episodeNumber) {
+        const episodeResult = await client.query(
+          `SELECT runtime FROM public.tmdb_tv_episodes WHERE show_tmdb_id = $1 AND season_number = $2 AND episode_number = $3 LIMIT 1`,
+          [params.showTmdbId, params.seasonNumber, params.episodeNumber],
+        );
+        const episodeRuntime = episodeResult.rows[0]?.runtime;
+        if (typeof episodeRuntime === 'number' && episodeRuntime > 0) {
+          return episodeRuntime;
+        }
+        const showResult = await client.query(
+          `SELECT episode_run_time FROM public.tmdb_titles WHERE media_type = 'tv' AND tmdb_id = $1 LIMIT 1`,
+          [params.showTmdbId],
+        );
+        const runTimes = showResult.rows[0]?.episode_run_time;
+        if (Array.isArray(runTimes) && typeof runTimes[0] === 'number' && runTimes[0] > 0) {
+          return runTimes[0];
+        }
+      }
+      return null;
+    };
+  }
+
   async fetchAndNormalizeImport(
     job: ProviderImportJobRecord,
     credentialsJson: Record<string, unknown>,
@@ -124,7 +164,10 @@ export class SimklImportService implements ProviderImportModule {
     await normalizeSimklMovies(movieLists, resolveIdentity, collector);
     await normalizeSimklShowsAndAnime([...showLists, ...animeLists], resolveIdentity, collector);
     await normalizeSimklRatings(ratingMovies, ratingShows, ratingAnime, resolveIdentity, collector);
-    await normalizeSimklPlayback(moviePlayback, episodePlayback, resolveIdentity, collector);
+    await withDbClient(async (client) => {
+      const runtimeLookup = this.buildRuntimeLookup(client);
+      await normalizeSimklPlayback(moviePlayback, episodePlayback, resolveIdentity, collector, runtimeLookup);
+    });
 
     const importedAt = new Date().toISOString();
     const watchlistCount = movieLists.reduce((count, group) => count + (group.status === 'completed' ? 0 : group.items.length), 0)

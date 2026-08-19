@@ -8,6 +8,7 @@ import type {
   ImportedHistoryEntryDraft,
   ImportedWatchEventDraft,
   ResolvedImportIdentity,
+  RuntimeLookup,
 } from '../provider-import.internals.js';
 
 type ResolveIdentityFn = (params: {
@@ -227,19 +228,10 @@ export async function normalizeTraktWatchedMovies(
  * per-episode breakdown we need to emit one history row per watched episode:
  * `seasons: [{number, episodes: [{number, plays, last_watched_at}]}]`.
  */
-export type ShowProgress = {
-  resolvedShow: ResolvedImportIdentity;
-  highestSeason: number;
-  highestEpisode: number;
-  episodeCount: number;
-  latestWatchedAt: string;
-};
-
 export async function normalizeTraktWatchedShows(
   items: Array<Record<string, unknown>>,
   resolveIdentity: ResolveIdentityFn,
   collector: ImportAccumulator,
-  showProgress?: Map<string, ShowProgress>,
 ): Promise<void> {
   for (const item of items) {
     const resolvedShow = await resolveTraktTitleIdentity(resolveIdentity, item, 'show');
@@ -292,26 +284,6 @@ export async function normalizeTraktWatchedShows(
           payload: traktPayload('watched_shows'),
         });
         collector.mediaKeysToRefresh.add(resolvedShow.identity.mediaKey);
-        const existing = showProgress?.get(resolvedShow.identity.mediaKey);
-        if (existing) {
-          existing.episodeCount += 1;
-          if (seasonNumber > existing.highestSeason ||
-              (seasonNumber === existing.highestSeason && episodeNumber > existing.highestEpisode)) {
-            existing.highestSeason = seasonNumber;
-            existing.highestEpisode = episodeNumber;
-          }
-          if (occurredAt > existing.latestWatchedAt) {
-            existing.latestWatchedAt = occurredAt;
-          }
-        } else {
-          showProgress?.set(resolvedShow.identity.mediaKey, {
-            resolvedShow,
-            highestSeason: seasonNumber,
-            highestEpisode: episodeNumber,
-            episodeCount: 1,
-            latestWatchedAt: occurredAt,
-          });
-        }
         emittedForShow = true;
       }
     }
@@ -378,13 +350,15 @@ export async function normalizeTraktRatings(
 async function resolveTraktPlaybackMovie(
   resolveIdentity: ResolveIdentityFn,
   item: Record<string, unknown>,
+  runtimeLookup?: RuntimeLookup,
 ): Promise<ImportedWatchEventDraft | null> {
   const movie = getRecord(item.movie);
   const resolved = await resolveIdentity(traktLookupFromNode(movie, 'movie'));
   if (!resolved) {
     return null;
   }
-  const playback = traktPlaybackSnapshot(item, movie?.runtime);
+  const localRuntime = runtimeLookup ? await runtimeLookup({ mediaType: 'movie', tmdbId: resolved.tmdbId }) : null;
+  const playback = traktPlaybackSnapshot(item, localRuntime ?? movie?.runtime);
   return buildImportedTitleEvent({
     eventType: playback.eventType,
     resolved,
@@ -399,6 +373,7 @@ async function resolveTraktPlaybackMovie(
 async function resolveTraktPlaybackEpisode(
   resolveIdentity: ResolveIdentityFn,
   item: Record<string, unknown>,
+  runtimeLookup?: RuntimeLookup,
 ): Promise<ImportedWatchEventDraft | null> {
   const show = getRecord(item.show);
   const episode = getRecord(item.episode);
@@ -412,7 +387,10 @@ async function resolveTraktPlaybackEpisode(
     return null;
   }
   const identity = buildImportedEpisodeIdentity(resolvedShow, seasonNumber, episodeNumber);
-  const playback = traktPlaybackSnapshot(item, episode?.runtime);
+  const localRuntime = runtimeLookup
+    ? await runtimeLookup({ mediaType: 'episode', showTmdbId: resolvedShow.tmdbId, seasonNumber, episodeNumber })
+    : null;
+  const playback = traktPlaybackSnapshot(item, localRuntime ?? episode?.runtime);
   return buildImportedEpisodeEvent({
     eventType: playback.eventType,
     identity,
@@ -429,11 +407,12 @@ export async function normalizeTraktPlayback(
   items: Array<Record<string, unknown>>,
   resolveIdentity: ResolveIdentityFn,
   collector: ImportAccumulator,
+  runtimeLookup?: RuntimeLookup,
 ): Promise<void> {
   for (const item of items) {
     const type = asString(item.type)?.toLowerCase();
     if (type === 'movie') {
-      const resolved = await resolveTraktPlaybackMovie(resolveIdentity, item);
+      const resolved = await resolveTraktPlaybackMovie(resolveIdentity, item, runtimeLookup);
       if (!resolved) {
         continue;
       }
@@ -442,7 +421,7 @@ export async function normalizeTraktPlayback(
       continue;
     }
     if (type === 'episode') {
-      const resolved = await resolveTraktPlaybackEpisode(resolveIdentity, item);
+      const resolved = await resolveTraktPlaybackEpisode(resolveIdentity, item, runtimeLookup);
       if (!resolved) {
         continue;
       }

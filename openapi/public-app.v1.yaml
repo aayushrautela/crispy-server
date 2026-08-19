@@ -1791,6 +1791,64 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/next-up:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchNextUp
+      summary: List next up.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: itemId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PublicItemId"
+        - name: extended
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/watch/continue-watching/{id}:
     delete:
       tags:
@@ -3131,6 +3189,7 @@ components:
         - Videos
         - Cast
         - Creators
+        - Directors
         - Production
       properties:
         Item:
@@ -3148,6 +3207,10 @@ components:
           items:
             $ref: "#/components/schemas/MetadataPersonRefView"
         Creators:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataPersonRefView"
+        Directors:
           type: array
           items:
             $ref: "#/components/schemas/MetadataPersonRefView"
