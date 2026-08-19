@@ -237,19 +237,16 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT COALESCE(cir.parent_content_id, ws.item_id) AS item_id,
-              CASE WHEN ci.entity_type = 'movie' THEN 'movie' ELSE 'show' END AS media_type,
-              MAX(ws.last_played_at) AS occurred_at
+      `SELECT ws.item_id,
+              ${WATCH_ITEM_CONTENT_COLS},
+              ws.last_played_at AS occurred_at
        FROM user_state.watch_state ws
-       JOIN content_items ci ON ci.id = ws.item_id
-       LEFT JOIN content_item_relationships cir
-         ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
+       ${WATCH_ITEM_CONTENT_JOIN}
        WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
-         AND ($2::uuid IS NULL OR COALESCE(cir.parent_content_id, ws.item_id) = $2::uuid)
+         AND ($2::uuid IS NULL OR ws.item_id = $2::uuid OR cir.parent_content_id = $2::uuid)
          AND ($3::timestamptz IS NULL OR ws.last_played_at < $3::timestamptz
-              OR (ws.last_played_at = $3::timestamptz AND COALESCE(cir.parent_content_id, ws.item_id) > $4::uuid))
-        GROUP BY COALESCE(cir.parent_content_id, ws.item_id), ci.entity_type
-        ORDER BY occurred_at DESC, item_id DESC
+              OR (ws.last_played_at = $3::timestamptz AND ws.item_id > $4::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
        LIMIT $5`,
       [params.profileId, params.itemId ?? null, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
     );

@@ -154,9 +154,14 @@ export class ContentIdentityService {
       requested.map((entry) => entry.ref),
     );
 
+    const recordByKey = new Map<string, ContentProviderRefRecord>();
+    for (const record of records) {
+      recordByKey.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
+    }
+
     const resolved = new Map<string, string>();
-    for (const [index, entry] of requested.entries()) {
-      const record = records[index];
+    for (const entry of requested) {
+      const record = recordByKey.get(providerRefKey(entry.ref.provider, entry.ref.entityType, entry.ref.externalId));
       if (record?.contentId) {
         resolved.set(entry.mediaKey, record.contentId);
       }

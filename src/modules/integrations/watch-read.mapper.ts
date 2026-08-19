@@ -66,8 +66,19 @@ export function mapRatingRow(row: WatchReadRow): BaseItemDto {
 export function mapHistoryRow(row: WatchReadRow): BaseItemDto {
   const itemId = encodePublicItemId(stringValue(row.item_id));
   const occurredAt = isoValue(row.occurred_at ?? row.watched_at);
+  const mediaType = stringValue(row.media_type);
+  const isEpisode = mediaType === 'episode';
+  const overrides: Partial<BaseItemDto> = {};
+  if (isEpisode) {
+    const seasonNumber = numberValue(row.season_number);
+    const episodeNumber = numberValue(row.episode_number);
+    if (seasonNumber !== null) overrides.ParentIndexNumber = seasonNumber;
+    if (episodeNumber !== null) overrides.IndexNumber = episodeNumber;
+    const titleItemId = stringValue(row.title_item_id);
+    if (titleItemId) overrides.SeriesId = encodePublicItemId(titleItemId);
+  }
   return {
-    ...mediaItemDtoFromRow(itemId, row),
+    ...mediaItemDtoFromRow(itemId, row, overrides),
     UserData: {
       ItemId: itemId,
       IsFavorite: false,

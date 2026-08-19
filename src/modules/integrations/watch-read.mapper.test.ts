@@ -55,6 +55,31 @@ test('mapHistoryRow uses actual provider IDs when present', () => {
   assert.equal(item.Id, encodePublicItemId(movieId));
   assert.deepEqual(item.ProviderIds, { Tmdb: '550', Imdb: 'tt0137523', Tvdb: '12345' });
 });
+test('mapHistoryRow maps episode history with series linkage', () => {
+  const item = mapHistoryRow({
+    id: '00000000-0000-4000-8000-000000000012',
+    item_id: episodeId,
+    media_type: 'episode',
+    event_type: 'playback_completed',
+    occurred_at: '2026-05-14T08:00:00.000Z',
+    title_item_id: showId,
+    season_number: 1,
+    episode_number: 3,
+    title_provider_id: '44',
+    imdb_id: 'tt0096697',
+    tvdb_id: '76141',
+  });
+
+  assert.equal(item.Id, encodePublicItemId(episodeId));
+  assert.equal(item.Type, 'Episode');
+  assert.equal(item.ParentIndexNumber, 1);
+  assert.equal(item.IndexNumber, 3);
+  assert.equal(item.SeriesId, encodePublicItemId(showId));
+  assert.deepEqual(item.ProviderIds, { Tmdb: '44', Imdb: 'tt0096697', Tvdb: '76141' });
+  assert.equal(item.UserData!.Played, true);
+  assert.equal(item.UserData!.LastPlayedDate, '2026-05-14T08:00:00.000Z');
+});
+
 test('mapContinueWatchingRow maps movie progress', () => {
   const item = cwRow({
     title_item_id: movieId,
