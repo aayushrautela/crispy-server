@@ -313,7 +313,11 @@ export async function extractCreators(client: DbClient, contentIdentityService: 
   const people = await Promise.all(asArray(title?.raw.created_by)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry) => buildPersonRefView(client, contentIdentityService, entry)));
+    .map((entry) => buildPersonRefView(client, contentIdentityService, {
+      ...entry,
+      job: 'Creator',
+      known_for_department: asString(entry.known_for_department) ?? 'Creator',
+    })));
 
   return people.filter((entry): entry is MetadataPersonRefView => entry !== null);
 }
