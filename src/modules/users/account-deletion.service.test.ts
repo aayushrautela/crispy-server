@@ -17,7 +17,7 @@ test('deleteAccount revokes PATs and cleans up data', async () => {
   };
   const service = new AccountDeletionService(
     { revokeAllForUser: async () => 3 } as never,
-    { deleteById: async () => true } as never,
+    { deleteById: async () => true, deleteAuthUser: async () => true } as never,
     { deleteUser: async () => true } as never,
     async (work) => work(client as never),
   );

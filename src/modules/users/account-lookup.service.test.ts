@@ -26,6 +26,7 @@ function createMockRepo(overrides: Partial<{
   findByAuthSubject: (client: unknown, authSubject: string) => unknown;
   upsertFromAuthSubject: (client: unknown, params: { authSubject: string; email: string | null }) => unknown;
   deleteById: (client: unknown, userId: string) => unknown;
+  findAuthUserByEmail?: (client: unknown, email: string) => unknown;
 }> = {}) {
   return {
     findById: overrides.findById ?? (async () => null),
@@ -33,6 +34,7 @@ function createMockRepo(overrides: Partial<{
     findByAuthSubject: overrides.findByAuthSubject ?? (async () => null),
     upsertFromAuthSubject: overrides.upsertFromAuthSubject ?? (async () => { throw new Error('not mocked'); }),
     deleteById: overrides.deleteById ?? (async () => false),
+    findAuthUserByEmail: overrides.findAuthUserByEmail ?? (async () => null),
   };
 }
 

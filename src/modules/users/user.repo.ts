@@ -101,4 +101,18 @@ export class UserRepository {
     );
     return (result.rowCount ?? 0) > 0;
   }
+
+  // Delete the authoritative auth user directly. `auth.flow_state` has no FK to
+  // auth.users, so it must be cleared explicitly; deleting auth.users then
+  // cascades to sessions (and thus refresh_tokens), identities, mfa_factors,
+  // one_time_tokens, oauth authorizations/consents, and webauthn
+  // credentials/challenges.
+  async deleteAuthUser(client: DbClient, authSubject: string): Promise<boolean> {
+    await client.query('DELETE FROM auth.flow_state WHERE user_id = $1::uuid', [authSubject]);
+    const result = await client.query(
+      'DELETE FROM auth.users WHERE id = $1::uuid RETURNING id',
+      [authSubject],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
 }

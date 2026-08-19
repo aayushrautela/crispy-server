@@ -36,12 +36,28 @@ export class AccountDeletionService {
         throw new HttpError(404, 'Account not found.');
       }
 
-      return { deletedProfiles: profileResult.rowCount ?? 0 };
+      // Self-heal deletion from the authoritative auth source via a direct DB
+      // delete, mirroring the lookup self-heal. Clear non-cascading auth state
+      // (flow_state) then delete auth.users (which cascades to sessions,
+      // refresh_tokens, identities, mfa_factors, etc.).
+      let deletedAuthUser = false;
+      if (params.authSubject) {
+        deletedAuthUser = await this.userRepository.deleteAuthUser(client, params.authSubject);
+      }
+
+      return { deletedProfiles: profileResult.rowCount ?? 0, deletedAuthUser };
     });
 
-    let deletedExternalAuthUser = false;
-    if (params.authSubject) {
-      deletedExternalAuthUser = await this.externalAuthAdminService.deleteUser(params.authSubject);
+    // Fallback to the HTTP auth-admin API if the direct DB delete did not remove
+    // the auth user (e.g. permissions or replication visibility). Uniform with
+    // the lookup self-heal, which prefers the direct auth.users source.
+    let deletedExternalAuthUser = deletion.deletedAuthUser;
+    if (params.authSubject && !deletedExternalAuthUser) {
+      try {
+        deletedExternalAuthUser = await this.externalAuthAdminService.deleteUser(params.authSubject);
+      } catch (error) {
+        warnings.push(`HTTP auth-admin delete failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
 
     return {
