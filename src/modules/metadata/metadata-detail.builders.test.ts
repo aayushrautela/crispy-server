@@ -167,7 +167,7 @@ test('buildEpisodeBaseItemDto populates episode fields', async () => {
   assert.equal(dto.ProviderIds.Imdb, 'tt1234567');
   assert.equal(dto.ImageTags.Primary?.medium, 'https://image.tmdb.org/t/p/w500/poster.jpg');
   assert.equal(dto.ImageTags.Backdrop[0]?.medium, 'https://image.tmdb.org/t/p/w780/still.jpg');
-  assert.equal(dto.ImageTags.Thumb?.medium, 'https://image.tmdb.org/t/p/w300/still.jpg');
+  assert.equal(dto.ImageTags.Thumb?.medium, 'https://image.tmdb.org/t/p/h632/still.jpg');
   assert.equal(dto.Genres.length, 1);
   assert.equal(dto.PremiereDate, '2024-01-15');
 });

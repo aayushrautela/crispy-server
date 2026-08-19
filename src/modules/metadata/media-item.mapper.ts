@@ -153,7 +153,7 @@ type WatchCacheRecordWithItemIds = WatchMediaCardCacheRecord & {
 
 export function watchCacheRecordToBaseItemDto(record: WatchCacheRecordWithItemIds, overrides: Partial<BaseItemDto> = {}): BaseItemDto {
   const still = record.stillUrl
-    ? buildResponsiveImageSet(record.stillUrl, { small: 'w185', medium: 'w300', large: 'original' })
+    ? buildResponsiveImageSet(record.stillUrl, { small: 'w300', medium: 'h632', large: 'original' })
     : emptyResponsiveImageSet();
 
   const thumb: ResponsiveImageSet | null = singleOrEmpty(still);

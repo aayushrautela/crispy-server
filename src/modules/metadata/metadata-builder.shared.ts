@@ -608,8 +608,8 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
       large: 'original',
     }),
     still: buildResponsiveImageSet(episode?.stillPath ?? null, {
-      small: 'w185',
-      medium: 'w300',
+      small: 'w300',
+      medium: 'h632',
       large: 'original',
     }),
     logo: buildResponsiveImageSet(extractBestLogoPath(title?.raw ?? {}, preferredLanguage), {
