@@ -319,7 +319,9 @@ export async function extractCreators(client: DbClient, contentIdentityService: 
       known_for_department: asString(entry.known_for_department) ?? 'Creator',
     })));
 
-  return people.filter((entry): entry is MetadataPersonRefView => entry !== null);
+  return people
+    .filter((entry): entry is MetadataPersonRefView => entry !== null)
+    .slice(0, 1);
 }
 
 export function extractReviewsFromRaw(raw: Record<string, unknown> | null): MetadataReviewView[] {
