@@ -493,7 +493,12 @@ export class LocalUserWatchService {
   }
 
   async recordPlaybackState(params: RecordPlaybackParams): Promise<void> {
-    const playState = LocalUserWatchService.resolvePlayState(params.positionSeconds, params.durationSeconds);
+    // Runtime is canonical from TMDB metadata (same source the read model uses), not
+    // from the playing file. Prefer it; fall back to the client's reported duration only
+    // for off-TMDB titles where no TMDB runtime is cached.
+    const canonicalRuntime = await this.resolveCanonicalRuntimeSeconds(params.itemId);
+    const runtime = canonicalRuntime ?? params.durationSeconds ?? null;
+    const playState = LocalUserWatchService.resolvePlayState(params.positionSeconds, runtime);
 
     await withDbClient(async (client) => {
       if (playState.played) {
@@ -541,9 +546,10 @@ export class LocalUserWatchService {
     const hasRuntime = durationSeconds != null && durationSeconds > 0;
 
     if (!hasRuntime) {
-      return pos > 0
-        ? { played: true, positionSeconds: 0 }
-        : { played: false, positionSeconds: 0 };
+      // Without a runtime we cannot decide "watched", so keep the item in progress and
+      // preserve the resume point rather than wrongly marking it played (the earlier
+      // position-only regression). Off-TMDB titles usually still report a client duration.
+      return { played: false, positionSeconds: pos };
     }
 
     const pct = pos / durationSeconds * 100;
@@ -568,6 +574,47 @@ export class LocalUserWatchService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Canonical runtime (seconds) for an item, derived from TMDB metadata via the same
+   * language-tolerant join the read model uses. Returns null only when no TMDB runtime
+   * is cached (off-TMDB / not-yet-fetched titles), in which case the caller may fall
+   * back to a client-reported duration.
+   */
+  private async resolveCanonicalRuntimeSeconds(itemId: string): Promise<number | null> {
+    const result = await db.query(
+      `SELECT COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) AS duration_seconds
+       FROM content_items ci
+       LEFT JOIN content_item_relationships cir
+         ON cir.child_content_id = ci.id AND cir.relationship_type = 'series'
+       LEFT JOIN content_provider_refs cpr_tmdb
+         ON cpr_tmdb.content_id = ci.id AND cpr_tmdb.provider = 'tmdb'
+       LEFT JOIN content_provider_refs cpr_tmdb_show
+         ON cpr_tmdb_show.content_id = cir.parent_content_id AND cpr_tmdb_show.provider = 'tmdb'
+       LEFT JOIN LATERAL (
+         SELECT t.runtime FROM tmdb_titles t
+         WHERE t.media_type = 'movie'
+           AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
+         ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
+         LIMIT 1
+       ) tt ON true
+       LEFT JOIN tmdb_tv_episodes tve
+         ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
+        AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
+        AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
+       LEFT JOIN LATERAL (
+         SELECT t.episode_run_time FROM tmdb_titles t
+         WHERE t.media_type = 'show'
+           AND t.tmdb_id = cpr_tmdb_show.external_id::integer
+         ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
+         LIMIT 1
+       ) tt_show ON true
+       WHERE ci.id = $1::uuid`,
+      [itemId],
+    );
+    const raw = result.rows[0]?.duration_seconds;
+    return raw != null ? Number(raw) : null;
   }
 
   async resolveEpisodePlayableItemId(
