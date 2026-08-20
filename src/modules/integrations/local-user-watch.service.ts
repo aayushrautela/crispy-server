@@ -125,12 +125,29 @@ export const WATCH_ITEM_CONTENT_JOIN = `
     ON cpr_tvdb.content_id = ws.item_id AND cpr_tvdb.provider = 'tvdb'
   LEFT JOIN content_provider_refs cpr_tvdb_show
     ON cpr_tvdb_show.content_id = cir.parent_content_id AND cpr_tvdb_show.provider = 'tvdb'
-  LEFT JOIN tmdb_titles tt
-    ON tt.media_type = 'movie' AND tt.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END AND tt.language = 'en-US'
+  -- Runtime is canonical from TMDB metadata, not the playing file. Titles are cached
+  -- under the effective metadata language (usually 'en'), so pick the best English row
+  -- rather than hard-filtering on 'en-US'.
+  LEFT JOIN LATERAL (
+    SELECT t.runtime
+    FROM tmdb_titles t
+    WHERE t.media_type = 'movie'
+      AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
+    ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
+    LIMIT 1
+  ) tt ON true
   LEFT JOIN tmdb_tv_episodes tve
     ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
    AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
    AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
+  LEFT JOIN LATERAL (
+    SELECT t.episode_run_time
+    FROM tmdb_titles t
+    WHERE t.media_type = 'show'
+      AND t.tmdb_id = cpr_tmdb_show.external_id::integer
+    ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
+    LIMIT 1
+  ) tt_show ON true
 `;
 
 const WATCH_ITEM_CONTENT_COLS = `
@@ -146,9 +163,9 @@ const WATCH_ITEM_CONTENT_COLS = `
        ELSE cpr_imdb.external_id END AS imdb_id,
   CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
        ELSE cpr_tvdb.external_id END AS tvdb_id,
-  COALESCE(tve.runtime, tt.runtime) * 60 AS duration_seconds,
-  CASE WHEN COALESCE(tve.runtime, tt.runtime) > 0 AND ws.position_seconds > 0
-       THEN round(ws.position_seconds / (COALESCE(tve.runtime, tt.runtime) * 60) * 10000)
+  COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) AS duration_seconds,
+  CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) > 0 AND ws.position_seconds > 0
+       THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) * 10000)
        END AS progress_bps
 `;
 
@@ -406,10 +423,10 @@ export class LocalUserWatchService {
                 ELSE cpr_imdb.external_id END  AS imdb_id,
            CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
                 ELSE cpr_tvdb.external_id END  AS tvdb_id,
-           COALESCE(tve.runtime, tt.runtime) * 60 AS duration_seconds,
-           CASE WHEN COALESCE(tve.runtime, tt.runtime) > 0 AND ws.position_seconds > 0
-                THEN round(ws.position_seconds / (COALESCE(tve.runtime, tt.runtime) * 60) * 10000)
-                END AS progress_bps,
+            COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) AS duration_seconds,
+            CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) > 0 AND ws.position_seconds > 0
+                 THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) * 10000)
+                 END AS progress_bps,
            cpr_tmdb_show.external_id    AS show_tmdb_id,
            ws.played,
            ws.play_count,
@@ -446,12 +463,26 @@ export class LocalUserWatchService {
            ON cpr_tvdb_show.content_id = cir.parent_content_id
           AND cpr_tvdb_show.provider = 'tvdb'
           AND cpr_tvdb_show.entity_type = 'show'
-          LEFT JOIN tmdb_titles tt
-            ON tt.media_type = 'movie' AND tt.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END AND tt.language = 'en-US'
-         LEFT JOIN tmdb_tv_episodes tve
-           ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
-          AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
-          AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
+          LEFT JOIN LATERAL (
+            SELECT t.runtime
+            FROM tmdb_titles t
+            WHERE t.media_type = 'movie'
+              AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
+            ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
+            LIMIT 1
+          ) tt ON true
+          LEFT JOIN tmdb_tv_episodes tve
+            ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
+           AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
+           AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
+          LEFT JOIN LATERAL (
+            SELECT t.episode_run_time
+            FROM tmdb_titles t
+            WHERE t.media_type = 'show'
+              AND t.tmdb_id = cpr_tmdb_show.external_id::integer
+            ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
+            LIMIT 1
+          ) tt_show ON true
          LEFT JOIN user_state.watch_state ws
            ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id`,
         [params.profileId, itemIds],
