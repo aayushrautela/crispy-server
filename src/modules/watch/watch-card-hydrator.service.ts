@@ -88,6 +88,7 @@ export class WatchCardHydrator {
       parent: cardView.seriesItemId || cardView.seasonItemId || cardView.seasonNumber !== null || cardView.episodeNumber !== null
         ? {
             seriesItemId: cardView.seriesItemId ?? undefined,
+            seriesTitle: item.SeriesName ?? undefined,
             seasonItemId: cardView.seasonItemId ?? undefined,
             seasonNumber: cardView.seasonNumber,
             episodeNumber: cardView.episodeNumber,
