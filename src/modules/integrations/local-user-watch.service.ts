@@ -809,7 +809,9 @@ export class LocalUserWatchService {
          SELECT $1::uuid, unnest($2::uuid[]), false, 0, NULL, 0
          ON CONFLICT (profile_id, item_id) DO UPDATE SET
            played = false,
-           position_seconds = 0`,
+           play_count = 0,
+           position_seconds = 0,
+           last_played_at = NULL`,
         [params.profileId, targetItemIds],
       );
     });
