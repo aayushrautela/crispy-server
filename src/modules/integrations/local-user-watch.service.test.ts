@@ -79,6 +79,41 @@ test('deleteHistory resolves cascade target ids for season, show, and episode', 
   );
 });
 
+test('resolveCascadeItemIds mirrors history targets for mark/unmark watched', async (t) => {
+  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
+  const { ContentIdentityRepository } = await import('../identity/content-identity.repo.js');
+
+  ContentIdentityRepository.prototype.findChildContentIds = async function (
+    _client: unknown,
+    parentContentId: string,
+    relationshipType: string,
+  ): Promise<string[]> {
+    if (relationshipType === 'season' && parentContentId === 'season-1') return ['ep-a', 'ep-b'];
+    if (relationshipType === 'season' && parentContentId === 'show-1') return ['season-1', 'season-2'];
+    if (relationshipType === 'series' && parentContentId === 'show-1') return ['ep-1', 'ep-2'];
+    return [];
+  };
+  LocalUserWatchService.prototype.resolveEpisodePlayableItemId = async function (
+    _series: string,
+    _season: number,
+    _episode: number,
+  ): Promise<string | null> {
+    return 'ep-target';
+  };
+
+  const service = new LocalUserWatchService();
+  const resolve = (itemId: string, mediaType: string, seasonNumber?: number, episodeNumber?: number) =>
+    (service as unknown as {
+      resolveCascadeItemIds: (client: unknown, i: string, m: string, s?: number, e?: number) => Promise<string[]>;
+    }).resolveCascadeItemIds({}, itemId, mediaType as never, seasonNumber, episodeNumber);
+
+  assert.deepEqual(await resolve('movie-1', 'movie'), ['movie-1']);
+  assert.deepEqual(await resolve('ep-1', 'episode'), ['ep-1']);
+  assert.deepEqual(await resolve('season-1', 'season'), ['season-1', 'ep-a', 'ep-b']);
+  assert.deepEqual(await resolve('show-1', 'show'), ['show-1', 'ep-1', 'ep-2', 'season-1', 'season-2']);
+  assert.deepEqual(await resolve('show-1', 'show', 1, 3), ['ep-target']);
+});
+
 test('WATCH_ITEM_CONTENT_JOIN never casts an episode provider ref to integer', () => {
   const ttClause = (WATCH_ITEM_CONTENT_JOIN.split('LEFT JOIN tmdb_titles tt')[1] ?? '')
     .split('LEFT JOIN tmdb_tv_episodes')[0] ?? '';

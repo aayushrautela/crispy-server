@@ -2128,6 +2128,11 @@ paths:
         - Watch
       operationId: postV1ProfilesProfileIdWatchMarkWatched
       summary: Mark media watched.
+      description: >
+        Marks an item watched for the profile. A `movie` or `episode` `itemId` marks
+        that single row. A `season` or `show` `itemId` cascades to every child episode
+        (and season) row, matching Jellyfin's child recursion. A `show` `itemId` with
+        `seasonNumber` and `episodeNumber` narrows to that one episode.
       security:
         - UserBearerAuth: []
       parameters:
@@ -2456,6 +2461,11 @@ paths:
         - Watch
       operationId: postV1ProfilesProfileIdWatchUnmarkWatched
       summary: Unmark media watched.
+      description: >
+        Unmarks an item as watched for the profile. A `movie` or `episode` `itemId`
+        clears that single row. A `season` or `show` `itemId` cascades to every child
+        episode (and season) row. A `show` `itemId` with `seasonNumber` and
+        `episodeNumber` narrows to that one episode.
       security:
         - UserBearerAuth: []
       parameters:

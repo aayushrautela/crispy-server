@@ -407,14 +407,14 @@ export async function registerWatchRoutes(
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
-    const resolved = await withDbClient(async (client) => {
-      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
+    const resolvedMediaType = await withDbClient(async (client) => {
+      const contentItem = await contentIdentityRepo.findContentItemById(client, playableItemId);
+      return toPlayableMediaType(contentItem?.entityType ?? 'movie');
     });
     let effectiveItemId = playableItemId;
-    let effectiveMediaType = resolved.mediaType;
+    let effectiveMediaType = resolvedMediaType;
     if (effectiveMediaType === 'show' && Number.isInteger(body.seasonNumber) && Number.isInteger(body.episodeNumber)) {
-      const episodeContentId = await localUserWatchService.resolveEpisodePlayableItemId(resolved.titleItemId, body.seasonNumber as number, body.episodeNumber as number);
+      const episodeContentId = await localUserWatchService.resolveEpisodePlayableItemId(playableItemId, body.seasonNumber as number, body.episodeNumber as number);
       if (episodeContentId) {
         effectiveItemId = encodePublicItemId(episodeContentId);
         effectiveMediaType = 'episode';
@@ -424,7 +424,7 @@ export async function registerWatchRoutes(
       accountId: actor.authSubject!,
       profileId,
       itemId: effectiveItemId,
-      titleItemId: resolved.titleItemId,
+      titleItemId: effectiveItemId,
       mediaType: effectiveMediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
@@ -438,16 +438,25 @@ export async function registerWatchRoutes(
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
-    const resolved = await withDbClient(async (client) => {
-      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
+    const resolvedMediaType = await withDbClient(async (client) => {
+      const contentItem = await contentIdentityRepo.findContentItemById(client, playableItemId);
+      return toPlayableMediaType(contentItem?.entityType ?? 'movie');
     });
+    let effectiveItemId = playableItemId;
+    let effectiveMediaType = resolvedMediaType;
+    if (effectiveMediaType === 'show' && Number.isInteger(body.seasonNumber) && Number.isInteger(body.episodeNumber)) {
+      const episodeContentId = await localUserWatchService.resolveEpisodePlayableItemId(playableItemId, body.seasonNumber as number, body.episodeNumber as number);
+      if (episodeContentId) {
+        effectiveItemId = encodePublicItemId(episodeContentId);
+        effectiveMediaType = 'episode';
+      }
+    }
     await localUserWatchService.unmarkWatched({
       accountId: actor.authSubject!,
       profileId,
-      itemId: playableItemId,
-      titleItemId: resolved.titleItemId,
-      mediaType: resolved.mediaType,
+      itemId: effectiveItemId,
+      titleItemId: effectiveItemId,
+      mediaType: effectiveMediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });

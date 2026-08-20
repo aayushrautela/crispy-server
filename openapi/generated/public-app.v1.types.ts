@@ -750,7 +750,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mark media watched. */
+        /**
+         * Mark media watched.
+         * @description Marks an item watched for the profile. A `movie` or `episode` `itemId` marks that single row. A `season` or `show` `itemId` cascades to every child episode (and season) row, matching Jellyfin's child recursion. A `show` `itemId` with `seasonNumber` and `episodeNumber` narrows to that one episode.
+         */
         post: operations["postV1ProfilesProfileIdWatchMarkWatched"];
         delete?: never;
         options?: never;
@@ -836,7 +839,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unmark media watched. */
+        /**
+         * Unmark media watched.
+         * @description Unmarks an item as watched for the profile. A `movie` or `episode` `itemId` clears that single row. A `season` or `show` `itemId` cascades to every child episode (and season) row. A `show` `itemId` with `seasonNumber` and `episodeNumber` narrows to that one episode.
+         */
         post: operations["postV1ProfilesProfileIdWatchUnmarkWatched"];
         delete?: never;
         options?: never;

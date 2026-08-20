@@ -375,6 +375,59 @@ test('delete watch history routes to service with resolved mediaType', async (t)
   });
 });
 
+test('mark/unmark watched accepts season itemId and cascades mediaType', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
+
+  const markCalls: Array<Record<string, unknown>> = [];
+  const unmarkCalls: Array<Record<string, unknown>> = [];
+  LocalUserWatchService.prototype.markWatched = async function (params) {
+    markCalls.push({ ...params });
+  };
+  LocalUserWatchService.prototype.unmarkWatched = async function (params) {
+    unmarkCalls.push({ ...params });
+  };
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'season' as const };
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+
+  const markResponse = await app.inject({
+    method: 'POST',
+    url: `/v1/profiles/profile-1/watch/mark-watched`,
+    headers: auth,
+    payload: { itemId: testItemId },
+  });
+  assert.equal(markResponse.statusCode, 200);
+  assert.equal(markCalls.length, 1);
+  assert.equal(markCalls[0]!.mediaType, 'season');
+  assert.equal(markCalls[0]!.itemId, '00000000-0000-4000-8000-000000000001');
+
+  const unmarkResponse = await app.inject({
+    method: 'POST',
+    url: `/v1/profiles/profile-1/watch/unmark-watched`,
+    headers: auth,
+    payload: { itemId: testItemId },
+  });
+  assert.equal(unmarkResponse.statusCode, 200);
+  assert.equal(unmarkCalls.length, 1);
+  assert.equal(unmarkCalls[0]!.mediaType, 'season');
+});
+
 test('watch routes reject requests without access token', async (t) => {
   const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');

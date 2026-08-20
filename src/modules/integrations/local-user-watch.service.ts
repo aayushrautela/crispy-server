@@ -693,8 +693,22 @@ export class LocalUserWatchService {
   }
 
   private async resolveHistoryTargetItemIds(client: DbClient, params: DeleteHistoryParams): Promise<string[]> {
-    const { itemId, mediaType, seasonNumber, episodeNumber } = params;
+    return this.resolveCascadeItemIds(client, params.itemId, params.mediaType, params.seasonNumber, params.episodeNumber);
+  }
 
+  /**
+   * Resolves the set of `watch_state` rows an operation should touch for a given
+   * item. Mirrors Jellyfin's child recursion: a season/show cascades to every
+   * child episode (and season) row; a `show + seasonNumber + episodeNumber`
+   * narrows to that single episode; movies/episodes are single rows.
+   */
+  private async resolveCascadeItemIds(
+    client: DbClient,
+    itemId: string,
+    mediaType: 'movie' | 'show' | 'season' | 'episode',
+    seasonNumber?: number | null,
+    episodeNumber?: number | null,
+  ): Promise<string[]> {
     if (mediaType === 'show' && seasonNumber != null && episodeNumber != null) {
       const episodeContentId = await this.resolveEpisodePlayableItemId(itemId, seasonNumber, episodeNumber);
       return episodeContentId ? [episodeContentId] : [];
@@ -759,32 +773,44 @@ export class LocalUserWatchService {
   }
 
   async markWatched(params: MarkWatchedParams): Promise<void> {
+    const targetItemIds = await withDbClient(async (client) =>
+      this.resolveCascadeItemIds(client, params.itemId, params.mediaType, params.seasonNumber, params.episodeNumber),
+    );
+    if (targetItemIds.length === 0) {
+      return;
+    }
+
     await withDbClient(async (client) => {
       await client.query(
-        `INSERT INTO user_state.watch_state
-            (profile_id, item_id, played, play_count, last_played_at, position_seconds)
-          VALUES ($1::uuid, $2::uuid, true, 1, now(), 0)
-          ON CONFLICT (profile_id, item_id) DO UPDATE SET
-            played = true,
-            play_count = user_state.watch_state.play_count + 1,
-            last_played_at = now(),
-            position_seconds = 0`,
-        [params.profileId, params.itemId],
+        `INSERT INTO user_state.watch_state (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+         SELECT $1::uuid, unnest($2::uuid[]), true, 1, now(), 0
+         ON CONFLICT (profile_id, item_id) DO UPDATE SET
+           played = true,
+           play_count = user_state.watch_state.play_count + 1,
+           last_played_at = now(),
+           position_seconds = 0`,
+        [params.profileId, targetItemIds],
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
   }
 
   async unmarkWatched(params: UnmarkWatchedParams): Promise<void> {
+    const targetItemIds = await withDbClient(async (client) =>
+      this.resolveCascadeItemIds(client, params.itemId, params.mediaType, params.seasonNumber, params.episodeNumber),
+    );
+    if (targetItemIds.length === 0) {
+      return;
+    }
+
     await withDbClient(async (client) => {
       await client.query(
-        `INSERT INTO user_state.watch_state
-            (profile_id, item_id, played, play_count, last_played_at, position_seconds)
-          VALUES ($1::uuid, $2::uuid, false, 0, NULL, 0)
-          ON CONFLICT (profile_id, item_id) DO UPDATE SET
-            played = false,
-            position_seconds = 0`,
-        [params.profileId, params.itemId],
+        `INSERT INTO user_state.watch_state (profile_id, item_id, played, play_count, last_played_at, position_seconds)
+         SELECT $1::uuid, unnest($2::uuid[]), false, 0, NULL, 0
+         ON CONFLICT (profile_id, item_id) DO UPDATE SET
+           played = false,
+           position_seconds = 0`,
+        [params.profileId, targetItemIds],
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
