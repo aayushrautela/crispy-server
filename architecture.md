@@ -178,6 +178,9 @@ Watch storage is anchored to canonical TMDB-era media keys.
 Rules:
 
 - continue watching, history, watchlist, ratings, and watch state are `mediaKey`-based
+- history entries are user-removable via `DELETE /v1/profiles/{profileId}/watch/history/{id}`;
+  removal deletes the `watch_state` row(s) and cascades to child episodes (and seasons) for a
+  season/show, discarding progress by design
 - title projections are `movie` or `show`
 - episodic follow tracks shows only
 - watched-title expansion uses TMDB episode listings, not removed provider-context episode bundles

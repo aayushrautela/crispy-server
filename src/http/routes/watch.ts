@@ -6,6 +6,8 @@ import {
   ratingsListRouteSchema,
   watchContinueWatchingDismissRouteSchema,
   watchEventsRouteSchema,
+  watchHistoryItemDeleteRouteSchema,
+  type WatchHistoryDeleteQuery,
   watchItemIdMutationRouteSchema,
   watchItemIdParamsRouteSchema,
   watchMutationRouteSchema,
@@ -244,6 +246,31 @@ export async function registerWatchRoutes(
       profileId,
       titleItemId: resolved.titleItemId,
       playableItemId,
+    });
+    return mutation({ accepted: true, mode: 'synchronous' as const });
+  });
+
+  app.delete('/v1/profiles/:profileId/watch/history/:id', { schema: watchHistoryItemDeleteRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserSessionActor(request);
+    const params = request.params as { profileId: string; id: string };
+    const profileId = getProfileIdFromParams(params);
+    await assertProfileUnlocked(request, profileId);
+    const itemId = assertPublicItemId(params.id);
+    const query = (request.query ?? {}) as WatchHistoryDeleteQuery;
+    const seasonNumber = parseNullableNumber(query.seasonNumber);
+    const episodeNumber = parseNullableNumber(query.episodeNumber);
+    const resolvedMediaType = await withDbClient(async (client) => {
+      const contentItem = await contentIdentityRepo.findContentItemById(client, itemId);
+      return toPlayableMediaType(contentItem?.entityType ?? 'movie');
+    });
+    await localUserWatchService.deleteHistory({
+      accountId: actor.authSubject!,
+      profileId,
+      itemId,
+      mediaType: resolvedMediaType,
+      seasonNumber,
+      episodeNumber,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });

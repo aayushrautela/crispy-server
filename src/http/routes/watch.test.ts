@@ -292,6 +292,89 @@ test('dismiss continue-watching resolves titleItemId from playableItemId', async
   assert.equal(dismissParams?.profileId, 'profile-1');
 });
 
+test('delete watch history routes to service with resolved mediaType', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
+
+  const deleteHistoryCalls: Array<Record<string, unknown>> = [];
+  LocalUserWatchService.prototype.deleteHistory = async function (params) {
+    deleteHistoryCalls.push({ ...params });
+  };
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'movie' as const };
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(async () => { await app.close(); });
+
+  const auth = { authorization: 'Bearer test' };
+
+  const movieResponse = await app.inject({
+    method: 'DELETE',
+    url: `/v1/profiles/profile-1/watch/history/${testItemId}`,
+    headers: auth,
+  });
+  assert.equal(movieResponse.statusCode, 200);
+
+  // season entity resolves to season mediaType and is passed through
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'season' as const };
+  };
+  const seasonResponse = await app.inject({
+    method: 'DELETE',
+    url: `/v1/profiles/profile-1/watch/history/${testItemId}`,
+    headers: auth,
+  });
+  assert.equal(seasonResponse.statusCode, 200);
+
+  // show + season/episode query params are forwarded for server-side narrowing
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'show' as const };
+  };
+  const showEpisodeResponse = await app.inject({
+    method: 'DELETE',
+    url: `/v1/profiles/profile-1/watch/history/${testItemId}?seasonNumber=2&episodeNumber=5`,
+    headers: auth,
+  });
+  assert.equal(showEpisodeResponse.statusCode, 200);
+
+  assert.equal(deleteHistoryCalls.length, 3);
+  assert.deepEqual(deleteHistoryCalls[0], {
+    accountId: 'auth-subject',
+    profileId: 'profile-1',
+    itemId: '00000000-0000-4000-8000-000000000001',
+    mediaType: 'movie',
+    seasonNumber: null,
+    episodeNumber: null,
+  });
+  assert.deepEqual(deleteHistoryCalls[1], {
+    accountId: 'auth-subject',
+    profileId: 'profile-1',
+    itemId: '00000000-0000-4000-8000-000000000001',
+    mediaType: 'season',
+    seasonNumber: null,
+    episodeNumber: null,
+  });
+  assert.deepEqual(deleteHistoryCalls[2], {
+    accountId: 'auth-subject',
+    profileId: 'profile-1',
+    itemId: '00000000-0000-4000-8000-000000000001',
+    mediaType: 'show',
+    seasonNumber: 2,
+    episodeNumber: 5,
+  });
+});
+
 test('watch routes reject requests without access token', async (t) => {
   const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');

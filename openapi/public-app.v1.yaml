@@ -1985,8 +1985,11 @@ paths:
           description: >
             Server-Sent Events stream. Each event is `event: watch_changed` with a
             `data` JSON payload `{ profileId, kind, at_ms }`. The connection is
-            debounced server-side; clients refetch the continue-watching page on
-            receipt. Heartbeats are sent as comment lines (`: ping`).
+            debounced server-side. `kind` is one of: `continue_watching` — refetch
+            the continue-watching page; `history` — refetch the watch history page
+            (and the continue-watching page, since a history removal deletes the
+            underlying watch_state row and therefore also drops the item from
+            continue-watching). Heartbeats are sent as comment lines (`: ping`).
           content:
             text/event-stream:
               schema:
@@ -2045,6 +2048,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ClientMediaCardQueryResultEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/history/{id}:
+    delete:
+      tags:
+        - Watch
+      operationId: deleteV1ProfilesProfileIdWatchHistoryId
+      summary: Remove item from watch history.
+      description: >
+        Permanently removes an item from the profile's watch history. Progress is
+        intentionally discarded. For a season or show, the removal cascades to every
+        child episode (and season) so they no longer appear in history. A specific
+        episode within a show can be targeted with `seasonNumber` and `episodeNumber`.
+        Idempotent — removing an absent entry is a no-op.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/PublicItemId"
+        - name: seasonNumber
+          in: query
+          required: false
+          schema:
+            type: number
+            nullable: true
+        - name: episodeNumber
+          in: query
+          required: false
+          schema:
+            type: number
+            nullable: true
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchActionResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2821,6 +2884,18 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
     ServerError:
       description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    UnprocessableEntity:
+      description: Request semantics are valid but the content is unprocessable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ProfileLocked:
+      description: Profile is locked and requires a PIN.
       content:
         application/json:
           schema:

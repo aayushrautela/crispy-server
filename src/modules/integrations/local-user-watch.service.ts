@@ -12,6 +12,7 @@ import {
   type WatchReadRow,
 } from './watch-read.mapper.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { ContentIdentityRepository } from '../identity/content-identity.repo.js';
 import { inferMediaIdentity, showTmdbIdForIdentity } from '../identity/media-key.js';
 import { publishWatchChanged } from '../watch/watch-change.publisher.js';
 
@@ -34,6 +35,15 @@ type DismissContinueWatchingParams = {
   profileId: string;
   titleItemId: string;
   playableItemId: string;
+};
+
+type DeleteHistoryParams = {
+  accountId: string;
+  profileId: string;
+  itemId: string;
+  mediaType: 'movie' | 'show' | 'season' | 'episode';
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
 };
 
 type SetListItemParams = {
@@ -172,6 +182,7 @@ const WATCH_ITEM_CONTENT_COLS = `
 export class LocalUserWatchService {
   constructor(
     private readonly contentIdentityService = new ContentIdentityService(),
+    private readonly contentIdentityRepo = new ContentIdentityRepository(),
   ) {}
 
   async listContinueWatchingPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
@@ -653,6 +664,55 @@ export class LocalUserWatchService {
     );
 
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+  }
+
+  /**
+   * Permanently removes one or more watch_state rows from a profile's history.
+   * Progress is intentionally discarded. Mirrors Jellyfin's child recursion: a
+   * season/show removal cascades to every child episode (and season) row so they
+   * no longer surface in history. A specific show+season+episode narrows to that
+   * single episode. Idempotent — deleting an absent entry is a no-op.
+   */
+  async deleteHistory(params: DeleteHistoryParams): Promise<void> {
+    const targetItemIds = await withDbClient(async (client) =>
+      this.resolveHistoryTargetItemIds(client, params),
+    );
+    if (targetItemIds.length === 0) {
+      return;
+    }
+
+    await withDbClient(async (client) => {
+      await client.query(
+        `DELETE FROM user_state.watch_state
+         WHERE profile_id = $1::uuid AND item_id = ANY($2::uuid[])`,
+        [params.profileId, targetItemIds],
+      );
+    });
+
+    await publishWatchChanged(params.accountId, params.profileId, 'history', { force: true });
+  }
+
+  private async resolveHistoryTargetItemIds(client: DbClient, params: DeleteHistoryParams): Promise<string[]> {
+    const { itemId, mediaType, seasonNumber, episodeNumber } = params;
+
+    if (mediaType === 'show' && seasonNumber != null && episodeNumber != null) {
+      const episodeContentId = await this.resolveEpisodePlayableItemId(itemId, seasonNumber, episodeNumber);
+      return episodeContentId ? [episodeContentId] : [];
+    }
+
+    if (mediaType === 'movie' || mediaType === 'episode') {
+      return [itemId];
+    }
+
+    if (mediaType === 'season') {
+      const episodeIds = await this.contentIdentityRepo.findChildContentIds(client, itemId, 'season');
+      return [itemId, ...episodeIds];
+    }
+
+    // show: cascade to every child episode row and any season rows
+    const episodeIds = await this.contentIdentityRepo.findChildContentIds(client, itemId, 'series');
+    const seasonIds = await this.contentIdentityRepo.findChildContentIds(client, itemId, 'season');
+    return [itemId, ...episodeIds, ...seasonIds];
   }
 
   async setListItem(params: SetListItemParams): Promise<void> {

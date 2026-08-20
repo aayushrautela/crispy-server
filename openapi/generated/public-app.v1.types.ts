@@ -127,6 +127,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/account/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the account's primary profile during onboarding.
+         * @description Idempotently creates the account's first (primary) profile. The profile name is required, and the resulting profile is always the account admin and is never a kids profile. A retried call returns the existing primary profile instead of creating a duplicate.
+         */
+        post: operations["postV1AccountBootstrap"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/metadata/people/{personId}": {
         parameters: {
             query?: never;
@@ -616,6 +636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/profiles/{profileId}/watch/next-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List next up. */
+        get: operations["getV1ProfilesProfileIdWatchNextUp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/profiles/{profileId}/watch/continue-watching/{id}": {
         parameters: {
             query?: never;
@@ -650,6 +687,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/profiles/{profileId}/watch/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Server-sent stream of continue-watching invalidations for cross-device sync. */
+        get: operations["getV1ProfilesProfileIdWatchStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/profiles/{profileId}/watch/history": {
         parameters: {
             query?: never;
@@ -662,6 +716,26 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/profiles/{profileId}/watch/history/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove item from watch history.
+         * @description Permanently removes an item from the profile's watch history. Progress is intentionally discarded. For a season or show, the removal cascades to every child episode (and season) so they no longer appear in history. A specific episode within a show can be targeted with `seasonNumber` and `episodeNumber`. Idempotent — removing an absent entry is a no-op.
+         */
+        delete: operations["deleteV1ProfilesProfileIdWatchHistoryId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1335,6 +1409,24 @@ export interface components {
                 "application/json": components["schemas"]["ErrorEnvelope"];
             };
         };
+        /** @description Request semantics are valid but the content is unprocessable. */
+        UnprocessableEntity: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description Profile is locked and requires a PIN. */
+        ProfileLocked: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
     };
     parameters: {
         RequestId: string;
@@ -1659,6 +1751,35 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postV1AccountBootstrap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenericObject"];
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["UnprocessableEntity"];
             500: components["responses"]["ServerError"];
         };
     };
@@ -2703,6 +2824,40 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    getV1ProfilesProfileIdWatchNextUp: {
+        parameters: {
+            query?: {
+                limit?: string;
+                cursor?: string;
+                itemId?: components["schemas"]["PublicItemId"];
+                extended?: true | false;
+            };
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     deleteV1ProfilesProfileIdWatchContinueWatchingId: {
         parameters: {
             query?: never;
@@ -2782,6 +2937,33 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    getV1ProfilesProfileIdWatchStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-Sent Events stream. Each event is `event: watch_changed` with a `data` JSON payload `{ profileId, kind, at_ms }`. The connection is debounced server-side. `kind` is one of: `continue_watching` — refetch the continue-watching page; `history` — refetch the watch history page (and the continue-watching page, since a history removal deletes the underlying watch_state row and therefore also drops the item from continue-watching). Heartbeats are sent as comment lines (`: ping`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            423: components["responses"]["ProfileLocked"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     getV1ProfilesProfileIdWatchHistory: {
         parameters: {
             query?: {
@@ -2805,6 +2987,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    deleteV1ProfilesProfileIdWatchHistoryId: {
+        parameters: {
+            query?: {
+                seasonNumber?: number | null;
+                episodeNumber?: number | null;
+            };
+            header?: never;
+            path: {
+                profileId: string;
+                id: components["schemas"]["PublicItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchActionResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];

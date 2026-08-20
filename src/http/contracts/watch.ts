@@ -156,6 +156,31 @@ export const watchContinueWatchingDismissRouteSchema = withDefaultErrorResponses
   },
 });
 
+export const watchHistoryItemDeleteRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['profileId', 'id'],
+    properties: {
+      profileId: nonEmptyStringSchema,
+      id: publicItemIdSchema,
+    },
+  },
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      seasonNumber: nullableNumberSchema,
+      episodeNumber: nullableNumberSchema,
+    },
+  },
+});
+
+export type WatchHistoryDeleteQuery = {
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+};
+
 export const watchStateRouteSchema = withDefaultErrorResponses({
   params: profileIdParamsSchema,
   querystring: {

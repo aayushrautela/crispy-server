@@ -4,7 +4,7 @@ const CHANNEL_PREFIX = 'cw:';
 const DIRTY_KEY_PREFIX = 'cw-dirty:';
 const DEBOUNCE_SECONDS = 5;
 
-export type WatchChangeKind = 'continue_watching';
+export type WatchChangeKind = 'continue_watching' | 'history';
 
 export interface WatchChangedMessage {
   profileId: string;

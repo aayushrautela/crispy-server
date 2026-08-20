@@ -311,6 +311,24 @@ export class ContentIdentityRepository {
     return row ? mapRelationship(row) : null;
   }
 
+  async findChildContentIds(
+    client: DbClient,
+    parentContentId: string,
+    relationshipType: ContentRelationshipType,
+  ): Promise<string[]> {
+    const result = await client.query(
+      `
+        SELECT child_content_id
+        FROM content_item_relationships
+        WHERE parent_content_id = $1::uuid
+          AND relationship_type = $2::text
+      `,
+      [parentContentId, relationshipType],
+    );
+
+    return result.rows.map((row) => String(row.child_content_id));
+  }
+
   async listParentRelationships(
     client: DbClient,
     childContentId: string,

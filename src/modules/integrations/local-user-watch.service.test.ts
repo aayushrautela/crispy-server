@@ -29,6 +29,56 @@ test('resolvePlayState: >= MaxResumePct or at end is played and clears position'
   assert.deepEqual(LocalUserWatchService.resolvePlayState(1000, 1000), { played: true, positionSeconds: 0 });
 });
 
+test('deleteHistory resolves cascade target ids for season, show, and episode', async (t) => {
+  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
+  const { ContentIdentityRepository } = await import('../identity/content-identity.repo.js');
+
+  ContentIdentityRepository.prototype.findChildContentIds = async function (
+    _client: unknown,
+    parentContentId: string,
+    relationshipType: string,
+  ): Promise<string[]> {
+    if (relationshipType === 'season' && parentContentId === 'season-1') return ['ep-a', 'ep-b'];
+    if (relationshipType === 'season' && parentContentId === 'show-1') return ['season-1', 'season-2'];
+    if (relationshipType === 'series' && parentContentId === 'show-1') return ['ep-1', 'ep-2'];
+    return [];
+  };
+  LocalUserWatchService.prototype.resolveEpisodePlayableItemId = async function (
+    _series: string,
+    _season: number,
+    _episode: number,
+  ): Promise<string | null> {
+    return 'ep-target';
+  };
+
+  const service = new LocalUserWatchService();
+  const resolve = (params: Record<string, unknown>) =>
+    (service as unknown as {
+      resolveHistoryTargetItemIds: (client: unknown, p: unknown) => Promise<string[]>;
+    }).resolveHistoryTargetItemIds({}, params as never);
+
+  assert.deepEqual(
+    await resolve({ itemId: 'movie-1', mediaType: 'movie' }),
+    ['movie-1'],
+  );
+  assert.deepEqual(
+    await resolve({ itemId: 'ep-1', mediaType: 'episode' }),
+    ['ep-1'],
+  );
+  assert.deepEqual(
+    await resolve({ itemId: 'season-1', mediaType: 'season' }),
+    ['season-1', 'ep-a', 'ep-b'],
+  );
+  assert.deepEqual(
+    await resolve({ itemId: 'show-1', mediaType: 'show' }),
+    ['show-1', 'ep-1', 'ep-2', 'season-1', 'season-2'],
+  );
+  assert.deepEqual(
+    await resolve({ itemId: 'show-1', mediaType: 'show', seasonNumber: 1, episodeNumber: 3 }),
+    ['ep-target'],
+  );
+});
+
 test('WATCH_ITEM_CONTENT_JOIN never casts an episode provider ref to integer', () => {
   const ttClause = (WATCH_ITEM_CONTENT_JOIN.split('LEFT JOIN tmdb_titles tt')[1] ?? '')
     .split('LEFT JOIN tmdb_tv_episodes')[0] ?? '';
