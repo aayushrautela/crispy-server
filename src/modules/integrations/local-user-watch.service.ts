@@ -163,9 +163,9 @@ const WATCH_ITEM_CONTENT_COLS = `
        ELSE cpr_imdb.external_id END AS imdb_id,
   CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
        ELSE cpr_tvdb.external_id END AS tvdb_id,
-  COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) AS duration_seconds,
-  CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) > 0 AND ws.position_seconds > 0
-       THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) * 10000)
+  COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) AS duration_seconds,
+  CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) > 0 AND ws.position_seconds > 0
+       THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) * 10000)
        END AS progress_bps
 `;
 
@@ -423,9 +423,9 @@ export class LocalUserWatchService {
                 ELSE cpr_imdb.external_id END  AS imdb_id,
            CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
                 ELSE cpr_tvdb.external_id END  AS tvdb_id,
-            COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) AS duration_seconds,
-            CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) > 0 AND ws.position_seconds > 0
-                 THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60, ws.duration_seconds) * 10000)
+            COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) AS duration_seconds,
+            CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) > 0 AND ws.position_seconds > 0
+                 THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) * 10000)
                  END AS progress_bps,
            cpr_tmdb_show.external_id    AS show_tmdb_id,
            ws.played,
