@@ -42,13 +42,6 @@ test('ShortLivedRequestCoalescer reuses inflight and cached results', async () =
   assert.equal(refreshCalls, 1);
 });
 
-test('isSameTitleFamily keeps distinct titles that only share a leading token', async () => {
-  const { isSameTitleFamily } = await import('./ai-search.service.js');
-
-  assert.equal(isSameTitleFamily('Fantastic Beasts and Where to Find Them', 'Fantastic Mr. Fox'), false);
-  assert.equal(isSameTitleFamily('The Lord of the Rings: The Fellowship of the Ring', 'The Lord of the Rings: The Two Towers'), true);
-});
-
 test('AiSearchService coalesces identical in-flight searches', async () => {
   const pkg = await import('./ai-search.service.js');
   let profileChecks = 0;

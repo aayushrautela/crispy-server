@@ -2,28 +2,25 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildInsightsPrompt, buildSearchPrompt } from './ai-prompts.js';
 
-test('search prompt uses mixed catalog guidance without hard category filters', () => {
-  const prompt = buildSearchPrompt('shows like harry potter', 'en-US', {
-    isRecommendation: true,
-    anchorHint: 'harry potter',
-  });
+test('search prompt uses positive, tonal-accuracy guidance with a soft list-size range', () => {
+  const prompt = buildSearchPrompt('shows like harry potter', 'en-US');
 
-  assert.match(prompt, /Catalog scope: You may suggest movies or TV shows\./);
-  assert.match(prompt, /Mixed results can come from the movie and TV catalogs\./);
-  assert.match(prompt, /The anchor can come from any franchise or medium\./);
-  assert.match(prompt, /Every item must include `title` and should include `mediaType` when you know it\./);
-  assert.match(prompt, /When you are reasonably confident of the release year, include it as `year`/);
+  assert.match(prompt, /Focus heavily on tonal and thematic accuracy\./);
+  assert.match(prompt, /User Query: "shows like harry potter"/);
+  assert.match(prompt, /Return between 5 and 15 titles\./);
+  assert.match(prompt, /Mixed results from movies and TV shows are allowed\./);
+  assert.match(prompt, /Do not include the exact title the user is asking about\./);
+  assert.match(prompt, /Preferred locale: en-US/);
+  assert.match(prompt, /mediaType must be "movie" or "show"\./);
   assert.match(prompt, /\{"items":\[\{"title":"Title One","mediaType":"movie","year":1982\}/);
+  assert.doesNotMatch(prompt, /Catalog scope/);
   assert.doesNotMatch(prompt, /TMDB is likely to recognize/);
 });
 
-test('search prompt prefers reliable catalog titles for mixed results', () => {
-  const prompt = buildSearchPrompt('anime like naruto', 'en-US', {
-    isRecommendation: true,
-    anchorHint: 'naruto',
-  });
+test('search prompt reflects the requested locale', () => {
+  const prompt = buildSearchPrompt('anime like naruto', 'fr-FR');
 
-  assert.match(prompt, /Prefer the commonly used catalog title for each result so it can be matched reliably\./);
+  assert.match(prompt, /Preferred locale: fr-FR/);
 });
 
 test('insights prompt treats anime-origin titles as shows in TMDB-only mode', () => {

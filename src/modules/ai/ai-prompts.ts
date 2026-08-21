@@ -1,14 +1,3 @@
-export type SearchQueryAnalysis = {
-  isRecommendation: boolean;
-  anchorHint: string | null;
-};
-
-export type SearchPromptCandidateShape = {
-  title: string;
-  mediaType?: 'movie' | 'show';
-  year?: number | null;
-};
-
 export type TitleInsightsContext = {
   itemId: string;
   mediaType: 'movie' | 'show';
@@ -24,45 +13,23 @@ export type TitleInsightsContext = {
   }>;
 };
 
-const RAW_SUGGESTION_LIMIT = 16;
-
-export function buildSearchPrompt(query: string, locale: string, analysis: SearchQueryAnalysis): string {
-  const lines = [
-    'You help a streaming app answer what-to-watch questions like a smart friend. You do not have access to the internet.',
-    'Do NOT use web search. Do NOT call any tools or functions. Do NOT emit tool_calls.',
-    'Answer ONLY from your own knowledge as a completed JSON object in the message content.',
-    `User query: ${query}`,
-    'Catalog scope: You may suggest movies or TV shows.',
-    'Mixed results can come from the movie and TV catalogs.',
+export function buildSearchPrompt(query: string, locale: string): string {
+  return [
+    'Return recommendations for the following query. Focus heavily on tonal and thematic accuracy.',
+    `User Query: "${query}"`,
+    '',
+    'Recommendation Rules:',
+    'Return between 5 and 15 titles. If the query is highly specific, return fewer, higher-quality matches rather than forcing a longer list.',
+    'Mixed results from movies and TV shows are allowed.',
+    'Suggest real, released titles only. Use the commonly accepted English title.',
+    "Include at most ONE title from the same franchise, cinematic universe, or direct sequel/prequel line as the query's anchor. Use the rest of the list for similar genres, worlds, or vibes.",
+    'Do not include the exact title the user is asking about.',
     `Preferred locale: ${locale}`,
-    'Suggest real released titles only.',
-    'Prefer the commonly used catalog title for each result so it can be matched reliably.',
-  ];
-
-  if (analysis.isRecommendation) {
-    lines.push('This is a recommendation query, not a direct title lookup.');
-    if (analysis.anchorHint) {
-      lines.push(`Anchor phrase: ${analysis.anchorHint}`);
-    }
-      lines.push('The anchor can come from any franchise or medium.');
-    lines.push(`Return up to ${RAW_SUGGESTION_LIMIT} genuinely diverse titles.`);
-    lines.push('Do not include the exact title or closest obvious match the user already asked about.');
-    lines.push('Include at most one title from the same franchise, collection, series, or shared universe.');
-    lines.push('Avoid sequels, prequels, spinoffs, reboots, or multiple entries from the same property unless the user explicitly asks for that property.');
-    lines.push('If you include one franchise-adjacent pick, use the rest of the list for broader nearby recommendations with similar tone, audience, world, genre, or premise.');
-  } else {
-    lines.push('If the query sounds like a direct title lookup, include that title first.');
-    lines.push(`Return up to ${RAW_SUGGESTION_LIMIT} distinct titles.`);
-  }
-
-  lines.push('Use short JSON objects so the app can validate each suggestion against the right catalog.');
-  lines.push('Every item must include `title` and should include `mediaType` when you know it.');
-  lines.push('Allowed mediaType values: `movie`, `show`.');
-  lines.push('When you are reasonably confident of the release year, include it as `year` (four-digit integer). If you are unsure of the year, omit the field rather than guessing.');
-  lines.push('Do not include commentary or markdown.');
-  lines.push('Return ONLY a JSON object with this shape:');
-  lines.push('{"items":[{"title":"Title One","mediaType":"movie","year":1982},{"title":"Title Two","mediaType":"show"}]}');
-  return lines.join('\n\n');
+    '',
+    'JSON Schema Requirement:',
+    'Output a JSON object exactly matching this structure. For year, use a 4-digit integer if known, or omit the field if unsure. mediaType must be "movie" or "show".',
+    '{"items":[{"title":"Title One","mediaType":"movie","year":1982}]}',
+  ].join('\n');
 }
 
 export function buildInsightsPrompt(context: TitleInsightsContext): string {

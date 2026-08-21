@@ -6,21 +6,24 @@ import type { MetadataSearchResponse, MetadataSearchResult } from '../metadata/m
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
-import { buildSearchPrompt, type SearchQueryAnalysis } from './ai-prompts.js';
+import { buildSearchPrompt } from './ai-prompts.js';
 import { parseSearchCandidates, type AiSearchCandidate } from './ai-search-candidates.js';
 import type { AiSearchResponse } from './ai.types.js';
 
-type ResolvedSuggestion = {
-  candidate: AiSearchCandidate;
-  item: MetadataSearchResult;
-};
+const AI_SEARCH_SYSTEM_PROMPT = [
+  'You are the backend recommendation engine for a streaming app.',
+  'Your ONLY output must be a raw, valid JSON object.',
+  '',
+  'Strict Rules:',
+  'You must start your response with { and end with }.',
+  'Do not include markdown formatting, backticks, or conversational text.',
+  'Rely entirely on your internal knowledge. Do not attempt to use tools or web search.',
+].join('\n');
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const FINAL_RESULT_LIMIT = 20;
-const TITLE_STOP_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
-const MAX_RESOLUTION_CANDIDATES = FINAL_RESULT_LIMIT;
 
 export class AiSearchService {
   constructor(
@@ -39,7 +42,6 @@ export class AiSearchService {
     const query = normalizeString(input.query);
     const profileId = normalizeString(input.profileId);
     const locale = normalizeLocale(input.locale);
-    const analysis = analyzeQuery(query);
 
     if (!query) {
       throw new HttpError(400, 'Query is required.');
@@ -55,14 +57,14 @@ export class AiSearchService {
       const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
         userId,
         feature: 'search',
-        systemPrompt: 'Return compact, valid JSON only. Never include markdown fences. Suggest real released titles that fit the requested catalog scope. Do not call any tools or functions. Do not invoke web search. Answer ONLY with the JSON object in the message content.',
-        userPrompt: buildSearchPrompt(query, locale, analysis),
+        systemPrompt: AI_SEARCH_SYSTEM_PROMPT,
+        userPrompt: buildSearchPrompt(query, locale),
       });
 
       const rawItems = Array.isArray(generated.items) ? generated.items : [];
       const candidates = parseSearchCandidates(rawItems);
-      const resolvedSuggestions = await resolveSuggestions(this.titleSearchService, candidates, locale);
-      const response = finalizeResolvedItems(resolvedSuggestions, analysis, query);
+      const resolved = await resolveSuggestions(this.titleSearchService, candidates, locale);
+      const response = bucketResolvedItems(query, dedupeResolvedItems(resolved), FINAL_RESULT_LIMIT);
 
       logger.info({
         userId,
@@ -73,12 +75,8 @@ export class AiSearchService {
         model: request.model,
         rawItemCount: rawItems.length,
         candidateCount: candidates.length,
-        resolvedCount: resolvedSuggestions.length,
+        resolvedCount: resolved.length,
         finalCount: response.movies.length + response.series.length,
-        candidateSamples: candidates.slice(0, 8),
-        unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: [...response.movies, ...response.series].slice(0, 8).map((item) => `${item.Type}:${item.Id}`),
-        generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
       return response;
@@ -90,17 +88,11 @@ async function resolveSuggestions(
   titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
   locale: string,
-): Promise<ResolvedSuggestion[]> {
-  const results: ResolvedSuggestion[] = [];
-  for (let i = 0; i < Math.min(candidates.length, MAX_RESOLUTION_CANDIDATES); i++) {
-    const candidate = candidates[i];
-    if (!candidate) {
-      continue;
-    }
+): Promise<MetadataSearchResult[]> {
+  const results: MetadataSearchResult[] = [];
+  for (const candidate of candidates) {
     const items = await resolveSuggestion(titleSearchService, candidate, locale);
-    for (const item of items) {
-      results.push({ candidate, item });
-    }
+    results.push(...items);
   }
   return results;
 }
@@ -124,40 +116,7 @@ async function resolveSuggestion(
   }
 }
 
-function finalizeResolvedItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis, query: string): MetadataSearchResponse {
-  const unique = dedupeResolvedSuggestions(resolved);
-  const kept = analysis.isRecommendation
-    ? filterRecommendationItems(unique, analysis)
-    : unique.slice(0, FINAL_RESULT_LIMIT);
-
-  return bucketResolvedItems(query, kept.map(({ item }) => item));
-}
-
-function filterRecommendationItems(resolved: ResolvedSuggestion[], analysis: SearchQueryAnalysis): ResolvedSuggestion[] {
-  if (!analysis.isRecommendation) {
-    return resolved.slice(0, FINAL_RESULT_LIMIT);
-  }
-
-  const kept: ResolvedSuggestion[] = [];
-  let skippedAnchor = false;
-  for (const suggestion of resolved) {
-    if (!skippedAnchor && matchesAnchorSuggestion(suggestion, analysis.anchorHint)) {
-      skippedAnchor = true;
-      continue;
-    }
-    if (kept.some((existing) => isSameTitleFamily(existing.item.Name ?? '', suggestion.item.Name ?? ''))) {
-      continue;
-    }
-    kept.push(suggestion);
-    if (kept.length >= FINAL_RESULT_LIMIT) {
-      break;
-    }
-  }
-
-  return kept;
-}
-
-function bucketResolvedItems(query: string, items: MetadataSearchResult[]): MetadataSearchResponse {
+function bucketResolvedItems(query: string, items: MetadataSearchResult[], limit: number): MetadataSearchResponse {
   const movies: MetadataSearchResult[] = [];
   const series: MetadataSearchResult[] = [];
 
@@ -174,200 +133,23 @@ function bucketResolvedItems(query: string, items: MetadataSearchResult[]): Meta
 
   return {
     query,
-    movies,
-    series,
+    movies: movies.slice(0, limit),
+    series: series.slice(0, limit),
     people: [],
   };
 }
 
-function dedupeResolvedSuggestions(items: ResolvedSuggestion[]): ResolvedSuggestion[] {
+function dedupeResolvedItems(items: MetadataSearchResult[]): MetadataSearchResult[] {
   const seen = new Set<string>();
-  const result: ResolvedSuggestion[] = [];
-  for (const suggestion of items) {
-    const key = suggestion.item.Id;
-    if (seen.has(key)) {
+  const result: MetadataSearchResult[] = [];
+  for (const item of items) {
+    if (seen.has(item.Id)) {
       continue;
     }
-    seen.add(key);
-    result.push(suggestion);
+    seen.add(item.Id);
+    result.push(item);
   }
   return result;
-}
-
-function analyzeQuery(query: string): SearchQueryAnalysis {
-  return {
-    isRecommendation: isRecommendationQuery(query),
-    anchorHint: extractAnchorHint(query),
-  };
-}
-
-function isRecommendationQuery(query: string): boolean {
-  const normalized = normalizeTitle(query);
-  if (!normalized) {
-    return false;
-  }
-
-  return [
-    /\blike\b/,
-    /\bsimilar\b/,
-    /\bother than\b/,
-    /\bmore like\b/,
-    /\bsomething like\b/,
-    /\banything like\b/,
-    /\bif i like\b/,
-    /\bif i liked\b/,
-    /\brecommend\b/,
-    /\bwhat should i watch\b/,
-    /\bwhat to watch\b/,
-  ].some((pattern) => pattern.test(normalized));
-}
-
-function extractAnchorHint(query: string): string | null {
-  const quoted = [...query.matchAll(/["“”'`](.+?)["“”'`]/g)]
-    .map((match) => cleanAnchorHint(match[1] ?? ''))
-    .filter((value): value is string => Boolean(value));
-  if (quoted.length > 0) {
-    return quoted.sort((left, right) => right.length - left.length)[0] ?? null;
-  }
-
-  const patterns = [
-    /(?:^|\b)(?:other\s+)?(?:movies?|shows?|series|tv\s+shows?)?\s*(?:like|similar to|more like)\s+(.+)$/i,
-    /(?:^|\b)(?:something|anything)\s+like\s+(.+)$/i,
-    /(?:^|\b)(?:other than|except)\s+(.+)$/i,
-    /(?:^|\b)(?:if i like|if i liked)\s+(.+)$/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = query.match(pattern);
-    const anchor = cleanAnchorHint(match?.[1] ?? '');
-    if (anchor) {
-      return anchor;
-    }
-  }
-
-  return null;
-}
-
-function cleanAnchorHint(value: string): string | null {
-  const withoutQualifiers = value
-    .replace(/[?!.,]+$/g, '')
-    .split(/\b(?:but|except|without)\b/i)[0]
-    ?.trim() ?? '';
-  const cleaned = withoutQualifiers
-    .replace(/^(?:movies?|shows?|series|tv\s+shows?)\s+/i, '')
-    .trim();
-  return cleaned || null;
-}
-
-function matchesAnchorSuggestion(suggestion: ResolvedSuggestion, anchorHint: string | null): boolean {
-  if (!anchorHint) {
-    return false;
-  }
-
-  const normalizedAnchor = normalizeTitle(anchorHint);
-  if (!normalizedAnchor) {
-    return false;
-  }
-
-  return titleMatchesAnchor(suggestion.candidate.title, normalizedAnchor)
-    || titleMatchesAnchor(suggestion.item.Name ?? '', normalizedAnchor);
-}
-
-function titleMatchesAnchor(title: string, normalizedAnchor: string): boolean {
-  const normalizedTitle = normalizeTitle(title);
-  if (!normalizedTitle) {
-    return false;
-  }
-  if (normalizedTitle === normalizedAnchor) {
-    return true;
-  }
-
-  const anchorTokens = titleTokens(normalizedAnchor);
-  if (anchorTokens.length <= 1) {
-    return false;
-  }
-
-  const shared = sharedTitleTokenCount(normalizedTitle, normalizedAnchor);
-  if (shared >= anchorTokens.length) {
-    return true;
-  }
-
-  return anchorTokens.length >= 3
-    && (normalizedTitle.startsWith(normalizedAnchor) || normalizedAnchor.startsWith(normalizedTitle));
-}
-
-export function isSameTitleFamily(leftTitle: string, rightTitle: string): boolean {
-  const normalizedLeft = normalizeTitle(leftTitle);
-  const normalizedRight = normalizeTitle(rightTitle);
-  if (!normalizedLeft || !normalizedRight) {
-    return false;
-  }
-  if (normalizedLeft === normalizedRight) {
-    return true;
-  }
-
-  const leftKey = titleFamilyKey(leftTitle);
-  const rightKey = titleFamilyKey(rightTitle);
-  if (!leftKey || !rightKey || leftKey !== rightKey) {
-    return false;
-  }
-
-  if (hasSharedSeriesPrefix(leftTitle, rightTitle)) {
-    return true;
-  }
-
-  const sharedTokens = sharedTitleTokenCount(normalizedLeft, normalizedRight);
-  const shorterTokenCount = Math.min(titleTokens(normalizedLeft).length, titleTokens(normalizedRight).length);
-  return shorterTokenCount > 0 && sharedTokens >= shorterTokenCount;
-}
-
-function titleFamilyKey(title: string): string | null {
-  const prefix = title.split(/[:\-]/, 1)[0] ?? title;
-  const tokens = titleTokens(normalizeTitle(prefix)).filter((token) => !TITLE_STOP_WORDS.has(token));
-  if (tokens.length === 0) {
-    return null;
-  }
-  return tokens.slice(0, 1).join(' ');
-}
-
-function hasSharedSeriesPrefix(leftTitle: string, rightTitle: string): boolean {
-  const leftPrefix = normalizeSeriesPrefix(leftTitle);
-  const rightPrefix = normalizeSeriesPrefix(rightTitle);
-  if (!leftPrefix || !rightPrefix || leftPrefix !== rightPrefix) {
-    return false;
-  }
-
-  return titleTokens(leftPrefix).length >= 2;
-}
-
-function normalizeSeriesPrefix(title: string): string | null {
-  const prefix = title.split(':', 1)[0] ?? title;
-  const normalized = normalizeTitle(prefix);
-  return normalized || null;
-}
-
-function sharedTitleTokenCount(left: string, right: string): number {
-  const leftTokens = new Set(titleTokens(left));
-  let shared = 0;
-  for (const token of titleTokens(right)) {
-    if (leftTokens.has(token)) {
-      shared += 1;
-    }
-  }
-  return shared;
-}
-
-function titleTokens(value: string): string[] {
-  return value.split(' ').filter((token) => token.length >= 3);
-}
-
-function normalizeTitle(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function normalizeString(value: unknown): string {
@@ -377,18 +159,6 @@ function normalizeString(value: unknown): string {
 function normalizeLocale(value: unknown): string {
   const normalized = normalizeString(value);
   return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(normalized) ? normalized : 'en-US';
-}
-
-function summarizeUnresolvedCandidates(candidates: AiSearchCandidate[], resolved: ResolvedSuggestion[]): string[] {
-  const resolvedKeys = new Set(resolved.map((item) => candidateKey(item.candidate)));
-  return candidates
-    .filter((candidate) => !resolvedKeys.has(candidateKey(candidate)))
-    .slice(0, 8)
-    .map((candidate) => `${candidate.title}${candidate.mediaType ? ` [${candidate.mediaType}]` : ''}${candidate.year ? ` (${candidate.year})` : ''}`);
-}
-
-function candidateKey(candidate: AiSearchCandidate): string {
-  return `${normalizeTitle(candidate.title)}::${candidate.mediaType ?? '*'}`;
 }
 
 function sampleQuery(value: string, maxLength = 120): string {
