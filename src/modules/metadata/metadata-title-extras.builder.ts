@@ -234,7 +234,14 @@ export class MetadataTitleExtrasBuilder {
 function extractSeasonNumbersFromTitle(title: TmdbTitleRecord): number[] {
   const rawSeasons = Array.isArray(title.raw.seasons) ? title.raw.seasons : [];
   return rawSeasons
-    .map((entry) => (typeof entry === 'object' && entry !== null ? Number((entry as Record<string, unknown>).season_number) : Number.NaN))
+    .filter((entry) => {
+      if (typeof entry !== 'object' || entry === null) {
+        return false;
+      }
+      const episodeCount = (entry as Record<string, unknown>).episode_count;
+      return episodeCount !== 0;
+    })
+    .map((entry) => Number((entry as Record<string, unknown>).season_number))
     .filter((seasonNumber) => Number.isInteger(seasonNumber) && seasonNumber >= 0)
     .sort((left, right) => left - right);
 }
