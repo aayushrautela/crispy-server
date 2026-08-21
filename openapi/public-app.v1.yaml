@@ -3562,17 +3562,12 @@ components:
       type: object
       required:
         - query
-        - all
         - movies
         - series
         - people
       properties:
         query:
           type: string
-        all:
-          type: array
-          items:
-            $ref: "#/components/schemas/BaseItemDto"
         movies:
           type: array
           items:

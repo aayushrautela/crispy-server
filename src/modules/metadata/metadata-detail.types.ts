@@ -173,7 +173,6 @@ export type SearchSuggestionItem = {
 
 export type MetadataSearchResponse = {
   query: string;
-  all: BaseItemDto[];
   movies: BaseItemDto[];
   series: BaseItemDto[];
   people: MetadataPersonSearchResult[];

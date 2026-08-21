@@ -312,13 +312,9 @@ export const metadataPersonSearchResultSchema = {
 const metadataSearchResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'all', 'movies', 'series', 'people'],
+  required: ['query', 'movies', 'series', 'people'],
   properties: {
     query: stringSchema,
-    all: {
-      type: 'array',
-      items: baseItemDtoSchema,
-    },
     movies: {
       type: 'array',
       items: baseItemDtoSchema,

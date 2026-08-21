@@ -1156,7 +1156,6 @@ export interface components {
         };
         MetadataSearchResponse: {
             query: string;
-            all: components["schemas"]["BaseItemDto"][];
             movies: components["schemas"]["BaseItemDto"][];
             series: components["schemas"]["BaseItemDto"][];
             people: components["schemas"]["MetadataPersonSearchResult"][];

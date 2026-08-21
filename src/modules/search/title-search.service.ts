@@ -36,15 +36,8 @@ type SearchBuckets = {
   series: SearchBucketEntry[];
 };
 
-type SearchEntryCandidate = SearchBucketEntry & {
-  normalizedTitle: string;
-  normalizedSubtitle: string;
-  sourcePriority: number;
-};
-
 const MOVIES_LIMIT = 20;
 const SERIES_LIMIT = 20;
-const ALL_LIMIT = 60;
 const SEARCH_CACHE_TTL_MS = 3_000;
 const HYDRATION_CONCURRENCY = 3;
 
@@ -281,7 +274,6 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper:
 function emptySearchResponse(query: string): MetadataSearchResponse {
   return {
     query,
-    all: [],
     movies: [],
     series: [],
     people: [],
@@ -367,27 +359,6 @@ function normalizeGenreKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-function rankSearchEntries(query: string, entries: SearchBucketEntry[]): SearchBucketEntry[] {
-  const seen = new Set<string>();
-  return entries
-    .filter(({ item }) => {
-      const key = item.Id;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    })
-    .map((entry) => ({
-      ...entry,
-      normalizedTitle: normalizeSearchText(entry.item.Name),
-      normalizedSubtitle: normalizeSearchText(entry.item.OriginalTitle ?? null),
-      sourcePriority: entry.item.Type === 'Movie' ? 0 : 1,
-    }))
-    .sort(compareSearchEntries(query))
-    .map(({ normalizedTitle: _normalizedTitle, normalizedSubtitle: _normalizedSubtitle, sourcePriority: _sourcePriority, ...entry }) => entry);
-}
-
 function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
   const buckets: SearchBuckets = {
     movies: [],
@@ -410,22 +381,19 @@ function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
 
 function buildBucketedSearchResponse(query: string, limit: number, entries: SearchBucketEntry[], peopleEntries: MetadataPersonSearchResult[]): MetadataSearchResponse {
   const buckets = buildSearchBuckets(entries);
-  const movies = finalizeBucket(query, buckets.movies, Math.min(limit, MOVIES_LIMIT));
-  const series = finalizeBucket(query, buckets.series, Math.min(limit, SERIES_LIMIT));
-  const all = finalizeBucket(query, [...movies, ...series], Math.min(limit * 3, ALL_LIMIT));
+  const movies = finalizeBucket(buckets.movies, Math.min(limit, MOVIES_LIMIT));
+  const series = finalizeBucket(buckets.series, Math.min(limit, SERIES_LIMIT));
 
   return {
     query,
-    all: toSearchResults(all),
     movies: toSearchResults(movies),
     series: toSearchResults(series),
     people: peopleEntries,
   };
 }
 
-function finalizeBucket(query: string, items: SearchBucketEntry[], limit: number): SearchBucketEntry[] {
-  const ranked = rankSearchEntries(query, items);
-  return moveNoisyItemsToEnd(ranked).slice(0, limit);
+function finalizeBucket(items: SearchBucketEntry[], limit: number): SearchBucketEntry[] {
+  return moveNoisyItemsToEnd(items).slice(0, limit);
 }
 
 function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
@@ -461,35 +429,6 @@ function bucketForMediaType(dto: BaseItemDto): keyof SearchBuckets | null {
   return null;
 }
 
-function compareSearchEntries(query: string): (left: SearchEntryCandidate, right: SearchEntryCandidate) => number {
-  const normalizedQuery = normalizeSearchText(query);
-  return (left, right) => {
-    const leftRank = rankCatalogItem(normalizedQuery, left);
-    const rightRank = rankCatalogItem(normalizedQuery, right);
-    if (leftRank !== rightRank) {
-      return leftRank - rightRank;
-    }
-
-    const leftYear = left.item.ProductionYear ?? Number.MIN_SAFE_INTEGER;
-    const rightYear = right.item.ProductionYear ?? Number.MIN_SAFE_INTEGER;
-    if (leftYear !== rightYear) {
-      return rightYear - leftYear;
-    }
-
-    const leftRating = left.item.CommunityRating ?? Number.MIN_SAFE_INTEGER;
-    const rightRating = right.item.CommunityRating ?? Number.MIN_SAFE_INTEGER;
-    if (leftRating !== rightRating) {
-      return rightRating - leftRating;
-    }
-
-    if (left.sourcePriority !== right.sourcePriority) {
-      return left.sourcePriority - right.sourcePriority;
-    }
-
-    return left.item.Name.localeCompare(right.item.Name);
-  };
-}
-
 function isNoisyTmdbMatch(match: TmdbTitleRecord): boolean {
   return !hasDate(match.releaseDate ?? match.firstAirDate) && !hasText(match.overview);
 }
@@ -500,27 +439,6 @@ function hasDate(value: string | null | undefined): boolean {
 
 function hasText(value: string | null | undefined): boolean {
   return Boolean(value?.trim());
-}
-
-function rankCatalogItem(query: string, item: { normalizedTitle: string; normalizedSubtitle: string }): number {
-  if (!query) {
-    return 4;
-  }
-
-  if (item.normalizedTitle === query || item.normalizedSubtitle === query) {
-    return 0;
-  }
-  if (item.normalizedTitle.startsWith(query) || item.normalizedSubtitle.startsWith(query)) {
-    return 1;
-  }
-  if (item.normalizedTitle.includes(query) || item.normalizedSubtitle.includes(query)) {
-    return 2;
-  }
-  return 3;
-}
-
-function normalizeSearchText(value: string | null | undefined): string {
-  return value?.trim().toLowerCase() ?? '';
 }
 
 function resolveGenreMapping(genre: string | null | undefined): GenreMapping | null {

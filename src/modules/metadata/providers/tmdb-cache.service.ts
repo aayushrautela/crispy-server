@@ -32,28 +32,6 @@ type SearchPayloadItem = {
   tagline?: unknown;
 };
 
-function searchRank(query: string, candidate: string | null): number {
-  if (!candidate) {
-    return 4;
-  }
-
-  const normalizedQuery = query.trim().toLowerCase();
-  const normalizedCandidate = candidate.trim().toLowerCase();
-  if (!normalizedQuery || !normalizedCandidate) {
-    return 4;
-  }
-  if (normalizedCandidate === normalizedQuery) {
-    return 0;
-  }
-  if (normalizedCandidate.startsWith(normalizedQuery)) {
-    return 1;
-  }
-  if (normalizedCandidate.includes(normalizedQuery)) {
-    return 2;
-  }
-  return 3;
-}
-
 function searchPopularity(item: SearchPayloadItem): number {
   const value = item && typeof item === 'object' ? (item as Record<string, unknown>).popularity : null;
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -103,18 +81,6 @@ function dedupeTitles(records: TmdbTitleRecord[]): TmdbTitleRecord[] {
     deduped.push(record);
   }
   return deduped;
-}
-
-function sortSearchResults(query: string, records: TmdbTitleRecord[]): TmdbTitleRecord[] {
-  return [...records].sort((left, right) => {
-    const leftRank = Math.min(searchRank(query, left.name), searchRank(query, left.originalName));
-    const rightRank = Math.min(searchRank(query, right.name), searchRank(query, right.originalName));
-    if (leftRank !== rightRank) {
-      return leftRank - rightRank;
-    }
-
-    return searchPopularity(right.raw as SearchPayloadItem) - searchPopularity(left.raw as SearchPayloadItem);
-  });
 }
 
 function sortDiscoverResults(records: TmdbTitleRecord[]): TmdbTitleRecord[] {
@@ -484,7 +450,7 @@ export class TmdbCacheService {
         .filter((item): item is TmdbTitleRecord => item !== null);
     });
 
-    return sortSearchResults(query, dedupeTitles(records)).slice(0, limit);
+    return dedupeTitles(records).slice(0, limit);
   }
 
   async searchPeople(client: DbClient, query: string, limit: number): Promise<TmdbPersonRecord[]> {

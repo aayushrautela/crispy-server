@@ -74,10 +74,10 @@ export class AiSearchService {
         rawItemCount: rawItems.length,
         candidateCount: candidates.length,
         resolvedCount: resolvedSuggestions.length,
-        finalCount: response.all.length,
+        finalCount: response.movies.length + response.series.length,
         candidateSamples: candidates.slice(0, 8),
         unresolvedCandidates: summarizeUnresolvedCandidates(candidates, resolvedSuggestions),
-        resultTitles: response.all.slice(0, 8).map((item) => `${item.Type}:${item.Id}`),
+        resultTitles: [...response.movies, ...response.series].slice(0, 8).map((item) => `${item.Type}:${item.Id}`),
         generatedKeys: Object.keys(generated).slice(0, 10),
       }, 'AI search completed');
 
@@ -174,7 +174,6 @@ function bucketResolvedItems(query: string, items: MetadataSearchResult[]): Meta
 
   return {
     query,
-    all: items,
     movies,
     series,
     people: [],
