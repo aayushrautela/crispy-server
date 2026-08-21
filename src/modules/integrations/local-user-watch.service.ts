@@ -15,6 +15,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { ContentIdentityRepository } from '../identity/content-identity.repo.js';
 import { inferMediaIdentity, showTmdbIdForIdentity } from '../identity/media-key.js';
 import { publishWatchChanged } from '../watch/watch-change.publisher.js';
+import type { WatchActionOutcome } from '../watch/watch.types.js';
 
 type RecordPlaybackParams = {
   accountId: string;
@@ -655,15 +656,20 @@ export class LocalUserWatchService {
     }
   }
 
-  async dismissContinueWatching(params: DismissContinueWatchingParams): Promise<void> {
-    await db.query(
+  async dismissContinueWatching(params: DismissContinueWatchingParams): Promise<WatchActionOutcome> {
+    const result = await db.query(
       `UPDATE user_state.watch_state
        SET position_seconds = 0
        WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.playableItemId],
     );
 
+    if (result.rowCount === 0) {
+      return { accepted: false, reason: 'No continue-watching entry found for this item.' };
+    }
+
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    return { accepted: true };
   }
 
   /**
@@ -673,12 +679,12 @@ export class LocalUserWatchService {
    * no longer surface in history. A specific show+season+episode narrows to that
    * single episode. Idempotent — deleting an absent entry is a no-op.
    */
-  async deleteHistory(params: DeleteHistoryParams): Promise<void> {
+  async deleteHistory(params: DeleteHistoryParams): Promise<WatchActionOutcome> {
     const targetItemIds = await withDbClient(async (client) =>
       this.resolveHistoryTargetItemIds(client, params),
     );
     if (targetItemIds.length === 0) {
-      return;
+      return { accepted: false, reason: 'No matching watch history found for this item.' };
     }
 
     await withDbClient(async (client) => {
@@ -690,6 +696,7 @@ export class LocalUserWatchService {
     });
 
     await publishWatchChanged(params.accountId, params.profileId, 'history', { force: true });
+    return { accepted: true };
   }
 
   private async resolveHistoryTargetItemIds(client: DbClient, params: DeleteHistoryParams): Promise<string[]> {
@@ -772,12 +779,12 @@ export class LocalUserWatchService {
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
   }
 
-  async markWatched(params: MarkWatchedParams): Promise<void> {
+  async markWatched(params: MarkWatchedParams): Promise<WatchActionOutcome> {
     const targetItemIds = await withDbClient(async (client) =>
       this.resolveCascadeItemIds(client, params.itemId, params.mediaType, params.seasonNumber, params.episodeNumber),
     );
     if (targetItemIds.length === 0) {
-      return;
+      return { accepted: false, reason: 'This item could not be resolved for the selected profile.' };
     }
 
     await withDbClient(async (client) => {
@@ -793,14 +800,15 @@ export class LocalUserWatchService {
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    return { accepted: true };
   }
 
-  async unmarkWatched(params: UnmarkWatchedParams): Promise<void> {
+  async unmarkWatched(params: UnmarkWatchedParams): Promise<WatchActionOutcome> {
     const targetItemIds = await withDbClient(async (client) =>
       this.resolveCascadeItemIds(client, params.itemId, params.mediaType, params.seasonNumber, params.episodeNumber),
     );
     if (targetItemIds.length === 0) {
-      return;
+      return { accepted: false, reason: 'This item could not be resolved for the selected profile.' };
     }
 
     await withDbClient(async (client) => {
@@ -816,6 +824,7 @@ export class LocalUserWatchService {
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    return { accepted: true };
   }
 }
 

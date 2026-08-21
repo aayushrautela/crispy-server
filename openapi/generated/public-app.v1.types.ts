@@ -958,6 +958,8 @@ export interface components {
             accepted: boolean;
             /** @enum {string} */
             mode: "synchronous";
+            /** @description Human-readable explanation of why the mutation was rejected. Present only when `accepted` is false, so clients can surface the server-provided message instead of a hardcoded fallback. */
+            reason?: string;
         };
         WatchActionResponseEnvelope: {
             data: components["schemas"]["WatchActionResponse"];

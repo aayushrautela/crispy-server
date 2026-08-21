@@ -126,11 +126,13 @@ test('watch routes work with user actor auth subject', async (t) => {
   LocalUserWatchService.prototype.markWatched = async function (params) {
     receivedAccountId = params.accountId;
     watchedCalls.push({ ...params, kind: 'mark' });
+    return { accepted: true };
   };
 
   LocalUserWatchService.prototype.unmarkWatched = async function (params) {
     receivedAccountId = params.accountId;
     watchedCalls.push({ ...params, kind: 'unmark' });
+    return { accepted: true };
   };
 
   WatchCardHydrator.prototype.hydrateItems = async function (_client, items) {
@@ -262,6 +264,7 @@ test('dismiss continue-watching resolves titleItemId from playableItemId', async
   const dismissParams: Partial<Record<string, string>> = {};
   LocalUserWatchService.prototype.dismissContinueWatching = async function (params: { titleItemId: string; playableItemId: string; profileId: string }) {
     Object.assign(dismissParams, params);
+    return { accepted: true };
   };
   WatchCardHydrator.prototype.hydrateItems = async function () {
     return [] as never;
@@ -308,6 +311,7 @@ test('delete watch history routes to service with resolved mediaType', async (t)
   const deleteHistoryCalls: Array<Record<string, unknown>> = [];
   LocalUserWatchService.prototype.deleteHistory = async function (params) {
     deleteHistoryCalls.push({ ...params });
+    return { accepted: true };
   };
   ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
     return { contentId: _contentId, entityType: 'movie' as const };
@@ -392,9 +396,11 @@ test('mark/unmark watched accepts season itemId and cascades mediaType', async (
   const unmarkCalls: Array<Record<string, unknown>> = [];
   LocalUserWatchService.prototype.markWatched = async function (params) {
     markCalls.push({ ...params });
+    return { accepted: true };
   };
   LocalUserWatchService.prototype.unmarkWatched = async function (params) {
     unmarkCalls.push({ ...params });
+    return { accepted: true };
   };
   ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
     return { contentId: _contentId, entityType: 'season' as const };
@@ -426,6 +432,52 @@ test('mark/unmark watched accepts season itemId and cascades mediaType', async (
   assert.equal(unmarkResponse.statusCode, 200);
   assert.equal(unmarkCalls.length, 1);
   assert.equal(unmarkCalls[0]!.mediaType, 'season');
+});
+
+test('watch mutations surface a reason when rejected', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
+  const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
+
+  const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
+  t.after(() => {
+    MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
+  });
+
+  LocalUserWatchService.prototype.markWatched = async function () {
+    return { accepted: false, reason: 'This item could not be resolved for the selected profile.' };
+  };
+  ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
+    return { contentId: _contentId, entityType: 'movie' as const };
+  };
+  MetadataLanguageService.prototype.resolveForProfile = async function () {
+    return 'en' as never;
+  };
+
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: `/v1/profiles/profile-1/watch/mark-watched`,
+    headers: { authorization: 'Bearer test' },
+    payload: { itemId: testItemId },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.data.accepted, false);
+  assert.equal(body.data.reason, 'This item could not be resolved for the selected profile.');
 });
 
 test('watch routes reject requests without access token', async (t) => {

@@ -32,6 +32,7 @@ import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { mutation, success } from '../response.js';
+import type { WatchActionOutcome } from '../../modules/watch/watch.types.js';
 import { assertPublicItemId, decodePublicItemId, encodePublicItemId } from '../../modules/identity/public-item-id.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
@@ -241,13 +242,13 @@ export async function registerWatchRoutes(
       const { publicTitleItemId } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, params.id!);
       return { titleItemId: decodePublicItemId(publicTitleItemId) };
     });
-    await localUserWatchService.dismissContinueWatching({
+    const outcome = await localUserWatchService.dismissContinueWatching({
       accountId: actor.authSubject!,
       profileId,
       titleItemId: resolved.titleItemId,
       playableItemId,
     });
-    return mutation({ accepted: true, mode: 'synchronous' as const });
+    return watchMutation(outcome);
   });
 
   app.delete('/v1/profiles/:profileId/watch/history/:id', { schema: watchHistoryItemDeleteRouteSchema }, async (request) => {
@@ -264,7 +265,7 @@ export async function registerWatchRoutes(
       const contentItem = await contentIdentityRepo.findContentItemById(client, itemId);
       return toPlayableMediaType(contentItem?.entityType ?? 'movie');
     });
-    await localUserWatchService.deleteHistory({
+    const outcome = await localUserWatchService.deleteHistory({
       accountId: actor.authSubject!,
       profileId,
       itemId,
@@ -272,7 +273,7 @@ export async function registerWatchRoutes(
       seasonNumber,
       episodeNumber,
     });
-    return mutation({ accepted: true, mode: 'synchronous' as const });
+    return watchMutation(outcome);
   });
 
   app.get('/v1/profiles/:profileId/watch/history', { schema: historyListRouteSchema }, async (request) => {
@@ -420,7 +421,7 @@ export async function registerWatchRoutes(
         effectiveMediaType = 'episode';
       }
     }
-    await localUserWatchService.markWatched({
+    const outcome = await localUserWatchService.markWatched({
       accountId: actor.authSubject!,
       profileId,
       itemId: effectiveItemId,
@@ -428,7 +429,7 @@ export async function registerWatchRoutes(
       mediaType: effectiveMediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
-    return mutation({ accepted: true, mode: 'synchronous' as const });
+    return watchMutation(outcome);
   });
 
   app.post('/v1/profiles/:profileId/watch/unmark-watched', { schema: watchMutationRouteSchema }, async (request) => {
@@ -451,7 +452,7 @@ export async function registerWatchRoutes(
         effectiveMediaType = 'episode';
       }
     }
-    await localUserWatchService.unmarkWatched({
+    const outcome = await localUserWatchService.unmarkWatched({
       accountId: actor.authSubject!,
       profileId,
       itemId: effectiveItemId,
@@ -459,7 +460,7 @@ export async function registerWatchRoutes(
       mediaType: effectiveMediaType,
       occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : undefined,
     });
-    return mutation({ accepted: true, mode: 'synchronous' as const });
+    return watchMutation(outcome);
   });
 
   app.put('/v1/profiles/:profileId/watch/watchlist/:itemId', { schema: watchItemIdMutationRouteSchema }, async (request) => {
@@ -627,6 +628,14 @@ function getProfileIdFromParams(params: unknown): string {
     throw new Error('Profile route is missing profileId param.');
   }
   return profileId;
+}
+
+function watchMutation(outcome: WatchActionOutcome) {
+  return mutation({
+    accepted: outcome.accepted,
+    mode: 'synchronous' as const,
+    ...(outcome.accepted ? {} : { reason: outcome.reason }),
+  });
 }
 
 function parseOptionalNumber(value: unknown): number | null | undefined {

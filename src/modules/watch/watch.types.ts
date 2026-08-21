@@ -26,9 +26,21 @@ export type WatchEventInput = {
 
 export type WatchIngestMode = 'synchronous';
 
-export type WatchIngestResult = {
-  accepted: true;
+/**
+ * Outcome of a watch mutation at the service layer. A rejected mutation
+ * (accepted = false) always carries a human-readable `reason` so clients can
+ * surface the server-provided explanation instead of a hardcoded fallback.
+ */
+export type WatchActionOutcome =
+  | { accepted: true }
+  | { accepted: false; reason: string };
+
+export type WatchIngestResult = WatchActionOutcome & { mode: WatchIngestMode };
+
+export type WatchActionResponse = {
+  accepted: boolean;
   mode: WatchIngestMode;
+  reason?: string;
 };
 
 export type WatchMediaProjection = {
