@@ -100,11 +100,11 @@ export function buildMetadataCardView(params: {
     : 'movie';
   const titleName = params.titleOverride
     ?? (resolvedMediaType === 'episode'
-      ? title?.name ?? title?.originalName ?? currentEpisode?.name ?? null
+      ? currentEpisode?.name ?? title?.name ?? title?.originalName ?? null
       : currentEpisode?.name ?? title?.name ?? title?.originalName ?? null);
   const subtitle = params.subtitleOverride
     ?? (resolvedMediaType === 'episode'
-      ? currentEpisode?.name
+      ? title?.name ?? title?.originalName
         ?? (identity.seasonNumber !== null && identity.episodeNumber !== null
           ? `S${padded(identity.seasonNumber)} E${padded(identity.episodeNumber)}`
           : null)

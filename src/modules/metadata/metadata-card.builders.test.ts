@@ -4,7 +4,7 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-test('buildMetadataCardView for episode uses show title and episode subtitle', async () => {
+test('buildMetadataCardView for episode uses episode title and show subtitle', async () => {
   const { buildMetadataCardView } = await import('./metadata-card.builders.js');
 
   const view = buildMetadataCardView({
@@ -28,8 +28,8 @@ test('buildMetadataCardView for episode uses show title and episode subtitle', a
 
   assert.equal(view.mediaType, 'episode');
   assert.equal(view.kind, 'episode');
-  assert.equal(view.title, 'Breaking Point');
-  assert.equal(view.subtitle, 'Previous Episode');
+  assert.equal(view.title, 'Previous Episode');
+  assert.equal(view.subtitle, 'Breaking Point');
   assert.equal(view.summary, 'Previous.');
 });
 
