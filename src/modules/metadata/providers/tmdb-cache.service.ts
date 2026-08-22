@@ -334,6 +334,11 @@ export class TmdbCacheService {
     return this.tmdbRepository.getEpisode(client, showTmdbId, seasonNumber, episodeNumber);
   }
 
+  async getSeasonEpisodes(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbEpisodeRecord[]> {
+    await this.ensureSeasonCached(client, showTmdbId, seasonNumber);
+    return this.tmdbRepository.getSeasonEpisodes(client, showTmdbId, seasonNumber);
+  }
+
   async getEpisodes(client: DbClient, requests: Array<{ showTmdbId: number; seasonNumber: number; episodeNumber: number }>): Promise<Map<string, TmdbEpisodeRecord | null>> {
     const records = requests.length ? await this.tmdbRepository.getEpisodes(client, requests) : new Map<string, TmdbEpisodeRecord>();
     const result = new Map<string, TmdbEpisodeRecord | null>();

@@ -143,6 +143,10 @@ test('watch routes work with user actor auth subject', async (t) => {
     return { publicTitleItemId: itemId, mediaType: 'movie' };
   };
 
+  ContentIdentityService.prototype.canonicalizePlayableItemId = async function (_client, publicItemId: string) {
+    return publicItemId;
+  };
+
   ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
     return { contentId: _contentId, entityType: 'movie' as const };
   };

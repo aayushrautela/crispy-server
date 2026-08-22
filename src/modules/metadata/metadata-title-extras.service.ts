@@ -2,7 +2,7 @@ import { withDbClient } from '../../lib/db.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
 import type { MetadataTitleExtras } from './metadata-detail.types.js';
-import { resolveTitleItemIdentity } from './metadata-route-identity.js';
+import { resolveSeriesItemIdentity } from './metadata-route-identity.js';
 import { MetadataTitleExtrasBuilder } from './metadata-title-extras.builder.js';
 import { MetadataTitleCacheService } from './metadata-title-cache.service.js';
 import { metadataTitleExtrasCacheKey } from './metadata-title-cache-keys.js';
@@ -19,7 +19,7 @@ export class MetadataTitleExtrasService {
     assertPublicItemId(publicItemId);
     const cacheKey = metadataTitleExtrasCacheKey(publicItemId, language ?? null);
     return this.cacheService.getOrSet(cacheKey, publicItemId, async () => withDbClient(async (client) => {
-      const identity = await resolveTitleItemIdentity(client, this.contentIdentityService, publicItemId);
+      const identity = await resolveSeriesItemIdentity(client, this.contentIdentityService, publicItemId);
       return this.extrasBuilder.buildTitleExtras(client, identity, language ?? null);
     }));
   }

@@ -90,29 +90,32 @@ export async function registerWatchRoutes(
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchEventBody;
     const playableItemId = assertPublicItemId(body.itemId!);
-    const resolved = await withDbClient(async (client) => {
-      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      return { titleItemId: decodePublicItemId(publicTitleItemId), mediaType: toPlayableMediaType(mediaType) };
-    });
     const seasonNumber = typeof body.seasonNumber === 'number' ? Math.trunc(body.seasonNumber) : null;
     const episodeNumber = typeof body.episodeNumber === 'number' ? Math.trunc(body.episodeNumber) : null;
-    let effectiveItemId = playableItemId;
-    let effectiveMediaType = resolved.mediaType;
-    if (effectiveMediaType === 'show' && seasonNumber != null && episodeNumber != null) {
-      const episodeContentId = await localUserWatchService.resolveEpisodePlayableItemId(resolved.titleItemId, seasonNumber, episodeNumber);
-      if (episodeContentId) {
-        effectiveItemId = encodePublicItemId(episodeContentId);
-        effectiveMediaType = 'episode';
+    const { effectiveItemId, titleItemId, effectiveMediaType } = await withDbClient(async (client) => {
+      const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
+      const canonicalContentId = await contentIdentityService.canonicalizePlayableItemId(client, playableItemId, {
+        seasonNumber,
+        episodeNumber,
+      });
+      let resolvedMediaType = toPlayableMediaType(mediaType);
+      if (resolvedMediaType === 'show' && seasonNumber != null && episodeNumber != null) {
+        resolvedMediaType = 'episode';
       }
-    }
+      return {
+        effectiveItemId: encodePublicItemId(canonicalContentId),
+        titleItemId: decodePublicItemId(publicTitleItemId),
+        effectiveMediaType: resolvedMediaType,
+      };
+    });
     logger.info(
       {
         profileId,
         bodyItemId: body.itemId,
         bodySeason: body.seasonNumber,
         bodyEpisode: body.episodeNumber,
-        resolvedMediaType: resolved.mediaType,
-        titleItemId: resolved.titleItemId,
+        resolvedMediaType: effectiveMediaType,
+        titleItemId,
         effectiveItemId,
         effectiveMediaType,
         bufferedSeason: seasonNumber,
@@ -125,7 +128,7 @@ export async function registerWatchRoutes(
       accountId: actor.authSubject!,
       profileId,
       itemId: effectiveItemId,
-      titleItemId: resolved.titleItemId,
+      titleItemId,
       mediaType: effectiveMediaType,
       positionSeconds: typeof body.positionSeconds === 'number' ? body.positionSeconds : null,
       durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,

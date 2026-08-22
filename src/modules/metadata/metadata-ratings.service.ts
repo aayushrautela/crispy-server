@@ -5,7 +5,7 @@ import { FeatureEntitlementService } from '../entitlements/feature-entitlement.s
 import { MdbListClient } from '../integrations/mdblist.client.js';
 import { MdbListService } from '../integrations/mdblist.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { resolveTitleItemIdentity } from './metadata-route-identity.js';
+import { resolveSeriesItemIdentity } from './metadata-route-identity.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import type { MetadataTitleRatingsResponse } from './metadata-detail.types.js';
 import type { MetadataTitleSourceSnapshot } from './metadata-title-source.types.js';
@@ -48,10 +48,7 @@ export class MetadataRatingsService {
     }
 
     return this.runWithDb(async (client) => {
-      const identity = await resolveTitleItemIdentity(client, this.contentIdentityService, itemId);
-      if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
-        throw new HttpError(400, 'Title ratings require a title itemId.');
-      }
+      const identity = await resolveSeriesItemIdentity(client, this.contentIdentityService, itemId);
 
       const source = await this.titleSourceService.loadTitleSource(client, identity);
       const lookup = resolveRatingsLookup(source);

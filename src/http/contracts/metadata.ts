@@ -83,6 +83,22 @@ const metadataItemParamsSchema = {
   },
 } as const;
 
+const seasonLikeSchema = {
+  anyOf: [
+    { type: 'integer', minimum: 0 },
+    { type: 'string', pattern: '^\\d+$' },
+  ],
+} as const;
+
+const metadataSeriesEpisodesQuerystringSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    language: stringSchema,
+    season: seasonLikeSchema,
+  },
+} as const;
+
 const metadataPersonParamsSchema = {
   type: 'object',
   additionalProperties: false,
@@ -359,6 +375,14 @@ export const metadataItemDetailRouteSchema = withDefaultErrorResponses({
   querystring: metadataLanguageQuerystringSchema,
   response: {
     200: successEnvelope(metadataTitleDetailResponseSchema),
+  },
+});
+
+export const metadataSeriesEpisodesRouteSchema = withDefaultErrorResponses({
+  params: metadataItemParamsSchema,
+  querystring: metadataSeriesEpisodesQuerystringSchema,
+  response: {
+    200: successEnvelope(baseItemDtoQueryResultSchema),
   },
 });
 

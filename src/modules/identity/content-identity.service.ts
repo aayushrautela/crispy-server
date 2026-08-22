@@ -6,6 +6,7 @@ import {
   buildSeasonProviderId,
   inferMediaIdentity,
   parentMediaTypeForIdentity,
+  showTmdbIdForIdentity,
   type MediaIdentity,
   type SupportedProvider,
 } from './media-key.js';
@@ -38,6 +39,7 @@ export type CanonicalContentReference =
       contentId: string;
       itemId: string;
       entityType: 'season';
+      mediaIdentity: MediaIdentity;
       parentMediaType: ParentMediaType;
       provider: SupportedProvider;
       providerId: string;
@@ -528,6 +530,123 @@ export class ContentIdentityService {
     return reference.mediaIdentity;
   }
 
+  /**
+   * Resolves a playable item id to its canonical content id, independent of the
+   * provider namespace the caller used. Movies and shows already carry a stable
+   * id; episodes are normalized to the TMDB-authority episode id for
+   * (seriesTmdbId, season, episode) so that a progress event reported under any
+   * addon namespace lands on the same content id the metadata service uses.
+   *
+   * When an episode is identified only as a show id plus season/episode, the same
+   * canonicalization is applied. Returns the input content id unchanged when it
+   * cannot be resolved (e.g. off-graph item).
+   */
+  async canonicalizePlayableItemId(
+    client: DbClient,
+    publicItemId: string,
+    opts?: { seasonNumber?: number | null; episodeNumber?: number | null },
+  ): Promise<string> {
+    const contentId = assertPublicItemId(publicItemId);
+    const identity = await this.resolveMediaIdentity(client, contentId);
+
+    if (identity.mediaType === 'episode') {
+      return this.canonicalizeEpisode(client, contentId, identity);
+    }
+    if (identity.mediaType === 'show' && opts?.seasonNumber != null && opts?.episodeNumber != null) {
+      return this.canonicalizeEpisodeFromSeries(client, contentId, opts.seasonNumber, opts.episodeNumber);
+    }
+    return contentId;
+  }
+
+  private async canonicalizeEpisode(client: DbClient, contentId: string, identity: MediaIdentity): Promise<string> {
+    if (identity.seasonNumber == null || identity.episodeNumber == null) {
+      return contentId;
+    }
+    const seriesTmdbId = await this.resolveSeriesTmdbId(client, contentId);
+    if (seriesTmdbId == null) {
+      return contentId;
+    }
+    return this.ensureContentId(client, inferMediaIdentity({
+      mediaType: 'episode',
+      provider: 'tmdb',
+      parentProvider: 'tmdb',
+      parentProviderId: String(seriesTmdbId),
+      seasonNumber: identity.seasonNumber,
+      episodeNumber: identity.episodeNumber,
+      providerMetadata: { tmdbId: seriesTmdbId, showTmdbId: seriesTmdbId },
+    }));
+  }
+
+  private async canonicalizeEpisodeFromSeries(
+    client: DbClient,
+    seriesContentId: string,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): Promise<string> {
+    const seriesTmdbId = await this.resolveSeriesTmdbId(client, seriesContentId);
+    if (seriesTmdbId == null) {
+      return seriesContentId;
+    }
+    return this.ensureContentId(client, inferMediaIdentity({
+      mediaType: 'episode',
+      provider: 'tmdb',
+      parentProvider: 'tmdb',
+      parentProviderId: String(seriesTmdbId),
+      seasonNumber,
+      episodeNumber,
+      providerMetadata: { tmdbId: seriesTmdbId, showTmdbId: seriesTmdbId },
+    }));
+  }
+
+  private async resolveSeriesTmdbId(client: DbClient, publicItemId: string): Promise<number | null> {
+    const contentId = assertPublicItemId(publicItemId);
+    const item = await this.repository.findContentItemById(client, contentId);
+    if (!item) {
+      return null;
+    }
+    const entityType = toReferenceEntityType(item.entityType);
+    const seriesContentId = entityType === 'episode'
+      ? (await this.resolveParentItemIdsForEpisode(client, contentId)).seriesItemId
+      : contentId;
+    if (!seriesContentId) {
+      return null;
+    }
+    const seriesIdentity = await this.resolveMediaIdentity(client, seriesContentId);
+    return seriesIdentity.tmdbId ?? showTmdbIdForIdentity(seriesIdentity);
+  }
+
+  /**
+   * Resolves any content id (movie, show, season, or episode) to its metadata
+   * identity. Unlike {@link resolveMediaIdentity} this does not reject season or
+   * person entities, so the metadata detail route can serve every media type.
+   */
+  async resolveMetadataItemIdentity(client: DbClient, publicItemId: string): Promise<MediaIdentity> {
+    const reference = await this.resolveContentReference(client, assertPublicItemId(publicItemId));
+    if (reference.entityType === 'person') {
+      throw new HttpError(400, 'Item is not a metadata title.');
+    }
+    return reference.mediaIdentity;
+  }
+
+  /**
+   * Resolves an item id to the identity of the title it belongs to: an episode or
+   * season maps to its parent series, while a movie or show maps to itself. Used
+   * by series-level endpoints (ratings, reviews, extras) so an episode id is
+   * transparently served the parent series' data.
+   */
+  async resolveSeriesItemIdentity(client: DbClient, publicItemId: string): Promise<MediaIdentity> {
+    const contentId = assertPublicItemId(publicItemId);
+    const identity = await this.resolveMetadataItemIdentity(client, contentId);
+    if (identity.mediaType !== 'episode' && identity.mediaType !== 'season') {
+      return identity;
+    }
+    const relationship = await this.repository.findParentRelationship(client, contentId, 'series');
+    if (!relationship) {
+      return identity;
+    }
+    return this.resolveMetadataItemIdentity(client, encodePublicItemId(relationship.parentContentId));
+  }
+
   async resolveSeasonReference(
     client: DbClient,
     contentId: string,
@@ -702,6 +821,15 @@ export class ContentIdentityService {
         contentId,
         itemId: encodePublicItemId(contentId),
         entityType: 'season',
+        mediaIdentity: inferMediaIdentity({
+          contentId,
+          mediaType: 'season',
+          provider: authorityRef.provider as SupportedProvider,
+          parentProvider: authorityRef.provider as SupportedProvider,
+          parentProviderId: parsed.parentProviderId,
+          seasonNumber: parsed.seasonNumber,
+          providerMetadata: authorityRef.metadata,
+        }),
         parentMediaType: parsed.parentMediaType,
         provider: authorityRef.provider as SupportedProvider,
         providerId: authorityRef.externalId,

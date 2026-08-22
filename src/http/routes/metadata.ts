@@ -3,6 +3,7 @@ import {
   metadataCardsBatchRouteSchema,
   metadataItemDetailRouteSchema,
   metadataItemExtrasRouteSchema,
+  metadataSeriesEpisodesRouteSchema,
   metadataItemRatingsRouteSchema,
   metadataPersonRouteSchema,
   metadataResolveRouteSchema,
@@ -69,6 +70,16 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
     return success(await metadataTitleExtrasService.getTitleExtras(params.itemId, language));
+  });
+
+  app.get('/v1/metadata/shows/:itemId/episodes', { schema: metadataSeriesEpisodesRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const params = request.params as MetadataItemParams;
+    const query = (request.query ?? {}) as MetadataPersonQuery & { season?: number | string };
+    const actor = app.requireUserActor(request) as { appUserId: string };
+    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
+    const season = query.season !== undefined ? Number(query.season) : null;
+    return success(await metadataDetailService.getSeriesEpisodes(params.itemId, language, season));
   });
 
   app.get('/v1/profiles/:profileId/metadata/items/:itemId/ratings', { schema: metadataItemRatingsRouteSchema }, async (request) => {

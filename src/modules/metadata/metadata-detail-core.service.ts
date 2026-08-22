@@ -24,7 +24,7 @@ export class MetadataDetailCoreService {
       seriesItemId: parentIds.seriesItemId,
       seasonItemId: parentIds.seasonItemId,
       title: source.tmdbTitle,
-      currentEpisode: null,
+      currentEpisode: identity.mediaType === 'episode' ? source.tmdbCurrentEpisode : null,
       nextEpisode: source.tmdbNextEpisode,
       language: language ?? null,
     });

@@ -13,7 +13,7 @@ import {
 } from './watch-read.mapper.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../identity/content-identity.repo.js';
-import { inferMediaIdentity, showTmdbIdForIdentity } from '../identity/media-key.js';
+import { assertPublicItemId } from '../identity/public-item-id.js';
 import { publishWatchChanged } from '../watch/watch-change.publisher.js';
 import type { WatchActionOutcome } from '../watch/watch.types.js';
 
@@ -577,17 +577,6 @@ export class LocalUserWatchService {
     return { played: false, positionSeconds: pos };
   }
 
-  private async resolveShowIdentity(
-    client: DbClient,
-    titleItemId: string,
-  ): Promise<import('../identity/media-key.js').MediaIdentity | null> {
-    try {
-      return await this.contentIdentityService.resolveMediaIdentity(client, titleItemId);
-    } catch {
-      return null;
-    }
-  }
-
   /**
    * Canonical runtime (seconds) for an item, derived from TMDB metadata via the same
    * language-tolerant join the read model uses. Returns null only when no TMDB runtime
@@ -636,20 +625,12 @@ export class LocalUserWatchService {
   ): Promise<string | null> {
     try {
       return await withDbClient(async (client) => {
-        const showIdentity = await this.resolveShowIdentity(client, seriesTitleItemId);
-        if (!showIdentity) return null;
-        const showTmdbId = showTmdbIdForIdentity(showIdentity);
-        if (!showTmdbId) return null;
-        const episodeIdentity = inferMediaIdentity({
-          mediaType: 'episode',
-          provider: 'tmdb',
-          parentProvider: 'tmdb',
-          parentProviderId: String(showTmdbId),
+        const seriesContentId = assertPublicItemId(seriesTitleItemId);
+        const canonical = await this.contentIdentityService.canonicalizePlayableItemId(client, seriesContentId, {
           seasonNumber: season,
           episodeNumber: episode,
-          providerMetadata: { tmdbId: showTmdbId, showTmdbId },
         });
-        return this.contentIdentityService.ensureContentId(client, episodeIdentity);
+        return canonical === seriesContentId ? null : canonical;
       });
     } catch {
       return null;

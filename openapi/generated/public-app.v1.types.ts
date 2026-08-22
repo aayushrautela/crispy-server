@@ -222,6 +222,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/metadata/shows/{itemId}/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get episodes for a series (Jellyfin-style /Shows/{id}/Episodes parity).
+         * @description Returns every episode for a series as a list of BaseItemDto, mirroring Jellyfin's
+         *     `GET /Shows/{id}/Episodes`. The series is resolved from the item id (a show, season,
+         *     or episode id is accepted and mapped to its parent series). Each episode carries its
+         *     own canonical item id plus `SeriesId`, `SeasonId`, `ParentIndexNumber` (season) and
+         *     `IndexNumber` (episode). Pass `season` to scope the response to a single season.
+         *     Item IDs are dashless lowercase UUID hex strings.
+         */
+        get: operations["getV1MetadataShowsItemIdEpisodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/playback/resolve": {
         parameters: {
             query?: never;
@@ -1884,6 +1909,38 @@ export interface operations {
         parameters: {
             query?: {
                 language?: string;
+            };
+            header?: never;
+            path: {
+                itemId: components["schemas"]["PublicItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1MetadataShowsItemIdEpisodes: {
+        parameters: {
+            query?: {
+                language?: string;
+                season?: number;
             };
             header?: never;
             path: {
