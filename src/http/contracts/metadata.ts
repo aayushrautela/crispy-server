@@ -378,11 +378,25 @@ export const metadataItemDetailRouteSchema = withDefaultErrorResponses({
   },
 });
 
+const metadataSeriesEpisodesResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['Items', 'StartIndex', 'TotalRecordCount', 'NextCursor', 'HasMore', 'Creators'],
+  properties: {
+    Items: { type: 'array', items: baseItemDtoSchema },
+    StartIndex: { type: 'integer' },
+    TotalRecordCount: { type: 'integer' },
+    NextCursor: { type: ['string', 'null'] },
+    HasMore: { type: 'boolean' },
+    Creators: { type: 'array', items: metadataPersonRefViewSchema },
+  },
+} as const;
+
 export const metadataSeriesEpisodesRouteSchema = withDefaultErrorResponses({
   params: metadataItemParamsSchema,
   querystring: metadataSeriesEpisodesQuerystringSchema,
   response: {
-    200: successEnvelope(baseItemDtoQueryResultSchema),
+    200: successEnvelope(metadataSeriesEpisodesResponseSchema),
   },
 });
 

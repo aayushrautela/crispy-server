@@ -451,7 +451,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MetadataPersonDetailResponseEnvelope"
+                $ref: "#/components/schemas/SeriesEpisodesResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3325,6 +3325,29 @@ components:
             - type: "null"
         HasMore:
           type: boolean
+    SeriesEpisodesResponse:
+      type: object
+      additionalProperties: false
+      required: [Items, StartIndex, TotalRecordCount, NextCursor, HasMore, Creators]
+      properties:
+        Items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BaseItemDto"
+        StartIndex:
+          type: integer
+        TotalRecordCount:
+          type: integer
+        NextCursor:
+          anyOf:
+            - type: string
+            - type: "null"
+        HasMore:
+          type: boolean
+        Creators:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataPersonRefView"
     MetadataTitleDetailResponse:
       type: object
       required:

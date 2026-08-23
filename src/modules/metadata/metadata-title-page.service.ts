@@ -11,6 +11,8 @@ import { MetadataTitleCacheService } from './metadata-title-cache.service.js';
 import { MetadataDetailCoreService } from './metadata-detail-core.service.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
+import { extractCreators } from './metadata-builder.shared.js';
+import type { MetadataPersonRefView } from './metadata-detail.types.js';
 import type { TmdbEpisodeRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
 import { metadataTitlePageCacheKey } from './metadata-title-cache-keys.js';
 
@@ -44,13 +46,14 @@ export class MetadataTitlePageService {
     seriesItemId: string,
     language?: string | null,
     season?: number | null,
-  ): Promise<BaseItemDtoQueryResult> {
+  ): Promise<BaseItemDtoQueryResult & { Creators: MetadataPersonRefView[] }> {
     const publicItemId = seriesItemId.trim();
     assertPublicItemId(publicItemId);
     return withDbClient(async (client) => {
       const seriesIdentity = await resolveSeriesItemIdentity(client, this.contentIdentityService, publicItemId);
       const source = await this.titleSourceService.loadTitleSource(client, seriesIdentity, language ?? null);
       const title = source.tmdbTitle;
+      const creators = title ? await extractCreators(client, this.contentIdentityService, title) : [];
       if (!title) {
         return emptyEpisodeResult();
       }
@@ -103,18 +106,20 @@ export class MetadataTitlePageService {
         TotalRecordCount: items.length,
         NextCursor: null,
         HasMore: false,
+        Creators: creators,
       };
     });
   }
 }
 
-function emptyEpisodeResult(): BaseItemDtoQueryResult {
+function emptyEpisodeResult(): BaseItemDtoQueryResult & { Creators: MetadataPersonRefView[] } {
   return {
     Items: [],
     StartIndex: 0,
     TotalRecordCount: 0,
     NextCursor: null,
     HasMore: false,
+    Creators: [],
   };
 }
 
