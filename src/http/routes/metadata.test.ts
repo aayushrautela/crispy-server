@@ -368,3 +368,36 @@ test('GET /v1/metadata/shows/:itemId/episodes serializes series Creators', async
   assert.equal(body.data.Creators[0].name, 'Jane Creator');
   assert.equal(body.data.Items[0].Id, EPISODE_ITEM_ID);
 });
+
+test('GET /v1/metadata/items/:episodeItemId serializes series Creators on detail', async (t) => {
+  const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
+  const original = MetadataDetailService.prototype.getItemDetail;
+  MetadataDetailService.prototype.getItemDetail = (async () => ({
+    ...makeTitleDetail(EPISODE_ITEM_ID),
+    Item: makeEpisodeBaseItemDto(),
+    Creators: [{
+      personId: 'f137a2dd21bbc1b99aa5c0f6bf02a809',
+      name: 'Jane Creator',
+      role: 'Creator',
+      department: 'Writing',
+      profileUrl: null,
+    }],
+  })) as any;
+  t.after(() => { MetadataDetailService.prototype.getItemDetail = original; });
+
+  const { registerMetadataRoutes } = await import('./metadata.js');
+  const app = await buildTestApp(registerMetadataRoutes);
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: `/v1/metadata/items/${EPISODE_ITEM_ID}?language=en-US`,
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.data.Item.Id, EPISODE_ITEM_ID);
+  assert.equal(body.data.Creators.length, 1);
+  assert.equal(body.data.Creators[0].name, 'Jane Creator');
+});
