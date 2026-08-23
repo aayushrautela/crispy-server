@@ -75,9 +75,16 @@ function isAiInsightsPayload(value: unknown): value is AiInsightsPayload {
   }
 
   const payload = value as Record<string, unknown>;
-  if (typeof payload.the_good_stuff !== 'string'
-    || typeof payload.the_catch !== 'string'
-    || typeof payload.trivia !== 'string') {
+  const goodStuff = typeof payload.the_good_stuff === 'string' ? payload.the_good_stuff : null;
+  const theCatch = typeof payload.the_catch === 'string' ? payload.the_catch : null;
+  if (goodStuff === null && theCatch === null) {
+    return false;
+  }
+  // At least one of positive/negative must carry real feedback.
+  if (!goodStuff?.trim() && !theCatch?.trim()) {
+    return false;
+  }
+  if (typeof payload.trivia !== 'string') {
     return false;
   }
 

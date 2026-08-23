@@ -43,6 +43,42 @@ test('insights prompt treats anime-origin titles as shows in TMDB-only mode', ()
   assert.match(prompt, /NEVER perform web searches or call external tools/);
 });
 
+test('insights prompt allows omitting positive or negative feedback and forbids filler', () => {
+  const prompt = buildInsightsPrompt({
+    itemId: '00000000000040008000000000005115',
+    mediaType: 'movie',
+    title: 'Test Movie',
+    year: '2024',
+    description: 'A story.',
+    rating: '7.0',
+    genres: ['Drama'],
+    reviews: [],
+  });
+
+  assert.match(prompt, /If there is genuinely little positive feedback worth sharing, return an empty string\./);
+  assert.match(prompt, /If there is genuinely little negative feedback worth sharing, return an empty string\./);
+  assert.match(prompt, /NEVER invent filler/);
+});
+
+test('insights prompt frames standout as knowledge-first with reviews as optional support', () => {
+  const prompt = buildInsightsPrompt({
+    itemId: '00000000000040008000000000005116',
+    mediaType: 'movie',
+    title: 'Test Movie',
+    year: '2024',
+    description: 'A story.',
+    rating: '7.0',
+    genres: ['Drama'],
+    reviews: [{ author: 'A', rating: 5, content: 'Fine.' }],
+  });
+
+  assert.match(prompt, /Lead with your own knowledge of the work/);
+  assert.match(prompt, /reviews are not the main source and must not be the frame/);
+  assert.match(prompt, /2-3 sentences on why this element defines the title/);
+  assert.match(prompt, /plain, specific statements instead of catchy hype/);
+  assert.doesNotMatch(prompt, /why it stood out to reviewers/);
+});
+
 test('insights prompt adds show-specific guidance', () => {
   const prompt = buildInsightsPrompt({
     itemId: '00000000000040008000000000000001',

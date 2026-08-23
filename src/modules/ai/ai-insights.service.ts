@@ -15,9 +15,22 @@ import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsPayload, AiInsightsResponse, AiInsightSlide } from './ai.types.js';
 
-const GENERATION_VERSION = 'v5';
+const GENERATION_VERSION = 'v6';
 
-const SLIDE_ACCENT_PALETTE: [string, string, string, string] = ['#7c5cff', '#ff7c5c', '#5cc8ff', '#ffd75c'];
+const SLIDE_ACCENTS: Record<AiInsightSlide['key'], string> = {
+  the_good_stuff: '#7c5cff',
+  the_catch: '#ff7c5c',
+  standout_element: '#5cc8ff',
+  trivia: '#ffd75c',
+};
+
+/** Fixed backdrop slot per slide key so colors/images never shift when slides are omitted. */
+const SLIDE_BACKDROP_SLOTS: Record<AiInsightSlide['key'], number> = {
+  the_good_stuff: 0,
+  the_catch: 1,
+  standout_element: 2,
+  trivia: 3,
+};
 
 const BACKDROP_IMAGE_SIZES = { small: 'w780', medium: 'w1280', large: 'original' } as const;
 
@@ -115,8 +128,9 @@ export class AiInsightsService {
       return candidates[index % candidates.length] ?? emptyResponsiveImageSet();
     };
 
-    const slides: AiInsightSlide[] = [
-      {
+    const slides: AiInsightSlide[] = [];
+    if (payload.the_good_stuff) {
+      slides.push({
         key: 'the_good_stuff',
         label: 'The Good Stuff',
         kind: 'prose',
@@ -124,10 +138,12 @@ export class AiInsightsService {
         tag: null,
         focus: null,
         context: null,
-        backdrop: pickBackdrop(0),
-        accent: SLIDE_ACCENT_PALETTE[0],
-      },
-      {
+        backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.the_good_stuff),
+        accent: SLIDE_ACCENTS.the_good_stuff,
+      });
+    }
+    if (payload.the_catch) {
+      slides.push({
         key: 'the_catch',
         label: 'The Catch',
         kind: 'prose',
@@ -135,32 +151,32 @@ export class AiInsightsService {
         tag: null,
         focus: null,
         context: null,
-        backdrop: pickBackdrop(1),
-        accent: SLIDE_ACCENT_PALETTE[1],
-      },
-      {
-        key: 'standout_element',
-        label: 'Standout',
-        kind: 'standout',
-        body: null,
-        tag: payload.standout_element.tag,
-        focus: payload.standout_element.focus,
-        context: payload.standout_element.context,
-        backdrop: pickBackdrop(2),
-        accent: SLIDE_ACCENT_PALETTE[2],
-      },
-      {
-        key: 'trivia',
-        label: 'Did You Know?',
-        kind: 'trivia',
-        body: payload.trivia,
-        tag: null,
-        focus: null,
-        context: null,
-        backdrop: pickBackdrop(3),
-        accent: SLIDE_ACCENT_PALETTE[3],
-      },
-    ];
+        backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.the_catch),
+        accent: SLIDE_ACCENTS.the_catch,
+      });
+    }
+    slides.push({
+      key: 'standout_element',
+      label: 'Standout',
+      kind: 'standout',
+      body: null,
+      tag: payload.standout_element.tag,
+      focus: payload.standout_element.focus,
+      context: payload.standout_element.context,
+      backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.standout_element),
+      accent: SLIDE_ACCENTS.standout_element,
+    });
+    slides.push({
+      key: 'trivia',
+      label: 'Did You Know?',
+      kind: 'trivia',
+      body: payload.trivia,
+      tag: null,
+      focus: null,
+      context: null,
+      backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.trivia),
+      accent: SLIDE_ACCENTS.trivia,
+    });
 
     return { slides };
   }
@@ -208,7 +224,8 @@ function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsP
   const trivia = typeof payload.trivia === 'string' ? payload.trivia.trim() : '';
   const standout = payload.standout_element;
 
-  if (!goodStuff || !theCatch || !trivia || !standout || typeof standout !== 'object' || Array.isArray(standout)) {
+  // At least one of positive/negative must carry real feedback; both may be omitted.
+  if ((!goodStuff && !theCatch) || !trivia || !standout || typeof standout !== 'object' || Array.isArray(standout)) {
     return null;
   }
 
@@ -222,8 +239,8 @@ function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsP
   }
 
   return {
-    the_good_stuff: goodStuff,
-    the_catch: theCatch,
+    the_good_stuff: goodStuff || null,
+    the_catch: theCatch || null,
     standout_element: {
       tag: tag as AiInsightsPayload['standout_element']['tag'],
       focus,

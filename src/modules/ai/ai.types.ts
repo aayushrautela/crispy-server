@@ -85,8 +85,8 @@ export type AiInsightsResponse = {
 };
 
 export type AiInsightsPayload = {
-  the_good_stuff: string;
-  the_catch: string;
+  the_good_stuff: string | null;
+  the_catch: string | null;
   standout_element: AiInsightStandoutElement;
   trivia: string;
 };
