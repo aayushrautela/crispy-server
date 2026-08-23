@@ -550,19 +550,20 @@ export class ContentIdentityService {
     const identity = await this.resolveMediaIdentity(client, contentId);
 
     if (identity.mediaType === 'episode') {
-      return this.canonicalizeEpisode(client, contentId, identity);
+      return this.canonicalizeEpisode(client, publicItemId, identity);
     }
     if (identity.mediaType === 'show' && opts?.seasonNumber != null && opts?.episodeNumber != null) {
-      return this.canonicalizeEpisodeFromSeries(client, contentId, opts.seasonNumber, opts.episodeNumber);
+      return this.canonicalizeEpisodeFromSeries(client, publicItemId, opts.seasonNumber, opts.episodeNumber);
     }
     return contentId;
   }
 
-  private async canonicalizeEpisode(client: DbClient, contentId: string, identity: MediaIdentity): Promise<string> {
+  private async canonicalizeEpisode(client: DbClient, publicItemId: string, identity: MediaIdentity): Promise<string> {
+    const contentId = assertPublicItemId(publicItemId);
     if (identity.seasonNumber == null || identity.episodeNumber == null) {
       return contentId;
     }
-    const seriesTmdbId = await this.resolveSeriesTmdbId(client, contentId);
+    const seriesTmdbId = await this.resolveSeriesTmdbId(client, publicItemId);
     if (seriesTmdbId == null) {
       return contentId;
     }
@@ -579,13 +580,14 @@ export class ContentIdentityService {
 
   private async canonicalizeEpisodeFromSeries(
     client: DbClient,
-    seriesContentId: string,
+    publicItemId: string,
     seasonNumber: number,
     episodeNumber: number,
   ): Promise<string> {
-    const seriesTmdbId = await this.resolveSeriesTmdbId(client, seriesContentId);
+    const contentId = assertPublicItemId(publicItemId);
+    const seriesTmdbId = await this.resolveSeriesTmdbId(client, publicItemId);
     if (seriesTmdbId == null) {
-      return seriesContentId;
+      return contentId;
     }
     return this.ensureContentId(client, inferMediaIdentity({
       mediaType: 'episode',
@@ -606,12 +608,12 @@ export class ContentIdentityService {
     }
     const entityType = toReferenceEntityType(item.entityType);
     const seriesContentId = entityType === 'episode'
-      ? (await this.resolveParentItemIdsForEpisode(client, contentId)).seriesItemId
+      ? (await this.resolveParentItemIdsForEpisode(client, publicItemId)).seriesItemId
       : contentId;
     if (!seriesContentId) {
       return null;
     }
-    const seriesIdentity = await this.resolveMediaIdentity(client, seriesContentId);
+    const seriesIdentity = await this.resolveMediaIdentity(client, assertPublicItemId(seriesContentId));
     return seriesIdentity.tmdbId ?? showTmdbIdForIdentity(seriesIdentity);
   }
 
@@ -636,7 +638,7 @@ export class ContentIdentityService {
    */
   async resolveSeriesItemIdentity(client: DbClient, publicItemId: string): Promise<MediaIdentity> {
     const contentId = assertPublicItemId(publicItemId);
-    const identity = await this.resolveMetadataItemIdentity(client, contentId);
+    const identity = await this.resolveMetadataItemIdentity(client, publicItemId);
     if (identity.mediaType !== 'episode' && identity.mediaType !== 'season') {
       return identity;
     }
