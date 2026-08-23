@@ -1,6 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { assertPublicItemId } from '../identity/public-item-id.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 
 export async function resolveMetadataItemIdentity(
@@ -8,7 +7,7 @@ export async function resolveMetadataItemIdentity(
   contentIdentityService: ContentIdentityService,
   itemId: string,
 ): Promise<MediaIdentity> {
-  return contentIdentityService.resolveMetadataItemIdentity(client, assertPublicItemId(itemId));
+  return contentIdentityService.resolveMetadataItemIdentity(client, itemId);
 }
 
 export async function resolveSeriesItemIdentity(
@@ -16,5 +15,5 @@ export async function resolveSeriesItemIdentity(
   contentIdentityService: ContentIdentityService,
   itemId: string,
 ): Promise<MediaIdentity> {
-  return contentIdentityService.resolveSeriesItemIdentity(client, assertPublicItemId(itemId));
+  return contentIdentityService.resolveSeriesItemIdentity(client, itemId);
 }

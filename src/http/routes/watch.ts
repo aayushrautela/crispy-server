@@ -89,12 +89,11 @@ export async function registerWatchRoutes(
     const profileId = getProfileIdFromParams(request.params);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchEventBody;
-    const playableItemId = assertPublicItemId(body.itemId!);
     const seasonNumber = typeof body.seasonNumber === 'number' ? Math.trunc(body.seasonNumber) : null;
     const episodeNumber = typeof body.episodeNumber === 'number' ? Math.trunc(body.episodeNumber) : null;
     const { effectiveItemId, titleItemId, effectiveMediaType } = await withDbClient(async (client) => {
       const { publicTitleItemId, mediaType } = await contentIdentityService.resolveTitleItemIdForPlayableItemId(client, body.itemId!);
-      const canonicalContentId = await contentIdentityService.canonicalizePlayableItemId(client, playableItemId, {
+      const canonicalContentId = await contentIdentityService.canonicalizePlayableItemId(client, body.itemId!, {
         seasonNumber,
         episodeNumber,
       });

@@ -626,7 +626,7 @@ export class LocalUserWatchService {
     try {
       return await withDbClient(async (client) => {
         const seriesContentId = assertPublicItemId(seriesTitleItemId);
-        const canonical = await this.contentIdentityService.canonicalizePlayableItemId(client, seriesContentId, {
+        const canonical = await this.contentIdentityService.canonicalizePlayableItemId(client, seriesTitleItemId, {
           seasonNumber: season,
           episodeNumber: episode,
         });
