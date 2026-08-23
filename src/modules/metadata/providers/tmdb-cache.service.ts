@@ -417,10 +417,6 @@ export class TmdbCacheService {
     return results;
   }
 
-  async listEpisodesForShow(client: DbClient, showTmdbId: number): Promise<TmdbEpisodeRecord[]> {
-    return this.tmdbRepository.listEpisodesForShow(client, showTmdbId);
-  }
-
   async listEpisodesForSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbEpisodeRecord[]> {
     return this.tmdbRepository.listEpisodesForSeason(client, showTmdbId, seasonNumber);
   }

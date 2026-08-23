@@ -14,11 +14,6 @@ import {
   withDefaultErrorResponses,
 } from './shared.js';
 
-export type MetadataResolveQuery = {
-  itemId: string;
-  language?: string;
-};
-
 export type MetadataPlaybackResolveQuery = {
   itemId: string;
   language?: string;
@@ -55,16 +50,6 @@ export type MetadataCardsBatchBody = {
   itemIds?: string[];
   language?: string;
 };
-
-const metadataResolveQuerystringSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['itemId'],
-  properties: {
-    itemId: publicItemIdSchema,
-    language: stringSchema,
-  },
-} as const;
 
 const metadataLanguageQuerystringSchema = {
   type: 'object',
@@ -244,15 +229,6 @@ const metadataTitleRatingsResponseSchema = {
   },
 } as const;
 
-const metadataResolveResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['Item'],
-  properties: {
-    Item: baseItemDtoSchema,
-  },
-} as const;
-
 const metadataPersonKnownForItemSchema = {
   type: 'object',
   additionalProperties: false,
@@ -362,13 +338,6 @@ const metadataCardsBatchBodySchema = {
 } as const;
 
 const metadataCardsBatchResponseSchema = baseItemDtoQueryResultSchema;
-
-export const metadataResolveRouteSchema = withDefaultErrorResponses({
-  querystring: metadataResolveQuerystringSchema,
-  response: {
-    200: successEnvelope(metadataResolveResponseSchema),
-  },
-});
 
 export const metadataItemDetailRouteSchema = withDefaultErrorResponses({
   params: metadataItemParamsSchema,
@@ -509,10 +478,9 @@ export const searchSuggestionsRouteSchema = withDefaultErrorResponses({
 const metadataTitleExtrasResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Seasons', 'Episodes', 'Reviews', 'Similar', 'Collection'],
+  required: ['Seasons', 'Reviews', 'Similar', 'Collection'],
   properties: {
     Seasons: { type: 'array', items: baseItemDtoSchema },
-    Episodes: { type: 'array', items: baseItemDtoSchema },
     Reviews: { type: 'array', items: metadataReviewViewSchema },
     Similar: { type: 'array', items: baseItemDtoSchema },
     Collection: {

@@ -11,3 +11,8 @@ export function metadataTitleExtrasCacheKey(itemId: string, language?: string | 
   const normalizedLanguage = typeof language === 'string' && language.trim() ? language.trim() : 'default';
   return `meta:v2:title-extras:${normalizedLanguage}:${itemId}`;
 }
+
+export function metadataSeriesEpisodesCacheKey(itemId: string, language?: string | null, season?: number | null): string {
+  const normalizedLanguage = typeof language === 'string' && language.trim() ? language.trim() : 'default';
+  return `meta:v2:series-episodes:${normalizedLanguage}:${itemId}:${season ?? 'all'}`;
+}

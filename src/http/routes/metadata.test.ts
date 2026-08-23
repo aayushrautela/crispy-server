@@ -178,7 +178,6 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
 
   MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
     Seasons: [],
-    Episodes: [],
     Reviews: [
       {
         id: 'rev-1',
@@ -218,7 +217,6 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.equal(body.data.Episodes.length, 0);
   assert.equal(body.data.Reviews.length, 1);
   assert.equal(body.data.Reviews[0].id, 'rev-1');
   assert.equal(body.data.Similar.length, 1);
@@ -227,17 +225,13 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
   assert.equal(body.data.Collection.Items.length, 1);
 });
 
-test('GET /v1/metadata/items/:itemId/extras serializes show episodes', async (t) => {
+test('GET /v1/metadata/items/:itemId/extras serializes show seasons', async (t) => {
   const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
   const original = MetadataTitleExtrasService.prototype.getTitleExtras;
 
   MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
     Seasons: [
       makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a801', Type: 'Season', Name: 'Season 1', ParentIndexNumber: null, IndexNumber: 1 }),
-    ],
-    Episodes: [
-      makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a80b', Name: 'Pilot', EpisodeTitle: 'Pilot', AirDate: '2024-01-01', ParentIndexNumber: 1, IndexNumber: 1 }),
-      makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a80c', Name: 'Second Episode', EpisodeTitle: 'Second Episode', AirDate: '2024-01-08', ParentIndexNumber: 1, IndexNumber: 2 }),
     ],
     Reviews: [],
     Similar: [],
@@ -262,9 +256,6 @@ test('GET /v1/metadata/items/:itemId/extras serializes show episodes', async (t)
   assert.equal(body.data.Seasons.length, 1);
   assert.equal(body.data.Seasons[0].ParentIndexNumber, null);
   assert.equal(body.data.Seasons[0].IndexNumber, 1);
-  assert.equal(body.data.Episodes.length, 2);
-  assert.equal(body.data.Episodes[0].IndexNumber, 1);
-  assert.equal(body.data.Episodes[1].IndexNumber, 2);
   assert.equal(body.data.Reviews.length, 0);
   assert.equal(body.data.Similar.length, 0);
   assert.equal(body.data.Collection, null);

@@ -164,23 +164,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/metadata/resolve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Resolve metadata item. */
-        get: operations["getV1MetadataResolve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/metadata/items/{itemId}": {
         parameters: {
             query?: never;
@@ -190,7 +173,7 @@ export interface paths {
         };
         /**
          * Get item details (without extras).
-         * @description Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`.
+         * @description Returns core metadata for a movie or show. Extras (seasons, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`; episodes are served by `/v1/metadata/shows/{itemId}/episodes`.
          *     Item IDs are dashless lowercase UUID hex strings.
          *     Key video fields:
          *     - `videos` — all TMDB video results for the title.
@@ -212,7 +195,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get optional item detail sections (seasons, episodes, reviews, similar, collection parts). */
+        /** Get optional item detail sections (seasons, reviews, similar, collection parts). */
         get: operations["getV1MetadataItemsItemIdExtras"];
         put?: never;
         post?: never;
@@ -1159,7 +1142,6 @@ export interface components {
         };
         MetadataTitleExtrasResponse: {
             Seasons: components["schemas"]["BaseItemDto"][];
-            Episodes: components["schemas"]["BaseItemDto"][];
             Reviews: components["schemas"]["MetadataReviewView"][];
             Similar: components["schemas"]["BaseItemDto"][];
             Collection: components["schemas"]["BaseItemDtoQueryResult"] | null;
@@ -1859,36 +1841,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesEpisodesResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getV1MetadataResolve: {
-        parameters: {
-            query: {
-                itemId: components["schemas"]["PublicItemId"];
-                language?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericObject"];
                 };
             };
             400: components["responses"]["BadRequest"];

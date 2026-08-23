@@ -14,7 +14,7 @@ import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { extractCreators } from './metadata-builder.shared.js';
 import type { MetadataPersonRefView } from './metadata-detail.types.js';
 import type { TmdbEpisodeRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
-import { metadataTitlePageCacheKey } from './metadata-title-cache-keys.js';
+import { metadataSeriesEpisodesCacheKey, metadataTitlePageCacheKey } from './metadata-title-cache-keys.js';
 
 export class MetadataTitlePageService {
   constructor(
@@ -49,7 +49,8 @@ export class MetadataTitlePageService {
   ): Promise<BaseItemDtoQueryResult & { Creators: MetadataPersonRefView[] }> {
     const publicItemId = seriesItemId.trim();
     assertPublicItemId(publicItemId);
-    return withDbClient(async (client) => {
+    const cacheKey = metadataSeriesEpisodesCacheKey(publicItemId, language ?? null, season ?? null);
+    return this.cacheService.getOrSet(cacheKey, publicItemId, () => withDbClient(async (client) => {
       const seriesIdentity = await resolveSeriesItemIdentity(client, this.contentIdentityService, publicItemId);
       const source = await this.titleSourceService.loadTitleSource(client, seriesIdentity, language ?? null);
       const title = source.tmdbTitle;
@@ -108,7 +109,7 @@ export class MetadataTitlePageService {
         HasMore: false,
         Creators: creators,
       };
-    });
+    }));
   }
 }
 

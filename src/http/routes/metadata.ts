@@ -6,7 +6,6 @@ import {
   metadataSeriesEpisodesRouteSchema,
   metadataItemRatingsRouteSchema,
   metadataPersonRouteSchema,
-  metadataResolveRouteSchema,
   metadataSearchRouteSchema,
   playbackResolveRouteSchema,
   searchSuggestionsRouteSchema,
@@ -15,7 +14,6 @@ import {
   type MetadataPlaybackResolveQuery,
   type MetadataPersonParams,
   type MetadataPersonQuery,
-  type MetadataResolveQuery,
   type MetadataSearchQuery,
   type MetadataSearchSuggestionsQuery,
 } from '../contracts/metadata.js';
@@ -40,19 +38,6 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const playbackResolveService = new PlaybackResolveService();
   const metadataCardBatchService = new MetadataCardBatchService();
   const metadataLanguageService = new MetadataLanguageService();
-
-  app.get('/v1/metadata/resolve', { schema: metadataResolveRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const query = (request.query ?? {}) as MetadataResolveQuery;
-
-    const actor = app.requireUserActor(request) as { appUserId: string };
-    const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
-
-    return success(await metadataDetailService.resolve({
-      itemId: query.itemId,
-      language,
-    }));
-  });
 
   app.get('/v1/metadata/items/:itemId', { schema: metadataItemDetailRouteSchema }, async (request) => {
     await app.requireAuth(request);

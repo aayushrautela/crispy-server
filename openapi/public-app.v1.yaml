@@ -466,46 +466,6 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
-  /v1/metadata/resolve:
-    get:
-      tags:
-        - Metadata
-      operationId: getV1MetadataResolve
-      summary: Resolve metadata item.
-      security:
-        - UserBearerAuth: []
-      parameters:
-        - name: itemId
-          in: query
-          required: true
-          schema:
-            $ref: "#/components/schemas/PublicItemId"
-        - name: language
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GenericObject"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "500":
-          $ref: "#/components/responses/ServerError"
   /v1/metadata/items/{itemId}:
     get:
       tags:
@@ -513,7 +473,7 @@ paths:
       operationId: getV1MetadataItemsItemId
       summary: Get item details (without extras).
       description: |
-        Returns core metadata for a movie or show. Extras (seasons, episodes, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`.
+        Returns core metadata for a movie or show. Extras (seasons, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`; episodes are served by `/v1/metadata/shows/{itemId}/episodes`.
         Item IDs are dashless lowercase UUID hex strings.
         Key video fields:
         - `videos` — all TMDB video results for the title.
@@ -557,7 +517,7 @@ paths:
       tags:
         - Metadata
       operationId: getV1MetadataItemsItemIdExtras
-      summary: Get optional item detail sections (seasons, episodes, reviews, similar, collection parts).
+      summary: Get optional item detail sections (seasons, reviews, similar, collection parts).
       security:
         - UserBearerAuth: []
       parameters:
@@ -3546,16 +3506,11 @@ components:
       type: object
       required:
         - Seasons
-        - Episodes
         - Reviews
         - Similar
         - Collection
       properties:
         Seasons:
-          type: array
-          items:
-            $ref: "#/components/schemas/BaseItemDto"
-        Episodes:
           type: array
           items:
             $ref: "#/components/schemas/BaseItemDto"

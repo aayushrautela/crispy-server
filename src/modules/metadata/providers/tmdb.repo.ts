@@ -331,20 +331,6 @@ export class TmdbRepository {
     }
   }
 
-  async listEpisodesForShow(client: DbClient, showTmdbId: number): Promise<TmdbEpisodeRecord[]> {
-    const result = await client.query(
-      `
-        SELECT show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,
-               runtime, still_path, vote_average, raw, fetched_at, expires_at
-        FROM tmdb_tv_episodes
-        WHERE show_tmdb_id = $1
-        ORDER BY season_number ASC, episode_number ASC
-      `,
-      [showTmdbId],
-    );
-    return result.rows.map((row) => mapEpisode(row));
-  }
-
   async listEpisodesForSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<TmdbEpisodeRecord[]> {
     const result = await client.query(
       `

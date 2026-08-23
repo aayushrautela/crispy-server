@@ -85,41 +85,15 @@ export type MetadataTitleRatingsResponse = {
 
 export type MetadataTitleExtras = {
   Seasons: BaseItemDto[];
-  Episodes: BaseItemDto[];
   Reviews: MetadataReviewView[];
   Similar: BaseItemDto[];
   Collection: BaseItemDtoQueryResult | null;
-};
-
-export type MetadataResolveResponse = {
-  Item: BaseItemDto;
 };
 
 export type PlaybackResolveResponse = {
   Item: BaseItemDto;
   Show: BaseItemDto | null;
   Season: BaseItemDto | null;
-};
-
-export type MetadataSeasonDetail = {
-  Show: BaseItemDto;
-  Season: BaseItemDto;
-  Episodes: BaseItemDto[];
-};
-
-export type MetadataEpisodeListResponse = {
-  Show: BaseItemDto;
-  RequestedSeasonNumber: number | null;
-  EffectiveSeasonNumber: number;
-  IncludedSeasonNumbers: number[];
-  Episodes: BaseItemDto[];
-};
-
-export type MetadataNextEpisodeResponse = {
-  Show: BaseItemDto;
-  CurrentSeasonNumber: number;
-  CurrentEpisodeNumber: number;
-  Item: BaseItemDto | null;
 };
 
 export type MetadataPersonKnownForItem = {

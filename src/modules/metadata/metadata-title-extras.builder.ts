@@ -2,9 +2,9 @@ import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
-import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { buildSeasonBaseItemDto, buildEpisodeBaseItemDto, buildDetailBaseItemDto } from './metadata-detail.builders.js';
+import { buildSeasonBaseItemDto, buildDetailBaseItemDto } from './metadata-detail.builders.js';
 import type { MetadataTitleExtras } from './metadata-detail.types.js';
 import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
 import {
@@ -35,7 +35,6 @@ export class MetadataTitleExtrasBuilder {
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const effectiveLanguage = language ?? null;
 
-    const episodes = await this.buildExtrasSection('episodes', resolvedTitle, effectiveLanguage, () => this.buildAllEpisodes(client, resolvedTitle), []);
     const seasons = await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildAllSeasons(client, resolvedTitle), []);
     const extrasRaw = await this.buildExtrasSection(
       'tmdbExtras',
@@ -54,13 +53,12 @@ export class MetadataTitleExtrasBuilder {
       mediaType: resolvedTitle.mediaType,
       language: effectiveLanguage,
       seasons: seasons.length,
-      episodes: episodes.length,
       reviews: reviews.length,
       similar: similar.length,
       collectionItems: collection?.Items.length ?? 0,
     }, 'metadata title extras built');
 
-    return { Seasons: seasons, Episodes: episodes, Reviews: reviews, Similar: similar, Collection: collection };
+    return { Seasons: seasons, Reviews: reviews, Similar: similar, Collection: collection };
   }
 
   private async buildExtrasSection<T>(
@@ -112,46 +110,6 @@ export class MetadataTitleExtrasBuilder {
         return seasonId ? buildSeasonBaseItemDto(title, seasonNumber, encodePublicItemId(seasonId), seriesItemId) : null;
       })
       .filter((item): item is BaseItemDto => item !== null);
-  }
-
-  private async buildAllEpisodes(client: DbClient, title: TmdbTitleRecord): Promise<BaseItemDto[]> {
-    if (title.mediaType !== 'tv') {
-      return [];
-    }
-
-    const seasonNumbers = extractSeasonNumbersFromTitle(title);
-    await Promise.all(seasonNumbers.map(
-      (seasonNumber) => this.tmdbCacheService.ensureSeasonCached(client, title.tmdbId, seasonNumber),
-    ));
-
-    const episodes = await this.tmdbCacheService.listEpisodesForShow(client, title.tmdbId);
-    const episodeIds = await this.contentIdentityService.ensureEpisodeContentIds(
-      client,
-      episodes.map((episode) => ({
-        parentMediaType: 'show' as const,
-        provider: 'tmdb' as const,
-        parentProviderId: String(title.tmdbId),
-        seasonNumber: episode.seasonNumber,
-        episodeNumber: episode.episodeNumber,
-      })),
-    );
-
-    const episodeItems = await Promise.all(episodes.map(async (episode) => {
-      const contentId = episodeIds.get(episodeRefMapKey(
-        String(title.tmdbId),
-        episode.seasonNumber,
-        episode.episodeNumber,
-        null,
-      ));
-      if (!contentId) {
-        return null;
-      }
-      const itemId = encodePublicItemId(contentId);
-      const parentIds = await this.contentIdentityService.resolveParentItemIdsForEpisode(client, itemId);
-      return parentIds.seriesItemId ? buildEpisodeBaseItemDto(title, episode, itemId, parentIds.seriesItemId, parentIds.seasonItemId) : null;
-    }));
-
-    return episodeItems.filter((item): item is BaseItemDto => item !== null);
   }
 
   private async buildSimilar(
