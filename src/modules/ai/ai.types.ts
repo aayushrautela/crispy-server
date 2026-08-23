@@ -1,4 +1,5 @@
 import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
+import type { ResponsiveImageSet } from '../metadata/metadata-card.types.js';
 
 export type AiFeatureId = 'search' | 'insights';
 export type AiCredentialSource = 'server';
@@ -46,14 +47,46 @@ export type AiExecutionResult = {
 
 export type AiSearchResponse = MetadataSearchResponse;
 
-export type AiInsightCard = {
-  category: string;
-  title: string;
-  content: string;
-  type: string;
+export type AiInsightStandoutTag =
+  | 'PERFORMANCE'
+  | 'VISUALS'
+  | 'STORY'
+  | 'DIRECTION'
+  | 'WORLD_BUILDING';
+
+export type AiInsightStandoutElement = {
+  tag: AiInsightStandoutTag;
+  focus: string;
+  context: string;
+};
+
+export type AiInsightSlideKey =
+  | 'the_good_stuff'
+  | 'the_catch'
+  | 'standout_element'
+  | 'trivia';
+
+export type AiInsightSlideKind = 'prose' | 'standout' | 'trivia';
+
+export type AiInsightSlide = {
+  key: AiInsightSlideKey;
+  label: string;
+  kind: AiInsightSlideKind;
+  body: string | null;
+  tag: AiInsightStandoutTag | null;
+  focus: string | null;
+  context: string | null;
+  backdrop: ResponsiveImageSet;
+  accent: string;
+};
+
+export type AiInsightsResponse = {
+  slides: AiInsightSlide[];
 };
 
 export type AiInsightsPayload = {
-  insights: AiInsightCard[];
+  the_good_stuff: string;
+  the_catch: string;
+  standout_element: AiInsightStandoutElement;
   trivia: string;
 };

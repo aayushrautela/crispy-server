@@ -63,6 +63,7 @@ export type MetadataTitleDetail = {
   Creators: MetadataPersonRefView[];
   Directors: MetadataPersonRefView[];
   Production: MetadataProductionInfoView;
+  Backdrops: string[];
 };
 
 export type MetadataTitleReviewsResponse = {

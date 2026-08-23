@@ -75,19 +75,21 @@ function isAiInsightsPayload(value: unknown): value is AiInsightsPayload {
   }
 
   const payload = value as Record<string, unknown>;
-  if (!Array.isArray(payload.insights)) {
+  if (typeof payload.the_good_stuff !== 'string'
+    || typeof payload.the_catch !== 'string'
+    || typeof payload.trivia !== 'string') {
     return false;
   }
 
-  return payload.insights.every((item) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      return false;
-    }
+  const standout = payload.standout_element;
+  if (!standout || typeof standout !== 'object' || Array.isArray(standout)) {
+    return false;
+  }
 
-    const card = item as Record<string, unknown>;
-    return typeof card.type === 'string'
-      && typeof card.title === 'string'
-      && typeof card.category === 'string'
-      && typeof card.content === 'string';
-  }) && typeof payload.trivia === 'string';
+  const standoutRecord = standout as Record<string, unknown>;
+  const validTags = ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'];
+  return typeof standoutRecord.tag === 'string'
+    && validTags.includes(standoutRecord.tag)
+    && typeof standoutRecord.focus === 'string'
+    && typeof standoutRecord.context === 'string';
 }

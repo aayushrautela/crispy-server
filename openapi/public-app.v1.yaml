@@ -1097,7 +1097,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                $ref: "#/components/schemas/AiInsightsResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2986,6 +2986,59 @@ components:
     GenericObject:
       type: object
       additionalProperties: true
+    AiInsightStandoutTag:
+      type: string
+      enum:
+        - PERFORMANCE
+        - VISUALS
+        - STORY
+        - DIRECTION
+        - WORLD_BUILDING
+    AiInsightSlide:
+      type: object
+      additionalProperties: false
+      required: [key, label, kind, body, tag, focus, context, backdrop, accent]
+      properties:
+        key:
+          type: string
+          enum:
+            - the_good_stuff
+            - the_catch
+            - standout_element
+            - trivia
+        label:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [prose, standout, trivia]
+        body:
+          nullable: true
+          type: string
+        tag:
+          anyOf:
+            - $ref: "#/components/schemas/AiInsightStandoutTag"
+            - type: "null"
+        focus:
+          nullable: true
+          type: string
+        context:
+          nullable: true
+          type: string
+        backdrop:
+          $ref: "#/components/schemas/ResponsiveImageSet"
+        accent:
+          type: string
+          minLength: 1
+    AiInsightsResponse:
+      type: object
+      additionalProperties: false
+      required: [slides]
+      properties:
+        slides:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiInsightSlide"
     WatchActionResponse:
       type: object
       additionalProperties: false

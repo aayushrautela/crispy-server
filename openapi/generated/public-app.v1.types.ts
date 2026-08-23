@@ -979,6 +979,24 @@ export interface components {
         GenericObject: {
             [key: string]: unknown;
         };
+        /** @enum {string} */
+        AiInsightStandoutTag: "PERFORMANCE" | "VISUALS" | "STORY" | "DIRECTION" | "WORLD_BUILDING";
+        AiInsightSlide: {
+            /** @enum {string} */
+            key: "the_good_stuff" | "the_catch" | "standout_element" | "trivia";
+            label: string;
+            /** @enum {string} */
+            kind: "prose" | "standout" | "trivia";
+            body: string | null;
+            tag: components["schemas"]["AiInsightStandoutTag"] | null;
+            focus: string | null;
+            context: string | null;
+            backdrop: components["schemas"]["ResponsiveImageSet"];
+            accent: string;
+        };
+        AiInsightsResponse: {
+            slides: components["schemas"]["AiInsightSlide"][];
+        };
         WatchActionResponse: {
             accepted: boolean;
             /** @enum {string} */
@@ -1087,6 +1105,14 @@ export interface components {
             TotalRecordCount: number;
             NextCursor: string | null;
             HasMore: boolean;
+        };
+        SeriesEpisodesResponse: {
+            Items: components["schemas"]["BaseItemDto"][];
+            StartIndex: number;
+            TotalRecordCount: number;
+            NextCursor: string | null;
+            HasMore: boolean;
+            Creators: components["schemas"]["MetadataPersonRefView"][];
         };
         MetadataTitleDetailResponse: {
             Item: components["schemas"]["BaseItemDto"];
@@ -1832,7 +1858,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MetadataPersonDetailResponseEnvelope"];
+                    "application/json": components["schemas"]["SeriesEpisodesResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2343,7 +2369,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenericObject"];
+                    "application/json": components["schemas"]["AiInsightsResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

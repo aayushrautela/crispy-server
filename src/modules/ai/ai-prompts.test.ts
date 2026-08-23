@@ -37,7 +37,10 @@ test('insights prompt treats anime-origin titles as shows in TMDB-only mode', ()
 
   assert.match(prompt, /Media type: show/);
   assert.match(prompt, /Treat shows as ongoing stories/);
-  assert.match(prompt, /momentum, episode hooks, character arcs, ensemble chemistry, or worldbuilding/);
+  assert.match(prompt, /the_good_stuff/);
+  assert.match(prompt, /the_catch/);
+  assert.match(prompt, /standout_element/);
+  assert.match(prompt, /NEVER perform web searches or call external tools/);
 });
 
 test('insights prompt adds show-specific guidance', () => {
@@ -54,5 +57,6 @@ test('insights prompt adds show-specific guidance', () => {
 
   assert.match(prompt, /Media type: show/);
   assert.match(prompt, /Treat shows as ongoing stories/);
-  assert.match(prompt, /momentum, episode hooks, character arcs, ensemble chemistry, or worldbuilding/);
+  assert.match(prompt, /momentum, episode-to-episode pull/);
+  assert.match(prompt, /Return ONLY valid JSON/);
 });

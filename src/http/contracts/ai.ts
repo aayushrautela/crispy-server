@@ -1,8 +1,10 @@
 import {
   baseItemDtoSchema,
   nonEmptyStringSchema,
+  nullableStringSchema,
   profileIdParamsSchema,
   publicItemIdSchema,
+  responsiveImageSetSchema,
   stringSchema,
   successEnvelope,
   withDefaultErrorResponses,
@@ -45,28 +47,45 @@ export const aiSearchRouteSchema = withDefaultErrorResponses({
   },
 });
 
-const aiInsightItemSchema = {
+const aiStandoutTagSchema = {
+  type: 'string',
+  enum: ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'],
+} as const;
+
+const aiInsightSlideSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['category', 'title', 'content', 'type'],
+  required: ['key', 'label', 'kind', 'body', 'tag', 'focus', 'context', 'backdrop', 'accent'],
   properties: {
-    category: nonEmptyStringSchema,
-    title: nonEmptyStringSchema,
-    content: nonEmptyStringSchema,
-    type: nonEmptyStringSchema,
+    key: {
+      type: 'string',
+      enum: ['the_good_stuff', 'the_catch', 'standout_element', 'trivia'],
+    },
+    label: nonEmptyStringSchema,
+    kind: {
+      type: 'string',
+      enum: ['prose', 'standout', 'trivia'],
+    },
+    body: nullableStringSchema,
+    tag: {
+      anyOf: [aiStandoutTagSchema, { type: 'null' }],
+    },
+    focus: nullableStringSchema,
+    context: nullableStringSchema,
+    backdrop: responsiveImageSetSchema,
+    accent: nonEmptyStringSchema,
   },
 } as const;
 
 const aiInsightsResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['insights', 'trivia'],
+  required: ['slides'],
   properties: {
-    insights: {
+    slides: {
       type: 'array',
-      items: aiInsightItemSchema,
+      items: aiInsightSlideSchema,
     },
-    trivia: stringSchema,
   },
 } as const;
 

@@ -6,14 +6,20 @@ import { assertPublicItemId, decodePublicItemId } from '../identity/public-item-
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
 import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
+import type { ResponsiveImageSet } from '../metadata/metadata-card.types.js';
+import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
-import type { AiInsightsPayload } from './ai.types.js';
+import type { AiInsightsPayload, AiInsightsResponse, AiInsightSlide } from './ai.types.js';
 
-const GENERATION_VERSION = 'v4';
+const GENERATION_VERSION = 'v5';
+
+const SLIDE_ACCENT_PALETTE: [string, string, string, string] = ['#7c5cff', '#ff7c5c', '#5cc8ff', '#ffd75c'];
+
+const BACKDROP_IMAGE_SIZES = { small: 'w780', medium: 'w1280', large: 'original' } as const;
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
@@ -33,7 +39,7 @@ export class AiInsightsService {
     itemId: string;
     profileId: string;
     locale?: string | null;
-  }): Promise<AiInsightsPayload> {
+  }): Promise<AiInsightsResponse> {
     const itemId = normalizeString(input.itemId);
     const profileId = normalizeString(input.profileId);
     const locale = normalizeLocale(input.locale);
@@ -50,6 +56,8 @@ export class AiInsightsService {
     const request = await this.entitlementService.resolveAiRequestForUser(userId, 'insights');
     const generationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(request)}`;
 
+    const titleDetail = await this.metadataTitlePageService.getTitlePage(itemId);
+
     const cached = await this.runInTransaction(async (client) => {
       return this.cacheRepository.findByKey(client, {
         contentId,
@@ -58,13 +66,10 @@ export class AiInsightsService {
       });
     });
     if (cached) {
-      return cached.payload;
+      return this.buildSlides(cached.payload, titleDetail);
     }
 
-    const [titleDetail, titleReviews] = await Promise.all([
-      this.metadataTitlePageService.getTitlePage(itemId),
-      this.metadataReviewsService.getTitleReviews(userId, profileId, itemId),
-    ]);
+    const titleReviews = await this.metadataReviewsService.getTitleReviews(userId, profileId, itemId);
     const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.Reviews);
     if (!titleContext) {
       throw new HttpError(404, 'Unable to load title data for AI insights.');
@@ -82,8 +87,8 @@ export class AiInsightsService {
       throw new HttpError(502, 'AI insights returned invalid data.');
     }
 
-    return this.runInTransaction(async (client) => {
-      return this.cacheRepository.upsert(client, {
+    await this.runInTransaction(async (client) => {
+      await this.cacheRepository.upsert(client, {
         contentId,
         locale,
         generationVersion: actualGenerationVersion,
@@ -92,6 +97,72 @@ export class AiInsightsService {
         generatedByProfileId: profileId,
       });
     });
+
+    return this.buildSlides(payload, titleDetail);
+  }
+
+  private buildSlides(payload: AiInsightsPayload, titleDetail: MetadataTitleDetail): AiInsightsResponse {
+    const backdropPaths = titleDetail.Backdrops ?? [];
+    const backdrops = backdropPaths
+      .map((path) => buildResponsiveImageSet(path, BACKDROP_IMAGE_SIZES))
+      .filter((set): set is ResponsiveImageSet => Boolean(set.small || set.medium || set.large));
+    const candidates = backdrops.length > 0 ? backdrops : (titleDetail.Item.ImageTags.Backdrop ?? []);
+
+    const pickBackdrop = (index: number): ResponsiveImageSet => {
+      if (candidates.length === 0) {
+        return emptyResponsiveImageSet();
+      }
+      return candidates[index % candidates.length] ?? emptyResponsiveImageSet();
+    };
+
+    const slides: AiInsightSlide[] = [
+      {
+        key: 'the_good_stuff',
+        label: 'The Good Stuff',
+        kind: 'prose',
+        body: payload.the_good_stuff,
+        tag: null,
+        focus: null,
+        context: null,
+        backdrop: pickBackdrop(0),
+        accent: SLIDE_ACCENT_PALETTE[0],
+      },
+      {
+        key: 'the_catch',
+        label: 'The Catch',
+        kind: 'prose',
+        body: payload.the_catch,
+        tag: null,
+        focus: null,
+        context: null,
+        backdrop: pickBackdrop(1),
+        accent: SLIDE_ACCENT_PALETTE[1],
+      },
+      {
+        key: 'standout_element',
+        label: 'Standout',
+        kind: 'standout',
+        body: null,
+        tag: payload.standout_element.tag,
+        focus: payload.standout_element.focus,
+        context: payload.standout_element.context,
+        backdrop: pickBackdrop(2),
+        accent: SLIDE_ACCENT_PALETTE[2],
+      },
+      {
+        key: 'trivia',
+        label: 'Did You Know?',
+        kind: 'trivia',
+        body: payload.trivia,
+        tag: null,
+        focus: null,
+        context: null,
+        backdrop: pickBackdrop(3),
+        accent: SLIDE_ACCENT_PALETTE[3],
+      },
+    ];
+
+    return { slides };
   }
 }
 
@@ -128,37 +199,38 @@ function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: Metadat
 }
 
 function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsPayload | null {
-  const trivia = typeof payload.trivia === 'string' ? payload.trivia.trim() : '';
-  const items = Array.isArray(payload.insights) ? payload.insights : [];
-  const insights = items
-    .map((item) => normalizeInsightCard(item))
-    .filter((item): item is AiInsightsPayload['insights'][number] => item !== null)
-    .slice(0, 3);
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
 
-  if (insights.length === 0) {
+  const goodStuff = typeof payload.the_good_stuff === 'string' ? payload.the_good_stuff.trim() : '';
+  const theCatch = typeof payload.the_catch === 'string' ? payload.the_catch.trim() : '';
+  const trivia = typeof payload.trivia === 'string' ? payload.trivia.trim() : '';
+  const standout = payload.standout_element;
+
+  if (!goodStuff || !theCatch || !trivia || !standout || typeof standout !== 'object' || Array.isArray(standout)) {
+    return null;
+  }
+
+  const standoutRecord = standout as Record<string, unknown>;
+  const validTags = ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'];
+  const tag = typeof standoutRecord.tag === 'string' ? standoutRecord.tag : '';
+  const focus = typeof standoutRecord.focus === 'string' ? standoutRecord.focus.trim() : '';
+  const context = typeof standoutRecord.context === 'string' ? standoutRecord.context.trim() : '';
+  if (!validTags.includes(tag) || !focus || !context) {
     return null;
   }
 
   return {
-    insights,
+    the_good_stuff: goodStuff,
+    the_catch: theCatch,
+    standout_element: {
+      tag: tag as AiInsightsPayload['standout_element']['tag'],
+      focus,
+      context,
+    },
     trivia,
   };
-}
-
-function normalizeInsightCard(value: unknown): AiInsightsPayload['insights'][number] | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-
-  const item = value as Record<string, unknown>;
-  const type = typeof item.type === 'string' ? item.type.trim() : '';
-  const title = typeof item.title === 'string' ? item.title.trim() : '';
-  const category = typeof item.category === 'string' ? item.category.trim() : '';
-  const content = typeof item.content === 'string' ? item.content.trim() : '';
-  if (!type || !title || !category || !content) {
-    return null;
-  }
-  return { type, title, category, content };
 }
 
 function normalizeString(value: unknown): string {

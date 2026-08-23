@@ -14,6 +14,7 @@ import type {
   MetadataTitleDetail,
 } from './metadata-detail.types.js';
 import {
+  extractBackdropPaths,
   extractCast,
   extractCreators,
   extractCrewByJob,
@@ -56,6 +57,7 @@ export class MetadataTitleAggregateBuilder {
       Creators: await extractCreators(client, this.contentIdentityService, resolvedTitle),
       Directors: await extractCrewByJob(client, this.contentIdentityService, resolvedTitle, 'Director'),
       Production: extractProduction(resolvedTitle),
+      Backdrops: extractBackdropPaths(resolvedTitle.raw),
     };
   }
 
