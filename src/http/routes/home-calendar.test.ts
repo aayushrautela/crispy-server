@@ -27,8 +27,8 @@ async function makeDto(overrides: Record<string, unknown>) {
     ImageTags: {
       Primary: (imageTags?.primary as Record<string, unknown> | undefined) ?? { small: 'https://img.test/poster.jpg', medium: 'https://img.test/poster.jpg', large: 'https://img.test/poster.jpg' },
       Backdrop: (imageTags?.backdrop as Array<Record<string, unknown>> | undefined) ?? [{ small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' }],
-      Logo: (imageTags?.logo ?? null) as Record<string, unknown> | null,
-      Thumb: (imageTags?.thumb ?? null) as Record<string, unknown> | null,
+      Logo: (imageTags?.logo ?? { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' }) as Record<string, unknown> | null,
+      Thumb: (imageTags?.thumb ?? { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' }) as Record<string, unknown> | null,
       Screenshot: [],
     },
     ParentImageTags: null,
@@ -45,6 +45,7 @@ async function makeDto(overrides: Record<string, unknown>) {
     PosterColor: null,
     BackdropColor: null,
     UserData: null,
+    bucket: overrides.bucket as string ?? 'up_next',
   } as const;
 }
 
@@ -93,6 +94,9 @@ test('calendar route returns canonical envelope fields', async (t) => {
   assert.equal(data.items[0].Type, 'Series');
   assert.equal(data.items[0].ParentIndexNumber, 1);
   assert.equal(data.items[0].EpisodeTitle, 'Third Episode');
+  assert.equal(data.items[0].bucket, 'up_next');
+  assert.ok(data.items[0].ImageTags.Logo);
+  assert.ok(data.items[0].ImageTags.Thumb);
 });
 
 test('calendar this-week route returns narrowed canonical envelope fields', async (t) => {
@@ -116,6 +120,7 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
       indexNumber: 1,
       episodeTitle: 'Season Premiere',
       airDate: '2024-01-05',
+      bucket: 'this_week',
     });
     return {
       profileId,
@@ -135,4 +140,5 @@ test('calendar this-week route returns narrowed canonical envelope fields', asyn
   assert.equal(data.items[0].Id, itemKey);
   assert.equal(data.items[0].Name, 'Next Week Show');
   assert.equal(data.items[0].Type, 'Series');
+  assert.equal(data.items[0].bucket, 'this_week');
 });

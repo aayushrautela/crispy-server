@@ -3613,8 +3613,20 @@ components:
                 $ref: "#/components/schemas/BaseItemDto"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
+    CalendarItem:
+      allOf:
+        - $ref: "#/components/schemas/BaseItemDto"
+        - type: object
+          required:
+            - bucket
+          properties:
+            bucket:
+              type: string
+              description: Display bucket for calendar ordering. `up_next` is the first not-yet-aired episode per series.
+              enum: [up_next, this_week, upcoming, recently_released, no_scheduled]
     CalendarResponse:
       type: object
+      additionalProperties: false
       required:
         - profileId
         - source
@@ -3631,7 +3643,7 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/CalendarItem"
     CalendarResponseEnvelope:
       type: object
       required:

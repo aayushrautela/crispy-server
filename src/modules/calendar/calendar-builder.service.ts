@@ -7,6 +7,9 @@ import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 import type { BaseItemDto } from '../metadata/media-item.types.js';
 import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 import type { TmdbEpisodeRecord } from '../metadata/providers/tmdb.types.js';
+import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
+import { resolveCalendarBuckets } from './calendar-buckets.js';
+import type { CalendarItemDto } from './calendar.types.js';
 
 const CALENDAR_WINDOW_PAST_DAYS = 14;
 const CALENDAR_WINDOW_FUTURE_DAYS = 60;
@@ -35,20 +38,24 @@ export class CalendarBuilderService {
     private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
-  async build(client: DbClient, profileId: string, limit: number): Promise<BaseItemDto[]> {
+  async build(client: DbClient, profileId: string, limit: number): Promise<CalendarItemDto[]> {
     const candidates = await this.loadCandidates(client, profileId, Math.max(limit * 4, 50));
     if (candidates.length === 0) return [];
 
     const episodeCandidates = await this.expandEpisodes(client, candidates);
-    const items: BaseItemDto[] = [];
+    const built: Array<{ dto: BaseItemDto; showItemId: string; airDate: string | null }> = [];
 
     for (const ep of episodeCandidates) {
-      if (items.length >= limit) break;
+      if (built.length >= limit) break;
       const dto = await this.buildEpisodeItem(client, profileId, ep);
-      if (dto) items.push(dto);
+      if (dto) built.push({ dto, showItemId: ep.showItemId, airDate: ep.episode.airDate });
     }
 
-    return items;
+    const buckets = resolveCalendarBuckets(
+      built.map(({ showItemId, airDate }) => ({ showItemId, airDate })),
+    );
+
+    return built.map(({ dto }, index) => ({ ...dto, bucket: buckets[index]! }));
   }
 
   private async loadCandidates(
@@ -249,13 +256,17 @@ export class CalendarBuilderService {
     const showCard = await this.metadataCardService.buildCardView(client, showIdentity).catch(() => null);
     if (!showCard) return null;
 
+    const stillImages = ep.episode.stillPath
+      ? buildResponsiveImageSet(ep.episode.stillPath, { small: 'w300', medium: 'h632', large: 'original' })
+      : emptyResponsiveImageSet();
+
     const showMediaItem = metadataCardToMediaItem(showCard, {
       itemId: showCard.itemId,
       images: {
         poster: showCard.images.poster,
-        backdrop: showCard.images.backdrop,
+        backdrop: ep.episode.stillPath ? stillImages : showCard.images.backdrop,
         logo: showCard.images.logo,
-        still: showCard.images.still,
+        still: stillImages,
       },
       airDate: ep.episode.airDate,
       episodeTitle: ep.episode.name,
@@ -268,16 +279,6 @@ export class CalendarBuilderService {
     dto.ParentIndexNumber = ep.seasonNumber;
     dto.IndexNumber = ep.episodeNumber;
     dto.AirDate = ep.episode.airDate;
-
-    if (ep.episode.stillPath) {
-      dto.ImageTags = {
-        Primary: null,
-        Backdrop: [],
-        Logo: null,
-        Thumb: { small: ep.episode.stillPath, medium: ep.episode.stillPath, large: ep.episode.stillPath },
-        Screenshot: [],
-      };
-    }
 
     dto.UserData = {
       ItemId: dto.Id,

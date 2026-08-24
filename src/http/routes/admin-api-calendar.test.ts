@@ -30,8 +30,8 @@ async function makeBaseItemDto(overrides: Record<string, unknown>) {
     ImageTags: {
       Primary: { small: overrides.posterSmall as string ?? 'https://img.test/poster.jpg', medium: overrides.posterMedium as string ?? 'https://img.test/poster.jpg', large: overrides.posterLarge as string ?? 'https://img.test/poster.jpg' },
       Backdrop: [{ small: overrides.backdropSmall as string ?? 'https://img.test/backdrop.jpg', medium: overrides.backdropMedium as string ?? 'https://img.test/backdrop.jpg', large: overrides.backdropLarge as string ?? 'https://img.test/backdrop.jpg' }],
-      Logo: null,
-      Thumb: null,
+      Logo: (overrides.logo ?? { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' }) as Record<string, unknown> | null,
+      Thumb: (overrides.thumb ?? { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' }) as Record<string, unknown> | null,
       Screenshot: [],
     },
     ParentImageTags: null,
@@ -48,6 +48,7 @@ async function makeBaseItemDto(overrides: Record<string, unknown>) {
     PosterColor: null,
     BackdropColor: null,
     UserData: null,
+    bucket: overrides.bucket as string ?? 'up_next',
   } as const;
 }
 
@@ -118,6 +119,8 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   assert.equal(data.items[0].ParentIndexNumber, 1);
   assert.equal(data.items[0].IndexNumber, 3);
   assert.equal(data.items[0].EpisodeTitle, 'Third Episode');
+  assert.equal(data.items[0].bucket, 'up_next');
+  assert.ok(data.items[0].ImageTags.Logo);
 });
 
 test('admin calendar this-week route returns narrowed canonical envelope fields for authenticated admin session', async (t) => {
@@ -145,6 +148,7 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
       indexNumber: 1,
       episodeTitle: 'Season Premiere',
       airDate: '2026-04-18T00:00:00.000Z',
+      bucket: 'this_week',
     });
     return {
       profileId,
@@ -185,6 +189,7 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   assert.equal(data.items[0].ParentIndexNumber, 2);
   assert.equal(data.items[0].IndexNumber, 1);
   assert.equal(data.items[0].EpisodeTitle, 'Season Premiere');
+  assert.equal(data.items[0].bucket, 'this_week');
 });
 
 async function loginAsAdmin(app: import('fastify').FastifyInstance): Promise<string> {

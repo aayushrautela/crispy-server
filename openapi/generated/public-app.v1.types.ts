@@ -1176,12 +1176,19 @@ export interface components {
             };
             meta: components["schemas"]["ResponseMeta"];
         };
+        CalendarItem: components["schemas"]["BaseItemDto"] & {
+            /**
+             * @description Display bucket for calendar ordering. `up_next` is the first not-yet-aired episode per series.
+             * @enum {string}
+             */
+            bucket: "up_next" | "this_week" | "upcoming" | "recently_released" | "no_scheduled";
+        };
         CalendarResponse: {
             profileId: string;
             /** @enum {string} */
             source: "canonical_calendar";
             generatedAt: string;
-            items: components["schemas"]["BaseItemDto"][];
+            items: components["schemas"]["CalendarItem"][];
         };
         CalendarResponseEnvelope: {
             data: components["schemas"]["CalendarResponse"];

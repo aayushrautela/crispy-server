@@ -10,6 +10,20 @@ export type CalendarProfileParams = {
   profileId: string;
 };
 
+export const calendarItemBucketSchema = {
+  type: 'string',
+  enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
+} as const;
+
+const calendarItemSchema = {
+  ...baseItemDtoSchema,
+  required: [...baseItemDtoSchema.required, 'bucket'],
+  properties: {
+    ...baseItemDtoSchema.properties,
+    bucket: calendarItemBucketSchema,
+  },
+} as const;
+
 const profileCalendarBaseResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -20,7 +34,7 @@ const profileCalendarBaseResponseSchema = {
     generatedAt: stringSchema,
     items: {
       type: 'array',
-      items: baseItemDtoSchema,
+      items: calendarItemSchema,
     },
   },
 } as const;
