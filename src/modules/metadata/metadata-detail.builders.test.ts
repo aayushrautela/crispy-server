@@ -276,17 +276,15 @@ test('extractReleaseYear returns year from date string', async () => {
   assert.equal(extractReleaseYear(''), null);
 });
 
-test('rich detail extractors map videos, people, reviews, production, and collection', async () => {
+test('rich detail extractors map videos, people, production, and collection', async () => {
   const {
     extractVideos,
     extractCast,
     extractCrewByJob,
     extractCreators,
-    extractReviews,
     extractProduction,
     extractCollection,
     extractCollectionParts,
-    extractSimilarTitles,
   } = await import('./metadata-builder.shared.js');
 
   const title: TmdbTitleRecord = {
@@ -353,12 +351,9 @@ test('rich detail extractors map videos, people, reviews, production, and collec
   assert.equal((await extractCast(client as never, contentIdentityService as never, title))[0]?.personId, '00000000000040008000000000000010');
   assert.equal((await extractCrewByJob(client as never, contentIdentityService as never, title, 'Director'))[0]?.name, 'Director Name');
   assert.equal((await extractCreators(client as never, contentIdentityService as never, title))[0]?.name, 'Creator Name');
-  assert.equal(extractReviews(title)[0]?.avatarUrl, 'https://cdn.example/avatar.png');
   assert.equal(extractProduction(title).originalLanguage, 'en');
   assert.equal(extractProduction(title).companies[0]?.name, 'Studio One');
   assert.equal(extractCollection(title)?.name, 'Saga Collection');
   assert.equal(extractCollectionParts(title.raw)[0]?.tmdbId, 101);
   assert.equal(extractCollectionParts(title.raw)[1]?.name, 'Saga Collection: Part II');
-  assert.equal(extractSimilarTitles(title)[0]?.tmdbId, 77);
-  assert.equal(extractSimilarTitles(title)[0]?.name, 'Breaking Point: Aftermath');
 });

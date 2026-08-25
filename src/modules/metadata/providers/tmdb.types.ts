@@ -1,5 +1,40 @@
 export type TmdbTitleType = 'movie' | 'tv';
-export type TmdbHydrationLevel = 'summary' | 'detail';
+export type TmdbHydrationLevel = 'summary' | 'detail' | 'not_found';
+export type TmdbRelationKind = 'recommendation' | 'similar' | 'collection_part';
+
+export type TmdbReviewRecord = {
+  mediaType: TmdbTitleType;
+  tmdbId: number;
+  source: 'tmdb' | 'trakt';
+  reviewKey: string;
+  author: string | null;
+  authorUsername: string | null;
+  content: string;
+  lang: string | null;
+  url: string | null;
+  rating: string | null;
+  avatarUrl: string | null;
+  createdAt: string | null;
+};
+
+export type TmdbImageRecord = {
+  kind: 'poster' | 'backdrop' | 'logo';
+  filePath: string;
+  iso6391: string | null;
+};
+
+export type TmdbTranslationEntry = {
+  lang: string;
+  name: string | null;
+  overview: string | null;
+  tagline: string | null;
+};
+
+export type TmdbRelationTarget = {
+  targetMediaType: TmdbTitleType;
+  targetTmdbId: number;
+  rank: number;
+};
 
 export type TmdbTitleRecord = {
   mediaType: TmdbTitleType;
@@ -14,6 +49,7 @@ export type TmdbTitleRecord = {
   status: string | null;
   posterPath: string | null;
   backdropPath: string | null;
+  logoPath?: string | null;
   runtime: number | null;
   episodeRunTime: number[];
   numberOfSeasons: number | null;
@@ -69,7 +105,14 @@ export type TmdbPersonRecord = {
   tmdbPersonId: number;
   name: string;
   knownForDepartment: string | null;
+  biography: string | null;
+  birthday: string | null;
+  deathday: string | null;
+  placeOfBirth: string | null;
   profilePath: string | null;
-  knownFor: Array<{ mediaType: string; title: string | null; tmdbId: number }>;
   popularity: number;
+  homepage: string | null;
+  knownFor?: Array<{ mediaType: string; title: string | null; tmdbId: number }>;
+  fetchedAt: string;
+  expiresAt: string;
 };

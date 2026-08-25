@@ -352,39 +352,6 @@ export async function extractCreators(client: DbClient, contentIdentityService: 
     .slice(0, 1);
 }
 
-export function extractReviewsFromRaw(raw: Record<string, unknown> | null): MetadataReviewView[] {
-  return asArray(asRecord(raw?.reviews)?.results)
-    .map((entry) => asRecord(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map<MetadataReviewView | null>((review) => {
-      const id = asString(review.id);
-      const content = asString(review.content);
-      if (!id || !content) {
-        return null;
-      }
-
-      const authorDetails = asRecord(review.author_details);
-      return {
-        id,
-        provider: 'tmdb',
-        author: asString(review.author),
-        username: asString(authorDetails?.username),
-        content,
-        createdAt: asString(review.created_at),
-        updatedAt: asString(review.updated_at),
-        url: asString(review.url),
-        rating: asNumber(authorDetails?.rating),
-        avatarUrl: normalizeAvatarUrl(asString(authorDetails?.avatar_path)),
-      } satisfies MetadataReviewView;
-    })
-    .filter((review): review is MetadataReviewView => review !== null)
-    .slice(0, 15);
-}
-
-export function extractReviews(title: TmdbTitleRecord | null): MetadataReviewView[] {
-  return extractReviewsFromRaw(title?.raw ?? null);
-}
-
 function buildCompanyView(record: Record<string, unknown>): MetadataCompanyView | null {
   const id = asNumber(record.id);
   const name = asString(record.name);
@@ -508,48 +475,6 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
       }
       return left.tmdbId - right.tmdbId;
     });
-}
-
-export function extractSimilarFromRaw(raw: Record<string, unknown> | null, sourceMediaType: TmdbTitleType): TmdbTitleRecord[] {
-  return asArray(asRecord(raw?.recommendations)?.results)
-    .map((entry) => asRecord(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .map((entry): TmdbTitleRecord | null => {
-      const tmdbId = asNumber(entry.id);
-      if (!tmdbId) {
-        return null;
-      }
-
-      return {
-        mediaType: sourceMediaType,
-        tmdbId,
-        language: 'en',
-        name: asString(entry.title) ?? asString(entry.name),
-        originalName: asString(entry.original_title) ?? asString(entry.original_name),
-        overview: asString(entry.overview),
-        tagline: null,
-        releaseDate: asString(entry.release_date),
-        firstAirDate: asString(entry.first_air_date),
-        status: null,
-        posterPath: asString(entry.poster_path),
-        backdropPath: asString(entry.backdrop_path),
-        runtime: null,
-        episodeRunTime: [],
-        numberOfSeasons: null,
-        numberOfEpisodes: null,
-        externalIds: {},
-        raw: entry,
-        hydrationLevel: 'summary',
-        fetchedAt: '',
-        expiresAt: '',
-      };
-    })
-    .filter((entry): entry is TmdbTitleRecord => entry !== null)
-    .slice(0, 20);
-}
-
-export function extractSimilarTitles(title: TmdbTitleRecord | null): TmdbTitleRecord[] {
-  return extractSimilarFromRaw(title?.raw ?? null, title?.mediaType ?? 'movie');
 }
 
 function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: string | null): string | null {

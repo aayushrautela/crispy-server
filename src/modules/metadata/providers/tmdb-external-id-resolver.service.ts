@@ -1,7 +1,6 @@
 import type { DbClient } from '../../../lib/db.js';
 import { TmdbClient } from './tmdb.client.js';
-import { TmdbExternalIdsRepository } from './tmdb-external-ids.repo.js';
-import { TmdbResponseCacheService } from './tmdb-response-cache.service.js';
+import { TmdbRepository } from './tmdb.repo.js';
 import type { TmdbTitleType } from './tmdb.types.js';
 
 type ResolveExternalIdParams = {
@@ -10,11 +9,12 @@ type ResolveExternalIdParams = {
   mediaType: 'movie' | 'show' | 'episode';
 };
 
+const NEGATIVE_TTL_MS = 6 * 60 * 60 * 1000;
+
 export class TmdbExternalIdResolverService {
   constructor(
-    private readonly externalIdsRepository = new TmdbExternalIdsRepository(),
     private readonly tmdbClient = new TmdbClient(),
-    private readonly responseCache = new TmdbResponseCacheService(),
+    private readonly repository = new TmdbRepository(),
   ) {}
 
   async resolve(client: DbClient, params: ResolveExternalIdParams): Promise<number | null> {
@@ -24,39 +24,43 @@ export class TmdbExternalIdResolverService {
     }
 
     const mediaType = normalizeExternalMediaType(params.mediaType);
-    const cached = await this.externalIdsRepository.findByExternalId(client, {
+    const cached = await this.repository.findByExternalId(client, {
       source: params.source,
       externalId: normalizedExternalId,
       mediaType,
     });
     if (cached) {
-      return cached.tmdbId;
+      if (cached.tmdbId !== null) {
+        return cached.tmdbId;
+      }
+      if (cached.notFoundAt && Date.now() - cached.notFoundAt.getTime() < NEGATIVE_TTL_MS) {
+        return null;
+      }
     }
 
-    const response = await this.responseCache.getOrFetch(
-      client,
-      {
-        resourceType: 'external_id',
-        resourceId: `${params.source}:${normalizedExternalId}`,
-        variant: mediaType,
-        language: null,
-        requestPath: `/find/${encodeURIComponent(normalizedExternalId)}`,
-        requestQuery: { external_source: params.source },
-      },
-      'external:positive',
-      () => this.tmdbClient.request(`/find/${encodeURIComponent(normalizedExternalId)}`, { external_source: params.source }),
-    );
-
-    if (response.isNegative || response.statusCode === 404) {
+    let payload: Record<string, unknown>;
+    try {
+      payload = await this.tmdbClient.request(`/find/${encodeURIComponent(normalizedExternalId)}`, { external_source: params.source });
+    } catch {
+      await this.repository.markExternalIdNotFound(client, {
+        source: params.source,
+        externalId: normalizedExternalId,
+        mediaType,
+      });
       return null;
     }
 
-    const match = extractFindMatch(response.responseJson, params.mediaType);
+    const match = extractFindMatch(payload, params.mediaType);
     if (!match) {
+      await this.repository.markExternalIdNotFound(client, {
+        source: params.source,
+        externalId: normalizedExternalId,
+        mediaType,
+      });
       return null;
     }
 
-    await this.externalIdsRepository.upsert(client, {
+    await this.repository.upsertExternalId(client, {
       source: params.source,
       externalId: normalizedExternalId,
       mediaType,

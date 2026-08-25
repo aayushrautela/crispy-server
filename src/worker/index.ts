@@ -1,13 +1,13 @@
 import { Worker } from 'bullmq';
 import { logger } from '../config/logger.js';
-import { bullConnection, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheRefreshJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob } from '../lib/queue.js';
+import { bullConnection, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob, type TmdbEntityRefreshJob } from '../lib/queue.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
 import { runHomeSeedJob } from './jobs/home-seed.job.js';
 import {
   runTmdbCachePurgeExpiredJob,
-  runTmdbCacheRefreshJob,
+  runTmdbEntityRefreshJob,
   runTmdbSeasonWarmBatchJob,
   runTmdbTitleWarmBatchJob,
 } from './jobs/tmdb-cache.job.js';
@@ -32,8 +32,8 @@ export function startWorker(): Worker {
         case 'provider-refresh':
           await runProviderRefreshJob(payload);
           return;
-        case 'tmdb-cache-refresh':
-          await runTmdbCacheRefreshJob(payload as unknown as TmdbCacheRefreshJob);
+        case 'tmdb-entity-refresh':
+          await runTmdbEntityRefreshJob(payload as unknown as TmdbEntityRefreshJob);
           return;
         case 'tmdb-cache-warm-title-batch':
           await runTmdbTitleWarmBatchJob(payload as unknown as TmdbCacheWarmTitleBatchJob);

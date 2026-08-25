@@ -1,15 +1,15 @@
 import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
-import { assertPresent, HttpError } from '../../lib/errors.js';
+import { HttpError } from '../../lib/errors.js';
 import type { ProviderImportProvider } from '../integrations/provider-import.types.js';
 import { ProviderTokenAccessService } from '../integrations/provider-token-access.service.js';
 import type { MediaIdentity } from '../identity/media-key.js';
-import { extractExternalIds, extractReviewsFromRaw } from './metadata-builder.shared.js';
+import { extractExternalIds } from './metadata-builder.shared.js';
 import type { MetadataReviewView } from './metadata-detail.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { TraktClient } from './providers/trakt.client.js';
-import type { TmdbTitleRecord } from './providers/tmdb.types.js';
+import type { TmdbReviewRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
 
 export const PRIMARY_REVIEW_THRESHOLD = 5;
 export const REVIEW_LIMIT = 15;
@@ -37,9 +37,9 @@ type ProfileTokenScope = {
 export class MetadataReviewAggregator {
   constructor(
     private readonly titleSourceService = new MetadataTitleSourceService(),
+    private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly traktClient = new TraktClient(),
     private readonly providerTokenAccessService = new ProviderTokenAccessService(),
-    private readonly tmdbCacheService = new TmdbCacheService(),
   ) {}
 
   async loadTitleReviews(
@@ -57,21 +57,17 @@ export class MetadataReviewAggregator {
   }
 
   async mergeTitleReviews(
+    client: DbClient,
     title: TmdbTitleRecord,
     mediaType: ReviewMediaType,
-    primaryReviews: MetadataReviewView[],
     language?: string | null,
     tokenScope?: ProfileTokenScope,
   ): Promise<MetadataReviewView[]> {
-    const externalIds = extractExternalIds(title);
+    const primaryReviews = toReviewViews(await this.tmdbCacheService.getReviews(client, title.mediaType, title.tmdbId, REVIEW_LIMIT));
     return this.mergeWithTraktFallback({
       title,
       mediaType,
-      externalIds: {
-        imdb: externalIds.imdb,
-        tmdb: externalIds.tmdb,
-        tvdb: externalIds.tvdb,
-      },
+      externalIds: extractExternalIds(title),
       primaryReviews,
     }, language ?? null, tokenScope);
   }
@@ -82,15 +78,10 @@ export class MetadataReviewAggregator {
     language?: string | null,
   ): Promise<ReviewSource> {
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
-    const title = assertPresent(source.tmdbTitle, 'Metadata title not found.');
+    const title = assertPresent(source.tmdbTitle);
     const externalIds = extractExternalIds(title);
 
-    const extrasRaw = await this.tmdbCacheService.fetchTitleExtrasPayload(
-      client,
-      identity.mediaType === 'movie' ? 'movie' : 'tv',
-      title.tmdbId,
-      language ?? null,
-    );
+    const primaryReviews = toReviewViews(await this.tmdbCacheService.getReviews(client, title.mediaType, title.tmdbId, REVIEW_LIMIT));
 
     return {
       title,
@@ -100,7 +91,7 @@ export class MetadataReviewAggregator {
         tmdb: externalIds.tmdb,
         tvdb: externalIds.tvdb,
       },
-      primaryReviews: extrasRaw ? extractReviewsFromRaw(extrasRaw).slice(0, REVIEW_LIMIT) : [],
+      primaryReviews,
     };
   }
 
@@ -144,6 +135,28 @@ export class MetadataReviewAggregator {
       throw error;
     }
   }
+}
+
+function assertPresent<T>(value: T | null | undefined): T {
+  if (value === null || value === undefined) {
+    throw new HttpError(404, 'Metadata title not found.');
+  }
+  return value;
+}
+
+function toReviewViews(reviews: TmdbReviewRecord[]): MetadataReviewView[] {
+  return reviews.map((review) => ({
+    id: review.reviewKey,
+    provider: review.source,
+    author: review.author,
+    username: review.authorUsername,
+    content: review.content,
+    createdAt: review.createdAt,
+    updatedAt: null,
+    url: review.url,
+    rating: review.rating != null ? Number(review.rating) : null,
+    avatarUrl: null,
+  }));
 }
 
 export function mergeReviews(primary: MetadataReviewView[], fallback: MetadataReviewView[]): MetadataReviewView[] {

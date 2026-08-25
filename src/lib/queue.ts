@@ -23,17 +23,9 @@ export type ProjectionRefreshJob = {
   provider?: string;
 };
 
-export type TmdbCacheRefreshJob = {
-  cacheKey: string;
-  spec: {
-    resourceType: string;
-    resourceId: string | null;
-    variant: string;
-    language: string | null;
-    requestPath: string;
-    requestQuery: Record<string, string | number | undefined>;
-  };
-  policyKey: string;
+export type TmdbEntityRefreshJob = {
+  mediaType: 'movie' | 'tv';
+  tmdbId: number;
 };
 
 export type TmdbCacheWarmTitleBatchJob = {
@@ -76,6 +68,18 @@ export async function enqueueProviderRefresh(profileId: string, provider: string
     { profileId, provider, reason: 'provider-refresh' },
     { delayMs },
   );
+}
+
+export async function enqueueTmdbEntityRefresh(mediaType: 'movie' | 'tv', tmdbId: number): Promise<void> {
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+    return;
+  }
+
+  await getProjectionQueue().add('tmdb-entity-refresh', { mediaType, tmdbId }, {
+    jobId: buildJobId('tmdb-entity-refresh', mediaType, String(tmdbId)),
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
 }
 
 export async function enqueueTmdbTitleWarmBatch(mediaType: 'movie' | 'tv', tmdbIds: number[]): Promise<void> {

@@ -1,7 +1,7 @@
 import { HttpError } from '../../../lib/errors.js';
 import type { DbClient } from '../../../lib/db.js';
 import { extractLastEpisodeToAir, extractNextEpisodeToAir } from './tmdb-episode-helpers.js';
-import { TmdbCacheService } from './tmdb-cache.service.js';
+import { TmdbIngestService } from './tmdb-ingest.service.js';
 import type { TmdbTitleRecord } from './tmdb.types.js';
 import { showTmdbIdForIdentity, parseMediaKey, type MediaIdentity } from '../../identity/media-key.js';
 
@@ -49,7 +49,7 @@ function collectSeasonNumbers(title: TmdbTitleRecord | null, explicitSeasonNumbe
 
 export class TmdbRefreshService {
   constructor(
-    private readonly tmdbCacheService = new TmdbCacheService(),
+    private readonly ingest = new TmdbIngestService(),
   ) {}
 
   async refreshProfileEpisodicFollow(client: DbClient, profileId: string, limit = 100): Promise<MetadataRefreshSummary> {
@@ -65,7 +65,7 @@ export class TmdbRefreshService {
   async refreshIdentity(client: DbClient, profileId: string, identity: MediaIdentity): Promise<MetadataRefreshSummary> {
     if (identity.mediaType === 'movie' && identity.tmdbId) {
       const summary = emptySummary();
-      const title = await this.tmdbCacheService.getTitle(client, 'movie', identity.tmdbId);
+      const title = await this.ingest.ingestTitle(client, 'movie', identity.tmdbId);
       if (title) {
         summary.refreshedTitles += 1;
       } else {
@@ -92,7 +92,7 @@ export class TmdbRefreshService {
     episodicFollow?: { titleContentId: string; seriesMediaKey: string; payload?: Record<string, unknown> },
   ): Promise<MetadataRefreshSummary> {
     const summary = emptySummary();
-    const title = await this.tmdbCacheService.getTitle(client, 'tv', showTmdbId);
+    const title: TmdbTitleRecord | null = await this.ingest.ingestTitle(client, 'tv', showTmdbId);
     if (!title) {
       summary.skipped += 1;
       return summary;
@@ -102,7 +102,7 @@ export class TmdbRefreshService {
 
     const seasonNumbers = collectSeasonNumbers(title, explicitSeasonNumber);
     for (const seasonNumber of seasonNumbers) {
-      await this.tmdbCacheService.refreshSeason(client, showTmdbId, seasonNumber);
+      await this.ingest.ingestSeason(client, showTmdbId, seasonNumber);
       summary.refreshedSeasons += 1;
     }
 

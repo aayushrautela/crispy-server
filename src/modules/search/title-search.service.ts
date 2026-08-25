@@ -90,8 +90,9 @@ export class TitleSearchService {
               tvGenreId: genreMapping.tvGenreId,
               filter: normalizedFilter,
               limit,
+              locale,
             })
-          : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit, mediaTypes, locale, input.signal)
+          : await this.tmdbCacheService.searchTitles(client, normalizedQuery, limit, mediaTypes, locale)
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
 
@@ -110,7 +111,6 @@ export class TitleSearchService {
         client,
         filteredTmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })),
         locale,
-        input.signal,
       );
 
       const tmdbItems = await mapWithConcurrency(filteredTmdbMatches, HYDRATION_CONCURRENCY, async (match: TmdbTitleRecord) => {
@@ -168,10 +168,10 @@ export class TitleSearchService {
     const mediaTypes: TmdbTitleType[] = input.mediaType ? [input.mediaType] : ['movie', 'tv'];
 
     return withDbClient(async (client) => {
-      let rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, AI_MATCH_SEARCH_LIMIT, mediaTypes, locale, input.signal);
+      let rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, AI_MATCH_SEARCH_LIMIT, mediaTypes, locale);
 
       if (rawMatches.length === 0 && input.mediaType) {
-        rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, AI_MATCH_SEARCH_LIMIT, ['movie', 'tv'], locale, input.signal);
+        rawMatches = await this.tmdbCacheService.searchTitles(client, normalizedQuery, AI_MATCH_SEARCH_LIMIT, ['movie', 'tv'], locale);
       }
 
       if (rawMatches.length === 0) {
@@ -200,7 +200,7 @@ export class TitleSearchService {
           continue;
         }
 
-        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, locale, input.signal);
+        const hydrated = await this.tmdbCacheService.getTitle(client, match.mediaType, match.tmdbId, locale);
         if (!hydrated) {
           continue;
         }
@@ -293,7 +293,7 @@ async function buildPersonSearchResult(client: DbClient, contentIdentityService:
     name: person.name,
     knownForDepartment: person.knownForDepartment,
     profileUrl: person.profilePath ? `https://image.tmdb.org/t/p/w185${person.profilePath}` : null,
-    knownForTitles: person.knownFor
+    knownForTitles: (person.knownFor ?? [])
       .map((kf) => kf.title)
       .filter((title): title is string => title !== null),
   };

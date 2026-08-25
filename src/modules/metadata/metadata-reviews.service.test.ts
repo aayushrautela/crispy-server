@@ -7,24 +7,18 @@ import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
 setTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-test-id' });
 
-function buildMockTmdbCache(extrasReviews: Record<string, unknown>[]) {
+function buildStoredReview(id: string, content: string): Record<string, unknown> {
   return {
-    fetchTitleExtrasPayload: async () => ({
-      reviews: { results: extrasReviews },
-      recommendations: { results: [] },
-    }),
-  } as never;
-}
-
-function buildTmdbReview(id: string, content: string): Record<string, unknown> {
-  return {
-    id,
+    source: 'tmdb',
+    reviewKey: id,
     author: 'Critic',
+    authorUsername: `critic-${id}`,
     content,
+    lang: 'en',
     url: `https://example.com/reviews/${id}`,
-    created_at: '2024-01-02T00:00:00.000Z',
-    updated_at: '2024-01-03T00:00:00.000Z',
-    author_details: { username: `critic-${id}`, rating: 8 },
+    rating: '8',
+    avatarUrl: null,
+    createdAt: '2024-01-02T00:00:00.000Z',
   };
 }
 
@@ -70,7 +64,7 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
       videos: { results: [] },
       credits: { cast: [], crew: [] },
       created_by: [],
-      reviews: { results: [buildTmdbReview('tmdb-1', 'TMDB review')] },
+      reviews: { results: [] },
       production_companies: [],
       networks: [],
       production_countries: [],
@@ -93,6 +87,7 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
           tmdbNextEpisode: null,
         }),
       } as never,
+      { getReviews: async () => [buildStoredReview('tmdb-1', 'TMDB review')] } as never,
       {
         isConfigured: () => true,
         fetchTitleReviews: async (
@@ -111,7 +106,6 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
       {
         getAccessTokenForAccountProfile: async () => ({ accessToken: 'user-trakt-token' }),
       } as never,
-      buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
     ),
     {} as never,
   );
@@ -124,9 +118,9 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
   );
 
   assert.equal(reviews.length, 3);
-  assert.equal(reviews[0]?.id, 'tmdb-1');
-  assert.equal(reviews[1]?.id, 'trakt-1');
-  assert.equal(reviews[2]?.id, 'trakt-2');
+  assert.equal(reviews[0]?.id, 'trakt-1');
+  assert.equal(reviews[1]?.id, 'trakt-2');
+  assert.equal(reviews[2]?.id, 'tmdb-1');
   assert.deepEqual(traktCalls, [{ mediaType: 'movie', accessToken: 'user-trakt-token', externalIds: { imdb: 'tt0372784', tmdb: 42, tvdb: null } }]);
 });
 
@@ -157,7 +151,7 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
       videos: { results: [] },
       credits: { cast: [], crew: [] },
       created_by: [],
-      reviews: { results: [buildTmdbReview('tmdb-1', 'TMDB review')] },
+      reviews: { results: [] },
       production_companies: [],
       networks: [],
       production_countries: [],
@@ -180,6 +174,7 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
           tmdbNextEpisode: null,
         }),
       } as never,
+      { getReviews: async () => [buildStoredReview('tmdb-1', 'TMDB review')] } as never,
       {
         isConfigured: () => true,
         fetchTitleReviews: async (mediaType: 'movie' | 'show', externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }) => {
@@ -194,7 +189,6 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
       {
         getAccessTokenForAccountProfile: async () => ({ accessToken: 'show-token' }),
       } as never,
-      buildMockTmdbCache([buildTmdbReview('tmdb-1', 'TMDB review')]),
     ),
     {} as never,
   );
@@ -207,11 +201,11 @@ test('MetadataReviewsService tops up TMDB show reviews from Trakt when under thr
   );
 
   assert.equal(reviews.length, 3);
-  assert.equal(reviews[0]?.id, 'tmdb-1');
+  assert.equal(reviews[0]?.id, 'trakt-a');
   assert.equal(traktMediaType, 'show');
 });
 
-test('MetadataReviewsService skips Trakt fallback when three primary reviews already exist', async () => {
+test('MetadataReviewsService skips Trakt fallback when enough primary reviews already exist', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
   const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
 
@@ -238,13 +232,7 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
       videos: { results: [] },
       credits: { cast: [], crew: [] },
       created_by: [],
-      reviews: {
-        results: [
-          buildTmdbReview('provider-1', 'Provider review 1'),
-          buildTmdbReview('provider-2', 'Provider review 2'),
-          buildTmdbReview('provider-3', 'Provider review 3'),
-        ],
-      },
+      reviews: { results: [] },
       production_companies: [],
       networks: [],
       production_countries: [],
@@ -268,6 +256,15 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
         }),
       } as never,
       {
+        getReviews: async () => [
+          buildStoredReview('provider-1', 'Provider review 1'),
+          buildStoredReview('provider-2', 'Provider review 2'),
+          buildStoredReview('provider-3', 'Provider review 3'),
+          buildStoredReview('provider-4', 'Provider review 4'),
+          buildStoredReview('provider-5', 'Provider review 5'),
+        ],
+      } as never,
+      {
         isConfigured: () => true,
         fetchTitleReviews: async () => {
           traktCalled = true;
@@ -275,11 +272,6 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
         },
       } as never,
       {} as never,
-      buildMockTmdbCache([
-        buildTmdbReview('provider-1', 'Provider review 1'),
-        buildTmdbReview('provider-2', 'Provider review 2'),
-        buildTmdbReview('provider-3', 'Provider review 3'),
-      ]),
     ),
     {} as never,
   );
@@ -291,7 +283,7 @@ test('MetadataReviewsService skips Trakt fallback when three primary reviews alr
     inferMediaIdentity({ mediaType: 'show', tmdbId: 1396 }),
   );
 
-  assert.equal(reviews.length, 3);
+  assert.equal(reviews.length, 5);
   assert.equal(traktCalled, false);
 });
 
@@ -322,7 +314,7 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
       videos: { results: [] },
       credits: { cast: [], crew: [] },
       created_by: [],
-      reviews: { results: [buildTmdbReview('tmdb-7', 'Primary review')] },
+      reviews: { results: [] },
       production_companies: [],
       networks: [],
       production_countries: [],
@@ -345,6 +337,7 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
           tmdbNextEpisode: null,
         }),
       } as never,
+      { getReviews: async () => [buildStoredReview('tmdb-7', 'Primary review')] } as never,
       {
         isConfigured: () => true,
         fetchTitleReviews: async (_mediaType: 'movie' | 'show', _externalIds: { imdb: string | null; tmdb: number | null; tvdb: number | null }, _limit: number, options?: { accessToken?: string }) => {
@@ -358,7 +351,6 @@ test('MetadataReviewsService falls back to app-key Trakt when profile token is u
           throw new HttpError(404, 'Provider connection not found.');
         },
       } as never,
-      buildMockTmdbCache([buildTmdbReview('tmdb-7', 'Primary review')]),
     ),
     {} as never,
   );

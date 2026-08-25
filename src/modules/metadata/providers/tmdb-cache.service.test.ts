@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../../test-helpers.js';
-import { HttpError } from '../../../lib/errors.js';
+import type { TmdbCacheService } from './tmdb-cache.service.js';
 
 seedTestEnv();
 
@@ -9,9 +9,11 @@ function makeTitle(overrides: Record<string, unknown> = {}) {
   return {
     mediaType: 'tv',
     tmdbId: 42,
+    language: 'en',
     name: 'Cached Show',
     originalName: 'Cached Show',
     overview: null,
+    tagline: null,
     releaseDate: null,
     firstAirDate: '2024-01-01',
     status: null,
@@ -22,7 +24,7 @@ function makeTitle(overrides: Record<string, unknown> = {}) {
     numberOfSeasons: 1,
     numberOfEpisodes: 10,
     externalIds: {},
-    raw: { recommendations: { results: [] } },
+    raw: {},
     hydrationLevel: 'detail' as const,
     fetchedAt: '2026-01-01T00:00:00.000Z',
     expiresAt: '2099-01-01T00:00:00.000Z',
@@ -30,167 +32,182 @@ function makeTitle(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('getTitle returns cached detail record when fresh and level matches', async () => {
-  const { TmdbCacheService } = await import('./tmdb-cache.service.js');
-
-  const service = new TmdbCacheService(
-    {
-      getTitle: async () => makeTitle(),
-      upsertTitle: async () => {},
-    } as never,
-    {
-      request: async () => ({ name: 'Fresh Show' }),
-    } as never,
-    {
-      getOrFetch: async () => ({
-        cacheKey: 'test',
-        resourceType: 'title',
-        resourceId: 'tv:42',
-        variant: 'detail',
-        language: null,
-        requestPath: '/tv/42',
-        requestQuery: {},
-        responseJson: { name: 'Cached Show' },
-        statusCode: 200,
-        isNegative: false,
-        fetchedAt: '2026-01-01T00:00:00.000Z',
-        freshUntil: '2099-01-01T00:00:00.000Z',
-        staleUntil: '2099-01-01T00:00:00.000Z',
-        purgeAt: '2099-01-01T00:00:00.000Z',
-        lastError: null,
-        errorCount: 0,
-      }),
-    } as never,
+test('getTitle returns fresh cached record without any TMDB call', async () => {
+  const module = await import('./tmdb-cache.service.js');
+  let apiCalls = 0;
+  const service = new module.TmdbCacheService(
+    { getTitle: async () => makeTitle() } as never,
+    {} as never,
+    { request: async () => { apiCalls += 1; return {}; } } as never,
   );
 
   const result = await service.getTitle({} as never, 'tv', 42);
   assert.equal(result?.name, 'Cached Show');
+  assert.equal(apiCalls, 0);
 });
 
-test('getTitle refreshes stale derived title from response cache', async () => {
-  const { TmdbCacheService } = await import('./tmdb-cache.service.js');
+test('getTitle serves stale rows immediately and schedules entity refresh', async () => {
+  const module = await import('./tmdb-cache.service.js');
 
-  let upserted: ReturnType<typeof makeTitle> | null = null;
-  const service = new TmdbCacheService(
+  class SpyStore extends module.TmdbCacheService {
+    refreshCalls = 0;
+    protected override scheduleEntityRefresh(): void {
+      this.refreshCalls += 1;
+    }
+  }
+
+  const store = new SpyStore(
+    { getTitle: async () => makeTitle({ expiresAt: '2000-01-01T00:00:00.000Z' }) } as never,
+    { ingestTitle: async () => { throw new Error('stale reads must not block on ingest'); } } as never,
+    {} as never,
+  );
+
+  const result = await (store as TmdbCacheService).getTitle({} as never, 'tv', 42);
+  assert.equal(result?.name, 'Cached Show');
+  assert.equal(store.refreshCalls, 1);
+});
+
+test('getTitle delegates cold keys to ingest then re-reads', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  let ingested = false;
+  const hydrated = makeTitle();
+  const service = new module.TmdbCacheService(
+    { getTitle: async () => (ingested ? hydrated : null) } as never,
     {
-      getTitle: async () => makeTitle({ expiresAt: '2000-01-01T00:00:00.000Z' }),
-      upsertTitle: async (_client: unknown, record: ReturnType<typeof makeTitle>) => { upserted = record; },
+      ingestTitle: async () => {
+        ingested = true;
+        return hydrated;
+      },
     } as never,
-    {
-      request: async () => ({ name: 'Should Not Fetch Directly' }),
-    } as never,
-    {
-      getOrFetch: async () => ({
-        cacheKey: 'test',
-        resourceType: 'title',
-        resourceId: 'tv:42',
-        variant: 'detail',
-        language: null,
-        requestPath: '/tv/42',
-        requestQuery: {},
-        responseJson: { name: 'Upgraded Show', genres: [{ id: 18, name: 'Drama' }] },
-        statusCode: 200,
-        isNegative: false,
-        fetchedAt: '2026-01-01T00:00:00.000Z',
-        freshUntil: '2099-01-01T00:00:00.000Z',
-        staleUntil: '2099-01-01T00:00:00.000Z',
-        purgeAt: '2099-01-01T00:00:00.000Z',
-        lastError: null,
-        errorCount: 0,
-      }),
-    } as never,
+    { request: async () => { throw new Error('store must not use the API client'); } } as never,
   );
 
   const result = await service.getTitle({} as never, 'tv', 42);
-  assert.equal(result?.name, 'Upgraded Show');
-  assert.equal((upserted as ReturnType<typeof makeTitle> | null)?.name, 'Upgraded Show');
+  assert.equal(ingested, true);
+  assert.equal(result?.name, 'Cached Show');
 });
 
-test('getTitle fetches from API when not cached', async () => {
-  const { TmdbCacheService } = await import('./tmdb-cache.service.js');
+test('getTitle maps negative ingest results to null', async () => {
+  const module = await import('./tmdb-cache.service.js');
 
-  let requestCalls = 0;
-  const service = new TmdbCacheService(
+  const notFoundRow = { ...makeTitle(), hydrationLevel: 'not_found' };
+  let reads = 0;
+  const service = new module.TmdbCacheService(
     {
-      getTitle: async () => null,
-      upsertTitle: async () => {},
-    } as never,
-    {
-      request: async () => {
-        requestCalls += 1;
-        return { name: 'Fresh Show', genres: [{ id: 18, name: 'Drama' }] };
+      getTitle: async () => {
+        reads += 1;
+        return reads === 1 ? null : notFoundRow;
       },
     } as never,
-    {
-      getOrFetch: async (_client: unknown, spec: unknown, _policyKey: unknown, fetchFn: () => Promise<Record<string, unknown>>) => ({
-        cacheKey: 'test',
-        resourceType: 'title',
-        resourceId: 'tv:42',
-        variant: 'detail',
-        language: null,
-        requestPath: '/tv/42',
-        requestQuery: {},
-        responseJson: await fetchFn(),
-        statusCode: 200,
-        isNegative: false,
-        fetchedAt: '2026-01-01T00:00:00.000Z',
-        freshUntil: '2099-01-01T00:00:00.000Z',
-        staleUntil: '2099-01-01T00:00:00.000Z',
-        purgeAt: '2099-01-01T00:00:00.000Z',
-        lastError: null,
-        errorCount: 0,
-      }),
-    } as never,
-  );
-
-  const result = await service.getTitle({} as never, 'tv', 42);
-  assert.equal(requestCalls, 1);
-  assert.equal(result?.name, 'Fresh Show');
-});
-
-test('getTitle returns null on 404 from API', async () => {
-  const { TmdbCacheService } = await import('./tmdb-cache.service.js');
-
-  const service = new TmdbCacheService(
-    {
-      getTitle: async () => null,
-      upsertTitle: async () => {},
-    } as never,
-    {
-      request: async () => { throw new HttpError(404, 'not found'); },
-    } as never,
-    {
-      getOrFetch: async (_client: unknown, _spec: unknown, _policyKey: unknown, fetchFn: () => Promise<Record<string, unknown>>) => {
-        try {
-          await fetchFn();
-        } catch (error) {
-          if (error instanceof HttpError && error.statusCode === 404) {
-            return {
-              cacheKey: 'test',
-              resourceType: 'title',
-              resourceId: 'tv:999',
-              variant: 'detail',
-              language: null,
-              requestPath: '/tv/999',
-              requestQuery: {},
-              responseJson: {},
-              statusCode: 404,
-              isNegative: true,
-              fetchedAt: '2026-01-01T00:00:00.000Z',
-              freshUntil: '2099-01-01T00:00:00.000Z',
-              staleUntil: '2099-01-01T00:00:00.000Z',
-              purgeAt: '2099-01-01T00:00:00.000Z',
-              lastError: error.message,
-              errorCount: 1,
-            };
-          }
-          throw error;
-        }
-        throw new Error('expected 404');
-      },
-    } as never,
+    { ingestTitle: async () => null } as never,
+    {} as never,
   );
 
   const result = await service.getTitle({} as never, 'tv', 999);
   assert.equal(result, null);
+});
+
+test('getTitles hydrates only missing keys', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  const requested = [
+    { mediaType: 'movie' as const, tmdbId: 1 },
+    { mediaType: 'movie' as const, tmdbId: 2 },
+  ];
+
+  const service = new module.TmdbCacheService(
+    {
+      getTitles: async () => new Map([['movie:1', makeTitle({ mediaType: 'movie', tmdbId: 1 })]]),
+      getTitle: async () => makeTitle({ mediaType: 'movie', tmdbId: 2 }),
+    } as never,
+    {
+      ingestTitle: async (_client: unknown, _mediaType: string, tmdbId: number) => makeTitle({ mediaType: 'movie', tmdbId }),
+    } as never,
+    {} as never,
+  );
+
+  const results = await service.getTitles({} as never, requested, 'en');
+  assert.equal(results.get('movie:1')?.name, 'Cached Show');
+  assert.equal(results.get('movie:2')?.tmdbId, 2);
+});
+
+test('searchTitles stays local when enough hits exist', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  let apiCalls = 0;
+  const localHits = Array.from({ length: 6 }, (_, index) => makeTitle({ tmdbId: index + 1 }));
+  const service = new module.TmdbCacheService(
+    { searchTitles: async () => localHits } as never,
+    {} as never,
+    { request: async () => { apiCalls += 1; return {}; } } as never,
+  );
+
+  const results = await service.searchTitles({} as never, 'cache', 20, ['movie', 'tv'], 'en');
+  assert.equal(results.length, 6);
+  assert.equal(apiCalls, 0);
+});
+
+test('searchTitles falls back to TMDB when local coverage is thin', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  let searchCalls = 0;
+  let persisted = false;
+  const service = new module.TmdbCacheService(
+    {
+      searchTitles: async () => {
+        searchCalls += 1;
+        if (!persisted) {
+          return [makeTitle()];
+        }
+        return [makeTitle(), makeTitle({ tmdbId: 7, name: 'Live Hit', mediaType: 'movie' })];
+      },
+      upsertTranslations: async () => {},
+      upsertSummaryTitles: async () => {},
+    } as never,
+    {
+      persistSummaries: async () => {
+        persisted = true;
+      },
+    } as never,
+    { request: async () => ({ results: [{ id: 7, title: 'Live Hit', media_type: 'movie' }] }) } as never,
+  );
+
+  const results = await service.searchTitles({} as never, 'live', 20, ['movie'], 'en');
+  assert.equal(searchCalls, 2);
+  assert.equal(results.length, 2);
+});
+
+test('ensureSeasonCached ingests expired seasons inline', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  let ingested = false;
+  const season = {
+    showTmdbId: 10,
+    seasonNumber: 1,
+    name: 'S1',
+    overview: null,
+    airDate: null,
+    posterPath: null,
+    episodeCount: 8,
+    raw: {},
+    fetchedAt: '2026-01-01T00:00:00.000Z',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  };
+  const service = new module.TmdbCacheService(
+    {
+      getSeason: async () => (ingested ? season : null),
+      getSeasonEpisodes: async () => [],
+    } as never,
+    {
+      ingestSeason: async () => {
+        ingested = true;
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.ensureSeasonCached({} as never, 10, 1);
+  assert.equal(ingested, true);
+  assert.equal(result?.name, 'S1');
 });

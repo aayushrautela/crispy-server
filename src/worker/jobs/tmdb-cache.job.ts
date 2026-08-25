@@ -1,23 +1,16 @@
 import { withDbClient } from '../../lib/db.js';
-import type { TmdbCacheRefreshJob, TmdbCacheWarmSeasonBatchJob, TmdbCacheWarmTitleBatchJob, TmdbCachePurgeExpiredJob } from '../../lib/queue.js';
+import type { TmdbCachePurgeExpiredJob, TmdbCacheWarmSeasonBatchJob, TmdbCacheWarmTitleBatchJob, TmdbEntityRefreshJob } from '../../lib/queue.js';
 import { TmdbCacheService } from '../../modules/metadata/providers/tmdb-cache.service.js';
-import { TmdbClient } from '../../modules/metadata/providers/tmdb.client.js';
+import { TmdbIngestService } from '../../modules/metadata/providers/tmdb-ingest.service.js';
 import { TmdbRepository } from '../../modules/metadata/providers/tmdb.repo.js';
-import { TmdbResponseCacheService } from '../../modules/metadata/providers/tmdb-response-cache.service.js';
 
 const tmdbCacheService = new TmdbCacheService();
-const tmdbClient = new TmdbClient();
-const responseCache = new TmdbResponseCacheService();
+const ingest = new TmdbIngestService();
 const repository = new TmdbRepository();
 
-export async function runTmdbCacheRefreshJob(payload: TmdbCacheRefreshJob): Promise<void> {
+export async function runTmdbEntityRefreshJob(payload: TmdbEntityRefreshJob): Promise<void> {
   await withDbClient(async (client) => {
-    await responseCache.getOrFetch(
-      client,
-      payload.spec,
-      payload.policyKey,
-      () => tmdbClient.request(payload.spec.requestPath, payload.spec.requestQuery),
-    );
+    await ingest.ingestTitle(client, payload.mediaType, payload.tmdbId);
   });
 }
 
@@ -39,6 +32,6 @@ export async function runTmdbSeasonWarmBatchJob(payload: TmdbCacheWarmSeasonBatc
 
 export async function runTmdbCachePurgeExpiredJob(payload: TmdbCachePurgeExpiredJob): Promise<void> {
   await withDbClient(async (client) => {
-    await repository.purgeExpiredApiResponses(client, payload.limit);
+    await repository.purgeExpiredEntities(client, payload.limit);
   });
 }
