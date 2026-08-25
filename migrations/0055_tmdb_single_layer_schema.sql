@@ -26,6 +26,14 @@ ON CONFLICT (media_type, tmdb_id, lang) DO NOTHING;
 ALTER TABLE tmdb_titles DROP CONSTRAINT tmdb_titles_pkey;
 DROP INDEX IF EXISTS tmdb_titles_name_trgm_idx;
 
+-- Collapse the per-language duplicates that the old (media_type, tmdb_id, language)
+-- key allowed, keeping the most recently fetched variant of each title.
+DELETE FROM tmdb_titles a
+USING tmdb_titles b
+WHERE a.media_type = b.media_type
+  AND a.tmdb_id = b.tmdb_id
+  AND (a.fetched_at < b.fetched_at OR (a.fetched_at = b.fetched_at AND a.ctid < b.ctid));
+
 ALTER TABLE tmdb_titles
   DROP COLUMN language,
   DROP COLUMN name,
