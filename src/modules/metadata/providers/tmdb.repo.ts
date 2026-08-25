@@ -30,9 +30,9 @@ function titleColumns(): string {
   `;
 }
 
-function titleJoins(langParam: string): string {
+function titleJoins(langParam: string, from = 'FROM tmdb_titles t'): string {
   return `
-    FROM tmdb_titles t
+    ${from}
     LEFT JOIN tmdb_title_translations tr ON tr.media_type = t.media_type AND tr.tmdb_id = t.tmdb_id AND tr.lang = ${langParam}
     LEFT JOIN tmdb_title_translations ten ON ten.media_type = t.media_type AND ten.tmdb_id = t.tmdb_id AND ten.lang = 'en'
     LEFT JOIN LATERAL (
@@ -126,22 +126,22 @@ export class TmdbRepository {
       `SELECT DISTINCT ON (t.media_type, t.tmdb_id)
               ${titleColumns()},
               CASE
-                 WHEN lower(coalesce(tr.name, '')) = lower($2) THEN 0
-                 WHEN lower(coalesce(ten.name, '')) = lower($2) THEN 1
-                 WHEN lower(coalesce(tr.name, '')) LIKE lower($3) THEN 2
-                 WHEN lower(coalesce(ten.name, '')) LIKE lower($3) THEN 3
+                 WHEN lower(coalesce(tr.name, '')) = lower($1) THEN 0
+                 WHEN lower(coalesce(ten.name, '')) = lower($1) THEN 1
+                 WHEN lower(coalesce(tr.name, '')) LIKE lower($2) THEN 2
+                 WHEN lower(coalesce(ten.name, '')) LIKE lower($2) THEN 3
                  ELSE 4
               END AS rank_order,
-              CASE WHEN tr.lang = $5 THEN 0 ELSE 1 END AS lang_order
-       ${titleJoins('$5')}
-       WHERE t.media_type = ANY($4::text[])
+              CASE WHEN tr.lang = $4 THEN 0 ELSE 1 END AS lang_order
+       ${titleJoins('$4')}
+       WHERE t.media_type = ANY($3::text[])
          AND (
-           lower(coalesce(tr.name, '')) LIKE '%' || lower($2) || '%'
-           OR lower(coalesce(ten.name, '')) LIKE '%' || lower($2) || '%'
-           OR lower(coalesce(t.original_name, '')) LIKE '%' || lower($2) || '%'
+           lower(coalesce(tr.name, '')) LIKE '%' || lower($1) || '%'
+           OR lower(coalesce(ten.name, '')) LIKE '%' || lower($1) || '%'
+           OR lower(coalesce(t.original_name, '')) LIKE '%' || lower($1) || '%'
          )
        ORDER BY t.media_type, t.tmdb_id, lang_order ASC, rank_order ASC`,
-      [query, query, `${query}%`, mediaTypes, language],
+      [query, `${query}%`, mediaTypes, language],
     );
 
     return [...result.rows]
@@ -373,9 +373,7 @@ export class TmdbRepository {
 
   async getRelatedTitles(client: DbClient, sourceMediaType: string, sourceTmdbId: number, relationKind: TmdbRelationKind, language: string, limit = 40): Promise<TmdbTitleRecord[]> {
     const result = await client.query(
-      `SELECT ${titleColumns()} ${titleJoins('$4')}
-       FROM tmdb_title_relations rel
-       JOIN tmdb_titles t ON t.media_type = rel.target_media_type AND t.tmdb_id = rel.target_tmdb_id
+      `SELECT ${titleColumns()} ${titleJoins('$4', 'FROM tmdb_title_relations rel JOIN tmdb_titles t ON t.media_type = rel.target_media_type AND t.tmdb_id = rel.target_tmdb_id')}
        WHERE rel.source_media_type = $1 AND rel.source_tmdb_id = $2 AND rel.relation_kind = $3
          AND coalesce(t.hydration_level, 'summary') <> 'not_found'
        ORDER BY rel.rank ASC
@@ -675,9 +673,7 @@ export class TmdbRepository {
 
   async getPersonKnownFor(client: DbClient, personTmdbId: number, language: string, limit = 10): Promise<Array<{ title: TmdbTitleRecord; character: string | null; job: string | null }>> {
     const result = await client.query(
-      `SELECT pc.character, pc.job AS pc_job, ${titleColumns()} ${titleJoins('$2')}
-       FROM tmdb_person_credits pc
-       JOIN tmdb_titles t ON t.media_type = pc.target_media_type AND t.tmdb_id = pc.target_tmdb_id
+      `SELECT pc.character, pc.job AS pc_job, ${titleColumns()} ${titleJoins('$2', 'FROM tmdb_person_credits pc JOIN tmdb_titles t ON t.media_type = pc.target_media_type AND t.tmdb_id = pc.target_tmdb_id')}
        WHERE pc.person_tmdb_id = $1 AND coalesce(t.hydration_level, 'summary') <> 'not_found'
        ORDER BY coalesce(t.popularity, 0) DESC
        LIMIT $3`,
