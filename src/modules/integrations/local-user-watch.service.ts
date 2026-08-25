@@ -136,15 +136,13 @@ export const WATCH_ITEM_CONTENT_JOIN = `
     ON cpr_tvdb.content_id = ws.item_id AND cpr_tvdb.provider = 'tvdb'
   LEFT JOIN content_provider_refs cpr_tvdb_show
     ON cpr_tvdb_show.content_id = cir.parent_content_id AND cpr_tvdb_show.provider = 'tvdb'
-  -- Runtime is canonical from TMDB metadata, not the playing file. Titles are cached
-  -- under the effective metadata language (usually 'en'), so pick the best English row
-  -- rather than hard-filtering on 'en-US'.
+  -- Runtime is canonical from TMDB metadata, not the playing file.
+  -- tmdb_titles holds one row per title (language lives in tmdb_title_translations).
   LEFT JOIN LATERAL (
     SELECT t.runtime
     FROM tmdb_titles t
     WHERE t.media_type = 'movie'
       AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
-    ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
     LIMIT 1
   ) tt ON true
   LEFT JOIN tmdb_tv_episodes tve
@@ -156,7 +154,6 @@ export const WATCH_ITEM_CONTENT_JOIN = `
     FROM tmdb_titles t
     WHERE t.media_type = 'show'
       AND t.tmdb_id = cpr_tmdb_show.external_id::integer
-    ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
     LIMIT 1
   ) tt_show ON true
 `;
@@ -480,7 +477,6 @@ export class LocalUserWatchService {
             FROM tmdb_titles t
             WHERE t.media_type = 'movie'
               AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
-            ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
             LIMIT 1
           ) tt ON true
           LEFT JOIN tmdb_tv_episodes tve
@@ -492,7 +488,6 @@ export class LocalUserWatchService {
             FROM tmdb_titles t
             WHERE t.media_type = 'show'
               AND t.tmdb_id = cpr_tmdb_show.external_id::integer
-            ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
             LIMIT 1
           ) tt_show ON true
          LEFT JOIN user_state.watch_state ws
@@ -597,7 +592,6 @@ export class LocalUserWatchService {
          SELECT t.runtime FROM tmdb_titles t
          WHERE t.media_type = 'movie'
            AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
-         ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
          LIMIT 1
        ) tt ON true
        LEFT JOIN tmdb_tv_episodes tve
@@ -608,7 +602,6 @@ export class LocalUserWatchService {
          SELECT t.episode_run_time FROM tmdb_titles t
          WHERE t.media_type = 'show'
            AND t.tmdb_id = cpr_tmdb_show.external_id::integer
-         ORDER BY CASE WHEN t.language = 'en-US' THEN 0 WHEN t.language = 'en' THEN 1 ELSE 2 END
          LIMIT 1
        ) tt_show ON true
        WHERE ci.id = $1::uuid`,

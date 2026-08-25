@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
-import { WATCH_ITEM_CONTENT_JOIN } from './local-user-watch.service.js';
 
 seedTestEnv();
 
-test('resolvePlayState: no runtime, position > 0 is played', async () => {
+const { WATCH_ITEM_CONTENT_JOIN } = await import('./local-user-watch.service.js');
+
+test('resolvePlayState: no runtime keeps item in progress and preserves resume point', async () => {
   const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(120, null), { played: true, positionSeconds: 0 });
+  assert.deepEqual(LocalUserWatchService.resolvePlayState(120, null), { played: false, positionSeconds: 120 });
   assert.deepEqual(LocalUserWatchService.resolvePlayState(0, null), { played: false, positionSeconds: 0 });
 });
 
@@ -115,7 +116,7 @@ test('resolveCascadeItemIds mirrors history targets for mark/unmark watched', as
 });
 
 test('WATCH_ITEM_CONTENT_JOIN never casts an episode provider ref to integer', () => {
-  const ttClause = (WATCH_ITEM_CONTENT_JOIN.split('LEFT JOIN tmdb_titles tt')[1] ?? '')
+  const ttClause = (WATCH_ITEM_CONTENT_JOIN.split('LEFT JOIN LATERAL')[1] ?? '')
     .split('LEFT JOIN tmdb_tv_episodes')[0] ?? '';
   assert.ok(
     ttClause.includes("CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END"),

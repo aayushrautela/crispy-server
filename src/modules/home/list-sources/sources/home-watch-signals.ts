@@ -37,7 +37,6 @@ export async function topGenresForProfile(
        JOIN tmdb_titles t
          ON t.media_type = tr.media_type
         AND t.tmdb_id = tr.tmdb_id
-        AND t.language = 'en-US'
      )
      SELECT genre_id, media_type, COUNT(*)::text AS count
      FROM exploded
