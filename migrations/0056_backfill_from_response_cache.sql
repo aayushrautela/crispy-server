@@ -83,69 +83,35 @@ GROUP BY media_type, tmdb_id, lang
 ON CONFLICT (media_type, tmdb_id, lang) DO NOTHING;
 
 -- Language-tagged images: posters, backdrops, logos.
+-- Grouped because identical files appear across language variants of a title.
 INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, iso_639_1, vote_average, vote_count, width, height)
-SELECT
-  split_part(r.resource_id, ':', 1),
-  split_part(r.resource_id, ':', 2)::integer,
-  'poster',
-  i.entry ->> 'file_path',
-  NULLIF(i.entry ->> 'iso_639_1', ''),
-  NULLIF(i.entry ->> 'vote_average', '')::numeric,
-  NULLIF(i.entry ->> 'vote_count', '')::integer,
-  NULLIF(i.entry ->> 'width', '')::integer,
-  NULLIF(i.entry ->> 'height', '')::integer
-FROM tmdb_api_responses r
-CROSS JOIN LATERAL jsonb_array_elements(
-  CASE WHEN jsonb_typeof(r.response_json #> ARRAY['images', 'posters']) = 'array'
-       THEN r.response_json #> ARRAY['images', 'posters'] ELSE '[]'::jsonb END
-) AS i(entry)
-WHERE r.resource_type = 'title' AND NOT r.is_negative AND i.entry ->> 'file_path' IS NOT NULL
-ON CONFLICT (media_type, tmdb_id, kind, file_path) DO UPDATE SET
-  iso_639_1 = EXCLUDED.iso_639_1,
-  vote_average = EXCLUDED.vote_average,
-  vote_count = EXCLUDED.vote_count;
-
-INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, iso_639_1, vote_average, vote_count, width, height)
-SELECT
-  split_part(r.resource_id, ':', 1),
-  split_part(r.resource_id, ':', 2)::integer,
-  'backdrop',
-  i.entry ->> 'file_path',
-  NULLIF(i.entry ->> 'iso_639_1', ''),
-  NULLIF(i.entry ->> 'vote_average', '')::numeric,
-  NULLIF(i.entry ->> 'vote_count', '')::integer,
-  NULLIF(i.entry ->> 'width', '')::integer,
-  NULLIF(i.entry ->> 'height', '')::integer
-FROM tmdb_api_responses r
-CROSS JOIN LATERAL jsonb_array_elements(
-  CASE WHEN jsonb_typeof(r.response_json #> ARRAY['images', 'backdrops']) = 'array'
-       THEN r.response_json #> ARRAY['images', 'backdrops'] ELSE '[]'::jsonb END
-) AS i(entry)
-WHERE r.resource_type = 'title' AND NOT r.is_negative AND i.entry ->> 'file_path' IS NOT NULL
-ON CONFLICT (media_type, tmdb_id, kind, file_path) DO UPDATE SET
-  iso_639_1 = EXCLUDED.iso_639_1,
-  vote_average = EXCLUDED.vote_average,
-  vote_count = EXCLUDED.vote_count;
-
-INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, iso_639_1, vote_average, vote_count, width, height)
-SELECT
-  split_part(r.resource_id, ':', 1),
-  split_part(r.resource_id, ':', 2)::integer,
-  'logo',
-  i.entry ->> 'file_path',
-  NULLIF(i.entry ->> 'iso_639_1', ''),
-  NULLIF(i.entry ->> 'vote_average', '')::numeric,
-  NULLIF(i.entry ->> 'vote_count', '')::integer,
-  NULLIF(i.entry ->> 'width', '')::integer,
-  NULLIF(i.entry ->> 'height', '')::integer
-FROM tmdb_api_responses r
-CROSS JOIN LATERAL jsonb_array_elements(
-  CASE WHEN jsonb_typeof(r.response_json #> ARRAY['images', 'logos']) = 'array'
-       THEN r.response_json #> ARRAY['images', 'logos'] ELSE '[]'::jsonb END
-) AS i(entry)
-WHERE r.resource_type = 'title' AND NOT r.is_negative AND i.entry ->> 'file_path' IS NOT NULL
-ON CONFLICT (media_type, tmdb_id, kind, file_path) DO UPDATE SET
-  iso_639_1 = EXCLUDED.iso_639_1;
+SELECT media_type, tmdb_id, kind, file_path,
+       max(iso_639_1) AS iso_639_1,
+       max(vote_average) AS vote_average,
+       max(vote_count) AS vote_count,
+       max(width) AS width,
+       max(height) AS height
+FROM (
+  SELECT
+    split_part(r.resource_id, ':', 1) AS media_type,
+    split_part(r.resource_id, ':', 2)::integer AS tmdb_id,
+    k.kind,
+    i.entry ->> 'file_path' AS file_path,
+    NULLIF(i.entry ->> 'iso_639_1', '') AS iso_639_1,
+    NULLIF(i.entry ->> 'vote_average', '')::numeric AS vote_average,
+    NULLIF(i.entry ->> 'vote_count', '')::integer AS vote_count,
+    NULLIF(i.entry ->> 'width', '')::integer AS width,
+    NULLIF(i.entry ->> 'height', '')::integer AS height
+  FROM tmdb_api_responses r
+  CROSS JOIN LATERAL (VALUES ('poster', 'posters'), ('backdrop', 'backdrops'), ('logo', 'logos')) AS k(kind, key)
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_typeof(r.response_json #> ARRAY['images', k.key]) = 'array'
+         THEN r.response_json #> ARRAY['images', k.key] ELSE '[]'::jsonb END
+  ) AS i(entry)
+  WHERE r.resource_type = 'title' AND NOT r.is_negative AND i.entry ->> 'file_path' IS NOT NULL
+) s
+GROUP BY media_type, tmdb_id, kind, file_path
+ON CONFLICT (media_type, tmdb_id, kind, file_path) DO NOTHING;
 
 -- Written reviews.
 INSERT INTO tmdb_reviews (media_type, tmdb_id, source, review_key, author, author_username, content, lang, url, rating, created_at, fetched_at)
