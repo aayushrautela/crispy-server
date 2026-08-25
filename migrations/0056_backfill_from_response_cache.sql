@@ -40,45 +40,47 @@ ON CONFLICT (media_type, tmdb_id) DO NOTHING;
 
 -- Translations from the payload's own language.
 INSERT INTO tmdb_title_translations (media_type, tmdb_id, lang, name, overview, tagline)
-SELECT
-  split_part(r.resource_id, ':', 1),
-  split_part(r.resource_id, ':', 2)::integer,
-  split_part(coalesce(nullif(trim(coalesce(r.language, '')), ''), 'en'), '-', 1),
-  coalesce(r.response_json ->> 'title', r.response_json ->> 'name'),
-  NULLIF(r.response_json ->> 'overview', ''),
-  NULLIF(r.response_json ->> 'tagline', '')
-FROM tmdb_api_responses r
-WHERE r.resource_type = 'title'
-  AND NOT r.is_negative
-  AND coalesce(r.response_json ->> 'title', r.response_json ->> 'name') IS NOT NULL
-ON CONFLICT (media_type, tmdb_id, lang) DO UPDATE SET
-  name = EXCLUDED.name,
-  overview = EXCLUDED.overview,
-  tagline = EXCLUDED.tagline;
+SELECT media_type, tmdb_id, lang, max(name) AS name, max(overview) AS overview, max(tagline) AS tagline
+FROM (
+  SELECT
+    split_part(r.resource_id, ':', 1) AS media_type,
+    split_part(r.resource_id, ':', 2)::integer AS tmdb_id,
+    split_part(coalesce(nullif(trim(coalesce(r.language, '')), ''), 'en'), '-', 1) AS lang,
+    coalesce(r.response_json ->> 'title', r.response_json ->> 'name') AS name,
+    NULLIF(r.response_json ->> 'overview', '') AS overview,
+    NULLIF(r.response_json ->> 'tagline', '') AS tagline
+  FROM tmdb_api_responses r
+  WHERE r.resource_type = 'title'
+    AND NOT r.is_negative
+    AND coalesce(r.response_json ->> 'title', r.response_json ->> 'name') IS NOT NULL
+) s
+GROUP BY media_type, tmdb_id, lang
+ON CONFLICT (media_type, tmdb_id, lang) DO NOTHING;
 
 -- Translations from the appended translations list.
 INSERT INTO tmdb_title_translations (media_type, tmdb_id, lang, name, overview, tagline)
-SELECT
-  split_part(r.resource_id, ':', 1),
-  split_part(r.resource_id, ':', 2)::integer,
-  t.tr ->> 'iso_639_1',
-  t.tr #>> '{data,name}',
-  t.tr #>> '{data,overview}',
-  t.tr #>> '{data,tagline}'
-FROM tmdb_api_responses r
-CROSS JOIN LATERAL jsonb_array_elements(
-  CASE WHEN jsonb_typeof(r.response_json #> ARRAY['translations', 'translations']) = 'array'
-       THEN r.response_json #> ARRAY['translations', 'translations']
-       ELSE '[]'::jsonb END
-) AS t(tr)
-WHERE r.resource_type = 'title'
-  AND NOT r.is_negative
-  AND coalesce(t.tr ->> 'iso_639_1', '') <> ''
-  AND coalesce(t.tr #>> '{data,name}', t.tr #>> '{data,overview}', t.tr #>> '{data,tagline}') IS NOT NULL
-ON CONFLICT (media_type, tmdb_id, lang) DO UPDATE SET
-  name = coalesce(EXCLUDED.name, tmdb_title_translations.name),
-  overview = coalesce(EXCLUDED.overview, tmdb_title_translations.overview),
-  tagline = coalesce(EXCLUDED.tagline, tmdb_title_translations.tagline);
+SELECT media_type, tmdb_id, lang, max(name) AS name, max(overview) AS overview, max(tagline) AS tagline
+FROM (
+  SELECT
+    split_part(r.resource_id, ':', 1) AS media_type,
+    split_part(r.resource_id, ':', 2)::integer AS tmdb_id,
+    t.tr ->> 'iso_639_1' AS lang,
+    t.tr #>> '{data,name}' AS name,
+    t.tr #>> '{data,overview}' AS overview,
+    t.tr #>> '{data,tagline}' AS tagline
+  FROM tmdb_api_responses r
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_typeof(r.response_json #> ARRAY['translations', 'translations']) = 'array'
+         THEN r.response_json #> ARRAY['translations', 'translations']
+         ELSE '[]'::jsonb END
+  ) AS t(tr)
+  WHERE r.resource_type = 'title'
+    AND NOT r.is_negative
+    AND coalesce(t.tr ->> 'iso_639_1', '') <> ''
+    AND coalesce(t.tr #>> '{data,name}', t.tr #>> '{data,overview}', t.tr #>> '{data,tagline}') IS NOT NULL
+) s
+GROUP BY media_type, tmdb_id, lang
+ON CONFLICT (media_type, tmdb_id, lang) DO NOTHING;
 
 -- Language-tagged images: posters, backdrops, logos.
 INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, iso_639_1, vote_average, vote_count, width, height)
@@ -193,10 +195,10 @@ WITH entries AS (
 ),
 ins_rel AS (
   INSERT INTO tmdb_title_relations (source_media_type, source_tmdb_id, relation_kind, target_media_type, target_tmdb_id, rank)
-  SELECT media_type, tmdb_id, kind, target_media_type, target_tmdb_id, ord::integer
+  SELECT media_type, tmdb_id, kind, target_media_type, target_tmdb_id, min(ord)::integer
   FROM entries
-  ON CONFLICT (source_media_type, source_tmdb_id, relation_kind, target_media_type, target_tmdb_id) DO UPDATE SET
-    rank = EXCLUDED.rank
+  GROUP BY media_type, tmdb_id, kind, target_media_type, target_tmdb_id
+  ON CONFLICT (source_media_type, source_tmdb_id, relation_kind, target_media_type, target_tmdb_id) DO NOTHING
   RETURNING 1
 )
 INSERT INTO tmdb_titles (

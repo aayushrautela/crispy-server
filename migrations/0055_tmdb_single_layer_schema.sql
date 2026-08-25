@@ -14,13 +14,14 @@ CREATE TABLE tmdb_title_translations (
 );
 
 INSERT INTO tmdb_title_translations (media_type, tmdb_id, lang, name, overview, tagline)
-SELECT media_type, tmdb_id, split_part(language, '-', 1), name, overview, tagline
-FROM tmdb_titles
-WHERE name IS NOT NULL OR overview IS NOT NULL OR tagline IS NOT NULL
-ON CONFLICT (media_type, tmdb_id, lang) DO UPDATE SET
-  name = EXCLUDED.name,
-  overview = EXCLUDED.overview,
-  tagline = EXCLUDED.tagline;
+SELECT media_type, tmdb_id, lang, max(name) AS name, max(overview) AS overview, max(tagline) AS tagline
+FROM (
+  SELECT media_type, tmdb_id, split_part(language, '-', 1) AS lang, name, overview, tagline
+  FROM tmdb_titles
+  WHERE name IS NOT NULL OR overview IS NOT NULL OR tagline IS NOT NULL
+) s
+GROUP BY media_type, tmdb_id, lang
+ON CONFLICT (media_type, tmdb_id, lang) DO NOTHING;
 
 ALTER TABLE tmdb_titles DROP CONSTRAINT tmdb_titles_pkey;
 DROP INDEX IF EXISTS tmdb_titles_name_trgm_idx;
