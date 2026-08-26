@@ -439,9 +439,9 @@ paths:
       summary: Get person details.
       description: |
         Returns a person profile with `knownFor` — the titles the person is most known for,
-        ordered by popularity. Each entry uses the same Jellyfin-style BaseItemDto shape as
-        other title rails (e.g. "More Like This" on the item extras endpoint), so clients can
-        render both with one card component and navigate using `Id` directly.
+        ordered by popularity. Each entry uses the standardized ClientMediaCard shape shared
+        by all title rails (e.g. "More Like This" on the item extras endpoint), so clients can
+        render both with one card component and navigate using `itemId` directly.
       security:
         - UserBearerAuth: []
       parameters:
@@ -564,12 +564,12 @@ paths:
       operationId: getV1MetadataShowsItemIdEpisodes
       summary: Get episodes for a series (Jellyfin-style /Shows/{id}/Episodes parity).
       description: |
-        Returns every episode for a series as a list of BaseItemDto, mirroring Jellyfin's
-        `GET /Shows/{id}/Episodes`. The series is resolved from the item id (a show, season,
-        or episode id is accepted and mapped to its parent series). Each episode carries its
-        own canonical item id plus `SeriesId`, `SeasonId`, `ParentIndexNumber` (season) and
-        `IndexNumber` (episode). Pass `season` to scope the response to a single season.
-        Item IDs are dashless lowercase UUID hex strings.
+        Returns every episode for a series as a list of standardized ClientMediaCard entries.
+        The series is resolved from the item id (a show, season, or episode id is accepted
+        and mapped to its parent series). Each episode carries its own canonical `itemId`
+        plus `parent.seriesItemId`, `parent.seasonItemId`, `parent.seasonNumber`
+        (season) and `parent.episodeNumber` (episode). Pass `season` to scope the response
+        to a single season. Item IDs are dashless lowercase UUID hex strings.
       security:
         - UserBearerAuth: []
       parameters:
@@ -3351,7 +3351,7 @@ components:
         Items:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/ClientMediaCard"
         StartIndex:
           type: integer
         TotalRecordCount:
@@ -3518,18 +3518,18 @@ components:
         Seasons:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/ClientMediaCard"
         Reviews:
-          type: array
+          type: 'array'
           items:
             $ref: "#/components/schemas/MetadataReviewView"
         Similar:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/ClientMediaCard"
         Collection:
           anyOf:
-            - $ref: "#/components/schemas/BaseItemDtoQueryResult"
+            - $ref: "#/components/schemas/ClientMediaCardQueryResult"
             - type: "null"
     MetadataReviewView:
       type: object
@@ -3678,11 +3678,11 @@ components:
         movies:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/ClientMediaCard"
         series:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/ClientMediaCard"
         people:
           type: array
           items:
@@ -4164,7 +4164,7 @@ components:
         knownFor:
           type: array
           items:
-            $ref: "#/components/schemas/BaseItemDto"
+            $ref: "#/components/schemas/ClientMediaCard"
     MetadataPersonDetailResponseEnvelope:
       type: object
       required:

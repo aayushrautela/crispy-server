@@ -157,9 +157,9 @@ export interface paths {
         /**
          * Get person details.
          * @description Returns a person profile with `knownFor` — the titles the person is most known for,
-         *     ordered by popularity. Each entry uses the same Jellyfin-style BaseItemDto shape as
-         *     other title rails (e.g. "More Like This" on the item extras endpoint), so clients can
-         *     render both with one card component and navigate using `Id` directly.
+         *     ordered by popularity. Each entry uses the standardized ClientMediaCard shape shared
+         *     by all title rails (e.g. "More Like This" on the item extras endpoint), so clients can
+         *     render both with one card component and navigate using `itemId` directly.
          */
         get: operations["getV1MetadataPeoplePersonId"];
         put?: never;
@@ -220,12 +220,12 @@ export interface paths {
         };
         /**
          * Get episodes for a series (Jellyfin-style /Shows/{id}/Episodes parity).
-         * @description Returns every episode for a series as a list of BaseItemDto, mirroring Jellyfin's
-         *     `GET /Shows/{id}/Episodes`. The series is resolved from the item id (a show, season,
-         *     or episode id is accepted and mapped to its parent series). Each episode carries its
-         *     own canonical item id plus `SeriesId`, `SeasonId`, `ParentIndexNumber` (season) and
-         *     `IndexNumber` (episode). Pass `season` to scope the response to a single season.
-         *     Item IDs are dashless lowercase UUID hex strings.
+         * @description Returns every episode for a series as a list of standardized ClientMediaCard entries.
+         *     The series is resolved from the item id (a show, season, or episode id is accepted
+         *     and mapped to its parent series). Each episode carries its own canonical `itemId`
+         *     plus `parent.seriesItemId`, `parent.seasonItemId`, `parent.seasonNumber`
+         *     (season) and `parent.episodeNumber` (episode). Pass `season` to scope the response
+         *     to a single season. Item IDs are dashless lowercase UUID hex strings.
          */
         get: operations["getV1MetadataShowsItemIdEpisodes"];
         put?: never;
@@ -1096,7 +1096,7 @@ export interface components {
             HasMore: boolean;
         };
         SeriesEpisodesResponse: {
-            Items: components["schemas"]["BaseItemDto"][];
+            Items: components["schemas"]["ClientMediaCard"][];
             StartIndex: number;
             TotalRecordCount: number;
             NextCursor: string | null;
@@ -1147,10 +1147,10 @@ export interface components {
             networks: components["schemas"]["MetadataCompanyView"][];
         };
         MetadataTitleExtrasResponse: {
-            Seasons: components["schemas"]["BaseItemDto"][];
+            Seasons: components["schemas"]["ClientMediaCard"][];
             Reviews: components["schemas"]["MetadataReviewView"][];
-            Similar: components["schemas"]["BaseItemDto"][];
-            Collection: components["schemas"]["BaseItemDtoQueryResult"] | null;
+            Similar: components["schemas"]["ClientMediaCard"][];
+            Collection: components["schemas"]["ClientMediaCardQueryResult"] | null;
         };
         MetadataReviewView: {
             id: string;
@@ -1204,8 +1204,8 @@ export interface components {
         };
         MetadataSearchResponse: {
             query: string;
-            movies: components["schemas"]["BaseItemDto"][];
-            series: components["schemas"]["BaseItemDto"][];
+            movies: components["schemas"]["ClientMediaCard"][];
+            series: components["schemas"]["ClientMediaCard"][];
             people: components["schemas"]["MetadataPersonSearchResult"][];
         };
         ProfileHomeResponseEnvelope: {
@@ -1376,7 +1376,7 @@ export interface components {
             birthday: string | null;
             placeOfBirth: string | null;
             profileUrl: string | null;
-            knownFor: components["schemas"]["BaseItemDto"][];
+            knownFor: components["schemas"]["ClientMediaCard"][];
         };
         MetadataPersonDetailResponseEnvelope: {
             data: components["schemas"]["MetadataPersonDetail"];
