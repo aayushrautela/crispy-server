@@ -3,6 +3,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
+import { toClientMediaCard } from '../metadata/client-media-card.mapper.js';
 import type { ClientHomeSection, ClientHomeSectionType, ClientMediaCard } from '../recommendations/client-home.types.js';
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 
@@ -120,41 +121,10 @@ export class HomeHydrator {
   }
 
   private toClientCard(card: MetadataCardView, row: Record<string, unknown>): ClientMediaCard {
-    return {
-      itemId: card.itemId,
-      mediaType: toClientMediaType(card.mediaType ?? 'movie'),
-      title: card.title ?? '',
-      overview: readNullableText(row.description) ?? card.tagline ?? card.overview ?? card.summary,
-      year: card.releaseYear,
-      releaseDate: card.releaseDate,
-      rating: card.rating,
-      maturityRating: card.maturityRating,
-      genres: card.genres,
-      runtimeSeconds: typeof card.runtimeMinutes === 'number' ? card.runtimeMinutes * 60 : null,
-      images: {
-        poster: card.images.poster,
-        backdrop: card.images.backdrop,
-        logo: card.images.logo,
-        still: card.images.still,
-      },
-      trailerUrl: card.trailerUrl,
+    return toClientMediaCard(card, {
       progress: null,
-      parent: card.seriesItemId || card.seasonItemId || card.seasonNumber !== null || card.episodeNumber !== null
-        ? {
-            seriesItemId: card.seriesItemId ?? undefined,
-            seasonItemId: card.seasonItemId ?? undefined,
-            seasonNumber: card.seasonNumber,
-            episodeNumber: card.episodeNumber,
-          }
-        : null,
-      providerIds: card.externalIds
-        ? {
-            tmdb: card.externalIds.tmdb != null ? String(card.externalIds.tmdb) : null,
-            tvdb: card.externalIds.tvdb != null ? String(card.externalIds.tvdb) : null,
-            imdb: card.externalIds.imdb ?? null,
-          }
-        : null,
-    };
+      overviewOverride: readNullableText(row.description) ?? undefined,
+    });
   }
 
   /**
@@ -184,11 +154,6 @@ export class HomeHydrator {
   }
 }
 
-function toClientMediaType(mediaType: string): ClientMediaCard['mediaType'] {
-  if (mediaType === 'show') return 'tv';
-  if (mediaType === 'movie' || mediaType === 'season' || mediaType === 'episode') return mediaType;
-  return 'movie';
-}
 
 function readSectionType(value: unknown): ClientHomeSectionType {
   return value === 'categoryTabs' || value === 'heroCarousel' || value === 'contentRail' || value === 'collectionRail'

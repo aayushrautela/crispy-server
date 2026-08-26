@@ -3620,11 +3620,17 @@ components:
           $ref: "#/components/schemas/ResponseMeta"
     CalendarItem:
       allOf:
-        - $ref: "#/components/schemas/BaseItemDto"
+        - $ref: "#/components/schemas/ClientMediaCard"
         - type: object
           required:
+            - airDate
             - bucket
           properties:
+            airDate:
+              anyOf:
+                - type: string
+                - type: "null"
+              description: Scheduled air date of the episode (date only).
             bucket:
               type: string
               description: Display bucket for calendar ordering. `up_next` is the first not-yet-aired episode per series.

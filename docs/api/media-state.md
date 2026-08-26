@@ -66,6 +66,16 @@ Continue-watching items represent active resume state only.
 
 Clients should not infer watched status from continue-watching rows. Watched badges, episode ticks, and show watched state come from server watch-state responses.
 
+## Calendar
+
+Calendar routes return the standardized enriched card shape used across card surfaces — the same fields as watch/recommendation cards — extended with two calendar-specific fields:
+
+- Every item is an episode-level card carrying its own canonical `itemId`. The parent show is exposed through `parent.seriesItemId` / `parent.seriesTitle` (plus `seasonNumber` / `episodeNumber`). Episode item IDs are unique per row; rows are never series-level duplicates.
+- Artwork follows the responsive-set convention: `poster`, `backdrop`, and `logo` resolve from the show; `still` is the episode still when one exists. Logo artwork remains nullable; clients should fall back to text titles.
+- `airDate` is the scheduled air date of the episode (date only).
+- `bucket` groups entries for display ordering: `up_next` (first not-yet-aired episode per series), `this_week`, `upcoming`, `recently_released`, `no_scheduled`.
+- `progress` is always `null` on calendar items; watched state comes from watch-state routes, not the calendar.
+
 ## Recommendations
 
 Recommendation read payloads follow canonical item ID identity rules and the target client/RECO split:

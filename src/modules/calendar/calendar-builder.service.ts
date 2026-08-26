@@ -1,13 +1,10 @@
 import type { DbClient } from '../../lib/db.js';
 import { db } from '../../lib/db.js';
-import { ContentIdentityService } from '../identity/content-identity.service.js';
-import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
+import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
-import type { BaseItemDto } from '../metadata/media-item.types.js';
-import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
 import type { TmdbEpisodeRecord } from '../metadata/providers/tmdb.types.js';
-import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import { resolveCalendarBuckets } from './calendar-buckets.js';
 import type { CalendarItemDto } from './calendar.types.js';
 
@@ -35,27 +32,141 @@ type EpisodeCandidate = {
 export class CalendarBuilderService {
   constructor(
     private readonly metadataCardService = new MetadataCardService(),
-    private readonly contentIdentityService = new ContentIdentityService(),
   ) {}
 
   async build(client: DbClient, profileId: string, limit: number): Promise<CalendarItemDto[]> {
     const candidates = await this.loadCandidates(client, profileId, Math.max(limit * 4, 50));
     if (candidates.length === 0) return [];
 
-    const episodeCandidates = await this.expandEpisodes(client, candidates);
-    const built: Array<{ dto: BaseItemDto; showItemId: string; airDate: string | null }> = [];
+    const expanded = await this.expandEpisodes(client, candidates);
+    if (expanded.length === 0) return [];
 
-    for (const ep of episodeCandidates) {
-      if (built.length >= limit) break;
-      const dto = await this.buildEpisodeItem(client, profileId, ep);
-      if (dto) built.push({ dto, showItemId: ep.showItemId, airDate: ep.episode.airDate });
-    }
+    const built = await this.buildItems(client, candidates, expanded);
 
+    const capped = built.slice(0, limit);
     const buckets = resolveCalendarBuckets(
-      built.map(({ showItemId, airDate }) => ({ showItemId, airDate })),
+      capped.map(({ showItemId, airDate }) => ({ showItemId, airDate })),
     );
 
-    return built.map(({ dto }, index) => ({ ...dto, bucket: buckets[index]! }));
+    return capped.map((item, index) => ({ ...item.card, bucket: buckets[index]! }));
+  }
+
+  /**
+   * Enriches every candidate episode through one batched card-view lookup.
+   * Each item becomes a standardized episode card whose identity is the
+   * episode's own canonical content item; show-level fields (logo, genres,
+   * maturity rating, trailer) come from the show card view of the same batch.
+   */
+  private async buildItems(
+    client: DbClient,
+    candidates: Candidate[],
+    expanded: EpisodeCandidate[],
+  ): Promise<Array<{ card: Omit<CalendarItemDto, 'bucket'>; showItemId: string; airDate: string | null }>> {
+    const showIdentityByTmdbId = new Map<number, MediaIdentity>();
+    for (const candidate of candidates) {
+      if (showIdentityByTmdbId.has(candidate.showTmdbId)) continue;
+      try {
+        showIdentityByTmdbId.set(
+          candidate.showTmdbId,
+          inferMediaIdentity({
+            mediaType: 'show',
+            provider: 'tmdb',
+            providerId: String(candidate.showTmdbId),
+          }),
+        );
+      } catch {
+        // Unresolvable shows simply contribute no show-level enrichment.
+      }
+    }
+
+    const showIndexes = new Map<number, number>();
+    const identities: MediaIdentity[] = [];
+    for (const [showTmdbId, identity] of showIdentityByTmdbId) {
+      showIndexes.set(showTmdbId, identities.length);
+      identities.push(identity);
+    }
+    const episodeBaseIndex = identities.length;
+
+    const episodeIdentities = expanded.map((entry) => {
+      try {
+        return inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'tmdb',
+          showTmdbId: entry.showTmdbId,
+          seasonNumber: entry.seasonNumber,
+          episodeNumber: entry.episodeNumber,
+        });
+      } catch {
+        return null;
+      }
+    });
+    for (const identity of episodeIdentities) {
+      if (identity) identities.push(identity);
+    }
+
+    const views = await this.metadataCardService.buildCardViews(client, identities);
+
+    const built: Array<{ card: Omit<CalendarItemDto, 'bucket'>; showItemId: string; airDate: string | null }> = [];
+    let episodeCursor = episodeBaseIndex;
+    for (let index = 0; index < expanded.length; index += 1) {
+      const entry = expanded[index]!;
+      const identity = episodeIdentities[index];
+      if (!identity) continue;
+
+      const episodeView = views[episodeCursor];
+      episodeCursor += 1;
+      if (!episodeView) continue;
+
+      const showView = views[showIndexes.get(entry.showTmdbId) ?? -1] ?? null;
+      const card = this.toCalendarCard(entry, episodeView, showView);
+      if (!card) continue;
+
+      built.push({ card, showItemId: entry.showItemId, airDate: entry.episode.airDate });
+    }
+    return built;
+  }
+
+  private toCalendarCard(
+    entry: EpisodeCandidate,
+    episodeView: MetadataCardView,
+    showView: MetadataCardView | null,
+  ): Omit<CalendarItemDto, 'bucket'> | null {
+    if (!episodeView.title) return null;
+
+    const externalIds = (showView ?? episodeView).externalIds;
+    return {
+      itemId: episodeView.itemId,
+      mediaType: 'episode',
+      title: episodeView.title,
+      overview: episodeView.overview ?? episodeView.tagline ?? episodeView.summary,
+      year: episodeView.releaseYear,
+      releaseDate: episodeView.releaseDate,
+      rating: episodeView.rating,
+      maturityRating: showView?.maturityRating ?? episodeView.maturityRating,
+      genres: showView?.genres ?? episodeView.genres,
+      runtimeSeconds: typeof episodeView.runtimeMinutes === 'number' ? episodeView.runtimeMinutes * 60 : null,
+      images: {
+        poster: episodeView.images.poster,
+        backdrop: episodeView.images.backdrop,
+        logo: showView?.images.logo ?? episodeView.images.logo,
+        still: episodeView.images.still,
+      },
+      trailerUrl: showView?.trailerUrl ?? episodeView.trailerUrl,
+      progress: null,
+      parent: {
+        seriesItemId: episodeView.seriesItemId ?? showView?.itemId ?? undefined,
+        seriesTitle: showView?.title ?? undefined,
+        seasonItemId: episodeView.seasonItemId ?? undefined,
+        seasonNumber: episodeView.seasonNumber,
+        episodeNumber: episodeView.episodeNumber,
+      },
+      providerIds: {
+        tmdb: externalIds.tmdb != null ? String(externalIds.tmdb) : String(entry.showTmdbId),
+        tvdb: externalIds.tvdb != null ? String(externalIds.tvdb) : null,
+        imdb: externalIds.imdb ?? null,
+      },
+      airDate: entry.episode.airDate,
+    };
   }
 
   private async loadCandidates(
@@ -241,59 +352,6 @@ export class CalendarBuilderService {
     });
 
     return expanded;
-  }
-
-  private async buildEpisodeItem(
-    client: DbClient,
-    profileId: string,
-    ep: EpisodeCandidate,
-  ): Promise<BaseItemDto | null> {
-    const showIdentity = await this.contentIdentityService.resolveMediaIdentity(
-      client, assertPublicItemId(ep.showItemId),
-    ).catch(() => null);
-    if (!showIdentity) return null;
-
-    const showCard = await this.metadataCardService.buildCardView(client, showIdentity).catch(() => null);
-    if (!showCard) return null;
-
-    const stillImages = ep.episode.stillPath
-      ? buildResponsiveImageSet(ep.episode.stillPath, { small: 'w300', medium: 'h632', large: 'original' })
-      : emptyResponsiveImageSet();
-
-    const showMediaItem = metadataCardToMediaItem(showCard, {
-      itemId: showCard.itemId,
-      images: {
-        poster: showCard.images.poster,
-        backdrop: ep.episode.stillPath ? stillImages : showCard.images.backdrop,
-        logo: showCard.images.logo,
-        still: stillImages,
-      },
-      airDate: ep.episode.airDate,
-      episodeTitle: ep.episode.name,
-      seasonNumber: ep.seasonNumber,
-      episodeNumber: ep.episodeNumber,
-    });
-
-    const dto = mediaItemToBaseItemDto(showMediaItem);
-    dto.SeriesName = showCard.title;
-    dto.ParentIndexNumber = ep.seasonNumber;
-    dto.IndexNumber = ep.episodeNumber;
-    dto.AirDate = ep.episode.airDate;
-
-    dto.UserData = {
-      ItemId: dto.Id,
-      IsFavorite: false,
-      Played: false,
-      PlayCount: 0,
-      PlaybackPositionTicks: null,
-      RuntimeTicks: dto.RunTimeTicks,
-      PlayedPercentage: null,
-      LastPlayedDate: null,
-      Rating: null,
-      DismissedFromContinueWatching: false,
-    };
-
-    return dto;
   }
 
   private async queryContinueWatching(profileId: string, limit: number): Promise<Array<{ show_item_id: string; last_activity_at: string }>> {

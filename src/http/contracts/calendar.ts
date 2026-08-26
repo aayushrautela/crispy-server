@@ -1,6 +1,14 @@
 import {
-  baseItemDtoSchema,
+  clientImagesSchema,
+  clientMediaTypeSchema,
+  clientParentRefSchema,
+  clientProgressSchema,
+  clientProviderIdsSchema,
+  nullableIntegerSchema,
+  nullableNumberSchema,
+  nullableStringSchema,
   profileIdParamsSchema,
+  publicItemIdSchema,
   stringSchema,
   successEnvelope,
   withDefaultErrorResponses,
@@ -15,11 +23,46 @@ export const calendarItemBucketSchema = {
   enum: ['up_next', 'this_week', 'upcoming', 'recently_released', 'no_scheduled'],
 } as const;
 
+/**
+ * Calendar items reuse the standardized `ClientMediaCard` shape (same enriched
+ * card contract as watch/recommendation surfaces) extended with the
+ * calendar-specific `airDate` and `bucket` fields.
+ */
 const calendarItemSchema = {
-  ...baseItemDtoSchema,
-  required: [...baseItemDtoSchema.required, 'bucket'],
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'itemId', 'mediaType', 'title', 'overview', 'year',
+    'releaseDate', 'rating', 'maturityRating', 'genres', 'runtimeSeconds',
+    'images', 'trailerUrl', 'progress', 'parent', 'providerIds',
+    'airDate', 'bucket',
+  ],
   properties: {
-    ...baseItemDtoSchema.properties,
+    itemId: publicItemIdSchema,
+    mediaType: clientMediaTypeSchema,
+    title: stringSchema,
+    overview: nullableStringSchema,
+    year: nullableIntegerSchema,
+    releaseDate: nullableStringSchema,
+    rating: nullableNumberSchema,
+    maturityRating: nullableStringSchema,
+    genres: {
+      type: 'array',
+      items: stringSchema,
+    },
+    runtimeSeconds: nullableNumberSchema,
+    images: clientImagesSchema,
+    trailerUrl: nullableStringSchema,
+    progress: {
+      anyOf: [clientProgressSchema, { type: 'null' }],
+    },
+    parent: {
+      anyOf: [clientParentRefSchema, { type: 'null' }],
+    },
+    providerIds: {
+      anyOf: [clientProviderIdsSchema, { type: 'null' }],
+    },
+    airDate: nullableStringSchema,
     bucket: calendarItemBucketSchema,
   },
 } as const;

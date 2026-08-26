@@ -74,9 +74,9 @@ export class CalendarService {
   }
 }
 
-function isItemInThisWeek(item: { AirDate?: string | null }): boolean {
-  if (!item.AirDate) return false;
-  const airDateMs = Date.parse(item.AirDate);
+function isItemInThisWeek(item: { airDate?: string | null }): boolean {
+  if (!item.airDate) return false;
+  const airDateMs = Date.parse(item.airDate);
   if (!Number.isFinite(airDateMs)) return false;
 
   const now = Date.now();

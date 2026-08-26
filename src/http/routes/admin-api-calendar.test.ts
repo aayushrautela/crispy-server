@@ -8,48 +8,38 @@ setTestEnv({
   ADMIN_UI_SESSION_SECRET: 'admin-session-secret-for-tests',
 });
 
-async function makeBaseItemDto(overrides: Record<string, unknown>) {
+function makeCalendarCard(overrides: Record<string, unknown>) {
   const itemId = overrides.itemId as string ?? '00000000000000000000000000000503';
-  const tmdbId = overrides.tmdbId as string ?? '500';
   return {
-    Id: itemId,
-    Type: 'Episode',
-    Name: overrides.name as string ?? 'Example Show',
-    OriginalTitle: null,
-    Overview: null,
-    Taglines: [],
-    ProductionYear: overrides.productionYear as number ?? 2026,
-    PremiereDate: null,
-    CommunityRating: overrides.communityRating as number ?? 8.5,
-    OfficialRating: null,
-    Certification: null,
-    Genres: [],
-    RunTimeTicks: (overrides.runTimeSeconds as number | null ?? 2640) * 10_000_000,
-    Status: null,
-    ProviderIds: { Tmdb: tmdbId, Imdb: null, Tvdb: null },
-    ImageTags: {
-      Primary: { small: overrides.posterSmall as string ?? 'https://img.test/poster.jpg', medium: overrides.posterMedium as string ?? 'https://img.test/poster.jpg', large: overrides.posterLarge as string ?? 'https://img.test/poster.jpg' },
-      Backdrop: [{ small: overrides.backdropSmall as string ?? 'https://img.test/backdrop.jpg', medium: overrides.backdropMedium as string ?? 'https://img.test/backdrop.jpg', large: overrides.backdropLarge as string ?? 'https://img.test/backdrop.jpg' }],
-      Logo: (overrides.logo ?? { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' }) as Record<string, unknown> | null,
-      Thumb: (overrides.thumb ?? { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' }) as Record<string, unknown> | null,
-      Screenshot: [],
+    itemId,
+    mediaType: 'episode',
+    title: overrides.title as string ?? 'Third Episode',
+    overview: null,
+    year: overrides.year as number | null ?? 2026,
+    releaseDate: overrides.releaseDate as string | null ?? '2026-04-17',
+    rating: overrides.rating as number | null ?? 8.5,
+    maturityRating: null,
+    genres: ['Drama'],
+    runtimeSeconds: overrides.runtimeSeconds as number | null ?? 2640,
+    images: {
+      poster: { small: 'https://img.test/poster.jpg', medium: 'https://img.test/poster.jpg', large: 'https://img.test/poster.jpg' },
+      backdrop: { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' },
+      logo: { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' },
+      still: { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' },
     },
-    ParentImageTags: null,
-    SeriesId: overrides.seriesId as string ?? null,
-    SeriesName: overrides.seriesName as string ?? null,
-    SeasonId: null,
-    SeasonName: null,
-    ParentIndexNumber: overrides.parentIndexNumber as number | null ?? 1,
-    IndexNumber: overrides.indexNumber as number | null ?? 3,
-    AbsoluteIndexNumber: null,
-    EpisodeTitle: overrides.episodeTitle as string | null ?? 'Third Episode',
-    AirDate: overrides.airDate as string | null ?? '2026-04-17T00:00:00.000Z',
-    RemoteTrailers: [],
-    PosterColor: null,
-    BackdropColor: null,
-    UserData: null,
+    trailerUrl: null,
+    progress: null,
+    parent: {
+      seriesItemId: overrides.seriesItemId as string | undefined ?? undefined,
+      seriesTitle: overrides.seriesTitle as string | undefined ?? undefined,
+      seasonItemId: undefined,
+      seasonNumber: overrides.seasonNumber as number | null ?? 1,
+      episodeNumber: overrides.episodeNumber as number | null ?? 3,
+    },
+    providerIds: { tmdb: overrides.tmdbId as string ?? '500', tvdb: null, imdb: null },
+    airDate: overrides.airDate as string | null ?? '2026-04-17',
     bucket: overrides.bucket as string ?? 'up_next',
-  } as const;
+  };
 }
 
 test('admin calendar route returns canonical envelope fields for authenticated admin session', async (t) => {
@@ -64,25 +54,24 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   const seriesItemId = '00000000000000000000000000000500';
   const original = CalendarService.prototype.getCalendarForAccountService;
   CalendarService.prototype.getCalendarForAccountService = async function (_accountId, profileId) {
-    const mediaItem = await makeBaseItemDto({
+    const item = makeCalendarCard({
       itemId: itemKey,
       tmdbId: '500',
-      name: 'Example Show',
-      productionYear: 2026,
-      communityRating: 8.5,
-      runTimeSeconds: 2640,
-      seriesId: seriesItemId,
-      seriesName: 'Example Show',
-      parentIndexNumber: 1,
-      indexNumber: 3,
-      episodeTitle: 'Third Episode',
-      airDate: '2026-04-17T00:00:00.000Z',
+      title: 'Third Episode',
+      seriesTitle: 'Example Show',
+      seriesItemId,
+      year: 2026,
+      rating: 8.5,
+      runtimeSeconds: 2640,
+      seasonNumber: 1,
+      episodeNumber: 3,
+      airDate: '2026-04-17',
     });
     return {
       profileId,
       source: 'canonical_calendar',
       generatedAt: '2026-04-15T00:00:00.000Z',
-      items: [mediaItem],
+      items: [item],
     } as never;
   };
 
@@ -113,14 +102,14 @@ test('admin calendar route returns canonical envelope fields for authenticated a
   assert.equal(data.profileId, 'profile-1');
   assert.equal(data.source, 'canonical_calendar');
   assert.equal(data.items.length, 1);
-  assert.equal(data.items[0].Id, itemKey);
-  assert.equal(data.items[0].Type, 'Episode');
-  assert.equal(data.items[0].Name, 'Example Show');
-  assert.equal(data.items[0].ParentIndexNumber, 1);
-  assert.equal(data.items[0].IndexNumber, 3);
-  assert.equal(data.items[0].EpisodeTitle, 'Third Episode');
+  assert.equal(data.items[0].itemId, itemKey);
+  assert.equal(data.items[0].mediaType, 'episode');
+  assert.equal(data.items[0].title, 'Third Episode');
+  assert.equal(data.items[0].parent.seasonNumber, 1);
+  assert.equal(data.items[0].parent.episodeNumber, 3);
+  assert.equal(data.items[0].parent.seriesTitle, 'Example Show');
   assert.equal(data.items[0].bucket, 'up_next');
-  assert.ok(data.items[0].ImageTags.Logo);
+  assert.ok(data.items[0].images.logo);
 });
 
 test('admin calendar this-week route returns narrowed canonical envelope fields for authenticated admin session', async (t) => {
@@ -135,26 +124,25 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   const seriesItemId = '00000000000000000000000000000501';
   const original = CalendarService.prototype.getThisWeekForAccountService;
   CalendarService.prototype.getThisWeekForAccountService = async function (_accountId, profileId) {
-    const mediaItem = await makeBaseItemDto({
+    const item = makeCalendarCard({
       itemId: itemKey,
       tmdbId: '501',
-      name: 'Next Week Show',
-      productionYear: 2026,
-      communityRating: 8.3,
-      runTimeSeconds: 2760,
-      seriesId: seriesItemId,
-      seriesName: 'Next Week Show',
-      parentIndexNumber: 2,
-      indexNumber: 1,
-      episodeTitle: 'Season Premiere',
-      airDate: '2026-04-18T00:00:00.000Z',
+      title: 'Season Premiere',
+      seriesTitle: 'Next Week Show',
+      seriesItemId,
+      year: 2026,
+      rating: 8.3,
+      runtimeSeconds: 2760,
+      seasonNumber: 2,
+      episodeNumber: 1,
+      airDate: '2026-04-18',
       bucket: 'this_week',
     });
     return {
       profileId,
       source: 'canonical_calendar',
       generatedAt: '2026-04-15T00:00:00.000Z',
-      items: [mediaItem],
+      items: [item],
     } as never;
   };
 
@@ -183,12 +171,10 @@ test('admin calendar this-week route returns narrowed canonical envelope fields 
   assert.equal(response.statusCode, 200);
   const data = response.json().data;
   assert.equal(data.items.length, 1);
-  assert.equal(data.items[0].Id, itemKey);
-  assert.equal(data.items[0].Type, 'Episode');
-  assert.equal(data.items[0].Name, 'Next Week Show');
-  assert.equal(data.items[0].ParentIndexNumber, 2);
-  assert.equal(data.items[0].IndexNumber, 1);
-  assert.equal(data.items[0].EpisodeTitle, 'Season Premiere');
+  assert.equal(data.items[0].itemId, itemKey);
+  assert.equal(data.items[0].title, 'Season Premiere');
+  assert.equal(data.items[0].parent.seriesTitle, 'Next Week Show');
+  assert.equal(data.items[0].parent.seasonNumber, 2);
   assert.equal(data.items[0].bucket, 'this_week');
 });
 

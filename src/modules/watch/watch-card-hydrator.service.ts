@@ -1,7 +1,7 @@
 import type { DbClient } from '../../lib/db.js';
 import type { BaseItemDto, UserItemDataDto } from '../metadata/media-item.types.js';
-import type { MetadataCardView, MetadataExternalIds } from '../metadata/metadata-card.types.js';
 import { MetadataCardService } from '../metadata/metadata-card.service.js';
+import { toClientMediaCard } from '../metadata/client-media-card.mapper.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
 import type { ClientMediaCard, ClientMediaType, ClientProgress, ClientProviderIds } from '../recommendations/client-home.types.js';
 
@@ -33,8 +33,11 @@ export class WatchCardHydrator {
       const entry = resolved[index];
       const view = views[index];
       if (!entry || !view) continue;
-      const card = this.toClientMediaCard(entry.item, view);
-      if (card) cards.push(card);
+      cards.push(toClientMediaCard(view, {
+        progress: progressFromUserData(entry.item.UserData),
+        itemId: entry.item.Id,
+        seriesTitle: entry.item.SeriesName ?? undefined,
+      }));
     }
     return cards;
   }
@@ -58,56 +61,8 @@ export class WatchCardHydrator {
       providerIds: providerIdsFromBaseItem(item.ProviderIds),
     };
   }
-
-  private toClientMediaCard(item: BaseItemDto, cardView: MetadataCardView): ClientMediaCard | null {
-    if (!cardView.title) return null;
-
-    const progress = progressFromUserData(item.UserData);
-
-    const providerIds = providerIdsFromExternalIds(cardView.externalIds) ?? providerIdsFromBaseItem(item.ProviderIds);
-
-    return {
-      itemId: cardView.itemId,
-      mediaType: toClientMediaType(cardView.mediaType),
-      title: cardView.title,
-      overview: cardView.overview ?? cardView.tagline ?? cardView.summary,
-      year: cardView.releaseYear,
-      releaseDate: cardView.releaseDate,
-      rating: cardView.rating,
-      maturityRating: cardView.maturityRating,
-      genres: cardView.genres,
-      runtimeSeconds: typeof cardView.runtimeMinutes === 'number' ? cardView.runtimeMinutes * 60 : null,
-      images: {
-        poster: cardView.images.poster,
-        backdrop: cardView.images.backdrop,
-        logo: cardView.images.logo,
-        still: cardView.images.still,
-      },
-      trailerUrl: cardView.trailerUrl,
-      progress,
-      parent: cardView.seriesItemId || cardView.seasonItemId || cardView.seasonNumber !== null || cardView.episodeNumber !== null
-        ? {
-            seriesItemId: cardView.seriesItemId ?? undefined,
-            seriesTitle: item.SeriesName ?? undefined,
-            seasonItemId: cardView.seasonItemId ?? undefined,
-            seasonNumber: cardView.seasonNumber,
-            episodeNumber: cardView.episodeNumber,
-          }
-        : null,
-      providerIds,
-    };
-  }
 }
 
-/**
- * Build a MediaIdentity from a BaseItemDto row produced by LocalUserWatchService.
- *
- * The watch read mapper stamps:
- *   - For movies/shows: Id = title item id; ProviderIds.Tmdb = title TMDB id
- *   - For episodes: Id = playable (episode) item id; SeriesId = title (show) item id;
- *     ProviderIds.Tmdb = the show's TMDB id; ParentIndexNumber = season; IndexNumber = episode
- *   - For seasons: like episodes but ParentIndexNumber = season; no IndexNumber
- */
 function identityFromBaseItemDto(item: BaseItemDto): MediaIdentity | null {
   const mediaType = mediaTypeFromBaseItemKind(item.Type);
   if (!mediaType) return null;
@@ -195,13 +150,3 @@ function providerIdsFromBaseItem(providerIds: BaseItemDto['ProviderIds']): Clien
   if (!tmdb && !tvdb && !imdb) return null;
   return { tmdb: tmdb ?? null, tvdb: tvdb ?? null, imdb: imdb ?? null };
 }
-
-function providerIdsFromExternalIds(externalIds: MetadataExternalIds | null | undefined): ClientProviderIds | null {
-  if (!externalIds) return null;
-  const tmdb = externalIds.tmdb != null ? String(externalIds.tmdb) : null;
-  const tvdb = externalIds.tvdb != null ? String(externalIds.tvdb) : null;
-  const imdb = externalIds.imdb ?? null;
-  if (!tmdb && !tvdb && !imdb) return null;
-  return { tmdb, tvdb, imdb };
-}
-

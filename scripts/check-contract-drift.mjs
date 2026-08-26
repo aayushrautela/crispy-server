@@ -17,7 +17,6 @@ const specToRoutes = {
     'src/http/routes/ai.ts',
     'src/http/routes/personal-access-tokens.ts',
     'src/http/routes/profile-settings.ts',
-    'src/http/routes/recommendation-outputs.ts',
   ],
   'openapi/public-account.v1.yaml': [
     'src/http/routes/account-public.routes.ts',

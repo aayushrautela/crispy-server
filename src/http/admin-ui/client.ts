@@ -1381,17 +1381,18 @@ export const ADMIN_UI_CLIENT = String.raw`
   function renderCalendarRow(item) {
     const meta = [];
     const episodeBits = [];
-    if (item.ParentIndexNumber != null) episodeBits.push('S' + item.ParentIndexNumber);
-    if (item.IndexNumber != null) episodeBits.push('E' + item.IndexNumber);
-    if (item.AirDate) meta.push('airs ' + formatDate(item.AirDate));
-    const watched = item.UserData && item.UserData.Played;
+    const parent = item.parent || {};
+    if (parent.seasonNumber != null) episodeBits.push('S' + parent.seasonNumber);
+    if (parent.episodeNumber != null) episodeBits.push('E' + parent.episodeNumber);
+    if (item.airDate) meta.push('airs ' + formatDate(item.airDate));
+    const watched = item.progress ? Boolean(item.progress.played) : false;
     meta.push('watched ' + (watched ? 'yes' : 'no'));
 
-    const primaryName = item.SeriesName || mediaTitle(item);
+    const primaryName = parent.seriesTitle || mediaTitle(item);
 
     return '<div class="item-row">'
       + '<strong>' + escapeHtml(primaryName) + '</strong>'
-      + '<div class="muted">' + escapeHtml([episodeBits.join(' '), item.EpisodeTitle ? item.EpisodeTitle : mediaSubtitle(item)].filter(Boolean).join(' • ') || 'No extra metadata') + '</div>'
+      + '<div class="muted">' + escapeHtml([episodeBits.join(' '), item.title ? item.title : mediaSubtitle(item)].filter(Boolean).join(' • ') || 'No extra metadata') + '</div>'
       + '<div class="item-meta">' + meta.map((value) => '<span>' + escapeHtml(value) + '</span>').join('') + '</div>'
     + '</div>';
   }

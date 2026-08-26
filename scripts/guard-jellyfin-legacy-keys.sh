@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Guards against legacy media item DTO keys leaking into public OpenAPI specs.
-# Hard-cutoff: no MediaItemDto, mediaItem, runTimeSeconds, trailerUrl, trailerThumbnailUrl
-# in public API response schemas. Only BaseItemDto/BaseItemDtoQueryResult should appear.
+# Guards against retired media item DTO keys leaking into public OpenAPI specs.
+# Hard-cutoff: no MediaItemDto, mediaItem, runTimeSeconds, trailerThumbnailUrl
+# in public API response schemas. ClientMediaCard is the standard enriched card
+# shape and legitimately owns camelCase fields such as runtimeSeconds/trailerUrl;
+# only the retired intermediate MediaItem DTO stays banned.
 
 SPEC_DIR="openapi"
 
-FORBIDDEN_KEYS="MediaItemDto mediaItem runTimeSeconds trailerUrl trailerThumbnailUrl"
+FORBIDDEN_KEYS="MediaItemDto mediaItem runTimeSeconds trailerThumbnailUrl"
 
 check_spec() {
   local spec="$1"
@@ -29,9 +31,9 @@ for spec in "$SPEC_DIR"/public-*.yaml; do
 done
 
 if [ "$exit_code" -eq 0 ]; then
-  echo "✅ No legacy media item DTO keys detected in public OpenAPI specs."
+  echo "✅ No retired media item DTO keys detected in public OpenAPI specs."
 else
-  echo "❌ Legacy media item DTO keys must not appear in public API schemas."
+  echo "❌ Retired media item DTO keys must not appear in public API schemas."
   echo "   Remove them before committing."
 fi
 exit "$exit_code"

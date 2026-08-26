@@ -24,3 +24,5 @@ coverage/
 postgres-data/
 
 config/app-config.json
+
+vps-migration/
