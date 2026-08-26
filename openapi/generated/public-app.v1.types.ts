@@ -154,7 +154,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get person details. */
+        /**
+         * Get person details.
+         * @description Returns a person profile with `knownFor` — the titles the person is most known for,
+         *     ordered by popularity. Each entry uses the same Jellyfin-style BaseItemDto shape as
+         *     other title rails (e.g. "More Like This" on the item extras endpoint), so clients can
+         *     render both with one card component and navigate using `Id` directly.
+         */
         get: operations["getV1MetadataPeoplePersonId"];
         put?: never;
         post?: never;
@@ -1360,18 +1366,6 @@ export interface components {
             profileUrl: string | null;
             knownForTitles: string[];
         };
-        MetadataPersonKnownForItem: {
-            mediaType: string;
-            itemId: components["schemas"]["PublicItemId"];
-            title: string;
-            poster: components["schemas"]["ResponsiveImageSet"];
-            backdrop: components["schemas"]["ResponsiveImageSet"];
-            logo: components["schemas"]["ResponsiveImageSet"];
-            rating: number | null;
-            releaseYear: number | null;
-            overview: string | null;
-            genres: string[];
-        };
         MetadataPersonDetail: {
             personId: components["schemas"]["PublicItemId"];
             name: string;
@@ -1380,7 +1374,7 @@ export interface components {
             birthday: string | null;
             placeOfBirth: string | null;
             profileUrl: string | null;
-            knownFor: components["schemas"]["MetadataPersonKnownForItem"][];
+            knownFor: components["schemas"]["BaseItemDto"][];
         };
         MetadataPersonDetailResponseEnvelope: {
             data: components["schemas"]["MetadataPersonDetail"];
@@ -1847,7 +1841,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SeriesEpisodesResponse"];
+                    "application/json": components["schemas"]["MetadataPersonDetailResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];

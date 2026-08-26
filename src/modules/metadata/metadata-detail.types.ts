@@ -1,6 +1,6 @@
 import type { SupportedProvider } from '../identity/media-key.js';
 import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
-import type { MetadataTitleMediaType, ResponsiveImageSet } from './metadata-card.types.js';
+import type { ResponsiveImageSet } from './metadata-card.types.js';
 
 export type MetadataVideoView = {
   id: string;
@@ -96,19 +96,6 @@ export type PlaybackResolveResponse = {
   Season: BaseItemDto | null;
 };
 
-export type MetadataPersonKnownForItem = {
-  mediaType: MetadataTitleMediaType;
-  itemId: string;
-  title: string;
-  poster: ResponsiveImageSet;
-  backdrop: ResponsiveImageSet;
-  logo: ResponsiveImageSet;
-  rating: number | null;
-  releaseYear: number | null;
-  overview: string | null;
-  genres: string[];
-};
-
 export type MetadataPersonDetail = {
   personId: string;
   name: string;
@@ -117,7 +104,7 @@ export type MetadataPersonDetail = {
   birthday: string | null;
   placeOfBirth: string | null;
   profileUrl: string | null;
-  knownFor: MetadataPersonKnownForItem[];
+  knownFor: BaseItemDto[];
 };
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'people';

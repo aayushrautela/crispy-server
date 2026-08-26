@@ -229,27 +229,6 @@ const metadataTitleRatingsResponseSchema = {
   },
 } as const;
 
-const metadataPersonKnownForItemSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['mediaType', 'itemId', 'title', 'poster', 'backdrop', 'logo', 'rating', 'releaseYear', 'overview', 'genres'],
-  properties: {
-    mediaType: stringSchema,
-    itemId: publicItemIdSchema,
-    title: stringSchema,
-    poster: responsiveImageSetSchema,
-    backdrop: responsiveImageSetSchema,
-    logo: responsiveImageSetSchema,
-    rating: nullableNumberSchema,
-    releaseYear: nullableIntegerSchema,
-    overview: nullableStringSchema,
-    genres: {
-      type: 'array',
-      items: stringSchema,
-    },
-  },
-} as const;
-
 const metadataPersonDetailResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -262,7 +241,7 @@ const metadataPersonDetailResponseSchema = {
     birthday: nullableStringSchema,
     placeOfBirth: nullableStringSchema,
     profileUrl: nullableStringSchema,
-    knownFor: { type: 'array', items: metadataPersonKnownForItemSchema },
+    knownFor: { type: 'array', items: baseItemDtoSchema },
   },
 } as const;
 

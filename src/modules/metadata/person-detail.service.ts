@@ -1,12 +1,14 @@
 import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
-import { buildImageUrl, buildResponsiveImageSet, emptyResponsiveImageSet, extractGenres } from './metadata-builder.shared.js';
+import { buildImageUrl } from './metadata-builder.shared.js';
+import { inferMediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
+import { buildDetailBaseItemDto } from './metadata-detail.builders.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
-import type { TmdbTitleRecord, TmdbTitleType } from './providers/tmdb.types.js';
-import type { MetadataPersonDetail, MetadataPersonKnownForItem } from './metadata-detail.types.js';
-import type { MetadataTitleMediaType } from './metadata-card.types.js';
+import type { MetadataPersonDetail } from './metadata-detail.types.js';
+import type { BaseItemDto } from './media-item.types.js';
 
 export class PersonDetailService {
   constructor(
@@ -57,101 +59,43 @@ export class PersonDetailService {
   }
 }
 
+/** Known-for titles are hydrated by the credits join and shaped identically to Similar rails (BaseItemDto). */
 async function buildKnownForItems(
   client: DbClient,
   tmdbCacheService: TmdbCacheService,
   contentIdentityService: ContentIdentityService,
   personTmdbId: number,
   language: string | null | undefined,
-): Promise<MetadataPersonKnownForItem[]> {
+): Promise<BaseItemDto[]> {
   const credits = await tmdbCacheService.getPersonCredits(client, personTmdbId, language);
-  if (credits.length === 0) {
+  const titles = credits
+    .map((credit) => credit.title)
+    .filter((title) => (title.mediaType === 'movie' || title.mediaType === 'tv') && Boolean(title.name));
+  if (titles.length === 0) {
     return [];
   }
 
-  const items: Array<MetadataPersonKnownForItem & { popularity: number; tmdbId: number; tmdbMediaType: TmdbTitleType }> = [];
-  for (const credit of credits) {
-    const title = credit.title;
-    const mediaType: MetadataTitleMediaType | null = title.mediaType === 'movie' ? 'movie' : 'show';
-    if (!mediaType || !title.name) {
+  const entries = titles.map((title) => ({
+    title,
+    identity: inferMediaIdentity({
+      mediaType: title.mediaType === 'movie' ? 'movie' : 'show',
+      tmdbId: title.tmdbId,
+    }),
+  }));
+  const contentIds = await contentIdentityService.ensureContentIds(client, entries.map((entry) => entry.identity));
+
+  const items: BaseItemDto[] = [];
+  for (const entry of entries) {
+    const contentId = contentIds.get(entry.identity.mediaKey);
+    if (!contentId) {
       continue;
     }
-
-    items.push({
-      mediaType,
-      itemId: await ensureKnownForItemId(client, contentIdentityService, mediaType, title.tmdbId),
-      title: title.name,
-      poster: buildResponsiveImageSet(title.posterPath, {
-        small: 'w342',
-        medium: 'w500',
-        large: 'w780',
-      }),
-      backdrop: emptyResponsiveImageSet(),
-      logo: emptyResponsiveImageSet(),
-      rating: ratingOf(title),
-      releaseYear: parseYear((title.releaseDate ?? title.firstAirDate) ?? ''),
-      popularity: 0,
-      tmdbId: title.tmdbId,
-      tmdbMediaType: title.mediaType === 'movie' ? 'movie' : 'tv',
-      overview: null,
-      genres: [],
-    });
+    items.push(buildDetailBaseItemDto({
+      identity: entry.identity,
+      itemId: encodePublicItemId(contentId),
+      title: entry.title,
+      language: language ?? null,
+    }));
   }
-
-  if (items.length === 0) {
-    return [];
-  }
-
-  const titleMap = await tmdbCacheService.getTitles(
-    client,
-    items.map((item) => ({ mediaType: item.tmdbMediaType, tmdbId: item.tmdbId })),
-    language,
-  );
-
-  return items.map((item) => {
-    const titleRecord = titleMap.get(`${item.tmdbMediaType}:${item.tmdbId}`);
-    const backdropPath = titleRecord?.backdropPath ?? null;
-    const logoPath = titleRecord?.logoPath ?? null;
-    const { popularity: _popularity, tmdbId: _tmdbId, tmdbMediaType: _tmdbMediaType, ...rest } = item;
-    return {
-      ...rest,
-      backdrop: buildResponsiveImageSet(backdropPath, {
-        small: 'w780',
-        medium: 'w1280',
-        large: 'original',
-      }),
-      logo: buildResponsiveImageSet(logoPath, {
-        small: 'w185',
-        medium: 'w500',
-        large: 'original',
-      }),
-      overview: titleRecord?.overview ?? null,
-      genres: extractGenres(titleRecord ?? null),
-    };
-  });
-}
-
-function ratingOf(title: TmdbTitleRecord): number | null {
-  const value = title.raw.vote_average;
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-async function ensureKnownForItemId(client: DbClient, contentIdentityService: ContentIdentityService, mediaType: MetadataTitleMediaType, tmdbId: number): Promise<string> {
-  const contentId = await contentIdentityService.ensureContentId(client, {
-    mediaKey: `${mediaType}:tmdb:${tmdbId}`,
-    mediaType,
-    provider: 'tmdb',
-    providerId: String(tmdbId),
-    tmdbId,
-    showTmdbId: mediaType === 'show' ? tmdbId : null,
-    seasonNumber: null,
-    episodeNumber: null,
-    absoluteEpisodeNumber: null,
-  });
-  return contentId.replaceAll('-', '').toLowerCase();
-}
-
-function parseYear(value: string): number | null {
-  const year = Number(value.slice(0, 4));
-  return Number.isInteger(year) && year >= 1800 && year <= 3000 ? year : null;
+  return items;
 }

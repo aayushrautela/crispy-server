@@ -437,6 +437,11 @@ paths:
         - Metadata
       operationId: getV1MetadataPeoplePersonId
       summary: Get person details.
+      description: |
+        Returns a person profile with `knownFor` — the titles the person is most known for,
+        ordered by popularity. Each entry uses the same Jellyfin-style BaseItemDto shape as
+        other title rails (e.g. "More Like This" on the item extras endpoint), so clients can
+        render both with one card component and navigate using `Id` directly.
       security:
         - UserBearerAuth: []
       parameters:
@@ -451,7 +456,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SeriesEpisodesResponse"
+                $ref: "#/components/schemas/MetadataPersonDetailResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4121,39 +4126,6 @@ components:
           type: array
           items:
             type: string
-    MetadataPersonKnownForItem:
-      type: object
-      additionalProperties: false
-      required: [mediaType, itemId, title, poster, backdrop, logo, rating, releaseYear, overview, genres]
-      properties:
-        mediaType:
-          type: string
-        itemId:
-          $ref: "#/components/schemas/PublicItemId"
-        title:
-          type: string
-        poster:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        backdrop:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        logo:
-          $ref: "#/components/schemas/ResponsiveImageSet"
-        rating:
-          anyOf:
-            - type: number
-            - type: "null"
-        releaseYear:
-          anyOf:
-            - type: integer
-            - type: "null"
-        overview:
-          anyOf:
-            - type: string
-            - type: "null"
-        genres:
-          type: array
-          items:
-            type: string
     MetadataPersonDetail:
       type: object
       additionalProperties: false
@@ -4186,7 +4158,7 @@ components:
         knownFor:
           type: array
           items:
-            $ref: "#/components/schemas/MetadataPersonKnownForItem"
+            $ref: "#/components/schemas/BaseItemDto"
     MetadataPersonDetailResponseEnvelope:
       type: object
       required:
