@@ -1,5 +1,5 @@
 export type MetadataTitleMediaType = 'movie' | 'show';
-export type MetadataViewMediaType = MetadataTitleMediaType | 'episode';
+export type MetadataViewMediaType = MetadataTitleMediaType | 'season' | 'episode';
 export type MetadataParentMediaType = 'show';
 
 export type ResponsiveImageSet = {
@@ -48,6 +48,7 @@ export type MetadataCardView = {
   itemId: string;
   parentMediaType: MetadataParentMediaType | null;
   seriesItemId: string | null;
+  seriesTitle?: string | null;
   seasonItemId: string | null;
   tmdbId: number | null;
   showTmdbId: number | null;

@@ -26,7 +26,7 @@ export function toClientMediaCard(
     view.seriesItemId || view.seasonItemId || view.seasonNumber !== null || view.episodeNumber !== null
       ? {
           seriesItemId: view.seriesItemId ?? undefined,
-          seriesTitle: opts.seriesTitle,
+          seriesTitle: view.seriesTitle ?? opts.seriesTitle,
           seasonItemId: view.seasonItemId ?? undefined,
           seasonNumber: view.seasonNumber,
           episodeNumber: view.episodeNumber,

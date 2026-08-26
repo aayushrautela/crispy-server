@@ -8,7 +8,7 @@ import type {
   MetadataCardView,
   MetadataEpisodePreview,
 } from './metadata-card.types.js';
-import type { TmdbEpisodeRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
+import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
 import {
   buildMetadataImages,
   deriveRuntimeMinutes,
@@ -82,33 +82,36 @@ export function buildMetadataCardView(params: {
   seasonItemId?: string | null;
   title: TmdbTitleRecord | null;
   currentEpisode?: TmdbEpisodeRecord | null;
+  currentSeason?: TmdbSeasonRecord | null;
   titleOverride?: string | null;
   subtitleOverride?: string | null;
   language?: string | null;
 }): MetadataCardView {
-  const { identity, title, currentEpisode = null, language } = params;
-  const releaseDate = extractReleaseDate(title, currentEpisode);
-  const images = buildMetadataImages(title, currentEpisode, language);
+  const { identity, title, currentEpisode = null, currentSeason = null, language } = params;
+  const releaseDate = currentEpisode?.airDate ?? currentSeason?.airDate ?? extractReleaseDate(title, currentEpisode);
+  const images = buildMetadataImages(title, currentEpisode, language, currentSeason?.posterPath ?? null);
   const trailer = extractPrimaryTrailer(title, language);
   const artwork = {
     poster: images.poster,
     backdrop: images.backdrop,
     still: images.still,
   };
-  const resolvedMediaType = identity.mediaType === 'show' || identity.mediaType === 'episode'
+  const resolvedMediaType = identity.mediaType === 'show' || identity.mediaType === 'episode' || identity.mediaType === 'season'
     ? identity.mediaType
     : 'movie';
+  const isChildCard = identity.mediaType === 'episode' || identity.mediaType === 'season';
+  const showTitle = isChildCard ? (title?.name ?? title?.originalName ?? null) : null;
   const titleName = params.titleOverride
-    ?? (resolvedMediaType === 'episode'
-      ? currentEpisode?.name ?? title?.name ?? title?.originalName ?? null
-      : currentEpisode?.name ?? title?.name ?? title?.originalName ?? null);
+    ?? (currentEpisode?.name ?? currentSeason?.name ?? title?.name ?? title?.originalName ?? null);
   const subtitle = params.subtitleOverride
     ?? (resolvedMediaType === 'episode'
       ? title?.name ?? title?.originalName
         ?? (identity.seasonNumber !== null && identity.episodeNumber !== null
           ? `S${padded(identity.seasonNumber)} E${padded(identity.episodeNumber)}`
           : null)
-      : title?.status ?? null);
+      : resolvedMediaType === 'season'
+        ? title?.name ?? title?.originalName ?? null
+        : title?.status ?? null);
 
   return {
     mediaType: resolvedMediaType,
@@ -117,6 +120,7 @@ export function buildMetadataCardView(params: {
     parentMediaType: resolveProviderParentMediaType(identity),
     seriesItemId: params.seriesItemId ?? null,
     seasonItemId: params.seasonItemId ?? null,
+    seriesTitle: showTitle,
     tmdbId: identity.tmdbId ?? null,
     showTmdbId: identity.showTmdbId ?? null,
     seasonNumber: identity.seasonNumber ?? null,
@@ -124,15 +128,15 @@ export function buildMetadataCardView(params: {
     absoluteEpisodeNumber: identity.absoluteEpisodeNumber ?? null,
     title: titleName,
     subtitle,
-    summary: currentEpisode?.overview ?? title?.overview ?? null,
-    overview: currentEpisode?.overview ?? title?.overview ?? null,
+    summary: currentEpisode?.overview ?? currentSeason?.overview ?? title?.overview ?? null,
+    overview: currentEpisode?.overview ?? currentSeason?.overview ?? title?.overview ?? null,
     tagline: title?.tagline ?? (typeof title?.raw?.tagline === 'string' ? title.raw.tagline : null),
     artwork,
     images,
     releaseDate,
     releaseYear: extractReleaseYear(releaseDate),
     runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),
-    rating: extractRating(title, currentEpisode),
+    rating: currentEpisode ? extractRating(title, currentEpisode) : extractRating(title, null),
     status: title?.status ?? null,
     maturityRating: extractCertification(title),
     trailerUrl: trailer?.url ?? null,

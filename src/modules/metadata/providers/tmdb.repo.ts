@@ -437,6 +437,31 @@ export class TmdbRepository {
     return result.rows[0] ? mapSeason(result.rows[0]) : null;
   }
 
+  async getSeasons(client: DbClient, requests: Array<{ showTmdbId: number; seasonNumber: number }>): Promise<Map<string, TmdbSeasonRecord>> {
+    if (requests.length === 0) return new Map();
+    const seen = new Map<string, { showTmdbId: number; seasonNumber: number }>();
+    for (const request of requests) {
+      seen.set(`${request.showTmdbId}:${request.seasonNumber}`, request);
+    }
+    const conditions: string[] = [];
+    const params: (number | string)[] = [];
+    for (const request of seen.values()) {
+      conditions.push(`(show_tmdb_id = $${params.length + 1} AND season_number = $${params.length + 2})`);
+      params.push(request.showTmdbId, request.seasonNumber);
+    }
+    const result = await client.query(
+      `SELECT show_tmdb_id, season_number, name, overview, air_date, poster_path, episode_count, raw, fetched_at, expires_at
+       FROM tmdb_tv_seasons WHERE ${conditions.join(' OR ')}`,
+      params,
+    );
+    const records = new Map<string, TmdbSeasonRecord>();
+    for (const row of result.rows) {
+      const mapped = mapSeason(row);
+      records.set(`${mapped.showTmdbId}:${mapped.seasonNumber}`, mapped);
+    }
+    return records;
+  }
+
   async getEpisode(client: DbClient, showTmdbId: number, seasonNumber: number, episodeNumber: number): Promise<TmdbEpisodeRecord | null> {
     const result = await client.query(
       `SELECT show_tmdb_id, season_number, episode_number, tmdb_id, name, overview, air_date,

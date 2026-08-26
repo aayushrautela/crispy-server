@@ -554,9 +554,9 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
   };
 }
 
-export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, preferredLanguage?: string | null): MetadataImages {
+export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, preferredLanguage?: string | null, seasonPosterPath?: string | null): MetadataImages {
   return {
-    poster: buildResponsiveImageSet(title?.posterPath ?? null, {
+    poster: buildResponsiveImageSet(seasonPosterPath ?? title?.posterPath ?? null, {
       small: 'w342',
       medium: 'w500',
       large: 'w780',
