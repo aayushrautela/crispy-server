@@ -121,11 +121,11 @@ function bucketResolvedItems(query: string, items: MetadataSearchResult[], limit
   const series: MetadataSearchResult[] = [];
 
   for (const item of items) {
-    if (item.Type === 'Movie') {
+    if (item.mediaType === 'movie') {
       movies.push(item);
       continue;
     }
-    if (item.Type === 'Series') {
+    if (item.mediaType === 'tv') {
       series.push(item);
       continue;
     }
@@ -143,10 +143,10 @@ function dedupeResolvedItems(items: MetadataSearchResult[]): MetadataSearchResul
   const seen = new Set<string>();
   const result: MetadataSearchResult[] = [];
   for (const item of items) {
-    if (seen.has(item.Id)) {
+    if (seen.has(item.itemId)) {
       continue;
     }
-    seen.add(item.Id);
+    seen.add(item.itemId);
     result.push(item);
   }
   return result;

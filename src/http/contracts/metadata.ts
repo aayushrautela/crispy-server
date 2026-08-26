@@ -1,7 +1,8 @@
 import {
-  baseItemDtoQueryResultSchema,
   baseItemDtoSchema,
   booleanSchema,
+  clientMediaCardQueryResultSchema,
+  clientMediaCardSchema,
   nullableIntegerSchema,
   nullableNumberSchema,
   nullableStringSchema,
@@ -241,7 +242,7 @@ const metadataPersonDetailResponseSchema = {
     birthday: nullableStringSchema,
     placeOfBirth: nullableStringSchema,
     profileUrl: nullableStringSchema,
-    knownFor: { type: 'array', items: baseItemDtoSchema },
+    knownFor: { type: 'array', items: clientMediaCardSchema },
   },
 } as const;
 
@@ -288,11 +289,11 @@ const metadataSearchResponseSchema = {
     query: stringSchema,
     movies: {
       type: 'array',
-      items: baseItemDtoSchema,
+      items: clientMediaCardSchema,
     },
     series: {
       type: 'array',
-      items: baseItemDtoSchema,
+      items: clientMediaCardSchema,
     },
     people: {
       type: 'array',
@@ -316,7 +317,7 @@ const metadataCardsBatchBodySchema = {
   },
 } as const;
 
-const metadataCardsBatchResponseSchema = baseItemDtoQueryResultSchema;
+const metadataCardsBatchResponseSchema = clientMediaCardQueryResultSchema;
 
 export const metadataItemDetailRouteSchema = withDefaultErrorResponses({
   params: metadataItemParamsSchema,
@@ -331,7 +332,7 @@ const metadataSeriesEpisodesResponseSchema = {
   additionalProperties: false,
   required: ['Items', 'StartIndex', 'TotalRecordCount', 'NextCursor', 'HasMore', 'Creators'],
   properties: {
-    Items: { type: 'array', items: baseItemDtoSchema },
+    Items: { type: 'array', items: clientMediaCardSchema },
     StartIndex: { type: 'integer' },
     TotalRecordCount: { type: 'integer' },
     NextCursor: { type: ['string', 'null'] },
@@ -459,12 +460,12 @@ const metadataTitleExtrasResponseSchema = {
   additionalProperties: false,
   required: ['Seasons', 'Reviews', 'Similar', 'Collection'],
   properties: {
-    Seasons: { type: 'array', items: baseItemDtoSchema },
+    Seasons: { type: 'array', items: clientMediaCardSchema },
     Reviews: { type: 'array', items: metadataReviewViewSchema },
-    Similar: { type: 'array', items: baseItemDtoSchema },
+    Similar: { type: 'array', items: clientMediaCardSchema },
     Collection: {
       anyOf: [
-        baseItemDtoQueryResultSchema,
+        clientMediaCardQueryResultSchema,
         { type: 'null' },
       ],
     },

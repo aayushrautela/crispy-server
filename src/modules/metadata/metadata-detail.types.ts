@@ -1,5 +1,6 @@
 import type { SupportedProvider } from '../identity/media-key.js';
 import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
+import type { ClientMediaCard, ClientMediaCardQueryResult } from '../recommendations/client-home.types.js';
 import type { ResponsiveImageSet } from './metadata-card.types.js';
 
 export type MetadataVideoView = {
@@ -84,10 +85,10 @@ export type MetadataTitleRatingsResponse = {
 };
 
 export type MetadataTitleExtras = {
-  Seasons: BaseItemDto[];
+  Seasons: ClientMediaCard[];
   Reviews: MetadataReviewView[];
-  Similar: BaseItemDto[];
-  Collection: BaseItemDtoQueryResult | null;
+  Similar: ClientMediaCard[];
+  Collection: ClientMediaCardQueryResult | null;
 };
 
 export type PlaybackResolveResponse = {
@@ -104,12 +105,12 @@ export type MetadataPersonDetail = {
   birthday: string | null;
   placeOfBirth: string | null;
   profileUrl: string | null;
-  knownFor: BaseItemDto[];
+  knownFor: ClientMediaCard[];
 };
 
 export type MetadataSearchFilter = 'all' | 'movies' | 'series' | 'people';
 
-export type MetadataSearchResult = BaseItemDto;
+export type MetadataSearchResult = ClientMediaCard;
 
 export type MetadataPersonSearchResult = {
   kind: 'person_search_result';
@@ -135,7 +136,7 @@ export type SearchSuggestionItem = {
 
 export type MetadataSearchResponse = {
   query: string;
-  movies: BaseItemDto[];
-  series: BaseItemDto[];
+  movies: ClientMediaCard[];
+  series: ClientMediaCard[];
   people: MetadataPersonSearchResult[];
 };

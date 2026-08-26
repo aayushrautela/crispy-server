@@ -1,5 +1,5 @@
 import {
-  baseItemDtoSchema,
+  clientMediaCardSchema,
   nonEmptyStringSchema,
   nullableStringSchema,
   profileIdParamsSchema,
@@ -19,11 +19,11 @@ const aiSearchResponseSchema = {
     query: stringSchema,
     movies: {
       type: 'array',
-      items: baseItemDtoSchema,
+      items: clientMediaCardSchema,
     },
     series: {
       type: 'array',
-      items: baseItemDtoSchema,
+      items: clientMediaCardSchema,
     },
     people: {
       type: 'array',

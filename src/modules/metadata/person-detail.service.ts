@@ -2,13 +2,14 @@ import type { DbClient } from '../../lib/db.js';
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { buildImageUrl } from './metadata-builder.shared.js';
+import { buildMetadataCardView } from './metadata-card.builders.js';
+import { toClientMediaCard } from './client-media-card.mapper.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { buildDetailBaseItemDto } from './metadata-detail.builders.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type { MetadataPersonDetail } from './metadata-detail.types.js';
-import type { BaseItemDto } from './media-item.types.js';
 
 export class PersonDetailService {
   constructor(
@@ -66,7 +67,7 @@ async function buildKnownForItems(
   contentIdentityService: ContentIdentityService,
   personTmdbId: number,
   language: string | null | undefined,
-): Promise<BaseItemDto[]> {
+): Promise<ClientMediaCard[]> {
   const credits = await tmdbCacheService.getPersonCredits(client, personTmdbId, language);
   const titles = credits
     .map((credit) => credit.title)
@@ -84,18 +85,17 @@ async function buildKnownForItems(
   }));
   const contentIds = await contentIdentityService.ensureContentIds(client, entries.map((entry) => entry.identity));
 
-  const items: BaseItemDto[] = [];
+  const cards: ClientMediaCard[] = [];
   for (const entry of entries) {
     const contentId = contentIds.get(entry.identity.mediaKey);
-    if (!contentId) {
-      continue;
-    }
-    items.push(buildDetailBaseItemDto({
+    if (!contentId) continue;
+    const view = buildMetadataCardView({
       identity: entry.identity,
       itemId: encodePublicItemId(contentId),
       title: entry.title,
       language: language ?? null,
-    }));
+    });
+    cards.push(toClientMediaCard(view, { progress: null }));
   }
-  return items;
+  return cards;
 }

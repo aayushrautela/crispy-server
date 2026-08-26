@@ -78,11 +78,11 @@ test('MetadataCardBatchService hydrates valid item ids and reports invalid ids',
   assert.deepEqual(receivedMediaTypes, ['movie', 'episode']);
   assert.equal(receivedLanguage, 'es-ES');
   assert.equal(result.items.length, 2);
-  assert.equal(result.items[1]?.mediaItem.Id, EPISODE_ITEM_ID);
-  assert.equal(result.items[1]?.mediaItem.SeriesId, SERIES_ITEM_ID);
-  assert.equal(result.items[1]?.mediaItem.SeasonId, SEASON_ITEM_ID);
-  assert.equal(result.items[1]?.mediaItem.ParentIndexNumber, 1);
-  assert.equal(result.items[1]?.mediaItem.IndexNumber, 2);
-  assert.equal(result.items[1]?.mediaItem.EpisodeTitle, 'Episode Title');
+  assert.equal(result.items[1]?.mediaItem.itemId, EPISODE_ITEM_ID);
+  assert.equal(result.items[1]?.mediaItem.parent?.seriesItemId, SERIES_ITEM_ID);
+  assert.equal(result.items[1]?.mediaItem.parent?.seasonItemId, SEASON_ITEM_ID);
+  assert.equal(result.items[1]?.mediaItem.parent?.seasonNumber, 1);
+  assert.equal(result.items[1]?.mediaItem.parent?.episodeNumber, 2);
+  assert.equal(result.items[1]?.mediaItem.title, 'Episode Title');
   assert.deepEqual(result.missing, [{ itemId: 'bad-key', reason: 'invalid_item_id' }]);
 });

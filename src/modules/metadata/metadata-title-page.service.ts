@@ -1,15 +1,18 @@
 import { withDbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { buildMetadataCardView } from './metadata-card.builders.js';
+import { toClientMediaCard } from './client-media-card.mapper.js';
+import type { ClientMediaCard, ClientMediaCardQueryResult } from '../recommendations/client-home.types.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
 import type { MetadataTitleDetail } from './metadata-detail.types.js';
 import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
 import { resolveMetadataItemIdentity, resolveSeriesItemIdentity } from './metadata-route-identity.js';
 import { MetadataTitleAggregateBuilder } from './metadata-title-aggregate.builder.js';
-import { buildEpisodeBaseItemDto } from './metadata-detail.builders.js';
 import { MetadataTitleCacheService } from './metadata-title-cache.service.js';
 import { MetadataDetailCoreService } from './metadata-detail-core.service.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
+import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import { extractCreators } from './metadata-builder.shared.js';
 import type { MetadataPersonRefView } from './metadata-detail.types.js';
@@ -46,7 +49,7 @@ export class MetadataTitlePageService {
     seriesItemId: string,
     language?: string | null,
     season?: number | null,
-  ): Promise<BaseItemDtoQueryResult & { Creators: MetadataPersonRefView[] }> {
+  ): Promise<ClientMediaCardQueryResult & { Creators: MetadataPersonRefView[] }> {
     const publicItemId = seriesItemId.trim();
     assertPublicItemId(publicItemId);
     const cacheKey = metadataSeriesEpisodesCacheKey(publicItemId, language ?? null, season ?? null);
@@ -81,25 +84,50 @@ export class MetadataTitlePageService {
         episodeNumber: episode.episodeNumber,
       })));
 
-      const episodeViews = episodeRecords.map((episode) => {
-        const contentId = episodeContentIds.get(episodeRefMapKey(parentProviderId, episode.seasonNumber, episode.episodeNumber));
-        if (!contentId) {
-          throw new HttpError(500, 'Unable to resolve canonical episode id.');
-        }
-        return { episode, episodeItemId: encodePublicItemId(contentId) };
-      });
-
-      const parentMap = await this.contentIdentityService.resolveParentItemIdsForEpisodes(client, episodeViews.map((view) => view.episodeItemId));
       const seriesContentId = seriesIdentity.contentId;
       if (!seriesContentId) {
         throw new HttpError(500, 'Unable to resolve series content id.');
       }
       const seriesItemPublicId = encodePublicItemId(seriesContentId);
 
-      const items: BaseItemDto[] = episodeViews.map(({ episode, episodeItemId }) => {
-        const parents = parentMap.get(episodeItemId);
-        return buildEpisodeBaseItemDto(title, episode, episodeItemId, seriesItemPublicId, parents?.seasonItemId ?? null);
-      });
+      const episodeIdentities = episodeRecords
+        .map((episode) => inferMediaIdentity({
+          mediaType: 'episode',
+          provider: 'tmdb',
+          showTmdbId: title.tmdbId,
+          seasonNumber: episode.seasonNumber,
+          episodeNumber: episode.episodeNumber,
+        }))
+        .filter((identity): identity is MediaIdentity => identity !== null);
+
+      const views = await this.titleSourceService.loadTitleSources(client, [seriesIdentity, ...episodeIdentities], language ?? null);
+      const parentMap = await this.contentIdentityService.resolveParentItemIdsForEpisodes(
+        client,
+        episodeIdentities.map((identity) => encodePublicItemId(identity.contentId ?? '')),
+      );
+
+      const items: ClientMediaCard[] = [];
+      for (let i = 0; i < episodeRecords.length; i++) {
+        const episode = episodeRecords[i]!;
+        const identity = episodeIdentities[i];
+        if (!identity) continue;
+        const contentId = episodeContentIds.get(episodeRefMapKey(parentProviderId, episode.seasonNumber, episode.episodeNumber));
+        if (!contentId) continue;
+        const view = views.get(identity.mediaKey);
+        if (!view) continue;
+        const parents = parentMap.get(encodePublicItemId(contentId));
+        const showTitle = views.get(seriesIdentity.mediaKey)?.tmdbTitle?.name ?? views.get(seriesIdentity.mediaKey)?.tmdbTitle?.originalName;
+        const cardView = buildMetadataCardView({
+          identity,
+          itemId: encodePublicItemId(contentId),
+          seriesItemId: seriesItemPublicId,
+          seasonItemId: parents?.seasonItemId ?? null,
+          title: view.tmdbTitle,
+          currentEpisode: view.tmdbCurrentEpisode,
+          language: language ?? null,
+        });
+        items.push(toClientMediaCard(cardView, { progress: null, seriesTitle: showTitle ?? undefined }));
+      }
 
       return {
         Items: items,
@@ -113,7 +141,7 @@ export class MetadataTitlePageService {
   }
 }
 
-function emptyEpisodeResult(): BaseItemDtoQueryResult & { Creators: MetadataPersonRefView[] } {
+function emptyEpisodeResult(): ClientMediaCardQueryResult & { Creators: MetadataPersonRefView[] } {
   return {
     Items: [],
     StartIndex: 0,

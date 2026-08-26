@@ -1182,7 +1182,9 @@ export interface components {
             };
             meta: components["schemas"]["ResponseMeta"];
         };
-        CalendarItem: components["schemas"]["BaseItemDto"] & {
+        CalendarItem: components["schemas"]["ClientMediaCard"] & {
+            /** @description Scheduled air date of the episode (date only). */
+            airDate: string | null;
             /**
              * @description Display bucket for calendar ordering. `up_next` is the first not-yet-aired episode per series.
              * @enum {string}

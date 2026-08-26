@@ -52,17 +52,33 @@ Every rail / list / shelf surface returns **one shape**: `ClientMediaCard`. Deta
 
 ✅ **DONE.**
 
-Created `src/modules/metadata/client-media-card.mapper.ts`:
-- `toClientMediaCard(view: MetadataCardView, opts: { progress?, itemId?, overviewOverride?, seriesTitle? }): ClientMediaCard`
-- Lifted the mapping from `HomeHydrator.toClientCard` — populates every field.
+Created `src/modules/metadata/client-media-card.mapper.ts` — single `toClientMediaCard(view, opts)` source of truth. Home + Watch hydrators refactored to use it.
 
-Refactored to use it:
-- `HomeHydrator.toClientCard` (home-hydrator.service.ts) → calls shared mapper; removed local `toClientMediaType`.
-- `WatchCardHydrator` (watch-card-hydrator.service.ts) → both `hydrateItems` and `toLightweightCard` use the shared mapper; removed duplicated `toClientMediaCard`, `toClientMediaType`, `providerIdsFromExternalIds`.
+## Phase 0.5 — Type-aware pipeline (seasons + parent enrichment)
 
-This is behavior-preserving — no contract change yet.
+✅ **DONE.**
 
-**Verification:** typecheck ✅ · guard:jellyfin-legacy-keys ✅ · guard:retired-modules ✅ · contract:lint ✅
+Made the card pipeline serve all four card types through one path. Two bugs fixed:
+- `resolvedMediaType` collapsed `'season'` → `'movie'` (now preserved).
+- `MetadataTitleSourceService` loaded season data only for episode identities (now loads `currentSeason` for season identities via new `getSeasons`).
+
+Episode/season cards now carry `seriesTitle` from the loaded show title.
+
+---
+
+## Phase 1 — Contracts + OpenAPI + generated types (REMAINING)
+
+Update `src/http/contracts/metadata.ts`:
+- `knownFor` → `clientMediaCardSchema` array
+- `Similar`, `Seasons` → `clientMediaCardSchema` arrays
+- `Collection` → `clientMediaCardQueryResultSchema`
+- `search.movies`, `search.series` → `clientMediaCardSchema` arrays
+- `cards/batch` → `clientMediaCardQueryResultSchema`
+- **Episodes** — `Items: clientMediaCardSchema[]` + `Creators` + pagination.
+
+Update `openapi/public-app.v1.yaml`: swap all rail `Items`/`items` refs. Keep `BaseItemDto` (detail/playback).
+
+Regenerate: `npm run contract:types && npm run docs:api`.
 
 ---
 

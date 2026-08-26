@@ -4,9 +4,10 @@ import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { buildSeasonBaseItemDto, buildDetailBaseItemDto } from './metadata-detail.builders.js';
+import { buildMetadataCardView } from './metadata-card.builders.js';
+import { toClientMediaCard } from './client-media-card.mapper.js';
+import type { ClientMediaCard, ClientMediaCardQueryResult } from '../recommendations/client-home.types.js';
 import type { MetadataTitleExtras } from './metadata-detail.types.js';
-import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
 import { extractCollection } from './metadata-builder.shared.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
@@ -30,7 +31,7 @@ export class MetadataTitleExtrasBuilder {
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const effectiveLanguage = language ?? null;
 
-    const seasons = await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildAllSeasons(client, resolvedTitle), []);
+    const seasons = await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildAllSeasons(client, resolvedTitle, effectiveLanguage), []);
     const reviews = await this.buildExtrasSection('reviews', resolvedTitle, effectiveLanguage, () =>
       this.reviewAggregator.mergeTitleReviews(client, resolvedTitle, identity.mediaType as 'movie' | 'show', effectiveLanguage), []);
     const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildRelated(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
@@ -70,7 +71,7 @@ export class MetadataTitleExtrasBuilder {
     }
   }
 
-  private async buildAllSeasons(client: DbClient, title: TmdbTitleRecord): Promise<BaseItemDto[]> {
+  private async buildAllSeasons(client: DbClient, title: TmdbTitleRecord, language: string | null): Promise<ClientMediaCard[]> {
     if (title.mediaType !== 'tv') {
       return [];
     }
@@ -92,20 +93,46 @@ export class MetadataTitleExtrasBuilder {
     });
     const seriesItemId = encodePublicItemId(seriesContentId);
 
-    return seasonNumbers
+    const showIdentity = inferMediaIdentity({ mediaType: 'show', provider: 'tmdb', providerId: String(title.tmdbId) });
+    const seasonIdentities = seasonNumbers
       .map((seasonNumber) => {
         const seasonId = seasonIds.get(seasonNumber);
-        return seasonId ? buildSeasonBaseItemDto(title, seasonNumber, encodePublicItemId(seasonId), seriesItemId) : null;
+        return seasonId
+          ? inferMediaIdentity({ mediaType: 'season', provider: 'tmdb', showTmdbId: title.tmdbId, seasonNumber })
+          : null;
       })
-      .filter((item): item is BaseItemDto => item !== null);
+      .filter((identity): identity is MediaIdentity => identity !== null);
+
+    const views = await this.titleSourceService.loadTitleSources(client, [showIdentity, ...seasonIdentities], language);
+    const showView = views.get(showIdentity.mediaKey) ?? null;
+    const showTitle = showView?.tmdbTitle?.name ?? showView?.tmdbTitle?.originalName ?? null;
+
+    const cards: ClientMediaCard[] = [];
+    for (const seasonNumber of seasonNumbers) {
+      const seasonId = seasonIds.get(seasonNumber);
+      if (!seasonId) continue;
+      const identity = inferMediaIdentity({ mediaType: 'season', provider: 'tmdb', showTmdbId: title.tmdbId, seasonNumber });
+      const view = views.get(identity.mediaKey);
+      if (!view) continue;
+      const card = buildMetadataCardView({
+        identity,
+        itemId: encodePublicItemId(seasonId),
+        seriesItemId,
+        title: view.tmdbTitle,
+        currentSeason: view.tmdbCurrentSeason,
+        language,
+      });
+      cards.push(toClientMediaCard(card, { progress: null, itemId: encodePublicItemId(seasonId), seriesTitle: showTitle ?? undefined }));
+    }
+    return cards;
   }
 
-  private async buildRelated(client: DbClient, title: TmdbTitleRecord, relationKind: 'recommendation' | 'collection_part', language?: string | null): Promise<BaseItemDto[]> {
+  private async buildRelated(client: DbClient, title: TmdbTitleRecord, relationKind: 'recommendation' | 'collection_part', language?: string | null): Promise<ClientMediaCard[]> {
     const relatedTitles = await this.tmdbCacheService.getRelatedTitles(client, title.mediaType, title.tmdbId, relationKind, language);
     return this.buildRelatedItems(client, relatedTitles, language);
   }
 
-  private async buildFullCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<BaseItemDtoQueryResult | null> {
+  private async buildFullCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<ClientMediaCardQueryResult | null> {
     const collection = extractCollection(title);
     if (!collection || typeof collection.id !== 'number') {
       return null;
@@ -128,13 +155,13 @@ export class MetadataTitleExtrasBuilder {
   }
 
   /** Related titles arrive hydrated from the relations join; only canonical ids are resolved here. */
-  private async buildRelatedItems(client: DbClient, titles: TmdbTitleRecord[], language?: string | null): Promise<BaseItemDto[]> {
+  private async buildRelatedItems(client: DbClient, titles: TmdbTitleRecord[], language?: string | null): Promise<ClientMediaCard[]> {
     const identities = titles
       .filter((t) => t.mediaType === 'movie' || t.mediaType === 'tv')
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
     const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
-    const items: BaseItemDto[] = [];
+    const cards: ClientMediaCard[] = [];
     for (const titleRecord of titles) {
       const mediaType = titleRecord.mediaType === 'movie' ? 'movie' : 'show';
       const identity = inferMediaIdentity({ mediaType, tmdbId: titleRecord.tmdbId });
@@ -142,9 +169,10 @@ export class MetadataTitleExtrasBuilder {
       if (!contentId) {
         continue;
       }
-      items.push(buildDetailBaseItemDto({ identity, itemId: encodePublicItemId(contentId), title: titleRecord, language: language ?? null }));
+      const view = buildMetadataCardView({ identity, itemId: encodePublicItemId(contentId), title: titleRecord, language: language ?? null });
+      cards.push(toClientMediaCard(view, { progress: null }));
     }
-    return items;
+    return cards;
   }
 }
 

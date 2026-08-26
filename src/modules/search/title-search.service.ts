@@ -3,11 +3,11 @@ import { withDbClient } from '../../lib/db.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import { inferMediaIdentity } from '../identity/media-key.js';
 import { buildMetadataCardView } from '../metadata/metadata-card.builders.js';
+import { toClientMediaCard } from '../metadata/client-media-card.mapper.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
-import { metadataCardToMediaItem, mediaItemToBaseItemDto } from '../metadata/media-item.mapper.js';
-import type { BaseItemDto } from '../metadata/media-item.types.js';
 import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, MetadataSearchResult, SearchSuggestionItem } from '../metadata/metadata-detail.types.js';
 import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
 import type { TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
@@ -132,14 +132,14 @@ export class TitleSearchService {
         }
 
         const itemId = encodePublicItemId(contentId);
-        const card = buildMetadataCardView({
+        const view = buildMetadataCardView({
           identity,
           itemId,
           title: hydrated,
           language: locale,
         });
         return {
-          item: mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId })),
+          item: toClientMediaCard(view, { progress: null }),
           noisy: isNoisyTmdbMatch(hydrated),
         };
       });
@@ -206,8 +206,8 @@ export class TitleSearchService {
         }
 
         const itemId = encodePublicItemId(contentId);
-        const card = buildMetadataCardView({ identity, itemId, title: hydrated, language: locale });
-        results.push(mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId })));
+        const view = buildMetadataCardView({ identity, itemId, title: hydrated, language: locale });
+        results.push(toClientMediaCard(view, { progress: null }));
       }
 
       return results;
@@ -411,19 +411,20 @@ function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
   return [...clean, ...noisy];
 }
 
-function hasSearchPoster(item: BaseItemDto): boolean {
-  return Boolean(item.ImageTags.Primary?.small || item.ImageTags.Primary?.medium || item.ImageTags.Primary?.large);
+function hasSearchPoster(item: ClientMediaCard): boolean {
+  const poster = item.images.poster;
+  return Boolean(poster && (poster.small || poster.medium || poster.large));
 }
 
 function toSearchResults(entries: SearchBucketEntry[]): MetadataSearchResult[] {
   return entries.map(({ item }) => item);
 }
 
-function bucketForMediaType(dto: BaseItemDto): keyof SearchBuckets | null {
-  if (dto.Type === 'Movie') {
+function bucketForMediaType(card: ClientMediaCard): keyof SearchBuckets | null {
+  if (card.mediaType === 'movie') {
     return 'movies';
   }
-  if (dto.Type === 'Series') {
+  if (card.mediaType === 'tv') {
     return 'series';
   }
   return null;

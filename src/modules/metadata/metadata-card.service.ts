@@ -26,6 +26,7 @@ export class MetadataCardService {
       seasonItemId: parentIds.seasonItemId,
       title: source.tmdbTitle,
       currentEpisode: source.tmdbCurrentEpisode,
+      currentSeason: source.tmdbCurrentSeason,
       language: language ?? null,
     });
   }

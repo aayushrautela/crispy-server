@@ -2,13 +2,13 @@ import { withDbClient, type DbClient } from '../../lib/db.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { assertPublicItemId } from '../identity/public-item-id.js';
 import { MetadataCardService } from './metadata-card.service.js';
-import { metadataCardToMediaItem, mediaItemToBaseItemDto } from './media-item.mapper.js';
-import type { BaseItemDto } from './media-item.types.js';
+import { toClientMediaCard } from './client-media-card.mapper.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
 
 type DbRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 export type HydratedMediaCard = {
-  mediaItem: BaseItemDto;
+  mediaItem: ClientMediaCard;
   metadataRefreshedAt: string | null;
 };
 
@@ -59,7 +59,7 @@ export class MetadataCardBatchService {
           return [];
         }
         return [{
-          mediaItem: mediaItemToBaseItemDto(metadataCardToMediaItem(card, { itemId: identity.itemId })),
+          mediaItem: toClientMediaCard(card, { progress: null, itemId: identity.itemId }),
           metadataRefreshedAt,
         }];
       });

@@ -69,3 +69,11 @@ export type ClientHomeResponse = {
   expiresAt: string | null;
   sections: ClientHomeSection[];
 };
+
+export type ClientMediaCardQueryResult = {
+  Items: ClientMediaCard[];
+  StartIndex: number;
+  TotalRecordCount: number;
+  NextCursor: string | null;
+  HasMore: boolean;
+};
