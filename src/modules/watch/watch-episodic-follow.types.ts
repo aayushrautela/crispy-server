@@ -1,5 +1,3 @@
-import type { MetadataCardView } from '../metadata/metadata-card.types.js';
-
 export type CanonicalNextEpisodeRef = {
   itemId: string;
   airDate: string | null;
@@ -13,27 +11,4 @@ export type EpisodicFollowInternal = {
   reason: string | null;
   lastInteractedAt: string;
   nextEpisode: CanonicalNextEpisodeRef;
-};
-
-export type EpisodicFollowStateInput = {
-  profileId: string;
-  titleContentId: string;
-  titleItemId: string;
-  nextEpisode: CanonicalNextEpisodeRef | null;
-  metadataRefreshedAt: string | null;
-  payload: Record<string, unknown>;
-};
-
-export type EpisodicFollowView = {
-  show: MetadataCardView;
-  reason: string | null;
-  lastInteractedAt: string;
-  nextEpisodeAirDate: string | null;
-  nextEpisodeItemId: string | null;
-  nextEpisodeSeasonNumber: number | null;
-  nextEpisodeEpisodeNumber: number | null;
-  nextEpisodeAbsoluteEpisodeNumber: number | null;
-  nextEpisodeTitle: string | null;
-  metadataRefreshedAt: string | null;
-  payload: Record<string, unknown>;
 };

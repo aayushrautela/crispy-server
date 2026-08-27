@@ -32,6 +32,7 @@ import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
+import { toClientMediaCard } from '../../modules/metadata/client-media-card.mapper.js';
 import { mutation, success } from '../response.js';
 import type { WatchActionOutcome } from '../../modules/watch/watch.types.js';
 import { assertPublicItemId, decodePublicItemId, encodePublicItemId } from '../../modules/identity/public-item-id.js';
@@ -222,11 +223,11 @@ export async function registerWatchRoutes(
       .map((item) => {
         const showIdentity = showIdentityById.get(assertPublicItemId(item.showItemId));
         const nextEpisodeIdentity = nextEpisodeIdentityById.get(assertPublicItemId(item.nextEpisode.itemId));
-        const show = showIdentity ? showViewByMediaKey.get(showIdentity.mediaKey) : undefined;
-        if (!show || !show.title) return null;
+        const showView = showIdentity ? showViewByMediaKey.get(showIdentity.mediaKey) : undefined;
+        if (!showView || !showView.title) return null;
         const nextEpisodeView = nextEpisodeIdentity ? nextEpisodeViewByMediaKey.get(nextEpisodeIdentity.mediaKey) : undefined;
         return {
-          show,
+          show: toClientMediaCard(showView, { progress: null }),
           reason: item.reason,
           lastInteractedAt: item.lastInteractedAt,
           nextEpisodeAirDate: item.nextEpisode.airDate,
@@ -234,7 +235,7 @@ export async function registerWatchRoutes(
           nextEpisodeSeasonNumber: item.nextEpisode.seasonNumber,
           nextEpisodeEpisodeNumber: item.nextEpisode.episodeNumber,
           nextEpisodeAbsoluteEpisodeNumber: item.nextEpisode.absoluteEpisodeNumber,
-          nextEpisodeTitle: nextEpisodeView?.title ?? null,
+          nextEpisode: nextEpisodeView ? toClientMediaCard(nextEpisodeView, { progress: null }) : null,
           metadataRefreshedAt: null,
           payload: { source: 'canonical_watch' as const },
         };

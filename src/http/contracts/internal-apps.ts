@@ -437,7 +437,7 @@ export const recoItemRefSchema = {
 // ── Per-signal read routes (history, ratings, watchlist, continue-watching,
 //    episodic-follow) — shared shape with the public watch routes. The reco
 //    engine hits these individually (parallel) instead of one bundle.
-//    Response is the same BaseItemDtoQueryResult envelope used by /v1.
+//    Response is the same `ClientMediaCard` envelope used by /v1.
 //    NOTE: enrichment is NOT run on these routes — display fields are null.
 //    Consumers needing display metadata must enrich via ProviderIds.Tmdb. ▼▼▼
 
