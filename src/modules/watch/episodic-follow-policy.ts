@@ -3,7 +3,6 @@ export type EpisodeSeasonRef = {
   episodeNumber: number;
   airDate: string | null;
   tmdbId: number | null;
-  title: string | null;
 };
 
 export type LastWatchedRef = {

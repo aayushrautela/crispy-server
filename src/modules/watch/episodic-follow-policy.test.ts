@@ -10,7 +10,7 @@ import {
 const TODAY = '2026-08-18';
 
 function ep(season: number, episode: number, airDate: string | null): EpisodeSeasonRef {
-  return { seasonNumber: season, episodeNumber: episode, airDate, tmdbId: null, title: null };
+  return { seasonNumber: season, episodeNumber: episode, airDate, tmdbId: null };
 }
 
 test('surfaces next aired episode in same season after watched', () => {

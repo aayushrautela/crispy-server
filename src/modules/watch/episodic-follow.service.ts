@@ -3,8 +3,7 @@ import { ContentIdentityService } from '../identity/content-identity.service.js'
 import type { ContentProviderRefRecord } from '../identity/content-identity.repo.js';
 import { type MediaIdentity, inferMediaIdentity } from '../identity/media-key.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { MetadataCardService } from '../metadata/metadata-card.service.js';
-import type { CanonicalNextEpisodeRef, EpisodicFollowView } from './watch-episodic-follow.types.js';
+import type { CanonicalNextEpisodeRef, EpisodicFollowInternal } from './watch-episodic-follow.types.js';
 import {
   type EpisodeSeasonRef,
   type LastWatchedRef,
@@ -18,12 +17,9 @@ type Candidate = {
 };
 
 export class EpisodicFollowService {
-  constructor(
-    private readonly metadataCardService = new MetadataCardService(),
-    private readonly contentIdentityService = new ContentIdentityService(),
-  ) {}
+  constructor(private readonly contentIdentityService = new ContentIdentityService()) {}
 
-  async listForProfile(client: DbClient, profileId: string, limit: number): Promise<EpisodicFollowView[]> {
+  async listForProfile(client: DbClient, profileId: string, limit: number): Promise<EpisodicFollowInternal[]> {
     const candidates = await this.loadCandidates(client, profileId, Math.max(limit * 4, 50));
     if (!candidates.length) {
       return [];
@@ -88,7 +84,6 @@ export class EpisodicFollowService {
         seasonNumber: next.seasonNumber,
         episodeNumber: next.episodeNumber,
         absoluteEpisodeNumber: null,
-        title: next.title,
       });
     }
 
@@ -96,44 +91,18 @@ export class EpisodicFollowService {
       return [];
     }
 
-    const cards = await this.metadataCardService.buildCardViews(client, resolvedIdentities);
-    const cardByKey = new Map(resolvedIdentities.map((identity, index) => [identity.mediaKey, cards[index]]));
-
-    const items: EpisodicFollowView[] = [];
+    const items: EpisodicFollowInternal[] = [];
     for (const candidate of candidates) {
-      if (items.length >= limit) {
-        break;
-      }
-
-      const identity = identitiesByItem.get(candidate.showItemId);
-      if (!identity) {
-        continue;
-      }
-
-      const show = cardByKey.get(identity.mediaKey);
-      if (!show) {
-        continue;
-      }
-
+      if (items.length >= limit) break;
       const nextEpisode = nextEpisodeByItem.get(candidate.showItemId);
-      if (!nextEpisode) {
-        continue;
-      }
-
+      if (!nextEpisode) continue;
+      // Ensure show identity still resolvable (skip stale candidates)
+      if (!identitiesByItem.has(candidate.showItemId)) continue;
       items.push({
-        show,
+        showItemId: candidate.showItemId,
         reason: candidate.reason,
         lastInteractedAt: candidate.lastInteractedAt,
-        nextEpisodeAirDate: nextEpisode.airDate,
-        nextEpisodeItemId: nextEpisode.itemId,
-        nextEpisodeSeasonNumber: nextEpisode.seasonNumber,
-        nextEpisodeEpisodeNumber: nextEpisode.episodeNumber,
-        nextEpisodeAbsoluteEpisodeNumber: nextEpisode.absoluteEpisodeNumber,
-        nextEpisodeTitle: nextEpisode.title,
-        metadataRefreshedAt: null,
-        payload: {
-          source: 'canonical_watch',
-        },
+        nextEpisode,
       });
     }
 
@@ -333,7 +302,7 @@ export class EpisodicFollowService {
     showTmdbIds: number[],
   ): Promise<Map<number, EpisodeSeasonRef[]>> {
     const result = await client.query(
-      `SELECT show_tmdb_id, season_number, episode_number, air_date, tmdb_id, name
+      `SELECT show_tmdb_id, season_number, episode_number, air_date, tmdb_id
        FROM tmdb.tmdb_tv_episodes
        WHERE show_tmdb_id = ANY($1::int[]) AND season_number > 0`,
       [showTmdbIds],
@@ -348,7 +317,6 @@ export class EpisodicFollowService {
         episodeNumber: Number(row.episode_number),
         airDate: row.air_date ? String(row.air_date).slice(0, 10) : null,
         tmdbId: row.tmdb_id == null ? null : Number(row.tmdb_id),
-        title: row.name == null ? null : String(row.name),
       });
       byShow.set(showTmdbId, list);
     }

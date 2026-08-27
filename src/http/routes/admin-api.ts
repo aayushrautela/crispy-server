@@ -24,6 +24,9 @@ import { AccountSettingsService } from '../../modules/users/account-settings.ser
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
+import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
+import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
+import { assertPublicItemId } from '../../modules/identity/public-item-id.js';
 import { HomeHydrator } from '../../modules/home/home-hydrator.service.js';
 import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
 import type { ClientHomeSection } from '../../modules/recommendations/client-home.types.js';
@@ -293,9 +296,68 @@ export async function registerAdminApiRoutes(
     const params = parseAccountProfileParams(request.params);
     const query = asRecord(request.query);
     const generatedAt = new Date().toISOString();
-    const items = await withDbClient(async (client) =>
+    const internal = await withDbClient(async (client) =>
       episodicFollowService.listForProfile(client, params.profileId, parseLimit(query.limit)),
     );
+    if (!internal.length) {
+      return success({
+        profileId: params.profileId,
+        kind: 'episodic-follow' as const,
+        source: 'canonical_watch' as const,
+        generatedAt,
+        items: [],
+        pageInfo: { hasMore: false, nextCursor: null },
+      }, request);
+    }
+    // Boundary hydration (Phase 2) — internal → view
+    const contentIdentityService = new ContentIdentityService();
+    const metadataCardService = new MetadataCardService();
+    const showIds = internal.map((item) => assertPublicItemId(item.showItemId));
+    const nextEpisodeIds = internal.map((item) => assertPublicItemId(item.nextEpisode.itemId));
+    const [showIdentityById, nextEpisodeIdentityById] = await withDbClient(async (client) =>
+      Promise.all([
+        contentIdentityService.resolveMediaIdentitiesBatched(client, showIds),
+        contentIdentityService.resolveMediaIdentitiesBatched(client, nextEpisodeIds),
+      ]),
+    );
+    const showIdentities = internal
+      .map((item) => showIdentityById.get(assertPublicItemId(item.showItemId)))
+      .filter((id): id is NonNullable<typeof id> => Boolean(id));
+    const nextEpisodeIdentities = internal
+      .map((item) => nextEpisodeIdentityById.get(assertPublicItemId(item.nextEpisode.itemId)))
+      .filter((id): id is NonNullable<typeof id> => Boolean(id));
+    const [showViews, nextEpisodeViews] = await withDbClient(async (client) =>
+      Promise.all([
+        metadataCardService.buildCardViewsForIdentities(client, showIdentities, null),
+        metadataCardService.buildCardViewsForIdentities(client, nextEpisodeIdentities, null),
+      ]),
+    );
+    const showViewByMediaKey = new Map(showIdentities.map((id, idx) => [id.mediaKey, showViews[idx]]));
+    const nextEpisodeViewByMediaKey = new Map(
+      nextEpisodeIdentities.map((id, idx) => [id.mediaKey, nextEpisodeViews[idx]]),
+    );
+    const items = internal
+      .map((item) => {
+        const showIdentity = showIdentityById.get(assertPublicItemId(item.showItemId));
+        const nextEpisodeIdentity = nextEpisodeIdentityById.get(assertPublicItemId(item.nextEpisode.itemId));
+        const show = showIdentity ? showViewByMediaKey.get(showIdentity.mediaKey) : undefined;
+        if (!show || !show.title) return null;
+        const nextEpisodeView = nextEpisodeIdentity ? nextEpisodeViewByMediaKey.get(nextEpisodeIdentity.mediaKey) : undefined;
+        return {
+          show,
+          reason: item.reason,
+          lastInteractedAt: item.lastInteractedAt,
+          nextEpisodeAirDate: item.nextEpisode.airDate,
+          nextEpisodeItemId: item.nextEpisode.itemId,
+          nextEpisodeSeasonNumber: item.nextEpisode.seasonNumber,
+          nextEpisodeEpisodeNumber: item.nextEpisode.episodeNumber,
+          nextEpisodeAbsoluteEpisodeNumber: item.nextEpisode.absoluteEpisodeNumber,
+          nextEpisodeTitle: nextEpisodeView?.title ?? null,
+          metadataRefreshedAt: null,
+          payload: { source: 'canonical_watch' as const },
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
     return success({
       profileId: params.profileId,
       kind: 'episodic-follow' as const,

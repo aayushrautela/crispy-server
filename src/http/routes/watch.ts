@@ -31,6 +31,7 @@ import { env } from '../../config/env.js';
 import { withDbClient } from '../../lib/db.js';
 import { WatchCardHydrator } from '../../modules/watch/watch-card-hydrator.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
+import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
 import { mutation, success } from '../response.js';
 import type { WatchActionOutcome } from '../../modules/watch/watch.types.js';
 import { assertPublicItemId, decodePublicItemId, encodePublicItemId } from '../../modules/identity/public-item-id.js';
@@ -177,9 +178,68 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const generatedAt = new Date().toISOString();
-    const items = await withDbClient(async (client) =>
+    const internal = await withDbClient(async (client) =>
       episodicFollowService.listForProfile(client, profileId, limit),
     );
+    if (!internal.length) {
+      return success({
+        profileId,
+        kind: 'episodic-follow' as const,
+        source: 'canonical_watch' as const,
+        generatedAt,
+        items: [],
+        pageInfo: { hasMore: false, nextCursor: null },
+      });
+    }
+    const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
+    const metadataCardService = new MetadataCardService();
+    // Hydrate at the boundary: internal → MetadataCardView (show) + nextEpisode title
+    const showIds = internal.map((item) => assertPublicItemId(item.showItemId));
+    const nextEpisodeIds = internal.map((item) => assertPublicItemId(item.nextEpisode.itemId));
+    const [showIdentityById, nextEpisodeIdentityById] = await withDbClient(async (client) =>
+      Promise.all([
+        contentIdentityService.resolveMediaIdentitiesBatched(client, showIds),
+        contentIdentityService.resolveMediaIdentitiesBatched(client, nextEpisodeIds),
+      ]),
+    );
+    const showIdentities = internal
+      .map((item) => showIdentityById.get(assertPublicItemId(item.showItemId)))
+      .filter((identity): identity is NonNullable<typeof identity> => Boolean(identity));
+    const nextEpisodeIdentities = internal
+      .map((item) => nextEpisodeIdentityById.get(assertPublicItemId(item.nextEpisode.itemId)))
+      .filter((identity): identity is NonNullable<typeof identity> => Boolean(identity));
+    const [showViews, nextEpisodeViews] = await withDbClient(async (client) =>
+      Promise.all([
+        metadataCardService.buildCardViewsForIdentities(client, showIdentities, language),
+        metadataCardService.buildCardViewsForIdentities(client, nextEpisodeIdentities, language),
+      ]),
+    );
+    const showViewByMediaKey = new Map(showIdentities.map((identity, idx) => [identity.mediaKey, showViews[idx]]));
+    const nextEpisodeViewByMediaKey = new Map(
+      nextEpisodeIdentities.map((identity, idx) => [identity.mediaKey, nextEpisodeViews[idx]]),
+    );
+    const items = internal
+      .map((item) => {
+        const showIdentity = showIdentityById.get(assertPublicItemId(item.showItemId));
+        const nextEpisodeIdentity = nextEpisodeIdentityById.get(assertPublicItemId(item.nextEpisode.itemId));
+        const show = showIdentity ? showViewByMediaKey.get(showIdentity.mediaKey) : undefined;
+        if (!show || !show.title) return null;
+        const nextEpisodeView = nextEpisodeIdentity ? nextEpisodeViewByMediaKey.get(nextEpisodeIdentity.mediaKey) : undefined;
+        return {
+          show,
+          reason: item.reason,
+          lastInteractedAt: item.lastInteractedAt,
+          nextEpisodeAirDate: item.nextEpisode.airDate,
+          nextEpisodeItemId: item.nextEpisode.itemId,
+          nextEpisodeSeasonNumber: item.nextEpisode.seasonNumber,
+          nextEpisodeEpisodeNumber: item.nextEpisode.episodeNumber,
+          nextEpisodeAbsoluteEpisodeNumber: item.nextEpisode.absoluteEpisodeNumber,
+          nextEpisodeTitle: nextEpisodeView?.title ?? null,
+          metadataRefreshedAt: null,
+          payload: { source: 'canonical_watch' as const },
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
     return success({
       profileId,
       kind: 'episodic-follow' as const,

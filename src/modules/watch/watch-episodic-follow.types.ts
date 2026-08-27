@@ -6,7 +6,13 @@ export type CanonicalNextEpisodeRef = {
   seasonNumber: number | null;
   episodeNumber: number | null;
   absoluteEpisodeNumber: number | null;
-  title: string | null;
+};
+
+export type EpisodicFollowInternal = {
+  showItemId: string;
+  reason: string | null;
+  lastInteractedAt: string;
+  nextEpisode: CanonicalNextEpisodeRef;
 };
 
 export type EpisodicFollowStateInput = {

@@ -48,7 +48,6 @@ export class MetadataProjectionService {
       return this.toCanonicalNextEpisodeRef(tmdbNextEpisode, {
         itemId: encodePublicItemId(await this.contentIdentityService.ensureContentId(client, tmdbNextEpisode)),
         airDate: source.tmdbNextEpisode.airDate,
-        title: source.tmdbNextEpisode.name,
       });
     }
 
@@ -94,7 +93,6 @@ export class MetadataProjectionService {
           ? this.toCanonicalNextEpisodeRef(nextIdentity, {
             itemId: encodePublicItemId(nextContentId),
             airDate: tmdbNextEpisode.airDate,
-            title: tmdbNextEpisode.name,
           })
           : null,
       );
@@ -196,7 +194,7 @@ export class MetadataProjectionService {
 
   private toCanonicalNextEpisodeRef(
     episodeIdentity: MediaIdentity,
-    params: { itemId: string; airDate: string | null; title: string | null },
+    params: { itemId: string; airDate: string | null },
   ): CanonicalNextEpisodeRef {
     return {
       itemId: params.itemId,
@@ -204,7 +202,6 @@ export class MetadataProjectionService {
       seasonNumber: episodeIdentity.seasonNumber,
       episodeNumber: episodeIdentity.episodeNumber,
       absoluteEpisodeNumber: episodeIdentity.absoluteEpisodeNumber ?? null,
-      title: params.title,
     };
   }
 }
