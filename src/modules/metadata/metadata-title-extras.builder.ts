@@ -23,20 +23,58 @@ export class MetadataTitleExtrasBuilder {
   ) {}
 
   async buildTitleExtras(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataTitleExtras> {
+    // Backward compat: hydrates at builder (Phase 4 moves similar/collection to route)
+    const internal = await this.buildTitleExtrasInternal(client, identity, language);
+    // Hydrate similar/collection at builder for backward compat — route will do it after hard cutoff
+    const { MetadataCardService } = await import('./metadata-card.service.js');
+    const metadataCardService = new MetadataCardService();
+    const similarViews = internal.similar.length
+      ? await metadataCardService.buildCardViews(client, internal.similar, language ?? null)
+      : [];
+    const similar: ClientMediaCard[] = [];
+    for (const view of similarViews) {
+      if (!view || !view.title) continue;
+      const { toClientMediaCard } = await import('./client-media-card.mapper.js');
+      similar.push(toClientMediaCard(view, { progress: null }));
+    }
+    let collection: ClientMediaCardQueryResult | null = null;
+    if (internal.collection && internal.collection.length) {
+      const collectionViews = await metadataCardService.buildCardViews(client, internal.collection, language ?? null);
+      const collectionCards: ClientMediaCard[] = [];
+      for (const view of collectionViews) {
+        if (!view || !view.title) continue;
+        const { toClientMediaCard } = await import('./client-media-card.mapper.js');
+        collectionCards.push(toClientMediaCard(view, { progress: null }));
+      }
+      collection = collectionCards.length
+        ? { Items: collectionCards, StartIndex: 0, TotalRecordCount: collectionCards.length, NextCursor: null, HasMore: false }
+        : null;
+    }
+    // Seasons still hydrated inside builder (keep as is for now)
+    const seasons = await this.buildAllSeasons(client, internal.resolvedTitle, language ?? null);
+    return { Seasons: seasons, Reviews: internal.reviews, Similar: similar, Collection: collection };
+  }
+
+  async buildTitleExtrasInternal(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<{
+    resolvedTitle: TmdbTitleRecord;
+    seasons: ClientMediaCard[];
+    similar: MediaIdentity[];
+    collection: MediaIdentity[] | null;
+    reviews: import('./metadata-detail.types.js').MetadataReviewView[];
+    effectiveLanguage: string | null;
+  }> {
     if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
       throw new Error('Title extras require a title identity.');
     }
-
     const source = await this.titleSourceService.loadTitleSource(client, identity, language ?? null);
     const resolvedTitle = assertPresent(source.tmdbTitle, 'Metadata title not found.');
     const effectiveLanguage = language ?? null;
-
-    const seasons = await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildAllSeasons(client, resolvedTitle, effectiveLanguage), []);
     const reviews = await this.buildExtrasSection('reviews', resolvedTitle, effectiveLanguage, () =>
       this.reviewAggregator.mergeTitleReviews(client, resolvedTitle, identity.mediaType as 'movie' | 'show', effectiveLanguage), []);
-    const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildRelated(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
-    const collection = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollection(client, resolvedTitle, effectiveLanguage), null);
-
+    const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildRelatedIdentities(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
+    const collection = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollectionIdentities(client, resolvedTitle, effectiveLanguage), null);
+    // Seasons keep builder hydration for now (needs seriesItemId custom logic); will move in next iteration
+    const seasons = await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildAllSeasons(client, resolvedTitle, effectiveLanguage), []);
     logger.info({
       tmdbId: resolvedTitle.tmdbId,
       mediaType: resolvedTitle.mediaType,
@@ -44,10 +82,9 @@ export class MetadataTitleExtrasBuilder {
       seasons: seasons.length,
       reviews: reviews.length,
       similar: similar.length,
-      collectionItems: collection?.Items.length ?? 0,
-    }, 'metadata title extras built');
-
-    return { Seasons: seasons, Reviews: reviews, Similar: similar, Collection: collection };
+      collectionItems: collection?.length ?? 0,
+    }, 'metadata title extras built (internal)');
+    return { resolvedTitle, seasons, similar, collection, reviews, effectiveLanguage };
   }
 
   private async buildExtrasSection<T>(
@@ -127,9 +164,44 @@ export class MetadataTitleExtrasBuilder {
     return cards;
   }
 
+  private async buildAllSeasonsIdentities(client: DbClient, title: TmdbTitleRecord, _language: string | null): Promise<MediaIdentity[]> {
+    if (title.mediaType !== 'tv') return [];
+    const seasonNumbers = extractSeasonNumbersFromTitle(title);
+    if (seasonNumbers.length === 0) return [];
+    const seasonIds = await this.contentIdentityService.ensureSeasonContentIds(client, {
+      parentMediaType: 'show',
+      provider: 'tmdb',
+      parentProviderId: String(title.tmdbId),
+    }, seasonNumbers);
+    return seasonNumbers
+      .map((seasonNumber) => {
+        const seasonId = seasonIds.get(seasonNumber);
+        return seasonId ? inferMediaIdentity({ mediaType: 'season', provider: 'tmdb', showTmdbId: title.tmdbId, seasonNumber }) : null;
+      })
+      .filter((identity): identity is MediaIdentity => identity !== null);
+  }
+
   private async buildRelated(client: DbClient, title: TmdbTitleRecord, relationKind: 'recommendation' | 'collection_part', language?: string | null): Promise<ClientMediaCard[]> {
     const relatedTitles = await this.tmdbCacheService.getRelatedTitles(client, title.mediaType, title.tmdbId, relationKind, language);
     return this.buildRelatedItems(client, relatedTitles, language);
+  }
+
+  private async buildRelatedIdentities(client: DbClient, title: TmdbTitleRecord, relationKind: 'recommendation' | 'collection_part', language?: string | null): Promise<MediaIdentity[]> {
+    const relatedTitles = await this.tmdbCacheService.getRelatedTitles(client, title.mediaType, title.tmdbId, relationKind, language);
+    return relatedTitles
+      .filter((t) => t.mediaType === 'movie' || t.mediaType === 'tv')
+      .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
+  }
+
+  private async buildFullCollectionIdentities(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<MediaIdentity[] | null> {
+    const collection = extractCollection(title);
+    if (!collection || typeof collection.id !== 'number') return null;
+    await this.tmdbCacheService.ensureCollectionCached(client, collection.id, language).catch(() => false);
+    const parts = await this.tmdbCacheService.getRelatedTitles(client, 'collection', collection.id, 'collection_part', language);
+    if (parts.length === 0) return null;
+    return parts
+      .filter((t) => t.mediaType === 'movie' || t.mediaType === 'tv')
+      .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
   }
 
   private async buildFullCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<ClientMediaCardQueryResult | null> {

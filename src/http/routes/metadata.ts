@@ -27,6 +27,9 @@ import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detai
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
 import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-batch.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
+import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
+import { toClientMediaCard } from '../../modules/metadata/client-media-card.mapper.js';
+import { withDbClient } from '../../lib/db.js';
 import { success } from '../response.js';
 
 export async function registerMetadataRoutes(app: FastifyInstance): Promise<void> {
@@ -54,7 +57,37 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const query = (request.query ?? {}) as MetadataPersonQuery;
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
-    return success(await metadataTitleExtrasService.getTitleExtras(params.itemId, language));
+    const internal = await metadataTitleExtrasService.getTitleExtrasInternal(params.itemId, language);
+    const [similar, collection] = await withDbClient(async (client) => {
+      const metadataCardService = new MetadataCardService();
+      const similarViews = internal.similar.length
+        ? await metadataCardService.buildCardViews(client, internal.similar, language)
+        : [];
+      const similarCards = [];
+      for (const view of similarViews) {
+        if (!view || !view.title) continue;
+        similarCards.push(toClientMediaCard(view, { progress: null }));
+      }
+      let collectionResult: import('../../modules/recommendations/client-home.types.js').ClientMediaCardQueryResult | null = null;
+      if (internal.collection && internal.collection.length) {
+        const collectionViews = await metadataCardService.buildCardViews(client, internal.collection, language);
+        const collectionCards = [];
+        for (const view of collectionViews) {
+          if (!view || !view.title) continue;
+          collectionCards.push(toClientMediaCard(view, { progress: null }));
+        }
+        if (collectionCards.length) {
+          collectionResult = { Items: collectionCards, StartIndex: 0, TotalRecordCount: collectionCards.length, NextCursor: null, HasMore: false };
+        }
+      }
+      return [similarCards, collectionResult] as const;
+    });
+    return success({
+      Seasons: internal.seasons,
+      Reviews: internal.reviews,
+      Similar: similar,
+      Collection: collection,
+    });
   });
 
   app.get('/v1/metadata/shows/:itemId/episodes', { schema: metadataSeriesEpisodesRouteSchema }, async (request) => {
@@ -80,7 +113,28 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const query = (request.query ?? {}) as MetadataPersonQuery;
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
-    return success(await personDetailService.getPersonDetail(params.personId, language));
+    const internal = await personDetailService.getPersonDetailInternal(params.personId, language);
+    const knownFor = await withDbClient(async (client) => {
+      if (!internal.knownForIdentities.length) return [];
+      const metadataCardService = new MetadataCardService();
+      const views = await metadataCardService.buildCardViews(client, internal.knownForIdentities, language);
+      const cards = [];
+      for (const view of views) {
+        if (!view || !view.title) continue;
+        cards.push(toClientMediaCard(view, { progress: null }));
+      }
+      return cards;
+    });
+    return success({
+      personId: internal.personId,
+      name: internal.name,
+      knownForDepartment: internal.knownForDepartment,
+      biography: internal.biography,
+      birthday: internal.birthday,
+      placeOfBirth: internal.placeOfBirth,
+      profileUrl: internal.profileUrl,
+      knownFor,
+    });
   });
 
   app.get('/v1/playback/resolve', { schema: playbackResolveRouteSchema }, async (request) => {

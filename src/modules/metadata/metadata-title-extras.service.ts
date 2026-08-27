@@ -23,4 +23,20 @@ export class MetadataTitleExtrasService {
       return this.extrasBuilder.buildTitleExtras(client, identity, language ?? null);
     }));
   }
+
+  async getTitleExtrasInternal(itemId: string, language?: string | null): Promise<{
+    seasons: import('../recommendations/client-home.types.js').ClientMediaCard[];
+    similar: import('../identity/media-key.js').MediaIdentity[];
+    collection: import('../identity/media-key.js').MediaIdentity[] | null;
+    reviews: import('./metadata-detail.types.js').MetadataReviewView[];
+    resolvedTitle: import('./providers/tmdb.types.js').TmdbTitleRecord;
+    effectiveLanguage: string | null;
+  }> {
+    const publicItemId = itemId.trim();
+    assertPublicItemId(publicItemId);
+    return withDbClient(async (client) => {
+      const identity = await resolveSeriesItemIdentity(client, this.contentIdentityService, publicItemId);
+      return this.extrasBuilder.buildTitleExtrasInternal(client, identity, language ?? null);
+    });
+  }
 }
