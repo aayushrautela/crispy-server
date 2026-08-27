@@ -2,12 +2,16 @@ import { db, withDbClient, type DbClient } from '../../lib/db.js';
 import { env } from '../../config/env.js';
 import { decodeWatchPageCursor } from '../watch/watch-pagination.js';
 import type { BaseItemDto } from '../metadata/media-item.types.js';
-import type { PaginatedWatchCollection } from '../watch/watch-read.types.js';
+import type { PaginatedWatchCollection, WatchInternalRef } from '../watch/watch-read.types.js';
 import { pageFromRows } from './watch-read-helpers.js';
 import {
+  mapContinueWatchingInternalRef,
   mapContinueWatchingRow,
+  mapHistoryInternalRef,
   mapHistoryRow,
+  mapRatingInternalRef,
   mapRatingRow,
+  mapWatchStateInternalRef,
   mapWatchStateRow,
   type WatchReadRow,
 } from './watch-read.mapper.js';
@@ -212,6 +216,35 @@ export class LocalUserWatchService {
     };
   }
 
+  /** Phase 1 seam: Brain 1 only — no WATCH_ITEM_CONTENT_JOIN, no tmdb_titles. */
+  async listContinueWatchingPageInternal(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const limit = params.limit + 1;
+    const rows = await db.query(
+      `SELECT ws.item_id AS playable_item_id,
+              ws.position_seconds, ws.last_played_at AS last_activity_at,
+              ci.entity_type AS media_type,
+              NULLIF(cpr.metadata->>'seasonNumber','')::int AS season_number,
+              NULLIF(cpr.metadata->>'episodeNumber','')::int AS episode_number,
+              ws.duration_seconds, ws.played, ws.play_count, ws.is_favorite, ws.rating
+       FROM user_state.watch_state ws
+       JOIN content_items ci ON ci.id = ws.item_id
+       LEFT JOIN content_provider_refs cpr ON cpr.content_id = ws.item_id AND cpr.provider='tmdb'
+       WHERE ws.profile_id=$1::uuid AND NOT ws.played AND ws.position_seconds>0
+         AND ws.last_played_at > now() - interval '${env.continueWatchingTtlDays} days'
+         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz OR (ws.last_played_at=$2::timestamptz AND ws.item_id > $3::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
+       LIMIT $4`,
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
+    );
+    return pageFromRows(
+      rows.rows as Record<string, unknown>[],
+      params.limit,
+      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.playable_item_id) }),
+      (row) => mapContinueWatchingInternalRef(row as WatchReadRow),
+    ) as PaginatedWatchCollection<WatchInternalRef>;
+  }
+
   /**
    * Next Up: the first not-yet-play episode that follows the furthest episode a
    * profile has watched in each series. Built entirely from the existing Jellyfin
@@ -318,6 +351,29 @@ export class LocalUserWatchService {
     );
   }
 
+  async listWatchlistPageInternal(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const limit = params.limit + 1;
+    const rows = await db.query(
+      `SELECT ws.item_id, ws.played, ws.play_count, ws.last_played_at,
+              ws.position_seconds, ws.rating, ws.is_favorite, ws.duration_seconds,
+              ci.entity_type AS media_type
+       FROM user_state.watch_state ws
+       JOIN content_items ci ON ci.id = ws.item_id
+       WHERE ws.profile_id = $1::uuid AND ws.is_favorite
+         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
+       LIMIT $4`,
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
+    );
+    return pageFromRows(
+      rows.rows as Record<string, unknown>[],
+      params.limit,
+      (row) => ({ sortValue: row.last_played_at as Date, tieBreaker: String(row.item_id) }),
+      (row) => mapWatchStateInternalRef(row as WatchReadRow),
+    ) as PaginatedWatchCollection<WatchInternalRef>;
+  }
+
   async listRatingsPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
@@ -339,6 +395,28 @@ export class LocalUserWatchService {
       (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.item_id) }),
       (row) => mapRatingRow(row),
     );
+  }
+
+  async listRatingsPageInternal(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const limit = params.limit + 1;
+    const rows = await db.query(
+      `SELECT ws.item_id, ws.rating, ws.last_played_at AS rated_at, ws.duration_seconds,
+              ci.entity_type AS media_type, ws.played, ws.play_count, ws.is_favorite, ws.position_seconds
+       FROM user_state.watch_state ws
+       JOIN content_items ci ON ci.id = ws.item_id
+       WHERE ws.profile_id = $1::uuid AND ws.rating IS NOT NULL
+         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
+       LIMIT $4`,
+      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
+    );
+    return pageFromRows(
+      rows.rows as Record<string, unknown>[],
+      params.limit,
+      (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.item_id) }),
+      (row) => mapRatingInternalRef(row as WatchReadRow),
+    ) as PaginatedWatchCollection<WatchInternalRef>;
   }
 
   async listHistoryPage(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
@@ -364,6 +442,30 @@ export class LocalUserWatchService {
       (row) => ({ sortValue: row.occurred_at as Date, tieBreaker: String(row.item_id) }),
       (row) => mapHistoryRow(row),
     );
+  }
+
+  async listHistoryPageInternal(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+    const cursor = decodeWatchPageCursor(params.cursor);
+    const limit = params.limit + 1;
+    const rows = await db.query(
+      `SELECT ws.item_id, ws.last_played_at AS occurred_at, ws.duration_seconds,
+              ci.entity_type AS media_type, ws.played, ws.play_count, ws.is_favorite, ws.position_seconds, ws.rating
+       FROM user_state.watch_state ws
+       JOIN content_items ci ON ci.id = ws.item_id
+       LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type='series'
+       WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
+         AND ($2::uuid IS NULL OR ws.item_id = $2::uuid OR cir.parent_content_id = $2::uuid)
+         AND ($3::timestamptz IS NULL OR ws.last_played_at < $3::timestamptz OR (ws.last_played_at = $3::timestamptz AND ws.item_id > $4::uuid))
+       ORDER BY ws.last_played_at DESC, ws.item_id ASC
+       LIMIT $5`,
+      [params.profileId, params.itemId ?? null, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
+    );
+    return pageFromRows(
+      rows.rows as Record<string, unknown>[],
+      params.limit,
+      (row) => ({ sortValue: row.occurred_at as Date, tieBreaker: String(row.item_id) }),
+      (row) => mapHistoryInternalRef(row as WatchReadRow),
+    ) as PaginatedWatchCollection<WatchInternalRef>;
   }
 
   async getState(params: GetStateParams): Promise<BaseItemDto> {
@@ -496,6 +598,23 @@ export class LocalUserWatchService {
       );
 
       return result.rows.map((row) => mapWatchStateRow(row as Record<string, unknown>));
+    });
+  }
+
+  async getStatesInternal(params: GetStateParams): Promise<WatchInternalRef[]> {
+    if (params.itemIds.length === 0) return [];
+    const itemIds = [...new Set(params.itemIds)];
+    return withDbClient(async (client) => {
+      const result = await client.query(
+        `WITH requested AS (SELECT unnest($2::uuid[]) AS item_id)
+         SELECT req.item_id, ci.entity_type AS media_type,
+                ws.position_seconds, ws.duration_seconds, ws.played, ws.play_count, ws.is_favorite, ws.rating, ws.last_played_at
+         FROM requested req
+         LEFT JOIN content_items ci ON ci.id = req.item_id
+         LEFT JOIN user_state.watch_state ws ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id`,
+        [params.profileId, itemIds],
+      );
+      return result.rows.map((row) => mapWatchStateInternalRef(row as WatchReadRow));
     });
   }
 

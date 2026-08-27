@@ -14,4 +14,27 @@ export type PaginatedWatchCollection<TItem> = {
   pageInfo: WatchCollectionPageInfo;
 };
 
+/**
+ * Phase 0 — Boundary seam type.
+ * Internal refs carry ONLY itemId + per-user state (Brain 1).
+ * No title/poster/overview/genres — hydration happens at the route boundary
+ * via MetadataCardService → toClientMediaCard (Brain 2).
+ */
+export type WatchInternalProgress = {
+  positionSeconds: number | null;
+  durationSeconds: number | null;
+  progressBps: number | null;
+  played: boolean;
+  playCount: number;
+  isFavorite: boolean;
+  rating: number | null;
+  lastPlayedAt: string | null;
+};
+
+export type WatchInternalRef = {
+  itemId: string;
+  mediaType: 'movie' | 'show' | 'season' | 'episode';
+  progress: WatchInternalProgress | null;
+};
+
 

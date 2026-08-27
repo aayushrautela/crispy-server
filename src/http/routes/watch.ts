@@ -147,6 +147,28 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
+    if (env.watchLastLayerHydration) {
+      const page = await localUserWatchService.listContinueWatchingPageInternal({
+        accountId: actor.authSubject!,
+        profileId,
+        limit,
+        cursor: parseNullableString(query.cursor),
+      });
+      const enrichedItems = page.items.length
+        ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, page.items, language))
+        : [];
+      logger.info(
+        { profileId, rawCount: page.items.length, enrichedCount: enrichedItems.length, hydration: 'last-layer' },
+        'continue-watching query result',
+      );
+      return success({
+        Items: enrichedItems,
+        StartIndex: 0,
+        TotalRecordCount: enrichedItems.length,
+        NextCursor: page.pageInfo.nextCursor,
+        HasMore: page.pageInfo.hasMore,
+      });
+    }
     const page = await localUserWatchService.listContinueWatchingPage({
       accountId: actor.authSubject!,
       profileId,
@@ -286,6 +308,25 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 100);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
+    if (env.watchLastLayerHydration) {
+      const page = await localUserWatchService.listHistoryPageInternal({
+        accountId: actor.authSubject!,
+        profileId,
+        limit,
+        cursor: parseNullableString(query.cursor),
+        itemId: parseNullableString(query.itemId),
+      });
+      const enrichedItems = page.items.length
+        ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, page.items, language))
+        : [];
+      return success({
+        Items: enrichedItems,
+        StartIndex: 0,
+        TotalRecordCount: enrichedItems.length,
+        NextCursor: page.pageInfo.nextCursor,
+        HasMore: page.pageInfo.hasMore,
+      });
+    }
     const page = await localUserWatchService.listHistoryPage({
       accountId: actor.authSubject!,
       profileId,
@@ -315,6 +356,24 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
+    if (env.watchLastLayerHydration) {
+      const page = await localUserWatchService.listWatchlistPageInternal({
+        accountId: actor.authSubject!,
+        profileId,
+        limit,
+        cursor: parseNullableString(query.cursor),
+      });
+      const enrichedItems = page.items.length
+        ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, page.items, language))
+        : [];
+      return success({
+        Items: enrichedItems,
+        StartIndex: 0,
+        TotalRecordCount: enrichedItems.length,
+        NextCursor: page.pageInfo.nextCursor,
+        HasMore: page.pageInfo.hasMore,
+      });
+    }
     const page = await localUserWatchService.listWatchlistPage({
       accountId: actor.authSubject!,
       profileId,
@@ -343,6 +402,24 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
+    if (env.watchLastLayerHydration) {
+      const page = await localUserWatchService.listRatingsPageInternal({
+        accountId: actor.authSubject!,
+        profileId,
+        limit,
+        cursor: parseNullableString(query.cursor),
+      });
+      const enrichedItems = page.items.length
+        ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, page.items, language))
+        : [];
+      return success({
+        Items: enrichedItems,
+        StartIndex: 0,
+        TotalRecordCount: enrichedItems.length,
+        NextCursor: page.pageInfo.nextCursor,
+        HasMore: page.pageInfo.hasMore,
+      });
+    }
     const page = await localUserWatchService.listRatingsPage({
       accountId: actor.authSubject!,
       profileId,
@@ -371,6 +448,11 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchStateLookupContract;
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const itemId = assertPublicItemId(query.itemId!);
+    if (env.watchLastLayerHydration) {
+      const refs = await localUserWatchService.getStatesInternal({ accountId: actor.authSubject!, profileId, itemIds: [itemId] });
+      const enriched = refs.length ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, refs, language)) : [];
+      return success(enriched[0] ?? null);
+    }
     const item = await localUserWatchService.getState({
       accountId: actor.authSubject!,
       profileId,
@@ -392,6 +474,11 @@ export async function registerWatchRoutes(
 
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const itemIds = items.map((item) => assertPublicItemId(item.itemId!));
+    if (env.watchLastLayerHydration) {
+      const refs = await localUserWatchService.getStatesInternal({ accountId: actor.authSubject!, profileId, itemIds });
+      const enrichedItems = refs.length ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, refs, language)) : [];
+      return success({ items: enrichedItems });
+    }
     const stateItems = await localUserWatchService.getStates({
       accountId: actor.authSubject!,
       profileId,

@@ -4,16 +4,25 @@ import { MetadataCardService } from '../metadata/metadata-card.service.js';
 import { toClientMediaCard } from '../metadata/client-media-card.mapper.js';
 import { inferMediaIdentity, type MediaIdentity, type SupportedMediaType, type SupportedProvider } from '../identity/media-key.js';
 import type { ClientMediaCard, ClientMediaType, ClientProgress, ClientProviderIds } from '../recommendations/client-home.types.js';
+import { ContentIdentityService } from '../identity/content-identity.service.js';
+import { assertPublicItemId } from '../identity/public-item-id.js';
+import type { WatchInternalRef } from './watch-read.types.js';
 
 const TICKS_PER_SECOND = 10_000_000;
 
 export class WatchCardHydrator {
   private readonly metadataCardService: MetadataCardService;
+  private readonly contentIdentityService: ContentIdentityService;
 
-  constructor(metadataCardService: MetadataCardService = new MetadataCardService()) {
+  constructor(
+    metadataCardService: MetadataCardService = new MetadataCardService(),
+    contentIdentityService: ContentIdentityService = new ContentIdentityService(),
+  ) {
     this.metadataCardService = metadataCardService;
+    this.contentIdentityService = contentIdentityService;
   }
 
+  // --- Legacy path (BaseItemDto in, card out) — keep until Phase 3.
   async hydrateItems(client: DbClient, items: BaseItemDto[], language?: string | null, extended = true): Promise<ClientMediaCard[]> {
     if (items.length === 0) return [];
 
@@ -37,6 +46,43 @@ export class WatchCardHydrator {
         progress: progressFromUserData(entry.item.UserData),
         itemId: entry.item.Id,
         seriesTitle: entry.item.SeriesName ?? undefined,
+      }));
+    }
+    return cards;
+  }
+
+  /**
+   * Phase 1 — Last-layer hydration seam.
+   * Input is Brain 1 (itemId + per-user progress only).
+   * Enrichment happens here once, via MetadataCardService, before returning to the client.
+   */
+  async hydrateByIds(client: DbClient, refs: WatchInternalRef[], language?: string | null): Promise<ClientMediaCard[]> {
+    if (refs.length === 0) return [];
+
+    const contentIds = refs.map((ref) => assertPublicItemId(ref.itemId));
+    const identityByContentId = await this.contentIdentityService.resolveMediaIdentitiesBatched(client, contentIds);
+
+    const ordered: Array<{ ref: WatchInternalRef; identity: MediaIdentity }> = [];
+    for (const ref of refs) {
+      const identity = identityByContentId.get(assertPublicItemId(ref.itemId));
+      if (identity) ordered.push({ ref, identity });
+    }
+    if (!ordered.length) return [];
+
+    const views = await this.metadataCardService.buildCardViewsForIdentities(
+      client,
+      ordered.map((entry) => entry.identity),
+      language ?? null,
+    );
+
+    const cards: ClientMediaCard[] = [];
+    for (let i = 0; i < ordered.length; i++) {
+      const entry = ordered[i]!;
+      const view = views[i];
+      if (!view || !view.title) continue;
+      cards.push(toClientMediaCard(view, {
+        progress: progressFromInternalRef(entry.ref, view),
+        itemId: entry.ref.itemId,
       }));
     }
     return cards;
@@ -149,4 +195,30 @@ function providerIdsFromBaseItem(providerIds: BaseItemDto['ProviderIds']): Clien
   const imdb = providerIds.Imdb ?? null;
   if (!tmdb && !tvdb && !imdb) return null;
   return { tmdb: tmdb ?? null, tvdb: tvdb ?? null, imdb: imdb ?? null };
+}
+
+function progressFromInternalRef(
+  ref: import('./watch-read.types.js').WatchInternalRef,
+  view: import('../metadata/metadata-card.types.js').MetadataCardView,
+): ClientProgress | null {
+  const progress = ref.progress;
+  if (!progress) return null;
+  const positionSeconds = progress.positionSeconds;
+  // duration canonical from hydrated view (tmdb runtime), fallback to stored duration.
+  const viewDuration = typeof view.runtimeMinutes === 'number' ? view.runtimeMinutes * 60 : null;
+  const durationSeconds = viewDuration ?? progress.durationSeconds;
+  let percent: number | null = progress.progressBps != null ? progress.progressBps / 100 : null;
+  if (percent == null && positionSeconds != null && durationSeconds != null && durationSeconds > 0) {
+    percent = (positionSeconds / durationSeconds) * 100;
+  }
+  return {
+    played: progress.played,
+    playCount: progress.playCount,
+    positionSeconds,
+    durationSeconds,
+    percent,
+    lastPlayedAt: progress.lastPlayedAt,
+    watchlisted: progress.isFavorite,
+    userRating: progress.rating,
+  };
 }

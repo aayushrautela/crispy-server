@@ -166,6 +166,7 @@ export const env = {
   recommenderInternalBaseUrl: optionalBaseUrl('RECOMMENDER_INTERNAL_BASE_URL') ?? '',
   mainToRecommenderServiceToken: optionalEnv('MAIN_TO_RECOMMENDER_SERVICE_TOKEN') ?? '',
   recommenderNotifyTimeoutMs: parseNumber('RECOMMENDER_NOTIFY_TIMEOUT_MS', 5000),
+  watchLastLayerHydration: parseBoolean('WATCH_LAST_LAYER_HYDRATION', false),
 };
 
 export type Env = typeof env;
