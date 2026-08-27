@@ -12,6 +12,7 @@ export type ToClientMediaCardOptions = {
   progress?: ClientProgress | null;
   itemId?: string;
   overviewOverride?: string;
+  seriesItemId?: string;
   seriesTitle?: string;
 };
 
@@ -25,7 +26,7 @@ export function toClientMediaCard(
   const parent: ClientParentRef | null =
     view.seriesItemId || view.seasonItemId || view.seasonNumber !== null || view.episodeNumber !== null
       ? {
-          seriesItemId: view.seriesItemId ?? undefined,
+          seriesItemId: opts.seriesItemId ?? view.seriesItemId ?? undefined,
           seriesTitle: view.seriesTitle ?? opts.seriesTitle,
           seasonItemId: view.seasonItemId ?? undefined,
           seasonNumber: view.seasonNumber,

@@ -29,6 +29,8 @@ import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-b
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
 import { toClientMediaCard } from '../../modules/metadata/client-media-card.mapper.js';
+import type { ClientMediaCard, ClientMediaCardQueryResult } from '../../modules/recommendations/client-home.types.js';
+import type { MediaIdentity } from '../../modules/identity/media-key.js';
 import { withDbClient } from '../../lib/db.js';
 import { success } from '../response.js';
 
@@ -58,32 +60,37 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
     const internal = await metadataTitleExtrasService.getTitleExtrasInternal(params.itemId, language);
-    const [similar, collection] = await withDbClient(async (client) => {
+    const [similar, collection, seasons] = await withDbClient(async (client) => {
       const metadataCardService = new MetadataCardService();
-      const similarViews = internal.similar.length
-        ? await metadataCardService.buildCardViews(client, internal.similar, language)
-        : [];
-      const similarCards = [];
-      for (const view of similarViews) {
-        if (!view || !view.title) continue;
-        similarCards.push(toClientMediaCard(view, { progress: null }));
-      }
-      let collectionResult: import('../../modules/recommendations/client-home.types.js').ClientMediaCardQueryResult | null = null;
-      if (internal.collection && internal.collection.length) {
-        const collectionViews = await metadataCardService.buildCardViews(client, internal.collection, language);
-        const collectionCards = [];
-        for (const view of collectionViews) {
+      const hydrate = async (
+        identities: MediaIdentity[],
+        overrides?: { seriesItemId?: string; seriesTitle?: string },
+      ): Promise<ClientMediaCard[]> => {
+        if (!identities.length) return [];
+        const views = await metadataCardService.buildCardViews(client, identities, language);
+        const cards: ClientMediaCard[] = [];
+        for (const view of views) {
           if (!view || !view.title) continue;
-          collectionCards.push(toClientMediaCard(view, { progress: null }));
+          cards.push(toClientMediaCard(view, { progress: null, ...overrides }));
         }
+        return cards;
+      };
+      const similarCards = await hydrate(internal.similar);
+      let collectionResult: ClientMediaCardQueryResult | null = null;
+      if (internal.collection && internal.collection.length) {
+        const collectionCards = await hydrate(internal.collection);
         if (collectionCards.length) {
           collectionResult = { Items: collectionCards, StartIndex: 0, TotalRecordCount: collectionCards.length, NextCursor: null, HasMore: false };
         }
       }
-      return [similarCards, collectionResult] as const;
+      const seasonCards = await hydrate(internal.seasonIdentities, {
+        seriesItemId: internal.seriesItemId || undefined,
+        seriesTitle: internal.seriesTitle ?? undefined,
+      });
+      return [similarCards, collectionResult, seasonCards] as const;
     });
     return success({
-      Seasons: internal.seasons,
+      Seasons: seasons,
       Reviews: internal.reviews,
       Similar: similar,
       Collection: collection,

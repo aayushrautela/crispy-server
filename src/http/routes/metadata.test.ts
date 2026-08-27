@@ -180,7 +180,9 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
   const originalBuildCardViews = MetadataCardService.prototype.buildCardViews;
 
   MetadataTitleExtrasService.prototype.getTitleExtrasInternal = (async () => ({
-    seasons: [],
+    seasonIdentities: [],
+    seriesItemId: '',
+    seriesTitle: null,
     reviews: [
       {
         id: 'rev-1',
@@ -272,20 +274,57 @@ test('GET /v1/metadata/items/:itemId/extras serializes show seasons', async (t) 
   });
 
   const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
+  const { MetadataCardService } = await import('../../modules/metadata/metadata-card.service.js');
   const original = MetadataTitleExtrasService.prototype.getTitleExtrasInternal;
+  const originalBuildCardViews = MetadataCardService.prototype.buildCardViews;
 
   MetadataTitleExtrasService.prototype.getTitleExtrasInternal = (async () => ({
-    seasons: [
-      makeSeasonClientMediaCard(),
+    seasonIdentities: [
+      { mediaKey: 'season:tmdb:12345:1', mediaType: 'season', provider: 'tmdb', showTmdbId: 12345, seasonNumber: 1 },
     ],
+    seriesItemId: SHOW_ITEM_ID,
+    seriesTitle: 'Test Show',
     reviews: [],
     similar: [],
     collection: null,
     resolvedTitle: {} as any,
     effectiveLanguage: 'en-US',
   })) as any;
+  MetadataCardService.prototype.buildCardViews = (async () => [{
+    mediaType: 'season',
+    kind: 'season',
+    itemId: SEASON_ITEM_ID,
+    parentMediaType: null,
+    seriesItemId: null,
+    seasonItemId: null,
+    tmdbId: null,
+    showTmdbId: 12345,
+    seasonNumber: 1,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+    title: 'Season 1',
+    subtitle: null,
+    summary: null,
+    overview: null,
+    tagline: null,
+    artwork: { poster: null, backdrop: null, still: null },
+    images: { poster: null, backdrop: null, logo: null, still: null },
+    releaseDate: null,
+    releaseYear: null,
+    runtimeMinutes: null,
+    rating: null,
+    status: null,
+    maturityRating: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
+    genres: [],
+    externalIds: { tmdb: null, imdb: null, tvdb: null },
+  }]) as any;
   t.after(() => {
     MetadataTitleExtrasService.prototype.getTitleExtrasInternal = original;
+    MetadataCardService.prototype.buildCardViews = originalBuildCardViews;
   });
 
   const { registerMetadataRoutes } = await import('./metadata.js');

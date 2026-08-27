@@ -26,14 +26,9 @@ type GenreMapping = {
   tvGenreId?: number | null;
 };
 
-type SearchBucketEntry = {
-  item: MetadataSearchResult;
+type SearchEntry = {
+  card: ClientMediaCard;
   noisy: boolean;
-};
-
-type SearchBuckets = {
-  movies: SearchBucketEntry[];
-  series: SearchBucketEntry[];
 };
 
 const MOVIES_LIMIT = 20;
@@ -70,42 +65,55 @@ export class TitleSearchService {
     private readonly suggestionCoalescer = new ShortLivedRequestCoalescer<SearchSuggestionItem[]>(SEARCH_CACHE_TTL_MS),
   ) {}
 
-  async searchTitles(input: SearchTitlesInput): Promise<MetadataSearchResponse> {
-    // Backward compat shim — new callers use searchTitlesInternal + route hydration.
-    const internal = await this.searchTitlesInternal(input);
-    if (!internal.tmdbMatches.length && !internal.peopleMatches.length) {
-      return emptySearchResponse(internal.normalizedQuery);
+  /**
+   * Boundary hydration for search (Brain 2). `searchTitlesInternal` returns
+   * raw TMDB matches + identities; this turns them into `ClientMediaCard`s at
+   * the route boundary, applies display filtering (poster presence) and ranking
+   * (noisy matches to the end), then buckets by media type.
+   */
+  async hydrateSearchResponse(
+    internal: SearchTitlesInternalResult,
+    client: DbClient,
+    language: string | null,
+  ): Promise<MetadataSearchResponse> {
+    if (!internal.tmdbMatches.length) {
+      return emptySearchResponse(internal.normalizedQuery, internal.peopleMatches);
     }
-    return withDbClient(async (client) => {
-      const tmdbIdentities = internal.tmdbMatches.map((match) => inferMediaIdentity({
+
+    const tmdbIdentities = internal.tmdbMatches.map((match) => inferMediaIdentity({
+      mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+      tmdbId: match.tmdbId,
+    }));
+    const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
+    const hydratedMap = await this.tmdbCacheService.getTitles(
+      client,
+      internal.tmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })),
+      language ?? null,
+    );
+
+    const entries: Array<{ card: ClientMediaCard; noisy: boolean }> = [];
+    for (const match of internal.tmdbMatches) {
+      const identity = inferMediaIdentity({
         mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
         tmdbId: match.tmdbId,
-      }));
-      const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
-      const hydratedMap = await this.tmdbCacheService.getTitles(
-        client,
-        internal.tmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })),
-        internal.locale,
-      );
-      const tmdbItems = await mapWithConcurrency(internal.tmdbMatches, HYDRATION_CONCURRENCY, async (match: TmdbTitleRecord) => {
-        if (input.signal?.aborted) return null;
-        const identity = inferMediaIdentity({
-          mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
-          tmdbId: match.tmdbId,
-        });
-        const contentId = contentIds.get(identity.mediaKey) ?? await this.contentIdentityService.ensureContentId(client, identity).catch(() => null);
-        if (!contentId) return null;
-        const hydrated = hydratedMap.get(`${match.mediaType}:${match.tmdbId}`);
-        if (!hydrated) return null;
-        const itemId = encodePublicItemId(contentId);
-        const view = buildMetadataCardView({ identity, itemId, title: hydrated, language: internal.locale });
-        return { item: toClientMediaCard(view, { progress: null }), noisy: isNoisyTmdbMatch(hydrated) };
       });
-      const peopleItems = internal.peopleMatches;
-      return buildBucketedSearchResponse(internal.normalizedQuery, internal.limit, [
-        ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
-      ], peopleItems);
-    });
+      const contentId = contentIds.get(identity.mediaKey);
+      if (!contentId) continue;
+      const hydrated = hydratedMap.get(`${match.mediaType}:${match.tmdbId}`);
+      if (!hydrated) continue;
+      const view = buildMetadataCardView({ identity, itemId: encodePublicItemId(contentId), title: hydrated, language: language ?? null });
+      entries.push({ card: toClientMediaCard(view, { progress: null }), noisy: isNoisyTmdbMatch(hydrated) });
+    }
+
+    const withPoster = entries.filter((entry) => hasSearchPoster(entry.card));
+    const movies = moveNoisyItemsToEnd(withPoster.filter((entry) => entry.card.mediaType === 'movie'))
+      .slice(0, Math.min(internal.limit, MOVIES_LIMIT))
+      .map((entry) => entry.card);
+    const series = moveNoisyItemsToEnd(withPoster.filter((entry) => entry.card.mediaType === 'tv'))
+      .slice(0, Math.min(internal.limit, SERIES_LIMIT))
+      .map((entry) => entry.card);
+
+    return { query: internal.normalizedQuery, movies, series, people: internal.peopleMatches };
   }
 
   async searchTitlesInternal(input: SearchTitlesInput): Promise<SearchTitlesInternalResult> {
@@ -278,12 +286,12 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper:
   return results;
 }
 
-function emptySearchResponse(query: string): MetadataSearchResponse {
+function emptySearchResponse(query: string, people: MetadataPersonSearchResult[] = []): MetadataSearchResponse {
   return {
     query,
     movies: [],
     series: [],
-    people: [],
+    people,
   };
 }
 
@@ -366,46 +374,9 @@ function normalizeGenreKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-function buildSearchBuckets(items: SearchBucketEntry[]): SearchBuckets {
-  const buckets: SearchBuckets = {
-    movies: [],
-    series: [],
-  };
-
-  for (const entry of items) {
-    if (!hasSearchPoster(entry.item)) {
-      continue;
-    }
-
-    const bucket = bucketForMediaType(entry.item);
-    if (bucket) {
-      buckets[bucket].push(entry);
-    }
-  }
-
-  return buckets;
-}
-
-function buildBucketedSearchResponse(query: string, limit: number, entries: SearchBucketEntry[], peopleEntries: MetadataPersonSearchResult[]): MetadataSearchResponse {
-  const buckets = buildSearchBuckets(entries);
-  const movies = finalizeBucket(buckets.movies, Math.min(limit, MOVIES_LIMIT));
-  const series = finalizeBucket(buckets.series, Math.min(limit, SERIES_LIMIT));
-
-  return {
-    query,
-    movies: toSearchResults(movies),
-    series: toSearchResults(series),
-    people: peopleEntries,
-  };
-}
-
-function finalizeBucket(items: SearchBucketEntry[], limit: number): SearchBucketEntry[] {
-  return moveNoisyItemsToEnd(items).slice(0, limit);
-}
-
-function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
-  const clean: SearchBucketEntry[] = [];
-  const noisy: SearchBucketEntry[] = [];
+function moveNoisyItemsToEnd(items: SearchEntry[]): SearchEntry[] {
+  const clean: SearchEntry[] = [];
+  const noisy: SearchEntry[] = [];
 
   for (const item of items) {
     if (item.noisy) {
@@ -421,20 +392,6 @@ function moveNoisyItemsToEnd(items: SearchBucketEntry[]): SearchBucketEntry[] {
 function hasSearchPoster(item: ClientMediaCard): boolean {
   const poster = item.images.poster;
   return Boolean(poster && (poster.small || poster.medium || poster.large));
-}
-
-function toSearchResults(entries: SearchBucketEntry[]): MetadataSearchResult[] {
-  return entries.map(({ item }) => item);
-}
-
-function bucketForMediaType(card: ClientMediaCard): keyof SearchBuckets | null {
-  if (card.mediaType === 'movie') {
-    return 'movies';
-  }
-  if (card.mediaType === 'tv') {
-    return 'series';
-  }
-  return null;
 }
 
 function isNoisyTmdbMatch(match: TmdbTitleRecord): boolean {

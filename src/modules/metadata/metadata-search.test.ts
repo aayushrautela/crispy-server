@@ -12,7 +12,8 @@ test('searchTitles returns empty when query is blank', async () => {
     { ensureContentIds: async () => new Map(), ensureContentId: async () => null } as never,
   );
 
-  const response = await svc.searchTitles({ query: '   ', limit: 10 });
+  const internal = await svc.searchTitlesInternal({ query: '   ', limit: 10 });
+  const response = await svc.hydrateSearchResponse(internal, {} as never, null);
   assert.deepEqual(response, { query: '', movies: [], series: [], people: [] });
 });
 
@@ -75,11 +76,12 @@ test('all filter combines movie and series TMDB results', async () => {
       } as never,
     );
 
-    const response = await svc.searchTitles({ query: 'Alpha', filter: 'all', limit: 2, locale: 'en-US' });
+    const internal = await svc.searchTitlesInternal({ query: 'Alpha', filter: 'all', limit: 2, locale: 'en-US' });
+    const response = await svc.hydrateSearchResponse(internal, {} as never, 'en-US');
 
     assert.deepEqual(tmdbCalls, [{ query: 'Alpha', limit: 2, mediaTypes: ['movie', 'tv'], locale: 'en-US' }]);
-    assert.deepEqual(response.movies.map((item) => item.title), ['Alpha Movie']);
-    assert.deepEqual(response.series.map((item) => item.title), ['Alpha Series']);
+    assert.deepEqual(response.movies.map((item: { title: string }) => item.title), ['Alpha Movie']);
+    assert.deepEqual(response.series.map((item: { title: string }) => item.title), ['Alpha Series']);
     assert.deepEqual(ensuredMediaKeys, ['movie:tmdb:101', 'show:tmdb:201']);
   } finally {
     db.connect = originalConnect;
@@ -123,9 +125,10 @@ test('searchTitles drops results without posters', async () => {
       } as never,
     );
 
-    const response = await svc.searchTitles({ query: 'Visible', filter: 'all', limit: 20 });
+    const internal = await svc.searchTitlesInternal({ query: 'Visible', filter: 'all', limit: 20 });
+    const response = await svc.hydrateSearchResponse(internal, {} as never, null);
 
-    assert.deepEqual(response.series.map((item) => item.title), ['Visible Series']);
+    assert.deepEqual(response.series.map((item: { title: string }) => item.title), ['Visible Series']);
   } finally {
     db.connect = originalConnect;
   }
@@ -168,9 +171,10 @@ test('searchTitles moves noisy series results to the end without disturbing clea
       } as never,
     );
 
-    const response = await svc.searchTitles({ query: 'Naruto', filter: 'series', limit: 20 });
+    const internal = await svc.searchTitlesInternal({ query: 'Naruto', filter: 'series', limit: 20 });
+    const response = await svc.hydrateSearchResponse(internal, {} as never, null);
 
-    assert.deepEqual(response.series.map((item) => item.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
+    assert.deepEqual(response.series.map((item: { title: string }) => item.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
   } finally {
     db.connect = originalConnect;
   }
@@ -217,15 +221,17 @@ test('searchTitles coalesces identical in-flight requests', async () => {
       } as never,
     );
 
-    const first = svc.searchTitles({ query: 'Alpha', filter: 'all', limit: 20, locale: 'en-US' });
-    const second = svc.searchTitles({ query: 'Alpha', filter: 'all', limit: 20, locale: 'en-US' });
+    const first = svc.searchTitlesInternal({ query: 'Alpha', filter: 'all', limit: 20, locale: 'en-US' });
+    const second = svc.searchTitlesInternal({ query: 'Alpha', filter: 'all', limit: 20, locale: 'en-US' });
 
     await Promise.resolve();
     assert.equal(tmdbCalls, 1);
 
     resolveTmdb([alphaMovie]);
 
-    const [left, right] = await Promise.all([first, second]);
+    const [leftInternal, rightInternal] = await Promise.all([first, second]);
+    const left = await svc.hydrateSearchResponse(leftInternal, {} as never, 'en-US');
+    const right = await svc.hydrateSearchResponse(rightInternal, {} as never, 'en-US');
     assert.deepEqual(left, right);
     assert.equal(tmdbCalls, 1);
   } finally {

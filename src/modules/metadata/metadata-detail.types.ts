@@ -1,5 +1,5 @@
 import type { SupportedProvider } from '../identity/media-key.js';
-import type { ClientMediaCard, ClientMediaCardQueryResult } from '../recommendations/client-home.types.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
 import type { ResponsiveImageSet } from './metadata-card.types.js';
 
 export type MetadataVideoView = {
@@ -83,11 +83,15 @@ export type MetadataTitleRatingsResponse = {
   };
 };
 
-export type MetadataTitleExtras = {
-  Seasons: ClientMediaCard[];
-  Reviews: MetadataReviewView[];
-  Similar: ClientMediaCard[];
-  Collection: ClientMediaCardQueryResult | null;
+export type MetadataTitleExtrasInternal = {
+  resolvedTitle: import('./providers/tmdb.types.js').TmdbTitleRecord;
+  seasonIdentities: import('../identity/media-key.js').MediaIdentity[];
+  seriesItemId: string;
+  seriesTitle: string | null;
+  similar: import('../identity/media-key.js').MediaIdentity[];
+  collection: import('../identity/media-key.js').MediaIdentity[] | null;
+  reviews: MetadataReviewView[];
+  effectiveLanguage: string | null;
 };
 
 export type PlaybackResolveResponse = {
