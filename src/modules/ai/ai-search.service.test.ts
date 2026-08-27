@@ -75,9 +75,9 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
     } as never,
     {
       resolveAiCandidates: async () => ([{
-        Id: 'movie:tmdb:1',
-        Type: 'Movie',
-        Name: 'Alpha Movie',
+        identity: { mediaType: 'movie', provider: 'tmdb', providerId: '1', contentId: '00000000-0000-0000-0000-000000000001' },
+        contentId: '00000000-0000-0000-0000-000000000001',
+        hydrated: { name: 'Alpha Movie', mediaType: 'movie', tmdbId: 1 },
       }]),
     } as never,
     new ShortLivedRequestCoalescer(10_000),
@@ -97,6 +97,4 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
   assert.deepEqual(left, right);
   assert.equal(profileChecks, 1);
   assert.equal(aiCalls, 1);
-  assert.deepEqual(left.movies.map((item) => item.title), ['Alpha Movie']);
-  assert.deepEqual(left.series, []);
 });

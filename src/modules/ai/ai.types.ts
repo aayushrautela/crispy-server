@@ -1,9 +1,22 @@
 import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 import type { ResponsiveImageSet } from '../metadata/metadata-card.types.js';
+import type { MediaIdentity } from '../identity/media-key.js';
+import type { TmdbTitleRecord } from '../metadata/providers/tmdb.types.js';
 
 export type AiFeatureId = 'search' | 'insights';
 export type AiCredentialSource = 'server';
 export type ServerAiTier = 'pro' | 'ultra';
+
+export type AiResolvedCandidate = {
+  identity: MediaIdentity;
+  contentId: string;
+  hydrated: TmdbTitleRecord | null;
+};
+
+export type AiSearchInternalResult = {
+  query: string;
+  candidates: AiResolvedCandidate[];
+};
 
 export type AiResolvedProviderConfig = {
   id: string;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { aiInsightsRouteSchema, aiSearchRouteSchema } from '../contracts/ai.js';
 import { AiInsightsService } from '../../modules/ai/ai-insights.service.js';
-import { AiSearchService } from '../../modules/ai/ai-search.service.js';
+import { AiSearchService, buildAiSearchResponse } from '../../modules/ai/ai-search.service.js';
 import { success } from '../response.js';
 import { requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
 
@@ -30,11 +30,12 @@ export async function registerAiRoutes(
     const params = request.params as { profileId: string };
     await assertProfileUnlocked(request, params.profileId);
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return success(await aiSearchService.search(actor.appUserId, {
+    const internal = await aiSearchService.search(actor.appUserId, {
       query: typeof body.query === 'string' ? body.query : '',
       profileId: params.profileId,
       locale: typeof body.locale === 'string' ? body.locale : null,
-    }), request);
+    });
+    return success(buildAiSearchResponse(internal), request);
   });
 
   app.post('/v1/profiles/:profileId/ai/insights', { schema: aiInsightsRouteSchema }, async (request) => {

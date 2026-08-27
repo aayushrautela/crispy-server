@@ -5,16 +5,15 @@ import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 
 seedTestEnv();
 
-test('searchTitles returns empty when query is blank', async () => {
+test('searchTitlesInternal returns empty when query is blank', async () => {
   const pkg = await import('../search/title-search.service.js');
-    const svc = new pkg.TitleSearchService(
-      { searchTitles: async () => [], discoverTitlesByGenre: async () => [], searchPeople: async () => [], getTitles: async () => new Map() } as never,
+  const svc = new pkg.TitleSearchService(
+    { searchTitles: async () => [], discoverTitlesByGenre: async () => [], searchPeople: async () => [], getTitles: async () => new Map() } as never,
     { ensureContentIds: async () => new Map(), ensureContentId: async () => null } as never,
   );
 
   const internal = await svc.searchTitlesInternal({ query: '   ', limit: 10 });
-  const response = await svc.hydrateSearchResponse(internal, {} as never, null);
-  assert.deepEqual(response, { query: '', movies: [], series: [], people: [] });
+  assert.deepEqual(internal, { tmdbMatches: [], peopleMatches: [], normalizedQuery: '', normalizedFilter: 'all', limit: 10, locale: null });
 });
 
 test('search filter maps series to TMDB tv search types', async () => {
@@ -25,162 +24,7 @@ test('search filter maps series to TMDB tv search types', async () => {
   assert.deepEqual(pkg.mapSearchFilterToTmdbTypes('all'), ['movie', 'tv']);
 });
 
-test('all filter combines movie and series TMDB results', async () => {
-  const { db } = await import('../../lib/db.js');
-  const originalConnect = db.connect.bind(db);
-  db.connect = async () => ({
-    release() {
-      return undefined;
-    },
-  }) as never;
-
-  try {
-    const tmdbCalls: Array<{ query: string; limit: number; mediaTypes: string[]; locale?: string | null }> = [];
-    const ensuredMediaKeys: string[] = [];
-    const pkg = await import('../search/title-search.service.js');
-
-    const movieRecord = createTmdbMovieRecord({
-      tmdbId: 101,
-      name: 'Alpha Movie',
-      releaseDate: '2020-01-01',
-    });
-    const seriesRecord = createTmdbShowRecord({
-      tmdbId: 201,
-      name: 'Alpha Series',
-      firstAirDate: '2024-01-01',
-    });
-
-    const svc = new pkg.TitleSearchService(
-      {
-        searchTitles: async (_client: unknown, query: string, limit: number, mediaTypes: string[], locale?: string | null) => {
-          tmdbCalls.push({ query, limit, mediaTypes, locale });
-          return [movieRecord, seriesRecord];
-        },
-        discoverTitlesByGenre: async () => [],
-        searchPeople: async () => [],
-        getTitles: async (_client: unknown, requests: Array<{ mediaType: string; tmdbId: number }>) => {
-          const map = new Map<string, TmdbTitleRecord | null>();
-          for (const req of requests) {
-            if (req.tmdbId === movieRecord.tmdbId) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(movieRecord));
-            if (req.tmdbId === seriesRecord.tmdbId) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(seriesRecord));
-          }
-          return map;
-        },
-      } as never,
-      {
-        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
-          ensuredMediaKeys.push(...identities.map((identity) => identity.mediaKey));
-          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
-        },
-        ensureContentId: async () => null,
-      } as never,
-    );
-
-    const internal = await svc.searchTitlesInternal({ query: 'Alpha', filter: 'all', limit: 2, locale: 'en-US' });
-    const response = await svc.hydrateSearchResponse(internal, {} as never, 'en-US');
-
-    assert.deepEqual(tmdbCalls, [{ query: 'Alpha', limit: 2, mediaTypes: ['movie', 'tv'], locale: 'en-US' }]);
-    assert.deepEqual(response.movies.map((item: { title: string }) => item.title), ['Alpha Movie']);
-    assert.deepEqual(response.series.map((item: { title: string }) => item.title), ['Alpha Series']);
-    assert.deepEqual(ensuredMediaKeys, ['movie:tmdb:101', 'show:tmdb:201']);
-  } finally {
-    db.connect = originalConnect;
-  }
-});
-
-test('searchTitles drops results without posters', async () => {
-  const { db } = await import('../../lib/db.js');
-  const originalConnect = db.connect.bind(db);
-  db.connect = async () => ({
-    release() {
-      return undefined;
-    },
-  }) as never;
-
-  try {
-    const pkg = await import('../search/title-search.service.js');
-    const posterMovie = createTmdbMovieRecord({ tmdbId: 41, name: 'Poster Movie', posterPath: '/poster.jpg' });
-    const hiddenSeries = createTmdbShowRecord({ tmdbId: 42, name: 'Hidden Series', posterPath: null });
-    const visibleSeries = createTmdbShowRecord({ tmdbId: 43, name: 'Visible Series', posterPath: '/series.jpg', firstAirDate: '2022-01-01' });
-    const allRecords = [posterMovie, hiddenSeries, visibleSeries];
-    const svc = new pkg.TitleSearchService(
-      {
-        searchTitles: async () => allRecords,
-        discoverTitlesByGenre: async () => [],
-        searchPeople: async () => [],
-        getTitles: async (_client: unknown, requests: Array<{ mediaType: string; tmdbId: number }>) => {
-          const map = new Map<string, TmdbTitleRecord | null>();
-          for (const req of requests) {
-            const match = allRecords.find((r) => r.tmdbId === req.tmdbId);
-            if (match) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(match));
-          }
-          return map;
-        },
-      } as never,
-      {
-        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
-          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
-        },
-        ensureContentId: async () => null,
-      } as never,
-    );
-
-    const internal = await svc.searchTitlesInternal({ query: 'Visible', filter: 'all', limit: 20 });
-    const response = await svc.hydrateSearchResponse(internal, {} as never, null);
-
-    assert.deepEqual(response.series.map((item: { title: string }) => item.title), ['Visible Series']);
-  } finally {
-    db.connect = originalConnect;
-  }
-});
-
-test('searchTitles moves noisy series results to the end without disturbing clean order', async () => {
-  const { db } = await import('../../lib/db.js');
-  const originalConnect = db.connect.bind(db);
-  db.connect = async () => ({
-    release() {
-      return undefined;
-    },
-  }) as never;
-
-  try {
-    const pkg = await import('../search/title-search.service.js');
-    const naruto = createTmdbShowRecord({ tmdbId: 201, name: 'Naruto', firstAirDate: '2002-10-03', overview: 'Ninja', raw: { vote_average: 8.4 } });
-    const narutoLost = createTmdbShowRecord({ tmdbId: 202, name: 'Naruto Lost', firstAirDate: null, overview: null, raw: { vote_average: null } });
-    const narutoNext = createTmdbShowRecord({ tmdbId: 203, name: 'Naruto Next', firstAirDate: '2017-04-05', overview: 'Ninja sequel', raw: { vote_average: 7.9 } });
-    const narutoRecords = [naruto, narutoLost, narutoNext];
-    const svc = new pkg.TitleSearchService(
-      {
-        searchTitles: async () => narutoRecords,
-        discoverTitlesByGenre: async () => [],
-        searchPeople: async () => [],
-        getTitles: async (_client: unknown, requests: Array<{ mediaType: string; tmdbId: number }>) => {
-          const map = new Map<string, TmdbTitleRecord | null>();
-          for (const req of requests) {
-            const match = narutoRecords.find((r) => r.tmdbId === req.tmdbId);
-            if (match) map.set(`${req.mediaType}:${req.tmdbId}`, hydrateSearchRecord(match));
-          }
-          return map;
-        },
-      } as never,
-      {
-        ensureContentIds: async (_client: unknown, identities: Array<{ mediaKey: string }>) => {
-          return new Map(identities.map((identity, index) => [identity.mediaKey, `00000000-0000-0000-0000-${String(index + 101).padStart(12, '0')}`]));
-        },
-        ensureContentId: async () => null,
-      } as never,
-    );
-
-    const internal = await svc.searchTitlesInternal({ query: 'Naruto', filter: 'series', limit: 20 });
-    const response = await svc.hydrateSearchResponse(internal, {} as never, null);
-
-    assert.deepEqual(response.series.map((item: { title: string }) => item.title), ['Naruto', 'Naruto Next', 'Naruto Lost']);
-  } finally {
-    db.connect = originalConnect;
-  }
-});
-
-test('searchTitles coalesces identical in-flight requests', async () => {
+test('searchTitlesInternal coalesces identical in-flight requests', async () => {
   const { db } = await import('../../lib/db.js');
   const originalConnect = db.connect.bind(db);
   db.connect = async () => ({
@@ -230,9 +74,7 @@ test('searchTitles coalesces identical in-flight requests', async () => {
     resolveTmdb([alphaMovie]);
 
     const [leftInternal, rightInternal] = await Promise.all([first, second]);
-    const left = await svc.hydrateSearchResponse(leftInternal, {} as never, 'en-US');
-    const right = await svc.hydrateSearchResponse(rightInternal, {} as never, 'en-US');
-    assert.deepEqual(left, right);
+    assert.deepEqual(leftInternal, rightInternal);
     assert.equal(tmdbCalls, 1);
   } finally {
     db.connect = originalConnect;

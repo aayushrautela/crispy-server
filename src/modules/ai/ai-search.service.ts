@@ -2,7 +2,8 @@ import { logger } from '../../config/logger.js';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
-import type { MetadataSearchResponse, MetadataSearchResult } from '../metadata/metadata-detail.types.js';
+import type { AiSearchInternalResult } from '../ai/ai.types.js';
+import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
@@ -22,7 +23,6 @@ const AI_SEARCH_SYSTEM_PROMPT = [
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const FINAL_RESULT_LIMIT = 20;
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
 
 export class AiSearchService {
@@ -30,7 +30,7 @@ export class AiSearchService {
     private readonly profileLocalService = new ProfileLocalService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly titleSearchService = new TitleSearchService(),
-    private readonly requestCoalescer = new ShortLivedRequestCoalescer<AiSearchResponse>(AI_SEARCH_CACHE_TTL_MS),
+    private readonly requestCoalescer = new ShortLivedRequestCoalescer<AiSearchInternalResult>(AI_SEARCH_CACHE_TTL_MS),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
@@ -38,7 +38,7 @@ export class AiSearchService {
     query: string;
     profileId: string;
     locale?: string | null;
-  }): Promise<AiSearchResponse> {
+  }): Promise<AiSearchInternalResult> {
     const query = normalizeString(input.query);
     const profileId = normalizeString(input.profileId);
     const locale = normalizeLocale(input.locale);
@@ -64,7 +64,6 @@ export class AiSearchService {
       const rawItems = Array.isArray(generated.items) ? generated.items : [];
       const candidates = parseSearchCandidates(rawItems);
       const resolved = await resolveSuggestions(this.titleSearchService, candidates, locale);
-      const response = bucketResolvedItems(query, dedupeResolvedItems(resolved), FINAL_RESULT_LIMIT);
 
       logger.info({
         userId,
@@ -76,10 +75,9 @@ export class AiSearchService {
         rawItemCount: rawItems.length,
         candidateCount: candidates.length,
         resolvedCount: resolved.length,
-        finalCount: response.movies.length + response.series.length,
       }, 'AI search completed');
 
-      return response;
+      return { query, candidates: resolved };
     });
   }
 }
@@ -88,8 +86,8 @@ async function resolveSuggestions(
   titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
   locale: string,
-): Promise<MetadataSearchResult[]> {
-  const results: MetadataSearchResult[] = [];
+) {
+  const results = [];
   for (const candidate of candidates) {
     const items = await resolveSuggestion(titleSearchService, candidate, locale);
     results.push(...items);
@@ -101,7 +99,7 @@ async function resolveSuggestion(
   titleSearchService: TitleSearchService,
   candidate: AiSearchCandidate,
   locale: string,
-): Promise<MetadataSearchResult[]> {
+) {
   try {
     const tmdbMediaType = candidate.mediaType === 'show' ? 'tv' : candidate.mediaType;
     return await titleSearchService.resolveAiCandidates({
@@ -116,40 +114,26 @@ async function resolveSuggestion(
   }
 }
 
-function bucketResolvedItems(query: string, items: MetadataSearchResult[], limit: number): MetadataSearchResponse {
-  const movies: MetadataSearchResult[] = [];
-  const series: MetadataSearchResult[] = [];
-
-  for (const item of items) {
-    if (item.mediaType === 'movie') {
-      movies.push(item);
-      continue;
-    }
-    if (item.mediaType === 'tv') {
-      series.push(item);
-      continue;
-    }
-  }
-
-  return {
-    query,
-    movies: movies.slice(0, limit),
-    series: series.slice(0, limit),
-    people: [],
-  };
-}
-
-function dedupeResolvedItems(items: MetadataSearchResult[]): MetadataSearchResult[] {
+export function buildAiSearchResponse(internal: AiSearchInternalResult): MetadataSearchResponse {
+  const movies = [];
+  const series = [];
   const seen = new Set<string>();
-  const result: MetadataSearchResult[] = [];
-  for (const item of items) {
-    if (seen.has(item.itemId)) {
-      continue;
-    }
-    seen.add(item.itemId);
-    result.push(item);
+  for (const c of internal.candidates) {
+    if (seen.has(c.contentId)) continue;
+    seen.add(c.contentId);
+    const card = {
+      itemId: c.contentId,
+      mediaType: c.identity.mediaType === 'show' ? 'tv' : 'movie',
+      title: c.hydrated?.name ?? null,
+      images: { poster: { small: null, medium: null, large: null }, backdrop: { small: null, medium: null, large: null } },
+      progress: null,
+      parentId: null,
+      parent: null,
+    };
+    if (c.identity.mediaType === 'show') series.push(card as any);
+    else movies.push(card as any);
   }
-  return result;
+  return { query: internal.query, movies: movies.slice(0, 20), series: series.slice(0, 20), people: [] };
 }
 
 function normalizeString(value: unknown): string {
