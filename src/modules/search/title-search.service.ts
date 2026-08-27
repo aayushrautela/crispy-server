@@ -62,6 +62,51 @@ export class TitleSearchService {
   ) {}
 
   async searchTitles(input: SearchTitlesInput): Promise<MetadataSearchResponse> {
+    // Backward compat shim — new callers use searchTitlesInternal + route hydration.
+    const internal = await this.searchTitlesInternal(input);
+    if (!internal.tmdbMatches.length && !internal.peopleMatches.length) {
+      return emptySearchResponse(internal.normalizedQuery);
+    }
+    return withDbClient(async (client) => {
+      const tmdbIdentities = internal.tmdbMatches.map((match) => inferMediaIdentity({
+        mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+        tmdbId: match.tmdbId,
+      }));
+      const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
+      const hydratedMap = await this.tmdbCacheService.getTitles(
+        client,
+        internal.tmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })),
+        internal.locale,
+      );
+      const tmdbItems = await mapWithConcurrency(internal.tmdbMatches, HYDRATION_CONCURRENCY, async (match: TmdbTitleRecord) => {
+        if (input.signal?.aborted) return null;
+        const identity = inferMediaIdentity({
+          mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
+          tmdbId: match.tmdbId,
+        });
+        const contentId = contentIds.get(identity.mediaKey) ?? await this.contentIdentityService.ensureContentId(client, identity).catch(() => null);
+        if (!contentId) return null;
+        const hydrated = hydratedMap.get(`${match.mediaType}:${match.tmdbId}`);
+        if (!hydrated) return null;
+        const itemId = encodePublicItemId(contentId);
+        const view = buildMetadataCardView({ identity, itemId, title: hydrated, language: internal.locale });
+        return { item: toClientMediaCard(view, { progress: null }), noisy: isNoisyTmdbMatch(hydrated) };
+      });
+      const peopleItems = internal.peopleMatches;
+      return buildBucketedSearchResponse(internal.normalizedQuery, internal.limit, [
+        ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
+      ], peopleItems);
+    });
+  }
+
+  async searchTitlesInternal(input: SearchTitlesInput): Promise<{
+    tmdbMatches: TmdbTitleRecord[];
+    peopleMatches: MetadataPersonSearchResult[];
+    normalizedQuery: string;
+    normalizedFilter: MetadataSearchFilter;
+    limit: number;
+    locale: string | null;
+  }> {
     const normalizedQuery = input.query.trim();
     const normalizedFilter = normalizeSearchFilter(input.filter);
     const genreMapping = resolveGenreMapping(input.genre);
@@ -69,20 +114,11 @@ export class TitleSearchService {
     const locale = normalizeSearchLocale(input.locale);
 
     if (!normalizedQuery && !genreMapping) {
-      return emptySearchResponse(normalizedQuery);
+      return { tmdbMatches: [], peopleMatches: [], normalizedQuery, normalizedFilter, limit, locale };
     }
 
-    const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
-    const requestKey = buildSearchRequestKey({
-      query: normalizedQuery,
-      filter: normalizedFilter,
-      genreMapping,
-      limit,
-      locale,
-      abortable: Boolean(input.signal),
-    });
-
-    return this.requestCoalescer.run(requestKey, () => withDbClient(async (client) => {
+    return withDbClient(async (client) => {
+      const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
       const tmdbMatches = shouldQueryTmdb(normalizedFilter)
         ? genreMapping
           ? await this.tmdbCacheService.discoverTitlesByGenre(client, {
@@ -96,60 +132,20 @@ export class TitleSearchService {
         : [];
       const filteredTmdbMatches = tmdbMatches.filter((match) => matchesSearchFilter(match, normalizedFilter));
 
-      const peopleMatches = shouldSearchPeople(normalizedFilter) && normalizedQuery
+      const peopleMatchesRaw = shouldSearchPeople(normalizedFilter) && normalizedQuery
         ? await this.tmdbCacheService.searchPeople(client, normalizedQuery, limit)
         : [];
+      const peopleMatches = await mapWithConcurrency(peopleMatchesRaw, HYDRATION_CONCURRENCY, async (person) => buildPersonSearchResult(client, this.contentIdentityService, person));
 
-      const tmdbIdentities = filteredTmdbMatches.map((match) => inferMediaIdentity({
-        mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
-        tmdbId: match.tmdbId,
-      }));
-
-      const contentIds = await this.contentIdentityService.ensureContentIds(client, tmdbIdentities);
-
-      const hydratedMap = await this.tmdbCacheService.getTitles(
-        client,
-        filteredTmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })),
+      return {
+        tmdbMatches: filteredTmdbMatches,
+        peopleMatches,
+        normalizedQuery,
+        normalizedFilter,
+        limit,
         locale,
-      );
-
-      const tmdbItems = await mapWithConcurrency(filteredTmdbMatches, HYDRATION_CONCURRENCY, async (match: TmdbTitleRecord) => {
-        if (input.signal?.aborted) {
-          return null;
-        }
-        const identity = inferMediaIdentity({
-          mediaType: match.mediaType === 'movie' ? 'movie' : 'show',
-          tmdbId: match.tmdbId,
-        });
-        const contentId = contentIds.get(identity.mediaKey) ?? await this.contentIdentityService.ensureContentId(client, identity).catch(() => null);
-        if (!contentId) {
-          return null;
-        }
-
-        const hydrated = hydratedMap.get(`${match.mediaType}:${match.tmdbId}`);
-        if (!hydrated) {
-          return null;
-        }
-
-        const itemId = encodePublicItemId(contentId);
-        const view = buildMetadataCardView({
-          identity,
-          itemId,
-          title: hydrated,
-          language: locale,
-        });
-        return {
-          item: toClientMediaCard(view, { progress: null }),
-          noisy: isNoisyTmdbMatch(hydrated),
-        };
-      });
-
-      const peopleItems = await mapWithConcurrency(peopleMatches, HYDRATION_CONCURRENCY, async (person) => buildPersonSearchResult(client, this.contentIdentityService, person));
-
-      return buildBucketedSearchResponse(normalizedQuery, limit, [
-        ...tmdbItems.filter((item): item is NonNullable<(typeof tmdbItems)[number]> => item !== null),
-      ], peopleItems);
-    }));
+      };
+    });
   }
 
   async resolveAiCandidates(input: {

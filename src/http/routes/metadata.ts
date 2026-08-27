@@ -159,7 +159,45 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       (app.requireUserActor(request) as { appUserId: string }).appUserId,
       asOptionalString(query.locale),
     );
-    return success(await titleSearchService.searchTitles({ query: searchQuery, genre, filter, limit, locale }));
+    // Phase 4c: hydration at route boundary — service returns identities only
+    const internal = await titleSearchService.searchTitlesInternal({ query: searchQuery, genre, filter, limit, locale });
+    if (!internal.tmdbMatches.length && !internal.peopleMatches.length) {
+      return success({ query: internal.normalizedQuery, movies: [], series: [], people: [] });
+    }
+    const result = await withDbClient(async (client) => {
+      const { ContentIdentityService } = await import('../../modules/identity/content-identity.service.js');
+      const { TmdbCacheService } = await import('../../modules/metadata/providers/tmdb-cache.service.js');
+      const { buildMetadataCardView } = await import('../../modules/metadata/metadata-card.builders.js');
+      const { toClientMediaCard } = await import('../../modules/metadata/client-media-card.mapper.js');
+      const { inferMediaIdentity } = await import('../../modules/identity/media-key.js');
+      const { encodePublicItemId } = await import('../../modules/identity/public-item-id.js');
+      const contentIdentityService = new ContentIdentityService();
+      const tmdbCacheService = new TmdbCacheService();
+      const metadataCardService = new MetadataCardService();
+      const tmdbMatches = internal.tmdbMatches;
+      const tmdbIdentities = tmdbMatches.map((m) => inferMediaIdentity({ mediaType: m.mediaType === 'movie' ? 'movie' : 'show', tmdbId: m.tmdbId }));
+      const contentIds = await contentIdentityService.ensureContentIds(client, tmdbIdentities);
+      const hydratedMap = await tmdbCacheService.getTitles(client, tmdbMatches.map((m) => ({ mediaType: m.mediaType, tmdbId: m.tmdbId })), locale);
+      const cards: import('../../modules/recommendations/client-home.types.js').ClientMediaCard[] = [];
+      for (const match of tmdbMatches) {
+        const identity = inferMediaIdentity({ mediaType: match.mediaType === 'movie' ? 'movie' : 'show', tmdbId: match.tmdbId });
+        const contentId = contentIds.get(identity.mediaKey);
+        if (!contentId) continue;
+        const hydrated = hydratedMap.get(`${match.mediaType}:${match.tmdbId}`);
+        if (!hydrated) continue;
+        const view = buildMetadataCardView({ identity, itemId: encodePublicItemId(contentId), title: hydrated, language: locale });
+        cards.push(toClientMediaCard(view, { progress: null }));
+      }
+      // Boundary filtering: hasSearchPoster (display concern) after hydration
+      const withPoster = cards.filter((c) => {
+        const p = c.images.poster;
+        return Boolean(p && (p.small || p.medium || p.large));
+      });
+      const movies = withPoster.filter((c) => c.mediaType === 'movie').slice(0, 20);
+      const series = withPoster.filter((c) => c.mediaType === 'tv').slice(0, 20);
+      return { query: internal.normalizedQuery, movies, series, people: internal.peopleMatches };
+    });
+    return success(result);
   });
 
   app.get('/v1/search/suggestions', { schema: searchSuggestionsRouteSchema }, async (request) => {
