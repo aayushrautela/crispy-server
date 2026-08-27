@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
-import type { BaseItemDto } from '../metadata/media-item.types.js';
 
 function buildView(overrides: Partial<MetadataCardView>): MetadataCardView {
   const base = {
@@ -43,41 +42,51 @@ function buildView(overrides: Partial<MetadataCardView>): MetadataCardView {
 test('watch card hydrator carries enriched imdb from card external ids', async (t) => {
   const { WatchCardHydrator } = await import('./watch-card-hydrator.service.js');
   const { MetadataCardService } = await import('../metadata/metadata-card.service.js');
+  const { ContentIdentityService } = await import('../identity/content-identity.service.js');
 
   const view = buildView({ externalIds: { tmdb: 694, tvdb: null, imdb: 'tt1234567' } });
-  const original = MetadataCardService.prototype.buildCardViews;
-  MetadataCardService.prototype.buildCardViews = async () => [view] as never;
+  const origBuild = MetadataCardService.prototype.buildCardViewsForIdentities;
+  const origResolve = ContentIdentityService.prototype.resolveMediaIdentitiesBatched;
+  MetadataCardService.prototype.buildCardViewsForIdentities = async () => [view] as never;
+  ContentIdentityService.prototype.resolveMediaIdentitiesBatched = async () =>
+    new Map([['00000000-0000-4000-a000-000000000001', { mediaKey: 'movie:tmdb:694', mediaType: 'movie', provider: 'tmdb', providerId: '694', tmdbId: 694, contentId: '00000000-0000-4000-a000-000000000001' } as never]]) as never;
   t.after(() => {
-    MetadataCardService.prototype.buildCardViews = original;
+    MetadataCardService.prototype.buildCardViewsForIdentities = origBuild;
+    ContentIdentityService.prototype.resolveMediaIdentitiesBatched = origResolve;
   });
 
   const hydrator = new WatchCardHydrator();
-  const items = [
-    { Id: 'abc', Type: 'Movie', Name: 'Test Movie', ProviderIds: { Tmdb: '694' } } as unknown as BaseItemDto,
+  const refs = [
+    { itemId: '0000000000004000a000000000000001', mediaType: 'movie' as const, progress: null },
   ];
 
-  const cards = await hydrator.hydrateItems({} as never, items, null, true);
+  const cards = await hydrator.hydrateByIds({} as never, refs, null);
   assert.equal(cards.length, 1);
   assert.equal(cards[0]?.providerIds?.imdb, 'tt1234567');
 });
 
-test('watch card hydrator falls back to raw ProviderIds when external ids are empty', async (t) => {
+test('watch card hydrator hydrates via last-layer (no BaseItemDto)', async (t) => {
   const { WatchCardHydrator } = await import('./watch-card-hydrator.service.js');
   const { MetadataCardService } = await import('../metadata/metadata-card.service.js');
+  const { ContentIdentityService } = await import('../identity/content-identity.service.js');
 
-  const view = buildView({ externalIds: { tmdb: null, tvdb: null, imdb: null } });
-  const original = MetadataCardService.prototype.buildCardViews;
-  MetadataCardService.prototype.buildCardViews = async () => [view] as never;
+  const view = buildView({ externalIds: { tmdb: 694, tvdb: null, imdb: 'tt9999999' } });
+  const origBuild = MetadataCardService.prototype.buildCardViewsForIdentities;
+  const origResolve = ContentIdentityService.prototype.resolveMediaIdentitiesBatched;
+  MetadataCardService.prototype.buildCardViewsForIdentities = async () => [view] as never;
+  ContentIdentityService.prototype.resolveMediaIdentitiesBatched = async () =>
+    new Map([['00000000-0000-4000-a000-000000000001', { mediaKey: 'movie:tmdb:694', mediaType: 'movie', provider: 'tmdb', providerId: '694', tmdbId: 694, contentId: '00000000-0000-4000-a000-000000000001' } as never]]) as never;
   t.after(() => {
-    MetadataCardService.prototype.buildCardViews = original;
+    MetadataCardService.prototype.buildCardViewsForIdentities = origBuild;
+    ContentIdentityService.prototype.resolveMediaIdentitiesBatched = origResolve;
   });
 
   const hydrator = new WatchCardHydrator();
-  const items = [
-    { Id: 'abc', Type: 'Movie', Name: 'Test Movie', ProviderIds: { Imdb: 'tt9999999' } } as unknown as BaseItemDto,
+  const refs = [
+    { itemId: '0000000000004000a000000000000001', mediaType: 'movie' as const, progress: null },
   ];
 
-  const cards = await hydrator.hydrateItems({} as never, items, null, true);
+  const cards = await hydrator.hydrateByIds({} as never, refs, null);
   assert.equal(cards.length, 1);
-  assert.equal(cards[0]?.providerIds?.imdb, 'tt9999999');
+  assert.equal(cards[0]?.itemId, '0000000000004000a000000000000001');
 });

@@ -408,7 +408,7 @@ export async function registerWatchRoutes(
     const query = (request.query ?? {}) as WatchStateLookupContract;
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const itemId = assertPublicItemId(query.itemId!);
-    const refs = await localUserWatchService.getStatesInternal({ accountId: actor.authSubject!, profileId, itemIds: [itemId] });
+    const refs = await localUserWatchService.getStates({ accountId: actor.authSubject!, profileId, itemIds: [itemId] });
     const enriched = refs.length ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, refs, language)) : [];
     return success(enriched[0] ?? null);
   });
@@ -423,7 +423,7 @@ export async function registerWatchRoutes(
 
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
     const itemIds = items.map((item) => assertPublicItemId(item.itemId!));
-    const refs = await localUserWatchService.getStatesInternal({ accountId: actor.authSubject!, profileId, itemIds });
+    const refs = await localUserWatchService.getStates({ accountId: actor.authSubject!, profileId, itemIds });
     const enrichedItems = refs.length ? await withDbClient((client) => watchCardHydrator.hydrateByIds(client, refs, language)) : [];
     return success({ items: enrichedItems });
   });

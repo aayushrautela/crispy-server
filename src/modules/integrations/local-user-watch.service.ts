@@ -9,7 +9,6 @@ import {
   mapHistoryInternalRef,
   mapRatingInternalRef,
   mapWatchStateInternalRef,
-  mapWatchStateRow,
   type WatchReadRow,
 } from './watch-read.mapper.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
@@ -115,68 +114,13 @@ type GetStateParams = {
   itemIds: string[];
 };
 
-/**
- * Jellyfin-style read model: user_state.watch_state stores only per-(profile,item)
- * user state. Descriptive attributes (media type, series linkage, season/episode,
- * provider ids, runtime) live on the content graph and are derived at read time via
- * these joins — mirroring how Jellyfin resolves UserData attributes from the Item.
- */
-export const WATCH_ITEM_CONTENT_JOIN = `
-  JOIN content_items ci ON ci.id = ws.item_id
-  LEFT JOIN content_item_relationships cir
-    ON cir.child_content_id = ws.item_id AND cir.relationship_type = 'series'
-  LEFT JOIN content_provider_refs cpr_tmdb
-    ON cpr_tmdb.content_id = ws.item_id AND cpr_tmdb.provider = 'tmdb'
-  LEFT JOIN content_provider_refs cpr_tmdb_show
-    ON cpr_tmdb_show.content_id = cir.parent_content_id AND cpr_tmdb_show.provider = 'tmdb'
-  LEFT JOIN content_provider_refs cpr_imdb
-    ON cpr_imdb.content_id = ws.item_id AND cpr_imdb.provider = 'imdb'
-  LEFT JOIN content_provider_refs cpr_imdb_show
-    ON cpr_imdb_show.content_id = cir.parent_content_id AND cpr_imdb_show.provider = 'imdb'
-  LEFT JOIN content_provider_refs cpr_tvdb
-    ON cpr_tvdb.content_id = ws.item_id AND cpr_tvdb.provider = 'tvdb'
-  LEFT JOIN content_provider_refs cpr_tvdb_show
-    ON cpr_tvdb_show.content_id = cir.parent_content_id AND cpr_tvdb_show.provider = 'tvdb'
-  -- Runtime is canonical from TMDB metadata, not the playing file.
-  -- tmdb_titles holds one row per title (language lives in tmdb_title_translations).
-  LEFT JOIN LATERAL (
-    SELECT t.runtime
-    FROM tmdb_titles t
-    WHERE t.media_type = 'movie'
-      AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
-    LIMIT 1
-  ) tt ON true
-  LEFT JOIN tmdb_tv_episodes tve
-    ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
-   AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
-   AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
-  LEFT JOIN LATERAL (
-    SELECT t.episode_run_time
-    FROM tmdb_titles t
-    WHERE t.media_type = 'show'
-      AND t.tmdb_id = cpr_tmdb_show.external_id::integer
-    LIMIT 1
-  ) tt_show ON true
-`;
-
-const WATCH_ITEM_CONTENT_COLS = `
-  CASE WHEN ci.entity_type = 'movie' THEN 'movie'
-       WHEN ci.entity_type = 'episode' THEN 'episode'
-       ELSE 'show' END AS media_type,
-  cir.parent_content_id AS title_item_id,
-  NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer AS season_number,
-  NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer AS episode_number,
-  CASE WHEN ci.entity_type = 'episode' THEN cpr_tmdb_show.external_id
-       ELSE cpr_tmdb.external_id END AS title_provider_id,
-  CASE WHEN ci.entity_type = 'episode' THEN cpr_imdb_show.external_id
-       ELSE cpr_imdb.external_id END AS imdb_id,
-  CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
-       ELSE cpr_tvdb.external_id END AS tvdb_id,
-  COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) AS duration_seconds,
-  CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) > 0 AND ws.position_seconds > 0
-       THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) * 10000)
-       END AS progress_bps
-`;
+// Phase 3: WATCH_ITEM_CONTENT_JOIN/COLS deleted — watch reads now use
+// watch_state + content_items only (Brain 1). Enrichment happens at the
+// route boundary via MetadataCardService (Brain 2).
+/** @deprecated — kept for test compat, remove in Phase 4 */
+export const WATCH_ITEM_CONTENT_JOIN = '';
+/** @deprecated */
+const WATCH_ITEM_CONTENT_COLS = '';
 
 export class LocalUserWatchService {
   constructor(
@@ -365,98 +309,7 @@ export class LocalUserWatchService {
     ) as PaginatedWatchCollection<WatchInternalRef>;
   }
 
-  async getStates(params: GetStateParams): Promise<BaseItemDto[]> {
-    if (params.itemIds.length === 0) return [];
-
-    const itemIds = [...new Set(params.itemIds)];
-
-    return withDbClient(async (client) => {
-      const result = await client.query(
-        `WITH requested AS (
-           SELECT unnest($2::uuid[]) AS item_id
-         )
-         SELECT
-           req.item_id,
-           CASE WHEN ci.entity_type = 'movie' THEN 'movie'
-                WHEN ci.entity_type = 'episode' THEN 'episode'
-                ELSE 'show' END         AS media_type,
-           cir.parent_content_id        AS title_item_id,
-           NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer  AS season_number,
-           NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer AS episode_number,
-           CASE WHEN ci.entity_type = 'episode' THEN cpr_tmdb_show.external_id
-                ELSE cpr_tmdb.external_id END  AS title_provider_id,
-           CASE WHEN ci.entity_type = 'episode' THEN cpr_imdb_show.external_id
-                ELSE cpr_imdb.external_id END  AS imdb_id,
-           CASE WHEN ci.entity_type = 'episode' THEN cpr_tvdb_show.external_id
-                ELSE cpr_tvdb.external_id END  AS tvdb_id,
-            COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) AS duration_seconds,
-            CASE WHEN COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) > 0 AND ws.position_seconds > 0
-                 THEN round(ws.position_seconds / COALESCE(tve.runtime * 60, tt.runtime * 60, (tt_show.episode_run_time->>0)::integer * 60) * 10000)
-                 END AS progress_bps,
-           cpr_tmdb_show.external_id    AS show_tmdb_id,
-           ws.played,
-           ws.play_count,
-           ws.last_played_at,
-           ws.position_seconds,
-           ws.rating,
-           ws.is_favorite
-         FROM requested req
-         LEFT JOIN content_items ci
-           ON ci.id = req.item_id
-         LEFT JOIN content_provider_refs cpr_tmdb
-           ON cpr_tmdb.content_id = req.item_id
-          AND cpr_tmdb.provider = 'tmdb'
-          AND cpr_tmdb.entity_type = ci.entity_type
-         LEFT JOIN content_provider_refs cpr_imdb
-           ON cpr_imdb.content_id = req.item_id
-          AND cpr_imdb.provider = 'imdb'
-          AND cpr_imdb.entity_type = ci.entity_type
-         LEFT JOIN content_provider_refs cpr_tvdb
-           ON cpr_tvdb.content_id = req.item_id
-          AND cpr_tvdb.provider = 'tvdb'
-          AND cpr_tvdb.entity_type = ci.entity_type
-         LEFT JOIN content_item_relationships cir
-           ON cir.child_content_id = req.item_id AND cir.relationship_type = 'series'
-         LEFT JOIN content_provider_refs cpr_tmdb_show
-           ON cpr_tmdb_show.content_id = cir.parent_content_id
-          AND cpr_tmdb_show.provider = 'tmdb'
-          AND cpr_tmdb_show.entity_type = 'show'
-         LEFT JOIN content_provider_refs cpr_imdb_show
-           ON cpr_imdb_show.content_id = cir.parent_content_id
-          AND cpr_imdb_show.provider = 'imdb'
-          AND cpr_imdb_show.entity_type = 'show'
-         LEFT JOIN content_provider_refs cpr_tvdb_show
-           ON cpr_tvdb_show.content_id = cir.parent_content_id
-          AND cpr_tvdb_show.provider = 'tvdb'
-          AND cpr_tvdb_show.entity_type = 'show'
-          LEFT JOIN LATERAL (
-            SELECT t.runtime
-            FROM tmdb_titles t
-            WHERE t.media_type = 'movie'
-              AND t.tmdb_id = CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END
-            LIMIT 1
-          ) tt ON true
-          LEFT JOIN tmdb_tv_episodes tve
-            ON tve.show_tmdb_id = cpr_tmdb_show.external_id::integer
-           AND tve.season_number = NULLIF(cpr_tmdb.metadata->>'seasonNumber', '')::integer
-           AND tve.episode_number = NULLIF(cpr_tmdb.metadata->>'episodeNumber', '')::integer
-          LEFT JOIN LATERAL (
-            SELECT t.episode_run_time
-            FROM tmdb_titles t
-            WHERE t.media_type = 'show'
-              AND t.tmdb_id = cpr_tmdb_show.external_id::integer
-            LIMIT 1
-          ) tt_show ON true
-         LEFT JOIN user_state.watch_state ws
-           ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id`,
-        [params.profileId, itemIds],
-      );
-
-      return result.rows.map((row) => mapWatchStateRow(row as Record<string, unknown>));
-    });
-  }
-
-  async getStatesInternal(params: GetStateParams): Promise<WatchInternalRef[]> {
+  async getStates(params: GetStateParams): Promise<WatchInternalRef[]> {
     if (params.itemIds.length === 0) return [];
     const itemIds = [...new Set(params.itemIds)];
     return withDbClient(async (client) => {

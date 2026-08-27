@@ -20,25 +20,6 @@ export class WatchCardHydrator {
   }
 
   /**
-   * @deprecated — shim for admin/internal routes that still pass BaseItemDto.
-   * Main watch routes use hydrateByIds. Remove after admin/internal migrated (Phase 4).
-   */
-  async hydrateItems(
-    client: DbClient,
-    items: import('../metadata/media-item.types.js').BaseItemDto[],
-    language?: string | null,
-    _extended = true,
-  ): Promise<import('../recommendations/client-home.types.js').ClientMediaCard[]> {
-    if (items.length === 0) return [];
-    const refs: WatchInternalRef[] = items.map((item) => ({
-      itemId: item.Id,
-      mediaType: baseItemTypeToMediaType(item.Type),
-      progress: userDataToInternalProgress(item.UserData),
-    }));
-    return this.hydrateByIds(client, refs, language);
-  }
-
-  /**
    * Last-layer hydration: Brain 1 (itemId + per-user progress) → Brain 2 (ClientMediaCard).
    * Enrichment happens once, at the route boundary.
    */
@@ -73,29 +54,6 @@ export class WatchCardHydrator {
     }
     return cards;
   }
-}
-
-function baseItemTypeToMediaType(type: string): WatchInternalRef['mediaType'] {
-  if (type === 'Episode') return 'episode';
-  if (type === 'Season') return 'season';
-  if (type === 'Series') return 'show';
-  return 'movie';
-}
-
-function userDataToInternalProgress(userData: import('../metadata/media-item.types.js').UserItemDataDto | null): WatchInternalRef['progress'] {
-  if (!userData) return null;
-  const TICKS_PER_SECOND = 10_000_000;
-  const ticksToSeconds = (ticks: number | null) => (ticks == null || !Number.isFinite(ticks) ? null : ticks / TICKS_PER_SECOND);
-  return {
-    positionSeconds: ticksToSeconds(userData.PlaybackPositionTicks),
-    durationSeconds: ticksToSeconds(userData.RuntimeTicks),
-    progressBps: userData.PlayedPercentage != null ? Math.round(userData.PlayedPercentage * 100) : null,
-    played: userData.Played,
-    playCount: userData.PlayCount,
-    isFavorite: userData.IsFavorite,
-    rating: userData.Rating,
-    lastPlayedAt: userData.LastPlayedDate,
-  };
 }
 
 function progressFromInternalRef(

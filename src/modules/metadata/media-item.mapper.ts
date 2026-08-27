@@ -1,8 +1,34 @@
 import type { MetadataCardView } from './metadata-card.types.js';
 
 import type { BaseItemDto, BaseItemImageTags, MediaItem, MediaItemType, ParentBaseItemImageTags, ProviderIdsDto, ResponsiveImageSet } from './media-item.types.js';
-import type { WatchMediaCardCacheRecord } from '../watch/watch-media-card-cache.repo.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from './metadata-builder.shared.js';
+
+// Deprecated: kept for legacy getStates shim. Remove with watch_media_card_cache table (Phase 3).
+type WatchMediaCardCacheRecord = {
+  itemId: string;
+  mediaType: string;
+  titleProviderId: string | null;
+  title: string;
+  subtitle: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  stillUrl: string | null;
+  logoUrl: string | null;
+  trailerUrl: string | null;
+  trailerThumbnailUrl: string | null;
+  posterColor: string | null;
+  backdropColor: string | null;
+  releaseYear: number | null;
+  rating: number | null;
+  maturityRating: string | null;
+  genres: string[];
+  overview: string | null;
+  runtimeMinutes: number | null;
+  releaseDate: string | null;
+  status: string | null;
+  episodeTitle: string | null;
+  episodeAirDate: string | null;
+};
 
 const TICKS_PER_SECOND = 10_000_000;
 
