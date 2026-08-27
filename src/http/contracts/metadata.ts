@@ -1,5 +1,4 @@
 import {
-  baseItemDtoSchema,
   booleanSchema,
   clientMediaCardQueryResultSchema,
   clientMediaCardSchema,
@@ -192,10 +191,10 @@ const metadataTitleDetailResponseSchema = {
   additionalProperties: false,
   required: ['Item', 'NextEpisode', 'Videos', 'Cast', 'Creators', 'Directors', 'Production'],
   properties: {
-    Item: baseItemDtoSchema,
+    Item: clientMediaCardSchema,
     NextEpisode: {
       anyOf: [
-        baseItemDtoSchema,
+        clientMediaCardSchema,
         { type: 'null' },
       ],
     },
@@ -251,16 +250,16 @@ const playbackResolveResponseSchema = {
   additionalProperties: false,
   required: ['Item', 'Show', 'Season'],
   properties: {
-    Item: baseItemDtoSchema,
+    Item: clientMediaCardSchema,
     Show: {
       anyOf: [
-        baseItemDtoSchema,
+        clientMediaCardSchema,
         { type: 'null' },
       ],
     },
     Season: {
       anyOf: [
-        baseItemDtoSchema,
+        clientMediaCardSchema,
         { type: 'null' },
       ],
     },

@@ -1,6 +1,7 @@
-// @ts-nocheck — Phase 1 hard cutoff: tests still stub BaseItemDto, will be rewritten in Phase 2
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { ClientMediaCard } from '../../modules/recommendations/client-home.types.js';
+import type { WatchInternalRef } from '../../modules/watch/watch-read.types.js';
 import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
 seedTestEnv();
@@ -8,67 +9,11 @@ seedTestEnv();
 const testItemId = '00000000000040008000000000000001';
 const testTitleItemId = '00000000000040008000000000000002';
 
-function makeMediaItem(id: string) {
+function makeClientMediaCard(id: string): ClientMediaCard {
   return {
-    Id: id,
-    Type: 'Movie' as const,
-    Name: 'Test Movie',
-    OriginalTitle: null,
-    Overview: null,
-    Taglines: [],
-    ProductionYear: null,
-    PremiereDate: null,
-    CommunityRating: null,
-    OfficialRating: null,
-    Certification: null,
-    Genres: [],
-    RunTimeTicks: null,
-    Status: null,
-    ProviderIds: { Tmdb: '694', Imdb: null, Tvdb: null },
-    ImageTags: {
-      Primary: { small: null, medium: null, large: null },
-      Backdrop: [{ small: null, medium: null, large: null }],
-      Logo: null,
-      Thumb: null,
-      Screenshot: [],
-    },
-    ParentImageTags: null,
-    SeriesId: null,
-    SeriesName: null,
-    SeasonId: null,
-    SeasonName: null,
-    ParentIndexNumber: null,
-    IndexNumber: null,
-    AbsoluteIndexNumber: null,
-    EpisodeTitle: null,
-    AirDate: null,
-    RemoteTrailers: [],
-    PosterColor: null,
-    BackdropColor: null,
-    UserData: null,
-  };
-}
-
-function fakeCardFromBaseItem(item: Record<string, unknown>) {
-  const userData = item.UserData as Record<string, unknown> | null;
-  const ticksPerSecond = 10_000_000;
-  const progress = userData
-    ? {
-        played: Boolean(userData.Played),
-        playCount: Number(userData.PlayCount ?? 0),
-        positionSeconds: typeof userData.PlaybackPositionTicks === 'number' ? userData.PlaybackPositionTicks / ticksPerSecond : null,
-        durationSeconds: typeof userData.RuntimeTicks === 'number' ? userData.RuntimeTicks / ticksPerSecond : null,
-        percent: typeof userData.PlayedPercentage === 'number' ? userData.PlayedPercentage : null,
-        lastPlayedAt: typeof userData.LastPlayedDate === 'string' ? userData.LastPlayedDate : null,
-        watchlisted: Boolean(userData.IsFavorite),
-        userRating: typeof userData.Rating === 'number' ? userData.Rating : null,
-      }
-    : null;
-  return {
-    itemId: String(item.Id),
+    itemId: id,
     mediaType: 'movie',
-    title: String(item.Name ?? ''),
-    subtitle: null,
+    title: 'Test Movie',
     overview: null,
     year: null,
     releaseDate: null,
@@ -76,11 +21,19 @@ function fakeCardFromBaseItem(item: Record<string, unknown>) {
     maturityRating: null,
     genres: [],
     runtimeSeconds: null,
-    images: { poster: null, backdrop: null, logo: null },
+    images: { poster: null, backdrop: null, logo: null, still: null },
     trailerUrl: null,
-    progress,
+    progress: null,
     parent: null,
     providerIds: { tmdb: '694', tvdb: null, imdb: null },
+  };
+}
+
+function makeWatchInternalRef(id: string, progress: WatchInternalRef['progress'] = null): WatchInternalRef {
+  return {
+    itemId: id,
+    mediaType: 'movie',
+    progress,
   };
 }
 
@@ -93,7 +46,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     recordPlaybackState: LocalUserWatchService.prototype.recordPlaybackState,
     markWatched: LocalUserWatchService.prototype.markWatched,
     unmarkWatched: LocalUserWatchService.prototype.unmarkWatched,
-    hydrateItems: WatchCardHydrator.prototype.hydrateItems,
+    hydrateByIds: WatchCardHydrator.prototype.hydrateByIds,
   };
   const { ContentIdentityService } = await import('../../modules/identity/content-identity.service.js');
   const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
@@ -105,7 +58,7 @@ test('watch routes work with user actor auth subject', async (t) => {
     LocalUserWatchService.prototype.recordPlaybackState = originals.recordPlaybackState;
     LocalUserWatchService.prototype.markWatched = originals.markWatched;
     LocalUserWatchService.prototype.unmarkWatched = originals.unmarkWatched;
-    WatchCardHydrator.prototype.hydrateItems = originals.hydrateItems;
+    WatchCardHydrator.prototype.hydrateByIds = originals.hydrateByIds;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
@@ -138,8 +91,8 @@ test('watch routes work with user actor auth subject', async (t) => {
   };
 
   // @ts-ignore
-  WatchCardHydrator.prototype.hydrateItems = async function (_client, items) {
-    return items as never;
+  WatchCardHydrator.prototype.hydrateByIds = async function (_client, refs) {
+    return refs.map((ref) => makeClientMediaCard(ref.itemId)) as never;
   };
 
   ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
@@ -147,7 +100,7 @@ test('watch routes work with user actor auth subject', async (t) => {
   };
 
   ContentIdentityService.prototype.canonicalizePlayableItemId = async function (_client, publicItemId: string) {
-    return publicItemId;
+    return '00000000-0000-4000-8000-000000000001';
   };
 
   ContentIdentityRepository.prototype.findContentItemById = async function (_client, _contentId: string) {
@@ -264,8 +217,10 @@ test('dismiss continue-watching resolves titleItemId from playableItemId', async
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
+  const originalHydrateByIds = WatchCardHydrator.prototype.hydrateByIds;
   t.after(() => {
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
+    WatchCardHydrator.prototype.hydrateByIds = originalHydrateByIds;
   });
 
   const dismissParams: Partial<Record<string, string>> = {};
@@ -274,7 +229,7 @@ test('dismiss continue-watching resolves titleItemId from playableItemId', async
     return { accepted: true };
   };
   // @ts-ignore
-  WatchCardHydrator.prototype.hydrateItems = async function () {
+  WatchCardHydrator.prototype.hydrateByIds = async function () {
     return [] as never;
   };
   ContentIdentityService.prototype.resolveTitleItemIdForPlayableItemId = async function (_client, itemId: string) {
@@ -527,13 +482,13 @@ test('continue-watching serializes items with progress', async (t) => {
 
   const originals = {
     listContinueWatchingPage: LocalUserWatchService.prototype.listContinueWatchingPage,
-    hydrateItems: WatchCardHydrator.prototype.hydrateItems,
+    hydrateByIds: WatchCardHydrator.prototype.hydrateByIds,
   };
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originals.listContinueWatchingPage;
-    WatchCardHydrator.prototype.hydrateItems = originals.hydrateItems;
+    WatchCardHydrator.prototype.hydrateByIds = originals.hydrateByIds;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
@@ -541,30 +496,36 @@ test('continue-watching serializes items with progress', async (t) => {
 
   // @ts-ignore
   LocalUserWatchService.prototype.listContinueWatchingPage = async () => ({
-
     items: [
-      {
-        ...makeMediaItem(testItemId),
-        UserData: {
-          ItemId: testItemId,
-          IsFavorite: false,
-          Played: false,
-          PlayCount: 0,
-          PlaybackPositionTicks: 1_200_000_000,
-          RuntimeTicks: 72_000_000_000,
-          PlayedPercentage: 1.67,
-          LastPlayedDate: now,
-          Rating: null,
-          DismissedFromContinueWatching: false,
-        },
-      },
+      makeWatchInternalRef(testItemId, {
+        positionSeconds: 120,
+        durationSeconds: 7200,
+        progressBps: 167,
+        played: false,
+        playCount: 0,
+        isFavorite: false,
+        rating: null,
+        lastPlayedAt: now,
+      }),
     ],
     pageInfo: { nextCursor: null, hasMore: false },
   });
 
   // @ts-ignore
-  WatchCardHydrator.prototype.hydrateItems = async (_client, items) => {
-    return (items as Array<Record<string, unknown>>).map(fakeCardFromBaseItem) as never;
+  WatchCardHydrator.prototype.hydrateByIds = async (_client, refs) => {
+    return refs.map((ref) => ({
+      ...makeClientMediaCard(ref.itemId),
+      progress: ref.progress ? {
+        played: ref.progress.played,
+        playCount: ref.progress.playCount,
+        positionSeconds: ref.progress.positionSeconds,
+        durationSeconds: ref.progress.durationSeconds,
+        percent: ref.progress.progressBps != null ? ref.progress.progressBps / 100 : null,
+        lastPlayedAt: ref.progress.lastPlayedAt,
+        watchlisted: ref.progress.isFavorite,
+        userRating: ref.progress.rating,
+      } : null,
+    })) as never;
   };
 
   MetadataLanguageService.prototype.resolveForProfile = async function () {
@@ -609,39 +570,48 @@ test('watch state serializes progress without status', async (t) => {
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originals = {
-    getState: LocalUserWatchService.prototype.getState,
-    hydrateItems: WatchCardHydrator.prototype.hydrateItems,
+    getStates: LocalUserWatchService.prototype.getStates,
+    hydrateByIds: WatchCardHydrator.prototype.hydrateByIds,
   };
 
   const originalResolveForProfile = MetadataLanguageService.prototype.resolveForProfile;
 
   t.after(() => {
-    LocalUserWatchService.prototype.getState = originals.getState;
-    WatchCardHydrator.prototype.hydrateItems = originals.hydrateItems;
+    LocalUserWatchService.prototype.getStates = originals.getStates;
+    WatchCardHydrator.prototype.hydrateByIds = originals.hydrateByIds;
     MetadataLanguageService.prototype.resolveForProfile = originalResolveForProfile;
   });
 
   const now = '2026-05-13T00:00:00.000Z';
 
-  LocalUserWatchService.prototype.getState = async () => ({
-    ...makeMediaItem(testItemId),
-    UserData: {
-      ItemId: testItemId,
-      IsFavorite: false,
-      Played: false,
-      PlayCount: 0,
-      PlaybackPositionTicks: 1_200_000_000,
-      RuntimeTicks: 72_000_000_000,
-      PlayedPercentage: 1.67,
-      LastPlayedDate: now,
-      Rating: null,
-      DismissedFromContinueWatching: false,
-    },
-  });
+  LocalUserWatchService.prototype.getStates = async () => ([
+    makeWatchInternalRef(testItemId, {
+      positionSeconds: 120,
+      durationSeconds: 7200,
+      progressBps: 167,
+      played: false,
+      playCount: 0,
+      isFavorite: false,
+      rating: null,
+      lastPlayedAt: now,
+    }),
+  ]);
 
   // @ts-ignore
-  WatchCardHydrator.prototype.hydrateItems = async (_client, items) => {
-    return (items as Array<Record<string, unknown>>).map(fakeCardFromBaseItem) as never;
+  WatchCardHydrator.prototype.hydrateByIds = async (_client, refs) => {
+    return refs.map((ref) => ({
+      ...makeClientMediaCard(ref.itemId),
+      progress: ref.progress ? {
+        played: ref.progress.played,
+        playCount: ref.progress.playCount,
+        positionSeconds: ref.progress.positionSeconds,
+        durationSeconds: ref.progress.durationSeconds,
+        percent: ref.progress.progressBps != null ? ref.progress.progressBps / 100 : null,
+        lastPlayedAt: ref.progress.lastPlayedAt,
+        watchlisted: ref.progress.isFavorite,
+        userRating: ref.progress.rating,
+      } : null,
+    })) as never;
   };
 
   MetadataLanguageService.prototype.resolveForProfile = async function () {
@@ -667,6 +637,15 @@ test('watch state serializes progress without status', async (t) => {
 });
 
 test('watch route requires unlock (locked profile) when profile has a PIN', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
@@ -674,7 +653,7 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
   const { TEST_USER_AUTH } = await import('../../test-helpers.js');
 
   const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
-  const originalHydrate = WatchCardHydrator.prototype.hydrateItems;
+  const originalHydrate = WatchCardHydrator.prototype.hydrateByIds;
   const originalResolve = MetadataLanguageService.prototype.resolveForProfile;
 
   // @ts-ignore
@@ -682,7 +661,7 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
     return { items: [], pageInfo: { nextCursor: null, hasMore: false } } as never;
   };
   // @ts-ignore
-  WatchCardHydrator.prototype.hydrateItems = async function () {
+  WatchCardHydrator.prototype.hydrateByIds = async function () {
     return [] as never;
   };
   MetadataLanguageService.prototype.resolveForProfile = async function () {
@@ -690,7 +669,7 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
   };
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
-    WatchCardHydrator.prototype.hydrateItems = originalHydrate;
+    WatchCardHydrator.prototype.hydrateByIds = originalHydrate;
     MetadataLanguageService.prototype.resolveForProfile = originalResolve;
     void lockProfile('profile-1', TEST_USER_AUTH.appUserId);
     void lockProfile('profile-2', TEST_USER_AUTH.appUserId);
@@ -735,12 +714,21 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
 });
 
 test('watch route allows access when profile has no PIN', async (t) => {
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
+
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
   const { MetadataLanguageService } = await import('../../modules/metadata/metadata-language.service.js');
 
   const originalListContinueWatching = LocalUserWatchService.prototype.listContinueWatchingPage;
-  const originalHydrate = WatchCardHydrator.prototype.hydrateItems;
+  const originalHydrate = WatchCardHydrator.prototype.hydrateByIds;
   const originalResolve = MetadataLanguageService.prototype.resolveForProfile;
 
   // @ts-ignore
@@ -748,7 +736,7 @@ test('watch route allows access when profile has no PIN', async (t) => {
     return { items: [], pageInfo: { nextCursor: null, hasMore: false } } as never;
   };
   // @ts-ignore
-  WatchCardHydrator.prototype.hydrateItems = async function () {
+  WatchCardHydrator.prototype.hydrateByIds = async function () {
     return [] as never;
   };
   MetadataLanguageService.prototype.resolveForProfile = async function () {
@@ -756,7 +744,7 @@ test('watch route allows access when profile has no PIN', async (t) => {
   };
   t.after(() => {
     LocalUserWatchService.prototype.listContinueWatchingPage = originalListContinueWatching;
-    WatchCardHydrator.prototype.hydrateItems = originalHydrate;
+    WatchCardHydrator.prototype.hydrateByIds = originalHydrate;
     MetadataLanguageService.prototype.resolveForProfile = originalResolve;
   });
 

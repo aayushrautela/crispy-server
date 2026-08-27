@@ -1,7 +1,6 @@
 import { db, withDbClient, type DbClient } from '../../lib/db.js';
 import { env } from '../../config/env.js';
 import { decodeWatchPageCursor } from '../watch/watch-pagination.js';
-import type { BaseItemDto } from '../metadata/media-item.types.js';
 import type { PaginatedWatchCollection, WatchInternalRef } from '../watch/watch-read.types.js';
 import { pageFromRows } from './watch-read-helpers.js';
 import {

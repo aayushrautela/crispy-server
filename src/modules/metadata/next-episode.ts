@@ -1,4 +1,4 @@
-import type { BaseItemDto } from './media-item.types.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
 
 type EpisodeLike = {
   seasonNumber: number;
@@ -44,12 +44,12 @@ export function findNextEpisode<T extends EpisodeLike>(params: {
   return null;
 }
 
-export function episodeViewToLookup(episode: BaseItemDto): EpisodeLike {
+export function episodeViewToLookup(episode: ClientMediaCard): EpisodeLike {
   return {
-    seasonNumber: episode.ParentIndexNumber ?? 0,
-    episodeNumber: episode.IndexNumber ?? 0,
-    title: episode.Name,
-    releaseDate: episode.AirDate,
+    seasonNumber: episode.parent?.seasonNumber ?? 0,
+    episodeNumber: episode.parent?.episodeNumber ?? 0,
+    title: episode.title,
+    releaseDate: episode.releaseDate,
   };
 }
 

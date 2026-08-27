@@ -1,5 +1,4 @@
 import type { SupportedProvider } from '../identity/media-key.js';
-import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
 import type { ClientMediaCard, ClientMediaCardQueryResult } from '../recommendations/client-home.types.js';
 import type { ResponsiveImageSet } from './metadata-card.types.js';
 
@@ -57,8 +56,8 @@ export type MetadataProductionInfoView = {
 };
 
 export type MetadataTitleDetail = {
-  Item: BaseItemDto;
-  NextEpisode: BaseItemDto | null;
+  Item: ClientMediaCard;
+  NextEpisode: ClientMediaCard | null;
   Videos: MetadataVideoView[];
   Cast: MetadataPersonRefView[];
   Creators: MetadataPersonRefView[];
@@ -92,9 +91,9 @@ export type MetadataTitleExtras = {
 };
 
 export type PlaybackResolveResponse = {
-  Item: BaseItemDto;
-  Show: BaseItemDto | null;
-  Season: BaseItemDto | null;
+  Item: ClientMediaCard;
+  Show: ClientMediaCard | null;
+  Season: ClientMediaCard | null;
 };
 
 export type MetadataPersonDetail = {

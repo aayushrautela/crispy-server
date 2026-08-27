@@ -119,7 +119,7 @@ export class AiInsightsService {
     const backdrops = backdropPaths
       .map((path) => buildResponsiveImageSet(path, BACKDROP_IMAGE_SIZES))
       .filter((set): set is ResponsiveImageSet => Boolean(set.small || set.medium || set.large));
-    const candidates = backdrops.length > 0 ? backdrops : (titleDetail.Item.ImageTags.Backdrop ?? []);
+    const candidates = backdrops.length > 0 ? backdrops : (titleDetail.Item.images.backdrop ? [titleDetail.Item.images.backdrop] : []);
 
     const pickBackdrop = (index: number): ResponsiveImageSet => {
       if (candidates.length === 0) {
@@ -183,26 +183,26 @@ export class AiInsightsService {
 }
 
 function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: MetadataReviewView[]): TitleInsightsContext | null {
-  const mediaType = detail.Item.Type;
-  if (mediaType !== 'Movie' && mediaType !== 'Series') {
+  const mediaType = detail.Item.mediaType;
+  if (mediaType !== 'movie' && mediaType !== 'tv') {
     return null;
   }
 
-  const title = detail.Item.Name?.trim() ?? '';
+  const title = detail.Item.title?.trim() ?? '';
   if (!title) {
     return null;
   }
 
   return {
-    itemId: detail.Item.Id,
-    mediaType: mediaType === 'Movie' ? 'movie' : 'show',
+    itemId: detail.Item.itemId,
+    mediaType: mediaType === 'movie' ? 'movie' : 'show',
     title,
-    year: detail.Item.ProductionYear ? String(detail.Item.ProductionYear) : null,
-    description: detail.Item.Overview?.trim() || null,
-    rating: typeof detail.Item.CommunityRating === 'number' && Number.isFinite(detail.Item.CommunityRating)
-      ? detail.Item.CommunityRating.toFixed(1)
+    year: detail.Item.year ? String(detail.Item.year) : null,
+    description: detail.Item.overview?.trim() || null,
+    rating: typeof detail.Item.rating === 'number' && Number.isFinite(detail.Item.rating)
+      ? detail.Item.rating.toFixed(1)
       : null,
-    genres: detail.Item.Genres,
+    genres: detail.Item.genres,
     reviews: reviews
       .map((review) => ({
         author: review.author?.trim() || review.username?.trim() || 'Unknown',

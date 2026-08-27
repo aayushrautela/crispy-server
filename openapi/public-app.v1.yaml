@@ -3378,10 +3378,10 @@ components:
         - Production
       properties:
         Item:
-          $ref: "#/components/schemas/BaseItemDto"
+          $ref: "#/components/schemas/ClientMediaCard"
         NextEpisode:
           anyOf:
-            - $ref: "#/components/schemas/BaseItemDto"
+            - $ref: "#/components/schemas/ClientMediaCard"
             - type: "null"
         Videos:
           type: array

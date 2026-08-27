@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { ClientMediaCard } from '../../modules/recommendations/client-home.types.js';
 import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
 seedTestEnv();
@@ -9,68 +10,59 @@ const SHOW_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a806';
 const EPISODE_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a807';
 const SEASON_ITEM_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a808';
 
-function makeMediaItem(id = MOVIE_ITEM_ID) {
+function makeClientMediaCard(id = MOVIE_ITEM_ID): ClientMediaCard {
+  const mediaType = id === SHOW_ITEM_ID ? 'tv' : id === EPISODE_ITEM_ID ? 'episode' : id === SEASON_ITEM_ID ? 'season' : 'movie';
   return {
-    Id: id,
-    Type: id === SHOW_ITEM_ID ? 'Series' : id === EPISODE_ITEM_ID ? 'Episode' : id === SEASON_ITEM_ID ? 'Season' : 'Movie',
-    Name: 'Test Movie',
-    OriginalTitle: null,
-    Overview: null,
-    Taglines: [],
-    ProductionYear: null,
-    PremiereDate: null,
-    CommunityRating: null,
-    OfficialRating: null,
-    Certification: null,
-    Genres: [],
-    RunTimeTicks: null,
-    Status: null,
-    ProviderIds: { Tmdb: '694', Imdb: null, Tvdb: null },
-    ImageTags: {
-      Primary: null,
-      Backdrop: [],
-      Logo: null,
-      Thumb: null,
-      Screenshot: [],
-    },
-    ParentImageTags: null,
-    SeriesId: null,
-    SeriesName: null,
-    SeasonId: null,
-    SeasonName: null,
-    ParentIndexNumber: null,
-    IndexNumber: null,
-    AbsoluteIndexNumber: null,
-    EpisodeTitle: null,
-    AirDate: null,
-    RemoteTrailers: [],
-    PosterColor: null,
-    BackdropColor: null,
-    UserData: null,
+    itemId: id,
+    mediaType,
+    title: 'Test Movie',
+    overview: null,
+    year: null,
+    releaseDate: null,
+    rating: null,
+    maturityRating: null,
+    genres: [],
+    runtimeSeconds: null,
+    images: { poster: null, backdrop: null, logo: null, still: null },
+    trailerUrl: null,
+    progress: null,
+    parent: null,
+    providerIds: { tmdb: '694', imdb: null, tvdb: null },
   };
 }
 
-function makeEpisodeBaseItemDto(overrides?: Record<string, unknown>) {
+function makeEpisodeClientMediaCard(overrides?: Partial<ClientMediaCard>): ClientMediaCard {
   return {
-    ...makeMediaItem(EPISODE_ITEM_ID),
-    Type: 'Episode',
-    Name: 'Episode Title',
-    ParentImageTags: { Primary: null, Backdrop: [], Logo: null, Thumb: null },
-    SeriesId: SHOW_ITEM_ID,
-    SeriesName: "Bob's Burgers",
-    SeasonId: SEASON_ITEM_ID,
-    SeasonName: 'Season 16',
-    ParentIndexNumber: 16,
-    IndexNumber: 1,
-    EpisodeTitle: 'Episode Title',
-    AirDate: '2025-09-28',
+    ...makeClientMediaCard(EPISODE_ITEM_ID),
+    title: 'Episode Title',
+    parent: {
+      seriesItemId: SHOW_ITEM_ID,
+      seriesTitle: "Bob's Burgers",
+      seasonItemId: SEASON_ITEM_ID,
+      seasonNumber: 16,
+      episodeNumber: 1,
+    },
+    releaseDate: '2025-09-28',
+    ...overrides,
+  };
+}
+
+function makeSeasonClientMediaCard(overrides?: Partial<ClientMediaCard>): ClientMediaCard {
+  return {
+    ...makeClientMediaCard(SEASON_ITEM_ID),
+    mediaType: 'season',
+    title: 'Season 1',
+    parent: {
+      seriesItemId: SHOW_ITEM_ID,
+      seasonNumber: 1,
+    },
     ...overrides,
   };
 }
 
 function makeTitleDetail(itemId = MOVIE_ITEM_ID) {
   return {
-    Item: makeMediaItem(itemId),
+    Item: makeClientMediaCard(itemId),
     NextEpisode: null,
     Videos: [],
     Cast: [],
@@ -108,7 +100,7 @@ test('GET /v1/metadata/items/:itemId serializes collection with no parts', async
   assert.equal(response.statusCode, 200);
   const body = response.json();
   assert.equal(body.data.Collection, undefined);
-  assert.equal(body.data.Item.Id, MOVIE_ITEM_ID);
+  assert.equal(body.data.Item.itemId, MOVIE_ITEM_ID);
 });
 
 test('GET /v1/metadata/items/:itemId serializes show with nextEpisode', async (t) => {
@@ -117,8 +109,8 @@ test('GET /v1/metadata/items/:itemId serializes show with nextEpisode', async (t
 
   MetadataDetailService.prototype.getItemDetail = (async () => ({
     ...makeTitleDetail(SHOW_ITEM_ID),
-    Item: makeMediaItem(SHOW_ITEM_ID),
-    NextEpisode: makeEpisodeBaseItemDto(),
+    Item: makeClientMediaCard(SHOW_ITEM_ID),
+    NextEpisode: makeEpisodeClientMediaCard(),
   })) as any;
   t.after(() => { MetadataDetailService.prototype.getItemDetail = original; });
 
@@ -135,12 +127,12 @@ test('GET /v1/metadata/items/:itemId serializes show with nextEpisode', async (t
   assert.equal(response.statusCode, 200);
   const body = response.json();
   assert.ok(body.data.NextEpisode);
-  assert.equal(body.data.NextEpisode.Id, EPISODE_ITEM_ID);
-  assert.equal(body.data.NextEpisode.SeriesId, SHOW_ITEM_ID);
-  assert.equal(body.data.NextEpisode.SeasonId, SEASON_ITEM_ID);
-  assert.equal(body.data.NextEpisode.ParentIndexNumber, 16);
-  assert.equal(body.data.NextEpisode.IndexNumber, 1);
-  assert.ok(body.data.NextEpisode.ImageTags);
+  assert.equal(body.data.NextEpisode.itemId, EPISODE_ITEM_ID);
+  assert.equal(body.data.NextEpisode.parent.seriesItemId, SHOW_ITEM_ID);
+  assert.equal(body.data.NextEpisode.parent.seasonItemId, SEASON_ITEM_ID);
+  assert.equal(body.data.NextEpisode.parent.seasonNumber, 16);
+  assert.equal(body.data.NextEpisode.parent.episodeNumber, 1);
+  assert.ok(body.data.NextEpisode.images);
 });
 
 test('GET /v1/metadata/items/:itemId rejects colon and raw numeric ids', async (t) => {
@@ -173,12 +165,23 @@ test('old metadata title routes are absent', async (t) => {
 });
 
 test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) => {
-  const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
-  const original = MetadataTitleExtrasService.prototype.getTitleExtras;
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
 
-  MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
-    Seasons: [],
-    Reviews: [
+  const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
+  const { MetadataCardService } = await import('../../modules/metadata/metadata-card.service.js');
+  const original = MetadataTitleExtrasService.prototype.getTitleExtrasInternal;
+  const originalBuildCardViews = MetadataCardService.prototype.buildCardViews;
+
+  MetadataTitleExtrasService.prototype.getTitleExtrasInternal = (async () => ({
+    seasons: [],
+    reviews: [
       {
         id: 'rev-1',
         provider: 'tmdb',
@@ -192,17 +195,50 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
         avatarUrl: null,
       },
     ],
-    Similar: [makeMediaItem('f137a2dd21bbc1b99aa5c0f6bf02a809')],
-    Collection: {
-      Items: [makeMediaItem('f137a2dd21bbc1b99aa5c0f6bf02a80a')],
-      StartIndex: 0,
-      TotalRecordCount: 1,
-      NextCursor: null,
-      HasMore: false,
-    },
+    similar: [
+      { mediaKey: 'movie:tmdb:694', mediaType: 'movie', provider: 'tmdb', providerId: '694', tmdbId: 694, contentId: 'f137a2dd21bbc1b99aa5c0f6bf02a809' },
+    ],
+    collection: [
+      { mediaKey: 'movie:tmdb:695', mediaType: 'movie', provider: 'tmdb', providerId: '695', tmdbId: 695, contentId: 'f137a2dd21bbc1b99aa5c0f6bf02a80a' },
+    ],
+    resolvedTitle: {} as any,
+    effectiveLanguage: 'en-US',
   })) as any;
+  MetadataCardService.prototype.buildCardViews = (async () => [{
+    mediaType: 'movie',
+    kind: 'title',
+    itemId: 'f137a2dd21bbc1b99aa5c0f6bf02a809',
+    parentMediaType: null,
+    seriesItemId: null,
+    seasonItemId: null,
+    tmdbId: 694,
+    showTmdbId: null,
+    seasonNumber: null,
+    episodeNumber: null,
+    absoluteEpisodeNumber: null,
+    title: 'Similar Movie',
+    subtitle: null,
+    summary: null,
+    overview: null,
+    tagline: null,
+    artwork: { poster: null, backdrop: null, still: null },
+    images: { poster: null, backdrop: null, logo: null, still: null },
+    releaseDate: null,
+    releaseYear: null,
+    runtimeMinutes: null,
+    rating: null,
+    status: null,
+    maturityRating: null,
+    trailerUrl: null,
+    trailerThumbnailUrl: null,
+    posterColor: null,
+    backdropColor: null,
+    genres: [],
+    externalIds: { tmdb: 694, imdb: null, tvdb: null },
+  }]) as any;
   t.after(() => {
-    MetadataTitleExtrasService.prototype.getTitleExtras = original;
+    MetadataTitleExtrasService.prototype.getTitleExtrasInternal = original;
+    MetadataCardService.prototype.buildCardViews = originalBuildCardViews;
   });
 
   const { registerMetadataRoutes } = await import('./metadata.js');
@@ -220,25 +256,36 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
   assert.equal(body.data.Reviews.length, 1);
   assert.equal(body.data.Reviews[0].id, 'rev-1');
   assert.equal(body.data.Similar.length, 1);
-  assert.equal(body.data.Similar[0].Id, 'f137a2dd21bbc1b99aa5c0f6bf02a809');
+  assert.equal(body.data.Similar[0].itemId, 'f137a2dd21bbc1b99aa5c0f6bf02a809');
   assert.ok(body.data.Collection);
   assert.equal(body.data.Collection.Items.length, 1);
 });
 
 test('GET /v1/metadata/items/:itemId/extras serializes show seasons', async (t) => {
-  const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
-  const original = MetadataTitleExtrasService.prototype.getTitleExtras;
+  const { db: pool } = await import('../../lib/db.js');
+  (pool as any).connect = async () => ({
+    query: async () => ({ rows: [], rowCount: 0 }),
+    release: () => {},
+  });
+  t.after(() => {
+    delete (pool as unknown as Record<string, unknown>).connect;
+  });
 
-  MetadataTitleExtrasService.prototype.getTitleExtras = (async () => ({
-    Seasons: [
-      makeEpisodeBaseItemDto({ Id: 'f137a2dd21bbc1b99aa5c0f6bf02a801', Type: 'Season', Name: 'Season 1', ParentIndexNumber: null, IndexNumber: 1 }),
+  const { MetadataTitleExtrasService } = await import('../../modules/metadata/metadata-title-extras.service.js');
+  const original = MetadataTitleExtrasService.prototype.getTitleExtrasInternal;
+
+  MetadataTitleExtrasService.prototype.getTitleExtrasInternal = (async () => ({
+    seasons: [
+      makeSeasonClientMediaCard(),
     ],
-    Reviews: [],
-    Similar: [],
-    Collection: null,
+    reviews: [],
+    similar: [],
+    collection: null,
+    resolvedTitle: {} as any,
+    effectiveLanguage: 'en-US',
   })) as any;
   t.after(() => {
-    MetadataTitleExtrasService.prototype.getTitleExtras = original;
+    MetadataTitleExtrasService.prototype.getTitleExtrasInternal = original;
   });
 
   const { registerMetadataRoutes } = await import('./metadata.js');
@@ -254,8 +301,7 @@ test('GET /v1/metadata/items/:itemId/extras serializes show seasons', async (t) 
   assert.equal(response.statusCode, 200);
   const body = response.json();
   assert.equal(body.data.Seasons.length, 1);
-  assert.equal(body.data.Seasons[0].ParentIndexNumber, null);
-  assert.equal(body.data.Seasons[0].IndexNumber, 1);
+  assert.equal(body.data.Seasons[0].parent.seasonNumber, 1);
   assert.equal(body.data.Reviews.length, 0);
   assert.equal(body.data.Similar.length, 0);
   assert.equal(body.data.Collection, null);
@@ -300,7 +346,7 @@ test('/v1/playback/resolve requires itemId only', async (t) => {
   MetadataLanguageService.prototype.resolveForAccount = (async () => 'en-US') as any;
   PlaybackResolveService.prototype.resolvePlayback = (async ({ itemId }: { itemId: string }) => {
     seenItemId = itemId;
-    return { Item: makeMediaItem(itemId), Show: null, Season: null };
+    return { Item: makeClientMediaCard(itemId), Show: null, Season: null };
   }) as any;
   t.after(() => {
     MetadataLanguageService.prototype.resolveForAccount = originalResolveForAccount;
@@ -337,7 +383,7 @@ test('GET /v1/metadata/shows/:itemId/episodes serializes series Creators', async
   const { MetadataDetailService } = await import('../../modules/metadata/metadata-detail.service.js');
   const original = MetadataDetailService.prototype.getSeriesEpisodes;
   MetadataDetailService.prototype.getSeriesEpisodes = (async () => ({
-    Items: [makeEpisodeBaseItemDto()],
+    Items: [makeEpisodeClientMediaCard()],
     StartIndex: 0,
     TotalRecordCount: 1,
     NextCursor: null,
@@ -366,7 +412,7 @@ test('GET /v1/metadata/shows/:itemId/episodes serializes series Creators', async
   const body = response.json();
   assert.equal(body.data.Creators.length, 1);
   assert.equal(body.data.Creators[0].name, 'Jane Creator');
-  assert.equal(body.data.Items[0].Id, EPISODE_ITEM_ID);
+  assert.equal(body.data.Items[0].itemId, EPISODE_ITEM_ID);
 });
 
 test('GET /v1/metadata/items/:episodeItemId serializes series Creators on detail', async (t) => {
@@ -374,7 +420,7 @@ test('GET /v1/metadata/items/:episodeItemId serializes series Creators on detail
   const original = MetadataDetailService.prototype.getItemDetail;
   MetadataDetailService.prototype.getItemDetail = (async () => ({
     ...makeTitleDetail(EPISODE_ITEM_ID),
-    Item: makeEpisodeBaseItemDto(),
+    Item: makeEpisodeClientMediaCard(),
     Creators: [{
       personId: 'f137a2dd21bbc1b99aa5c0f6bf02a809',
       name: 'Jane Creator',
@@ -397,7 +443,7 @@ test('GET /v1/metadata/items/:episodeItemId serializes series Creators on detail
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.equal(body.data.Item.Id, EPISODE_ITEM_ID);
+  assert.equal(body.data.Item.itemId, EPISODE_ITEM_ID);
   assert.equal(body.data.Creators.length, 1);
   assert.equal(body.data.Creators[0].name, 'Jane Creator');
 });

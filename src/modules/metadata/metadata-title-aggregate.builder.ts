@@ -2,14 +2,15 @@ import type { DbClient } from '../../lib/db.js';
 import { logger } from '../../config/logger.js';
 import { assertPresent } from '../../lib/errors.js';
 import type { MediaIdentity } from '../identity/media-key.js';
+import { inferMediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import { imdbTrailerService, type ImdbTrailerResolution } from './enrichment/imdb-trailer.service.js';
+import { imdbTrailerService } from './enrichment/imdb-trailer.service.js';
 import {
-  buildDetailBaseItemDto,
-  buildEpisodeBaseItemDto,
-} from './metadata-detail.builders.js';
-import type { BaseItemDto, RemoteTrailerDto } from './media-item.types.js';
+  buildMetadataCardView,
+} from './metadata-card.builders.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
+import { toClientMediaCard } from './client-media-card.mapper.js';
 import type {
   MetadataTitleDetail,
 } from './metadata-detail.types.js';
@@ -19,7 +20,6 @@ import {
   extractCreators,
   extractCrewByJob,
   extractExternalIds,
-  extractPrimaryTrailer,
   extractProduction,
   extractVideos,
 } from './metadata-builder.shared.js';
@@ -44,13 +44,13 @@ export class MetadataTitleAggregateBuilder {
     const imdbId = extractExternalIds(resolvedTitle).imdb;
 
     const [item, imdbTrailer, nextEpisode] = await Promise.all([
-      Promise.resolve(buildDetailBaseItemDto({ identity, itemId, title: resolvedTitle, currentEpisode: null, nextEpisode: source.tmdbNextEpisode, language: language ?? null })),
+      Promise.resolve(buildMetadataCardView({ identity, itemId, title: resolvedTitle, currentEpisode: null, language: language ?? null })).then((view: import('./metadata-card.types.js').MetadataCardView) => toClientMediaCard(view, { progress: null })),
       imdbId ? imdbTrailerService.resolveTrailer(imdbId) : Promise.resolve(null),
       this.buildNextEpisode(client, resolvedTitle, source.tmdbNextEpisode),
     ]);
 
     return {
-      Item: applyImdbTrailer(item, imdbTrailer, resolvedTitle, language ?? null),
+      Item: applyImdbTrailer(item, imdbTrailer),
       NextEpisode: nextEpisode,
       Videos: extractVideos(resolvedTitle),
       Cast: await extractCast(client, this.contentIdentityService, resolvedTitle),
@@ -76,9 +76,29 @@ export class MetadataTitleAggregateBuilder {
       });
       const nextEpisodeItemId = encodePublicItemId(nextEpisodeContentId);
       const nextEpisodeParents = await this.contentIdentityService.resolveParentItemIdsForEpisode(client, nextEpisodeItemId);
-      return nextEpisodeParents.seriesItemId
-        ? buildEpisodeBaseItemDto(title, nextEpisode, nextEpisodeItemId, nextEpisodeParents.seriesItemId, nextEpisodeParents.seasonItemId)
-        : null;
+      if (!nextEpisodeParents.seriesItemId) {
+        return null;
+      }
+      const nextEpisodeIdentity = inferMediaIdentity({
+        mediaType: 'episode',
+        provider: 'tmdb',
+        providerId: String(nextEpisode.tmdbId),
+        tmdbId: nextEpisode.tmdbId,
+        showTmdbId: title.tmdbId,
+        seasonNumber: nextEpisode.seasonNumber,
+        episodeNumber: nextEpisode.episodeNumber,
+        contentId: nextEpisodeContentId,
+      });
+      const view = buildMetadataCardView({
+        identity: nextEpisodeIdentity,
+        itemId: nextEpisodeItemId,
+        seriesItemId: nextEpisodeParents.seriesItemId,
+        seasonItemId: nextEpisodeParents.seasonItemId,
+        title,
+        currentEpisode: nextEpisode,
+        language: null,
+      });
+      return toClientMediaCard(view, { progress: null, seriesTitle: title.name ?? title.originalName ?? undefined });
     } catch (error) {
       logger.warn({
         err: error,
@@ -94,22 +114,11 @@ export class MetadataTitleAggregateBuilder {
 }
 
 function applyImdbTrailer(
-  dto: BaseItemDto,
-  imdbTrailer: ImdbTrailerResolution | null,
-  title: TmdbTitleRecord,
-  language: string | null,
-): BaseItemDto {
+  card: ClientMediaCard,
+  imdbTrailer: Awaited<ReturnType<typeof imdbTrailerService.resolveTrailer>> | null,
+): ClientMediaCard {
   if (!imdbTrailer) {
-    return dto;
+    return card;
   }
-
-  const trailers: RemoteTrailerDto[] = [];
-  trailers.push({ Name: null, Url: imdbTrailer.url, ThumbnailUrl: imdbTrailer.thumbnailUrl });
-
-  const youtube = extractPrimaryTrailer(title, language);
-  if (youtube?.url) {
-    trailers.push({ Name: null, Url: youtube.url, ThumbnailUrl: youtube.thumbnailUrl ?? null });
-  }
-
-  return { ...dto, RemoteTrailers: trailers };
+  return { ...card, trailerUrl: imdbTrailer.url };
 }

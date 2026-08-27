@@ -1104,8 +1104,8 @@ export interface components {
             Creators: components["schemas"]["MetadataPersonRefView"][];
         };
         MetadataTitleDetailResponse: {
-            Item: components["schemas"]["BaseItemDto"];
-            NextEpisode: components["schemas"]["BaseItemDto"] | null;
+            Item: components["schemas"]["ClientMediaCard"];
+            NextEpisode: components["schemas"]["ClientMediaCard"] | null;
             Videos: components["schemas"]["MetadataVideoView"][];
             Cast: components["schemas"]["MetadataPersonRefView"][];
             Creators: components["schemas"]["MetadataPersonRefView"][];

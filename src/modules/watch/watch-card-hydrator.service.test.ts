@@ -65,7 +65,7 @@ test('watch card hydrator carries enriched imdb from card external ids', async (
   assert.equal(cards[0]?.providerIds?.imdb, 'tt1234567');
 });
 
-test('watch card hydrator hydrates via last-layer (no BaseItemDto)', async (t) => {
+test('watch card hydrator hydrates via last-layer (ClientMediaCard)', async (t) => {
   const { WatchCardHydrator } = await import('./watch-card-hydrator.service.js');
   const { MetadataCardService } = await import('../metadata/metadata-card.service.js');
   const { ContentIdentityService } = await import('../identity/content-identity.service.js');

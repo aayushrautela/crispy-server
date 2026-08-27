@@ -53,11 +53,20 @@ const SCORE_NO_MATCH = 10;
 
 const AI_CHAR_SIMILARITY_NEAR_EXACT = 0.65;
 
+type SearchTitlesInternalResult = {
+  tmdbMatches: TmdbTitleRecord[];
+  peopleMatches: MetadataPersonSearchResult[];
+  normalizedQuery: string;
+  normalizedFilter: MetadataSearchFilter;
+  limit: number;
+  locale: string | null;
+};
+
 export class TitleSearchService {
   constructor(
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
-    private readonly requestCoalescer = new ShortLivedRequestCoalescer<MetadataSearchResponse>(SEARCH_CACHE_TTL_MS),
+    private readonly requestCoalescer = new ShortLivedRequestCoalescer<SearchTitlesInternalResult>(SEARCH_CACHE_TTL_MS),
     private readonly suggestionCoalescer = new ShortLivedRequestCoalescer<SearchSuggestionItem[]>(SEARCH_CACHE_TTL_MS),
   ) {}
 
@@ -99,14 +108,7 @@ export class TitleSearchService {
     });
   }
 
-  async searchTitlesInternal(input: SearchTitlesInput): Promise<{
-    tmdbMatches: TmdbTitleRecord[];
-    peopleMatches: MetadataPersonSearchResult[];
-    normalizedQuery: string;
-    normalizedFilter: MetadataSearchFilter;
-    limit: number;
-    locale: string | null;
-  }> {
+  async searchTitlesInternal(input: SearchTitlesInput): Promise<SearchTitlesInternalResult> {
     const normalizedQuery = input.query.trim();
     const normalizedFilter = normalizeSearchFilter(input.filter);
     const genreMapping = resolveGenreMapping(input.genre);
@@ -117,7 +119,16 @@ export class TitleSearchService {
       return { tmdbMatches: [], peopleMatches: [], normalizedQuery, normalizedFilter, limit, locale };
     }
 
-    return withDbClient(async (client) => {
+    const requestKey = buildSearchRequestKey({
+      query: normalizedQuery,
+      filter: normalizedFilter,
+      genreMapping,
+      limit,
+      locale,
+      abortable: Boolean(input.signal),
+    });
+
+    return this.requestCoalescer.run(requestKey, () => withDbClient(async (client) => {
       const mediaTypes = mapSearchFilterToTmdbTypes(normalizedFilter);
       const tmdbMatches = shouldQueryTmdb(normalizedFilter)
         ? genreMapping
@@ -145,7 +156,7 @@ export class TitleSearchService {
         limit,
         locale,
       };
-    });
+    }));
   }
 
   async resolveAiCandidates(input: {

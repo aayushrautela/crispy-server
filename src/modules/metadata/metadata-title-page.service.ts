@@ -6,7 +6,6 @@ import type { ClientMediaCard, ClientMediaCardQueryResult } from '../recommendat
 import { ContentIdentityService, episodeRefMapKey } from '../identity/content-identity.service.js';
 import { assertPublicItemId, encodePublicItemId } from '../identity/public-item-id.js';
 import type { MetadataTitleDetail } from './metadata-detail.types.js';
-import type { BaseItemDto, BaseItemDtoQueryResult } from './media-item.types.js';
 import { resolveMetadataItemIdentity, resolveSeriesItemIdentity } from './metadata-route-identity.js';
 import { MetadataTitleAggregateBuilder } from './metadata-title-aggregate.builder.js';
 import { MetadataTitleCacheService } from './metadata-title-cache.service.js';
