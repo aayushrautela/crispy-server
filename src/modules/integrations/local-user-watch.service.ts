@@ -6,11 +6,8 @@ import type { PaginatedWatchCollection, WatchInternalRef } from '../watch/watch-
 import { pageFromRows } from './watch-read-helpers.js';
 import {
   mapContinueWatchingInternalRef,
-  mapContinueWatchingRow,
   mapHistoryInternalRef,
-  mapHistoryRow,
   mapRatingInternalRef,
-  mapRatingRow,
   mapWatchStateInternalRef,
   mapWatchStateRow,
   type WatchReadRow,
@@ -187,37 +184,7 @@ export class LocalUserWatchService {
     private readonly contentIdentityRepo = new ContentIdentityRepository(),
   ) {}
 
-  async listContinueWatchingPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
-    const cursor = decodeWatchPageCursor(params.cursor);
-    const limit = params.limit + 1;
-    const rows = await db.query(
-      `SELECT ws.item_id AS playable_item_id,
-              ws.position_seconds, ws.last_played_at AS last_activity_at,
-              ${WATCH_ITEM_CONTENT_COLS}
-       FROM user_state.watch_state ws
-       ${WATCH_ITEM_CONTENT_JOIN}
-       WHERE ws.profile_id = $1::uuid AND NOT ws.played AND ws.position_seconds > 0
-         AND ws.last_played_at > now() - interval '${env.continueWatchingTtlDays} days'
-         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
-              OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
-       ORDER BY ws.last_played_at DESC, ws.item_id ASC
-       LIMIT $4`,
-      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
-    );
-    const page = pageFromRows(
-      rows.rows as Record<string, unknown>[],
-      params.limit,
-      (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.playable_item_id) }),
-      (row) => mapContinueWatchingRow(row),
-    );
-    return {
-      items: page.items.filter((item): item is BaseItemDto => item !== null),
-      pageInfo: page.pageInfo,
-    };
-  }
-
-  /** Phase 1 seam: Brain 1 only — no WATCH_ITEM_CONTENT_JOIN, no tmdb_titles. */
-  async listContinueWatchingPageInternal(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+  async listContinueWatchingPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -250,7 +217,7 @@ export class LocalUserWatchService {
    * profile has watched in each series. Built entirely from the existing Jellyfin
    * style content graph + watch_state (no provider-specific continuation hacks).
    */
-  async listNextUpPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
+  async listNextUpPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -305,9 +272,14 @@ export class LocalUserWatchService {
         SELECT ws.item_id AS playable_item_id,
                ws.position_seconds,
                ws.last_played_at AS last_activity_at,
-               ${WATCH_ITEM_CONTENT_COLS}
+               ci.entity_type AS media_type,
+               NULLIF(cpr.metadata->>'seasonNumber','')::int AS season_number,
+               NULLIF(cpr.metadata->>'episodeNumber','')::int AS episode_number,
+               0 AS duration_seconds, 0 AS progress_bps,
+               0 AS played, 0 AS play_count, false AS is_favorite, NULL::numeric AS rating
         FROM ws
-        ${WATCH_ITEM_CONTENT_JOIN}
+        JOIN content_items ci ON ci.id = ws.item_id
+        LEFT JOIN content_provider_refs cpr ON cpr.content_id = ws.item_id AND cpr.provider='tmdb'
         WHERE ws.profile_id = $1::uuid
           AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
                OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
@@ -319,39 +291,12 @@ export class LocalUserWatchService {
       rows.rows as Record<string, unknown>[],
       params.limit,
       (row) => ({ sortValue: row.last_activity_at as Date, tieBreaker: String(row.playable_item_id) }),
-      (row) => mapContinueWatchingRow(row),
+      (row) => mapContinueWatchingInternalRef(row as WatchReadRow),
     );
-    return {
-      items: page.items.filter((item): item is BaseItemDto => item !== null),
-      pageInfo: page.pageInfo,
-    };
+    return page as PaginatedWatchCollection<WatchInternalRef>;
   }
 
-  async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
-    const cursor = decodeWatchPageCursor(params.cursor);
-    const limit = params.limit + 1;
-    const rows = await db.query(
-      `SELECT ws.item_id, ws.played, ws.play_count, ws.last_played_at,
-              ws.position_seconds, ws.rating, ws.is_favorite,
-              ${WATCH_ITEM_CONTENT_COLS}
-       FROM user_state.watch_state ws
-       ${WATCH_ITEM_CONTENT_JOIN}
-       WHERE ws.profile_id = $1::uuid AND ws.is_favorite
-         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
-              OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
-       ORDER BY ws.last_played_at DESC, ws.item_id ASC
-       LIMIT $4`,
-      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
-    );
-    return pageFromRows(
-      rows.rows as Record<string, unknown>[],
-      params.limit,
-      (row) => ({ sortValue: row.last_played_at as Date, tieBreaker: String(row.item_id) }),
-      (row) => mapWatchStateRow(row),
-    );
-  }
-
-  async listWatchlistPageInternal(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+  async listWatchlistPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -374,30 +319,7 @@ export class LocalUserWatchService {
     ) as PaginatedWatchCollection<WatchInternalRef>;
   }
 
-  async listRatingsPage(params: ListPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
-    const cursor = decodeWatchPageCursor(params.cursor);
-    const limit = params.limit + 1;
-    const rows = await db.query(
-      `SELECT ws.item_id, ws.rating, ws.last_played_at AS rated_at,
-              ${WATCH_ITEM_CONTENT_COLS}
-       FROM user_state.watch_state ws
-       ${WATCH_ITEM_CONTENT_JOIN}
-       WHERE ws.profile_id = $1::uuid AND ws.rating IS NOT NULL
-         AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz
-              OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
-       ORDER BY ws.last_played_at DESC, ws.item_id ASC
-       LIMIT $4`,
-      [params.profileId, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
-    );
-    return pageFromRows(
-      rows.rows as Record<string, unknown>[],
-      params.limit,
-      (row) => ({ sortValue: row.rated_at as Date, tieBreaker: String(row.item_id) }),
-      (row) => mapRatingRow(row),
-    );
-  }
-
-  async listRatingsPageInternal(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+  async listRatingsPage(params: ListPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -419,32 +341,7 @@ export class LocalUserWatchService {
     ) as PaginatedWatchCollection<WatchInternalRef>;
   }
 
-  async listHistoryPage(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<BaseItemDto>> {
-    const cursor = decodeWatchPageCursor(params.cursor);
-    const limit = params.limit + 1;
-    const rows = await db.query(
-      `SELECT ws.item_id,
-              ${WATCH_ITEM_CONTENT_COLS},
-              ws.last_played_at AS occurred_at
-       FROM user_state.watch_state ws
-       ${WATCH_ITEM_CONTENT_JOIN}
-       WHERE ws.profile_id = $1::uuid AND ws.last_played_at IS NOT NULL
-         AND ($2::uuid IS NULL OR ws.item_id = $2::uuid OR cir.parent_content_id = $2::uuid)
-         AND ($3::timestamptz IS NULL OR ws.last_played_at < $3::timestamptz
-              OR (ws.last_played_at = $3::timestamptz AND ws.item_id > $4::uuid))
-       ORDER BY ws.last_played_at DESC, ws.item_id ASC
-       LIMIT $5`,
-      [params.profileId, params.itemId ?? null, cursor?.sortValue ?? null, cursor?.tieBreaker ?? null, limit],
-    );
-    return pageFromRows(
-      rows.rows as Record<string, unknown>[],
-      params.limit,
-      (row) => ({ sortValue: row.occurred_at as Date, tieBreaker: String(row.item_id) }),
-      (row) => mapHistoryRow(row),
-    );
-  }
-
-  async listHistoryPageInternal(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
+  async listHistoryPage(params: ListHistoryPageParams): Promise<PaginatedWatchCollection<WatchInternalRef>> {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
@@ -466,48 +363,6 @@ export class LocalUserWatchService {
       (row) => ({ sortValue: row.occurred_at as Date, tieBreaker: String(row.item_id) }),
       (row) => mapHistoryInternalRef(row as WatchReadRow),
     ) as PaginatedWatchCollection<WatchInternalRef>;
-  }
-
-  async getState(params: GetStateParams): Promise<BaseItemDto> {
-    const states = await this.getStates(params);
-    return states[0] ?? {
-      Id: params.itemIds[0] ?? '',
-      Type: 'Unknown' as const,
-      Name: params.itemIds[0] ?? '',
-      OriginalTitle: null,
-      Overview: null,
-      Taglines: [],
-      ProductionYear: null,
-      PremiereDate: null,
-      CommunityRating: null,
-      OfficialRating: null,
-      Certification: null,
-      Genres: [],
-      RunTimeTicks: null,
-      Status: null,
-      ProviderIds: { Tmdb: null, Imdb: null, Tvdb: null },
-      ImageTags: {
-        Primary: null,
-        Backdrop: [],
-        Logo: null,
-        Thumb: null,
-        Screenshot: [],
-      },
-      ParentImageTags: null,
-      SeriesId: null,
-      SeriesName: null,
-      SeasonId: null,
-      SeasonName: null,
-      ParentIndexNumber: null,
-      IndexNumber: null,
-      AbsoluteIndexNumber: null,
-      EpisodeTitle: null,
-      AirDate: null,
-      RemoteTrailers: [],
-      PosterColor: null,
-      BackdropColor: null,
-      UserData: null,
-    };
   }
 
   async getStates(params: GetStateParams): Promise<BaseItemDto[]> {

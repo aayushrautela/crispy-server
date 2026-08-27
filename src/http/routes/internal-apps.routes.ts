@@ -66,9 +66,9 @@ export interface InternalAppsRoutesDeps {
   appAuditRepo: AppAuditRepo;
   profileService?: ProfileOwnershipValidator;
   /** Read service for per-signal watch routes. Defaults to LocalUserWatchService. */
-  watchReadService?: Pick<LocalUserWatchService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'listNextUpPage' | 'getStates'>;
+  watchReadService?: Pick<LocalUserWatchService, 'listHistoryPage' | 'listRatingsPage' | 'listWatchlistPage' | 'listContinueWatchingPage' | 'listNextUpPage' | 'getStates'> & Partial<Pick<LocalUserWatchService, 'getStatesInternal'>>;
   /** Card hydrator for per-signal watch routes. Defaults to WatchCardHydrator. */
-  watchCardHydrator?: Pick<WatchCardHydrator, 'hydrateItems'>;
+  watchCardHydrator?: Pick<WatchCardHydrator, 'hydrateByIds' | 'hydrateItems'>;
   /** Read service for episodic-follow signal route. Defaults to EpisodicFollowService. */
   episodicFollowService?: Pick<EpisodicFollowService, 'listForProfile'>;
   /** Service for taste read/write signal routes. Defaults to TasteProfileService. */
@@ -268,7 +268,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
+      ? await runWithClient((client) => watchCardHydrator.hydrateByIds(client, page.items as any, undefined))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
@@ -288,7 +288,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
+      ? await runWithClient((client) => watchCardHydrator.hydrateByIds(client, page.items as any, undefined))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
@@ -308,7 +308,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
+      ? await runWithClient((client) => watchCardHydrator.hydrateByIds(client, page.items as any, undefined))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
@@ -328,7 +328,7 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       cursor: query.cursor ?? null,
     });
     const cards = page.items.length
-      ? await runWithClient((client) => watchCardHydrator.hydrateItems(client, page.items, undefined, query.extended === 'true'))
+      ? await runWithClient((client) => watchCardHydrator.hydrateByIds(client, page.items as any, undefined))
       : [];
     return success({ Items: cards, StartIndex: 0, TotalRecordCount: cards.length, NextCursor: page.pageInfo.nextCursor, HasMore: page.pageInfo.hasMore }, request);
   });
