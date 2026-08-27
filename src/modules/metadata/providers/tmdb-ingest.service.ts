@@ -73,6 +73,7 @@ export class TmdbIngestService {
         adult: payload.adult === true,
         posterPath: asString(payload.poster_path),
         backdropPath: asString(payload.backdrop_path),
+        logoPath: asString(extractBestLogoFromPayload(payload, effectiveLanguage)),
         raw: payload,
         hydrationLevel: 'detail',
         fetchedAt: now.toISOString(),
@@ -306,6 +307,18 @@ function mapImages(images: DetailPayload | undefined, listKey: string, kind: 'po
       };
     })
     .filter((entry): entry is TmdbImageRecord => entry !== null);
+}
+
+/** Best logo path from a detail payload's images.logos, preferring the requested language then English. */
+function extractBestLogoFromPayload(payload: DetailPayload, preferredLanguage?: string): string | null {
+  const images = payload.images as DetailPayload | undefined;
+  const logos = asArray(images?.logos);
+  if (logos.length === 0) return null;
+  const lang = (preferredLanguage ?? 'en').split('-')[0];
+  const match = logos.find((entry) => asString((entry as DetailPayload).iso_639_1) === lang)
+    ?? logos.find((entry) => asString((entry as DetailPayload).iso_639_1) === 'en')
+    ?? logos[0];
+  return asString((match as DetailPayload)?.file_path);
 }
 
 function mapReviews(mediaType: TmdbTitleType, tmdbId: number, payload: DetailPayload) {

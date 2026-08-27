@@ -55,6 +55,8 @@ export type TmdbTitleRecord = {
   numberOfSeasons: number | null;
   numberOfEpisodes: number | null;
   externalIds: Record<string, unknown>;
+  genreIds?: number[];
+  voteAverage?: number | null;
   raw: Record<string, unknown>;
   hydrationLevel?: TmdbHydrationLevel;
   fetchedAt: string;

@@ -24,6 +24,7 @@ function titleColumns(): string {
     t.external_ids, t.genre_ids, t.vote_average, t.vote_count, t.popularity, t.adult,
     t.raw, t.hydration_level, t.fetched_at, t.expires_at,
     t.poster_path AS core_poster_path, t.backdrop_path AS core_backdrop_path,
+    t.logo_path AS core_logo_path,
     tr.name AS tr_name, tr.overview AS tr_overview, tr.tagline AS tr_tagline,
     ten.name AS ten_name, ten.overview AS ten_overview, ten.tagline AS ten_tagline,
     ip.file_path AS poster_pick, ib.file_path AS backdrop_pick, il.file_path AS logo_pick
@@ -71,12 +72,14 @@ function mapTitle(row: Row, language: string): TmdbTitleRecord {
     status: typeof row.status === 'string' ? row.status : null,
     posterPath: (row.poster_pick as string | null) ?? (row.core_poster_path as string | null) ?? null,
     backdropPath: (row.backdrop_pick as string | null) ?? (row.core_backdrop_path as string | null) ?? null,
-    logoPath: (row.logo_pick as string | null) ?? null,
+    logoPath: (row.logo_pick as string | null) ?? (row.core_logo_path as string | null) ?? null,
     runtime: row.runtime === null || row.runtime === undefined ? null : Number(row.runtime),
     episodeRunTime: Array.isArray(row.episode_run_time) ? row.episode_run_time.map((value) => Number(value)) : [],
     numberOfSeasons: row.number_of_seasons === null || row.number_of_seasons === undefined ? null : Number(row.number_of_seasons),
     numberOfEpisodes: row.number_of_episodes === null || row.number_of_episodes === undefined ? null : Number(row.number_of_episodes),
     externalIds: (row.external_ids as Record<string, unknown> | undefined) ?? {},
+    genreIds: Array.isArray(row.genre_ids) ? row.genre_ids.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n)) : [],
+    voteAverage: row.vote_average === null || row.vote_average === undefined ? null : Number(row.vote_average),
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
     hydrationLevel: (row.hydration_level as TmdbTitleRecord['hydrationLevel']) ?? 'summary',
     fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
@@ -182,6 +185,7 @@ export class TmdbRepository {
     adult: boolean;
     posterPath: string | null;
     backdropPath: string | null;
+    logoPath?: string | null;
     raw: Record<string, unknown>;
     hydrationLevel: 'summary' | 'detail' | 'not_found';
     fetchedAt: string;
@@ -193,12 +197,12 @@ export class TmdbRepository {
           media_type, tmdb_id, original_name, original_language, release_date, first_air_date,
           status, runtime, episode_run_time, number_of_seasons, number_of_episodes,
           external_ids, genre_ids, vote_average, vote_count, popularity, adult,
-          poster_path, backdrop_path, raw, hydration_level, fetched_at, expires_at
+          poster_path, backdrop_path, logo_path, raw, hydration_level, fetched_at, expires_at
         )
         VALUES (
           $1, $2, $3, $4, $5::date, $6::date, $7, $8, $9::jsonb, $10, $11,
           $12::jsonb, $13::jsonb, $14, $15, $16, $17,
-          $18, $19, $20::jsonb, $21, $22::timestamptz, $23::timestamptz
+          $18, $19, $20, $21::jsonb, $22, $23::timestamptz, $24::timestamptz
         )
         ON CONFLICT (media_type, tmdb_id)
         DO UPDATE SET
@@ -219,6 +223,7 @@ export class TmdbRepository {
           adult = EXCLUDED.adult,
           poster_path = EXCLUDED.poster_path,
           backdrop_path = EXCLUDED.backdrop_path,
+          logo_path = EXCLUDED.logo_path,
           raw = EXCLUDED.raw,
           hydration_level = EXCLUDED.hydration_level,
           fetched_at = EXCLUDED.fetched_at,
@@ -244,6 +249,7 @@ export class TmdbRepository {
         params.adult,
         params.posterPath,
         params.backdropPath,
+        params.logoPath ?? null,
         JSON.stringify(params.raw),
         params.hydrationLevel,
         params.fetchedAt,
@@ -696,7 +702,7 @@ export class TmdbRepository {
     );
   }
 
-  async getPersonKnownFor(client: DbClient, personTmdbId: number, language: string, limit = 10): Promise<Array<{ title: TmdbTitleRecord; character: string | null; job: string | null }>> {
+  async getPersonKnownFor(client: DbClient, personTmdbId: number, language: string, limit = 50): Promise<Array<{ title: TmdbTitleRecord; character: string | null; job: string | null }>> {
     const result = await client.query(
       `SELECT pc.character, pc.job AS pc_job, ${titleColumns()} ${titleJoins('$2', 'FROM tmdb_person_credits pc JOIN tmdb_titles t ON t.media_type = pc.target_media_type AND t.tmdb_id = pc.target_tmdb_id')}
        WHERE pc.person_tmdb_id = $1 AND coalesce(t.hydration_level, 'summary') <> 'not_found'

@@ -150,10 +150,53 @@ export function extractGenres(title: TmdbTitleRecord | null): string[] {
     return [];
   }
 
-  return asArray(raw.genres)
+  const fromRaw = asArray(raw.genres)
     .map((genre) => asString(asRecord(genre)?.name))
     .filter((value): value is string => value !== null);
+
+  if (fromRaw.length > 0) {
+    return fromRaw;
+  }
+
+  // Fallback for summary-cached titles: raw may be {}, but genre_ids column is populated.
+  if (title && Array.isArray(title.genreIds) && title.genreIds.length > 0) {
+    return title.genreIds
+      .map((id) => TMDB_GENRE_NAMES[id])
+      .filter((name): name is string => name !== undefined);
+  }
+
+  return [];
 }
+
+const TMDB_GENRE_NAMES: Record<number, string> = {
+  28: 'Action',
+  12: 'Adventure',
+  16: 'Animation',
+  35: 'Comedy',
+  80: 'Crime',
+  99: 'Documentary',
+  18: 'Drama',
+  10751: 'Family',
+  14: 'Fantasy',
+  36: 'History',
+  27: 'Horror',
+  10402: 'Music',
+  9648: 'Mystery',
+  10749: 'Romance',
+  878: 'Science Fiction',
+  10770: 'TV Movie',
+  53: 'Thriller',
+  10752: 'War',
+  37: 'Western',
+  10759: 'Action & Adventure',
+  10762: 'Kids',
+  10763: 'News',
+  10764: 'Reality',
+  10765: 'Sci-Fi & Fantasy',
+  10766: 'Soap',
+  10767: 'Talk',
+  10768: 'War & Politics',
+};
 
 function uniqueStrings(values: Array<string | null>): string[] {
   return Array.from(new Set(values.filter((value): value is string => value !== null)));
@@ -496,6 +539,10 @@ function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: s
 export function extractRating(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null): number | null {
   if (episode?.voteAverage !== null && episode?.voteAverage !== undefined) {
     return episode.voteAverage;
+  }
+
+  if (title?.voteAverage !== null && title?.voteAverage !== undefined) {
+    return title.voteAverage;
   }
 
   const raw = title?.raw;
