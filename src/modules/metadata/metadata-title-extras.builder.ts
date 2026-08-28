@@ -56,7 +56,7 @@ export class MetadataTitleExtrasBuilder {
       seasons: seasonIdentities.length,
       reviews: reviews.length,
       similar: similar.length,
-      collectionItems: collection?.length ?? 0,
+      collectionItems: collectionData?.identities?.length ?? 0,
     }, 'metadata title extras built (internal)');
     return { resolvedTitle, seasonIdentities, seriesItemId, seriesTitle, similar, collection: collectionData?.identities ?? null, collectionName: collectionData?.name ?? null, reviews, effectiveLanguage };
   }
