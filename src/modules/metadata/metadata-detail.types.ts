@@ -90,6 +90,7 @@ export type MetadataTitleExtrasInternal = {
   seriesTitle: string | null;
   similar: import('../identity/media-key.js').MediaIdentity[];
   collection: import('../identity/media-key.js').MediaIdentity[] | null;
+  collectionName: string | null;
   reviews: MetadataReviewView[];
   effectiveLanguage: string | null;
 };

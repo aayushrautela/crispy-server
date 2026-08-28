@@ -90,13 +90,17 @@ export class MetadataTitlePageService {
       const seriesItemPublicId = encodePublicItemId(seriesContentId);
 
       const episodeIdentities = episodeRecords
-        .map((episode) => inferMediaIdentity({
-          mediaType: 'episode',
-          provider: 'tmdb',
-          showTmdbId: title.tmdbId,
-          seasonNumber: episode.seasonNumber,
-          episodeNumber: episode.episodeNumber,
-        }))
+        .map((episode) => {
+          const contentId = episodeContentIds.get(episodeRefMapKey(parentProviderId, episode.seasonNumber, episode.episodeNumber));
+          return inferMediaIdentity({
+            contentId,
+            mediaType: 'episode',
+            provider: 'tmdb',
+            showTmdbId: title.tmdbId,
+            seasonNumber: episode.seasonNumber,
+            episodeNumber: episode.episodeNumber,
+          });
+        })
         .filter((identity): identity is MediaIdentity => identity !== null);
 
       const views = await this.titleSourceService.loadTitleSources(client, [seriesIdentity, ...episodeIdentities], language ?? null);

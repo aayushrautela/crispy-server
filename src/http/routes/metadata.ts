@@ -94,6 +94,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       Reviews: internal.reviews,
       Similar: similar,
       Collection: collection,
+      CollectionName: internal.collectionName,
     });
   });
 

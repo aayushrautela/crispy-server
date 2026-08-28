@@ -457,7 +457,7 @@ export const searchSuggestionsRouteSchema = withDefaultErrorResponses({
 const metadataTitleExtrasResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Seasons', 'Reviews', 'Similar', 'Collection'],
+  required: ['Seasons', 'Reviews', 'Similar', 'Collection', 'CollectionName'],
   properties: {
     Seasons: { type: 'array', items: clientMediaCardSchema },
     Reviews: { type: 'array', items: metadataReviewViewSchema },
@@ -465,6 +465,12 @@ const metadataTitleExtrasResponseSchema = {
     Collection: {
       anyOf: [
         clientMediaCardQueryResultSchema,
+        { type: 'null' },
+      ],
+    },
+    CollectionName: {
+      anyOf: [
+        { type: 'string' },
         { type: 'null' },
       ],
     },

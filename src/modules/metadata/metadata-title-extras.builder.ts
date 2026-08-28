@@ -35,7 +35,7 @@ export class MetadataTitleExtrasBuilder {
     const reviews = await this.buildExtrasSection('reviews', resolvedTitle, effectiveLanguage, () =>
       this.reviewAggregator.mergeTitleReviews(client, resolvedTitle, identity.mediaType as 'movie' | 'show', effectiveLanguage), []);
     const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildRelatedIdentities(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
-    const collection = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollectionIdentities(client, resolvedTitle, effectiveLanguage), null);
+    const collectionData = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollectionIdentities(client, resolvedTitle, effectiveLanguage), null);
 
     const seasonIdentities = resolvedTitle.mediaType === 'tv'
       ? await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildSeasonIdentities(client, resolvedTitle, effectiveLanguage), [])
@@ -58,7 +58,7 @@ export class MetadataTitleExtrasBuilder {
       similar: similar.length,
       collectionItems: collection?.length ?? 0,
     }, 'metadata title extras built (internal)');
-    return { resolvedTitle, seasonIdentities, seriesItemId, seriesTitle, similar, collection, reviews, effectiveLanguage };
+    return { resolvedTitle, seasonIdentities, seriesItemId, seriesTitle, similar, collection: collectionData?.identities ?? null, collectionName: collectionData?.name ?? null, reviews, effectiveLanguage };
   }
 
   private async buildExtrasSection<T>(
@@ -107,15 +107,16 @@ export class MetadataTitleExtrasBuilder {
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
   }
 
-  private async buildFullCollectionIdentities(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<MediaIdentity[] | null> {
+  private async buildFullCollectionIdentities(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<{ identities: MediaIdentity[]; name: string | null } | null> {
     const collection = extractCollection(title);
     if (!collection || typeof collection.id !== 'number') return null;
     await this.tmdbCacheService.ensureCollectionCached(client, collection.id, language).catch(() => false);
     const parts = await this.tmdbCacheService.getRelatedTitles(client, 'collection', collection.id, 'collection_part', language);
     if (parts.length === 0) return null;
-    return parts
+    const identities = parts
       .filter((t) => t.mediaType === 'movie' || t.mediaType === 'tv')
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
+    return { identities, name: collection.name ?? null };
   }
 }
 
