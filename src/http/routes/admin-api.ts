@@ -336,15 +336,16 @@ export async function registerAdminApiRoutes(
     const nextEpisodeViewByMediaKey = new Map(
       nextEpisodeIdentities.map((id, idx) => [id.mediaKey, nextEpisodeViews[idx]]),
     );
+    const { toClientMediaCard } = await import('../../modules/metadata/client-media-card.mapper.js');
     const items = internal
       .map((item) => {
         const showIdentity = showIdentityById.get(assertPublicItemId(item.showItemId));
         const nextEpisodeIdentity = nextEpisodeIdentityById.get(assertPublicItemId(item.nextEpisode.itemId));
-        const show = showIdentity ? showViewByMediaKey.get(showIdentity.mediaKey) : undefined;
-        if (!show || !show.title) return null;
+        const showView = showIdentity ? showViewByMediaKey.get(showIdentity.mediaKey) : undefined;
+        if (!showView || !showView.title) return null;
         const nextEpisodeView = nextEpisodeIdentity ? nextEpisodeViewByMediaKey.get(nextEpisodeIdentity.mediaKey) : undefined;
         return {
-          show,
+          show: toClientMediaCard(showView, { progress: null }),
           reason: item.reason,
           lastInteractedAt: item.lastInteractedAt,
           nextEpisodeAirDate: item.nextEpisode.airDate,
@@ -352,7 +353,7 @@ export async function registerAdminApiRoutes(
           nextEpisodeSeasonNumber: item.nextEpisode.seasonNumber,
           nextEpisodeEpisodeNumber: item.nextEpisode.episodeNumber,
           nextEpisodeAbsoluteEpisodeNumber: item.nextEpisode.absoluteEpisodeNumber,
-          nextEpisodeTitle: nextEpisodeView?.title ?? null,
+          nextEpisode: nextEpisodeView ? toClientMediaCard(nextEpisodeView, { progress: null }) : null,
           metadataRefreshedAt: null,
           payload: { source: 'canonical_watch' as const },
         };

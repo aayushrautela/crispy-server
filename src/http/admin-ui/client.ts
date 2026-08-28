@@ -1326,7 +1326,7 @@ export const ADMIN_UI_CLIENT = String.raw`
           : (item.nextEpisodeAirDate ? 'next unresolved' : 'next n/a');
       const nextSecondary =
         hasCanonicalNextEpisode
-          ? [episodeLabel, item.nextEpisodeTitle].filter(Boolean).join(' • ')
+          ? [episodeLabel, item.nextEpisode?.title].filter(Boolean).join(' • ')
           : (item.nextEpisodeAirDate ? 'raw date ' + formatDate(item.nextEpisodeAirDate) : '');
       return '<div class="item-row">'
         + '<strong>' + escapeHtml(mediaTitle(media)) + '</strong>'
