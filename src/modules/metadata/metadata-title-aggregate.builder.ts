@@ -45,7 +45,7 @@ export class MetadataTitleAggregateBuilder {
 
     const [item, imdbTrailer, nextEpisode] = await Promise.all([
       Promise.resolve(buildMetadataCardView({ identity, itemId, title: resolvedTitle, currentEpisode: null, language: language ?? null })).then((view: import('./metadata-card.types.js').MetadataCardView) => toClientMediaCard(view, { progress: null })),
-      imdbId ? imdbTrailerService.resolveTrailer(imdbId) : Promise.resolve(null),
+      imdbId ? imdbTrailerService.resolveTrailer(imdbId, identity.seasonNumber) : Promise.resolve(null),
       this.buildNextEpisode(client, resolvedTitle, source.tmdbNextEpisode),
     ]);
 

@@ -35,7 +35,7 @@ export class MetadataDetailCoreService {
     if (resolvedTitle) {
       const imdbId = extractExternalIds(resolvedTitle).imdb;
       if (imdbId) {
-        const imdbTrailer = await imdbTrailerService.resolveTrailer(imdbId);
+        const imdbTrailer = await imdbTrailerService.resolveTrailer(imdbId, identity.seasonNumber);
         if (imdbTrailer) {
           return { ...card, trailerUrl: imdbTrailer.url };
         }
