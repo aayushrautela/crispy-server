@@ -277,8 +277,21 @@ export class TmdbRepository {
       return;
     }
 
+    const seen = new Set<string>();
+    const uniqueEntries = entries.filter((entry) => {
+      if (seen.has(entry.lang)) {
+        return false;
+      }
+      seen.add(entry.lang);
+      return true;
+    });
+
+    if (!uniqueEntries.length) {
+      return;
+    }
+
     const values: unknown[] = [];
-    const tuples = entries.map((entry, index) => {
+    const tuples = uniqueEntries.map((entry, index) => {
       const base = index * 6;
       values.push(mediaType, tmdbId, entry.lang, entry.name, entry.overview, entry.tagline);
       return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
