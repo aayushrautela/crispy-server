@@ -67,13 +67,16 @@ export class TmdbCacheService {
     if (cached?.hydrationLevel === 'not_found') {
       return null;
     }
-    if (cached) {
+
+    // Only serve detail records; summary is incomplete (no logos, credits, etc.)
+    if (cached?.hydrationLevel === 'detail') {
       if (!isFresh(cached)) {
         this.scheduleEntityRefresh(mediaType, tmdbId);
       }
       return cached;
     }
 
+    // Cold key OR summary record → hydrate through the same path
     await this.ingest.ingestTitle(client, mediaType, tmdbId, lang);
     const hydrated = await this.tmdbRepository.getTitle(client, mediaType, tmdbId, lang);
     return hydrated && hydrated.hydrationLevel !== 'not_found' ? hydrated : null;

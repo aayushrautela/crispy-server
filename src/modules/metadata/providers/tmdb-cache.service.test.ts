@@ -108,6 +108,30 @@ test('getTitle maps negative ingest results to null', async () => {
   assert.equal(result, null);
 });
 
+test('getTitle hydrates summary records instead of returning them', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  let ingested = false;
+  const summaryRow = makeTitle({ hydrationLevel: 'summary', expiresAt: '2099-01-01T00:00:00.000Z' });
+  const detailRow = makeTitle({ hydrationLevel: 'detail' });
+  const service = new module.TmdbCacheService(
+    {
+      getTitle: async () => (ingested ? detailRow : summaryRow),
+    } as never,
+    {
+      ingestTitle: async () => {
+        ingested = true;
+        return detailRow;
+      },
+    } as never,
+    { request: async () => { throw new Error('store must not use the API client'); } } as never,
+  );
+
+  const result = await service.getTitle({} as never, 'tv', 42);
+  assert.equal(ingested, true);
+  assert.equal(result?.hydrationLevel, 'detail');
+});
+
 test('getTitles hydrates only missing keys', async () => {
   const module = await import('./tmdb-cache.service.js');
 
