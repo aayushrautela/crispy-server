@@ -102,7 +102,7 @@ GET /internal/apps/v1/accounts/:accountId/profiles/:profileId/eligibility
 
 Every per-signal watch route returns the **same `ClientMediaCard[]` shape** the public `/v1/profiles/:profileId/watch/*` and `/v1/profiles/:profileId/home` routes return — fully-enriched cards with canonical `itemId`, `mediaType`, `title`, `overview`, `year`, `images`, `trailerUrl`, `progress`, `parent`. MAIN runs the single read-time card-enrichment pass for every path; there is no raw `BaseItemDto` leak on the internal signal routes and no parallel un-enriched shape for the reco worker.
 
-RECO's worker reads `itemId` + `mediaType` directly off each card via a single inline `cardToRecoInput` helper. RECO's webui renders the cards as-is. No consumer runs a `CatalogService` pass, re-resolves TMDB metadata by `ProviderIds.Tmdb`, or overlays `title`/`posterUrl`/`overview`/`mediaType`/`year` per row. The reco-side `signal_bundle_mapper`/`signal_assembler` type is deleted.
+RECO's worker reads `itemId` + `mediaType` directly off each card via a single inline `cardToRecoInput` helper. RECO's webui renders the cards as-is. No consumer runs a `CatalogService` pass, re-resolves TMDB metadata by `ProviderIds.Tmdb`, or overlays `title`/`artworkUrl`/`overview`/`mediaType`/`year` per row. The reco-side `signal_bundle_mapper`/`signal_assembler` type is deleted.
 
 The watch-progress fields RECO's worker needs (`played`, `playCount`, `positionSeconds`, `percent`, `lastPlayedAt`, `userRating`, `watchlisted`) are carried on the card's existing `progress` (`ClientProgress`) field — no `BaseItemDto.UserData` is read from the wire.
 

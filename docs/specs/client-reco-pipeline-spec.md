@@ -14,7 +14,7 @@ Status: target contract for the home ingest pipeline and the **single** read-pat
 
 ## Non-goals
 
-- No enriched poster/title blobs stored as recommendation source data.
+- No enriched artwork/title blobs stored as recommendation source data.
 - No compatibility endpoint, dual shape, or per-consumer enrichment pass for any read path.
 - No legacy `BaseItemDto` shape carried alongside the card shape on internal routes "for backward compatibility." The internal signal routes return cards, not raw `BaseItemDto` rows.
 
@@ -55,8 +55,7 @@ type ImageSet = {
 };
 
 type ClientImages = {
-  poster: ImageSet | null;
-  backdrop: ImageSet | null;
+  artwork: ImageSet | null;
   logo: ImageSet | null;
   still?: ImageSet | null;
 };
@@ -158,7 +157,7 @@ Rules:
 - The internal signal routes return `ClientMediaCard[]` (one card per row), not raw `BaseItemDto`.
 - RECO reads `itemId` and `mediaType` off each card; it does not re-resolve `ProviderIds.Tmdb` because MAIN already canonicalized identity at materialization time.
 - RECO must not carry enriched card payloads over to the *write* side. The read-shape card never reaches `RecoListWriteRequest.items`; the write side still uses `RecoWriteItem` (provider refs + `type`), as below.
-- RECO must not include titles, original titles, years, release dates, posters, backdrops, logos, trailers, or `BaseItemDto.UserData` in its write payload.
+- RECO must not include titles, original titles, years, release dates, artwork, logos, trailers, or `BaseItemDto.UserData` in its write payload.
 
 ### RECO signal pipeline (per-signal reads)
 
@@ -288,7 +287,7 @@ Rules:
 - Every item must have `type` and at least one provider ref.
 - RECO must not send `itemId`, `contentId`, `mediaKey`, nested `item`/`ref` wrappers, or TMDB-specific top-level fields.
 - `score` and `metadata` are **tolerated but ignored** by the home response. They are kept in the OpenAPI schema for backward compatibility only. New producers should omit them.
-- RECO must not send posters, artwork, descriptions, display titles per item, or enriched card payloads.
+- RECO must not send artwork, descriptions, display titles per item, or enriched card payloads.
 
 ### Batch write
 

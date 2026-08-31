@@ -151,7 +151,7 @@ Generated outputs are published back through internal app recommendation write e
 
 See "Home ingest pipeline" below for the unified producer contract (reco, custom, fallback) and the transform/write path. The same endpoint and request shape are reused for every source; only the `source` field on the stored snapshot distinguishes provenance.
 
-RECO must not send nested identity wrappers, enriched card payloads, `ClientMediaCard`, `BaseItemDto`, posters, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata. The write side carries only `RecoWriteItem` (provider refs + `type`); the read-side card shape never reaches the write side.
+RECO must not send nested identity wrappers, enriched card payloads, `ClientMediaCard`, `BaseItemDto`, artwork, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata. The write side carries only `RecoWriteItem` (provider refs + `type`); the read-side card shape never reaches the write side.
 
 Result ingestion is idempotent by profile, list key, and idempotency key where documented.
 
