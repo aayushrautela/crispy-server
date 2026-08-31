@@ -9,8 +9,7 @@ export type ResponsiveImageSet = {
 };
 
 export type MetadataArtwork = {
-  poster: ResponsiveImageSet;
-  backdrop: ResponsiveImageSet;
+  artwork: ResponsiveImageSet;
   still: ResponsiveImageSet;
 };
 
@@ -80,7 +79,7 @@ export type RegularCardView = {
   mediaType: MetadataViewMediaType;
   itemId: string;
   title: string;
-  poster: ResponsiveImageSet;
+  artwork: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
   genre: string | null;
@@ -93,8 +92,7 @@ export type LandscapeCardView = {
   mediaType: MetadataViewMediaType;
   itemId: string;
   title: string;
-  poster: ResponsiveImageSet;
-  backdrop: ResponsiveImageSet;
+  artwork: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
   genre: string | null;
@@ -108,7 +106,7 @@ export type LandscapeCardView = {
 export type CollectionCardItemView = {
   mediaType: MetadataViewMediaType;
   title: string;
-  poster: ResponsiveImageSet;
+  artwork: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;
 };
@@ -124,8 +122,7 @@ export type HeroCardView = {
   mediaType: MetadataViewMediaType;
   title: string;
   description: string;
-  backdrop: ResponsiveImageSet;
-  poster: ResponsiveImageSet;
+  artwork: ResponsiveImageSet;
   logo: ResponsiveImageSet;
   releaseYear: number | null;
   rating: number | null;

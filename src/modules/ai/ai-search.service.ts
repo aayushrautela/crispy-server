@@ -125,7 +125,7 @@ export function buildAiSearchResponse(internal: AiSearchInternalResult): Metadat
       itemId: c.contentId,
       mediaType: c.identity.mediaType === 'show' ? 'tv' : 'movie',
       title: c.hydrated?.name ?? null,
-      images: { poster: { small: null, medium: null, large: null }, backdrop: { small: null, medium: null, large: null } },
+      images: { artwork: { small: null, medium: null, large: null } },
       progress: null,
       parentId: null,
       parent: null,

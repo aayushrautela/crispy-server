@@ -119,7 +119,7 @@ export class AiInsightsService {
     const backdrops = backdropPaths
       .map((path) => buildResponsiveImageSet(path, BACKDROP_IMAGE_SIZES))
       .filter((set): set is ResponsiveImageSet => Boolean(set.small || set.medium || set.large));
-    const candidates = backdrops.length > 0 ? backdrops : (titleDetail.Item.images.backdrop ? [titleDetail.Item.images.backdrop] : []);
+    const candidates = backdrops.length > 0 ? backdrops : (titleDetail.Item.images.artwork ? [titleDetail.Item.images.artwork] : []);
 
     const pickBackdrop = (index: number): ResponsiveImageSet => {
       if (candidates.length === 0) {

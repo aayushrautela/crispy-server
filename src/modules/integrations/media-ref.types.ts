@@ -27,8 +27,7 @@ export interface MetadataHint {
   overview?: string;
   releaseYear?: number;
   releaseDate?: string;
-  posterUrl?: string;
-  backdropUrl?: string;
+  artworkUrl?: string;
   runtimeMinutes?: number;
   genres?: string[];
   rating?: string;

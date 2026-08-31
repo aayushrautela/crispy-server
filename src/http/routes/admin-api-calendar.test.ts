@@ -22,8 +22,7 @@ function makeCalendarCard(overrides: Record<string, unknown>) {
     genres: ['Drama'],
     runtimeSeconds: overrides.runtimeSeconds as number | null ?? 2640,
     images: {
-      poster: { small: 'https://img.test/poster.jpg', medium: 'https://img.test/poster.jpg', large: 'https://img.test/poster.jpg' },
-      backdrop: { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' },
+      artwork: { small: 'https://img.test/artwork.jpg', medium: 'https://img.test/artwork.jpg', large: 'https://img.test/artwork.jpg' },
       logo: { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' },
       still: { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' },
     },

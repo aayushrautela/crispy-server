@@ -462,8 +462,7 @@ export function extractCollection(title: TmdbTitleRecord | null): {
   provider: string;
   providerId: string;
   name: string;
-  poster: ResponsiveImageSet;
-  backdrop: ResponsiveImageSet;
+  artwork: ResponsiveImageSet;
   parts: TmdbTitleRecord[];
 } | null {
   const collection = asRecord(title?.raw.belongs_to_collection);
@@ -477,21 +476,15 @@ export function extractCollection(title: TmdbTitleRecord | null): {
     return null;
   }
 
+  const posterPath = asString(collection.poster_path);
+  const backdropPath = asString(collection.backdrop_path);
+
   return {
     id,
     provider: 'tmdb',
     providerId: String(id),
     name,
-    poster: buildResponsiveImageSet(asString(collection.poster_path), {
-      small: 'w342',
-      medium: 'w500',
-      large: 'w780',
-    }),
-    backdrop: buildResponsiveImageSet(asString(collection.backdrop_path), {
-      small: 'w780',
-      medium: 'w1280',
-      large: 'original',
-    }),
+    artwork: buildMergedArtwork(backdropPath, posterPath),
     parts: [],
   };
 }
@@ -623,17 +616,10 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
 }
 
 export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, preferredLanguage?: string | null, seasonPosterPath?: string | null): MetadataImages {
+  const posterPath = seasonPosterPath ?? title?.posterPath ?? null;
+  const backdropPath = episode?.stillPath ?? title?.backdropPath ?? null;
   return {
-    poster: buildResponsiveImageSet(seasonPosterPath ?? title?.posterPath ?? null, {
-      small: 'w342',
-      medium: 'w500',
-      large: 'w780',
-    }),
-    backdrop: buildResponsiveImageSet(episode?.stillPath ?? title?.backdropPath ?? null, {
-      small: 'w780',
-      medium: 'w1280',
-      large: 'original',
-    }),
+    artwork: buildMergedArtwork(backdropPath, posterPath),
     still: buildResponsiveImageSet(episode?.stillPath ?? null, {
       small: 'w300',
       medium: 'h632',
@@ -644,5 +630,23 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
       medium: 'w500',
       large: 'original',
     }),
+  };
+}
+
+function buildMergedArtwork(backdropPath: string | null, posterPath: string | null): ResponsiveImageSet {
+  const backdrop = buildResponsiveImageSet(backdropPath, {
+    small: 'w780',
+    medium: 'w1280',
+    large: 'original',
+  });
+  const poster = buildResponsiveImageSet(posterPath, {
+    small: 'w342',
+    medium: 'w500',
+    large: 'w780',
+  });
+  return {
+    small: backdrop.small ?? poster.small,
+    medium: backdrop.medium ?? poster.medium,
+    large: backdrop.large ?? poster.large,
   };
 }

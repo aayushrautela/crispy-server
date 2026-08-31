@@ -21,7 +21,7 @@ function makeClientMediaCard(id: string): ClientMediaCard {
     maturityRating: null,
     genres: [],
     runtimeSeconds: null,
-    images: { poster: null, backdrop: null, logo: null, still: null },
+    images: { artwork: null, logo: null, still: null },
     trailerUrl: null,
     progress: null,
     parent: null,

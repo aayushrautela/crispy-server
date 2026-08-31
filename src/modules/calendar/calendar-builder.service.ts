@@ -146,8 +146,7 @@ export class CalendarBuilderService {
       genres: showView?.genres ?? episodeView.genres,
       runtimeSeconds: typeof episodeView.runtimeMinutes === 'number' ? episodeView.runtimeMinutes * 60 : null,
       images: {
-        poster: episodeView.images.poster,
-        backdrop: episodeView.images.backdrop,
+        artwork: episodeView.images.artwork,
         logo: showView?.images.logo ?? episodeView.images.logo,
         still: episodeView.images.still,
       },

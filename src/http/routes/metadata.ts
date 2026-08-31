@@ -196,13 +196,13 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
         const view = buildMetadataCardView({ identity, itemId: encodePublicItemId(contentId), title: hydrated, language: locale });
         cards.push(toClientMediaCard(view, { progress: null }));
       }
-      // Boundary filtering: hasSearchPoster (display concern) after hydration
-      const withPoster = cards.filter((c) => {
-        const p = c.images.poster;
-        return Boolean(p && (p.small || p.medium || p.large));
+      // Boundary filtering: hasSearchArtwork (display concern) after hydration
+      const withArtwork = cards.filter((c) => {
+        const a = c.images.artwork;
+        return Boolean(a && (a.small || a.medium || a.large));
       });
-      const movies = withPoster.filter((c) => c.mediaType === 'movie').slice(0, 20);
-      const series = withPoster.filter((c) => c.mediaType === 'tv').slice(0, 20);
+      const movies = withArtwork.filter((c) => c.mediaType === 'movie').slice(0, 20);
+      const series = withArtwork.filter((c) => c.mediaType === 'tv').slice(0, 20);
       return { query: internal.normalizedQuery, movies, series, people: internal.peopleMatches };
     });
     return success(result);

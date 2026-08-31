@@ -17,7 +17,7 @@ export type PaginatedWatchCollection<TItem> = {
 /**
  * Phase 0 — Boundary seam type.
  * Internal refs carry ONLY itemId + per-user state (Brain 1).
- * No title/poster/overview/genres — hydration happens at the route boundary
+ * No title/artwork/overview/genres — hydration happens at the route boundary
  * via MetadataCardService → toClientMediaCard (Brain 2).
  */
 export type WatchInternalProgress = {

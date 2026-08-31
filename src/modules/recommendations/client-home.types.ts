@@ -3,8 +3,7 @@ import type { ResponsiveImageSet } from '../metadata/metadata-card.types.js';
 export type ClientMediaType = 'movie' | 'tv' | 'season' | 'episode';
 
 export type ClientImages = {
-  poster: ResponsiveImageSet | null;
-  backdrop: ResponsiveImageSet | null;
+  artwork: ResponsiveImageSet | null;
   logo: ResponsiveImageSet | null;
   still?: ResponsiveImageSet | null;
 };

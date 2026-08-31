@@ -32,8 +32,8 @@ function resolveProviderParentMediaType(identity: MediaIdentity): MetadataParent
 }
 
 export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
-  const poster = card.images.poster;
-  if (!card.title || (!poster.small && !poster.medium && !poster.large)) {
+  const artwork = card.images.artwork;
+  if (!card.title || (!artwork.small && !artwork.medium && !artwork.large)) {
     return null;
   }
 
@@ -41,7 +41,7 @@ export function toCatalogItem(card: MetadataCardView): CatalogItem | null {
     mediaType: card.mediaType,
     itemId: card.itemId,
     title: card.title,
-    poster,
+    artwork,
     releaseYear: card.releaseYear,
     rating: card.rating,
     genre: null,
@@ -92,8 +92,7 @@ export function buildMetadataCardView(params: {
   const images = buildMetadataImages(title, currentEpisode, language, currentSeason?.posterPath ?? null);
   const trailer = extractPrimaryTrailer(title, language);
   const artwork = {
-    poster: images.poster,
-    backdrop: images.backdrop,
+    artwork: images.artwork,
     still: images.still,
   };
   const resolvedMediaType = identity.mediaType === 'show' || identity.mediaType === 'episode' || identity.mediaType === 'season'

@@ -26,8 +26,7 @@ export interface PublicMediaItemDto {
   title: string;
   subtitle: string | null;
   year: number | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
+  artworkUrl: string | null;
   runtimeMinutes: number | null;
   rating: number | null;
 }

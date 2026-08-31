@@ -66,8 +66,7 @@ export type WatchMediaProjection = {
   episodeStillUrl: string | null;
   title: string | null;
   subtitle: string | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
+  artworkUrl: string | null;
   logoUrl: string | null;
   trailerUrl: string | null;
   trailerThumbnailUrl: string | null;

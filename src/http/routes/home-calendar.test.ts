@@ -19,8 +19,7 @@ function makeCalendarCard(overrides: Record<string, unknown>) {
     genres: (overrides.genres as string[] | undefined) ?? ['Drama'],
     runtimeSeconds: overrides.runtimeSeconds as number | null ?? 2640,
     images: {
-      poster: imageSets?.poster ?? { small: 'https://img.test/poster.jpg', medium: 'https://img.test/poster.jpg', large: 'https://img.test/poster.jpg' },
-      backdrop: imageSets?.backdrop ?? { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' },
+      artwork: imageSets?.artwork ?? { small: 'https://img.test/artwork.jpg', medium: 'https://img.test/artwork.jpg', large: 'https://img.test/artwork.jpg' },
       logo: imageSets?.logo ?? { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' },
       still: imageSets?.still ?? { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' },
     },
@@ -92,7 +91,7 @@ test('calendar route returns canonical envelope fields', async (t) => {
   assert.equal(data.items[0].bucket, 'up_next');
   assert.ok(data.items[0].images.logo);
   assert.ok(data.items[0].images.still);
-  assert.ok(data.items[0].images.backdrop);
+  assert.ok(data.items[0].images.artwork);
 });
 
 test('calendar this-week route returns narrowed canonical envelope fields', async (t) => {

@@ -35,8 +35,7 @@ export function toClientMediaCard(
       : null;
 
   const images: ClientImages = {
-    poster: view.images.poster,
-    backdrop: view.images.backdrop,
+    artwork: view.images.artwork,
     logo: view.images.logo,
     still: view.images.still,
   };
