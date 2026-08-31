@@ -338,7 +338,7 @@ export class TmdbRepository {
 
     const values: unknown[] = [];
     const tuples = reviews.map((review, index) => {
-      const base = index * 10;
+      const base = index * 11;
       values.push(review.mediaType, review.tmdbId, review.source, review.reviewKey, review.author);
       values.push(review.authorUsername, review.content, review.lang, review.url, review.rating);
       values.push(review.avatarUrl);
