@@ -1,7 +1,6 @@
 import { appConfig } from '../../../config/app-config.js';
 import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
-import { enqueueTmdbImageFetch } from '../../../lib/queue.js';
 import { buildTmdbIncludeImageLanguage, normalizeMetadataLanguage, toTmdbLanguageQuery } from '../metadata-language.js';
 import type { TmdbEpisodeRecord, TmdbImageRecord, TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType, TmdbTranslationEntry } from './tmdb.types.js';
 import { TmdbClient } from './tmdb.client.js';
@@ -294,7 +293,7 @@ export class TmdbIngestService {
     }
 
     for (const row of rows) {
-      enqueueTmdbImageFetch(row.mediaType, row.tmdbId, language).catch(() => {});
+      await this.fetchImages(client, row.mediaType, row.tmdbId, language);
     }
   }
 
