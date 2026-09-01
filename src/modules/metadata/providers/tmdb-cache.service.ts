@@ -225,7 +225,7 @@ export class TmdbCacheService {
 
     for (const payload of payloads) {
       if (!payload) continue;
-      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], searchableTypes[0]);
+      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], searchableTypes[0], locale);
     }
 
     const refreshed = await this.tmdbRepository.searchTitles(client, query, limit, mediaTypes, lang);
@@ -275,7 +275,7 @@ export class TmdbCacheService {
     ).flat().filter(Boolean) as Array<Record<string, unknown>>;
 
     for (const payload of liveResults) {
-      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[]);
+      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], undefined, params.locale);
     }
 
     const refreshed = (

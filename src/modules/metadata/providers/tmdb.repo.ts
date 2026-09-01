@@ -314,7 +314,17 @@ export class TmdbRepository {
     if (!images.length) {
       return;
     }
+    await this.insertImages(client, mediaType, tmdbId, images);
+  }
 
+  async upsertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[]): Promise<void> {
+    if (!images.length) {
+      return;
+    }
+    await this.insertImages(client, mediaType, tmdbId, images);
+  }
+
+  private async insertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[]): Promise<void> {
     const values: unknown[] = [];
     const tuples = images.map((image, index) => {
       const base = index * 5;
@@ -834,6 +844,7 @@ function mapPerson(row: Row): TmdbPersonRecord {
     profilePath: typeof row.profile_path === 'string' ? row.profile_path : null,
     popularity: row.popularity === null || row.popularity === undefined ? 0 : Number(row.popularity),
     homepage: typeof row.homepage === 'string' ? row.homepage : null,
+    raw: (row.raw as Record<string, unknown> | undefined) ?? null,
     fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_people.fetched_at'),
     expiresAt: requireDbIsoString(row.expires_at as Date | string | null | undefined, 'tmdb_people.expires_at'),
   };

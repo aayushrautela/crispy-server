@@ -33,6 +33,12 @@ export type TmdbCacheWarmTitleBatchJob = {
   tmdbIds: number[];
 };
 
+export type TmdbImageFetchJob = {
+  mediaType: 'movie' | 'tv';
+  tmdbId: number;
+  language?: string | null;
+};
+
 export type TmdbCacheWarmSeasonBatchJob = {
   showTmdbId: number;
   seasonNumbers: number[];
@@ -90,6 +96,18 @@ export async function enqueueTmdbTitleWarmBatch(mediaType: 'movie' | 'tv', tmdbI
 
   await getProjectionQueue().add('tmdb-cache-warm-title-batch', { mediaType, tmdbIds: ids }, {
     jobId: buildJobId('tmdb-cache-warm-title-batch', mediaType, ids.join(',')),
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+}
+
+export async function enqueueTmdbImageFetch(mediaType: 'movie' | 'tv', tmdbId: number, language?: string | null): Promise<void> {
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+    return;
+  }
+
+  await getProjectionQueue().add('tmdb-image-fetch', { mediaType, tmdbId, language }, {
+    jobId: buildJobId('tmdb-image-fetch', mediaType, String(tmdbId)),
     removeOnComplete: true,
     removeOnFail: 100,
   });

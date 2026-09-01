@@ -1,5 +1,5 @@
 import { withDbClient } from '../../lib/db.js';
-import type { TmdbCachePurgeExpiredJob, TmdbCacheWarmSeasonBatchJob, TmdbCacheWarmTitleBatchJob, TmdbEntityRefreshJob } from '../../lib/queue.js';
+import type { TmdbCachePurgeExpiredJob, TmdbCacheWarmSeasonBatchJob, TmdbCacheWarmTitleBatchJob, TmdbEntityRefreshJob, TmdbImageFetchJob } from '../../lib/queue.js';
 import { TmdbCacheService } from '../../modules/metadata/providers/tmdb-cache.service.js';
 import { TmdbIngestService } from '../../modules/metadata/providers/tmdb-ingest.service.js';
 import { TmdbRepository } from '../../modules/metadata/providers/tmdb.repo.js';
@@ -33,5 +33,11 @@ export async function runTmdbSeasonWarmBatchJob(payload: TmdbCacheWarmSeasonBatc
 export async function runTmdbCachePurgeExpiredJob(payload: TmdbCachePurgeExpiredJob): Promise<void> {
   await withDbClient(async (client) => {
     await repository.purgeExpiredEntities(client, payload.limit);
+  });
+}
+
+export async function runTmdbImageFetchJob(payload: TmdbImageFetchJob): Promise<void> {
+  await withDbClient(async (client) => {
+    await ingest.fetchImages(client, payload.mediaType, payload.tmdbId, payload.language);
   });
 }

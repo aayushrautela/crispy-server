@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import { logger } from '../config/logger.js';
-import { bullConnection, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob, type TmdbEntityRefreshJob } from '../lib/queue.js';
+import { bullConnection, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob, type TmdbEntityRefreshJob, type TmdbImageFetchJob } from '../lib/queue.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
@@ -8,6 +8,7 @@ import { runHomeSeedJob } from './jobs/home-seed.job.js';
 import {
   runTmdbCachePurgeExpiredJob,
   runTmdbEntityRefreshJob,
+  runTmdbImageFetchJob,
   runTmdbSeasonWarmBatchJob,
   runTmdbTitleWarmBatchJob,
 } from './jobs/tmdb-cache.job.js';
@@ -40,6 +41,9 @@ export function startWorker(): Worker {
           return;
         case 'tmdb-cache-warm-season-batch':
           await runTmdbSeasonWarmBatchJob(payload as unknown as TmdbCacheWarmSeasonBatchJob);
+          return;
+        case 'tmdb-image-fetch':
+          await runTmdbImageFetchJob(payload as unknown as TmdbImageFetchJob);
           return;
         case 'tmdb-cache-purge-expired':
           await runTmdbCachePurgeExpiredJob(payload as unknown as TmdbCachePurgeExpiredJob);

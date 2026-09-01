@@ -1,6 +1,7 @@
 import { appConfig } from '../../../config/app-config.js';
 import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
+import { enqueueTmdbImageFetch } from '../../../lib/queue.js';
 import { buildTmdbIncludeImageLanguage, normalizeMetadataLanguage, toTmdbLanguageQuery } from '../metadata-language.js';
 import type { TmdbEpisodeRecord, TmdbImageRecord, TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType, TmdbTranslationEntry } from './tmdb.types.js';
 import { TmdbClient } from './tmdb.client.js';
@@ -123,7 +124,7 @@ export class TmdbIngestService {
             rank: index + 1,
           })),
         );
-        await this.persistSummaries(client, results, mediaType);
+        await this.persistSummaries(client, results, mediaType, effectiveLanguage);
       }
 
       await client.query('COMMIT');
@@ -194,7 +195,7 @@ export class TmdbIngestService {
         rank: index + 1,
       })),
     );
-    await this.persistSummaries(client, parts.map((entry) => entry as DetailPayload), 'movie');
+    await this.persistSummaries(client, parts.map((entry) => entry as DetailPayload), 'movie', language);
     return parts.length > 0;
   }
 
@@ -246,12 +247,12 @@ export class TmdbIngestService {
     ].filter((credit) => credit.targetMediaType === 'movie' || credit.targetMediaType === 'tv');
 
     await this.repository.replacePersonCredits(client, personTmdbId, mappedCredits.slice(0, 120));
-    await this.persistSummaries(client, [...asArray(credits.cast), ...asArray(credits.crew)].slice(0, 80).map((entry) => entry as DetailPayload));
+    await this.persistSummaries(client, [...asArray(credits.cast), ...asArray(credits.crew)].slice(0, 80).map((entry) => entry as DetailPayload), undefined, effectiveLanguage);
     return this.repository.getPerson(client, personTmdbId);
   }
 
   /** Persists lightweight search/discover/recommendation hits so future lookups stay local. */
-  async persistSummaries(client: DbClient, items: DetailPayload[], fallbackMediaType?: TmdbTitleType): Promise<void> {
+  async persistSummaries(client: DbClient, items: DetailPayload[], fallbackMediaType?: TmdbTitleType, language?: string | null): Promise<void> {
     const rows = items
       .filter((item) => typeof item.id === 'number' && Number.isFinite(item.id))
       .map((item) => {
@@ -290,6 +291,27 @@ export class TmdbIngestService {
           tagline: null,
         }]);
       }
+    }
+
+    for (const row of rows) {
+      enqueueTmdbImageFetch(row.mediaType, row.tmdbId, language).catch(() => {});
+    }
+  }
+
+  async fetchImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null): Promise<void> {
+    const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
+    const payload = await this.tmdbClient.request(`/${mediaType}/${tmdbId}/images`, {
+      include_image_language: buildTmdbIncludeImageLanguage(effectiveLanguage),
+    });
+
+    const images = [
+      ...mapImages(payload as DetailPayload | undefined, 'posters', 'poster'),
+      ...mapImages(payload as DetailPayload | undefined, 'backdrops', 'backdrop'),
+      ...mapImages(payload as DetailPayload | undefined, 'logos', 'logo'),
+    ];
+
+    if (images.length > 0) {
+      await this.repository.upsertImages(client, mediaType, tmdbId, images);
     }
   }
 }
