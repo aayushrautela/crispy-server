@@ -6,9 +6,9 @@
     },
     "calendarTtlSeconds": 300,
     "tmdb": {
-      "movieTtlHours": 168,
-      "showTtlHours": 12,
-      "seasonTtlHours": 12
+      "movieTtlHours": 360,
+      "showTtlHours": 360,
+      "seasonTtlHours": 6
     }
   },
   "metadata": {

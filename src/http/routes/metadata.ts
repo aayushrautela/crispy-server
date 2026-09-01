@@ -8,14 +8,12 @@ import {
   metadataPersonRouteSchema,
   metadataSearchRouteSchema,
   playbackResolveRouteSchema,
-  searchSuggestionsRouteSchema,
   type MetadataCardsBatchBody,
   type MetadataItemParams,
   type MetadataPlaybackResolveQuery,
   type MetadataPersonParams,
   type MetadataPersonQuery,
   type MetadataSearchQuery,
-  type MetadataSearchSuggestionsQuery,
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDetailService } from '../../modules/metadata/metadata-detail.service.js';
@@ -207,19 +205,6 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       return { query: internal.normalizedQuery, movies, series, people: internal.peopleMatches };
     });
     return success(result);
-  });
-
-  app.get('/v1/search/suggestions', { schema: searchSuggestionsRouteSchema }, async (request) => {
-    await app.requireAuth(request);
-    const query = (request.query ?? {}) as MetadataSearchSuggestionsQuery;
-    const searchQuery = asOptionalString(query.query) ?? '';
-    const filter = parseSearchFilter(query.filter);
-    const limit = clampLimit(parseOptionalNumber(query.limit) ?? 8, 1, 10);
-    const locale = await metadataLanguageService.resolveForAccount(
-      (app.requireUserActor(request) as { appUserId: string }).appUserId,
-      asOptionalString(query.locale),
-    );
-    return success({ suggestions: await titleSearchService.suggestTitles({ query: searchQuery, filter, limit, locale }) });
   });
 
   app.post('/v1/metadata/cards/batch', { schema: metadataCardsBatchRouteSchema }, async (request) => {

@@ -309,41 +309,48 @@ export class TmdbRepository {
     );
   }
 
-  async replaceImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[]): Promise<void> {
+  async replaceImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[], expiresAt?: string): Promise<void> {
     await client.query(`DELETE FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2`, [mediaType, tmdbId]);
     if (!images.length) {
       return;
     }
-    await this.insertImages(client, mediaType, tmdbId, images);
+    await this.insertImages(client, mediaType, tmdbId, images, expiresAt);
   }
 
-  async upsertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[]): Promise<void> {
+  async upsertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[], expiresAt?: string): Promise<void> {
     if (!images.length) {
       return;
     }
-    await this.insertImages(client, mediaType, tmdbId, images);
+    await this.insertImages(client, mediaType, tmdbId, images, expiresAt);
   }
 
   async hasImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<boolean> {
     const result = await client.query(
-      `SELECT EXISTS(SELECT 1 FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2 LIMIT 1) AS has_images`,
+      `SELECT EXISTS(SELECT 1 FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2 AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1) AS has_images`,
       [mediaType, tmdbId],
     );
     return Boolean(result.rows[0]?.has_images);
   }
 
-  private async insertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[]): Promise<void> {
+  async purgeExpiredImages(client: DbClient, limit: number): Promise<void> {
+    await client.query(
+      `DELETE FROM tmdb_images WHERE expires_at IS NOT NULL AND expires_at < NOW() LIMIT $1`,
+      [limit],
+    );
+  }
+
+  private async insertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[], expiresAt?: string): Promise<void> {
     const values: unknown[] = [];
     const tuples = images.map((image, index) => {
-      const base = index * 5;
-      values.push(mediaType, tmdbId, image.kind, image.filePath, image.iso6391);
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
+      const base = index * 6;
+      values.push(mediaType, tmdbId, image.kind, image.filePath, image.iso6391, expiresAt ?? null);
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
     });
 
     await client.query(
-      `INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, iso_639_1)
+      `INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, iso_639_1, expires_at)
        VALUES ${tuples.join(', ')}
-       ON CONFLICT (media_type, tmdb_id, kind, file_path) DO NOTHING`,
+       ON CONFLICT (media_type, tmdb_id, kind, file_path) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
       values,
     );
   }

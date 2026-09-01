@@ -100,11 +100,14 @@ export class TmdbIngestService {
       }
       await this.repository.upsertTranslations(client, mediaType, tmdbId, translations);
 
+      const imageTtlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
+      const imageExpiresAt = new Date(Date.now() + imageTtlHours * 3_600_000).toISOString();
+
       await this.repository.replaceImages(client, mediaType, tmdbId, [
         ...mapImages(payload.images as DetailPayload | undefined, 'posters', 'poster'),
         ...mapImages(payload.images as DetailPayload | undefined, 'backdrops', 'backdrop'),
         ...mapImages(payload.images as DetailPayload | undefined, 'logos', 'logo'),
-      ]);
+      ], imageExpiresAt);
 
       await this.repository.replaceReviews(client, mediaType, tmdbId, 'tmdb', mapReviews(mediaType, tmdbId, payload));
 
@@ -310,7 +313,9 @@ export class TmdbIngestService {
     ];
 
     if (images.length > 0) {
-      await this.repository.upsertImages(client, mediaType, tmdbId, images);
+      const ttlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
+      const expiresAt = new Date(Date.now() + ttlHours * 3_600_000).toISOString();
+      await this.repository.upsertImages(client, mediaType, tmdbId, images, expiresAt);
     }
   }
 }

@@ -33,6 +33,7 @@ export async function runTmdbSeasonWarmBatchJob(payload: TmdbCacheWarmSeasonBatc
 export async function runTmdbCachePurgeExpiredJob(payload: TmdbCachePurgeExpiredJob): Promise<void> {
   await withDbClient(async (client) => {
     await repository.purgeExpiredEntities(client, payload.limit);
+    await repository.purgeExpiredImages(client, payload.limit);
   });
 }
 

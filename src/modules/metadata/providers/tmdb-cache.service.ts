@@ -68,7 +68,7 @@ export class TmdbCacheService {
       return null;
     }
 
-    // Detail record with images → serve from cache
+    // Only serve detail records; summary is incomplete (no logos, credits, etc.)
     if (cached?.hydrationLevel === 'detail') {
       if (!isFresh(cached)) {
         this.scheduleEntityRefresh(mediaType, tmdbId);
@@ -76,17 +76,7 @@ export class TmdbCacheService {
       return cached;
     }
 
-    // Summary record → check if images exist, fetch only if missing
-    if (cached?.hydrationLevel === 'summary') {
-      const hasImages = await this.tmdbRepository.hasImages(client, mediaType, tmdbId);
-      if (hasImages) {
-        return cached;
-      }
-      await this.ingest.fetchImages(client, mediaType, tmdbId, language);
-      return this.tmdbRepository.getTitle(client, mediaType, tmdbId, lang);
-    }
-
-    // Cold key → full hydrate
+    // Cold key OR summary record → full hydrate
     await this.ingest.ingestTitle(client, mediaType, tmdbId, lang);
     const hydrated = await this.tmdbRepository.getTitle(client, mediaType, tmdbId, lang);
     return hydrated && hydrated.hydrationLevel !== 'not_found' ? hydrated : null;
@@ -241,7 +231,7 @@ export class TmdbCacheService {
     const searchableTypes = mediaTypes.filter((mediaType) => mediaType === 'movie' || mediaType === 'tv');
     const localResults = await this.tmdbRepository.searchTitles(client, query, limit, mediaTypes, lang);
 
-    if (localResults.length >= Math.min(LOCAL_SEARCH_MIN_RESULTS, limit) || !searchableTypes.length) {
+    if (!searchableTypes.length) {
       return localResults;
     }
 
@@ -284,18 +274,6 @@ export class TmdbCacheService {
       return [];
     }
 
-    const localResults = (
-      await Promise.all(requested.map(({ mediaType, genreId }) =>
-        this.tmdbRepository.discoverTitlesByGenre(client, mediaType, genreId, params.limit, lang),
-      ))
-    ).flat();
-
-    if (localResults.length >= Math.min(LOCAL_SEARCH_MIN_RESULTS, params.limit)) {
-      return dedupeTitles(localResults)
-        .sort((left, right) => popularityOf(right) - popularityOf(left))
-        .slice(0, params.limit);
-    }
-
     const liveResults = (
       await Promise.all(requested.map(({ mediaType, genreId }) =>
         this.tmdbClient.request(`/discover/${mediaType}`, {
@@ -316,7 +294,7 @@ export class TmdbCacheService {
         this.tmdbRepository.discoverTitlesByGenre(client, mediaType, genreId, params.limit, lang),
       ))
     ).flat();
-    return dedupeTitles(refreshed.length >= localResults.length ? refreshed : localResults)
+    return dedupeTitles(refreshed)
       .sort((left, right) => popularityOf(right) - popularityOf(left))
       .slice(0, params.limit);
   }

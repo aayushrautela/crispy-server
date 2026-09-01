@@ -58,6 +58,47 @@ export interface paths {
         patch: operations["patchV1AccountSettings"];
         trace?: never;
     };
+    "/v1/account/addons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List installed addons. */
+        get: operations["getV1AccountAddons"];
+        put?: never;
+        /**
+         * Install addon.
+         * @description Installs a new addon by manifest URL. Only the admin profile can install addons. Duplicate manifest URLs are rejected with 409.
+         */
+        post: operations["postV1AccountAddons"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account/addons/{addonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove addon.
+         * @description Removes an installed addon by ID. Only the admin profile can remove addons.
+         */
+        delete: operations["deleteV1AccountAddonsAddonId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/personal-access-tokens": {
         parameters: {
             query?: never;
@@ -916,23 +957,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/search/suggestions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Search suggestions. */
-        get: operations["getV1SearchSuggestions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/metadata/cards/batch": {
         parameters: {
             query?: never;
@@ -1650,6 +1674,90 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GenericObject"];
                 };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1AccountAddons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postV1AccountAddons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenericObject"];
+            };
+        };
+        responses: {
+            /** @description Addon installed successfully. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    deleteV1AccountAddonsAddonId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                addonId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resource deleted or cleared. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
@@ -3478,36 +3586,6 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["ServerError"];
-        };
-    };
-    getV1SearchSuggestions: {
-        parameters: {
-            query?: {
-                query?: string;
-                filter?: "all" | "movies" | "series" | "people";
-                limit?: number;
-                locale?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GenericArrayEnvelope"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };

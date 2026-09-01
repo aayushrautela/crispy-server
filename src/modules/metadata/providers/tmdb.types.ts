@@ -21,6 +21,7 @@ export type TmdbImageRecord = {
   kind: 'poster' | 'backdrop' | 'logo';
   filePath: string;
   iso6391: string | null;
+  expiresAt?: string;
 };
 
 export type TmdbTranslationEntry = {

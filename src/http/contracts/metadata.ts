@@ -39,13 +39,6 @@ export type MetadataSearchQuery = {
   locale?: string;
 };
 
-export type MetadataSearchSuggestionsQuery = {
-  query?: string;
-  filter?: string;
-  limit?: number | string;
-  locale?: string;
-};
-
 export type MetadataCardsBatchBody = {
   itemIds?: string[];
   language?: string;
@@ -393,66 +386,6 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
   },
 });
 
-export const searchSuggestionItemSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['Id', 'Type', 'Name', 'ProductionYear', 'ImageTags', 'ProviderIds'],
-  properties: {
-    Id: stringSchema,
-    Type: { type: 'string', enum: ['Movie', 'Series'] },
-    Name: stringSchema,
-    ProductionYear: nullableIntegerSchema,
-    ImageTags: {
-      anyOf: [
-        {
-          type: 'object',
-          additionalProperties: false,
-          required: ['Primary'],
-          properties: {
-            Primary: {
-              anyOf: [responsiveImageSetSchema, { type: 'null' }],
-            },
-          },
-        },
-        { type: 'null' },
-      ],
-    },
-    ProviderIds: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['Tmdb'],
-      properties: { Tmdb: nullableStringSchema },
-    },
-  },
-} as const;
-
-const searchSuggestionsResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['suggestions'],
-  properties: {
-    suggestions: {
-      type: 'array',
-      items: searchSuggestionItemSchema,
-    },
-  },
-} as const;
-
-export const searchSuggestionsRouteSchema = withDefaultErrorResponses({
-  querystring: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      query: stringSchema,
-      filter: stringSchema,
-      limit: positiveIntegerLikeSchema,
-      locale: stringSchema,
-    },
-  },
-  response: {
-    200: successEnvelope(searchSuggestionsResponseSchema),
-  },
-});
 
 const metadataTitleExtrasResponseSchema = {
   type: 'object',
