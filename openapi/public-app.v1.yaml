@@ -4135,7 +4135,7 @@ components:
     MetadataPersonDetail:
       type: object
       additionalProperties: false
-      required: [personId, name, knownForDepartment, biography, birthday, placeOfBirth, profileUrl, knownFor]
+      required: [personId, name, knownForDepartment, biography, birthday, placeOfBirth, profileUrl, socials, knownFor]
       properties:
         personId:
           $ref: "#/components/schemas/PublicItemId"
@@ -4161,6 +4161,8 @@ components:
           anyOf:
             - type: string
             - type: "null"
+        socials:
+          $ref: "#/components/schemas/PersonSocials"
         knownFor:
           type: array
           items:
@@ -4175,6 +4177,36 @@ components:
           $ref: "#/components/schemas/MetadataPersonDetail"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
+    PersonSocials:
+      type: object
+      additionalProperties: false
+      required: [imdbId, instagram, twitter, facebook, tiktok, youtube]
+      properties:
+        imdbId:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: IMDB person identifier (e.g. "nm0041003"), or null if unavailable.
+        instagram:
+          anyOf:
+            - type: string
+            - type: "null"
+        twitter:
+          anyOf:
+            - type: string
+            - type: "null"
+        facebook:
+          anyOf:
+            - type: string
+            - type: "null"
+        tiktok:
+          anyOf:
+            - type: string
+            - type: "null"
+        youtube:
+          anyOf:
+            - type: string
+            - type: "null"
     MetadataSearchResponseEnvelope:
       type: object
       required:

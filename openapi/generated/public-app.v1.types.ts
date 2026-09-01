@@ -1376,11 +1376,21 @@ export interface components {
             birthday: string | null;
             placeOfBirth: string | null;
             profileUrl: string | null;
+            socials: components["schemas"]["PersonSocials"];
             knownFor: components["schemas"]["ClientMediaCard"][];
         };
         MetadataPersonDetailResponseEnvelope: {
             data: components["schemas"]["MetadataPersonDetail"];
             meta: components["schemas"]["ResponseMeta"];
+        };
+        PersonSocials: {
+            /** @description IMDB person identifier (e.g. "nm0041003"), or null if unavailable. */
+            imdbId: string | null;
+            instagram: string | null;
+            twitter: string | null;
+            facebook: string | null;
+            tiktok: string | null;
+            youtube: string | null;
         };
         MetadataSearchResponseEnvelope: {
             data: components["schemas"]["MetadataSearchResponse"];

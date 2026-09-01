@@ -115,6 +115,7 @@ export type TmdbPersonRecord = {
   popularity: number;
   homepage: string | null;
   knownFor?: Array<{ mediaType: string; title: string | null; tmdbId: number }>;
+  raw?: Record<string, unknown> | null;
   fetchedAt: string;
   expiresAt: string;
 };

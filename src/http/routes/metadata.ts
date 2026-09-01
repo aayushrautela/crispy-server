@@ -141,6 +141,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       birthday: internal.birthday,
       placeOfBirth: internal.placeOfBirth,
       profileUrl: internal.profileUrl,
+      socials: internal.socials,
       knownFor,
     });
   });

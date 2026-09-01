@@ -20,6 +20,7 @@ export class PersonDetailService {
     birthday: string | null;
     placeOfBirth: string | null;
     profileUrl: string | null;
+    socials: PersonSocials;
     knownForIdentities: import('../identity/media-key.js').MediaIdentity[];
   }> {
     return withDbClient(async (client) => {
@@ -41,6 +42,7 @@ export class PersonDetailService {
         birthday: person.birthday,
         placeOfBirth: person.placeOfBirth,
         profileUrl: buildImageUrl(person.profilePath ?? null, 'h632'),
+        socials: extractSocials(person.raw ?? null),
         knownForIdentities,
       };
     });
@@ -61,6 +63,29 @@ export class PersonDetailService {
       throw error;
     }
   }
+}
+
+export type PersonSocials = {
+  imdbId: string | null;
+  instagram: string | null;
+  twitter: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  youtube: string | null;
+};
+
+function extractSocials(raw: Record<string, unknown> | null): PersonSocials {
+  const externalIds = (raw?.external_ids as Record<string, unknown> | undefined) ?? {};
+  const str = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim() ? value.trim() : null;
+  return {
+    imdbId: str(externalIds.imdb_id),
+    instagram: str(externalIds.instagram_id),
+    twitter: str(externalIds.twitter_id),
+    facebook: str(externalIds.facebook_id),
+    tiktok: str(externalIds.tiktok_id),
+    youtube: str(externalIds.youtube_id),
+  };
 }
 
 /** Phase 4: returns identities only; route hydrates via MetadataCardService. */
