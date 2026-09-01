@@ -68,7 +68,7 @@ export class TmdbCacheService {
       return null;
     }
 
-    // Only serve detail records; summary is incomplete (no logos, credits, etc.)
+    // Detail record with images → serve from cache
     if (cached?.hydrationLevel === 'detail') {
       if (!isFresh(cached)) {
         this.scheduleEntityRefresh(mediaType, tmdbId);
@@ -76,7 +76,17 @@ export class TmdbCacheService {
       return cached;
     }
 
-    // Cold key OR summary record → hydrate through the same path
+    // Summary record → check if images exist, fetch only if missing
+    if (cached?.hydrationLevel === 'summary') {
+      const hasImages = await this.tmdbRepository.hasImages(client, mediaType, tmdbId);
+      if (hasImages) {
+        return cached;
+      }
+      await this.ingest.fetchImages(client, mediaType, tmdbId, language);
+      return this.tmdbRepository.getTitle(client, mediaType, tmdbId, lang);
+    }
+
+    // Cold key → full hydrate
     await this.ingest.ingestTitle(client, mediaType, tmdbId, lang);
     const hydrated = await this.tmdbRepository.getTitle(client, mediaType, tmdbId, lang);
     return hydrated && hydrated.hydrationLevel !== 'not_found' ? hydrated : null;
@@ -92,11 +102,16 @@ export class TmdbCacheService {
     const cached = await this.tmdbRepository.getTitles(client, [...unique.values()], lang);
     const results = new Map<string, TmdbTitleRecord | null>();
     const missing: Array<{ mediaType: TmdbTitleType; tmdbId: number }> = [];
+    const summaryNeedingImages: Array<{ mediaType: TmdbTitleType; tmdbId: number }> = [];
 
     for (const [key, request] of unique) {
       const record = cached.get(key);
       if (!record || record.hydrationLevel === 'not_found') {
         missing.push(request);
+        continue;
+      }
+      if (record.hydrationLevel === 'summary') {
+        summaryNeedingImages.push(request);
         continue;
       }
       if (!isFresh(record)) {
@@ -105,6 +120,24 @@ export class TmdbCacheService {
       results.set(key, record);
     }
 
+    // Summary records → check images
+    await mapWithConcurrency(summaryNeedingImages, INGEST_CONCURRENCY, async (request) => {
+      const key = `${request.mediaType}:${request.tmdbId}`;
+      try {
+        const hasImages = await this.tmdbRepository.hasImages(client, request.mediaType, request.tmdbId);
+        if (hasImages) {
+          results.set(key, cached.get(key) ?? null);
+        } else {
+          await this.ingest.fetchImages(client, request.mediaType, request.tmdbId, language);
+          const refreshed = await this.tmdbRepository.getTitle(client, request.mediaType, request.tmdbId, lang);
+          results.set(key, refreshed);
+        }
+      } catch {
+        results.set(key, null);
+      }
+    });
+
+    // Cold keys → full hydrate
     await mapWithConcurrency(missing, INGEST_CONCURRENCY, async (request) => {
       const key = `${request.mediaType}:${request.tmdbId}`;
       try {

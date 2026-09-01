@@ -324,6 +324,14 @@ export class TmdbRepository {
     await this.insertImages(client, mediaType, tmdbId, images);
   }
 
+  async hasImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<boolean> {
+    const result = await client.query(
+      `SELECT EXISTS(SELECT 1 FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2 LIMIT 1) AS has_images`,
+      [mediaType, tmdbId],
+    );
+    return Boolean(result.rows[0]?.has_images);
+  }
+
   private async insertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[]): Promise<void> {
     const values: unknown[] = [];
     const tuples = images.map((image, index) => {
