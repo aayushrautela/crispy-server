@@ -30,6 +30,8 @@ import { PersonalAccessTokenService } from '../modules/auth/personal-access-toke
 import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
 import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
 import { AccountSettingsService } from '../modules/users/account-settings.service.js';
+import { AddonService } from '../modules/users/addon.service.js';
+import { registerAddonRoutes } from './routes/addons.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerProfileSettingsRoutes } from './routes/profile-settings.js';
 import { ProfileLocalService } from '../modules/profiles/profile-local.service.js';
@@ -217,6 +219,7 @@ export async function buildApp() {
   const profileService = new ProfileLocalService(recommenderNotifier);
   const profilePinService = new ProfilePinService();
   const accountSettingsService = new AccountSettingsService();
+  const addonService = new AddonService();
   const patService = new PersonalAccessTokenService();
   const appLoginHandoffService = new AppLoginHandoffService();
 
@@ -224,6 +227,7 @@ export async function buildApp() {
   await registerAvatarRoutes(app);
   await registerAdminUiRoutes(app);
   await registerAccountRoutes(app, { accountSettingsService });
+  await registerAddonRoutes(app, { addonService });
   await registerAccountBootstrapRoutes(app, { profileService });
   await registerAiRoutes(app, { profilePinService });
   await registerMeRoutes(app, { profileService, accountSettingsService });
