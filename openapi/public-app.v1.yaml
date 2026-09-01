@@ -3926,13 +3926,9 @@ components:
     ClientImages:
       type: object
       additionalProperties: false
-      required: [poster, backdrop, logo]
+      required: [artwork, logo]
       properties:
-        poster:
-          anyOf:
-            - $ref: "#/components/schemas/ResponsiveImageSet"
-            - type: "null"
-        backdrop:
+        artwork:
           anyOf:
             - $ref: "#/components/schemas/ResponsiveImageSet"
             - type: "null"
