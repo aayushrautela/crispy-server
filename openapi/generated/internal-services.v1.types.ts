@@ -433,8 +433,7 @@ export interface components {
             providerIds: components["schemas"]["ClientProviderIds"] | null;
         };
         ClientImages: {
-            poster: components["schemas"]["ResponsiveImageSet"] | null;
-            backdrop: components["schemas"]["ResponsiveImageSet"] | null;
+            artwork: components["schemas"]["ResponsiveImageSet"] | null;
             logo: components["schemas"]["ResponsiveImageSet"] | null;
             still?: components["schemas"]["ResponsiveImageSet"] | null;
             thumb?: components["schemas"]["ResponsiveImageSet"] | null;
