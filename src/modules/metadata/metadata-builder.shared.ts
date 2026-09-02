@@ -618,6 +618,7 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
 export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, preferredLanguage?: string | null, seasonPosterPath?: string | null): MetadataImages {
   const posterPath = seasonPosterPath ?? title?.posterPath ?? null;
   const backdropPath = episode?.stillPath ?? title?.backdropPath ?? null;
+  const logoPath = extractBestLogoPath(title?.raw ?? {}, preferredLanguage) ?? title?.logoPath ?? null;
   return {
     artwork: buildMergedArtwork(backdropPath, posterPath),
     still: buildResponsiveImageSet(episode?.stillPath ?? null, {
@@ -625,7 +626,7 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
       medium: 'h632',
       large: 'original',
     }),
-    logo: buildResponsiveImageSet(extractBestLogoPath(title?.raw ?? {}, preferredLanguage), {
+    logo: buildResponsiveImageSet(logoPath, {
       small: 'w185',
       medium: 'w500',
       large: 'original',
