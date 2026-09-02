@@ -23,8 +23,6 @@ function titleColumns(): string {
     t.status, t.runtime, t.episode_run_time, t.number_of_seasons, t.number_of_episodes,
     t.external_ids, t.genre_ids, t.vote_average, t.vote_count, t.popularity, t.adult,
     t.raw, t.hydration_level, t.fetched_at, t.expires_at,
-    t.poster_path AS core_poster_path, t.backdrop_path AS core_backdrop_path,
-    t.logo_path AS core_logo_path,
     tr.name AS tr_name, tr.overview AS tr_overview, tr.tagline AS tr_tagline,
     ten.name AS ten_name, ten.overview AS ten_overview, ten.tagline AS ten_tagline,
     ip.file_path AS poster_pick, ib.file_path AS backdrop_pick, il.file_path AS logo_pick
@@ -70,9 +68,9 @@ function mapTitle(row: Row, language: string): TmdbTitleRecord {
     releaseDate: normalizeDateOnlyString(row.release_date as Date | string | null | undefined),
     firstAirDate: normalizeDateOnlyString(row.first_air_date as Date | string | null | undefined),
     status: typeof row.status === 'string' ? row.status : null,
-    posterPath: (row.poster_pick as string | null) ?? (row.core_poster_path as string | null) ?? null,
-    backdropPath: (row.backdrop_pick as string | null) ?? (row.core_backdrop_path as string | null) ?? null,
-    logoPath: (row.logo_pick as string | null) ?? (row.core_logo_path as string | null) ?? null,
+    posterPath: (row.poster_pick as string | null) ?? null,
+    backdropPath: (row.backdrop_pick as string | null) ?? null,
+    logoPath: (row.logo_pick as string | null) ?? null,
     runtime: row.runtime === null || row.runtime === undefined ? null : Number(row.runtime),
     episodeRunTime: Array.isArray(row.episode_run_time) ? row.episode_run_time.map((value) => Number(value)) : [],
     numberOfSeasons: row.number_of_seasons === null || row.number_of_seasons === undefined ? null : Number(row.number_of_seasons),
@@ -183,9 +181,6 @@ export class TmdbRepository {
     voteCount: number | null;
     popularity: number | null;
     adult: boolean;
-    posterPath: string | null;
-    backdropPath: string | null;
-    logoPath?: string | null;
     raw: Record<string, unknown>;
     hydrationLevel: 'summary' | 'detail' | 'not_found';
     fetchedAt: string;
@@ -197,12 +192,12 @@ export class TmdbRepository {
           media_type, tmdb_id, original_name, original_language, release_date, first_air_date,
           status, runtime, episode_run_time, number_of_seasons, number_of_episodes,
           external_ids, genre_ids, vote_average, vote_count, popularity, adult,
-          poster_path, backdrop_path, logo_path, raw, hydration_level, fetched_at, expires_at
+          raw, hydration_level, fetched_at, expires_at
         )
         VALUES (
           $1, $2, $3, $4, $5::date, $6::date, $7, $8, $9::jsonb, $10, $11,
           $12::jsonb, $13::jsonb, $14, $15, $16, $17,
-          $18, $19, $20, $21::jsonb, $22, $23::timestamptz, $24::timestamptz
+          $18::jsonb, $19, $20::timestamptz, $21::timestamptz
         )
         ON CONFLICT (media_type, tmdb_id)
         DO UPDATE SET
@@ -221,9 +216,6 @@ export class TmdbRepository {
           vote_count = EXCLUDED.vote_count,
           popularity = EXCLUDED.popularity,
           adult = EXCLUDED.adult,
-          poster_path = EXCLUDED.poster_path,
-          backdrop_path = EXCLUDED.backdrop_path,
-          logo_path = EXCLUDED.logo_path,
           raw = EXCLUDED.raw,
           hydration_level = EXCLUDED.hydration_level,
           fetched_at = EXCLUDED.fetched_at,
@@ -247,9 +239,6 @@ export class TmdbRepository {
         params.voteCount,
         params.popularity,
         params.adult,
-        params.posterPath,
-        params.backdropPath,
-        params.logoPath ?? null,
         JSON.stringify(params.raw),
         params.hydrationLevel,
         params.fetchedAt,
@@ -433,8 +422,6 @@ export class TmdbRepository {
     originalName: string | null;
     releaseDate: string | null;
     firstAirDate: string | null;
-    posterPath: string | null;
-    backdropPath: string | null;
     genreIds: number[];
     voteAverage: number | null;
     voteCount: number | null;
@@ -446,10 +433,10 @@ export class TmdbRepository {
         `
           INSERT INTO tmdb_titles (
             media_type, tmdb_id, original_name, original_language, release_date, first_air_date,
-            poster_path, backdrop_path, genre_ids, vote_average, vote_count, popularity, adult,
+            genre_ids, vote_average, vote_count, popularity, adult,
             raw, hydration_level, fetched_at, expires_at
           )
-          VALUES ($1, $2, $3, 'en', $4::date, $5::date, $6, $7, $8::jsonb, $9, $10, $11, $12, '{}'::jsonb, 'summary', now(), now() + interval '90 days')
+          VALUES ($1, $2, $3, 'en', $4::date, $5::date, $6::jsonb, $7, $8, $9, $10, '{}'::jsonb, 'summary', now(), now() + interval '90 days')
           ON CONFLICT (media_type, tmdb_id) DO NOTHING
         `,
         [
@@ -458,8 +445,6 @@ export class TmdbRepository {
           row.originalName,
           row.releaseDate,
           row.firstAirDate,
-          row.posterPath,
-          row.backdropPath,
           JSON.stringify(row.genreIds),
           row.voteAverage,
           row.voteCount,
