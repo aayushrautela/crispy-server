@@ -302,9 +302,17 @@ export class TmdbIngestService {
 
   async fetchImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null): Promise<void> {
     const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
-    const payload = await this.tmdbClient.request(`/${mediaType}/${tmdbId}/images`, {
-      include_image_language: buildTmdbIncludeImageLanguage(effectiveLanguage),
-    });
+    let payload: Record<string, unknown> | undefined;
+    try {
+      payload = await this.tmdbClient.request(`/${mediaType}/${tmdbId}/images`, {
+        include_image_language: buildTmdbIncludeImageLanguage(effectiveLanguage),
+      });
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 404) {
+        return;
+      }
+      throw err;
+    }
 
     const images = [
       ...mapImages(payload as DetailPayload | undefined, 'posters', 'poster'),
