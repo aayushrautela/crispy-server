@@ -445,8 +445,8 @@ export class TmdbRepository {
     originalName: string | null;
     releaseDate: string | null;
     firstAirDate: string | null;
-    posterPath: string | null;
-    backdropPath: string | null;
+    posterPath?: string | null;
+    backdropPath?: string | null;
     genreIds: number[];
     voteAverage: number | null;
     voteCount: number | null;
