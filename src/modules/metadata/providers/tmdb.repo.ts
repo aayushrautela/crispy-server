@@ -329,8 +329,20 @@ export class TmdbRepository {
   }
 
   private async insertImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[], expiresAt?: string): Promise<void> {
+    const seen = new Set<string>();
+    const unique = images.filter((image) => {
+      const key = `${image.kind}:${image.filePath}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (!unique.length) {
+      return;
+    }
+
     const values: unknown[] = [];
-    const tuples = images.map((image, index) => {
+    const tuples = unique.map((image, index) => {
       const base = index * 6;
       values.push(mediaType, tmdbId, image.kind, image.filePath, image.iso6391, expiresAt ?? null);
       return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
