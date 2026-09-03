@@ -6,6 +6,7 @@ import { assertPublicItemId, decodePublicItemId } from '../identity/public-item-
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
 import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
+import { TmdbClient } from '../metadata/providers/tmdb.client.js';
 import type { ResponsiveImageSet } from '../metadata/metadata-card.types.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
@@ -45,6 +46,7 @@ export class AiInsightsService {
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly metadataTitlePageService = new MetadataTitlePageService(),
     private readonly metadataReviewsService = new MetadataReviewsService(),
+    private readonly tmdbClient = new TmdbClient(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 
@@ -78,8 +80,11 @@ export class AiInsightsService {
         generationVersion,
       });
     });
+    // Backdrops are fetched on demand from TMDB (not stored) so slides get
+    // fresh artwork independent of the single canonical image used elsewhere.
+    const backdropPaths = await this.fetchBackdropPaths(titleDetail);
     if (cached) {
-      return this.buildSlides(cached.payload, titleDetail);
+      return this.buildSlides(cached.payload, titleDetail, backdropPaths);
     }
 
     const titleReviews = await this.metadataReviewsService.getTitleReviews(userId, profileId, itemId);
@@ -111,11 +116,29 @@ export class AiInsightsService {
       });
     });
 
-    return this.buildSlides(payload, titleDetail);
+    return this.buildSlides(payload, titleDetail, backdropPaths);
   }
 
-  private buildSlides(payload: AiInsightsPayload, titleDetail: MetadataTitleDetail): AiInsightsResponse {
-    const backdropPaths = titleDetail.Backdrops ?? [];
+  /** Live TMDB artwork for insight slides. Never fails the request. */
+  private async fetchBackdropPaths(titleDetail: MetadataTitleDetail): Promise<string[]> {
+    try {
+      const mediaType = titleDetail.Item.mediaType;
+      const tmdbId = Number(titleDetail.Item.providerIds?.tmdb);
+      if ((mediaType !== 'movie' && mediaType !== 'tv') || !Number.isFinite(tmdbId) || tmdbId <= 0) {
+        return [];
+      }
+      const images = await this.tmdbClient.request(`/${mediaType}/${tmdbId}/images`);
+      const backdrops = Array.isArray(images.backdrops) ? images.backdrops : [];
+      return backdrops
+        .map((entry) => (entry && typeof entry === 'object' ? (entry as Record<string, unknown>).file_path : null))
+        .filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
+        .slice(0, 5);
+    } catch {
+      return [];
+    }
+  }
+
+  private buildSlides(payload: AiInsightsPayload, titleDetail: MetadataTitleDetail, backdropPaths: string[]): AiInsightsResponse {
     const backdrops = backdropPaths
       .map((path) => buildResponsiveImageSet(path, BACKDROP_IMAGE_SIZES))
       .filter((set): set is ResponsiveImageSet => Boolean(set.small || set.medium || set.large));

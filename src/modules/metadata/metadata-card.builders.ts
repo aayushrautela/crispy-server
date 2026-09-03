@@ -54,9 +54,8 @@ export function buildEpisodePreview(params: {
   title: TmdbTitleRecord;
   episode: TmdbEpisodeRecord;
   itemId: string;
-  language?: string | null;
 }): MetadataEpisodePreview {
-  const { title, episode, itemId, language } = params;
+  const { title, episode, itemId } = params;
   return {
     mediaType: 'episode',
     itemId,
@@ -71,7 +70,7 @@ export function buildEpisodePreview(params: {
     airDate: episode.airDate,
     runtimeMinutes: deriveRuntimeMinutes(title, episode),
     rating: episode.voteAverage,
-    images: buildMetadataImages(title, episode, language),
+    images: buildMetadataImages(title, episode),
     externalIds: title ? extractExternalIds(title) : { tmdb: episode.tmdbId ?? null, imdb: null, tvdb: null },
   };
 }
@@ -90,7 +89,7 @@ export function buildMetadataCardView(params: {
 }): MetadataCardView {
   const { identity, title, currentEpisode = null, currentSeason = null, language } = params;
   const releaseDate = currentEpisode?.airDate ?? currentSeason?.airDate ?? extractReleaseDate(title, currentEpisode);
-  const images = buildMetadataImages(title, currentEpisode, language, currentSeason?.posterPath ?? null);
+  const images = buildMetadataImages(title, currentEpisode, currentSeason?.posterPath ?? null);
   const trailer = extractPrimaryTrailer(title, language);
   const artwork = {
     artwork: images.artwork,

@@ -86,55 +86,6 @@ export function emptyResponsiveImageSet(): ResponsiveImageSet {
   };
 }
 
-export function extractBackdropPaths(raw: Record<string, unknown> | null, limit = 5): string[] {
-  const images = raw ? asRecord(raw.images) : null;
-  const backdrops = images ? asArray(images.backdrops) : [];
-
-  const entries = backdrops
-    .map(asRecord)
-    .filter((entry): entry is Record<string, unknown> => entry !== null && entry.iso_639_1 === null)
-    .map((entry) => ({
-      filePath: asString(entry.file_path),
-      voteAverage: typeof entry.vote_average === 'number' && Number.isFinite(entry.vote_average)
-        ? entry.vote_average
-        : null,
-      voteCount: typeof entry.vote_count === 'number' && Number.isFinite(entry.vote_count)
-        ? entry.vote_count
-        : 0,
-    }))
-    .filter((entry): entry is { filePath: string; voteAverage: number | null; voteCount: number } => entry.filePath !== null);
-
-  const globalMean = computeGlobalMean(entries);
-  const minVotes = 5;
-
-  return entries
-    .map((entry) => ({
-      filePath: entry.filePath,
-      score: entry.voteAverage !== null
-        ? weightedRating(entry.voteAverage, entry.voteCount, globalMean, minVotes)
-        : 0,
-    }))
-    .sort((left, right) => right.score - left.score)
-    .slice(0, limit)
-    .map((entry) => entry.filePath);
-}
-
-function computeGlobalMean(entries: Array<{ voteAverage: number | null; voteCount: number }>): number {
-  const rated = entries.filter((e): e is { voteAverage: number; voteCount: number } => e.voteAverage !== null);
-  if (rated.length === 0) {
-    return 0;
-  }
-  const totalVotes = rated.reduce((sum, e) => sum + e.voteCount, 0);
-  if (totalVotes === 0) {
-    return rated.reduce((sum, e) => sum + e.voteAverage, 0) / rated.length;
-  }
-  return rated.reduce((sum, e) => sum + e.voteAverage * e.voteCount, 0) / totalVotes;
-}
-
-function weightedRating(voteAverage: number, voteCount: number, globalMean: number, minVotes: number): number {
-  return (voteCount / (voteCount + minVotes)) * voteAverage + (minVotes / (voteCount + minVotes)) * globalMean;
-}
-
 export function metadataMediaTypeFromTitle(title: TmdbTitleRecord): 'movie' | 'show' {
   return title.mediaType === 'movie' ? 'movie' : 'show';
 }
@@ -534,22 +485,6 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
     });
 }
 
-function extractBestLogoPath(raw: Record<string, unknown>, preferredLanguage?: string | null): string | null {
-  const images = asRecord(raw.images);
-  const logos = asArray(images?.logos)
-    .map((entry) => asRecord(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null);
-
-  const preferred = preferredLanguage
-    ? (logos.find((logo) => asString(logo.iso_639_1) === preferredLanguage)
-      ?? logos.find((logo) => asString(logo.iso_639_1) === 'en')
-      ?? logos[0])
-    : (logos.find((logo) => asString(logo.iso_639_1) === 'en')
-      ?? logos[0]);
-
-  return preferred ? asString(preferred.file_path) : null;
-}
-
 export function extractRating(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null): number | null {
   if (episode?.voteAverage !== null && episode?.voteAverage !== undefined) {
     return episode.voteAverage;
@@ -615,10 +550,10 @@ export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExter
   };
 }
 
-export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, preferredLanguage?: string | null, seasonPosterPath?: string | null): MetadataImages {
+export function buildMetadataImages(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null, seasonPosterPath?: string | null): MetadataImages {
   const posterPath = seasonPosterPath ?? title?.posterPath ?? null;
   const backdropPath = episode?.stillPath ?? title?.backdropPath ?? null;
-  const logoPath = extractBestLogoPath(title?.raw ?? {}, preferredLanguage) ?? title?.logoPath ?? null;
+  const logoPath = title?.logoPath ?? null;
   return {
     artwork: buildMergedArtwork(backdropPath, posterPath),
     still: buildResponsiveImageSet(episode?.stillPath ?? null, {

@@ -124,9 +124,6 @@ export class TmdbIngestService {
         voteCount: asNumber(payload.vote_count),
         popularity: asNumber(payload.popularity),
         adult: payload.adult === true,
-        posterPath: asString(payload.poster_path),
-        backdropPath: asString(payload.backdrop_path),
-        logoPath: asString(extractBestLogoFromPayload(payload, effectiveLanguage)),
         raw: payload,
         hydrationLevel: 'detail',
         fetchedAt: now.toISOString(),
@@ -156,11 +153,8 @@ export class TmdbIngestService {
       const imageTtlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
       const imageExpiresAt = new Date(Date.now() + imageTtlHours * 3_600_000).toISOString();
 
-      await this.repository.replaceImages(client, mediaType, tmdbId, [
-        ...mapImages(payload.images as DetailPayload | undefined, 'posters', 'poster'),
-        ...mapImages(payload.images as DetailPayload | undefined, 'backdrops', 'backdrop'),
-        ...mapImages(payload.images as DetailPayload | undefined, 'logos', 'logo'),
-      ], imageExpiresAt);
+      // Single canonical image per kind; first writer wins, later ingests keep it.
+      await this.repository.insertImagesIfEmpty(client, mediaType, tmdbId, pickFirstImages(payload.images as DetailPayload | undefined), imageExpiresAt);
 
       await this.repository.replaceReviews(client, mediaType, tmdbId, 'tmdb', mapReviews(mediaType, tmdbId, payload));
 
@@ -350,6 +344,10 @@ export class TmdbIngestService {
   }
 
   async fetchImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null): Promise<void> {
+    // Skip the API call entirely when a canonical image is already stored.
+    if (await this.repository.hasImages(client, mediaType, tmdbId)) {
+      return;
+    }
     const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
     let payload: Record<string, unknown> | undefined;
     try {
@@ -363,45 +361,28 @@ export class TmdbIngestService {
       throw err;
     }
 
-    const images = [
-      ...mapImages(payload as DetailPayload | undefined, 'posters', 'poster'),
-      ...mapImages(payload as DetailPayload | undefined, 'backdrops', 'backdrop'),
-      ...mapImages(payload as DetailPayload | undefined, 'logos', 'logo'),
-    ];
+    const images = pickFirstImages(payload as DetailPayload | undefined);
 
     if (images.length > 0) {
       const ttlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
       const expiresAt = new Date(Date.now() + ttlHours * 3_600_000).toISOString();
-      await this.repository.upsertImages(client, mediaType, tmdbId, images, expiresAt);
+      await this.repository.insertImagesIfEmpty(client, mediaType, tmdbId, images, expiresAt);
     }
   }
 }
 
-function mapImages(images: DetailPayload | undefined, listKey: string, kind: 'poster' | 'backdrop' | 'logo'): TmdbImageRecord[] {
-  return asArray(images?.[listKey])
-    .map((entry) => {
-      const record = entry as DetailPayload;
-      const filePath = asString(record.file_path);
-      if (!filePath) return null;
-      return {
-        kind,
-        filePath,
-        iso6391: asString(record.iso_639_1),
-      };
-    })
-    .filter((entry): entry is TmdbImageRecord => entry !== null);
-}
-
-/** Best logo path from a detail payload's images.logos, preferring the requested language then English. */
-function extractBestLogoFromPayload(payload: DetailPayload, preferredLanguage?: string): string | null {
-  const images = payload.images as DetailPayload | undefined;
-  const logos = asArray(images?.logos);
-  if (logos.length === 0) return null;
-  const lang = (preferredLanguage ?? 'en').split('-')[0];
-  const match = logos.find((entry) => asString((entry as DetailPayload).iso_639_1) === lang)
-    ?? logos.find((entry) => asString((entry as DetailPayload).iso_639_1) === 'en')
-    ?? logos[0];
-  return asString((match as DetailPayload)?.file_path);
+/** First image of each kind. The stored row is the single canonical image; order beyond first is irrelevant. */
+function pickFirstImages(images: DetailPayload | undefined): TmdbImageRecord[] {
+  const picks: TmdbImageRecord[] = [];
+  for (const [listKey, kind] of [['posters', 'poster'], ['backdrops', 'backdrop'], ['logos', 'logo']] as const) {
+    const filePath = asArray(images?.[listKey])
+      .map((entry) => asString((entry as DetailPayload).file_path))
+      .find((path): path is string => path !== null);
+    if (filePath) {
+      picks.push({ kind, filePath });
+    }
+  }
+  return picks;
 }
 
 function mapReviews(mediaType: TmdbTitleType, tmdbId: number, payload: DetailPayload) {

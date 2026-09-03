@@ -76,7 +76,6 @@ function makeTitleDetail(itemId = MOVIE_ITEM_ID) {
       companies: [],
       networks: [],
     },
-    Backdrops: [],
   };
 }
 
