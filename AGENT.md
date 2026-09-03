@@ -77,7 +77,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 
 - `src/bin/api.ts` starts the HTTP API.
 - `src/bin/worker.ts` starts the background worker.
-- `docker-compose.yml` runs `api` and `worker` only — connects to:
+- `docker-compose.dev.yml` runs `api` and `worker` only — connects to:
   - Supabase Postgres via `supabase_default` network (`supabase-db:5432`)
   - Supabase Kong via `host.docker.internal:8000`
   - Redis via `host.docker.internal:6379`
@@ -105,7 +105,7 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - `src/http/plugins/auth.ts` - user JWT and PAT auth flow
 - `src/modules/auth/external-auth-admin.service.ts` - optional upstream auth user deletion
 - `src/modules/users/account-settings.service.ts` - account-shared settings and secrets
-- `docker-compose.yml` - local runtime topology
+- `docker-compose.dev.yml` - local runtime topology
 - `DEPLOY.md` - deployment and hosted service auth notes
 - `docs/specs/client-reco-pipeline-spec.md` - client home and RECO DTO contract split
 
