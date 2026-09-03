@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { db, withDbClient, withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import { enqueueProviderImport, enqueueProviderRefresh, enqueueTmdbTitleWarmBatch } from '../../lib/queue.js';
+import { enqueueProviderImport, enqueueProviderRefresh, enqueueTmdbSeasonWarmBatch, enqueueTmdbTitleWarmBatch } from '../../lib/queue.js';
 import { logger } from '../../config/logger.js';
 import { redis } from '../../lib/redis.js';
 import { calendarCacheKey } from '../cache/cache-keys.js';
@@ -41,6 +41,7 @@ import type {
 } from './provider-import.internals.js';
 import {
   asIsoString,
+  asPositiveInt,
   asString,
   buildConnectedSessionCredentials,
   clampProgressBps,
@@ -620,36 +621,24 @@ export class ProviderImportService {
   private async refreshImportedMetadata(profileId: string, mediaKeys: string[]): Promise<Record<string, unknown>> {
     const client = await db.connect();
     try {
-      const movieIds = new Set<number>();
-      const showIds = new Set<number>();
+      const { movieIds, showIds, seasonWarmTargets } = collectTmdbWarmTargets(mediaKeys);
 
-      for (const mediaKey of mediaKeys) {
-        const normalized = mediaKey.trim();
-        if (!normalized) {
-          continue;
-        }
-        try {
-          const identity = inferMediaIdentity({ mediaKey: normalized, mediaType: normalized.split(':')[0] ?? '' });
-          if (identity.mediaType === 'movie' && identity.tmdbId) {
-            movieIds.add(identity.tmdbId);
-          } else if (identity.mediaType === 'show' && identity.tmdbId) {
-            showIds.add(identity.tmdbId);
-          }
-        } catch {
-          continue;
-        }
-      }
-
+      let warmedSeasons = 0;
       if (movieIds.size > 0) {
         await enqueueTmdbTitleWarmBatch('movie', Array.from(movieIds));
       }
       if (showIds.size > 0) {
         await enqueueTmdbTitleWarmBatch('tv', Array.from(showIds));
       }
+      for (const [showTmdbId, seasonNumbers] of seasonWarmTargets) {
+        await enqueueTmdbSeasonWarmBatch(showTmdbId, seasonNumbers);
+        warmedSeasons += seasonNumbers.length;
+      }
 
       return {
         warmedMovies: movieIds.size,
         warmedShows: showIds.size,
+        warmedSeasons,
       };
     } finally {
       client.release();
@@ -783,4 +772,56 @@ export function parseImportProvider(value: unknown): ProviderImportProvider {
     throw new HttpError(400, 'Provider must be either trakt or simkl.');
   }
   return value;
+}
+
+export type TmdbWarmTargets = {
+  movieIds: Set<number>;
+  showIds: Set<number>;
+  seasonWarmTargets: Map<number, number[]>;
+};
+
+/**
+ * Collects TMDB warm targets from import media keys. Titles warm the show or
+ * movie record; episodes additionally warm their season so the episode's own
+ * metadata (still, overview, runtime) is hydrated — not just the series.
+ */
+export function collectTmdbWarmTargets(mediaKeys: string[]): TmdbWarmTargets {
+  const movieIds = new Set<number>();
+  const showIds = new Set<number>();
+  const seasonsByShow = new Map<number, Set<number>>();
+
+  for (const mediaKey of mediaKeys) {
+    const normalized = mediaKey.trim();
+    if (!normalized) {
+      continue;
+    }
+    try {
+      const identity = inferMediaIdentity({ mediaKey: normalized, mediaType: normalized.split(':')[0] ?? '' });
+      if (identity.mediaType === 'movie' && identity.tmdbId) {
+        movieIds.add(identity.tmdbId);
+      } else if (identity.mediaType === 'show' && identity.tmdbId) {
+        showIds.add(identity.tmdbId);
+      } else if (identity.mediaType === 'episode' && identity.seasonNumber !== null) {
+        const showTmdbId = identity.provider === 'tmdb'
+          ? asPositiveInt(identity.parentProviderId)
+          : asPositiveInt(identity.providerMetadata?.tmdbId);
+        const seasonNumber = nonNegativeIntegerOrNull(identity.seasonNumber);
+        if (showTmdbId === null || seasonNumber === null) {
+          continue;
+        }
+        showIds.add(showTmdbId);
+        const seasons = seasonsByShow.get(showTmdbId) ?? new Set<number>();
+        seasons.add(seasonNumber);
+        seasonsByShow.set(showTmdbId, seasons);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    movieIds,
+    showIds,
+    seasonWarmTargets: new Map([...seasonsByShow].map(([showTmdbId, seasons]) => [showTmdbId, [...seasons].sort((left, right) => left - right)])),
+  };
 }

@@ -144,28 +144,58 @@ export class ContentIdentityService {
     const requested = identities.flatMap((identity) => {
       try {
         return canMaterializeIdentity(identity)
-          ? [{ mediaKey: identity.mediaKey, ref: toProviderRef(identity) }]
+          ? [{ mediaKey: identity.mediaKey, ref: toProviderRef(identity), identity }]
           : [];
       } catch {
         return [];
       }
     });
 
-    const records = await this.ensureProviderRefRecords(
-      client,
-      requested.map((entry) => entry.ref),
-    );
+    const resolved = new Map<string, string>();
+    const titleEntries = requested.filter((entry) => entry.ref.entityType === 'movie' || entry.ref.entityType === 'show');
+    const episodeEntries = requested.filter((entry) => entry.ref.entityType === 'episode');
+    const seasonEntries = requested.filter((entry) => entry.ref.entityType === 'season');
 
-    const recordByKey = new Map<string, ContentProviderRefRecord>();
-    for (const record of records) {
-      recordByKey.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
+    if (titleEntries.length > 0) {
+      const records = await this.ensureProviderRefRecords(
+        client,
+        titleEntries.map((entry) => entry.ref),
+      );
+
+      const recordByKey = new Map<string, ContentProviderRefRecord>();
+      for (const record of records) {
+        recordByKey.set(providerRefKey(record.provider, record.entityType, record.externalId), record);
+      }
+
+      for (const entry of titleEntries) {
+        const record = recordByKey.get(providerRefKey(entry.ref.provider, entry.ref.entityType, entry.ref.externalId));
+        if (record?.contentId) {
+          resolved.set(entry.mediaKey, record.contentId);
+        }
+      }
     }
 
-    const resolved = new Map<string, string>();
-    for (const entry of requested) {
-      const record = recordByKey.get(providerRefKey(entry.ref.provider, entry.ref.entityType, entry.ref.externalId));
-      if (record?.contentId) {
-        resolved.set(entry.mediaKey, record.contentId);
+    if (episodeEntries.length > 0) {
+      const episodeInputs = episodeEntries.map((entry) => toEpisodeIdentityInput(entry.identity));
+      const contentIds = await this.ensureEpisodeContentIds(client, episodeInputs);
+      episodeEntries.forEach((entry, index) => {
+        const input = episodeInputs[index]!;
+        const contentId = contentIds.get(episodeRefMapKey(
+          input.parentProviderId,
+          input.seasonNumber ?? null,
+          input.episodeNumber ?? null,
+        ));
+        if (contentId) {
+          resolved.set(entry.mediaKey, contentId);
+        }
+      });
+    }
+
+    for (const entry of seasonEntries) {
+      try {
+        resolved.set(entry.mediaKey, await this.ensureSeasonContentId(client, toSeasonIdentityInput(entry.identity)));
+      } catch {
+        // Preserve batch leniency: unresolvable seasons are skipped like other entries.
       }
     }
 
@@ -934,6 +964,33 @@ function toTitleRef(input: TitleIdentityInput): ContentProviderRefInput {
       providerId,
       tmdbId: provider === 'tmdb' ? parseOptionalPositiveInteger(providerId) : undefined,
     }),
+  };
+}
+
+function toEpisodeIdentityInput(identity: MediaIdentity): EpisodeIdentityInput {
+  if (!identity.parentProviderId || identity.seasonNumber === null || identity.episodeNumber === null) {
+    throw new HttpError(400, 'Unable to resolve canonical content id.');
+  }
+  return {
+    parentMediaType: resolveParentMediaType(identity),
+    provider: identity.provider ?? undefined,
+    parentProviderId: identity.parentProviderId,
+    seasonNumber: identity.seasonNumber,
+    episodeNumber: identity.episodeNumber,
+    metadata: identity.providerMetadata,
+  };
+}
+
+function toSeasonIdentityInput(identity: MediaIdentity): SeasonIdentityInput {
+  if (!identity.parentProviderId || identity.seasonNumber === null) {
+    throw new HttpError(400, 'Unable to resolve canonical content id.');
+  }
+  return {
+    parentMediaType: resolveParentMediaType(identity),
+    provider: identity.provider ?? undefined,
+    parentProviderId: identity.parentProviderId,
+    seasonNumber: identity.seasonNumber,
+    metadata: identity.providerMetadata,
   };
 }
 

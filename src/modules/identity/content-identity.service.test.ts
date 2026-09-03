@@ -175,25 +175,7 @@ test('ensureContentIds resolves all content ids in a single batch call', async (
 });
 
 test('ensureContentIds resolves duplicated title refs after provider-ref deduplication', async () => {
-  const repository = {
-    async ensureProviderRefs(_client: DbClient, refs: ContentProviderRefInput[]): Promise<ContentProviderRefRecord[]> {
-      const seen = new Set<string>();
-      const deduped = refs.filter((ref) => {
-        const key = `${ref.provider}:${ref.entityType}:${ref.externalId}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      return deduped.map((ref) => ({
-        contentId: contentIdForRef(ref),
-        provider: ref.provider,
-        entityType: ref.entityType,
-        externalId: ref.externalId,
-        metadata: ref.metadata ?? {},
-      }));
-    },
-  } as never;
-
+  const { repository } = createStubRepository();
   const service = new ContentIdentityService(repository as never);
 
   const show = inferMediaIdentity({ mediaType: 'show', tmdbId: 44 });
@@ -206,6 +188,56 @@ test('ensureContentIds resolves duplicated title refs after provider-ref dedupli
   assert.equal(contentIds.get('episode:tmdb:44:1:2'), EPISODE_UUID);
   assert.equal(contentIds.get('episode:tmdb:44:1:3'), EPISODE_UUID);
   assert.equal(contentIds.size, 3);
+});
+
+test('ensureContentIds materializes series and season relationships for episodes', async () => {
+  const { repository, relationshipCalls } = createStubRepository();
+  const service = new ContentIdentityService(repository as never);
+
+  const show = inferMediaIdentity({ mediaType: 'show', tmdbId: 44 });
+  const ep2 = inferMediaIdentity({ mediaType: 'episode', showTmdbId: 44, seasonNumber: 1, episodeNumber: 2 });
+  const ep3 = inferMediaIdentity({ mediaType: 'episode', showTmdbId: 44, seasonNumber: 1, episodeNumber: 3 });
+
+  const contentIds = await service.ensureContentIds({} as never, [show, ep2, ep3]);
+
+  assert.equal(contentIds.get('show:tmdb:44'), SHOW_UUID);
+  assert.equal(contentIds.get('episode:tmdb:44:1:2'), EPISODE_UUID);
+  assert.equal(contentIds.get('episode:tmdb:44:1:3'), EPISODE_UUID);
+  assert.equal(relationshipCalls.length, 1);
+  assert.deepEqual(
+    relationshipCalls[0]?.map((relationship) => ({
+      childContentId: relationship.childContentId,
+      parentContentId: relationship.parentContentId,
+      relationshipType: relationship.relationshipType,
+    })),
+    [
+      { childContentId: EPISODE_UUID, parentContentId: SHOW_UUID, relationshipType: 'series' },
+      { childContentId: EPISODE_UUID, parentContentId: SEASON_UUID, relationshipType: 'season' },
+      { childContentId: SEASON_UUID, parentContentId: SHOW_UUID, relationshipType: 'series' },
+      { childContentId: EPISODE_UUID, parentContentId: SHOW_UUID, relationshipType: 'series' },
+      { childContentId: EPISODE_UUID, parentContentId: SEASON_UUID, relationshipType: 'season' },
+      { childContentId: SEASON_UUID, parentContentId: SHOW_UUID, relationshipType: 'series' },
+    ],
+  );
+});
+
+test('ensureContentIds materializes series relationships for seasons', async () => {
+  const { repository, relationshipCalls } = createStubRepository();
+  const service = new ContentIdentityService(repository as never);
+
+  const season = inferMediaIdentity({ mediaType: 'season', showTmdbId: 44, seasonNumber: 1 });
+
+  const contentIds = await service.ensureContentIds({} as never, [season]);
+
+  assert.equal(contentIds.get('season:tmdb:44:1'), SEASON_UUID);
+  assert.deepEqual(
+    relationshipCalls[0]?.map((relationship) => ({
+      childContentId: relationship.childContentId,
+      parentContentId: relationship.parentContentId,
+      relationshipType: relationship.relationshipType,
+    })),
+    [{ childContentId: SEASON_UUID, parentContentId: SHOW_UUID, relationshipType: 'series' }],
+  );
 });
 
 test('ensureTitleContentIds resolves all content ids in a single batch call', async () => {

@@ -686,3 +686,32 @@ test('TraktImportIdentityResolver skips movie when metadata card build fails aft
     (db as { connect: typeof db.connect }).connect = originalConnect;
   }
 });
+
+test('collectTmdbWarmTargets warms episode seasons in addition to titles', async () => {
+  const { collectTmdbWarmTargets } = await import('./provider-import.service.js');
+
+  const targets = collectTmdbWarmTargets([
+    'movie:tmdb:272',
+    'show:tmdb:1396',
+    'episode:tmdb:1396:2:5',
+    'episode:tmdb:1396:2:7',
+    'episode:tmdb:1396:3:1',
+    '  ',
+    'bogus-key',
+  ]);
+
+  assert.deepEqual([...targets.movieIds], [272]);
+  assert.deepEqual([...targets.showIds], [1396]);
+  assert.deepEqual([...targets.seasonWarmTargets], [[1396, [2, 3]]]);
+});
+
+test('collectTmdbWarmTargets skips episodes without a tmdb-resolvable show', async () => {
+  const { collectTmdbWarmTargets } = await import('./provider-import.service.js');
+
+  const targets = collectTmdbWarmTargets([
+    'episode:tvdb:81189:1:2',
+  ]);
+
+  assert.equal(targets.showIds.size, 0);
+  assert.equal(targets.seasonWarmTargets.size, 0);
+});
