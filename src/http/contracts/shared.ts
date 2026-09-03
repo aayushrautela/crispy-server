@@ -336,6 +336,19 @@ export const clientParentRefSchema = {
     seasonItemId: { type: 'string' },
     seasonNumber: { type: ['integer', 'null'] },
     episodeNumber: { type: ['integer', 'null'] },
+    images: {
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['artwork'],
+          properties: {
+            artwork: { anyOf: [responsiveImageSetSchema, { type: 'null' }] },
+          },
+        },
+        { type: 'null' },
+      ],
+    },
   },
 } as const;
 
