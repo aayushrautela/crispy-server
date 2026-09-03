@@ -20,6 +20,43 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+const DEADLOCK_RETRY_ATTEMPTS = 3;
+const DEADLOCK_RETRY_BASE_DELAY_MS = 50;
+
+interface PgErrorLike {
+  code?: string;
+}
+
+function isDeadlockError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as PgErrorLike).code === '40P01'
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A 40P01 deadlock aborts the whole transaction. The TMDB fetch happens before
+// the transaction, so retrying just re-runs the writes after a short backoff.
+async function withDeadlockRetry<T>(work: () => Promise<T>): Promise<T> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await work();
+    } catch (error) {
+      attempt += 1;
+      if (!isDeadlockError(error) || attempt >= DEADLOCK_RETRY_ATTEMPTS) {
+        throw error;
+      }
+      const delay = DEADLOCK_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.random() * 50;
+      await sleep(delay);
+    }
+  }
+}
+
 /**
  * The only component allowed to talk to the TMDB API and to write metadata
  * tables. One HTTP request per entity fans out into typed table writes inside
@@ -51,6 +88,22 @@ export class TmdbIngestService {
 
     const ttlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
     const now = new Date();
+    await withDeadlockRetry(() =>
+      this.persistTitleTransaction(client, payload, mediaType, tmdbId, effectiveLanguage, ttlHours, now),
+    );
+
+    return this.repository.getTitle(client, mediaType, tmdbId, effectiveLanguage);
+  }
+
+  private async persistTitleTransaction(
+    client: DbClient,
+    payload: DetailPayload,
+    mediaType: TmdbTitleType,
+    tmdbId: number,
+    effectiveLanguage: string,
+    ttlHours: number,
+    now: Date,
+  ): Promise<void> {
     await client.query('BEGIN');
     try {
       await this.repository.upsertTitleCore(client, {
@@ -134,8 +187,6 @@ export class TmdbIngestService {
       await client.query('ROLLBACK');
       throw error;
     }
-
-    return this.repository.getTitle(client, mediaType, tmdbId, effectiveLanguage);
   }
 
   async ingestSeason(client: DbClient, showTmdbId: number, seasonNumber: number): Promise<void> {

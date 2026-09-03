@@ -291,7 +291,10 @@ export class TmdbRepository {
     }
 
     const values: unknown[] = [];
-    const tuples = uniqueEntries.map((entry, index) => {
+    // Deterministic insertion order: concurrent ingests of the same title
+    // otherwise lock unique-index tuples in TMDB response order and deadlock.
+    const orderedEntries = [...uniqueEntries].sort((a, b) => (a.lang < b.lang ? -1 : a.lang > b.lang ? 1 : 0));
+    const tuples = orderedEntries.map((entry, index) => {
       const base = index * 6;
       values.push(mediaType, tmdbId, entry.lang, entry.name, entry.overview, entry.tagline);
       return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
