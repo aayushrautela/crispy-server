@@ -374,7 +374,7 @@ export class TmdbIngestService {
 /** First image of each kind. The stored row is the single canonical image; order beyond first is irrelevant. */
 function pickFirstImages(images: DetailPayload | undefined): TmdbImageRecord[] {
   const picks: TmdbImageRecord[] = [];
-  for (const [listKey, kind] of [['posters', 'poster'], ['backdrops', 'backdrop'], ['logos', 'logo']] as const) {
+  for (const [listKey, kind] of [['posters', 'poster'], ['logos', 'logo']] as const) {
     const filePath = asArray(images?.[listKey])
       .map((entry) => asString((entry as DetailPayload).file_path))
       .find((path): path is string => path !== null);
@@ -382,7 +382,44 @@ function pickFirstImages(images: DetailPayload | undefined): TmdbImageRecord[] {
       picks.push({ kind, filePath });
     }
   }
+  const backdropPath = pickBackdropFilePath(images);
+  if (backdropPath) {
+    picks.push({ kind: 'backdrop', filePath: backdropPath });
+  }
   return picks;
+}
+
+/**
+ * TMDB's canonical backdrop: highest rated with no language, fallback to
+ * highest rated overall. Matches what details and list endpoints return.
+ */
+function pickBackdropFilePath(images: DetailPayload | undefined): string | null {
+  const entries = asArray(images?.backdrops)
+    .map((entry) => {
+      const record = entry as DetailPayload;
+      const filePath = asString(record.file_path);
+      if (!filePath) return null;
+      const voteAverage = typeof record.vote_average === 'number' && Number.isFinite(record.vote_average)
+        ? record.vote_average
+        : 0;
+      const voteCount = typeof record.vote_count === 'number' && Number.isFinite(record.vote_count)
+        ? record.vote_count
+        : 0;
+      return { filePath, lang: asString(record.iso_639_1), voteAverage, voteCount };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  const untagged = entries.filter((entry) => entry.lang === null);
+  const pool = untagged.length > 0 ? untagged : entries;
+
+  let best: (typeof pool)[number] | null = null;
+  for (const entry of pool) {
+    if (!best || entry.voteAverage > best.voteAverage
+      || (entry.voteAverage === best.voteAverage && entry.voteCount > best.voteCount)) {
+      best = entry;
+    }
+  }
+  return best?.filePath ?? null;
 }
 
 function mapReviews(mediaType: TmdbTitleType, tmdbId: number, payload: DetailPayload) {
