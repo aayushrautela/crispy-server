@@ -33,8 +33,16 @@ export async function registerAddonRoutes(
     await app.requireAuth(request);
     await requireAdminProfile(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
-    const body = (request.body ?? {}) as { manifestUrl?: string };
-    const addon = await addonService.addAddon(actor.authSubject, body.manifestUrl ?? '');
+    const body = (request.body ?? {}) as {
+      manifestUrl?: string;
+      type?: string;
+      payload?: unknown;
+    };
+    const addon = await addonService.addAddon(actor.authSubject, {
+      manifestUrl: body.manifestUrl ?? '',
+      type: body.type,
+      payload: body.payload,
+    });
     return success({ addon }, request);
   });
 

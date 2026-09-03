@@ -3,13 +3,26 @@ import {
   withDefaultErrorResponses,
 } from './shared.js';
 
+export const addonPayloadSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['providerId'],
+  properties: {
+    providerId: nonEmptyStringSchema,
+    name: nonEmptyStringSchema,
+    version: nonEmptyStringSchema,
+  },
+} as const;
+
 export const addonItemSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'manifestUrl', 'createdAt'],
+  required: ['id', 'type', 'manifestUrl', 'createdAt'],
   properties: {
     id: nonEmptyStringSchema,
+    type: { type: 'string', enum: ['stremio', 'jsplugin'] },
     manifestUrl: nonEmptyStringSchema,
+    payload: addonPayloadSchema,
     createdAt: nonEmptyStringSchema,
   },
 } as const;
@@ -50,6 +63,8 @@ const addonCreateBodySchema = {
   required: ['manifestUrl'],
   properties: {
     manifestUrl: nonEmptyStringSchema,
+    type: { type: 'string', enum: ['stremio', 'jsplugin'] },
+    payload: addonPayloadSchema,
   },
 } as const;
 

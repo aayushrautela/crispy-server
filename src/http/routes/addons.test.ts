@@ -34,8 +34,8 @@ test('POST /v1/account/addons with valid URL creates addon', async (t) => {
 
   const originalAddAddon = AddonService.prototype.addAddon;
   t.after(() => { AddonService.prototype.addAddon = originalAddAddon; });
-  AddonService.prototype.addAddon = async function (_accountId, manifestUrl) {
-    return { id: 'addon-1', accountId: 'acc-1', manifestUrl, createdAt: '2024-01-01T00:00:00.000Z' };
+  AddonService.prototype.addAddon = async function (_accountId, input) {
+    return { id: 'addon-1', accountId: 'acc-1', type: 'stremio' as const, manifestUrl: String(input.manifestUrl), payload: {}, createdAt: '2024-01-01T00:00:00.000Z' };
   };
 
   const app = await buildTestApp((app) => registerAddonRoutes(app, {
@@ -56,6 +56,77 @@ test('POST /v1/account/addons with valid URL creates addon', async (t) => {
   assert.equal(response.statusCode, 200);
   const body = response.json();
   assert.equal(body.data.addon.manifestUrl, 'https://example.com/manifest.json');
+  assert.equal(body.data.addon.type, 'stremio');
+});
+
+test('POST /v1/account/addons creates jsplugin addon with payload', async (t) => {
+  const { AddonService } = await import('../../modules/users/addon.service.js');
+  const { registerAddonRoutes } = await import('./addons.js');
+
+  const originalAddAddon = AddonService.prototype.addAddon;
+  t.after(() => { AddonService.prototype.addAddon = originalAddAddon; });
+  AddonService.prototype.addAddon = async function (_accountId, input) {
+    return {
+      id: 'addon-2',
+      accountId: 'acc-1',
+      type: input.type === 'jsplugin' ? 'jsplugin' : 'stremio',
+      manifestUrl: String(input.manifestUrl),
+      payload: (typeof input.payload === 'object' && input.payload !== null ? input.payload : {}) as { providerId: string; name?: string; version?: string },
+      createdAt: '2024-01-01T00:00:00.000Z',
+    };
+  };
+
+  const app = await buildTestApp((app) => registerAddonRoutes(app, {
+    addonService: new AddonService(),
+    adminProfileLookup: async (profileId, authSubject) => ({
+      id: profileId, accountId: authSubject, isAdmin: true, hasPin: false,
+    }),
+  }));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/account/addons',
+    headers: { authorization: 'Bearer test', 'x-profile-id': 'admin-profile' },
+    payload: {
+      manifestUrl: 'https://example.com/repo.json',
+      type: 'jsplugin',
+      payload: { providerId: 'example-provider', name: 'Example', version: '1.0.0' },
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.data.addon.type, 'jsplugin');
+  assert.equal(body.data.addon.payload.providerId, 'example-provider');
+  assert.equal(body.data.addon.payload.name, 'Example');
+  assert.equal(body.data.addon.payload.version, '1.0.0');
+});
+
+test('POST /v1/account/addons jsplugin payload without providerId returns 400', async (t) => {
+  const { AddonService } = await import('../../modules/users/addon.service.js');
+  const { registerAddonRoutes } = await import('./addons.js');
+
+  const app = await buildTestApp((app) => registerAddonRoutes(app, {
+    addonService: new AddonService(),
+    adminProfileLookup: async (profileId, authSubject) => ({
+      id: profileId, accountId: authSubject, isAdmin: true, hasPin: false,
+    }),
+  }));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/account/addons',
+    headers: { authorization: 'Bearer test', 'x-profile-id': 'admin-profile' },
+    payload: {
+      manifestUrl: 'https://example.com/repo.json',
+      type: 'jsplugin',
+      payload: { name: 'Example' },
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
 });
 
 test('POST /v1/account/addons without admin returns 403', async (t) => {
