@@ -300,12 +300,10 @@ export class TmdbRepository {
    * Single canonical image per (title, kind). First writer wins: when a row
    * already exists it is kept untouched, so every read path serves the same
    * image. The PK on (media_type, tmdb_id, kind) backstops this against races.
+   * Kinds are independent: a missing backdrop fills even when a poster exists.
    */
   async insertImagesIfEmpty(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[], expiresAt?: string): Promise<void> {
     if (!images.length) {
-      return;
-    }
-    if (await this.hasImages(client, mediaType, tmdbId)) {
       return;
     }
 
@@ -324,10 +322,11 @@ export class TmdbRepository {
     );
   }
 
-  async hasImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<boolean> {
+  /** Whether a canonical image of the given kind is stored and unexpired. */
+  async hasImageKind(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, kind: TmdbImageRecord['kind']): Promise<boolean> {
     const result = await client.query(
-      `SELECT EXISTS(SELECT 1 FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2 AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1) AS has_images`,
-      [mediaType, tmdbId],
+      `SELECT EXISTS(SELECT 1 FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2 AND kind = $3 AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1) AS has_images`,
+      [mediaType, tmdbId, kind],
     );
     return Boolean(result.rows[0]?.has_images);
   }

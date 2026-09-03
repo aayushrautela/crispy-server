@@ -114,7 +114,7 @@ export class TmdbCacheService {
     await mapWithConcurrency(summaryNeedingImages, INGEST_CONCURRENCY, async (request) => {
       const key = `${request.mediaType}:${request.tmdbId}`;
       try {
-        const hasImages = await this.tmdbRepository.hasImages(client, request.mediaType, request.tmdbId);
+        const hasImages = await this.tmdbRepository.hasImageKind(client, request.mediaType, request.tmdbId, 'backdrop');
         if (hasImages) {
           results.set(key, cached.get(key) ?? null);
         } else {

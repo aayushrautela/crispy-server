@@ -344,10 +344,16 @@ export class TmdbIngestService {
   }
 
   async fetchImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null): Promise<void> {
-    // Skip the API call entirely when a canonical image is already stored.
-    if (await this.repository.hasImages(client, mediaType, tmdbId)) {
+    // Skip the API call when every canonical image kind is already stored.
+    const kinds = ['poster', 'backdrop', 'logo'] as const;
+    const missingKinds = await Promise.all(
+      kinds.map(async (kind) => (await this.repository.hasImageKind(client, mediaType, tmdbId, kind) ? null : kind)),
+    );
+    const needed = missingKinds.filter((kind): kind is (typeof kinds)[number] => kind !== null);
+    if (needed.length === 0) {
       return;
     }
+
     const effectiveLanguage = normalizeMetadataLanguage(language) ?? 'en';
     let payload: Record<string, unknown> | undefined;
     try {
@@ -361,7 +367,7 @@ export class TmdbIngestService {
       throw err;
     }
 
-    const images = pickFirstImages(payload as DetailPayload | undefined);
+    const images = pickFirstImages(payload as DetailPayload | undefined, needed);
 
     if (images.length > 0) {
       const ttlHours = mediaType === 'movie' ? appConfig.cache.tmdb.movieTtlHours : appConfig.cache.tmdb.showTtlHours;
@@ -371,10 +377,11 @@ export class TmdbIngestService {
   }
 }
 
-/** First image of each kind. The stored row is the single canonical image; order beyond first is irrelevant. */
-function pickFirstImages(images: DetailPayload | undefined): TmdbImageRecord[] {
+/** Pick canonical images for the requested kinds: first-in-list for poster/logo, TMDB's backdrop rule for backdrops. */
+function pickFirstImages(images: DetailPayload | undefined, kinds: ReadonlyArray<'poster' | 'backdrop' | 'logo'> = ['poster', 'backdrop', 'logo']): TmdbImageRecord[] {
   const picks: TmdbImageRecord[] = [];
   for (const [listKey, kind] of [['posters', 'poster'], ['logos', 'logo']] as const) {
+    if (!kinds.includes(kind)) continue;
     const filePath = asArray(images?.[listKey])
       .map((entry) => asString((entry as DetailPayload).file_path))
       .find((path): path is string => path !== null);
@@ -382,9 +389,11 @@ function pickFirstImages(images: DetailPayload | undefined): TmdbImageRecord[] {
       picks.push({ kind, filePath });
     }
   }
-  const backdropPath = pickBackdropFilePath(images);
-  if (backdropPath) {
-    picks.push({ kind: 'backdrop', filePath: backdropPath });
+  if (kinds.includes('backdrop')) {
+    const backdropPath = pickBackdropFilePath(images);
+    if (backdropPath) {
+      picks.push({ kind: 'backdrop', filePath: backdropPath });
+    }
   }
   return picks;
 }
