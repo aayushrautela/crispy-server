@@ -31,6 +31,7 @@ export function toClientMediaCard(
           seasonItemId: view.seasonItemId ?? undefined,
           seasonNumber: view.seasonNumber,
           episodeNumber: view.episodeNumber,
+          images: view.seriesArtwork ? { artwork: view.seriesArtwork } : undefined,
         }
       : null;
 

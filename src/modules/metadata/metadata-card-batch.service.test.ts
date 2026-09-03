@@ -38,6 +38,7 @@ test('MetadataCardBatchService hydrates valid item ids and reports invalid ids',
         tagline: null,
         artwork: { artwork: { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' }, still: { small: null, medium: null, large: null } },
         images: { artwork: { small: 'https://img.test/backdrop.jpg', medium: 'https://img.test/backdrop.jpg', large: 'https://img.test/backdrop.jpg' }, still: { small: null, medium: null, large: null }, logo: { small: null, medium: null, large: null } },
+        seriesArtwork: identity.mediaType === 'episode' ? { small: 'https://img.test/show-backdrop.jpg', medium: 'https://img.test/show-backdrop.jpg', large: 'https://img.test/show-backdrop.jpg' } : null,
         releaseDate: null,
         releaseYear: 2024,
         runtimeMinutes: 45,
@@ -83,6 +84,7 @@ test('MetadataCardBatchService hydrates valid item ids and reports invalid ids',
   assert.equal(result.items[1]?.mediaItem.parent?.seasonItemId, SEASON_ITEM_ID);
   assert.equal(result.items[1]?.mediaItem.parent?.seasonNumber, 1);
   assert.equal(result.items[1]?.mediaItem.parent?.episodeNumber, 2);
+  assert.deepEqual(result.items[1]?.mediaItem.parent?.images?.artwork, { small: 'https://img.test/show-backdrop.jpg', medium: 'https://img.test/show-backdrop.jpg', large: 'https://img.test/show-backdrop.jpg' });
   assert.equal(result.items[1]?.mediaItem.title, 'Episode Title');
   assert.deepEqual(result.missing, [{ itemId: 'bad-key', reason: 'invalid_item_id' }]);
 });

@@ -634,7 +634,7 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
   };
 }
 
-function buildMergedArtwork(backdropPath: string | null, posterPath: string | null): ResponsiveImageSet {
+export function buildMergedArtwork(backdropPath: string | null, posterPath: string | null): ResponsiveImageSet {
   const backdrop = buildResponsiveImageSet(backdropPath, {
     small: 'w780',
     medium: 'w1280',

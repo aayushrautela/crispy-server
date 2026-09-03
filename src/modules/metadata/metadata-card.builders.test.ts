@@ -31,6 +31,11 @@ test('buildMetadataCardView for episode uses episode title and show subtitle', a
   assert.equal(view.title, 'Previous Episode');
   assert.equal(view.subtitle, 'Breaking Point');
   assert.equal(view.summary, 'Previous.');
+  assert.deepEqual(view.seriesArtwork, {
+    small: 'https://image.tmdb.org/t/p/w780/backdrop.jpg',
+    medium: 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+    large: 'https://image.tmdb.org/t/p/original/backdrop.jpg',
+  });
 });
 
 test('buildEpisodePreview produces provider-based payload', async () => {
@@ -62,4 +67,22 @@ test('buildEpisodePreview produces provider-based payload', async () => {
   assert.equal(preview.runtimeMinutes, 47);
   assert.equal(preview.rating, 8.1);
   assert.equal(preview.images.still.medium, 'https://image.tmdb.org/t/p/h632/still.jpg');
+});
+
+test('buildMetadataCardView omits seriesArtwork for title cards', async () => {
+  const { buildMetadataCardView } = await import('./metadata-card.builders.js');
+
+  const view = buildMetadataCardView({
+    identity: { mediaKey: 'movie:tmdb:222', mediaType: 'movie', tmdbId: 222, showTmdbId: null, seasonNumber: null, episodeNumber: null },
+    title: {
+      mediaType: 'movie', tmdbId: 222, language: 'en', name: 'A Movie', originalName: 'A Movie',
+      overview: null, tagline: null, releaseDate: null, firstAirDate: null, status: null,
+      posterPath: '/poster.jpg', backdropPath: '/backdrop.jpg',
+      runtime: null, episodeRunTime: [], numberOfSeasons: null, numberOfEpisodes: null,
+      externalIds: {}, raw: {},
+      hydrationLevel: 'detail', fetchedAt: '', expiresAt: '',
+    },
+  });
+
+  assert.equal(view.seriesArtwork, null);
 });

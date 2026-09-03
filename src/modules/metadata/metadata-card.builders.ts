@@ -10,6 +10,7 @@ import type {
 } from './metadata-card.types.js';
 import type { TmdbEpisodeRecord, TmdbSeasonRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
 import {
+  buildMergedArtwork,
   buildMetadataImages,
   deriveRuntimeMinutes,
   extractGenres,
@@ -99,6 +100,7 @@ export function buildMetadataCardView(params: {
     ? identity.mediaType
     : 'movie';
   const isChildCard = identity.mediaType === 'episode' || identity.mediaType === 'season';
+  const seriesArtwork = isChildCard ? buildMergedArtwork(title?.backdropPath ?? null, title?.posterPath ?? null) : null;
   const showTitle = isChildCard ? (title?.name ?? title?.originalName ?? null) : null;
   const titleName = params.titleOverride
     ?? (currentEpisode?.name ?? currentSeason?.name ?? title?.name ?? title?.originalName ?? null);
@@ -132,6 +134,7 @@ export function buildMetadataCardView(params: {
     tagline: title?.tagline ?? (typeof title?.raw?.tagline === 'string' ? title.raw.tagline : null),
     artwork,
     images,
+    seriesArtwork,
     releaseDate,
     releaseYear: extractReleaseYear(releaseDate),
     runtimeMinutes: deriveRuntimeMinutes(title, currentEpisode),

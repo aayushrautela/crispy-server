@@ -1106,6 +1106,19 @@ components:
         seasonItemId: { $ref: '#/components/schemas/PublicItemId' }
         seasonNumber: { type: [integer, 'null'] }
         episodeNumber: { type: [integer, 'null'] }
+        images:
+          anyOf:
+            - $ref: '#/components/schemas/ClientParentImages'
+            - type: 'null'
+    ClientParentImages:
+      type: object
+      additionalProperties: false
+      required: [artwork]
+      properties:
+        artwork:
+          anyOf:
+            - $ref: '#/components/schemas/ResponsiveImageSet'
+            - type: 'null'
     ClientProviderIds:
       type: object
       additionalProperties: false

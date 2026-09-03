@@ -61,6 +61,7 @@ export type MetadataCardView = {
   tagline: string | null;
   artwork: MetadataArtwork;
   images: MetadataImages;
+  seriesArtwork: ResponsiveImageSet | null;
   releaseDate: string | null;
   releaseYear: number | null;
   runtimeMinutes: number | null;

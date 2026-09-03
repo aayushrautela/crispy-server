@@ -19,12 +19,17 @@ export type ClientProgress = {
   userRating: number | null;
 };
 
+export type ClientParentImages = {
+  artwork: ResponsiveImageSet | null;
+};
+
 export type ClientParentRef = {
   seriesItemId?: string;
   seriesTitle?: string;
   seasonItemId?: string;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  images?: ClientParentImages | null;
 };
 
 export type ClientProviderIds = {

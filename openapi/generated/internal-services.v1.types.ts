@@ -454,6 +454,10 @@ export interface components {
             seasonItemId?: components["schemas"]["PublicItemId"];
             seasonNumber?: number | null;
             episodeNumber?: number | null;
+            images?: components["schemas"]["ClientParentImages"] | null;
+        };
+        ClientParentImages: {
+            artwork: components["schemas"]["ResponsiveImageSet"] | null;
         };
         ClientProviderIds: {
             tmdb: string | null;
