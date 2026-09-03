@@ -10,6 +10,8 @@ import type {
 type FetchLike = typeof fetch;
 const MDBLIST_ERROR_BODY_LIMIT = 500;
 
+const REQUEST_TIMEOUT_MS = 2_000;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
@@ -36,57 +38,21 @@ export class MdbListClient {
   constructor(private readonly fetcher: FetchLike = fetch) {}
 
   async fetchMovieByTmdb(apiKey: string, tmdbId: number): Promise<MdbListTitleResponse> {
-    const pathname = `/movie/tmdb/${tmdbId}`;
-    const url = this.buildApiKeyUrl(pathname, apiKey);
-
-    const response = await this.fetcher(url, {
-      headers: {
-        Accept: 'application/json',
-      },
+    return this.requestJson('GET', `/movie/tmdb/${tmdbId}`, apiKey, {
+      pathname: `/movie/tmdb/${tmdbId}`,
+      mediaType: 'movie',
+      lookupProvider: 'tmdb',
+      lookupId: tmdbId,
     });
-
-    if (response.status === 404) {
-      throw new HttpError(404, `MDBList movie not found for TMDB id ${tmdbId}`);
-    }
-
-    if (!response.ok) {
-      throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
-        pathname,
-        mediaType: 'movie',
-        lookupProvider: 'tmdb',
-        lookupId: tmdbId,
-        response: await readErrorDetails(response),
-      });
-    }
-
-    return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
   }
 
   async fetchShowByTmdb(apiKey: string, tmdbId: number): Promise<MdbListTitleResponse> {
-    const pathname = `/show/tmdb/${tmdbId}`;
-    const url = this.buildApiKeyUrl(pathname, apiKey);
-
-    const response = await this.fetcher(url, {
-      headers: {
-        Accept: 'application/json',
-      },
+    return this.requestJson('GET', `/show/tmdb/${tmdbId}`, apiKey, {
+      pathname: `/show/tmdb/${tmdbId}`,
+      mediaType: 'show',
+      lookupProvider: 'tmdb',
+      lookupId: tmdbId,
     });
-
-    if (response.status === 404) {
-      throw new HttpError(404, `MDBList show not found for TMDB id ${tmdbId}`);
-    }
-
-    if (!response.ok) {
-      throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
-        pathname,
-        mediaType: 'show',
-        lookupProvider: 'tmdb',
-        lookupId: tmdbId,
-        response: await readErrorDetails(response),
-      });
-    }
-
-    return (await readJson(response, pathname)) as unknown as MdbListTitleResponse;
   }
 
   async fetchTitle(apiKey: string, mediaType: MdbListMediaType, tmdbId: number): Promise<MdbListTitleResponse> {
@@ -102,33 +68,61 @@ export class MdbListClient {
     returnRating: MdbListReturnRating,
     request: MdbListRatingsRequest,
   ): Promise<MdbListRatingsResponse> {
-    const pathname = `/rating/${mediaType}/${returnRating}`;
+    return this.requestJson('POST', `/rating/${mediaType}/${returnRating}`, apiKey, {
+      pathname: `/rating/${mediaType}/${returnRating}`,
+      mediaType,
+      returnRating,
+      request,
+    }, JSON.stringify(request));
+  }
+
+  /**
+   * Shared request path with a hard timeout. No retries: failures surface
+   * immediately and the service layer keeps them out of the cache.
+   */
+  private async requestJson<T>(
+    method: 'GET' | 'POST',
+    pathname: string,
+    apiKey: string,
+    errorContext: Record<string, unknown>,
+    body?: string,
+  ): Promise<T> {
+    const notFoundMessage = method === 'GET'
+      ? `MDBList title not found for ${pathname}`
+      : `MDBList ratings not found for ${pathname}`;
     const url = this.buildApiKeyUrl(pathname, apiKey);
 
-    const response = await this.fetcher(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
-
-    if (response.status === 404) {
-      throw new HttpError(404, `MDBList ratings not found for ${pathname}`);
-    }
-
-    if (!response.ok) {
-      throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
-        pathname,
-        mediaType,
-        returnRating,
-        request,
-        response: await readErrorDetails(response),
+    let response: Response;
+    try {
+      response = await this.fetcher(url, {
+        method,
+        headers: {
+          Accept: 'application/json',
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(body !== undefined ? { body } : {}),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new HttpError(504, `MDBList request failed for ${pathname}`, {
+        ...errorContext,
+        response: null,
+        reason: error instanceof Error ? error.message : 'network_error',
       });
     }
 
-    return (await readJson(response, pathname)) as unknown as MdbListRatingsResponse;
+    if (response.status === 404) {
+      throw new HttpError(404, notFoundMessage);
+    }
+
+    if (response.ok) {
+      return (await readJson(response, pathname)) as unknown as T;
+    }
+
+    throw new HttpError(response.status, `MDBList request failed for ${pathname}`, {
+      ...errorContext,
+      response: await readErrorDetails(response),
+    });
   }
 
   private buildApiKeyUrl(pathname: string, apiKey: string): string {

@@ -85,3 +85,38 @@ test('MdbListClient includes ratings request details in non-OK errors', async ()
     },
   );
 });
+
+test('MdbListClient does not retry and surfaces transient 500s immediately', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  let calls = 0;
+  const client = new MdbListClient(async () => {
+    calls += 1;
+    return new Response('<html><title>500</title></html>', { status: 500, headers: { 'content-type': 'text/html' } });
+  });
+
+  await assert.rejects(
+    () => client.fetchRatings('test-key', 'movie', 'imdb', { provider: 'tmdb', ids: [299536] }),
+    (error: unknown) => {
+      assert.equal((error as { statusCode?: number }).statusCode, 500);
+      return true;
+    },
+  );
+  assert.equal(calls, 1);
+});
+
+test('MdbListClient wraps timeout and network errors as 504', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  const client = new MdbListClient(async () => {
+    throw new Error('The operation was aborted due to timeout');
+  });
+
+  await assert.rejects(
+    () => client.fetchRatings('test-key', 'movie', 'imdb', { provider: 'tmdb', ids: [299536] }),
+    (error: unknown) => {
+      assert.equal((error as { statusCode?: number }).statusCode, 504);
+      return true;
+    },
+  );
+});

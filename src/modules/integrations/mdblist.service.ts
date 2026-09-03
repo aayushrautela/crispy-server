@@ -13,6 +13,8 @@ import type {
 
 const TITLE_TTL_SECONDS = 24 * 60 * 60;
 const RATINGS_TTL_SECONDS = 7 * 24 * 60 * 60;
+// Partial results (some sources failed) must not poison the cache for a week.
+const RATINGS_PARTIAL_TTL_SECONDS = 10 * 60;
 
 const RATING_SOURCE_MAP: Array<{ source: MdbListReturnRating; field: keyof MdbListTitleRatingsView['ratings'] }> = [
   { source: 'imdb', field: 'imdb' },
@@ -133,22 +135,27 @@ export class MdbListService {
         });
         const match = response.ratings.find((entry) => String(entry.id) === String(lookup.id));
         ratings[field] = match?.rating ?? null;
-        return true;
+        return 'ok';
       } catch (error) {
         if (error instanceof HttpError && error.statusCode === 404) {
-          return false;
+          return 'missing';
         }
         logger.warn({ err: error, mediaType, provider: lookup.provider, providerId: lookup.id, source }, 'Failed to fetch MDBList rating source');
-        return false;
+        return 'error';
       }
     }));
 
-    if (results.every((result) => result === false)) {
+    const errorCount = results.filter((result) => result === 'error').length;
+    if (errorCount === results.length) {
+      // Nothing succeeded — don't cache an all-null view; let the caller 404 and retry later.
       return null;
     }
 
     const view = { ratings } satisfies MdbListTitleRatingsView;
-    await redis.set(cacheKey, JSON.stringify(view), 'EX', RATINGS_TTL_SECONDS);
+    // Only complete fetches deserve the long TTL; partials expire quickly so a
+    // transient upstream outage doesn't stick for a week.
+    const ttlSeconds = errorCount === 0 ? RATINGS_TTL_SECONDS : RATINGS_PARTIAL_TTL_SECONDS;
+    await redis.set(cacheKey, JSON.stringify(view), 'EX', ttlSeconds);
     return view;
   }
 
