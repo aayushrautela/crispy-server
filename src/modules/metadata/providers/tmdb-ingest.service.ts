@@ -345,11 +345,7 @@ export class TmdbIngestService {
 
   async fetchImages(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, language?: string | null): Promise<void> {
     // Skip the API call when every canonical image kind is already stored.
-    const kinds = ['poster', 'backdrop', 'logo'] as const;
-    const missingKinds = await Promise.all(
-      kinds.map(async (kind) => (await this.repository.hasImageKind(client, mediaType, tmdbId, kind) ? null : kind)),
-    );
-    const needed = missingKinds.filter((kind): kind is (typeof kinds)[number] => kind !== null);
+    const needed = await this.repository.missingImageKinds(client, mediaType, tmdbId);
     if (needed.length === 0) {
       return;
     }

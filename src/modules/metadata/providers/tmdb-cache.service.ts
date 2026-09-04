@@ -1,7 +1,7 @@
 import type { DbClient } from '../../../lib/db.js';
 import { normalizeMetadataLanguage } from '../metadata-language.js';
 import type { MetadataSearchFilter, SearchSuggestionItem } from '../metadata-detail.types.js';
-import { enqueueTmdbEntityRefresh } from '../../../lib/queue.js';
+import { enqueueTmdbEntityRefresh, enqueueTmdbSeasonWarmBatch } from '../../../lib/queue.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbIngestService } from './tmdb-ingest.service.js';
 import { TmdbRepository } from './tmdb.repo.js';
@@ -73,7 +73,7 @@ export class TmdbCacheService {
       if (!isFresh(cached)) {
         this.scheduleEntityRefresh(mediaType, tmdbId);
       }
-      return cached;
+      return (await this.ensureTitleImages(client, mediaType, tmdbId, lang)) ?? cached;
     }
 
     // Cold key OR summary record → full hydrate
@@ -92,7 +92,7 @@ export class TmdbCacheService {
     const cached = await this.tmdbRepository.getTitles(client, [...unique.values()], lang);
     const results = new Map<string, TmdbTitleRecord | null>();
     const missing: Array<{ mediaType: TmdbTitleType; tmdbId: number }> = [];
-    const summaryNeedingImages: Array<{ mediaType: TmdbTitleType; tmdbId: number }> = [];
+    const imageCheck: Array<{ mediaType: TmdbTitleType; tmdbId: number }> = [];
 
     for (const [key, request] of unique) {
       const record = cached.get(key);
@@ -100,30 +100,21 @@ export class TmdbCacheService {
         missing.push(request);
         continue;
       }
-      if (record.hydrationLevel === 'summary') {
-        summaryNeedingImages.push(request);
-        continue;
-      }
       if (!isFresh(record)) {
         this.scheduleEntityRefresh(request.mediaType, request.tmdbId);
       }
-      results.set(key, record);
+      imageCheck.push(request);
     }
 
-    // Summary records → check images
-    await mapWithConcurrency(summaryNeedingImages, INGEST_CONCURRENCY, async (request) => {
+    // Cached records (any hydration level) → fill missing images inline so a
+    // served card never lacks images the provider actually has.
+    await mapWithConcurrency(imageCheck, INGEST_CONCURRENCY, async (request) => {
       const key = `${request.mediaType}:${request.tmdbId}`;
+      const record = cached.get(key);
       try {
-        const hasImages = await this.tmdbRepository.hasImageKind(client, request.mediaType, request.tmdbId, 'backdrop');
-        if (hasImages) {
-          results.set(key, cached.get(key) ?? null);
-        } else {
-          await this.ingest.fetchImages(client, request.mediaType, request.tmdbId, language);
-          const refreshed = await this.tmdbRepository.getTitle(client, request.mediaType, request.tmdbId, lang);
-          results.set(key, refreshed);
-        }
+        results.set(key, (await this.ensureTitleImages(client, request.mediaType, request.tmdbId, lang)) ?? record ?? null);
       } catch {
-        results.set(key, null);
+        results.set(key, record ?? null);
       }
     });
 
@@ -154,15 +145,31 @@ export class TmdbCacheService {
   }
 
   async getEpisode(client: DbClient, showTmdbId: number, seasonNumber: number, episodeNumber: number): Promise<TmdbEpisodeRecord | null> {
-    return this.tmdbRepository.getEpisode(client, showTmdbId, seasonNumber, episodeNumber);
+    const record = await this.tmdbRepository.getEpisode(client, showTmdbId, seasonNumber, episodeNumber);
+    if (!record) {
+      this.scheduleSeasonWarm(showTmdbId, seasonNumber);
+    }
+    return record;
   }
 
   async getEpisodes(client: DbClient, requests: Array<{ showTmdbId: number; seasonNumber: number; episodeNumber: number }>): Promise<Map<string, TmdbEpisodeRecord | null>> {
     const records = requests.length ? await this.tmdbRepository.getEpisodes(client, requests) : new Map<string, TmdbEpisodeRecord>();
     const result = new Map<string, TmdbEpisodeRecord | null>();
+    const missingSeasons = new Map<number, Set<number>>();
     for (const req of requests) {
       const key = `${req.showTmdbId}:${req.seasonNumber}:${req.episodeNumber}`;
-      result.set(key, records.get(key) ?? null);
+      const record = records.get(key) ?? null;
+      result.set(key, record);
+      if (!record) {
+        const seasons = missingSeasons.get(req.showTmdbId) ?? new Set<number>();
+        seasons.add(req.seasonNumber);
+        missingSeasons.set(req.showTmdbId, seasons);
+      }
+    }
+    for (const [showTmdbId, seasons] of missingSeasons) {
+      for (const seasonNumber of seasons) {
+        this.scheduleSeasonWarm(showTmdbId, seasonNumber);
+      }
     }
     return result;
   }
@@ -172,7 +179,11 @@ export class TmdbCacheService {
     const result = new Map<string, TmdbSeasonRecord | null>();
     for (const req of requests) {
       const key = `${req.showTmdbId}:${req.seasonNumber}`;
-      result.set(key, records.get(key) ?? null);
+      const record = records.get(key) ?? null;
+      result.set(key, record);
+      if (!record) {
+        this.scheduleSeasonWarm(req.showTmdbId, req.seasonNumber);
+      }
     }
     return result;
   }
@@ -384,6 +395,33 @@ export class TmdbCacheService {
 
   protected scheduleEntityRefresh(mediaType: TmdbTitleType, tmdbId: number): void {
     enqueueTmdbEntityRefresh(mediaType, tmdbId).catch(() => {});
+  }
+
+  protected scheduleSeasonWarm(showTmdbId: number, seasonNumber: number): void {
+    enqueueTmdbSeasonWarmBatch(showTmdbId, [seasonNumber]).catch(() => {});
+  }
+
+  /**
+   * Fills image kinds missing from a served title record. Returns the
+   * refreshed record, or null when nothing was missing or the fetch failed —
+   * callers then serve the cached record. Reads never break on TMDB errors.
+   */
+  private async ensureTitleImages(
+    client: DbClient,
+    mediaType: TmdbTitleType,
+    tmdbId: number,
+    language: string,
+  ): Promise<TmdbTitleRecord | null> {
+    try {
+      const missing = await this.tmdbRepository.missingImageKinds(client, mediaType, tmdbId);
+      if (missing.length === 0) {
+        return null;
+      }
+      await this.ingest.fetchImages(client, mediaType, tmdbId, language);
+      return this.tmdbRepository.getTitle(client, mediaType, tmdbId, language);
+    } catch {
+      return null;
+    }
   }
 }
 

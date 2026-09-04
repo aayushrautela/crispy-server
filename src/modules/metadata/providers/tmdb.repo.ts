@@ -322,6 +322,18 @@ export class TmdbRepository {
     );
   }
 
+  /** Which canonical image kinds are missing (or expired) for a title. Empty means complete. */
+  async missingImageKinds(client: DbClient, mediaType: TmdbTitleType, tmdbId: number): Promise<Array<'poster' | 'backdrop' | 'logo'>> {
+    const result = await client.query(
+      `SELECT kind FROM tmdb_images
+       WHERE media_type = $1 AND tmdb_id = $2 AND kind IN ('poster', 'backdrop', 'logo')
+         AND (expires_at IS NULL OR expires_at > NOW())`,
+      [mediaType, tmdbId],
+    );
+    const present = new Set((result.rows as Array<{ kind: string }>).map((row) => row.kind));
+    return (['poster', 'backdrop', 'logo'] as const).filter((kind) => !present.has(kind));
+  }
+
   /** Whether a canonical image of the given kind is stored and unexpired. */
   async hasImageKind(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, kind: TmdbImageRecord['kind']): Promise<boolean> {
     const result = await client.query(
