@@ -334,15 +334,6 @@ export class TmdbRepository {
     return (['poster', 'backdrop', 'logo'] as const).filter((kind) => !present.has(kind));
   }
 
-  /** Whether a canonical image of the given kind is stored and unexpired. */
-  async hasImageKind(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, kind: TmdbImageRecord['kind']): Promise<boolean> {
-    const result = await client.query(
-      `SELECT EXISTS(SELECT 1 FROM tmdb_images WHERE media_type = $1 AND tmdb_id = $2 AND kind = $3 AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1) AS has_images`,
-      [mediaType, tmdbId, kind],
-    );
-    return Boolean(result.rows[0]?.has_images);
-  }
-
   async purgeExpiredImages(client: DbClient, limit: number): Promise<void> {
     await client.query(
       `DELETE FROM tmdb_images WHERE expires_at IS NOT NULL AND expires_at < NOW() LIMIT $1`,
