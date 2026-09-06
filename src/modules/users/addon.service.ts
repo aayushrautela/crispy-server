@@ -65,17 +65,32 @@ export class AddonService {
         providerId,
       );
       if (existing) {
-        throw new HttpError(409, 'Addon already installed.', undefined, 'addon_already_installed');
+        // Idempotent install: sync pushes may race across devices, and a
+        // re-install of an already-tracked addon must not fail the push.
+        return toAddon(existing);
       }
 
-      const inserted = await this.addonRepository.insert(
-        client,
-        accountId,
-        addonType,
-        normalizedUrl,
-        payload,
-      );
-      return toAddon(inserted);
+      try {
+        const inserted = await this.addonRepository.insert(
+          client,
+          accountId,
+          addonType,
+          normalizedUrl,
+          payload,
+        );
+        return toAddon(inserted);
+      } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+        const raced = await this.addonRepository.findByKey(
+          client,
+          accountId,
+          addonType,
+          normalizedUrl,
+          providerId,
+        );
+        if (!raced) throw err;
+        return toAddon(raced);
+      }
     });
   }
 
@@ -139,6 +154,10 @@ function optionalString(value: unknown): string | undefined {
   }
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: unknown }).code === '23505';
 }
 
 function normalizeManifestUrl(value: unknown): string {

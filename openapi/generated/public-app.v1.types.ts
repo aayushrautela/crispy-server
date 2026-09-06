@@ -70,7 +70,7 @@ export interface paths {
         put?: never;
         /**
          * Install addon.
-         * @description Installs a new addon by manifest URL. Only the admin profile can install addons. Duplicate manifest URLs are rejected with 409.
+         * @description Installs a new addon by manifest URL. Only the admin profile can install addons. Installing an addon that already exists returns the existing row (idempotent, sync-safe).
          */
         post: operations["postV1AccountAddons"];
         delete?: never;
@@ -1728,8 +1728,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Addon installed successfully. */
-            201: {
+            /** @description Addon installed successfully (existing row returned if already installed). */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1740,7 +1740,6 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };

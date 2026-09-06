@@ -14,6 +14,18 @@ export const addonPayloadSchema = {
   },
 } as const;
 
+// Response payload: stremio rows carry an empty payload, jsplugin rows carry
+// providerId (+optional name/version), so no field is required here.
+export const addonResponsePayloadSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    providerId: nonEmptyStringSchema,
+    name: nonEmptyStringSchema,
+    version: nonEmptyStringSchema,
+  },
+} as const;
+
 export const addonItemSchema = {
   type: 'object',
   additionalProperties: false,
@@ -22,7 +34,7 @@ export const addonItemSchema = {
     id: nonEmptyStringSchema,
     type: { type: 'string', enum: ['stremio', 'jsplugin'] },
     manifestUrl: nonEmptyStringSchema,
-    payload: addonPayloadSchema,
+    payload: addonResponsePayloadSchema,
     createdAt: nonEmptyStringSchema,
   },
 } as const;
@@ -85,7 +97,7 @@ export const addonListRouteSchema = withDefaultErrorResponses({
 export const addonCreateRouteSchema = withDefaultErrorResponses({
   body: addonCreateBodySchema,
   response: {
-    201: {
+    200: {
       type: 'object',
       additionalProperties: false,
       required: ['data', 'meta'],

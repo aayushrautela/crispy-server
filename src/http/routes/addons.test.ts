@@ -180,15 +180,21 @@ test('POST /v1/account/addons with missing manifestUrl returns 400', async (t) =
   assert.equal(response.statusCode, 400);
 });
 
-test('POST /v1/account/addons with duplicate URL returns 409', async (t) => {
+test('POST /v1/account/addons duplicate install returns existing addon (idempotent)', async (t) => {
   const { AddonService } = await import('../../modules/users/addon.service.js');
   const { registerAddonRoutes } = await import('./addons.js');
 
   const originalAddAddon = AddonService.prototype.addAddon;
   t.after(() => { AddonService.prototype.addAddon = originalAddAddon; });
   AddonService.prototype.addAddon = async function () {
-    const { HttpError } = await import('../../lib/errors.js');
-    throw new HttpError(409, 'Addon already installed.', undefined, 'addon_already_installed');
+    return {
+      id: 'addon-existing',
+      accountId: 'acc-1',
+      type: 'stremio' as const,
+      manifestUrl: 'https://example.com/manifest.json',
+      payload: {},
+      createdAt: '2024-01-01T00:00:00.000Z',
+    };
   };
 
   const app = await buildTestApp((app) => registerAddonRoutes(app, {
@@ -206,7 +212,9 @@ test('POST /v1/account/addons with duplicate URL returns 409', async (t) => {
     payload: { manifestUrl: 'https://example.com/manifest.json' },
   });
 
-  assert.equal(response.statusCode, 409);
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.data.addon.id, 'addon-existing');
 });
 
 test('DELETE /v1/account/addons/:addonId removes addon', async (t) => {
