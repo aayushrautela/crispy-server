@@ -227,7 +227,7 @@ producer that materializes a user's home:
 | Custom (curated lists from external service) | external custom service, push | `'custom'` (TBD exact value) | service principal, allow-listed service-id |
 
 The `default` home is not a producer. It is built in-process from
-`home.default_list_templates` + list sources, cached in Redis per locale
+`home.default_list_templates` + list sources, cached as one English snapshot in Redis
 (versioned key, TTL-expired), and served by the resolver when a profile has no
 stored home. It never flows through the ingest endpoint and never materializes
 into per-profile rows.

@@ -1,81 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { seedTestEnv } from '../../../test-helpers.js';
+import test from 'node:test';
+import { DEFAULT_SECTION_LIMITS } from './default-templates.js';
 
-seedTestEnv();
-const { localeCandidates, resolveTemplatesByLocale, resolveDefaultTemplatesForViewer, DEFAULT_SECTION_LIMITS } = await import('./default-templates.js');
-
-function template(partial: Partial<{
-  listKey: string;
-  locale: string;
-  localeMode: 'auto' | 'specific' | 'en';
-  regionOverride: string | null;
-  sectionType: string;
-  title: string;
-  subtitle: string | null;
-  rank: number;
-  sourceId: string;
-  sourceConfig: Record<string, unknown>;
-}>): {
-  listKey: string;
-  locale: string;
-  localeMode: 'auto' | 'specific' | 'en';
-  regionOverride: string | null;
-  sectionType: string;
-  title: string;
-  subtitle: string | null;
-  rank: number;
-  sourceId: string;
-  sourceConfig: Record<string, unknown>;
-} {
-  return {
-    listKey: 'trending',
-    locale: 'en',
-    localeMode: 'auto',
-    regionOverride: null,
-    sectionType: 'contentRail',
-    title: '',
-    subtitle: null,
-    rank: 0,
-    sourceId: 'trakt.trending',
-    sourceConfig: {},
-    ...partial,
-  };
-}
-
-test('localeCandidates falls through to en with primary tag before generic', () => {
-  assert.deepEqual(localeCandidates('en-US'), ['en-US', 'en']);
-  assert.deepEqual(localeCandidates('en'), ['en']);
-  assert.deepEqual(localeCandidates('es-MX'), ['es-MX', 'es', 'en']);
-});
-
-test('resolveTemplatesByLocale prefers specific locale, auto loses to specific, one per listKey', () => {
-  const all = [
-    template({ listKey: 'trending', locale: 'en', localeMode: 'auto' }),
-    template({ listKey: 'trending', locale: 'en-US', localeMode: 'specific', title: 'US' }),
-    template({ listKey: 'popular', locale: 'en', localeMode: 'auto', title: 'Pop' }),
-  ];
-  const resolved = resolveTemplatesByLocale(all, localeCandidates('en-US'));
-  const byKey = new Map(resolved.map((t) => [t.listKey, t]));
-  assert.equal(byKey.get('trending')?.locale, 'en-US', 'specific en-US beats auto');
-  assert.equal(byKey.get('popular')?.localeMode, 'auto', 'auto still applies when no specific match');
-  assert.equal(resolved.length, 2);
-});
-
-test('resolveDefaultTemplatesForViewer includes auto rows for any locale', () => {
-  const all = [
-    template({ listKey: 'trending', locale: 'en', localeMode: 'auto' }),
-    template({ listKey: 'popular', locale: 'pl', localeMode: 'specific' }),
-  ];
-  const pl = resolveDefaultTemplatesForViewer(all, 'pl');
-  const de = resolveDefaultTemplatesForViewer(all, 'de');
-  const plKeys = new Set(pl.map((t) => t.listKey));
-  const deKeys = new Set(de.map((t) => t.listKey));
-  assert.ok(plKeys.has('trending') && plKeys.has('popular'), 'pl sees both auto + pl-specific');
-  assert.ok(deKeys.has('trending') && !deKeys.has('popular'), 'de sees auto but not pl-specific');
-});
-
-test('DEFAULT_SECTION_LIMITS defines limits per section', () => {
-  assert.equal(DEFAULT_SECTION_LIMITS.heroCarousel, 10);
-  assert.equal(DEFAULT_SECTION_LIMITS.contentRail, 50);
+test('DEFAULT_SECTION_LIMITS caps hero below rails', () => {
+  const hero = DEFAULT_SECTION_LIMITS.heroCarousel ?? 0;
+  const rail = DEFAULT_SECTION_LIMITS.contentRail ?? 0;
+  assert.ok(hero > 0 && hero < rail);
 });

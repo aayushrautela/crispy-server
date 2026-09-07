@@ -22,52 +22,7 @@ export function renderHomeDefaultView(): string {
                 <option value="">— select list —</option>
               </select>
             </label>
-            <label>Locale mode
-              <select name="localeMode" data-home-field="localeMode" required>
-                <option value="auto" selected>Auto (use viewer profile)</option>
-                <option value="en">Force English</option>
-                <option value="specific">Specific locale</option>
-              </select>
-            </label>
-            <label data-home-field="overrideLocaleWrap" hidden>Specific locale<select name="overrideLocale">
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="it">Italian</option>
-              <option value="pt">Portuguese</option>
-              <option value="pt-BR">Portuguese (Brazil)</option>
-              <option value="ru">Russian</option>
-              <option value="ja">Japanese</option>
-              <option value="ko">Korean</option>
-              <option value="zh">Chinese</option>
-              <option value="zh-CN">Chinese (Simplified)</option>
-              <option value="zh-TW">Chinese (Traditional)</option>
-              <option value="hi">Hindi</option>
-              <option value="pl">Polish</option>
-              <option value="nl">Dutch</option>
-              <option value="tr">Turkish</option>
-              <option value="ar">Arabic</option>
-              <option value="sv">Swedish</option>
-              <option value="da">Danish</option>
-              <option value="fi">Finnish</option>
-              <option value="no">Norwegian</option>
-              <option value="cs">Czech</option>
-              <option value="el">Greek</option>
-              <option value="he">Hebrew</option>
-              <option value="th">Thai</option>
-              <option value="vi">Vietnamese</option>
-              <option value="id">Indonesian</option>
-              <option value="ro">Romanian</option>
-              <option value="uk">Ukrainian</option>
-              <option value="fa">Persian</option>
-              <option value="bn">Bengali</option>
-              <option value="ta">Tamil</option>
-              <option value="te">Telugu</option>
-              <option value="ml">Malayalam</option>
-              <option value="fil">Filipino</option>
-            </select></label>
-            <label data-home-field="regionOverrideWrap" hidden>Region override<select name="regionOverride">
+            <label data-home-field="regionOverrideWrap">Region override<select name="regionOverride">
               <option value="">Any (use viewer region)</option>
               <option value="US">United States</option>
               <option value="GB">United Kingdom</option>
@@ -121,7 +76,7 @@ export function renderHomeDefaultView(): string {
         <div class="panel-note" data-home-field="preview-status" hidden></div>
         <div class="preview-grid" data-home-field="preview-items"></div>
         <table class="data-table">
-          <thead><tr><th>List</th><th>Mode</th><th>Section</th><th>Rank</th><th>Title</th><th>Source</th><th>Refreshed</th><th></th></tr></thead>
+          <thead><tr><th>List</th><th>Section</th><th>Rank</th><th>Title</th><th>Source</th><th>Refreshed</th><th></th></tr></thead>
           <tbody id="home-default-rows"></tbody>
         </table>
       </div>

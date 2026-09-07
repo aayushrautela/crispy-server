@@ -62,14 +62,6 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
       throw new HttpError(400, `Unknown source: ${sourceId}`);
     }
     const sourceConfig = asRecord(body.sourceConfig);
-
-    // Locale mode drives how this rail resolves per viewer.
-    const localeModeRaw = typeof body.localeMode === 'string' ? body.localeMode : 'auto';
-    if (!['auto', 'specific', 'en'].includes(localeModeRaw)) {
-      throw new HttpError(400, 'Invalid localeMode.');
-    }
-    const localeMode = localeModeRaw as 'auto' | 'specific' | 'en';
-    const overrideLocale = localeMode === 'specific' ? stringField(body.overrideLocale, 'overrideLocale') : 'en';
     const regionOverride = typeof body.regionOverride === 'string' && body.regionOverride ? body.regionOverride : null;
 
     // Derive the list key server-side when not supplied; de-duplicate on collision.
@@ -83,8 +75,6 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
       : numberField(body.refreshMinutes, 'refreshMinutes', 60);
     await withDbClient((client) => repo.upsertDefaultTemplate({
       listKey,
-      locale: overrideLocale,
-      localeMode,
       regionOverride,
       sectionType,
       title: stringField(body.title, 'title'),

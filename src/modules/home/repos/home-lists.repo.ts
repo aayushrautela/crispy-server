@@ -228,11 +228,9 @@ export class HomeListsRepo {
     }));
   }
 
-  /** Active default-home rail templates matching a viewer locale (including auto rows). */
-  async listDefaultTemplatesForViewer(locales: string[]): Promise<Array<{
+  /** Active default-home rail templates for the shared snapshot. */
+  async listDefaultTemplates(): Promise<Array<{
     listKey: string;
-    locale: string;
-    localeMode: 'auto' | 'specific' | 'en';
     regionOverride: string | null;
     sectionType: string;
     title: string;
@@ -243,16 +241,13 @@ export class HomeListsRepo {
     refreshMinutes: number | null;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
         FROM home.default_list_templates
-        WHERE is_active AND (locale_mode = 'auto' OR locale = ANY($1::text[]))
+        WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
-      [locales],
     );
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
-      locale: String(row.locale),
-      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
       regionOverride: row.region_override == null ? null : String(row.region_override),
       sectionType: String(row.section_type),
       title: String(row.title),
@@ -266,8 +261,6 @@ export class HomeListsRepo {
 
   async listDefaultTemplatesForClient(client: DbClient): Promise<Array<{
     listKey: string;
-    locale: string;
-    localeMode: 'auto' | 'specific' | 'en';
     regionOverride: string | null;
     sectionType: string;
     title: string;
@@ -278,15 +271,13 @@ export class HomeListsRepo {
     refreshMinutes: number | null;
   }>> {
     const result = await client.query(
-      `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
     );
     return result.rows.map((row) => ({
       listKey: String(row.list_key),
-      locale: String(row.locale),
-      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
       regionOverride: row.region_override == null ? null : String(row.region_override),
       sectionType: String(row.section_type),
       title: String(row.title),
@@ -301,8 +292,6 @@ export class HomeListsRepo {
   /** Upsert a default-home rail template. */
   async upsertDefaultTemplate(input: {
     listKey: string;
-    locale: string;
-    localeMode: 'auto' | 'specific' | 'en';
     regionOverride: string | null;
     sectionType: string;
     title: string;
@@ -314,11 +303,9 @@ export class HomeListsRepo {
     updatedBy: string;
   }): Promise<void> {
     await this.deps.db.query(
-      `INSERT INTO home.default_list_templates (list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, now())
+      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, now())
         ON CONFLICT (list_key) DO UPDATE SET
-          locale = EXCLUDED.locale,
-          locale_mode = EXCLUDED.locale_mode,
           region_override = EXCLUDED.region_override,
           section_type = EXCLUDED.section_type,
           title = EXCLUDED.title,
@@ -329,7 +316,7 @@ export class HomeListsRepo {
           refresh_minutes = EXCLUDED.refresh_minutes,
           updated_by = EXCLUDED.updated_by,
           updated_at = EXCLUDED.updated_at`,
-      [input.listKey, input.locale, input.localeMode, input.regionOverride, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.updatedBy],
+      [input.listKey, input.regionOverride, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.updatedBy],
     );
   }
 
@@ -343,8 +330,6 @@ export class HomeListsRepo {
   /** Single active template by list_key (PK). */
   async listDefaultTemplateByKey(client: Queryable, listKey: string): Promise<{
     listKey: string;
-    locale: string;
-    localeMode: 'auto' | 'specific' | 'en';
     regionOverride: string | null;
     sectionType: string;
     title: string;
@@ -355,7 +340,7 @@ export class HomeListsRepo {
     refreshMinutes: number | null;
   } | null> {
     const result = await client.query(
-      `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
         FROM home.default_list_templates
         WHERE is_active AND list_key = $1`,
       [listKey],
@@ -364,8 +349,6 @@ export class HomeListsRepo {
     if (!row) return null;
     return {
       listKey: String(row.list_key),
-      locale: String(row.locale),
-      localeMode: String(row.locale_mode) as 'auto' | 'specific' | 'en',
       regionOverride: row.region_override == null ? null : String(row.region_override),
       sectionType: String(row.section_type),
       title: String(row.title),

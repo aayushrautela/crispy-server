@@ -14,7 +14,7 @@ The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:p
 - `reco` (reco engine, system-wide): Bearer token, hash matched against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`. Principal resolved from `app_registry.app_id='reco'`.
 - `custom` (per-user, PAT-authenticated): Bearer `cp_pat_...` carrying `recommendations:write`, with URL `:accountId` matching the PAT owner's `appUserId`. Principal synthesized from the user actor with `appId='custom'`. **PAT/API-key validation happens at the HTTP edge, not in the ingester.** The ingester just consumes the already-authenticated actor.
 
-The `default` home is not a producer: it is a **shared** in-process artifact built from server-managed templates (`home.default_list_templates` + list sources), cached in Redis per locale, and served by the resolver when a profile has no stored home. It never flows through the ingest endpoint and never materializes into per-profile rows.
+The `default` home is not a producer: it is a **shared** in-process artifact built from server-managed templates (`home.default_list_templates` + list sources), cached as a single English snapshot in Redis, and served by the resolver when a profile has no stored home. It never flows through the ingest endpoint and never materializes into per-profile rows.
 
 Both producers share the same write shape and the same canonicalize → policy → persist path. `/home` reads stored sources from what the pipeline wrote, then falls back to the shared default. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the shared-default contract and single-source resolution rule.
 

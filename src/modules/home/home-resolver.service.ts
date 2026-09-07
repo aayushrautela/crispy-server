@@ -119,10 +119,10 @@ export class HomeResolverService {
         resolvedSource = source;
       } else {
         // No rails under any stored source. Serve the shared default home:
-        // one pre-hydrated snapshot per locale, cached in Redis and reused by
+        // one pre-hydrated English snapshot cached in Redis and reused by
         // every profile. Never written to per-profile rows. Kids profiles are
         // excluded in v1 and simply report 'empty'.
-        const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault(ctx.locale);
+        const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault();
         if (shared && shared.length > 0) {
           sections = shared;
           resolvedSource = 'default';

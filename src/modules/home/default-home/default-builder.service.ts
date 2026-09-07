@@ -10,39 +10,24 @@ import { getListSource } from '../list-sources/list-source.registry.js';
 import type { HomeWriteItemLite, ListSourceCtx } from '../list-sources/list-source.types.js';
 import { HomeListsRepo } from '../repos/home-lists.repo.js';
 import type { ClientHomeSection } from '../../recommendations/client-home.types.js';
-import {
-  DEFAULT_SECTION_LIMITS,
-  resolveDefaultTemplatesForViewer,
-  type DefaultTemplate,
-} from './default-templates.js';
-import { normalizeMetadataLanguage } from '../../metadata/metadata-language.js';
+import { DEFAULT_SECTION_LIMITS, type DefaultTemplate } from './default-templates.js';
 
 const DEFAULT_HOME_TTL_SECONDS = env.homescreenDefaultTtlSeconds;
 const DEFAULT_HOME_VERSION_KEY = 'home:default:ver';
+const DEFAULT_HOME_SNAPSHOT_KEY = 'home:default:en';
 const EMPTY_MARKER = '__empty__';
 
 const inFlightBuilds = new Map<string, Promise<ClientHomeSection[] | null>>();
 
-function primaryLanguageTag(locale: string): string {
-  const normalized = normalizeMetadataLanguage(locale) ?? 'en';
-  const primary = normalized.split('-')[0]?.toLowerCase();
-  return primary || 'en';
-}
-
-function defaultHomeKey(version: string, primaryLocale: string): string {
-  return `home:default:${version}:${primaryLocale}`;
-}
-
 /**
- * Builds and serves the shared default home. Unlike the old per-profile
- * fallback, there is exactly one snapshot per locale, cached in Redis and
- * reused across every profile. It is never materialized into per-profile
- * rows — the resolver reads it directly when a profile has no custom/reco
- * home.
+ * Builds and serves the shared default home. There is exactly one snapshot
+ * (English), cached in Redis and reused across every profile. It is never
+ * materialized into per-profile rows — the resolver reads it directly when a
+ * profile has no custom/reco home.
  *
  * Template edits bump a Redis version counter so stale snapshots expire on
- * TTL instead of being enumerated. Concurrent misses for the same locale
- * collapse into one build via `inFlightBuilds`.
+ * TTL instead of being enumerated. Concurrent misses collapse into one build
+ * via `inFlightBuilds`.
  *
  * Kids profiles are excluded in v1 (the resolver never calls this for them);
  * a kids-specific template filter is a later addition.
@@ -63,10 +48,9 @@ export class DefaultHomeBuilderService {
     await redis.incr(DEFAULT_HOME_VERSION_KEY);
   }
 
-  async getSharedDefault(locale: string): Promise<ClientHomeSection[] | null> {
-    const primary = primaryLanguageTag(locale);
+  async getSharedDefault(): Promise<ClientHomeSection[] | null> {
     const version = await this.readVersion();
-    const key = defaultHomeKey(version, primary);
+    const key = `${DEFAULT_HOME_SNAPSHOT_KEY}:${version}`;
     const cached = await redis.get(key);
     if (cached === EMPTY_MARKER) return null;
     if (cached) {
@@ -76,7 +60,7 @@ export class DefaultHomeBuilderService {
         // Corrupt payload: fall through to a rebuild.
       }
     }
-    return this.buildAndCache(primary, key);
+    return this.buildAndCache(key);
   }
 
   private async readVersion(): Promise<string> {
@@ -84,11 +68,11 @@ export class DefaultHomeBuilderService {
     return raw ?? '0';
   }
 
-  private async buildAndCache(primary: string, key: string): Promise<ClientHomeSection[] | null> {
+  private async buildAndCache(key: string): Promise<ClientHomeSection[] | null> {
     const existing = inFlightBuilds.get(key);
     if (existing) return existing;
 
-    const promise = this.build(primary)
+    const promise = this.build()
       .then(async (sections) => {
         if (sections.length === 0) {
           // Cache a short-lived empty marker so a misconfigured/empty template
@@ -107,17 +91,16 @@ export class DefaultHomeBuilderService {
     return promise;
   }
 
-  private async build(primary: string): Promise<ClientHomeSection[]> {
+  private async build(): Promise<ClientHomeSection[]> {
     return withDbClient(async (client) => {
-      const all = await this.repo.listDefaultTemplatesForViewer([primary]);
-      const templates = resolveDefaultTemplatesForViewer(all as DefaultTemplate[], primary);
+      const templates = await this.repo.listDefaultTemplates();
       if (templates.length === 0) return [];
 
-      const tmdbLanguage = normalizeMetadataLanguage(primary) ?? 'en';
+      const tmdbLanguage = 'en';
       const baseCtx: ListSourceCtx = {
         client,
         profileId: '',
-        locale: primary,
+        locale: 'en',
         region: null,
         isKids: false,
         connectedProviders: [],

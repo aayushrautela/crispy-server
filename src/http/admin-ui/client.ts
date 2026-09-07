@@ -284,12 +284,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (presetSelect) {
       presetSelect.addEventListener('change', () => void applyHomePreset());
     }
-
-    const localeModeSelect = document.querySelector('[data-home-field="localeMode"]');
-    if (localeModeSelect) {
-      localeModeSelect.addEventListener('change', updateLocaleModeFields);
-    }
-    updateLocaleModeFields();
   }
 
   async function loadListSources() {
@@ -378,15 +372,6 @@ export const ADMIN_UI_CLIENT = String.raw`
     }).join('') + '</div>';
   }
 
-  function updateLocaleModeFields() {
-    const mode = document.querySelector('[data-home-field="localeMode"]');
-    const modeValue = mode ? String(mode.value) : 'auto';
-    const overrideWrap = document.querySelector('[data-home-field="overrideLocaleWrap"]');
-    const regionWrap = document.querySelector('[data-home-field="regionOverrideWrap"]');
-    if (overrideWrap) overrideWrap.hidden = modeValue !== 'specific';
-    if (regionWrap) regionWrap.hidden = modeValue === 'auto';
-  }
-
   function renderHomeSourceConfig() {
     const select = document.querySelector('[data-home-field="sourceId"]');
     const container = document.querySelector('[data-home-field="source-config"]');
@@ -452,13 +437,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       return;
     }
     const config = collectHomeSourceConfig(form);
-    const localeMode = String(form.querySelector('[name="localeMode"]')?.value || 'auto');
-    let locale = 'en';
-    if (localeMode === 'specific') {
-      locale = String(form.querySelector('[name="overrideLocale"]')?.value || 'en').trim();
-    } else if (localeMode === 'en') {
-      locale = 'en';
-    }
     const region = String(form.querySelector('[name="regionOverride"]')?.value || '').trim() || null;
     setHtmlMessage(statusEl, 'info', 'Previewing ' + escapeHtml(sourceId) + '...');
     statusEl.hidden = false;
@@ -468,7 +446,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         body: JSON.stringify({
           sourceId,
           sourceConfig: config,
-          locale,
+          locale: 'en',
           region,
           profileId: '',
           limit: 20,
@@ -507,12 +485,10 @@ export const ADMIN_UI_CLIENT = String.raw`
     setHomeStatus('#home-default-status', '', false);
     const items = result.items || [];
     rows.innerHTML = items.length ? items.map((t) => {
-      const mode = String(t.localeMode);
       const region = t.regionOverride ? ' (' + escapeHtml(String(t.regionOverride)) + ')' : '';
       return '<tr>'
         + '<td>' + escapeHtml(String(t.listKey)) + '</td>'
-        + '<td>' + escapeHtml(mode) + region + '</td>'
-        + '<td>' + escapeHtml(String(t.sectionType)) + '</td>'
+        + '<td>' + escapeHtml(String(t.sectionType)) + region + '</td>'
         + '<td>' + escapeHtml(String(t.rank)) + '</td>'
         + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
         + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
@@ -522,7 +498,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         + '</div></td>'
         + '</tr>';
     }).join('')
-      : emptyTableRow('No default rails. Create one to seed the shared default home.', 8);
+      : emptyTableRow('No default rails. Create one to seed the shared default home.', 7);
     rows.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
       btn.addEventListener('click', () => void deleteHomeDefault(btn.getAttribute('data-home-template-delete')));
     });
@@ -541,8 +517,6 @@ export const ADMIN_UI_CLIENT = String.raw`
         method: 'POST',
         body: JSON.stringify({
           listKey: '',
-          localeMode: String(data.get('localeMode') || 'auto'),
-          overrideLocale: String(data.get('overrideLocale') || 'en'),
           regionOverride: String(data.get('regionOverride') || ''),
           sectionType: String(data.get('sectionType') || '').trim(),
           title: String(data.get('title') || '').trim(),

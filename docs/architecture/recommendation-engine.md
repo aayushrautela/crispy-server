@@ -188,7 +188,7 @@ that is never pushed — it is built in-process from server-managed templates.
 | --- | --- | --- | --- |
 | `reco` | External reco engine | push (RECO POSTs results) | Already wired today via `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`. Runs daily on the reco service's schedule. |
 | `custom` | External per-user service | push (same endpoint shape, different auth) | **Not** admin-curated. The external service authenticates with a per-user PAT carrying `recommendations:write`; API-key/PAT validation is **not** the ingester's job — it happens at the HTTP edge before the ingester is called. |
-| `default` | Crispy Server (in-process, shared) | built on demand, cached in Redis per locale | Owns `home.default_list_templates`, the Trakt/TMDB list-source plugins, and locale resolution. Builds one hydrated snapshot per locale, reused by every profile; never materialized into per-profile rows. |
+| `default` | Crispy Server (in-process, shared) | built on demand, cached in Redis | Owns `home.default_list_templates` and the Trakt/TMDB list-source plugins. Builds one hydrated English snapshot, reused by every profile; never materialized into per-profile rows. |
 
 ### Component boundaries
 
@@ -222,7 +222,7 @@ without leaking into the others:
              │  - reads home.default_list_templates          │
              │  - resolves locale for the viewer pool        │
              │  - invokes list-source plugins (Trakt, TMDB) │
-             │  - hydrates one snapshot per locale into Redis│
+             │  - hydrates one English snapshot into Redis   │
              │    (versioned key, TTL-expired)               │
              └─────────────────────────────────────────────┘
                                               ▲
@@ -257,7 +257,7 @@ profile's `homeMode` and which source has populated rows:
   win — this is performed in the reco pipeline, not the ingester.
 - `homeMode === 'reco'` (default): try `reco` rows; if none, serve the shared
   default home. The default snapshot is built lazily on first miss and cached
-  per locale, so every profile without a stored home shares one build. Only if
+  in English, so every profile without a stored home shares one build. Only if
   the shared build itself fails (e.g. Trakt catastrophic outage) or resolves to
   zero rails does the read return `source: 'empty'`. Kids profiles are excluded
   from the shared default in v1 and report `empty`.
@@ -273,7 +273,7 @@ The home store keeps a bounded number of snapshots per `(profile, source)`:
 - `reco` — keep current + 1 previous snapshot
 
 The shared default home has no per-profile snapshots to retain: there is
-exactly one Redis-cached snapshot per locale, expired by TTL and rebuilt when
+exactly one Redis-cached English snapshot, expired by TTL and rebuilt when
 an admin template edit bumps the cache version.
 
 A snapshot is identified by a `run_id` UUID shared by every rail written in a
@@ -286,7 +286,7 @@ the new rails are inserted, deleting `recommendation_list_versions` rows whose
 - The "fallback is a per-profile written snapshot" model. The old fallback
   service materialized a `source='fallback'` home per profile (signup seed job,
   admin sync fan-out, resolver self-heal). It is now a **shared** read artifact:
-  one hydrated snapshot per locale in Redis, never written to per-profile rows.
+  one hydrated English snapshot in Redis, never written to per-profile rows.
   The signup seed job, the home queue, and the admin per-rail sync endpoint no
   longer exist.
 - The "eager fallback-pull on push failure" listener. Push failure →

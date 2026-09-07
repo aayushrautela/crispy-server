@@ -10,7 +10,7 @@ sources feed one ingest pipeline; one shared artifact completes the picture:
 - `custom` — curated lists from an external service, pushed (NOT admin-curated).
 - `default` — a **shared** deterministic home built in-process from
   server-managed templates (`home.default_list_templates` + list sources),
-  cached in Redis per locale and served to any profile with no stored home. It
+  cached in Redis as one English snapshot and served to any profile with no stored home. It
   is never written to per-profile rows.
 
 A profile's `homeMode` (`identity.profile_preferences.settings_json.homeMode`)
@@ -25,7 +25,7 @@ concatenated.**
    (and then `default`) instead of the stale `custom` rows.
 2. `reco` mode (default): serve `reco` rows if non-empty; otherwise serve the
    shared default home. The default snapshot is built lazily on first miss,
-   cached per locale (versioned key, TTL-expired), and reused by every profile —
+   cached as one English snapshot (versioned key, TTL-expired), reused by every profile —
    a brand new profile gets a populated home on first read with zero per-profile
    work. If the shared build itself fails (e.g. Trakt catastrophic outage) or
    resolves to zero rails, the response is `source: 'empty'`. Kids profiles are
