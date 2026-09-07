@@ -408,7 +408,7 @@ export async function registerAdminApiRoutes(
       const picked = await repo.findActiveSource({
         accountId: params.accountId,
         profileId: params.profileId,
-        sources: ['reco', 'fallback'] as const,
+        sources: ['reco'] as const,
       });
       if (picked) {
         const lists = await repo.listActiveForSource({ accountId: params.accountId, profileId: params.profileId, source: picked });

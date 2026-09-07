@@ -32,13 +32,15 @@ RECO is not this repository's BullMQ worker and must not read Crispy Server Post
 ## Authentication
 
 MAIN uses one auth framework for all service-to-service identity. The same
-framework governs the three home ingest pipeline producers (`reco`,
-`custom`, `fallback`), and is the sole source of principal shape.
+framework governs the two home ingest pipeline producers (`reco`,
+`custom`), and is the sole source of principal shape. The shared `default`
+home is **not** a producer — it is a server-internal artifact built from
+managed templates and cached in Redis; it never authenticates or calls the
+ingest endpoint.
 
 | Producer | App identity | Auth mechanism | Scope of access |
 | --- | --- | --- | --- |
 | `reco` | `app_registry.app_id = 'reco'` | Bearer token verified against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH` env var (legacy single-token mechanism preserved for operational continuity; principal resolved from `app_registry` / `app_scopes` / `app_grants` / `app_source_ownership` rows on match) | system-wide: any profile's signals read, any profile's home lists write |
-| `fallback` | `app_registry.app_id = 'fallback'` | Bearer AppKey verified by `DefaultAppAuthService.authenticateRequest` (an `app_keys` row for `fallback` is created by an operator at deployment time) | system-wide: any profile's signals read, any profile's fallback home lists write (`source='fallback'` constraint) |
 | `custom` | `app_registry.app_id = 'custom'` (registry-only; no `app_keys` row) | Bearer PAT (`cp_pat_...`) issued by the user, with the `recommendations:write` scope | per-user only: the URL `:accountId` must match the PAT owner's `appUserId`; ownership enforced at the home-list-upsert route |
 
 ### Service principal resolution (reco)
@@ -54,14 +56,6 @@ On match, the auth plugin resolves the principal for `app_id='reco'` from DB row
 This eliminates the prior `buildOfficialRecommenderPrincipal` hard-coded
 principal; the DB rows registered in migration `0022_register_home_ingest_apps`
 are the single source of truth.
-
-### AppKey principal resolution (fallback)
-
-Fallback authenticates with a `Bearer <AppKey>` (AppKey scheme is the multi-app
-framework in `src/modules/apps/`): the dispatcher hashes the secret and matches
-against an `app_keys` row for `app_id='fallback'`. Scopes, grants, and source
-ownership are resolved from the same DB rows. An operator inserts the
-`fallback` `app_keys` row when the fallback service goes live.
 
 ### Per-user principal resolution (custom)
 
@@ -149,7 +143,7 @@ RECO must not request, receive, cache, log, or forward raw account BYOK keys. MA
 
 Generated outputs are published back through internal app recommendation write endpoints. RECO writes list metadata plus ordered provider identities.
 
-See "Home ingest pipeline" below for the unified producer contract (reco, custom, fallback) and the transform/write path. The same endpoint and request shape are reused for every source; only the `source` field on the stored snapshot distinguishes provenance.
+See "Home ingest pipeline" below for the unified producer contract (reco, custom) and the transform/write path. The same endpoint and request shape are reused for every source; only the `source` field on the stored snapshot distinguishes provenance.
 
 RECO must not send nested identity wrappers, enriched card payloads, `ClientMediaCard`, `BaseItemDto`, artwork, descriptions, storage `contentId`, media keys, write-mode fields, eligibility versions, or arbitrary unbounded metadata. The write side carries only `RecoWriteItem` (provider refs + `type`); the read-side card shape never reaches the write side.
 
@@ -185,15 +179,16 @@ never mixed.
 
 ### Producers and sources
 
-Three producers feed the home store. Each is distinguished only by the
-`source` label it carries; the ingester's validation and storage logic is
-identical for all three.
+Two producers push into the home store (`reco`, `custom`); each is distinguished
+only by the `source` label it carries and the ingester's validation and storage
+logic is identical for both. The `default` home is a **shared** third surface
+that is never pushed — it is built in-process from server-managed templates.
 
 | Source | Owner | Push or pull | Notes |
 | --- | --- | --- | --- |
 | `reco` | External reco engine | push (RECO POSTs results) | Already wired today via `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`. Runs daily on the reco service's schedule. |
 | `custom` | External per-user service | push (same endpoint shape, different auth) | **Not** admin-curated. The external service authenticates with a per-user PAT carrying `recommendations:write`; API-key/PAT validation is **not** the ingester's job — it happens at the HTTP edge before the ingester is called. |
-| `fallback` | Crispy Server (in-process service) | produced on signup + on admin sync + on read-miss | Owns the templates table, the Trakt/TMDB list-source plugins, and locale/region resolution. Calls the ingester via the same `writeHome` service used by the push path. **Not** an HTTP endpoint — it is an in-process module owned by the home module. |
+| `default` | Crispy Server (in-process, shared) | built on demand, cached in Redis per locale | Owns `home.default_list_templates`, the Trakt/TMDB list-source plugins, and locale resolution. Builds one hydrated snapshot per locale, reused by every profile; never materialized into per-profile rows. |
 
 ### Component boundaries
 
@@ -221,19 +216,17 @@ without leaking into the others:
              │  - idempotency-key replay/conflict detection  │
              └─────────────────────────────────────────────┘
                                               ▲
-                                              │ in-process call
+                                              │ shared read on miss
              ┌─────────────────────────────────────────────┐
-             │  Fallback service (in-process)               │
-             │  - reads home.fallback_list_templates         │
-             │  - resolves locale + region for viewer       │
+             │  Default home builder (in-process, shared)   │
+             │  - reads home.default_list_templates          │
+             │  - resolves locale for the viewer pool        │
              │  - invokes list-source plugins (Trakt, TMDB) │
-             │  - either returns a fully-populated snapshot  │
-             │    OR returns empty (don't call ingester)    │
+             │  - hydrates one snapshot per locale into Redis│
+             │    (versioned key, TTL-expired)               │
              └─────────────────────────────────────────────┘
                                               ▲
-                                              │ on signup
-                                              │ on admin sync
-                                              │ on read-miss (resolver self-heal)
+                                              │ on read-miss (cache cold)
 ```
 
 ### Atomic, whole-snapshot writes
@@ -251,10 +244,7 @@ Implications:
 - A producer may not submit a rail with zero items. The ingester hard-rejects
   the whole snapshot with `400 INVALID_ITEMS` if any rail is empty.
 - Producers are therefore obligated to guarantee "every rail I submit is
-  non-empty" before calling the ingester. For `fallback`, this means the
-  fallback service drops any rail whose source-fetch returned 0 items, and
-  declines to call the ingester at all if zero rails remain (preserving the
-  previously-written fallback home).
+  non-empty" before calling the ingester.
 
 ### Single-source resolution
 
@@ -262,14 +252,15 @@ Implications:
 profile's `homeMode` and which source has populated rows:
 
 - `homeMode === 'custom'`: try `custom` rows; if none, return empty (custom
-  mode does not layer `reco` or `fallback`). Switching from `custom` to `reco`
+  mode does not layer `reco` or `default`). Switching from `custom` to `reco`
   requires a one-shot clear of custom rows for that profile so `reco` rows can
   win — this is performed in the reco pipeline, not the ingester.
-- `homeMode === 'reco'` (default): try `reco` rows; if none, fall back to
-  `fallback` rows; if none, the resolver **self-heals**: it in-band calls the
-  fallback service, ingests a fresh fallback snapshot, and returns it. Only
-  if the fallback fetch itself fails (e.g. Trakt catastrophic outage) does
-  the read return `source: 'empty'`.
+- `homeMode === 'reco'` (default): try `reco` rows; if none, serve the shared
+  default home. The default snapshot is built lazily on first miss and cached
+  per locale, so every profile without a stored home shares one build. Only if
+  the shared build itself fails (e.g. Trakt catastrophic outage) or resolves to
+  zero rails does the read return `source: 'empty'`. Kids profiles are excluded
+  from the shared default in v1 and report `empty`.
 
 **Never mixing sources** is a hard rule: a single home response is always 100%
 from one source. The resolver does not concatenate rails across sources.
@@ -280,8 +271,10 @@ The home store keeps a bounded number of snapshots per `(profile, source)`:
 
 - `custom` — keep current + 1 previous snapshot
 - `reco` — keep current + 1 previous snapshot
-- `fallback` — keep current snapshot only (fallback is deterministic; older
-  snapshots carry no product-meaningful state to roll back to)
+
+The shared default home has no per-profile snapshots to retain: there is
+exactly one Redis-cached snapshot per locale, expired by TTL and rebuilt when
+an admin template edit bumps the cache version.
 
 A snapshot is identified by a `run_id` UUID shared by every rail written in a
 single atomic write. The prune step runs inside the write transaction, after
@@ -290,17 +283,17 @@ the new rails are inserted, deleting `recommendation_list_versions` rows whose
 
 ### What this pipeline replaces (vs. the prior design)
 
-- The "fallback is an HTTP endpoint returning `RecoListWriteRequest`"
-  framing. Fallback is an in-process service, not a service-to-service HTTP
-  call. The same `writeHome` ingester is reused; no separate fallback HTTP
-  endpoint exists or is planned.
+- The "fallback is a per-profile written snapshot" model. The old fallback
+  service materialized a `source='fallback'` home per profile (signup seed job,
+  admin sync fan-out, resolver self-heal). It is now a **shared** read artifact:
+  one hydrated snapshot per locale in Redis, never written to per-profile rows.
+  The signup seed job, the home queue, and the admin per-rail sync endpoint no
+  longer exist.
 - The "eager fallback-pull on push failure" listener. Push failure →
   previous snapshot stays intact (transaction rollback) → resolver reads the
   previous rows on next request. No eager-fetch listener is required.
-- The read-time materialization branches. `/home` reads only from what the
-  pipeline wrote; there is no "cached default home + freshly-built default
-  home" branch. The resolver's only read-time behavior is self-heal when a
-  profile has **zero rows across all sources**.
+- Read-time self-heal writes. The resolver's only read-time fallback is serving
+  the shared default snapshot; it never writes per-profile rows during a read.
 - Continue-watching remains a separate, real-time, per-profile rail layered on
   top of the materialized home at read time (already migrated out of the
   list-source registry).

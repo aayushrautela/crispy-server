@@ -160,8 +160,6 @@ export const env = {
   recommendationGenerationTtlSeconds: parseNumber('RECOMMENDATION_GENERATION_TTL_SECONDS', 86400),
   continueWatchingTtlDays: parseNumber('CONTINUE_WATCHING_TTL_DAYS', 365),
   homescreenDefaultTtlSeconds: parseNumber('HOMESCREEN_DEFAULT_TTL_SECONDS', 21600),
-  homescreenDefaultRebuildCron: optionalEnv('HOMESCREEN_DEFAULT_REBUILD_CRON') ?? '0 */6 * * *',
-  homescreenTraktSyncCron: optionalEnv('HOMESCREEN_TRAKT_SYNC_CRON') ?? '0 3 * * *',
   recommenderToMainServiceTokenHash: optionalEnv('RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH') ?? '',
   recommenderInternalBaseUrl: optionalBaseUrl('RECOMMENDER_INTERNAL_BASE_URL') ?? '',
   mainToRecommenderServiceToken: optionalEnv('MAIN_TO_RECOMMENDER_SERVICE_TOKEN') ?? '',

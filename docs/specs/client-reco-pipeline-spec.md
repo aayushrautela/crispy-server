@@ -5,7 +5,7 @@ Status: target contract for the home ingest pipeline and the **single** read-pat
 ## Goals
 
 - **One card shape for every read path.** Public clients, the reco worker, and the reco webui all read the same `ClientMediaCard[]` envelope. There is no parallel `BaseItemDto` leak on internal signal routes, and no per-consumer enrichment layer.
-- **One write shape for every producer.** All home ingest producers (`reco`, `custom`, `fallback`) push through the same `RecoListWriteRequest` body and the same `writeHome` ingester.
+- **One write shape for every producer.** All home ingest producers (`reco`, `custom`) push through the same `RecoListWriteRequest` body and the same `writeHome` ingester. The `default` home is not a producer — it is a shared in-process artifact built from server-managed templates and cached in Redis.
 - Separate client UI payloads from recommendation-engine machine payloads on the *write* side only.
 - Keep public client recommendations UI-ready and provider-free by default.
 - Give RECO explicit machine-readable provider refs, interaction signals, list metadata, and scoring metadata on the *write* side.
@@ -225,7 +225,12 @@ producer that materializes a user's home:
 | --- | --- | --- | --- |
 | RECO (personalized recommendations) | external reco engine, push | `'reco'` (or documented source key) | service principal (`x-service-id` + bearer hash) |
 | Custom (curated lists from external service) | external custom service, push | `'custom'` (TBD exact value) | service principal, allow-listed service-id |
-| Fallback | internal HTTP source, pulled on miss/failure | `'fallback'` | service principal, internal-only |
+
+The `default` home is not a producer. It is built in-process from
+`home.default_list_templates` + list sources, cached in Redis per locale
+(versioned key, TTL-expired), and served by the resolver when a profile has no
+stored home. It never flows through the ingest endpoint and never materializes
+into per-profile rows.
 
 Sources do not branch the transform or the write path. They only:
 
@@ -233,7 +238,7 @@ Sources do not branch the transform or the write path. They only:
 - drive the auth allow-list on the ingest endpoint.
 
 See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the
-end-to-end flow including the eager fallback-pull triggers.
+end-to-end flow including the shared default-home read path.
 
 ### Single-list write
 
@@ -311,7 +316,7 @@ type RecoBatchWriteRequest = {
 
 ## Storage target
 
-Recommendation list versions store list metadata separately from item identity. All home ingest producers (reco, custom, fallback) share this storage target; `source` distinguishes provenance for diagnostics, mode resolution (`homeMode`), and admin visibility.
+Recommendation list versions store list metadata separately from item identity. The `reco` and `custom` producers share this storage target; `source` distinguishes provenance for diagnostics, mode resolution (`homeMode`), and admin visibility. The `default` home is a separate shared artifact cached in Redis, not stored here.
 
 ```ts
 type StoredRecommendationListVersion = {
@@ -354,17 +359,12 @@ same `run_id`.
 | --- | --- |
 | `custom` | current + 1 previous |
 | `reco` | current + 1 previous |
-| `fallback` | current only |
 
 Snapshots older than the keep-set are pruned inside the write transaction
 (after the new rails are inserted and activated). The read path only ever
 serves the current active snapshot; the "previous" snapshot exists purely as
 an automatic rollback surface when a later write fails (its transaction
 rolls back, the previous snapshot's active pointers remain intact).
-
-For `fallback`, older snapshots are pruned immediately because fallback is
-deterministic — re-running the seed produces an equivalent list, so stale
-snapshots carry no rollback value worth the storage cost.
 
 ## Hard-cutover rules (completed)
 

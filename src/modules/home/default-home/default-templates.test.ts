@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../../test-helpers.js';
 
 seedTestEnv();
-const { localeCandidates, resolveTemplatesByLocale, resolveFallbackTemplatesForViewer, FALLBACK_SECTION_LIMITS } = await import('./fallback-templates.js');
+const { localeCandidates, resolveTemplatesByLocale, resolveDefaultTemplatesForViewer, DEFAULT_SECTION_LIMITS } = await import('./default-templates.js');
 
 function template(partial: Partial<{
   listKey: string;
@@ -62,20 +62,20 @@ test('resolveTemplatesByLocale prefers specific locale, auto loses to specific, 
   assert.equal(resolved.length, 2);
 });
 
-test('resolveFallbackTemplatesForViewer includes auto rows for any locale', () => {
+test('resolveDefaultTemplatesForViewer includes auto rows for any locale', () => {
   const all = [
     template({ listKey: 'trending', locale: 'en', localeMode: 'auto' }),
     template({ listKey: 'popular', locale: 'pl', localeMode: 'specific' }),
   ];
-  const pl = resolveFallbackTemplatesForViewer(all, 'pl');
-  const de = resolveFallbackTemplatesForViewer(all, 'de');
+  const pl = resolveDefaultTemplatesForViewer(all, 'pl');
+  const de = resolveDefaultTemplatesForViewer(all, 'de');
   const plKeys = new Set(pl.map((t) => t.listKey));
   const deKeys = new Set(de.map((t) => t.listKey));
   assert.ok(plKeys.has('trending') && plKeys.has('popular'), 'pl sees both auto + pl-specific');
   assert.ok(deKeys.has('trending') && !deKeys.has('popular'), 'de sees auto but not pl-specific');
 });
 
-test('FALLBACK_SECTION_LIMITS defines limits per section', () => {
-  assert.equal(FALLBACK_SECTION_LIMITS.heroCarousel, 10);
-  assert.equal(FALLBACK_SECTION_LIMITS.contentRail, 50);
+test('DEFAULT_SECTION_LIMITS defines limits per section', () => {
+  assert.equal(DEFAULT_SECTION_LIMITS.heroCarousel, 10);
+  assert.equal(DEFAULT_SECTION_LIMITS.contentRail, 50);
 });

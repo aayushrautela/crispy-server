@@ -39,8 +39,8 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
           <button type="button" class="nav-item" data-nav-target="ai-lab">
             <span>AI Lab</span>
           </button>
-          <button type="button" class="nav-item" data-nav-target="home-fallback">
-            <span>Home Fallback</span>
+          <button type="button" class="nav-item" data-nav-target="home-default">
+            <span>Home Default</span>
           </button>
           <button type="button" class="nav-item" data-nav-target="home-profiles">
             <span>Profile Home</span>

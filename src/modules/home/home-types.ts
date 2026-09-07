@@ -2,7 +2,7 @@ import type { RecommendationWriteActor } from '../recommendations/recommendation
 
 export type HomeMode = 'custom' | 'recommended';
 
-export type HomeSource = 'custom' | 'reco' | 'fallback';
+export type HomeSource = 'custom' | 'reco';
 
 export type HomeWriteActor = RecommendationWriteActor;
 

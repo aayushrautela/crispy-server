@@ -3776,8 +3776,8 @@ components:
           description: Home mode currently in effect for the profile.
         source:
           type: string
-          enum: [custom, reco, fallback, empty]
-          description: Which producer's lists are currently serving the home screen.
+          enum: [custom, reco, default, empty]
+          description: Which producer's lists are currently serving the home screen. `default` is the shared fallback home built from server-managed templates.
     ProfileHomeSnapshotInput:
       type: object
       additionalProperties: true

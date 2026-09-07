@@ -1,16 +1,16 @@
-export function renderHomeFallbackView(): string {
+export function renderHomeDefaultView(): string {
   return `
-    <section class="view" data-view="home-fallback" hidden>
+    <section class="view" data-view="home-default" hidden>
       <div class="panel">
         <div class="panel-head">
-          <h3>Home Fallback Rails</h3>
+          <h3>Home Default Rails</h3>
           <div class="panel-actions">
-            <button type="button" class="secondary" data-home-action="refresh-fallback">Refresh</button>
-            <button type="button" data-home-action="create-fallback">New rail</button>
+            <button type="button" class="secondary" data-home-action="refresh-default">Refresh</button>
+            <button type="button" data-home-action="create-default">New rail</button>
           </div>
         </div>
-        <div id="home-fallback-status" class="panel-note"></div>
-        <form class="stack-form" data-home-form="fallback-create" hidden>
+        <div id="home-default-status" class="panel-note"></div>
+        <form class="stack-form" data-home-form="default-create" hidden>
           <div class="form-grid">
             <label>Source
               <select name="sourceId" data-home-field="sourceId" required>
@@ -113,16 +113,16 @@ export function renderHomeFallbackView(): string {
           <div class="form-config" data-home-field="source-config"></div>
           <div class="panel-note" data-home-field="slug-preview"></div>
           <div class="inline-actions">
-            <button type="button" class="secondary" data-home-action="preview-fallback">Preview</button>
+            <button type="button" class="secondary" data-home-action="preview-default">Preview</button>
             <button type="submit">Save</button>
-            <button type="button" class="secondary" data-home-action="cancel-fallback">Cancel</button>
+            <button type="button" class="secondary" data-home-action="cancel-default">Cancel</button>
           </div>
         </form>
         <div class="panel-note" data-home-field="preview-status" hidden></div>
         <div class="preview-grid" data-home-field="preview-items"></div>
         <table class="data-table">
           <thead><tr><th>List</th><th>Mode</th><th>Section</th><th>Rank</th><th>Title</th><th>Source</th><th>Refreshed</th><th></th></tr></thead>
-          <tbody id="home-fallback-rows"></tbody>
+          <tbody id="home-default-rows"></tbody>
         </table>
       </div>
     </section>

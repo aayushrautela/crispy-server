@@ -17,9 +17,9 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'AI Lab',
       description: 'Test configured server AI models, prompts, and providers.',
     },
-    'home-fallback': {
-      title: 'Home Fallback',
-      description: 'Manage static fallback templates used when a profile has no generated home.',
+    'home-default': {
+      title: 'Home Default',
+      description: 'Manage shared default-home templates served when a profile has no custom or reco home.',
     },
     'home-profiles': {
       title: 'Profile Home',
@@ -251,16 +251,16 @@ export const ADMIN_UI_CLIENT = String.raw`
     root.querySelectorAll('[data-home-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const action = button.getAttribute('data-home-action');
-        if (action === 'refresh-fallback') void loadHomeFallback();
-        else if (action === 'create-fallback') {
-          toggleHomeForm('fallback-create', true);
+        if (action === 'refresh-default') void loadHomeDefault();
+        else if (action === 'create-default') {
+          toggleHomeForm('default-create', true);
           void loadListSources().then(() => {
             renderHomePresets();
             void renderHomeSourceConfig();
           });
         }
-        else if (action === 'cancel-fallback') toggleHomeForm('fallback-create', false);
-        else if (action === 'preview-fallback') void previewHomeFallback();
+        else if (action === 'cancel-default') toggleHomeForm('default-create', false);
+        else if (action === 'preview-default') void previewHomeDefault();
         else if (action === 'recompute-profile') void submitHomeRecompute();
       });
     });
@@ -269,7 +269,7 @@ export const ADMIN_UI_CLIENT = String.raw`
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const name = form.getAttribute('data-home-form');
-        if (name === 'fallback-create') void createHomeFallback(form);
+        if (name === 'default-create') void createHomeDefault(form);
         else if (name === 'profile-lookup') void inspectHomeProfile(form);
         else if (name === 'profile-mode') void setHomeProfileMode(form);
       });
@@ -334,7 +334,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     const presetId = presetSelect.value;
     const preset = source.presets.find((p) => p.id === presetId);
     if (!preset) return;
-    const form = document.querySelector('[data-home-form="fallback-create"]');
+    const form = document.querySelector('[data-home-form="default-create"]');
     if (!form) return;
     const titleField = form.querySelector('[name="title"]');
     if (titleField && preset.label && !titleField.value) {
@@ -427,11 +427,11 @@ export const ADMIN_UI_CLIENT = String.raw`
     el.className = 'panel-note' + (isError ? ' warn' : '');
   }
 
-  async function previewHomeFallback() {
+  async function previewHomeDefault() {
     const statusEl = document.querySelector('[data-home-field="preview-status"]');
     const itemsEl = document.querySelector('[data-home-field="preview-items"]');
     if (!statusEl || !itemsEl) return;
-    const form = document.querySelector('[data-home-form="fallback-create"]');
+    const form = document.querySelector('[data-home-form="default-create"]');
     if (!form) return;
     const sourceId = String(form.querySelector('[name="sourceId"]')?.value || '').trim();
     if (!sourceId) {
@@ -485,16 +485,16 @@ export const ADMIN_UI_CLIENT = String.raw`
       + '</div>';
   }
 
-  async function loadHomeFallback() {
-    const result = await safeFetchJson(apiPath('/home/fallback-templates'));
-    const rows = document.getElementById('home-fallback-rows');
+  async function loadHomeDefault() {
+    const result = await safeFetchJson(apiPath('/home/default-templates'));
+    const rows = document.getElementById('home-default-rows');
     if (!rows) return;
     if (result.error) {
-      setHomeStatus('#home-fallback-status', result.error, true);
+      setHomeStatus('#home-default-status', result.error, true);
       rows.innerHTML = '';
       return;
     }
-    setHomeStatus('#home-fallback-status', '', false);
+    setHomeStatus('#home-default-status', '', false);
     const items = result.items || [];
     rows.innerHTML = items.length ? items.map((t) => {
       const mode = String(t.localeMode);
@@ -508,30 +508,26 @@ export const ADMIN_UI_CLIENT = String.raw`
         + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
         + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
         + '<td><div class="jobs-toolbar">'
-          + '<button type="button" class="secondary" data-home-template-sync="' + escapeHtml(String(t.listKey)) + '">Sync</button>'
           + '<button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '">Delete</button>'
         + '</div></td>'
         + '</tr>';
     }).join('')
-      : emptyTableRow('No fallback rails. Create one to seed deterministic home content.', 8);
+      : emptyTableRow('No default rails. Create one to seed the shared default home.', 8);
     rows.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => void deleteHomeFallback(btn.getAttribute('data-home-template-delete')));
-    });
-    rows.querySelectorAll('[data-home-template-sync]').forEach((btn) => {
-      btn.addEventListener('click', () => void syncHomeFallback(btn.getAttribute('data-home-template-sync'), btn));
+      btn.addEventListener('click', () => void deleteHomeDefault(btn.getAttribute('data-home-template-delete')));
     });
   }
 
-  async function createHomeFallback(form) {
+  async function createHomeDefault(form) {
     const data = new FormData(form);
     const sourceId = String(data.get('sourceId') || '').trim();
     if (!sourceId) {
-      setHomeStatus('#home-fallback-status', 'Select a source.', true);
+      setHomeStatus('#home-default-status', 'Select a source.', true);
       return;
     }
     const config = collectHomeSourceConfig(form);
     try {
-      await fetchJson(apiPath('/home/fallback-templates'), {
+      await fetchJson(apiPath('/home/default-templates'), {
         method: 'POST',
         body: JSON.stringify({
           listKey: '',
@@ -547,38 +543,24 @@ export const ADMIN_UI_CLIENT = String.raw`
           refreshMinutes: data.get('refreshMinutes') ? Number(data.get('refreshMinutes')) : null,
         }),
       });
-      toggleHomeForm('fallback-create', false);
+      toggleHomeForm('default-create', false);
       form.reset();
       const configEl = form.querySelector('[data-home-field="source-config"]');
       if (configEl) configEl.innerHTML = '';
       const slugEl = form.querySelector('[data-home-field="slug-preview"]');
       if (slugEl) slugEl.textContent = '';
-      void loadHomeFallback();
+      void loadHomeDefault();
     } catch (error) {
-      setHomeStatus('#home-fallback-status', error.message || 'Failed to save rail.', true);
+      setHomeStatus('#home-default-status', error.message || 'Failed to save rail.', true);
     }
   }
 
-  async function deleteHomeFallback(listKey) {
+  async function deleteHomeDefault(listKey) {
     try {
-      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey)), { method: 'DELETE' });
-      void loadHomeFallback();
+      await fetchJson(apiPath('/home/default-templates/' + encodeURIComponent(listKey)), { method: 'DELETE' });
+      void loadHomeDefault();
     } catch (error) {
-      setHomeStatus('#home-fallback-status', error.message || 'Failed to delete rail.', true);
-    }
-  }
-
-  async function syncHomeFallback(listKey, button) {
-    if (button) button.disabled = true;
-    setHomeStatus('#home-fallback-status', 'Syncing ' + listKey + '...', false);
-    try {
-      await fetchJson(apiPath('/home/fallback-templates/' + encodeURIComponent(listKey) + '/sync'), { method: 'POST' });
-      setHomeStatus('#home-fallback-status', 'Synced ' + listKey + '.', false);
-      void loadHomeFallback();
-    } catch (error) {
-      setHomeStatus('#home-fallback-status', error.message || 'Sync failed.', true);
-    } finally {
-      if (button) button.disabled = false;
+      setHomeStatus('#home-default-status', error.message || 'Failed to delete rail.', true);
     }
   }
 
@@ -673,8 +655,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
     elements.body.classList.remove('sidebar-open');
 
-    if (viewId === 'home-fallback') {
-      void loadListSources().then(() => loadHomeFallback());
+    if (viewId === 'home-default') {
+      void loadListSources().then(() => loadHomeDefault());
     }
   }
 

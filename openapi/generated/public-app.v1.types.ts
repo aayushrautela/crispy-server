@@ -1247,10 +1247,10 @@ export interface components {
              */
             mode: "recommended" | "custom";
             /**
-             * @description Which producer's lists are currently serving the home screen.
+             * @description Which producer's lists are currently serving the home screen. `default` is the shared fallback home built from server-managed templates.
              * @enum {string}
              */
-            source: "custom" | "reco" | "fallback" | "empty";
+            source: "custom" | "reco" | "default" | "empty";
         };
         ProfileHomeSnapshotInput: {
             sourceKey?: string;

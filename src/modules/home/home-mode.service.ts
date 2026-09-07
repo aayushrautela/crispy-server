@@ -48,7 +48,7 @@ export class HomeModeService {
         'home_mode_conflict',
       );
     }
-    if ((source === 'reco' || source === 'fallback') && mode === 'custom') {
+    if (source === 'reco' && mode === 'custom') {
       throw new HttpError(
         409,
         'Cannot overwrite a custom home with recommendations while homeMode is "custom".',

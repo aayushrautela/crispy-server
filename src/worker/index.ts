@@ -1,10 +1,9 @@
 import { Worker } from 'bullmq';
 import { logger } from '../config/logger.js';
-import { bullConnection, homeQueueName, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob, type TmdbEntityRefreshJob, type TmdbImageFetchJob } from '../lib/queue.js';
+import { bullConnection, projectionQueueName, type TmdbCachePurgeExpiredJob, type TmdbCacheWarmSeasonBatchJob, type TmdbCacheWarmTitleBatchJob, type TmdbEntityRefreshJob, type TmdbImageFetchJob } from '../lib/queue.js';
 import { runProviderImportJob } from './jobs/provider-import.job.js';
 import { runProviderRefreshJob } from './jobs/provider-refresh.job.js';
 import { runRefreshCalendarCacheJob } from './jobs/refresh-calendar-cache.job.js';
-import { runHomeSeedJob } from './jobs/home-seed.job.js';
 import {
   runTmdbCachePurgeExpiredJob,
   runTmdbEntityRefreshJob,
@@ -54,18 +53,6 @@ export function startWorker(): Worker {
     },
     { connection: bullConnection },
   );
-
-  const homeWorker = new Worker(
-    homeQueueName,
-    async (job) => {
-      await runHomeSeedJob(job.data as Parameters<typeof runHomeSeedJob>[0]);
-    },
-    { connection: bullConnection },
-  );
-
-  homeWorker.on('failed', (job, error) => {
-    logger.error({ jobId: job?.id, err: error }, 'home worker job failed');
-  });
 
   return projectionWorker;
 }

@@ -4,7 +4,6 @@ import { normalizeLanguageCode } from '../i18n/supported-languages.js';
 import { normalizeCountryCode } from '../i18n/supported-countries.js';
 import { validateAvatarId } from './avatars.js';
 import type { RecommenderNotifier } from '../recommender-notifier/recommender-notifier.js';
-import { enqueueHomeSeed } from '../../lib/queue.js';
 
 export type ProfileRecord = {
   id: string;
@@ -324,9 +323,6 @@ export class ProfileLocalService {
       accountId,
       profileId,
       reason: 'profile_created',
-    });
-    void enqueueHomeSeed({ accountId, profileId }).catch(() => {
-      /* seed is best-effort; resolver returns empty until seed completes */
     });
   }
 

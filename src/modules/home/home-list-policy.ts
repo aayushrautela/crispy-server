@@ -23,7 +23,7 @@ export class DefaultHomeWritePolicy implements HomeWritePolicy {
       }
       return { allowed: true };
     }
-    if (input.source === 'reco' || input.source === 'fallback') {
+    if (input.source === 'reco') {
       if (input.actor.type !== 'app') {
         return { allowed: false, rejectReason: `${input.source} source requires an app actor.` };
       }

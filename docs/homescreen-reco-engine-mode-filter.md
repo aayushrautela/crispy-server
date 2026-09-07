@@ -3,14 +3,15 @@
 ## Context
 
 The main server owns homescreens. Home = recommendations: client apps call
-`/home` and read back whatever the pipeline wrote for that profile. Three
-sources feed one ingest pipeline:
+`/home` and read back whatever the pipeline wrote for that profile. Two stored
+sources feed one ingest pipeline; one shared artifact completes the picture:
 
 - `reco` — personalized recommendations from the external reco engine, pushed.
 - `custom` — curated lists from an external service, pushed (NOT admin-curated).
-- `fallback` — deterministic default templates, produced **in-process** by the
-  fallback service (not pulled over HTTP). The fallback service calls the same
-  ingester (`writeHome`) the external push path uses.
+- `default` — a **shared** deterministic home built in-process from
+  server-managed templates (`home.default_list_templates` + list sources),
+  cached in Redis per locale and served to any profile with no stored home. It
+  is never written to per-profile rows.
 
 A profile's `homeMode` (`identity.profile_preferences.settings_json.homeMode`)
 controls whose snapshot wins in the resolution chain. **A single `GET /home`
@@ -18,21 +19,20 @@ response always carries rails from exactly one source — sources are never
 concatenated.**
 
 1. `custom` mode: serve `custom` rows if non-empty; **otherwise empty** — `custom`
-   mode does not layer `reco` or `fallback`. Switching `custom → reco` requires
+   mode does not layer `reco` or `default`. Switching `custom → reco` requires
    a one-shot clear of the custom snapshot for that profile (performed by the
    reco pipeline, not the ingester) so subsequent reads fall through to `reco`
-   (and then `fallback`) instead of the stale `custom` rows.
-2. `reco` mode (default): serve `reco` rows if non-empty; otherwise serve
-   `fallback` rows; otherwise the resolver **self-heals** by invoking the
-   fallback service in-band, ingesting a fresh fallback snapshot, and serving
-   that — so a brand new profile that slipped past the signup-time seed
-   (`enqueueHomeSeed` is fire-and-forget; failures are silent and not retried)
-   still gets a populated home on first read. If the fallback service itself
-   fails (e.g. Trakt catastrophic outage) the response is `source: 'empty'`.
+   (and then `default`) instead of the stale `custom` rows.
+2. `reco` mode (default): serve `reco` rows if non-empty; otherwise serve the
+   shared default home. The default snapshot is built lazily on first miss,
+   cached per locale (versioned key, TTL-expired), and reused by every profile —
+   a brand new profile gets a populated home on first read with zero per-profile
+   work. If the shared build itself fails (e.g. Trakt catastrophic outage) or
+   resolves to zero rails, the response is `source: 'empty'`. Kids profiles are
+   excluded from the shared default in v1 and report `empty`.
 
 See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for
-the in-process fallback contract, atomic whole-snapshot write semantics,
-retention policy, and single-source resolution rule.
+the shared-default contract and single-source resolution rule.
 
 Continue-watching is layered on top of the materialized home at read time
 (real-time, per-profile, sourced from `playback_progress`); it is not part

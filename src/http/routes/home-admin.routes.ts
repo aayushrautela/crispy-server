@@ -5,7 +5,7 @@ import { HomeResolverService } from '../../modules/home/home-resolver.service.js
 import { HomeModeService, isHomeMode } from '../../modules/home/home-mode.service.js';
 import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
 import { listSourceDescriptors, getListSource } from '../../modules/home/list-sources/list-source.registry.js';
-import { enqueueHomeSeed } from '../../lib/queue.js';
+import { DefaultHomeBuilderService } from '../../modules/home/default-home/index.js';
 import { success, mutation } from '../response.js';
 
 type AdminSession = { username: string };
@@ -35,6 +35,7 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
   const homeResolver = new HomeResolverService();
   const homeModeService = new HomeModeService();
   const repo = new HomeListsRepo({ db });
+  const defaultBuilder = new DefaultHomeBuilderService();
 
   // --- List source catalog (drives the admin form) ---
   app.get('/admin/api/home/list-sources', async (request) => {
@@ -42,13 +43,13 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     return success({ items: listSourceDescriptors() }, request);
   });
 
-  // --- Fallback templates ---
-  app.get('/admin/api/home/fallback-templates', async (request) => {
+  // --- Default-home templates ---
+  app.get('/admin/api/home/default-templates', async (request) => {
     await app.requireAdminUi(request);
-    return success({ items: await withDbClient((client) => repo.listFallbackTemplatesForClient(client)) }, request);
+    return success({ items: await withDbClient((client) => repo.listDefaultTemplatesForClient(client)) }, request);
   });
 
-  app.post('/admin/api/home/fallback-templates', async (request, reply) => {
+  app.post('/admin/api/home/default-templates', async (request, reply) => {
     await app.requireAdminUiMutation(request);
     const body = asRecord(request.body);
     const sectionType = stringField(body.sectionType, 'sectionType');
@@ -80,7 +81,7 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     const refreshMinutes = body.refreshMinutes === undefined || body.refreshMinutes === null || body.refreshMinutes === ''
       ? null
       : numberField(body.refreshMinutes, 'refreshMinutes', 60);
-    await withDbClient((client) => repo.upsertFallbackTemplate({
+    await withDbClient((client) => repo.upsertDefaultTemplate({
       listKey,
       locale: overrideLocale,
       localeMode,
@@ -94,15 +95,19 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
       refreshMinutes,
       updatedBy: 'admin',
     }));
+    // Template changed: bump the shared snapshot version so cached default
+    // homes rebuild instead of serving stale rails.
+    await defaultBuilder.bumpVersion();
     reply.code(201);
     return mutation({ accepted: true, listKey }, request);
   });
 
-  app.delete('/admin/api/home/fallback-templates/:listKey', async (request) => {
+  app.delete('/admin/api/home/default-templates/:listKey', async (request) => {
     await app.requireAdminUiMutation(request);
     const params = asRecord(request.params);
     const listKey = stringField(params.listKey, 'listKey');
-    await withDbClient((client) => repo.deleteFallbackTemplate(listKey));
+    await withDbClient((client) => repo.deleteDefaultTemplate(listKey));
+    await defaultBuilder.bumpVersion();
     return mutation({ accepted: true }, request);
   });
 
@@ -138,36 +143,6 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     return success({ count: result.items.length, items: result.items.slice(0, limit) }, request);
   });
 
-  // --- Manual refresh/sync of a single fallback rail ---
-  // Re-seeds every profile whose active home source is 'fallback'. The seed
-  // job will repopulate recommendation_list_versions for this rail across
-  // all viewers that currently have it active (bounded by # profiles using
-  // fallback). We enqueue via `enqueueHomeSeed`; the worker fans out per
-  // profile. Since each seed call uses the same idempotency key for repeat
-  // signups (home-seed:<accountId>:<profileId>), a profile whose seed has
-  // already completed would short-circuit; that's acceptable -- subsequent
-  // refreshes happen via new recompute signals or admin "sync all".
-  app.post('/admin/api/home/fallback-templates/:listKey/sync', async (request) => {
-    await app.requireAdminUiMutation(request);
-    const params = asRecord(request.params);
-    const listKey = stringField(params.listKey, 'listKey');
-    const template = await withDbClient((client) => repo.listFallbackTemplateByKey(client, listKey));
-    if (!template) {
-      throw new HttpError(404, 'Fallback template not found.');
-    }
-    const profiles = await withDbClient((client) => repo.listProfileIdsUsingSource(client, 'fallback', 1000));
-    let enqueued = 0;
-    for (const { accountId, profileId } of profiles) {
-      try {
-        await enqueueHomeSeed({ accountId, profileId });
-        enqueued++;
-      } catch {
-        /* per-profile enqueue failures are tolerated; next sync catches them */
-      }
-    }
-    return mutation({ accepted: true, enqueued, profilesTouched: profiles.length }, request);
-  });
-
   // --- Per-profile home mode + recompute ---
   app.get('/admin/api/accounts/:accountId/profiles/:profileId/home', async (request) => {
     await app.requireAdminUi(request);
@@ -199,23 +174,6 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
   });
 }
 
-const FALLBACK_PREVIEW_LIMIT = 100;
-
-function profileContextForFallbackPreview(locale: string, connectedProviders: Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>) {
-  return {
-    locale,
-    tmdbLanguage: locale,
-    region: null,
-    tmdbRegion: undefined,
-    isKids: false,
-    connectedProviders,
-  };
-}
-
-async function connectedProviderKindsForLocale(client: unknown, _locale: string): Promise<Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>> {
-  return [];
-}
-
 /**
  * Ensure a unique list_key. If the derived base collides with an existing row,
  * append -2, -3, ... until free. Pure server-side; no admin-typed slug needed.
@@ -225,7 +183,7 @@ async function deriveUniqueListKey(repo: HomeListsRepo, baseKey: string): Promis
   let candidate = normalized;
   let suffix = 2;
   for (;;) {
-    const existing = await withDbClient((client) => repo.listFallbackTemplateByKey(client, candidate));
+    const existing = await withDbClient((client) => repo.listDefaultTemplateByKey(client, candidate));
     if (!existing) return candidate;
     candidate = `${normalized}-${suffix++}`;
   }

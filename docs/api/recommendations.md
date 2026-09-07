@@ -9,13 +9,14 @@ This guide defines the home section contract used by external recommendation eng
 
 ## Home ingest pipeline
 
-The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`) is the unified write contract for **all** home producers, not just the reco engine. Producers authenticate differently depending on whether they're owned by us (reco, fallback) or custom per-user:
+The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`) is the unified write contract for **all** home producers, not just the reco engine. Producers authenticate differently depending on whether they're owned by us (reco) or custom per-user:
 
 - `reco` (reco engine, system-wide): Bearer token, hash matched against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`. Principal resolved from `app_registry.app_id='reco'`.
-- `fallback` (internal, in-process): Not authenticated via HTTP. The fallback service is an in-process module the resolver and seed worker call directly. It invokes the same `writeHome` service used by the push path, with `source='fallback'` and a service actor (`app:system:system`). No HTTP endpoint exists for fallback.
 - `custom` (per-user, PAT-authenticated): Bearer `cp_pat_...` carrying `recommendations:write`, with URL `:accountId` matching the PAT owner's `appUserId`. Principal synthesized from the user actor with `appId='custom'`. **PAT/API-key validation happens at the HTTP edge, not in the ingester.** The ingester just consumes the already-authenticated actor.
 
-All three producers share the same write shape and the same canonicalize → policy → persist path. `/home` reads only from what the pipeline wrote. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the in-process fallback contract, atomic whole-snapshot write semantics, retention policy, and single-source resolution rule.
+The `default` home is not a producer: it is a **shared** in-process artifact built from server-managed templates (`home.default_list_templates` + list sources), cached in Redis per locale, and served by the resolver when a profile has no stored home. It never flows through the ingest endpoint and never materializes into per-profile rows.
+
+Both producers share the same write shape and the same canonicalize → policy → persist path. `/home` reads stored sources from what the pipeline wrote, then falls back to the shared default. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the shared-default contract and single-source resolution rule.
 
 ## Home section model
 
@@ -70,12 +71,12 @@ Contract rules (what a producer **must** send and what the ingester **requires**
 - Item identity is `type` plus `providerRefs`; producers must not send Crispy `itemId`, `contentId`, `mediaKey`, `rank`, or nested identity wrappers.
 - Provider refs may be TMDB, TVDB, IMDb, or Kitsu when supported by MAIN.
 - Rank is array order. Producers must not send `rank`.
-- `model` is required only for `source='reco'`. Pass `null` for `source='custom'` and `source='fallback'` (no model tracking).
+- `model` is required only for `source='reco'`. Pass `null` for `source='custom'` (no model tracking).
 
 Currently tolerated but ignored fields (still accepted by the OpenAPI schema for backward compatibility; produced artifacts no longer carry them):
 
 - `score` — array order is the only ordering signal.
-- `metadata` — open bag with no contract; not surfaced for `reco`/`fallback` producers.
+- `metadata` — open bag with no contract; not surfaced for `reco` producers.
 
 Optional per-item fields that are persisted:
 
@@ -87,7 +88,7 @@ Producers must not send enriched card payloads, posters, backdrops, logos, TMDB 
 
 `GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, storage `contentId`, media keys, or RECO internals.
 
-`mode` is the profile's current home mode (`recommended` or `custom`); `source` is which producer's snapshot is currently serving the home screen (`custom`, `reco`, `fallback`, or `empty`). A response always carries rails from exactly one `source` — sources are never concatenated.
+`mode` is the profile's current home mode (`recommended` or `custom`); `source` is what is currently serving the home screen (`custom`, `reco`, the shared `default`, or `empty`). A response always carries rails from exactly one `source` — sources are never concatenated.
 
 ## RECO read path
 

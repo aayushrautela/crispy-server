@@ -27,11 +27,10 @@ export interface HomeWriteService {
 
 /**
  * Normalize an external source label (e.g. 'official-recommender') onto the
- * three storage sources. Any non-custom, non-fallback app source maps to 'reco'.
+ * two storage sources. Any non-custom app source maps to 'reco'.
  */
 export function toStorageSource(source: string): HomeSource {
   if (source === 'custom') return 'custom';
-  if (source === 'fallback') return 'fallback';
   return 'reco';
 }
 
@@ -113,7 +112,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
         accountId: input.accountId,
         profileId: input.profileId,
         source,
-        keep: source === 'fallback' ? 1 : 2,
+        keep: 2,
       });
     });
 

@@ -199,22 +199,6 @@ export class HomeListsRepo {
     );
   }
 
-  /** List (accountId, profileId) pairs whose active home source is the given
-   *  value (e.g. 'fallback'). Used by admin sync to fan-out re-seeds. */
-  async listProfileIdsUsingSource(client: Queryable, source: HomeSource, limit: number): Promise<Array<{ accountId: string; profileId: string }>> {
-    const result = await client.query(
-      `SELECT DISTINCT account_id, profile_id
-       FROM recommendation_active_lists
-       WHERE source = $1 AND deleted_at IS NULL
-       LIMIT $2`,
-      [source, limit],
-    );
-    return result.rows.map((row) => ({
-      accountId: String(row.account_id),
-      profileId: String(row.profile_id),
-    }));
-  }
-
   async listActiveForSource(input: { accountId: string; profileId: string; source: HomeSource }): Promise<Array<{
     listKey: string;
     sectionType: string;
@@ -244,8 +228,8 @@ export class HomeListsRepo {
     }));
   }
 
-  /** Active fallback rail templates matching a viewer locale (including auto rows). */
-  async listFallbackTemplatesForViewer(locales: string[]): Promise<Array<{
+  /** Active default-home rail templates matching a viewer locale (including auto rows). */
+  async listDefaultTemplatesForViewer(locales: string[]): Promise<Array<{
     listKey: string;
     locale: string;
     localeMode: 'auto' | 'specific' | 'en';
@@ -260,7 +244,7 @@ export class HomeListsRepo {
   }>> {
     const result = await this.deps.db.query(
       `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
-        FROM home.fallback_list_templates
+        FROM home.default_list_templates
         WHERE is_active AND (locale_mode = 'auto' OR locale = ANY($1::text[]))
         ORDER BY rank ASC, list_key ASC`,
       [locales],
@@ -280,7 +264,7 @@ export class HomeListsRepo {
     }));
   }
 
-  async listFallbackTemplatesForClient(client: DbClient): Promise<Array<{
+  async listDefaultTemplatesForClient(client: DbClient): Promise<Array<{
     listKey: string;
     locale: string;
     localeMode: 'auto' | 'specific' | 'en';
@@ -295,7 +279,7 @@ export class HomeListsRepo {
   }>> {
     const result = await client.query(
       `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
-        FROM home.fallback_list_templates
+        FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
     );
@@ -314,8 +298,8 @@ export class HomeListsRepo {
     }));
   }
 
-  /** Upsert a fallback rail template. */
-  async upsertFallbackTemplate(input: {
+  /** Upsert a default-home rail template. */
+  async upsertDefaultTemplate(input: {
     listKey: string;
     locale: string;
     localeMode: 'auto' | 'specific' | 'en';
@@ -330,7 +314,7 @@ export class HomeListsRepo {
     updatedBy: string;
   }): Promise<void> {
     await this.deps.db.query(
-      `INSERT INTO home.fallback_list_templates (list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
+      `INSERT INTO home.default_list_templates (list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, now())
         ON CONFLICT (list_key) DO UPDATE SET
           locale = EXCLUDED.locale,
@@ -349,15 +333,15 @@ export class HomeListsRepo {
     );
   }
 
-  async deleteFallbackTemplate(listKey: string): Promise<void> {
+  async deleteDefaultTemplate(listKey: string): Promise<void> {
     await this.deps.db.query(
-      'DELETE FROM home.fallback_list_templates WHERE list_key = $1',
+      'DELETE FROM home.default_list_templates WHERE list_key = $1',
       [listKey],
     );
   }
 
   /** Single active template by list_key (PK). */
-  async listFallbackTemplateByKey(client: Queryable, listKey: string): Promise<{
+  async listDefaultTemplateByKey(client: Queryable, listKey: string): Promise<{
     listKey: string;
     locale: string;
     localeMode: 'auto' | 'specific' | 'en';
@@ -372,7 +356,7 @@ export class HomeListsRepo {
   } | null> {
     const result = await client.query(
       `SELECT list_key, locale, locale_mode, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
-        FROM home.fallback_list_templates
+        FROM home.default_list_templates
         WHERE is_active AND list_key = $1`,
       [listKey],
     );

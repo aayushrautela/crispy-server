@@ -1,4 +1,4 @@
-import { withDbClient, db, type DbClient } from '../../lib/db.js';
+import { withDbClient, db } from '../../lib/db.js';
 import { redis } from '../../lib/redis.js';
 import { appConfig } from '../../config/app-config.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
@@ -8,11 +8,11 @@ import { HomeListsRepo } from './repos/home-lists.repo.js';
 import { HomeHydrator } from './home-hydrator.service.js';
 import { DefaultHomeWriteService, type HomeWriteService } from './home-write.service.js';
 import { homeCacheKey, readHomeEpoch } from './home-cache.js';
-import { FallbackBuilderService } from './fallback/index.js';
+import { DefaultHomeBuilderService } from './default-home/index.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
 
-export type ResolvedHomeSource = 'custom' | 'reco' | 'fallback' | 'empty';
+export type ResolvedHomeSource = 'custom' | 'reco' | 'default' | 'empty';
 
 export type ResolveHomeResult = {
   response: ClientHomeResponse;
@@ -30,6 +30,7 @@ type BuildContext = {
   profileId: string;
   locale: string;
   region: string | null;
+  isKids: boolean;
   cacheKey: string;
 };
 
@@ -42,13 +43,14 @@ export class HomeResolverService {
     private readonly repo = new HomeListsRepo({ db }),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly writeService: HomeWriteService = new DefaultHomeWriteService({ repo: new HomeListsRepo({ db }), contentIdentityService: new ContentIdentityService(), clock: { now: () => new Date() } }),
-    private readonly fallbackBuilder: FallbackBuilderService = new FallbackBuilderService(),
+    private readonly defaultBuilder: DefaultHomeBuilderService = new DefaultHomeBuilderService(),
   ) {}
 
   async resolveHome(accountId: string, profileId: string): Promise<ResolveHomeResult> {
     const profile = await this.profileLocalService.requireOwnedProfile(accountId, profileId);
     const locale = profile.interfaceLanguage || 'en-US';
     const region = profile.region ?? null;
+    const isKids = profile.isKids;
     const cacheKey = homeCacheKey(profileId, locale, region);
 
     const cachedRaw = await redis.get(cacheKey);
@@ -60,7 +62,7 @@ export class HomeResolverService {
           return { response: parsed, mode: parsed.mode, source: parsed.source, generatedAt: parsed.generatedAt };
         }
         // Stale but valid: serve immediately, refresh in the background.
-        this.scheduleBackgroundRefresh({ accountId, profileId, locale, region, cacheKey });
+        this.scheduleBackgroundRefresh({ accountId, profileId, locale, region, isKids, cacheKey });
         return { response: parsed, mode: parsed.mode, source: parsed.source, generatedAt: parsed.generatedAt };
       }
     }
@@ -70,7 +72,7 @@ export class HomeResolverService {
       return inFlight;
     }
 
-    const promise = this.rebuild({ accountId, profileId, locale, region, cacheKey })
+    const promise = this.rebuild({ accountId, profileId, locale, region, isKids, cacheKey })
       .finally(() => {
         inFlightHomes.delete(cacheKey);
       });
@@ -116,16 +118,14 @@ export class HomeResolverService {
         sections = await this.hydrator.hydrateSections(client, lists, ctx.locale);
         resolvedSource = source;
       } else {
-        // No rails under any source. Seed fallback in-band so the read is
-        // never empty when templates exist; the seed-job path is a separate,
-        // non-reliability enqueue. Use a unique idempotency key so the
-        // ingester doesn't 409 against a prior seed-job record whose items
-        // have since changed.
-        await this.fallbackBuilder.buildForProfile(ctx.accountId, ctx.profileId, `home-heal:${ctx.accountId}:${ctx.profileId}:${Date.now()}`);
-        const lists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source: 'fallback' });
-        if (lists.length > 0) {
-          sections = await this.hydrator.hydrateSections(client, lists, ctx.locale);
-          resolvedSource = 'fallback';
+        // No rails under any stored source. Serve the shared default home:
+        // one pre-hydrated snapshot per locale, cached in Redis and reused by
+        // every profile. Never written to per-profile rows. Kids profiles are
+        // excluded in v1 and simply report 'empty'.
+        const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault(ctx.locale);
+        if (shared && shared.length > 0) {
+          sections = shared;
+          resolvedSource = 'default';
         } else {
           sections = [];
           resolvedSource = 'empty';
@@ -166,17 +166,17 @@ export class HomeResolverService {
     return this.writeService.writeHome(input);
   }
 
-  /** Precedence: custom (custom mode) > reco (else) > fallback. One query. */
+  /** Precedence: custom (custom mode) > reco (else) > shared default. One query. */
   private async pickSource(
-    client: DbClient,
+    _client: unknown,
     repo: HomeListsRepo,
     accountId: string,
     profileId: string,
     mode: HomeMode,
   ): Promise<HomeSource | null> {
     const candidates: readonly HomeSource[] = mode === 'custom'
-      ? ['custom', 'reco', 'fallback']
-      : ['reco', 'fallback'];
+      ? ['custom', 'reco']
+      : ['reco'];
     return repo.findActiveSource({ accountId, profileId, sources: candidates });
   }
 }

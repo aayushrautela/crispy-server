@@ -14,12 +14,12 @@ export function localeCandidates(locale: string): string[] {
   return candidates;
 }
 
-export type FallbackLocaleMode = 'auto' | 'specific' | 'en';
+export type DefaultLocaleMode = 'auto' | 'specific' | 'en';
 
-export type FallbackTemplate = {
+export type DefaultTemplate = {
   listKey: string;
   locale: string;
-  localeMode: FallbackLocaleMode;
+  localeMode: DefaultLocaleMode;
   regionOverride: string | null;
   sectionType: string;
   title: string;
@@ -35,8 +35,8 @@ export type FallbackTemplate = {
  * matches every viewer locale and ranks below any specific match for that locale.
  * Returns one template per list_key.
  */
-export function resolveTemplatesByLocale(all: FallbackTemplate[], candidates: string[]): FallbackTemplate[] {
-  const byKey = new Map<string, FallbackTemplate>();
+export function resolveTemplatesByLocale(all: DefaultTemplate[], candidates: string[]): DefaultTemplate[] {
+  const byKey = new Map<string, DefaultTemplate>();
   const candidateRank = new Map(candidates.map((c, i) => [c, i] as const));
   for (const template of all) {
     let rank: number | undefined;
@@ -55,16 +55,16 @@ export function resolveTemplatesByLocale(all: FallbackTemplate[], candidates: st
 }
 
 /**
- * Resolve the active fallback templates for a given viewer locale. Auto-mode
+ * Resolve the active default-home templates for a given viewer locale. Auto-mode
  * rows are included for every viewer; specific/en rows only when their locale
  * is in the candidate chain.
  */
-export function resolveFallbackTemplatesForViewer(all: FallbackTemplate[], viewerLocale: string): FallbackTemplate[] {
+export function resolveDefaultTemplatesForViewer(all: DefaultTemplate[], viewerLocale: string): DefaultTemplate[] {
   const candidates = localeCandidates(viewerLocale);
   return resolveTemplatesByLocale(all, candidates);
 }
 
-export function profileContextForFallback(
+export function profileContextForDefault(
   profile: { interfaceLanguage: string; region: string | null; isKids: boolean },
   connectedProviders: Array<'tmdb' | 'tvdb' | 'imdb' | 'kitsu' | 'trakt'>,
 ) {
@@ -80,7 +80,7 @@ export function profileContextForFallback(
   };
 }
 
-export const FALLBACK_SECTION_LIMITS: Record<string, number> = {
+export const DEFAULT_SECTION_LIMITS: Record<string, number> = {
   heroCarousel: 10,
   contentRail: 50,
   categoryTabs: 50,

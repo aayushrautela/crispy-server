@@ -157,29 +157,4 @@ export function getProjectionQueue(): Queue {
   return projectionQueue;
 }
 
-export const homeQueueName = 'home';
-
-let homeQueue: Queue | null = null;
-
-export function getHomeQueue(): Queue {
-  homeQueue ??= new Queue(homeQueueName, {
-    connection: bullConnection,
-  });
-  return homeQueue;
-}
-
-export type HomeSeedJob = {
-  accountId: string;
-  profileId: string;
-};
-
-export async function enqueueHomeSeed(job: HomeSeedJob): Promise<string> {
-  const jobId = buildJobId('home-seed', job.accountId, job.profileId);
-  await getHomeQueue().add('home-seed', job, {
-    jobId,
-    removeOnComplete: true,
-    removeOnFail: 100,
-  });
-  return jobId;
-}
 
