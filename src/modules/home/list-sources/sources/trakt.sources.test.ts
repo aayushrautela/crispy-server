@@ -23,11 +23,11 @@ test('parseTraktListUrl returns null for invalid URLs', () => {
   assert.equal(parseTraktListUrl(''), null);
 });
 
-test('TraktPublicListSource descriptor exposes presets and URL field', () => {
+test('TraktPublicListSource descriptor is URL-only with no presets', () => {
   const source = new TraktPublicListSource();
   const d = source.descriptor();
   assert.equal(d.id, 'trakt.public-list');
-  assert.ok(d.presets && d.presets.length >= 2);
+  assert.equal(d.presets, undefined, 'public list has no presets — admin pastes a URL');
   const keys = d.configFields.map((f) => f.key);
   assert.ok(keys.includes('listUrl'));
   assert.ok(keys.includes('mediaType'));

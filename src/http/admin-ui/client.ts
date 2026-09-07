@@ -312,17 +312,27 @@ export const ADMIN_UI_CLIENT = String.raw`
     const sourceSelect = document.querySelector('[data-home-field="sourceId"]');
     const presetSelect = document.querySelector('[data-home-field="presetId"]');
     if (!presetSelect) return;
+    const presetWrap = presetSelect.closest('label');
     if (!sourceSelect || !sourceSelect.value) {
       presetSelect.innerHTML = '<option value="">— select source first —</option>';
+      presetSelect.value = '';
+      presetSelect.required = false;
+      if (presetWrap) presetWrap.hidden = true;
       return;
     }
     const source = homeState.sourceById[sourceSelect.value];
-    if (!source || !Array.isArray(source.presets) || source.presets.length === 0) {
-      presetSelect.innerHTML = '<option value="">— no presets —</option>';
+    const presets = source && Array.isArray(source.presets) ? source.presets : [];
+    if (presets.length === 0) {
+      presetSelect.innerHTML = '<option value="">—</option>';
+      presetSelect.value = '';
+      presetSelect.required = false;
+      if (presetWrap) presetWrap.hidden = true;
       return;
     }
+    if (presetWrap) presetWrap.hidden = false;
+    presetSelect.required = true;
     presetSelect.innerHTML = '<option value="">— select list —</option>'
-      + source.presets.map((preset) => '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.label) + '</option>').join('');
+      + presets.map((preset) => '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.label) + '</option>').join('');
   }
 
   function applyHomePreset() {

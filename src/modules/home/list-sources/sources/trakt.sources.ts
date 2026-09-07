@@ -265,21 +265,17 @@ export class TraktPublicListSource implements ListSource<PublicListConfig> {
     return {
       id: 'trakt.public-list',
       name: 'Trakt Public List (URL)',
-      description: 'A public Trakt list by URL (e.g. https://trakt.tv/users/origin14/lists/director-christopher-nolan).',
+      description: 'A public Trakt list by URL (https://trakt.tv/users/<user>/lists/<list>).',
       mediaTypes: ['movie', 'tv'],
       requiresProvider: 'trakt',
       configFields: [
-        { key: 'listUrl', label: 'Trakt list URL', type: 'text', required: true, placeholder: 'https://trakt.tv/users/origin14/lists/director-christopher-nolan' },
+        { key: 'listUrl', label: 'Trakt list URL', type: 'text', required: true, placeholder: 'https://trakt.tv/users/<user>/lists/<list>' },
         { key: 'mediaType', label: 'Media type filter', type: 'select', required: false, default: '', options: [
           { value: '', label: 'Both' },
           { value: 'movie', label: 'Movies' },
           { value: 'tv', label: 'TV' },
         ] },
         { key: 'limit', label: 'Max items', type: 'number', required: false, default: 40 },
-      ],
-      presets: [
-        { id: 'nolan', label: 'Director: Christopher Nolan', sourceConfig: { listUrl: 'https://trakt.tv/users/origin14/lists/director-christopher-nolan' } },
-        { id: 'custom-url', label: 'Custom URL (paste below)', sourceConfig: {} },
       ],
     };
   }
