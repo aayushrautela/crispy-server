@@ -58,6 +58,9 @@ export class HomeHydrator {
 
     const cardByKey = new Map<string, ClientMediaCard | null>();
     const keyFor = (listIndex: number, rowIndex: number) => `${listIndex}:${rowIndex}`;
+    const heroTaglineLists = new Set(
+      lists.map((list, i) => (readSectionType(list.sectionType) === 'heroCarousel' ? i : -1)).filter((i) => i >= 0),
+    );
 
     if (batchRows.length) {
       const contentIds = batchRows.map((row) => row.contentId);
@@ -79,7 +82,7 @@ export class HomeHydrator {
           const view = views[i];
           cardByKey.set(
             keyFor(entry.flat.listIndex, entry.flat.rowIndex),
-            view && view.title ? this.toClientCard(view, entry.flat.row) : null,
+            view && view.title ? this.toClientCard(view, entry.flat.row, heroTaglineLists.has(entry.flat.listIndex)) : null,
           );
         });
       }
@@ -94,7 +97,7 @@ export class HomeHydrator {
       const view = await this.metadataCardService.buildCardView(client, identity, locale);
       cardByKey.set(
         keyFor(flat.listIndex, flat.rowIndex),
-        view && view.title ? this.toClientCard(view, flat.row) : null,
+        view && view.title ? this.toClientCard(view, flat.row, heroTaglineLists.has(flat.listIndex)) : null,
       );
     }));
 
@@ -120,10 +123,13 @@ export class HomeHydrator {
     return sections;
   }
 
-  private toClientCard(card: MetadataCardView, row: Record<string, unknown>): ClientMediaCard {
+  private toClientCard(card: MetadataCardView, row: Record<string, unknown>, overviewFromTagline: boolean): ClientMediaCard {
+    const overview = overviewFromTagline
+      ? card.tagline ?? readNullableText(row.description) ?? undefined
+      : readNullableText(row.description) ?? undefined;
     return toClientMediaCard(card, {
       progress: null,
-      overviewOverride: readNullableText(row.description) ?? undefined,
+      overviewOverride: overview,
     });
   }
 
