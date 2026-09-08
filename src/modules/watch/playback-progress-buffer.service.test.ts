@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { PlaybackProgressBuffer, type BufferedPlaybackProgress } from './playback-progress-buffer.service.js';
-import { redis } from '../../lib/redis.js';
+import { seedTestEnv } from '../../test-helpers.js';
+import type { BufferedPlaybackProgress } from './playback-progress-buffer.service.js';
+
+seedTestEnv();
+
+const { PlaybackProgressBuffer } = await import('./playback-progress-buffer.service.js');
+const { redis } = await import('../../lib/redis.js');
 
 type Call = {
   accountId: string;
@@ -11,7 +16,7 @@ type Call = {
   durationSeconds: number | null;
 };
 
-function makeBuffer(calls: Call[]): PlaybackProgressBuffer {
+function makeBuffer(calls: Call[]): InstanceType<typeof PlaybackProgressBuffer> {
   const watchService = {
     recordPlaybackState: async (params: Call) => {
       calls.push(params);

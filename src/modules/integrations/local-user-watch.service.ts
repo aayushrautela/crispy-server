@@ -30,6 +30,20 @@ type RecordPlaybackParams = {
   episodeNumber?: number | null;
 };
 
+const MIN_RESUME_PCT = 5;
+const MAX_RESUME_PCT = 90;
+
+/**
+ * What a reported playback position means for stored watch state. `ignored`
+ * reports must leave any stored row untouched: a failed load or a brief
+ * sampled start must not wipe an existing bookmark, and a junk report must
+ * not fabricate one.
+ */
+export type PlaybackDecision =
+  | { kind: 'ignored' }
+  | { kind: 'in_progress'; positionSeconds: number }
+  | { kind: 'played' };
+
 type DismissContinueWatchingParams = {
   accountId: string;
   profileId: string;
@@ -112,14 +126,6 @@ type GetStateParams = {
   profileId: string;
   itemIds: string[];
 };
-
-// Phase 3: WATCH_ITEM_CONTENT_JOIN/COLS deleted — watch reads now use
-// watch_state + content_items only (Brain 1). Enrichment happens at the
-// route boundary via MetadataCardService (Brain 2).
-/** @deprecated — kept for test compat, remove in Phase 4 */
-export const WATCH_ITEM_CONTENT_JOIN = '';
-/** @deprecated */
-const WATCH_ITEM_CONTENT_COLS = '';
 
 export class LocalUserWatchService {
   constructor(
@@ -331,10 +337,14 @@ export class LocalUserWatchService {
     // for off-TMDB titles where no TMDB runtime is cached.
     const canonicalRuntime = await this.resolveCanonicalRuntimeSeconds(params.itemId);
     const runtime = canonicalRuntime ?? params.durationSeconds ?? null;
-    const playState = LocalUserWatchService.resolvePlayState(params.positionSeconds, runtime);
+    const decision = LocalUserWatchService.resolvePlaybackDecision(params.positionSeconds, runtime);
+
+    if (decision.kind === 'ignored') {
+      return;
+    }
 
     await withDbClient(async (client) => {
-      if (playState.played) {
+      if (decision.kind === 'played') {
         await client.query(
           `INSERT INTO user_state.watch_state
              (profile_id, item_id, played, play_count, last_played_at, position_seconds)
@@ -354,48 +364,49 @@ export class LocalUserWatchService {
            ON CONFLICT (profile_id, item_id) DO UPDATE SET
              position_seconds = EXCLUDED.position_seconds,
              last_played_at = now()`,
-          [params.profileId, params.itemId, playState.positionSeconds],
+          [params.profileId, params.itemId, decision.positionSeconds],
         );
       }
     });
 
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', {
-      force: playState.played,
+      force: decision.kind === 'played',
     });
   }
 
   /**
    * Jellyfin-style play-state resolution (UserDataManager.UpdatePlayState): the
    * watched state is decided purely from reported position vs runtime, never from
-   * a client-supplied event type. Near-zero starts are ignored (no resume entry);
-   * reaching the end (or >= MaxResumePct) marks the item played and clears the
-   * resume point.
+   * a client-supplied event type. Below the resume floor the report is ignored
+   * entirely: a failed load, brief sample, or transient zero must never wipe an
+   * existing bookmark or fabricate a resume entry — only completion (or reaching
+   * the end) may clear the resume point.
    */
-  static resolvePlayState(
+  static resolvePlaybackDecision(
     positionSeconds: number | null,
     durationSeconds: number | null,
-  ): { played: boolean; positionSeconds: number } {
+  ): PlaybackDecision {
     const pos = positionSeconds ?? 0;
     const hasRuntime = durationSeconds != null && durationSeconds > 0;
 
-    if (!hasRuntime) {
-      // Without a runtime we cannot decide "watched", so keep the item in progress and
-      // preserve the resume point rather than wrongly marking it played (the earlier
-      // position-only regression). Off-TMDB titles usually still report a client duration.
-      return { played: false, positionSeconds: pos };
+    if (hasRuntime) {
+      const pct = (pos / durationSeconds) * 100;
+      if (pct > MAX_RESUME_PCT || pos >= durationSeconds - 1) {
+        return { kind: 'played' };
+      }
+      if (pct < MIN_RESUME_PCT) {
+        return { kind: 'ignored' };
+      }
+      return { kind: 'in_progress', positionSeconds: pos };
     }
 
-    const pct = pos / durationSeconds * 100;
-    const MIN_RESUME_PCT = 5;
-    const MAX_RESUME_PCT = 90;
-
-    if (pct < MIN_RESUME_PCT) {
-      return { played: false, positionSeconds: 0 };
+    // Without a runtime we cannot decide "watched", so keep the item in progress
+    // and preserve the resume point rather than wrongly marking it played.
+    // Off-TMDB titles usually still report a client duration.
+    if (pos <= 0) {
+      return { kind: 'ignored' };
     }
-    if (pct > MAX_RESUME_PCT || pos >= durationSeconds - 1) {
-      return { played: true, positionSeconds: 0 };
-    }
-    return { played: false, positionSeconds: pos };
+    return { kind: 'in_progress', positionSeconds: pos };
   }
 
   /**

@@ -4,34 +4,32 @@ import { seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
-const { WATCH_ITEM_CONTENT_JOIN } = await import('./local-user-watch.service.js');
+const { LocalUserWatchService } = await import('./local-user-watch.service.js');
 
-test('resolvePlayState: no runtime keeps item in progress and preserves resume point', async () => {
-  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(120, null), { played: false, positionSeconds: 120 });
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(0, null), { played: false, positionSeconds: 0 });
+test('resolvePlaybackDecision: no runtime keeps item in progress and preserves resume point', () => {
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(120, null), { kind: 'in_progress', positionSeconds: 120 });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(0, null), { kind: 'ignored' });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(null, null), { kind: 'ignored' });
 });
 
-test('resolvePlayState: ignores near-zero starts (below MinResumePct)', async () => {
-  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(2, 1000), { played: false, positionSeconds: 0 });
+test('resolvePlaybackDecision: sub-floor reports are ignored, never stored or reset', () => {
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(2, 1000), { kind: 'ignored' });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(0, 1000), { kind: 'ignored' });
 });
 
-test('resolvePlayState: mid-progress stores resume position', async () => {
-  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(500, 1000), { played: false, positionSeconds: 500 });
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(800, 1000), { played: false, positionSeconds: 800 });
+test('resolvePlaybackDecision: mid-progress stores resume position', () => {
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(50, 1000), { kind: 'in_progress', positionSeconds: 50 });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(500, 1000), { kind: 'in_progress', positionSeconds: 500 });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(800, 1000), { kind: 'in_progress', positionSeconds: 800 });
 });
 
-test('resolvePlayState: >= MaxResumePct or at end is played and clears position', async () => {
-  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(910, 1000), { played: true, positionSeconds: 0 });
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(999, 1000), { played: true, positionSeconds: 0 });
-  assert.deepEqual(LocalUserWatchService.resolvePlayState(1000, 1000), { played: true, positionSeconds: 0 });
+test('resolvePlaybackDecision: >= MaxResumePct or at end is played', () => {
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(910, 1000), { kind: 'played' });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(999, 1000), { kind: 'played' });
+  assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(1000, 1000), { kind: 'played' });
 });
 
 test('deleteHistory resolves cascade target ids for season, show, and episode', async (t) => {
-  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
   const { ContentIdentityRepository } = await import('../identity/content-identity.repo.js');
 
   ContentIdentityRepository.prototype.findChildContentIds = async function (
@@ -81,7 +79,6 @@ test('deleteHistory resolves cascade target ids for season, show, and episode', 
 });
 
 test('resolveCascadeItemIds mirrors history targets for mark/unmark watched', async (t) => {
-  const { LocalUserWatchService } = await import('./local-user-watch.service.js');
   const { ContentIdentityRepository } = await import('../identity/content-identity.repo.js');
 
   ContentIdentityRepository.prototype.findChildContentIds = async function (
@@ -113,19 +110,4 @@ test('resolveCascadeItemIds mirrors history targets for mark/unmark watched', as
   assert.deepEqual(await resolve('season-1', 'season'), ['season-1', 'ep-a', 'ep-b']);
   assert.deepEqual(await resolve('show-1', 'show'), ['show-1', 'ep-1', 'ep-2', 'season-1', 'season-2']);
   assert.deepEqual(await resolve('show-1', 'show', 1, 3), ['ep-target']);
-});
-
-test('WATCH_ITEM_CONTENT_JOIN never casts an episode provider ref to integer', () => {
-  const ttClause = (WATCH_ITEM_CONTENT_JOIN.split('LEFT JOIN LATERAL')[1] ?? '')
-    .split('LEFT JOIN tmdb_tv_episodes')[0] ?? '';
-  assert.ok(
-    ttClause.includes("CASE WHEN ci.entity_type = 'movie' THEN cpr_tmdb.external_id::integer END"),
-    'movie-title cast must be guarded by a CASE so episode provider refs are never cast',
-  );
-
-  const caseStart = ttClause.indexOf('CASE WHEN ci.entity_type = ');
-  const caseEnd = ttClause.indexOf('END', caseStart);
-  assert.ok(caseStart >= 0 && caseEnd > caseStart, 'CASE guard must wrap the integer cast');
-  assert.ok(ttClause.indexOf('cpr_tmdb.external_id::integer') > caseStart && ttClause.indexOf('cpr_tmdb.external_id::integer') < caseEnd,
-    'the integer cast must sit inside the CASE guard');
 });
