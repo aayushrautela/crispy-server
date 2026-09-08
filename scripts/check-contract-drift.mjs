@@ -16,6 +16,7 @@ const specToRoutes = {
     'src/http/routes/calendar.ts',
     'src/http/routes/ai.ts',
     'src/http/routes/personal-access-tokens.ts',
+    'src/http/routes/auth-device.ts',
     'src/http/routes/profile-settings.ts',
   ],
   'openapi/public-account.v1.yaml': [

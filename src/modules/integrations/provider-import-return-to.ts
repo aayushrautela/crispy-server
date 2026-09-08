@@ -9,16 +9,15 @@ export type ValidatedImportReturnTo = {
 };
 
 /**
- * Validates a client-supplied return-to request for OAuth import flows.
- * Mirrors the pattern in app-login-handoff.service.ts:validateReturnUri but for
- * the import callback redirect.
+ * Validates a client-supplied return-to request for OAuth import flows,
+ * used for the import callback redirect.
  *
  * Inputs are the raw `clientId` (one of VALID_IMPORT_CLIENT_IDS) and `returnTo`
  * (base URL the client wants to be redirected back to after the provider
  * callback, e.g. "https://app.crispytv.tech" or "crispytv://auth/callback").
  *
  * For desktop clients, a loopback http://127.0.0.1:<port>/auth/callback is
- * accepted (matching the app-login handoff behaviour).
+ * also accepted.
  */
 export function validateImportReturnTo(clientId: string | undefined, returnTo: string | undefined): ValidatedImportReturnTo {
   const trimmedClient = (clientId ?? '').trim();

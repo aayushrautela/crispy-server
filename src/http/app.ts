@@ -27,8 +27,8 @@ import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
-import { AppLoginHandoffService } from '../modules/auth/app-login-handoff.service.js';
-import { registerAuthHandoffRoutes } from './routes/auth-handoff.js';
+import { DeviceAuthorizationService } from '../modules/auth/device-authorization.service.js';
+import { registerAuthDeviceRoutes } from './routes/auth-device.js';
 import { AccountSettingsService } from '../modules/users/account-settings.service.js';
 import { AddonService } from '../modules/users/addon.service.js';
 import { registerAddonRoutes } from './routes/addons.js';
@@ -221,7 +221,7 @@ export async function buildApp() {
   const accountSettingsService = new AccountSettingsService();
   const addonService = new AddonService();
   const patService = new PersonalAccessTokenService();
-  const appLoginHandoffService = new AppLoginHandoffService();
+  const deviceAuthorizationService = new DeviceAuthorizationService();
 
   await registerHealthRoutes(app);
   await registerAvatarRoutes(app);
@@ -232,7 +232,7 @@ export async function buildApp() {
   await registerAiRoutes(app, { profilePinService });
   await registerMeRoutes(app, { profileService, accountSettingsService });
   await registerPersonalAccessTokenRoutes(app, { patService });
-  await registerAuthHandoffRoutes(app, { appLoginHandoffService });
+  await registerAuthDeviceRoutes(app, { deviceAuthorizationService });
   await registerProfileRoutes(app, { profileService, pinService: profilePinService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);

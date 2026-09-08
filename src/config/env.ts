@@ -64,26 +64,8 @@ function optionalBaseUrl(name: string): string | undefined {
   return value ? value.replace(/\/+$/, '') : undefined;
 }
 
-function parseAppLoginAllowedReturnUris(name: string): Map<string, Set<string>> {
-  const raw = process.env[name];
-  if (!raw) return new Map();
-  const map = new Map<string, Set<string>>();
-  for (const entry of raw.split(',').map(e => e.trim()).filter(Boolean)) {
-    const colonIdx = entry.indexOf(':');
-    if (colonIdx <= 0) throw new Error(`Invalid ${name} entry: ${entry}`);
-    const clientId = entry.slice(0, colonIdx);
-    const uri = entry.slice(colonIdx + 1);
-    if (!clientId || !uri) throw new Error(`Invalid ${name} entry: ${entry}`);
-    try { new URL(uri); } catch { throw new Error(`Invalid URL in ${name}: ${uri}`); }
-    const set = map.get(clientId) ?? new Set();
-    set.add(uri);
-    map.set(clientId, set);
-  }
-  return map;
-}
-
 // OAuth import callback return-to allowlist.
-// Format (same as APP_LOGIN_ALLOWED_RETURN_URIS): "clientId:https://app.crispytv.tech,crispy-android:crispytv://auth/callback,..."
+// Format: "clientId:https://app.crispytv.tech,crispy-android:crispytv://auth/callback,..."
 // The clientId here is a coarse platform tag (e.g. "crispy-web", "crispy-android", "crispy-desktop")
 // and the URI is the base the server appends "/auth/connect/<provider>" + query to.
 export const VALID_IMPORT_CLIENT_IDS = ['crispy-web', 'crispy-ios', 'crispy-android', 'crispy-desktop'] as const;
@@ -122,6 +104,11 @@ const authAdminApiKey = requireEnv('AUTH_ADMIN_API_KEY');
 // correct path regardless of how AUTH_BASE_URL is configured.
 const authAdminBaseUrl = authBaseUrl.replace(/\/auth\/v1\/?$/, '');
 const authJwtIssuer = optionalBaseUrl('AUTH_JWT_ISSUER') ?? authAuthBaseUrl;
+const appPublicUrl = requireBaseUrl('APP_PUBLIC_URL');
+// Web page where users approve a TV/limited-input device sign-in request
+// (RFC 8628 device authorization grant). The device displays this URI and a
+// QR code encoding "<verificationUrl>?user_code=XXXX-XXXX".
+const deviceVerificationUrl = optionalBaseUrl('DEVICE_VERIFICATION_URL') ?? `${appPublicUrl}/device`;
 
 export const env = {
   nodeEnv: process.env.NODE_ENV?.trim() || 'development',
@@ -133,13 +120,13 @@ export const env = {
   adminUiPassword: optionalEnv('ADMIN_UI_PASSWORD') ?? '',
   adminUiSessionSecret: optionalEnv('ADMIN_UI_SESSION_SECRET') ?? '',
   cursorSigningSecret: requireEnv('CURSOR_SIGNING_SECRET'),
-  appLoginAllowedReturnUris: parseAppLoginAllowedReturnUris('APP_LOGIN_ALLOWED_RETURN_URIS'),
   importAllowedReturnUris: parseImportAllowedReturnUris('IMPORT_OAUTH_ALLOWED_RETURN_URIS'),
   databaseUrl: requireEnv('DATABASE_URL'),
   databasePoolMax: parseNumber('DATABASE_POOL_MAX', 20),
   redisUrl: requireEnv('REDIS_URL'),
-  appPublicUrl: requireBaseUrl('APP_PUBLIC_URL'),
+  appPublicUrl,
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
+  deviceVerificationUrl,
   authBaseUrl,
   authAdminApiKey,
   authJwksUrl: requireBaseUrl('AUTH_JWKS_URL'),
