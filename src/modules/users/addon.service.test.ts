@@ -47,6 +47,7 @@ async function buildHarness(options: {
 }) {
   const keyCalls: KeyCall[] = [];
   const inserts: Array<{ accountId: string; addonType: string; manifestUrl: string; payload: AddonPayload }> = [];
+  const updates: Array<{ addonId: string; payload: AddonPayload }> = [];
   let keyCallCount = 0;
   const repo = {
     async findByKey(
@@ -72,11 +73,20 @@ async function buildHarness(options: {
       if (options.insertError) throw options.insertError;
       return record({ payload });
     },
+    async updatePayload(
+      _client: DbClient,
+      _accountId: string,
+      addonId: string,
+      payload: AddonPayload,
+    ) {
+      updates.push({ addonId, payload });
+      return record({ payload });
+    },
   };
   const AddonService = await loadServiceClass();
   const runInTransaction: TransactionRunner = async (work) => work({} as DbClient);
   const service = new AddonService(repo as never, runInTransaction);
-  return { service, keyCalls, inserts };
+  return { service, keyCalls, inserts, updates };
 }
 
 test('addAddon returns existing addon instead of 409 when key matches', async () => {
@@ -170,4 +180,57 @@ test('addAddon defaults missing type to stremio', async () => {
   await service.addAddon('acc-1', { manifestUrl: 'https://example.com/manifest.json' });
   assert.equal(keyCalls[0]!.addonType, 'stremio');
   assert.equal(inserts[0]!.addonType, 'stremio');
+});
+
+test('addAddon upserts drifted jsplugin payload on existing row', async () => {
+  const existing = record({ payload: { providerId: 'provider-1', name: 'Old', version: '0.9', enabled: true } });
+  const { service, inserts, updates } = await buildHarness({ existing });
+  const addon = await service.addAddon('acc-1', {
+    manifestUrl: 'https://example.com/repo.json',
+    type: 'jsplugin',
+    payload: { providerId: 'provider-1', name: 'New', version: '1.0', enabled: false },
+  });
+  assert.equal(addon.id, existing.id);
+  assert.equal(inserts.length, 0);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0]!.payload, { providerId: 'provider-1', name: 'New', version: '1.0', enabled: false });
+});
+
+test('addAddon skips update when jsplugin payload matches', async () => {
+  const existing = record({ payload: { providerId: 'provider-1', name: 'Same', version: '1.0', enabled: false } });
+  const { service, inserts, updates } = await buildHarness({ existing });
+  await service.addAddon('acc-1', {
+    manifestUrl: 'https://example.com/repo.json',
+    type: 'jsplugin',
+    payload: { providerId: 'provider-1', name: 'Same', version: '1.0', enabled: false },
+  });
+  assert.equal(inserts.length, 0);
+  assert.equal(updates.length, 0);
+});
+
+test('addAddon defaults jsplugin enabled to true and ignores stremio rows on upsert', async () => {
+  const { service, inserts, updates } = await buildHarness({});
+  await service.addAddon('acc-1', {
+    manifestUrl: 'https://example.com/repo.json',
+    type: 'jsplugin',
+    payload: { providerId: 'provider-1' },
+  });
+  assert.deepEqual(inserts[0]!.payload, { providerId: 'provider-1', enabled: true });
+
+  const stremioExisting = record({ addon_type: 'stremio', manifest_url: 'https://example.com/manifest.json', payload: {} });
+  const { service: service2, updates: updates2 } = await buildHarness({ existing: stremioExisting });
+  await service2.addAddon('acc-1', { manifestUrl: 'https://example.com/manifest.json' });
+  assert.equal(updates2.length, 0);
+});
+
+test('addAddon rejects non-boolean jsplugin enabled', async () => {
+  const { service } = await buildHarness({});
+  await assert.rejects(
+    service.addAddon('acc-1', {
+      manifestUrl: 'https://example.com/repo.json',
+      type: 'jsplugin',
+      payload: { providerId: 'provider-1', enabled: 'yes' as unknown as boolean },
+    }),
+    /enabled must be a boolean/,
+  );
 });

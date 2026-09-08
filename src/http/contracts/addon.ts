@@ -3,6 +3,9 @@ import {
   withDefaultErrorResponses,
 } from './shared.js';
 
+// Request payload: jsplugin rows carry providerId plus optional name/version;
+// enabled accepts a boolean or the strings 'true'/'false' (clients that build
+// string-typed payloads) and defaults to true when omitted.
 export const addonPayloadSchema = {
   type: 'object',
   additionalProperties: false,
@@ -11,11 +14,17 @@ export const addonPayloadSchema = {
     providerId: nonEmptyStringSchema,
     name: nonEmptyStringSchema,
     version: nonEmptyStringSchema,
+    enabled: {
+      anyOf: [
+        { type: 'boolean' },
+        { type: 'string', enum: ['true', 'false'] },
+      ],
+    },
   },
 } as const;
 
 // Response payload: stremio rows carry an empty payload, jsplugin rows carry
-// providerId (+optional name/version), so no field is required here.
+// providerId (+optional name/version/enabled), so no field is required here.
 export const addonResponsePayloadSchema = {
   type: 'object',
   additionalProperties: false,
@@ -23,6 +32,7 @@ export const addonResponsePayloadSchema = {
     providerId: nonEmptyStringSchema,
     name: nonEmptyStringSchema,
     version: nonEmptyStringSchema,
+    enabled: { type: 'boolean' },
   },
 } as const;
 

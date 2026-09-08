@@ -8,6 +8,7 @@ export type AddonPayload = {
   providerId?: string;
   name?: string;
   version?: string;
+  enabled?: boolean;
 };
 
 export type AddonRecord = {
@@ -78,6 +79,24 @@ export class AddonRepository {
       throw new Error('Addon insert did not return a row.');
     }
     return mapPayload(inserted);
+  }
+
+  async updatePayload(
+    client: DbClient,
+    accountId: string,
+    addonId: string,
+    payload: AddonPayload,
+  ): Promise<AddonRecord | null> {
+    const result = await client.query<AddonRecord>(
+      `
+      UPDATE identity.account_addons
+      SET payload = $3::jsonb, updated_at = now()
+      WHERE id = $1::uuid AND account_id = $2::uuid
+      RETURNING ${ADDON_COLUMNS}
+      `,
+      [addonId, accountId, JSON.stringify(payload)],
+    );
+    return result.rows[0] ? mapPayload(result.rows[0]) : null;
   }
 
   async deleteById(

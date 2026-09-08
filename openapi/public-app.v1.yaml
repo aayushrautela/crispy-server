@@ -250,7 +250,9 @@ paths:
       description: >
         Installs a new addon by manifest URL. Only the admin profile can
         install addons. Installing an addon that already exists returns the
-        existing row (idempotent, sync-safe).
+        existing row (idempotent, sync-safe). jsplugin rows are upserted:
+        an install for an existing (manifestUrl, providerId) key refreshes
+        the stored name/version/enabled payload.
       security:
         - UserBearerAuth: []
       requestBody:

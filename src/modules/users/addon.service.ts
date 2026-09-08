@@ -67,6 +67,20 @@ export class AddonService {
       if (existing) {
         // Idempotent install: sync pushes may race across devices, and a
         // re-install of an already-tracked addon must not fail the push.
+        // jsplugin rows are upserted so sync can update name/version/enabled
+        // without uninstalling (enabled=false rows must survive for repos
+        // where every scraper is disabled).
+        if (addonType === 'jsplugin' && payloadDiffers(existing.payload, payload)) {
+          const updated = await this.addonRepository.updatePayload(
+            client,
+            accountId,
+            existing.id,
+            payload,
+          );
+          if (updated) {
+            return toAddon(updated);
+          }
+        }
         return toAddon(existing);
       }
 
@@ -145,6 +159,14 @@ function normalizePayload(addonType: AddonType, value: unknown): AddonPayload {
   if (name) payload.name = name;
   const version = optionalString(raw.version);
   if (version) payload.version = version;
+  const enabled = raw.enabled;
+  if (typeof enabled === 'boolean') {
+    payload.enabled = enabled;
+  } else if (enabled === undefined || enabled === null) {
+    payload.enabled = true;
+  } else {
+    throw new HttpError(400, 'payload.enabled must be a boolean.');
+  }
   return payload;
 }
 
@@ -154,6 +176,13 @@ function optionalString(value: unknown): string | undefined {
   }
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function payloadDiffers(existing: AddonPayload, incoming: AddonPayload): boolean {
+  if (existing.providerId !== incoming.providerId) return true;
+  if ((existing.name ?? undefined) !== (incoming.name ?? undefined)) return true;
+  if ((existing.version ?? undefined) !== (incoming.version ?? undefined)) return true;
+  return (existing.enabled ?? true) !== (incoming.enabled ?? true);
 }
 
 function isUniqueViolation(err: unknown): boolean {
