@@ -10,11 +10,13 @@ OAuth 2.0 Device Authorization Grant — **[RFC 8628](https://datatracker.ietf.o
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /v1/auth/device/authorize` | public | TV requests codes. Body: `{ clientId: "crispy-tv", deviceName?: string }` |
+| `POST /v1/auth/device/authorize` | public | TV requests codes. Body: `{ clientId: "crispy-tv", deviceName?: string, deviceId?: uuid }` |
 | `POST /v1/auth/device/token` | public | TV polls for result. Body: `{ deviceCode }` |
 | `POST /v1/auth/device/verification` | user Bearer | Look up a user code, get device details |
 | `POST /v1/auth/device/verification/approve` | user Bearer | Approve the device |
 | `POST /v1/auth/device/verification/deny` | user Bearer | Deny the device |
+| `GET /v1/auth/devices` | user Bearer | List connected devices (with active token previews) |
+| `DELETE /v1/auth/devices/{deviceId}` | user Bearer | Revoke a device and all its sessions (204) |
 
 All responses use the standard `{ data, meta: { requestId } }` envelope.
 
@@ -22,10 +24,19 @@ All responses use the standard `{ data, meta: { requestId } }` envelope.
 
 - `userCode`: 8 chars from base-20 charset `BCDFGHJKLMNPQRSTVWXZ` (RFC §6.1 recommendation: no vowels, no digits — easy to type, never forms words), displayed as `XXXX-XXXX`
 - `deviceCode`: `cp_dvc_` + 32 random bytes (base64url), **stored hashed, single-use**
+- `deviceId`: optional UUID the TV echoes from a previous login. Stored as an **untrusted** `claimed_device_id`; validated (UUID format, same account, not revoked) only at approval time
 - TTL: 15 minutes, poll interval: 5 seconds
-- Approved device gets a standard `cp_pat_` session token, 90-day expiry, named `TV session: <deviceName>` (revocable from token management)
+- Approved device gets a standard `cp_pat_` session token, 90-day expiry, named `TV session: <deviceName>`, linked to a row in `private.devices`
 - Verification URL: `DEVICE_VERIFICATION_URL` env (defaults to `APP_PUBLIC_URL/device`)
 - Brute-force mitigation (RFC §5.1): 5 failed user-code lookups / 15 min per user (429 `user_code_rate_limited`); 10 authorizations / 5 min per IP (429 `device_authorization_rate_limited`)
+
+### Device identity (stable across re-logins)
+
+Device rows in `private.devices` are created at **approval** time (when the account is known):
+
+- On approve: if the TV's `claimed_device_id` resolves to an unrevoked device owned by the approving account, that row is refreshed (name + `last_seen_at`) and reused — otherwise a new row is created.
+- On poll `approved`: the session PAT is linked to the device (`personal_access_tokens.device_id`), `last_seen_at` is touched, and the response includes `deviceId` so the TV can echo it on future logins.
+- Denying never touches devices. Revoking via `DELETE /v1/auth/devices/{id}` revokes the device row **and** all its active PATs in one transaction.
 
 ## UX Flow
 
@@ -54,7 +65,7 @@ TV                          Phone (or any browser)           Server
 |---|---|
 | `authorization_pending` | keep polling on the same interval |
 | `slow_down` (includes `interval`) | increase interval by 5s and continue |
-| `approved` (includes `plaintextToken`, `token`, `user`) | store token, done |
+| `approved` (includes `plaintextToken`, `deviceId`, `token`, `user`) | store token + deviceId (echo it in future `/authorize` calls), done |
 | `access_denied` | user denied — show message, restart flow |
 | `expired_token` | code expired/used — restart flow from `/authorize` |
 
@@ -93,8 +104,10 @@ Netflix's TV sign-in works by encoding a plain `https://` URL in the QR. The OS 
 
 ## File map (server)
 
-- `src/modules/auth/device-authorization.service.ts` — flow logic, code generation, rate limits
+- `src/modules/auth/device-authorization.service.ts` — flow logic, code generation, rate limits, device resolution
 - `src/modules/auth/device-authorization.repo.ts` — DB access, status machine `pending → approved|denied → consumed`
+- `src/modules/auth/devices.repo.ts` — device rows: create/refresh/revoke/list (with active token preview)
 - `src/http/routes/auth-device.ts` + `src/http/contracts/auth-device.ts` — routes & schemas
 - `migrations/0068_device_authorization_codes.sql` — table + drop of legacy `app_login_handoff_codes`
+- `migrations/0069_devices.sql` — `private.devices` table + token/device linkage columns
 - OpenAPI: `openapi/public-app.v1.yaml` (tags: Tokens)

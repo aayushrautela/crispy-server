@@ -585,6 +585,68 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/auth/devices:
+    get:
+      tags:
+        - Tokens
+      operationId: getV1AuthDevices
+      summary: List connected devices (TV/mobile sessions) for the account.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Connected devices with active token previews.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/auth/devices/{deviceId}:
+    delete:
+      tags:
+        - Tokens
+      operationId: deleteV1AuthDevicesDeviceId
+      summary: Revoke a device and all of its active sessions.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "204":
+          description: Device revoked.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/imports/{provider}/callback:
     get:
       tags:

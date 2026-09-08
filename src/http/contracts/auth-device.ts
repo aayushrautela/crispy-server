@@ -17,11 +17,28 @@ const deviceAuthorizationResponseSchema = {
 const deviceApprovalViewSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['clientId', 'deviceName', 'expiresAt'],
+  required: ['clientId', 'deviceName', 'expiresAt', 'deviceId'],
   properties: {
     clientId: nonEmptyStringSchema,
     deviceName: nullableStringSchema,
     expiresAt: nonEmptyStringSchema,
+    deviceId: nullableStringSchema,
+  },
+} as const;
+
+const deviceRecordSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'clientId', 'deviceName', 'deviceType', 'lastSeenAt', 'revokedAt', 'createdAt', 'activeTokenPreview'],
+  properties: {
+    id: nonEmptyStringSchema,
+    clientId: nonEmptyStringSchema,
+    deviceName: nullableStringSchema,
+    deviceType: { type: 'string', enum: ['tv', 'mobile', 'web', 'desktop'] },
+    lastSeenAt: nullableStringSchema,
+    revokedAt: nullableStringSchema,
+    createdAt: nonEmptyStringSchema,
+    activeTokenPreview: nullableStringSchema,
   },
 } as const;
 
@@ -52,10 +69,11 @@ const deviceUserSchema = {
 const deviceTokenApprovedSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['status', 'plaintextToken', 'token', 'user'],
+  required: ['status', 'plaintextToken', 'deviceId', 'token', 'user'],
   properties: {
     status: { type: 'string', enum: ['approved'] },
     plaintextToken: nonEmptyStringSchema,
+    deviceId: nonEmptyStringSchema,
     token: deviceTokenSchema,
     user: deviceUserSchema,
   },
@@ -79,6 +97,7 @@ export const createDeviceAuthorizationRouteSchema = withDefaultErrorResponses({
     properties: {
       clientId: nonEmptyStringSchema,
       deviceName: nullableStringSchema,
+      deviceId: nullableStringSchema,
     },
   },
   response: {
@@ -144,5 +163,32 @@ export const denyDeviceUserCodeRouteSchema = withDefaultErrorResponses({
   },
   response: {
     200: successEnvelope(deviceApprovalViewSchema),
+  },
+});
+
+export const listDevicesRouteSchema = withDefaultErrorResponses({
+  response: {
+    200: successEnvelope({
+      type: 'object',
+      additionalProperties: false,
+      required: ['devices'],
+      properties: {
+        devices: { type: 'array', items: deviceRecordSchema },
+      },
+    }),
+  },
+});
+
+export const revokeDeviceRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['deviceId'],
+    properties: {
+      deviceId: nonEmptyStringSchema,
+    },
+  },
+  response: {
+    204: { type: 'null' },
   },
 });

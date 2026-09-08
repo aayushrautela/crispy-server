@@ -8,6 +8,8 @@ export type DeviceAuthorizationRecord = {
   deviceCodeHash: string;
   deviceCodePreview: string;
   userCode: string;
+  claimedDeviceId: string | null;
+  deviceId: string | null;
   intervalSeconds: number;
   lastPolledAt: string | null;
   status: 'pending' | 'approved' | 'denied' | 'consumed';
@@ -26,6 +28,8 @@ function mapDeviceAuthorization(row: Record<string, unknown>): DeviceAuthorizati
     deviceCodeHash: String(row.device_code_hash),
     deviceCodePreview: String(row.device_code_preview),
     userCode: String(row.user_code),
+    claimedDeviceId: row.claimed_device_id == null ? null : String(row.claimed_device_id),
+    deviceId: row.device_id == null ? null : String(row.device_id),
     intervalSeconds: Number(row.interval_seconds),
     lastPolledAt: toDbIsoString(row.last_polled_at as Date | string | null | undefined, 'device_authorization_codes.last_polled_at'),
     status: (status === 'approved' || status === 'denied' || status === 'consumed' ? status : 'pending') as DeviceAuthorizationRecord['status'],
@@ -38,13 +42,15 @@ function mapDeviceAuthorization(row: Record<string, unknown>): DeviceAuthorizati
 
 const COLUMNS = `
   id, client_id, device_name, device_code_hash, device_code_preview, user_code,
-  interval_seconds, last_polled_at, status, account_id, expires_at, created_at, updated_at
+  claimed_device_id, device_id, interval_seconds, last_polled_at, status, account_id,
+  expires_at, created_at, updated_at
 `;
 
 export class DeviceAuthorizationRepository {
   async create(client: DbClient, params: {
     clientId: string;
     deviceName: string | null;
+    claimedDeviceId: string | null;
     deviceCodeHash: string;
     deviceCodePreview: string;
     userCode: string;
@@ -56,16 +62,17 @@ export class DeviceAuthorizationRepository {
         INSERT INTO private.device_authorization_codes (
           client_id,
           device_name,
+          claimed_device_id,
           device_code_hash,
           device_code_preview,
           user_code,
           interval_seconds,
           expires_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6::int, $7::timestamptz)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::int, $8::timestamptz)
         RETURNING ${COLUMNS}
       `,
-      [params.clientId, params.deviceName, params.deviceCodeHash, params.deviceCodePreview, params.userCode, params.intervalSeconds, params.expiresAt],
+      [params.clientId, params.deviceName, params.claimedDeviceId, params.deviceCodeHash, params.deviceCodePreview, params.userCode, params.intervalSeconds, params.expiresAt],
     );
 
     return mapDeviceAuthorization(result.rows[0]);
@@ -171,5 +178,19 @@ export class DeviceAuthorizationRepository {
     );
 
     return result.rows[0] ? mapDeviceAuthorization(result.rows[0]) : null;
+  }
+
+  async bindDevice(client: DbClient, params: {
+    id: string;
+    deviceId: string;
+  }): Promise<void> {
+    await client.query(
+      `
+        UPDATE private.device_authorization_codes
+        SET device_id = $2::uuid, updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [params.id, params.deviceId],
+    );
   }
 }

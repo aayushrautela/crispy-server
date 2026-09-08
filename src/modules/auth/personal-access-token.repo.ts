@@ -40,6 +40,7 @@ export class PersonalAccessTokenRepository {
     tokenPreview: string;
     scopes: AuthScope[];
     expiresAt?: string | null;
+    deviceId?: string | null;
   }): Promise<PersonalAccessTokenRecord> {
     const result = await client.query(
       `
@@ -49,16 +50,35 @@ export class PersonalAccessTokenRepository {
           token_hash,
           token_preview,
           scopes,
-          expires_at
+          expires_at,
+          device_id
         )
-        VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6::timestamptz)
+        VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6::timestamptz, $7::uuid)
         RETURNING id, account_id AS user_id, name, token_hash, token_preview, scopes,
                   expires_at, last_used_at, revoked_at, created_at, updated_at
       `,
-      [params.userId, params.name, params.tokenHash, params.tokenPreview, JSON.stringify(params.scopes), params.expiresAt ?? null],
+      [params.userId, params.name, params.tokenHash, params.tokenPreview, JSON.stringify(params.scopes), params.expiresAt ?? null, params.deviceId ?? null],
     );
 
     return mapPersonalAccessToken(result.rows[0]);
+  }
+
+  async revokeForDevice(client: DbClient, params: {
+    accountId: string;
+    deviceId: string;
+  }): Promise<number> {
+    const result = await client.query(
+      `
+        UPDATE private.personal_access_tokens
+        SET revoked_at = now(), updated_at = now()
+        WHERE device_id = $2::uuid
+          AND account_id = $1::uuid
+          AND revoked_at IS NULL
+      `,
+      [params.accountId, params.deviceId],
+    );
+
+    return result.rowCount ?? 0;
   }
 
   async findActiveByHash(client: DbClient, tokenHash: string): Promise<PersonalAccessTokenRecord | null> {

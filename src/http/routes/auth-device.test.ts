@@ -108,6 +108,7 @@ test('POST /v1/auth/device/token returns approved token payload', async (t) => {
     return {
       kind: 'approved',
       plaintextToken: 'cp_pat_abc123',
+      deviceId: 'd7c1f8a2-0000-4000-8000-000000000001',
       token: {
         id: 'token-1',
         name: 'TV session: Living Room TV',
@@ -150,7 +151,7 @@ test('POST /v1/auth/device/verification requires auth and looks up code', async 
     assert.equal(userId, 'auth-subject');
     // Raw input is passed through; normalization happens inside the service.
     assert.equal(input.userCode, 'wdjb-mjht');
-    return { clientId: 'crispy-tv', deviceName: 'Living Room TV', expiresAt: '2026-09-08T01:00:00.000Z' };
+    return { clientId: 'crispy-tv', deviceName: 'Living Room TV', expiresAt: '2026-09-08T01:00:00.000Z', deviceId: null };
   };
 
   const { DeviceAuthorizationService: Service } = await import('../../modules/auth/device-authorization.service.js');
@@ -180,7 +181,7 @@ test('POST /v1/auth/device/verification/approve approves device', async (t) => {
 
   DeviceAuthorizationService.prototype.approve = async function (this: unknown, userId: string) {
     assert.equal(userId, 'auth-subject');
-    return { clientId: 'crispy-tv', deviceName: 'Living Room TV', expiresAt: '2026-09-08T01:00:00.000Z' };
+    return { clientId: 'crispy-tv', deviceName: 'Living Room TV', expiresAt: '2026-09-08T01:00:00.000Z', deviceId: 'd7c1f8a2-0000-4000-8000-000000000001' };
   };
 
   const { DeviceAuthorizationService: Service } = await import('../../modules/auth/device-authorization.service.js');
@@ -209,7 +210,7 @@ test('POST /v1/auth/device/verification/deny denies device', async (t) => {
 
   DeviceAuthorizationService.prototype.deny = async function (input: { userCode: string }) {
     assert.equal(input.userCode, 'WDJB-MJHT');
-    return { clientId: 'crispy-tv', deviceName: 'Living Room TV', expiresAt: '2026-09-08T01:00:00.000Z' };
+    return { clientId: 'crispy-tv', deviceName: 'Living Room TV', expiresAt: '2026-09-08T01:00:00.000Z', deviceId: null };
   };
 
   const { DeviceAuthorizationService: Service } = await import('../../modules/auth/device-authorization.service.js');
@@ -227,4 +228,69 @@ test('POST /v1/auth/device/verification/deny denies device', async (t) => {
   assert.equal(response.statusCode, 200);
   const body = response.json() as { data: { clientId: string } };
   assert.equal(body.data.clientId, 'crispy-tv');
+});
+
+test('GET /v1/auth/devices lists devices for the account', async (t) => {
+  const { DeviceAuthorizationService } = await import('../../modules/auth/device-authorization.service.js');
+  const original = DeviceAuthorizationService.prototype.listDevices;
+  t.after(() => {
+    DeviceAuthorizationService.prototype.listDevices = original;
+  });
+
+  DeviceAuthorizationService.prototype.listDevices = async function (this: unknown, userId: string) {
+    assert.equal(userId, 'auth-subject');
+    return [{
+      id: 'd7c1f8a2-0000-4000-8000-000000000001',
+      clientId: 'crispy-tv',
+      deviceName: 'Living Room TV',
+      deviceType: 'tv' as const,
+      lastSeenAt: '2026-09-08T00:30:00.000Z',
+      revokedAt: null,
+      createdAt: '2026-09-08T00:00:00.000Z',
+      activeTokenPreview: 'cp_pat_abc12',
+    }];
+  };
+
+  const { DeviceAuthorizationService: Service } = await import('../../modules/auth/device-authorization.service.js');
+  const { registerAuthDeviceRoutes } = await import('./auth-device.js');
+  const app = await buildTestApp((app) => registerAuthDeviceRoutes(app, { deviceAuthorizationService: new Service() }));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/auth/devices',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as { data: { devices: Array<{ deviceName: string; activeTokenPreview: string | null }> } };
+  assert.equal(body.data.devices.length, 1);
+  assert.equal(body.data.devices[0]?.deviceName, 'Living Room TV');
+  assert.equal(body.data.devices[0]?.activeTokenPreview, 'cp_pat_abc12');
+});
+
+test('DELETE /v1/auth/devices/:deviceId revokes and returns 204', async (t) => {
+  const { DeviceAuthorizationService } = await import('../../modules/auth/device-authorization.service.js');
+  const original = DeviceAuthorizationService.prototype.revokeDevice;
+  t.after(() => {
+    DeviceAuthorizationService.prototype.revokeDevice = original;
+  });
+
+  DeviceAuthorizationService.prototype.revokeDevice = async function (this: unknown, userId: string, input: { deviceId: string }) {
+    assert.equal(userId, 'auth-subject');
+    assert.equal(input.deviceId, 'd7c1f8a2-0000-4000-8000-000000000001');
+  };
+
+  const { DeviceAuthorizationService: Service } = await import('../../modules/auth/device-authorization.service.js');
+  const { registerAuthDeviceRoutes } = await import('./auth-device.js');
+  const app = await buildTestApp((app) => registerAuthDeviceRoutes(app, { deviceAuthorizationService: new Service() }));
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'DELETE',
+    url: '/v1/auth/devices/d7c1f8a2-0000-4000-8000-000000000001',
+    headers: { authorization: 'Bearer test' },
+  });
+
+  assert.equal(response.statusCode, 204);
 });

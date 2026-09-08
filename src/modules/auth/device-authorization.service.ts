@@ -7,6 +7,7 @@ import { PAT_DEFAULT_SCOPES } from './auth.types.js';
 import { PersonalAccessTokenRepository } from './personal-access-token.repo.js';
 import { hashAccessToken } from './token-hash.js';
 import { DeviceAuthorizationRepository } from './device-authorization.repo.js';
+import { DeviceRepository } from './devices.repo.js';
 
 // RFC 8628 §6.1 base-20 charset: uppercase A-Z without vowels, so codes are
 // easy to type on mobile keyboards and never form random words.
@@ -45,6 +46,7 @@ export type DeviceTokenPollResult =
   | {
       kind: 'approved';
       plaintextToken: string;
+      deviceId: string;
       token: {
         id: string;
         name: string;
@@ -63,6 +65,18 @@ export type PendingDeviceAuthorizationView = {
   clientId: string;
   deviceName: string | null;
   expiresAt: string;
+  deviceId: string | null;
+};
+
+export type DeviceListItem = {
+  id: string;
+  clientId: string;
+  deviceName: string | null;
+  deviceType: 'tv' | 'mobile' | 'web' | 'desktop';
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  activeTokenPreview: string | null;
 };
 
 type AttemptWindow = { count: number; windowStart: number };
@@ -89,14 +103,18 @@ export class DeviceAuthorizationService {
   constructor(
     private readonly repo: DeviceAuthorizationRepository = new DeviceAuthorizationRepository(),
     private readonly tokenRepo: PersonalAccessTokenRepository = new PersonalAccessTokenRepository(),
+    private readonly deviceRepo: DeviceRepository = new DeviceRepository(),
   ) {}
 
   private verificationAttempts = new Map<string, AttemptWindow>();
   private authorizationCreates = new Map<string, AttemptWindow>();
 
-  async createAuthorization(input: { clientId: string; deviceName?: string | null; ip?: string | null }): Promise<DeviceAuthorizationView> {
+  async createAuthorization(input: { clientId: string; deviceName?: string | null; deviceId?: string | null; ip?: string | null }): Promise<DeviceAuthorizationView> {
     const clientId = normalizeClientId(input.clientId);
     const deviceName = normalizeDeviceName(input.deviceName);
+    // Untrusted echo of a previously issued device id. Validation (ownership,
+    // revocation) happens against the approving account at approval time.
+    const claimedDeviceId = normalizeDeviceId(input.deviceId);
     if (input.ip) {
       this.assertWithinWindow(this.authorizationCreates, input.ip, AUTHORIZATION_CREATE_LIMIT, AUTHORIZATION_CREATE_WINDOW_MS, 429, 'Too many device authorization requests. Try again later.', 'device_authorization_rate_limited');
       this.recordFailedAttempt(this.authorizationCreates, input.ip, AUTHORIZATION_CREATE_WINDOW_MS);
@@ -113,6 +131,7 @@ export class DeviceAuthorizationService {
         await withDbClient((client) => this.repo.create(client, {
           clientId,
           deviceName,
+          claimedDeviceId,
           deviceCodeHash: hashAccessToken(plaintextDeviceCode),
           deviceCodePreview: plaintextDeviceCode.slice(0, 12),
           userCode,
@@ -170,7 +189,7 @@ export class DeviceAuthorizationService {
       // the device code was already exchanged (single use) → expired_token.
       return withTransaction(async (txClient) => {
         const consumed = await this.repo.consumeApprovedByDeviceCodeHash(txClient, deviceCodeHash);
-        if (!consumed || !consumed.accountId) {
+        if (!consumed || !consumed.accountId || !consumed.deviceId) {
           return { kind: 'expired_token' };
         }
 
@@ -182,13 +201,17 @@ export class DeviceAuthorizationService {
           tokenPreview: plaintextToken.slice(0, 12),
           scopes: PAT_DEFAULT_SCOPES,
           expiresAt: new Date(Date.now() + APP_SESSION_TTL_MS).toISOString(),
+          deviceId: consumed.deviceId,
         });
+
+        await this.deviceRepo.touchLastSeen(txClient, consumed.deviceId);
 
         const emailResult = await txClient.query('SELECT email FROM identity.accounts WHERE id = $1::uuid', [consumed.accountId]);
 
         return {
           kind: 'approved' as const,
           plaintextToken,
+          deviceId: consumed.deviceId,
           token: {
             id: token.id,
             name: token.name,
@@ -220,21 +243,56 @@ export class DeviceAuthorizationService {
       clientId: record.clientId,
       deviceName: record.deviceName,
       expiresAt: record.expiresAt,
+      deviceId: null,
     };
   }
 
   async approve(userId: string, input: { userCode: string }): Promise<PendingDeviceAuthorizationView> {
     const userCode = normalizeUserCode(input.userCode);
-    const approved = await withDbClient((client) => this.repo.approveByUserCode(client, userCode, userId));
+    const approved = await withTransaction(async (txClient) => {
+      const approvedRow = await this.repo.approveByUserCode(txClient, userCode, userId);
+      if (!approvedRow) return null;
+
+      // Resolve the device identity: reuse the TV's claimed device row when
+      // it belongs to this account and is still active, otherwise mint a new
+      // one. This keeps re-logins from duplicating devices in the list.
+      const existing = approvedRow.claimedDeviceId
+        ? await this.deviceRepo.findById(txClient, approvedRow.claimedDeviceId)
+        : null;
+      const reusable = existing && existing.accountId === userId && !existing.revokedAt ? existing : null;
+      const device = reusable
+        ? await this.deviceRepo.refresh(txClient, {
+            deviceId: reusable.id,
+            accountId: userId,
+            deviceName: approvedRow.deviceName,
+          })
+        : await this.deviceRepo.create(txClient, {
+            accountId: userId,
+            clientId: approvedRow.clientId,
+            deviceName: approvedRow.deviceName,
+          });
+      if (!device) {
+        throw new HttpError(500, 'Failed to register device.', undefined, 'device_registration_failed');
+      }
+
+      await this.repo.bindDevice(txClient, {
+        id: approvedRow.id,
+        deviceId: device.id,
+      });
+
+      return { view: {
+        clientId: approvedRow.clientId,
+        deviceName: approvedRow.deviceName,
+        expiresAt: approvedRow.expiresAt,
+        deviceId: device.id,
+      } };
+    });
+
     if (!approved) {
       throw new HttpError(409, 'Verification code is invalid, expired, or already used.', undefined, 'user_code_not_usable');
     }
     this.verificationAttempts.delete(userId);
-    return {
-      clientId: approved.clientId,
-      deviceName: approved.deviceName,
-      expiresAt: approved.expiresAt,
-    };
+    return approved.view;
   }
 
   async deny(input: { userCode: string }): Promise<PendingDeviceAuthorizationView> {
@@ -247,7 +305,28 @@ export class DeviceAuthorizationService {
       clientId: denied.clientId,
       deviceName: denied.deviceName,
       expiresAt: denied.expiresAt,
+      deviceId: null,
     };
+  }
+
+  async listDevices(userId: string): Promise<DeviceListItem[]> {
+    return withDbClient((client) => this.deviceRepo.listForAccountWithActiveToken(client, userId));
+  }
+
+  async revokeDevice(userId: string, input: { deviceId: string }): Promise<void> {
+    await withTransaction(async (txClient) => {
+      const revoked = await this.deviceRepo.revoke(txClient, {
+        deviceId: input.deviceId,
+        accountId: userId,
+      });
+      if (!revoked) {
+        throw new HttpError(404, 'Device not found or already revoked.', undefined, 'device_not_found');
+      }
+      await this.tokenRepo.revokeForDevice(txClient, {
+        accountId: userId,
+        deviceId: input.deviceId,
+      });
+    });
   }
 
   private assertWithinWindow(
@@ -291,4 +370,11 @@ function normalizeDeviceName(value: string | null | undefined): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, 80);
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeDeviceId(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && UUID_PATTERN.test(trimmed) ? trimmed.toLowerCase() : null;
 }

@@ -5,8 +5,10 @@ import {
   approveDeviceUserCodeRouteSchema,
   createDeviceAuthorizationRouteSchema,
   denyDeviceUserCodeRouteSchema,
+  listDevicesRouteSchema,
   lookupDeviceUserCodeRouteSchema,
   pollDeviceTokenRouteSchema,
+  revokeDeviceRouteSchema,
 } from '../contracts/auth-device.js';
 
 export async function registerAuthDeviceRoutes(
@@ -20,6 +22,7 @@ export async function registerAuthDeviceRoutes(
     const created = await deviceAuthorizationService.createAuthorization({
       clientId: String(body.clientId ?? ''),
       deviceName: body.deviceName === null || typeof body.deviceName === 'string' ? body.deviceName : undefined,
+      deviceId: body.deviceId === null || typeof body.deviceId === 'string' ? body.deviceId : undefined,
       ip: request.ip,
     });
     reply.code(201);
@@ -46,6 +49,7 @@ export async function registerAuthDeviceRoutes(
     return success({
       status: 'approved',
       plaintextToken: result.plaintextToken,
+      deviceId: result.deviceId,
       token: result.token,
       user: result.user,
     }, request);
@@ -75,5 +79,23 @@ export async function registerAuthDeviceRoutes(
     return success(await deviceAuthorizationService.deny({
       userCode: String(body.userCode ?? ''),
     }), request);
+  });
+
+  app.get('/v1/auth/devices', { schema: listDevicesRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
+    const devices = await deviceAuthorizationService.listDevices(actor.authSubject);
+    return success({ devices }, request);
+  });
+
+  app.delete('/v1/auth/devices/:deviceId', { schema: revokeDeviceRouteSchema }, async (request, reply) => {
+    await app.requireAuth(request);
+    const actor = app.requireUserSessionActor(request) as { authSubject: string };
+    const params = request.params as Record<string, string>;
+    await deviceAuthorizationService.revokeDevice(actor.authSubject, {
+      deviceId: String(params.deviceId ?? ''),
+    });
+    reply.code(204);
+    return undefined;
   });
 }
