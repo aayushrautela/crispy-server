@@ -124,8 +124,12 @@ export class PlaybackProgressBuffer {
       await redis.smove(sourceKey, pKey, member);
     }
 
-    try {
-      for (const itemId of members) {
+    // Per-item isolation: one poisoned payload must not stall the rest of the
+    // profile's batch. Failures are logged per item; successful items are
+    // acknowledged so a later full success clears the processing set.
+    const failed: string[] = [];
+    for (const itemId of members) {
+      try {
         const raw = await redis.get(posKey(accountId, profileId, itemId));
         if (!raw) continue;
         const data = JSON.parse(raw) as BufferedPlaybackProgress;
@@ -142,11 +146,22 @@ export class PlaybackProgressBuffer {
           seasonNumber: data.seasonNumber,
           episodeNumber: data.episodeNumber,
         });
+      } catch (err) {
+        failed.push(itemId);
+        logger.error({ err, accountId, profileId, itemId }, 'failed to flush buffered playback progress');
       }
-      await redis.del(pKey);
-    } catch (err) {
-      logger.error({ err, accountId, profileId }, 'failed to flush buffered playback progress');
     }
+
+    if (failed.length > 0) {
+      // Re-queue failures on the dirty set so the next tick retries them
+      // without waiting for a restart. They also stay in the processing set
+      // (crash safety: boot drain reprocesses them); a later successful flush
+      // clears the whole set, which is safe because every retained member is
+      // either already written or still pending in the dirty set.
+      await redis.sadd(dirtyKey(accountId, profileId), ...failed);
+      return;
+    }
+    await redis.del(pKey);
   }
 }
 

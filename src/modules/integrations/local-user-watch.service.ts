@@ -357,12 +357,17 @@ export class LocalUserWatchService {
           [params.profileId, params.itemId],
         );
       } else {
+        // In-progress upsert must also clear a stale played flag: a rewatch of
+        // a completed title re-enters Continue Watching (play_count is
+        // completion history and stays untouched). Mirrors the
+        // watch_state_played_position_check invariant (migration 0069).
         await client.query(
           `INSERT INTO user_state.watch_state
              (profile_id, item_id, played, play_count, last_played_at, position_seconds)
            VALUES ($1::uuid, $2::uuid, false, 0, now(), $3)
            ON CONFLICT (profile_id, item_id) DO UPDATE SET
              position_seconds = EXCLUDED.position_seconds,
+             played = false,
              last_played_at = now()`,
           [params.profileId, params.itemId, decision.positionSeconds],
         );

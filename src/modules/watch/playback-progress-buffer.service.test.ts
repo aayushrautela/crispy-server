@@ -70,3 +70,38 @@ test('drains leftover processing set from a crash on boot', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0]!.positionSeconds, 30);
 });
+
+test('isolates per-item flush failures so one bad item does not stall the profile batch', async () => {
+  const calls: Call[] = [];
+  const watchService = {
+    recordPlaybackState: async (params: Call) => {
+      if (params.itemId === '00000000-0000-4000-8000-000000000002') {
+        throw new Error('write failed');
+      }
+      calls.push(params);
+    },
+  } as unknown as import('../integrations/local-user-watch.service.js').LocalUserWatchService;
+  const buffer = new PlaybackProgressBuffer(watchService, 10_000);
+
+  await buffer.bufferProgress({ ...base, itemId: '00000000-0000-4000-8000-000000000001', positionSeconds: 10 });
+  await buffer.bufferProgress({ ...base, itemId: '00000000-0000-4000-8000-000000000002', positionSeconds: 20 });
+  await buffer.bufferProgress({ ...base, itemId: '00000000-0000-4000-8000-000000000003', positionSeconds: 30 });
+  await buffer.flush();
+
+  assert.deepEqual(calls.map((call) => call.itemId), [
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000003',
+  ]);
+
+  // The failed item is re-queued on the dirty set and retried on the next
+  // flush; the processing set is kept until every member has been written.
+  const retryCalls: Call[] = [];
+  const retryBuffer = new PlaybackProgressBuffer({
+    recordPlaybackState: async (params: Call) => {
+      retryCalls.push(params);
+    },
+  } as unknown as import('../integrations/local-user-watch.service.js').LocalUserWatchService, 10_000);
+  await retryBuffer.flush();
+  assert.deepEqual(retryCalls.map((call) => call.itemId), ['00000000-0000-4000-8000-000000000002']);
+  assert.equal(retryCalls[0]!.positionSeconds, 20);
+});
