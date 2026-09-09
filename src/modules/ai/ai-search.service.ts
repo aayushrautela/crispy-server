@@ -3,13 +3,16 @@ import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
 import type { AiSearchInternalResult } from '../ai/ai.types.js';
+import { toClientMediaCard } from '../metadata/client-media-card.mapper.js';
+import type { ClientMediaCard } from '../recommendations/client-home.types.js';
+import { buildMetadataCardView } from '../metadata/metadata-card.builders.js';
 import type { MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
+import { encodePublicItemId } from '../identity/public-item-id.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildSearchPrompt } from './ai-prompts.js';
 import { parseSearchCandidates, type AiSearchCandidate } from './ai-search-candidates.js';
-import type { AiSearchResponse } from './ai.types.js';
 
 const AI_SEARCH_SYSTEM_PROMPT = [
   'You are the backend recommendation engine for a streaming app.',
@@ -24,6 +27,8 @@ const AI_SEARCH_SYSTEM_PROMPT = [
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
 const AI_SEARCH_CACHE_TTL_MS = 10_000;
+const AI_CANDIDATE_RESOLVE_CONCURRENCY = 3;
+const AI_SEARCH_MAX_PER_SECTION = 20;
 
 export class AiSearchService {
   constructor(
@@ -77,7 +82,7 @@ export class AiSearchService {
         resolvedCount: resolved.length,
       }, 'AI search completed');
 
-      return { query, candidates: resolved };
+      return { query, locale, candidates: resolved };
     });
   }
 }
@@ -86,11 +91,20 @@ async function resolveSuggestions(
   titleSearchService: TitleSearchService,
   candidates: AiSearchCandidate[],
   locale: string,
-) {
-  const results = [];
-  for (const candidate of candidates) {
-    const items = await resolveSuggestion(titleSearchService, candidate, locale);
-    results.push(...items);
+): Promise<AiSearchInternalResult['candidates']> {
+  const results = await mapWithConcurrency(
+    candidates,
+    AI_CANDIDATE_RESOLVE_CONCURRENCY,
+    (candidate) => resolveSuggestion(titleSearchService, candidate, locale),
+  );
+  return results.flat();
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    const batch = items.slice(index, index + concurrency);
+    results.push(...await Promise.all(batch.map(mapper)));
   }
   return results;
 }
@@ -119,21 +133,30 @@ export function buildAiSearchResponse(internal: AiSearchInternalResult): Metadat
   const series = [];
   const seen = new Set<string>();
   for (const c of internal.candidates) {
-    if (seen.has(c.contentId)) continue;
+    if (seen.has(c.contentId) || !c.hydrated) continue;
     seen.add(c.contentId);
-    const card = {
-      itemId: c.contentId,
-      mediaType: c.identity.mediaType === 'show' ? 'tv' : 'movie',
-      title: c.hydrated?.name ?? null,
-      images: { artwork: { small: null, medium: null, large: null } },
-      progress: null,
-      parentId: null,
-      parent: null,
-    };
-    if (c.identity.mediaType === 'show') series.push(card as any);
-    else movies.push(card as any);
+    const view = buildMetadataCardView({
+      identity: c.identity,
+      itemId: encodePublicItemId(c.contentId),
+      title: c.hydrated,
+      language: internal.locale,
+    });
+    const card = toClientMediaCard(view, { progress: null });
+    if (!hasSearchArtwork(card)) continue;
+    if (card.mediaType === 'tv') series.push(card);
+    else movies.push(card);
   }
-  return { query: internal.query, movies: movies.slice(0, 20), series: series.slice(0, 20), people: [] };
+  return {
+    query: internal.query,
+    movies: movies.slice(0, AI_SEARCH_MAX_PER_SECTION),
+    series: series.slice(0, AI_SEARCH_MAX_PER_SECTION),
+    people: [],
+  };
+}
+
+function hasSearchArtwork(card: ClientMediaCard): boolean {
+  const artwork = card.images.artwork;
+  return Boolean(artwork && (artwork.small || artwork.medium || artwork.large));
 }
 
 function normalizeString(value: unknown): string {

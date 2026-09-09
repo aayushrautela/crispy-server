@@ -15,6 +15,7 @@ export type AiResolvedCandidate = {
 
 export type AiSearchInternalResult = {
   query: string;
+  locale: string;
   candidates: AiResolvedCandidate[];
 };
 
