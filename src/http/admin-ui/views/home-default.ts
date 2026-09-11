@@ -6,6 +6,7 @@ export function renderHomeDefaultView(): string {
           <h3>Home Default Rails</h3>
           <div class="panel-actions">
             <button type="button" class="secondary" data-home-action="refresh-default">Refresh</button>
+            <button type="button" class="secondary" data-home-action="rebuild-default">Rebuild snapshot</button>
             <button type="button" data-home-action="create-default">New rail</button>
           </div>
         </div>

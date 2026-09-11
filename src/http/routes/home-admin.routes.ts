@@ -101,6 +101,16 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     return mutation({ accepted: true }, request);
   });
 
+  // Rebuild the shared default-home snapshot now: bump the version so the old
+  // cached snapshot is dropped, then warm the new one eagerly so the next
+  // client read is a cache hit. Returns the section count.
+  app.post('/admin/api/home/default-templates/rebuild', async (request) => {
+    await app.requireAdminUiMutation(request);
+    await defaultBuilder.bumpVersion();
+    const sections = await defaultBuilder.getSharedDefault();
+    return mutation({ accepted: true, sections: sections?.length ?? 0 }, request);
+  });
+
   // --- Preview a source without persisting ---
   app.post('/admin/api/home/list-sources/preview', async (request) => {
     await app.requireAdminUiMutation(request);

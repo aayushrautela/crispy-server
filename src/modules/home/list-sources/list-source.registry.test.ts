@@ -7,10 +7,13 @@ const { listSourceDescriptors, getListSource } = await import('./list-source.reg
 
 test('registry exposes all list sources with unique ids', () => {
   const descriptors = listSourceDescriptors();
-  assert.equal(descriptors.length, 7);
+  assert.equal(descriptors.length, 10);
   const ids = descriptors.map((d) => d.id);
   assert.equal(new Set(ids).size, ids.length, 'source ids must be unique');
   assert.ok(getListSource('trakt.trending'), 'trakt trending source registered');
+  assert.ok(getListSource('tmdb.trending-person'), 'tmdb trending person source registered');
+  assert.ok(getListSource('tmdb.new-this-week'), 'tmdb new this week source registered');
+  assert.ok(getListSource('tmdb.genre-fresh'), 'tmdb genre fresh source registered');
 });
 
 test('every descriptor has a name, description, and configFields array', () => {

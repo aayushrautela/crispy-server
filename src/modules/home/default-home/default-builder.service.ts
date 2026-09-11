@@ -126,23 +126,30 @@ export class DefaultHomeBuilderService {
       if (!source) continue;
       const limit = DEFAULT_SECTION_LIMITS[template.sectionType] ?? 40;
       const ctx: ListSourceCtx = { ...baseCtx, region: template.regionOverride ?? null, limit };
-      let items: HomeWriteItemLite[] = [];
-      try {
-        const result = await source.fetchItems(template.sourceConfig, ctx);
-        items = result.items;
-      } catch (error) {
-        console.error(`default-home source ${template.sourceId} failed for ${template.listKey}:`, error);
-      }
-      if (items.length === 0) continue;
-      const rows = await this.toHydrationRows(client, items);
-      if (rows.length === 0) continue;
-      lists.push({
-        listKey: template.listKey,
-        title: template.title,
-        subtitle: template.subtitle,
-        sectionType: template.sectionType,
-        items: rows,
-      });
+    let items: HomeWriteItemLite[] = [];
+    let meta: Record<string, unknown> | undefined;
+    try {
+      const result = await source.fetchItems(template.sourceConfig, ctx);
+      items = result.items;
+      meta = result.meta;
+    } catch (error) {
+      console.error(`default-home source ${template.sourceId} failed for ${template.listKey}:`, error);
+    }
+    if (items.length === 0) continue;
+    const rows = await this.toHydrationRows(client, items);
+    if (rows.length === 0) continue;
+    // Sources may override the template title/subtitle at runtime (e.g. the
+    // trending person pill carries the picked actor's name, the genre pill
+    // carries the day's genre).
+    const metaTitle = typeof meta?.title === 'string' && meta.title ? meta.title : null;
+    const metaSubtitle = typeof meta?.subtitle === 'string' && meta.subtitle ? meta.subtitle : null;
+    lists.push({
+      listKey: template.listKey,
+      title: metaTitle ?? template.title,
+      subtitle: metaSubtitle ?? template.subtitle,
+      sectionType: template.sectionType,
+      items: rows,
+    });
     }
     return lists;
   }
