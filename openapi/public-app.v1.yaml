@@ -2345,7 +2345,10 @@ paths:
             the continue-watching page; `history` — refetch the watch history page
             (and the continue-watching page, since a history removal deletes the
             underlying watch_state row and therefore also drops the item from
-            continue-watching). Heartbeats are sent as comment lines (`: ping`).
+            continue-watching); `watchlist` — refetch the watchlist page;
+            `ratings` — refetch the ratings page; `home` — refetch the home feed
+            (published only once a rebuilt home snapshot has been persisted, never
+            at cache-delete time). Heartbeats are sent as comment lines (`: ping`).
           content:
             text/event-stream:
               schema:

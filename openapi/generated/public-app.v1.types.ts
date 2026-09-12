@@ -219,6 +219,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List connected devices (TV/mobile sessions) for the account. */
+        get: operations["getV1AuthDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/devices/{deviceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a device and all of its active sessions. */
+        delete: operations["deleteV1AuthDevicesDeviceId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/imports/{provider}/callback": {
         parameters: {
             query?: never;
@@ -2096,6 +2130,60 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    getV1AuthDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connected devices with active token previews. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    deleteV1AuthDevicesDeviceId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Device revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     getV1ImportsProviderCallback: {
         parameters: {
             query?: {
@@ -3353,7 +3441,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Server-Sent Events stream. Each event is `event: watch_changed` with a `data` JSON payload `{ profileId, kind, at_ms }`. The connection is debounced server-side. `kind` is one of: `continue_watching` — refetch the continue-watching page; `history` — refetch the watch history page (and the continue-watching page, since a history removal deletes the underlying watch_state row and therefore also drops the item from continue-watching). Heartbeats are sent as comment lines (`: ping`). */
+            /** @description Server-Sent Events stream. Each event is `event: watch_changed` with a `data` JSON payload `{ profileId, kind, at_ms }`. The connection is debounced server-side. `kind` is one of: `continue_watching` — refetch the continue-watching page; `history` — refetch the watch history page (and the continue-watching page, since a history removal deletes the underlying watch_state row and therefore also drops the item from continue-watching); `watchlist` — refetch the watchlist page; `ratings` — refetch the ratings page; `home` — refetch the home feed (published only once a rebuilt home snapshot has been persisted, never at cache-delete time). Heartbeats are sent as comment lines (`: ping`). */
             200: {
                 headers: {
                     [name: string]: unknown;

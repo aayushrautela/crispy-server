@@ -8,6 +8,7 @@ import { HomeListsRepo } from './repos/home-lists.repo.js';
 import { HomeHydrator } from './home-hydrator.service.js';
 import { DefaultHomeWriteService, type HomeWriteService } from './home-write.service.js';
 import { homeCacheKey, readHomeEpoch } from './home-cache.js';
+import { publishWatchChanged } from '../watch/watch-change.publisher.js';
 import { DefaultHomeBuilderService } from './default-home/index.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
@@ -154,6 +155,12 @@ export class HomeResolverService {
       const epochAfter = await readHomeEpoch(ctx.profileId);
       if (epochAfter === epochBefore) {
         await redis.set(ctx.cacheKey, JSON.stringify(response), 'EX', appConfig.cache.home.staleSeconds);
+        // Publish the "home is ready" invalidation only once the fresh payload
+        // has actually been persisted. A client that was served stale (SWR) or
+        // whose cold-miss GET timed out during hydration refetches here; the
+        // cache-delete alone (invalidateHomeCache) must NOT publish, because a
+        // refetch at that point would still see an empty cache.
+        await publishWatchChanged(ctx.accountId, ctx.profileId, 'home', { force: true });
       }
 
       return { response, mode, source: resolvedSource, generatedAt };

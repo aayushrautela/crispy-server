@@ -560,7 +560,7 @@ export class LocalUserWatchService {
        ON CONFLICT (profile_id, item_id) DO UPDATE SET is_favorite = true`,
       [params.profileId, params.itemId],
     );
-    await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    await publishWatchChanged(params.accountId, params.profileId, 'watchlist', { force: true });
   }
 
   async deleteListItem(params: DeleteListItemParams): Promise<void> {
@@ -570,7 +570,7 @@ export class LocalUserWatchService {
        WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.itemId],
     );
-    await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    await publishWatchChanged(params.accountId, params.profileId, 'watchlist', { force: true });
   }
 
   async setRating(params: SetRatingParams): Promise<void> {
@@ -582,7 +582,7 @@ export class LocalUserWatchService {
          rating = EXCLUDED.rating, last_played_at = EXCLUDED.last_played_at`,
       [params.profileId, params.itemId, params.rating],
     );
-    await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    await publishWatchChanged(params.accountId, params.profileId, 'ratings', { force: true });
   }
 
   async deleteRating(params: DeleteRatingParams): Promise<void> {
@@ -592,7 +592,7 @@ export class LocalUserWatchService {
         WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.itemId],
     );
-    await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    await publishWatchChanged(params.accountId, params.profileId, 'ratings', { force: true });
   }
 
   async markWatched(params: MarkWatchedParams): Promise<WatchActionOutcome> {
@@ -616,6 +616,7 @@ export class LocalUserWatchService {
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    await publishWatchChanged(params.accountId, params.profileId, 'history', { force: true });
     return { accepted: true };
   }
 
@@ -640,6 +641,7 @@ export class LocalUserWatchService {
       );
     });
     await publishWatchChanged(params.accountId, params.profileId, 'continue_watching', { force: true });
+    await publishWatchChanged(params.accountId, params.profileId, 'history', { force: true });
     return { accepted: true };
   }
 }
