@@ -1490,7 +1490,6 @@ export const ADMIN_UI_CLIENT = String.raw`
       + '<label>Pricing tier'
       + '<select id="account-pricing-tier">'
       + pricingTierOption('free', pricingTier)
-      + pricingTierOption('lite', pricingTier)
       + pricingTierOption('pro', pricingTier)
       + pricingTierOption('ultra', pricingTier)
       + '</select>'

@@ -849,6 +849,38 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/apps/v1/accounts/{accountId}/reco-context:
+    get:
+      tags: [Profile Eligibility]
+      operationId: getInternalAccountRecoContext
+      summary: Read account recompute context (pricing tier + last activity)
+      x-internal: true
+      x-owner: crispy-server
+      x-consumers: [crispy-recommendation-engine]
+      description: |
+        Account-scoped scheduling context consumed by the reco scheduler:
+        `pricingTier` drives per-tier recompute cadence, `lastSeenAt` (refreshed
+        by identity.upsert_account on every authenticated request) gates inactive
+        accounts out of scheduled recomputes.
+      parameters:
+        - $ref: '#/components/parameters/Authorization'
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Account recompute context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountRecoContextResponse' }
+              examples:
+                success:
+                  externalValue: ./examples/reco-context/response.success.json
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 components:
   securitySchemes:
     RecommenderServiceBearer:
@@ -1790,3 +1822,11 @@ components:
     AccountLookupResponse:
       type: object
       additionalProperties: true
+    AccountRecoContextResponse:
+      type: object
+      additionalProperties: false
+      required: [accountId, pricingTier, lastSeenAt]
+      properties:
+        accountId: { type: string }
+        pricingTier: { type: string, enum: [free, pro, ultra] }
+        lastSeenAt: { type: [string, 'null'], format: date-time }

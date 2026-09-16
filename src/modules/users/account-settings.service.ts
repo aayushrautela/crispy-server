@@ -18,10 +18,10 @@ export type AccountSecretMetadata = {
   fingerprint: string;
 };
 
-export type PricingTier = 'free' | 'lite' | 'pro' | 'ultra';
+export type PricingTier = 'free' | 'pro' | 'ultra';
 
 const DEFAULT_PRICING_TIER: PricingTier = 'free';
-const PRICING_TIERS = new Set<PricingTier>(['free', 'lite', 'pro', 'ultra']);
+const PRICING_TIERS = new Set<PricingTier>(['free', 'pro', 'ultra']);
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
@@ -209,7 +209,7 @@ function normalizeSecretValue(value: string): string {
 
 function normalizePricingTier(value: unknown): PricingTier {
   if (typeof value !== 'string' || !PRICING_TIERS.has(value as PricingTier)) {
-    throw new HttpError(400, 'Pricing tier must be one of free, lite, pro, ultra.');
+    throw new HttpError(400, 'Pricing tier must be one of free, pro, ultra.');
   }
   return value as PricingTier;
 }

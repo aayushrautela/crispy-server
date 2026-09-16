@@ -1329,3 +1329,31 @@ export const accountLookupRouteSchema = withDefaultErrorResponses({
   },
   response: { 200: accountLookupResponseSchema },
 });
+
+// ── Account reco context (scheduler reads tier + activity) ───────────
+//    Returns the account-scoped fields the reco scheduler needs to
+//    decide recompute cadence (pricingTier) and skip inactive accounts
+//    (lastSeenAt, refreshed by identity.upsert_account on every
+//    authenticated request).
+
+export const accountRecoContextDataSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['accountId', 'pricingTier', 'lastSeenAt'],
+  properties: {
+    accountId: stringSchema,
+    pricingTier: { type: 'string', enum: ['free', 'pro', 'ultra'] },
+    lastSeenAt: nullableDateTimeSchema,
+  },
+} as const;
+
+export const accountRecoContextResponseSchema = successEnvelope(accountRecoContextDataSchema);
+export const accountRecoContextRouteSchema = withDefaultErrorResponses({
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['accountId'],
+    properties: { accountId: nonEmptyStringSchema },
+  },
+  response: { 200: accountRecoContextResponseSchema },
+});

@@ -21,7 +21,7 @@ export const accountScopedSettingsSchema = {
   properties: {
     pricingTier: {
       type: 'string',
-      enum: ['free', 'lite', 'pro', 'ultra'],
+      enum: ['free', 'pro', 'ultra'],
     },
     metadata: metadataClientSettingsSchema,
   },

@@ -22,6 +22,7 @@ import type { AppPrincipal, AppScope } from '../../modules/apps/app-principal.ty
 import type { AuthActor } from '../../modules/auth/auth.types.js';
 import { HttpError } from '../../lib/errors.js';
 import { AccountLookupService } from '../../modules/users/account-lookup.service.js';
+import { AccountRecoContextService } from '../../modules/users/account-reco-context.service.js';
 import { RecommendationDataService } from '../../modules/recommendations/recommendation-data.service.js';
 import { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 import { success, mutation } from '../response.js';
@@ -45,6 +46,7 @@ import {
   appAuditEventsRouteSchema,
   createAuditEventRouteSchema,
   accountLookupRouteSchema,
+  accountRecoContextRouteSchema,
   appSelfRouteSchema,
 } from '../contracts/internal-apps.js';
 
@@ -150,6 +152,7 @@ async function resolveHomeIngestPrincipal(app: FastifyInstance, request: Fastify
 
 export async function registerInternalAppsRoutes(app: FastifyInstance, deps: InternalAppsRoutesDeps): Promise<void> {
   const accountLookupService = new AccountLookupService();
+  const accountRecoContextService = new AccountRecoContextService();
   const recommendationDataService = new RecommendationDataService();
   const profileService = deps.profileService ?? new ProfileLocalService();
 
@@ -391,6 +394,13 @@ export async function registerInternalAppsRoutes(app: FastifyInstance, deps: Int
       },
       profiles: await recommendationDataService.listAccountProfilesForService(account.accountId),
     }, request);
+  });
+
+  app.get('/internal/apps/v1/accounts/:accountId/reco-context', { schema: accountRecoContextRouteSchema }, async (request) => {
+    await app.requireRecommenderAuth(request);
+    const params = request.params as { accountId: string };
+    const context = await accountRecoContextService.getForAccount(params.accountId);
+    return success(context, request);
   });
 
   app.put('/internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey', { schema: accountListUpsertRouteSchema }, async (request, reply) => {
