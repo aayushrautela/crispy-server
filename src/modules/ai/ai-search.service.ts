@@ -1,4 +1,5 @@
 import { logger } from '../../config/logger.js';
+import { env } from '../../config/env.js';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { ShortLivedRequestCoalescer } from '../../lib/request-coalescer.js';
@@ -26,7 +27,6 @@ const AI_SEARCH_SYSTEM_PROMPT = [
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
-const AI_SEARCH_CACHE_TTL_MS = 10_000;
 const AI_CANDIDATE_RESOLVE_CONCURRENCY = 3;
 const AI_SEARCH_MAX_PER_SECTION = 20;
 
@@ -35,7 +35,7 @@ export class AiSearchService {
     private readonly profileLocalService = new ProfileLocalService(),
     private readonly aiRequestExecutor = new AiRequestExecutor(),
     private readonly titleSearchService = new TitleSearchService(),
-    private readonly requestCoalescer = new ShortLivedRequestCoalescer<AiSearchInternalResult>(AI_SEARCH_CACHE_TTL_MS),
+    private readonly requestCoalescer = new ShortLivedRequestCoalescer<AiSearchInternalResult>(env.aiSearchCacheTtlMs),
     private readonly runInTransaction: TransactionRunner = withTransaction,
   ) {}
 

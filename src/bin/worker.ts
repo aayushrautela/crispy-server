@@ -1,12 +1,16 @@
 import { logger } from '../config/logger.js';
 import { registerWorkerLogging, startWorker } from '../worker/index.js';
+import { startAiGenerationWorker } from '../worker/ai-generation.worker.js';
 
-const worker = startWorker();
-registerWorkerLogging(worker);
+const projectionWorker = startWorker();
+registerWorkerLogging(projectionWorker);
 
-logger.info('worker started');
+const aiWorker = startAiGenerationWorker();
+registerWorkerLogging(aiWorker);
+
+logger.info('workers started');
 
 process.on('SIGTERM', async () => {
-  await worker.close();
+  await Promise.all([projectionWorker.close(), aiWorker.close()]);
   process.exit(0);
 });

@@ -151,6 +151,9 @@ export const env = {
   recommenderInternalBaseUrl: optionalBaseUrl('RECOMMENDER_INTERNAL_BASE_URL') ?? '',
   mainToRecommenderServiceToken: optionalEnv('MAIN_TO_RECOMMENDER_SERVICE_TOKEN') ?? '',
   recommenderNotifyTimeoutMs: parseNumber('RECOMMENDER_NOTIFY_TIMEOUT_MS', 5000),
+  aiWorkerConcurrency: parseNumber('AI_WORKER_CONCURRENCY', 4),
+  aiRequestWaitMs: parseNumber('AI_REQUEST_WAIT_MS', 55000),
+  aiSearchCacheTtlMs: parseNumber('AI_SEARCH_CACHE_TTL_MS', 300000),
 };
 
 export type Env = typeof env;

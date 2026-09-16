@@ -102,6 +102,46 @@ test('AiSearchService coalesces identical in-flight searches', async () => {
   assert.equal(aiCalls, 1);
 });
 
+test('AiSearchService serves a repeated query from the temp cache within TTL, but not different queries', async () => {
+  const pkg = await import('./ai-search.service.js');
+  let aiCalls = 0;
+
+  const service = new pkg.AiSearchService(
+    {
+      requireOwnedProfile: async () => {
+        return { id: 'profile-1' };
+      },
+    } as never,
+    {
+      generateJsonForUser: async () => {
+        aiCalls += 1;
+        return {
+          payload: { items: [{ title: 'Alpha Movie', mediaType: 'movie' }] },
+          request: { providerId: 'openai', model: 'gpt-4o-mini' },
+        };
+      },
+    } as never,
+    {
+      resolveAiCandidates: async () => ([{
+        identity: { mediaType: 'movie', provider: 'tmdb', providerId: '1', contentId: '00000000-0000-0000-0000-000000000001' },
+        contentId: '00000000-0000-0000-0000-000000000001',
+        hydrated: { name: 'Alpha Movie', mediaType: 'movie', tmdbId: 1 },
+      }]),
+    } as never,
+    new ShortLivedRequestCoalescer(5 * 60_000),
+    async <T>(work: (client: DbClient) => Promise<T>) => work({} as DbClient),
+  );
+
+  const input = { query: 'Alpha', profileId: 'profile-1', locale: 'en-US' };
+  await service.search('user-1', input);
+  await service.search('user-1', input);
+  await service.search('user-1', input);
+  assert.equal(aiCalls, 1, 'repeated same-key query within TTL must be served from cache');
+
+  await service.search('user-1', { ...input, query: 'Beta' });
+  assert.equal(aiCalls, 2, 'different query bypasses the cache');
+});
+
 const MOVIE_CONTENT_ID = '00000000-0000-0000-0000-000000000001';
 const SHOW_CONTENT_ID = '00000000-0000-0000-0000-000000000002';
 const NO_ARTWORK_CONTENT_ID = '00000000-0000-0000-0000-000000000003';

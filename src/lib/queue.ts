@@ -1,7 +1,20 @@
-import { Queue } from 'bullmq';
+import { Job, Queue, QueueEvents } from 'bullmq';
 import { env } from '../config/env.js';
 
 export const projectionQueueName = 'projection-refresh';
+export const aiGenerationQueueName = 'ai-generation';
+
+/**
+ * AI insight/search generation jobs. Time-bound and must never retry: a retry
+ * doubles provider cost and cannot meet the request deadline. `attempts: 1`
+ * plus the worker's `maxStalledCount: 0` guarantee a failed/stalled job is
+ * failed once and removed (so a later same-key re-enqueue is allowed), never
+ * re-run. `timeout` is the BullMQ hard-halt; the in-process executor keeps its
+ * own AbortSignal deadline as a backstop.
+ */
+const AI_JOB_ATTEMPTS = 1;
+const AI_JOB_REMOVE_ON_COMPLETE = true;
+const AI_JOB_REMOVE_ON_FAIL = true;
 
 const redisUrl = new URL(env.redisUrl);
 
@@ -155,6 +168,45 @@ export function getProjectionQueue(): Queue {
     connection: bullConnection,
   });
   return projectionQueue;
+}
+
+export type AiInsightsJob = {
+  userId: string;
+  profileId: string;
+  itemId: string;
+  contentId: string;
+  locale: string;
+  generationVersion: string;
+};
+
+let aiGenerationQueue: Queue | null = null;
+let aiGenerationQueueEvents: QueueEvents | null = null;
+
+export function getAiGenerationQueue(): Queue {
+  aiGenerationQueue ??= new Queue(aiGenerationQueueName, {
+    connection: bullConnection,
+  });
+  return aiGenerationQueue;
+}
+
+export function getAiGenerationQueueEvents(): QueueEvents {
+  aiGenerationQueueEvents ??= new QueueEvents(aiGenerationQueueName, {
+    connection: bullConnection,
+  });
+  return aiGenerationQueueEvents;
+}
+
+function buildAiInsightsJobId(contentId: string, locale: string, generationVersion: string): string {
+  return buildJobId('ai:insights', contentId, locale, generationVersion);
+}
+
+export async function enqueueAiInsightsJob(payload: AiInsightsJob): Promise<Job> {
+  return getAiGenerationQueue().add('ai-insights', payload, {
+    jobId: buildAiInsightsJobId(payload.contentId, payload.locale, payload.generationVersion),
+    attempts: AI_JOB_ATTEMPTS,
+    removeOnComplete: AI_JOB_REMOVE_ON_COMPLETE,
+    removeOnFail: AI_JOB_REMOVE_ON_FAIL,
+  });
 }
 
 

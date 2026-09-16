@@ -1,19 +1,22 @@
+import { logger } from '../../config/logger.js';
+import { env } from '../../config/env.js';
 import { withTransaction, type DbClient } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { assertPublicItemId, decodePublicItemId } from '../identity/public-item-id.js';
 import { MetadataReviewsService } from '../metadata/metadata-reviews.service.js';
-import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
+import type { MetadataTitleDetail } from '../metadata/metadata-detail.types.js';
 import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
 import { TmdbClient } from '../metadata/providers/tmdb.client.js';
 import type { ResponsiveImageSet } from '../metadata/metadata-card.types.js';
 import { buildResponsiveImageSet, emptyResponsiveImageSet } from '../metadata/metadata-builder.shared.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
-import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
+import { fetchBackdropPaths } from './ai-insights-generation.js';
+import { BullMqAiGenerationGateway, type AiGenerationGateway } from './ai-generation.gateway.js';
 import type { AiInsightsPayload, AiInsightsResponse, AiInsightSlide } from './ai.types.js';
 
 const GENERATION_VERSION = 'v6';
@@ -48,6 +51,7 @@ export class AiInsightsService {
     private readonly metadataReviewsService = new MetadataReviewsService(),
     private readonly tmdbClient = new TmdbClient(),
     private readonly runInTransaction: TransactionRunner = withTransaction,
+    private readonly aiGenerationGateway: AiGenerationGateway = new BullMqAiGenerationGateway(),
   ) {}
 
   async getInsights(userId: string, input: {
@@ -73,71 +77,94 @@ export class AiInsightsService {
 
     const titleDetail = await this.metadataTitlePageService.getTitlePage(itemId);
 
-    const cached = await this.runInTransaction(async (client) => {
+    const cached = await this.readCache(contentId, locale, generationVersion);
+    if (cached) {
+      return this.serveFromCache(cached, titleDetail, {
+        contentId, locale, generationVersion, userId, profileId, itemId, cacheHit: true,
+      });
+    }
+
+    // Cold path: delegate generation to the worker and wait on it (bounded).
+    // The deterministic job id coalesces every concurrent caller for the same
+    // content+locale+version onto a single generation, so a burst produces one
+    // LLM call instead of N.
+    const handle = await this.aiGenerationGateway.enqueueInsights({
+      userId,
+      profileId,
+      itemId,
+      contentId,
+      locale,
+      generationVersion,
+    });
+    // The wait is a notification channel only; the cache row is the source of
+    // truth. waitUntilFinished rejects on job failure AND on missed completion
+    // events (QueueEvents readiness race / removed jobs) — either way we must
+    // still re-read the cache, because a successful worker writes the row
+    // regardless of whether the event arrived.
+    try {
+      await this.aiGenerationGateway.waitForInsights(handle, env.aiRequestWaitMs);
+    } catch (error) {
+      logger.warn(
+        { userId, profileId, itemId, locale, err: error },
+        'AI insights wait did not confirm completion; re-reading cache',
+      );
+    }
+
+    const refreshed = await this.readCache(contentId, locale, generationVersion);
+    if (!refreshed) {
+      throw new HttpError(504, 'AI insights generation timed out.');
+    }
+    return this.serveFromCache(refreshed, titleDetail, {
+      contentId, locale, generationVersion, userId, profileId, itemId, cacheHit: false,
+    });
+  }
+
+  private async readCache(
+    contentId: string,
+    locale: string,
+    generationVersion: string,
+  ): Promise<{ payload: AiInsightsPayload; backdropPaths: string[] | null } | null> {
+    return this.runInTransaction(async (client) => {
       return this.cacheRepository.findByKey(client, {
         contentId,
         locale,
         generationVersion,
       });
     });
-    // Backdrops are fetched on demand from TMDB (not stored) so slides get
-    // fresh artwork independent of the single canonical image used elsewhere.
-    const backdropPaths = await this.fetchBackdropPaths(titleDetail);
-    if (cached) {
-      return this.buildSlides(cached.payload, titleDetail, backdropPaths);
-    }
+  }
 
-    const titleReviews = await this.metadataReviewsService.getTitleReviews(userId, profileId, itemId);
-    const titleContext = buildTitleInsightsContext(titleDetail, titleReviews.Reviews);
-    if (!titleContext) {
-      throw new HttpError(404, 'Unable to load title data for AI insights.');
-    }
-
-    const execution = await this.aiRequestExecutor.generateJsonForUser({
-      userId,
-      feature: 'insights',
-      userPrompt: buildInsightsPrompt(titleContext),
-    });
-    const generated = execution.payload;
-    const actualGenerationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(execution.request)}`;
-    const payload = normalizeInsightsPayload(generated);
-    if (!payload) {
-      throw new HttpError(502, 'AI insights returned invalid data.');
-    }
-
-    await this.runInTransaction(async (client) => {
-      await this.cacheRepository.upsert(client, {
-        contentId,
-        locale,
-        generationVersion: actualGenerationVersion,
-        modelName: `${execution.request.providerId}:${execution.request.model}`,
-        payload,
-        generatedByProfileId: profileId,
+  private async serveFromCache(
+    cached: { payload: AiInsightsPayload; backdropPaths: string[] | null },
+    titleDetail: MetadataTitleDetail,
+    ctx: { contentId: string; locale: string; generationVersion: string; userId: string; profileId: string; itemId: string; cacheHit: boolean },
+  ): Promise<AiInsightsResponse> {
+    // Cache hits serve entirely from storage; no live TMDB work on the hot path.
+    // Legacy rows (written before backdrop_paths existed) self-heal by fetching
+    // backdrops once and writing them back.
+    const backdropPaths = cached.backdropPaths ?? await fetchBackdropPaths(this.tmdbClient, titleDetail);
+    const backdropBackfilled = cached.backdropPaths === null;
+    if (backdropBackfilled) {
+      await this.runInTransaction(async (client) => {
+        await this.cacheRepository.updateBackdropPaths(client, {
+          contentId: ctx.contentId,
+          locale: ctx.locale,
+          generationVersion: ctx.generationVersion,
+          backdropPaths,
+        });
       });
-    });
-
-    return this.buildSlides(payload, titleDetail, backdropPaths);
+    }
+    logger.info({
+      userId: ctx.userId,
+      profileId: ctx.profileId,
+      itemId: ctx.itemId,
+      locale: ctx.locale,
+      cacheHit: ctx.cacheHit,
+      backdropBackfilled,
+    }, 'AI insights served from cache');
+    return this.buildSlides(cached.payload, titleDetail, backdropPaths);
   }
 
   /** Live TMDB artwork for insight slides. Never fails the request. */
-  private async fetchBackdropPaths(titleDetail: MetadataTitleDetail): Promise<string[]> {
-    try {
-      const mediaType = titleDetail.Item.mediaType;
-      const tmdbId = Number(titleDetail.Item.providerIds?.tmdb);
-      if ((mediaType !== 'movie' && mediaType !== 'tv') || !Number.isFinite(tmdbId) || tmdbId <= 0) {
-        return [];
-      }
-      const images = await this.tmdbClient.request(`/${mediaType}/${tmdbId}/images`);
-      const backdrops = Array.isArray(images.backdrops) ? images.backdrops : [];
-      return backdrops
-        .map((entry) => (entry && typeof entry === 'object' ? (entry as Record<string, unknown>).file_path : null))
-        .filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
-        .slice(0, 5);
-    } catch {
-      return [];
-    }
-  }
-
   private buildSlides(payload: AiInsightsPayload, titleDetail: MetadataTitleDetail, backdropPaths: string[]): AiInsightsResponse {
     const backdrops = backdropPaths
       .map((path) => buildResponsiveImageSet(path, BACKDROP_IMAGE_SIZES))
@@ -203,74 +230,6 @@ export class AiInsightsService {
 
     return { slides };
   }
-}
-
-function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: MetadataReviewView[]): TitleInsightsContext | null {
-  const mediaType = detail.Item.mediaType;
-  if (mediaType !== 'movie' && mediaType !== 'tv') {
-    return null;
-  }
-
-  const title = detail.Item.title?.trim() ?? '';
-  if (!title) {
-    return null;
-  }
-
-  return {
-    itemId: detail.Item.itemId,
-    mediaType: mediaType === 'movie' ? 'movie' : 'show',
-    title,
-    year: detail.Item.year ? String(detail.Item.year) : null,
-    description: detail.Item.overview?.trim() || null,
-    rating: typeof detail.Item.rating === 'number' && Number.isFinite(detail.Item.rating)
-      ? detail.Item.rating.toFixed(1)
-      : null,
-    genres: detail.Item.genres,
-    reviews: reviews
-      .map((review) => ({
-        author: review.author?.trim() || review.username?.trim() || 'Unknown',
-        rating: review.rating,
-        content: review.content.trim(),
-      }))
-      .filter((review) => review.content)
-      .slice(0, 10),
-  };
-}
-
-function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsPayload | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return null;
-  }
-
-  const goodStuff = typeof payload.the_good_stuff === 'string' ? payload.the_good_stuff.trim() : '';
-  const theCatch = typeof payload.the_catch === 'string' ? payload.the_catch.trim() : '';
-  const trivia = typeof payload.trivia === 'string' ? payload.trivia.trim() : '';
-  const standout = payload.standout_element;
-
-  // At least one of positive/negative must carry real feedback; both may be omitted.
-  if ((!goodStuff && !theCatch) || !trivia || !standout || typeof standout !== 'object' || Array.isArray(standout)) {
-    return null;
-  }
-
-  const standoutRecord = standout as Record<string, unknown>;
-  const validTags = ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'];
-  const tag = typeof standoutRecord.tag === 'string' ? standoutRecord.tag : '';
-  const focus = typeof standoutRecord.focus === 'string' ? standoutRecord.focus.trim() : '';
-  const context = typeof standoutRecord.context === 'string' ? standoutRecord.context.trim() : '';
-  if (!validTags.includes(tag) || !focus || !context) {
-    return null;
-  }
-
-  return {
-    the_good_stuff: goodStuff || null,
-    the_catch: theCatch || null,
-    standout_element: {
-      tag: tag as AiInsightsPayload['standout_element']['tag'],
-      focus,
-      context,
-    },
-    trivia,
-  };
 }
 
 function normalizeString(value: unknown): string {
