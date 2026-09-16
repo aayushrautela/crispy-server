@@ -144,6 +144,23 @@ export const ratingsListRouteSchema = withDefaultErrorResponses({
   },
 });
 
+export const watchGenerationsRouteSchema = withDefaultErrorResponses({
+  params: profileIdParamsSchema,
+  response: {
+    200: successEnvelope({
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        continue_watching: nullableNumberSchema,
+        history: nullableNumberSchema,
+        watchlist: nullableNumberSchema,
+        ratings: nullableNumberSchema,
+        home: nullableNumberSchema,
+      },
+    }),
+  },
+});
+
 export const watchContinueWatchingDismissRouteSchema = withDefaultErrorResponses({
   params: {
     type: 'object',

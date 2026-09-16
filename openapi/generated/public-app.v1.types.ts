@@ -970,6 +970,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/profiles/{profileId}/watch/generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read per-surface change generations for a profile.
+         * @description Returns, per surface (continue_watching, history, watchlist, ratings,
+         *     home), the epoch milliseconds of the most recent published change.
+         *     Clients use this to decide whether cached data needs a refetch after
+         *     being offline or closed; null means no change has ever been published
+         *     for that surface.
+         */
+        get: operations["getV1ProfilesProfileIdWatchGenerations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/profiles/{profileId}/watch/state": {
         parameters: {
             query?: never;
@@ -1479,6 +1503,17 @@ export interface components {
         };
         ClientMediaCardQueryResultEnvelope: {
             data: components["schemas"]["ClientMediaCardQueryResult"];
+            meta: components["schemas"]["ResponseMeta"];
+        };
+        WatchGenerations: {
+            continue_watching: number | null;
+            history: number | null;
+            watchlist: number | null;
+            ratings: number | null;
+            home: number | null;
+        };
+        WatchGenerationsEnvelope: {
+            data: components["schemas"]["WatchGenerations"];
             meta: components["schemas"]["ResponseMeta"];
         };
         ClientMediaCardEnvelope: {
@@ -3661,6 +3696,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientMediaCardQueryResultEnvelope"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1ProfilesProfileIdWatchGenerations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchGenerationsEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];

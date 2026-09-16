@@ -2709,6 +2709,49 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/generations:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchGenerations
+      summary: Read per-surface change generations for a profile.
+      description: |
+        Returns, per surface (continue_watching, history, watchlist, ratings,
+        home), the epoch milliseconds of the most recent published change.
+        Clients use this to decide whether cached data needs a refetch after
+        being offline or closed; null means no change has ever been published
+        for that surface.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchGenerationsEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/watch/state:
     get:
       tags:
@@ -4335,6 +4378,41 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/ClientMediaCardQueryResult"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    WatchGenerations:
+      type: object
+      additionalProperties: false
+      required: [continue_watching, history, watchlist, ratings, home]
+      properties:
+        continue_watching:
+          anyOf:
+            - type: number
+            - type: "null"
+        history:
+          anyOf:
+            - type: number
+            - type: "null"
+        watchlist:
+          anyOf:
+            - type: number
+            - type: "null"
+        ratings:
+          anyOf:
+            - type: number
+            - type: "null"
+        home:
+          anyOf:
+            - type: number
+            - type: "null"
+    WatchGenerationsEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/WatchGenerations"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
     ClientMediaCardEnvelope:

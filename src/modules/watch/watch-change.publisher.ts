@@ -2,6 +2,7 @@ import { redis } from '../../lib/redis.js';
 
 const CHANNEL_PREFIX = 'cw:';
 const DIRTY_KEY_PREFIX = 'cw-dirty:';
+const GEN_KEY_PREFIX = 'watchgen:';
 const DEBOUNCE_SECONDS = 5;
 
 export type WatchChangeKind =
@@ -55,6 +56,11 @@ export async function publishWatchChanged(
   };
 
   await redis.publish(`${CHANNEL_PREFIX}${accountId}`, JSON.stringify(message));
+
+  // Generation marker: lets clients cheaply detect "anything changed while I
+  // was offline/closed" without reading full collections. Keyed per profile +
+  // kind so a single endpoint can answer all surfaces.
+  await redis.set(`${GEN_KEY_PREFIX}${profileId}:${kind}`, String(message.at_ms));
 
   if (options.force) {
     await redis.set(dirtyKey, '1', 'EX', DEBOUNCE_SECONDS).catch(() => {});

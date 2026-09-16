@@ -8,6 +8,7 @@ import {
   watchEventsRouteSchema,
   watchHistoryItemDeleteRouteSchema,
   type WatchHistoryDeleteQuery,
+  watchGenerationsRouteSchema,
   watchItemIdMutationRouteSchema,
   watchItemIdParamsRouteSchema,
   watchMutationRouteSchema,
@@ -346,6 +347,27 @@ export async function registerWatchRoutes(
       TotalRecordCount: enrichedItems.length,
       NextCursor: page.pageInfo.nextCursor,
       HasMore: page.pageInfo.hasMore,
+    });
+  });
+
+  app.get('/v1/profiles/:profileId/watch/generations', { schema: watchGenerationsRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const profileId = getProfileIdFromParams(request.params);
+    await assertProfileUnlocked(request, profileId);
+    const [continueWatching, history, watchlist, ratings, home] = await Promise.all([
+      redis.get(`watchgen:${profileId}:continue_watching`),
+      redis.get(`watchgen:${profileId}:history`),
+      redis.get(`watchgen:${profileId}:watchlist`),
+      redis.get(`watchgen:${profileId}:ratings`),
+      redis.get(`watchgen:${profileId}:home`),
+    ]);
+    const toMs = (raw: string | null) => (raw == null ? null : Number(raw));
+    return success({
+      continue_watching: toMs(continueWatching),
+      history: toMs(history),
+      watchlist: toMs(watchlist),
+      ratings: toMs(ratings),
+      home: toMs(home),
     });
   });
 
