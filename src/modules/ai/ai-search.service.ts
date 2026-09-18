@@ -12,18 +12,8 @@ import { encodePublicItemId } from '../identity/public-item-id.js';
 import { ProfileLocalService } from '../profiles/profile-local.service.js';
 import { TitleSearchService } from '../search/title-search.service.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
-import { buildSearchPrompt } from './ai-prompts.js';
+import { buildSearchSystemPrompt, buildSearchUserPrompt } from './ai-prompts.js';
 import { parseSearchCandidates, type AiSearchCandidate } from './ai-search-candidates.js';
-
-const AI_SEARCH_SYSTEM_PROMPT = [
-  'You are the backend recommendation engine for a streaming app.',
-  'Your ONLY output must be a raw, valid JSON object.',
-  '',
-  'Strict Rules:',
-  'You must start your response with { and end with }.',
-  'Do not include markdown formatting, backticks, or conversational text.',
-  'Rely entirely on your internal knowledge. Do not attempt to use tools or web search.',
-].join('\n');
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
@@ -62,8 +52,8 @@ export class AiSearchService {
       const { payload: generated, request } = await this.aiRequestExecutor.generateJsonForUser({
         userId,
         feature: 'search',
-        systemPrompt: AI_SEARCH_SYSTEM_PROMPT,
-        userPrompt: buildSearchPrompt(query, locale),
+        systemPrompt: buildSearchSystemPrompt(),
+        userPrompt: buildSearchUserPrompt(query, locale),
       });
 
       const rawItems = Array.isArray(generated.items) ? generated.items : [];

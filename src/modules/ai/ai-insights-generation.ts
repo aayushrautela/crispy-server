@@ -6,12 +6,12 @@ import type { MetadataReviewView, MetadataTitleDetail } from '../metadata/metada
 import { MetadataTitlePageService } from '../metadata/metadata-title-page.service.js';
 import { TmdbClient } from '../metadata/providers/tmdb.client.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
-import { buildInsightsPrompt, type TitleInsightsContext } from './ai-prompts.js';
+import { buildInsightsSystemPrompt, buildInsightsUserPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import type { AiInsightsPayload } from './ai.types.js';
 
-const GENERATION_VERSION = 'v6';
+const GENERATION_VERSION = 'v7';
 
 /**
  * Cold-path generation, run by the worker so the request path never blocks on
@@ -46,7 +46,8 @@ export async function generateInsightsIntoCache(params: {
   const execution = await aiRequestExecutor.generateJsonForUser({
     userId: params.userId,
     feature: 'insights',
-    userPrompt: buildInsightsPrompt(titleContext),
+    systemPrompt: buildInsightsSystemPrompt(),
+    userPrompt: buildInsightsUserPrompt(titleContext),
   });
   const generated = execution.payload;
   const actualGenerationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(execution.request)}`;
