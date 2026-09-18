@@ -110,11 +110,16 @@ export class LocalProviderHistoryWriter {
 
       await this.runQuery(client, 'DELETE FROM user_state.watch_state WHERE profile_id = $1::uuid', [profileId]);
 
-      if (params.historyEntries.length > 0) {
-        historyInserted = await this.upsertHistory(client, profileId, params.historyEntries, warnings);
-      }
-      if (params.playbackStates.length > 0) {
-        playbackInserted = await this.upsertPlayback(client, profileId, params.playbackStates, warnings);
+      if (params.historyEntries.length > 0 || params.playbackStates.length > 0) {
+        const applied = await this.upsertWatchStates(
+          client,
+          profileId,
+          params.historyEntries,
+          params.playbackStates,
+          warnings,
+        );
+        historyInserted = applied.historyInserted;
+        playbackInserted = applied.playbackInserted;
       }
       if (params.ratings.length > 0) {
         ratingsInserted = await this.upsertRatings(client, profileId, params.ratings, warnings);
@@ -155,90 +160,99 @@ export class LocalProviderHistoryWriter {
     };
   }
 
-  private async upsertHistory(
+  /**
+   * Merges imported history and playback events into one play-state row per item,
+   * keeping the watch_state invariant from migration 0069
+   * (played = true ⟺ position_seconds = 0; in-progress ⟺ played = false).
+   *
+   * Both sources are event streams for the same physical state. Folding them into
+   * independent SQL merges (e.g. played = old OR new alongside position = new) lets
+   * the fields disagree and trips watch_state_played_position_check. Instead the
+   * most recent event per item wins and the full (played, play_count, position)
+   * triple is derived from that single event, mirroring
+   * LocalUserWatchService.recordPlaybackState:
+   *   - latest event is a completion (history entry or completed playback)
+   *       → played = true,  position_seconds = 0
+   *   - latest event is an in-progress snapshot (rewatch of a completed title)
+   *       → played = false, position_seconds = N, play_count kept from earlier completions
+   */
+  private async upsertWatchStates(
     client: DbClient,
     profileId: string,
-    entries: ImportedProviderHistoryEntry[],
+    historyEntries: ImportedProviderHistoryEntry[],
+    playbackStates: ImportedProviderPlaybackState[],
     warnings: string[],
-  ): Promise<number> {
-    const identities = entries.map((entry) => parseMediaKey(entry.mediaKey));
+  ): Promise<{ historyInserted: number; playbackInserted: number }> {
+    const identities = [
+      ...historyEntries.map((entry) => parseMediaKey(entry.mediaKey)),
+      ...playbackStates.flatMap((state) => [
+        parseMediaKey(state.titleMediaKey),
+        parseMediaKey(state.mediaKey),
+      ]),
+    ];
     const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
-    const deduped = new Map<string, ImportedProviderHistoryEntry>();
-    for (const entry of entries) {
-      const contentId = contentIds.get(entry.mediaKey);
-      if (!contentId) {
+    const historyByItem = new Map<string, ImportedProviderHistoryEntry>();
+    for (const entry of historyEntries) {
+      const itemId = contentIds.get(entry.mediaKey);
+      if (!itemId) {
         warnings.push(`skipped history item ${entry.mediaKey}: unresolved content id`);
         continue;
       }
-      const existing = deduped.get(contentId);
+      const existing = historyByItem.get(itemId);
       if (!existing || entry.watchedAt > existing.watchedAt) {
-        deduped.set(contentId, entry);
+        historyByItem.set(itemId, entry);
       }
     }
 
-    const values: unknown[] = [];
-    const tuples: string[] = [];
-    [...deduped.values()].forEach((entry, index) => {
-      const contentId = contentIds.get(entry.mediaKey)!;
-      const base = index * 3;
-      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, true, 1, $${base + 3}::timestamptz, 0)`);
-      values.push(profileId, contentId, entry.watchedAt);
-    });
-
-    if (tuples.length) {
-      await this.runQuery(
-        client,
-        `INSERT INTO user_state.watch_state
-           (profile_id, item_id, played, play_count, last_played_at, position_seconds)
-         VALUES ${tuples.join(', ')}
-         ON CONFLICT (profile_id, item_id) DO NOTHING`,
-        values,
-      );
-    }
-    return tuples.length;
-  }
-
-  private async upsertPlayback(
-    client: DbClient,
-    profileId: string,
-    states: ImportedProviderPlaybackState[],
-    warnings: string[],
-  ): Promise<number> {
-    const identities = states.flatMap((state) => [
-      parseMediaKey(state.titleMediaKey),
-      parseMediaKey(state.mediaKey),
-    ]);
-    const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
-
-    const deduped = new Map<string, ImportedProviderPlaybackState>();
-    for (const state of states) {
-      const titleItemId = contentIds.get(state.titleMediaKey);
-      const playableItemId = contentIds.get(state.mediaKey);
-      if (!titleItemId || !playableItemId) {
+    const playbackByItem = new Map<string, ImportedProviderPlaybackState>();
+    for (const state of playbackStates) {
+      const itemId = contentIds.get(state.mediaKey);
+      if (!itemId || !contentIds.get(state.titleMediaKey)) {
         warnings.push(`skipped playback state ${state.mediaKey}: unresolved content id`);
         continue;
       }
-      deduped.set(playableItemId, state);
+      const existing = playbackByItem.get(itemId);
+      if (!existing || state.occurredAt > existing.occurredAt) {
+        playbackByItem.set(itemId, state);
+      }
     }
 
+    const itemIds = new Set<string>([...historyByItem.keys(), ...playbackByItem.keys()]);
     const values: unknown[] = [];
     const tuples: string[] = [];
-    const playbackStates = [...deduped.values()];
-    playbackStates.forEach((state, index) => {
-      const playableItemId = contentIds.get(state.mediaKey)!;
+    [...itemIds].forEach((itemId, index) => {
+      const history = historyByItem.get(itemId);
+      const playback = playbackByItem.get(itemId);
+      const playbackIsLatest = playback !== undefined
+        && (history === undefined || playback.occurredAt > history.watchedAt);
+
+      let played: boolean;
+      let playCount: number;
+      let lastPlayedAt: string;
+      let positionSeconds: number;
+      if (playbackIsLatest && !playback.completed) {
+        played = false;
+        playCount = history ? 1 : 0;
+        lastPlayedAt = playback.occurredAt;
+        positionSeconds = playback.positionSeconds;
+      } else if (playbackIsLatest) {
+        played = true;
+        playCount = 1;
+        lastPlayedAt = playback.occurredAt;
+        positionSeconds = 0;
+      } else {
+        played = true;
+        playCount = 1;
+        lastPlayedAt = history!.watchedAt;
+        positionSeconds = 0;
+      }
+
       const base = index * 6;
       tuples.push(
         `($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}, $${base + 4}, $${base + 5}::timestamptz, $${base + 6})`,
       );
-      values.push(
-        profileId,
-        playableItemId,
-        state.completed,
-        1,
-        state.occurredAt,
-        state.positionSeconds,
-      );
+      values.push(profileId, itemId, played, playCount, lastPlayedAt, positionSeconds);
     });
 
     if (tuples.length) {
@@ -247,15 +261,11 @@ export class LocalProviderHistoryWriter {
         `INSERT INTO user_state.watch_state
             (profile_id, item_id, played, play_count, last_played_at, position_seconds)
           VALUES ${tuples.join(', ')}
-          ON CONFLICT (profile_id, item_id) DO UPDATE SET
-            played = user_state.watch_state.played OR EXCLUDED.played,
-            play_count = GREATEST(user_state.watch_state.play_count, EXCLUDED.play_count),
-            last_played_at = GREATEST(user_state.watch_state.last_played_at, EXCLUDED.last_played_at),
-            position_seconds = EXCLUDED.position_seconds`,
+          ON CONFLICT (profile_id, item_id) DO NOTHING`,
         values,
       );
     }
-    return tuples.length;
+    return { historyInserted: historyByItem.size, playbackInserted: playbackByItem.size };
   }
 
   private async upsertRatings(

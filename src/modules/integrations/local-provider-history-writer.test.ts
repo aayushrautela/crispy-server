@@ -254,17 +254,16 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - stores episode h
   assert.ok(insertQuery.includes('play_count'), 'history must store play_count');
   const insertParams = params.find((_, i) => queries[i] === insertQuery);
   assert.ok(insertParams, 'should have params for the INSERT');
-  assert.equal(insertParams![2], '2026-05-10T00:00:00.000Z', 'watched_at should be bound as a parameter');
+  assert.equal(insertParams![4], '2026-05-10T00:00:00.000Z', 'watched_at should be bound as a parameter');
+  assert.equal(insertParams![2], true, 'history entry should be played = true');
+  assert.equal(insertParams![5], 0, 'history entry should have position_seconds = 0');
 });
 
-test('LocalProviderHistoryWriter::replaceImportedInteractions - playback upsert merges instead of dropping', async (t) => {
+test('LocalProviderHistoryWriter::replaceImportedInteractions - completed playback is normalised to the play-state invariant (played, position 0)', async (t) => {
   const queries: string[] = [];
   const params: unknown[][] = [];
 
   const contentIdentityService = {
-    ensureContentId: async (_client: any, identity: { mediaKey: string }) => {
-      return identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2';
-    },
     ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
       const map = new Map<string, string>();
       for (const identity of identities) {
@@ -284,13 +283,75 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - playback upsert 
     },
   } as never;
 
-  await writer.replaceImportedInteractions(client, {
+  // Trakt-style 95% progress is flagged playback_completed but carries a live position.
+  const result = await writer.replaceImportedInteractions(client, {
     appUser,
     job,
     profile,
     providerSession,
     importedAt: '2026-05-15T00:00:00.000Z',
     historyEntries: [],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [
+      {
+        mediaKey: 'movie:tmdb:555',
+        titleMediaKey: 'movie:tmdb:555',
+        mediaType: 'movie',
+        positionSeconds: 1140,
+        durationSeconds: 1200,
+        progressBps: 9500,
+        occurredAt: '2026-05-14T00:00:00.000Z',
+        completed: true,
+      },
+    ],
+  });
+
+  assert.equal(result.skipped, false);
+  assert.equal(result.playbackInserted, 1);
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![2], true, 'completed playback should be played = true');
+  assert.equal(insertParams![5], 0, 'completed playback must clear position_seconds to keep the invariant');
+});
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - later in-progress playback re-opens a completed title', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      const map = new Map<string, string>();
+      for (const identity of identities) {
+        map.set(identity.mediaKey, identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2');
+      }
+      return map;
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  // Same item: completed in history, then watched again and left at 50% (rewatch in progress).
+  await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-10T00:00:00.000Z' },
+    ],
     watchlistItems: [],
     ratings: [],
     playbackStates: [
@@ -309,12 +370,70 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - playback upsert 
 
   const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
   assert.ok(insertQuery, 'should have an INSERT query for watch_state');
-  assert.ok(
-    insertQuery.includes('ON CONFLICT (profile_id, item_id) DO UPDATE SET'),
-    'playback upsert must merge on conflict instead of dropping',
-  );
-  assert.ok(!insertQuery.includes('DO NOTHING'), 'playback upsert must not be a no-op on conflict');
-  assert.ok(insertQuery.includes('GREATEST(user_state.watch_state.play_count, EXCLUDED.play_count)'), 'must keep the max play count');
-  assert.ok(insertQuery.includes('user_state.watch_state.played OR EXCLUDED.played'), 'must keep played=true if either side is played');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![2], false, 'rewatch in progress should be played = false');
+  assert.equal(insertParams![5], 600, 'position_seconds should be preserved for rewatch in progress');
+  assert.equal(insertParams![4], '2026-05-14T00:00:00.000Z', 'last_played_at should reflect the latest (playback) event');
+  assert.equal(insertParams![3], 1, 'play_count should keep the earlier completion');
+});
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - later history completion wins over stale playback', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      const map = new Map<string, string>();
+      for (const identity of identities) {
+        map.set(identity.mediaKey, identity.mediaKey.startsWith('show:') ? 'title-uuid-1' : 'episode-uuid-2');
+      }
+      return map;
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  // Same item: started playback, then marked fully watched later.
+  await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-14T00:00:00.000Z' },
+    ],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [
+      {
+        mediaKey: 'movie:tmdb:555',
+        titleMediaKey: 'movie:tmdb:555',
+        mediaType: 'movie',
+        positionSeconds: 600,
+        durationSeconds: 1200,
+        progressBps: 5000,
+        occurredAt: '2026-05-10T00:00:00.000Z',
+        completed: false,
+      },
+    ],
+  });
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![2], true, 'latest completed history should win (played = true)');
+  assert.equal(insertParams![5], 0, 'completed row must clear position_seconds');
+  assert.equal(insertParams![4], '2026-05-14T00:00:00.000Z', 'last_played_at should reflect the latest completed event');
 });
 
