@@ -26,7 +26,8 @@ export type ImportedProviderListItem = {
 export type ImportedProviderRating = {
   mediaKey: string;
   mediaType: 'movie' | 'show' | 'episode';
-  rating: number;
+  liked: boolean;
+  originRating: number | null;
   ratedAt: string;
 };
 
@@ -285,19 +286,19 @@ export class LocalProviderHistoryWriter {
     const tuples: string[] = [];
     [...deduped.values()].forEach((rating, index) => {
       const ratingItemId = contentIds.get(rating.mediaKey)!;
-      const base = index * 4;
-      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}, $${base + 4}::timestamptz)`);
-      values.push(profileId, ratingItemId, rating.rating, rating.ratedAt);
+      const base = index * 5;
+      tuples.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::boolean, $${base + 4}::numeric, $${base + 5}::timestamptz)`);
+      values.push(profileId, ratingItemId, rating.liked, rating.originRating, rating.ratedAt);
     });
 
     if (tuples.length) {
       await this.runQuery(
         client,
         `INSERT INTO user_state.watch_state
-           (profile_id, item_id, rating, last_played_at)
+           (profile_id, item_id, liked, origin_rating, last_played_at)
          VALUES ${tuples.join(', ')}
          ON CONFLICT (profile_id, item_id) DO UPDATE SET
-           rating = EXCLUDED.rating, last_played_at = EXCLUDED.last_played_at`,
+           liked = EXCLUDED.liked, origin_rating = EXCLUDED.origin_rating, last_played_at = EXCLUDED.last_played_at`,
         values,
       );
     }

@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../../lib/errors.js';
-import { normalizeWatchOccurredAt, sanitizeWatchEventInput } from './watch.types.js';
+import { normalizeWatchOccurredAt, sanitizeWatchEventInput, toBinaryRating } from './watch.types.js';
+
+test('toBinaryRating maps explicit thresholds without rounding or inventing neutral votes', () => {
+  for (const rating of [1, 2, 3, 4]) assert.equal(toBinaryRating(rating), false);
+  for (const rating of [7, 8, 9, 10]) assert.equal(toBinaryRating(rating), true);
+  for (const rating of [null, 4.1, 5, 6, 6.9, 0, 11, NaN, Infinity]) {
+    assert.equal(toBinaryRating(rating), null);
+  }
+});
 
 test('sanitizeWatchEventInput trims strings and normalizes occurredAt', () => {
   const result = sanitizeWatchEventInput({

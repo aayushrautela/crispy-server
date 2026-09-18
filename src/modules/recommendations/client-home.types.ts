@@ -16,6 +16,8 @@ export type ClientProgress = {
   percent: number | null;
   lastPlayedAt: string | null;
   watchlisted: boolean;
+  liked: boolean | null;
+  originRating: number | null;
   userRating: number | null;
 };
 

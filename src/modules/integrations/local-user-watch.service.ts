@@ -79,7 +79,7 @@ type SetRatingParams = {
   profileId: string;
   itemId: string;
   mediaType: 'movie' | 'show' | 'season' | 'episode';
-  rating: number;
+  liked: boolean | null;
 };
 
 type DeleteRatingParams = {
@@ -142,7 +142,7 @@ export class LocalUserWatchService {
               ci.entity_type AS media_type,
               NULLIF(cpr.metadata->>'seasonNumber','')::int AS season_number,
               NULLIF(cpr.metadata->>'episodeNumber','')::int AS episode_number,
-              ws.duration_seconds, ws.played, ws.play_count, ws.is_favorite, ws.rating
+              ws.duration_seconds, ws.played, ws.play_count, ws.is_favorite, ws.liked, ws.origin_rating
        FROM user_state.watch_state ws
        JOIN content_items ci ON ci.id = ws.item_id
        LEFT JOIN content_provider_refs cpr ON cpr.content_id = ws.item_id AND cpr.provider='tmdb'
@@ -225,7 +225,7 @@ export class LocalUserWatchService {
                NULLIF(cpr.metadata->>'seasonNumber','')::int AS season_number,
                NULLIF(cpr.metadata->>'episodeNumber','')::int AS episode_number,
                0 AS duration_seconds, 0 AS progress_bps,
-               0 AS played, 0 AS play_count, false AS is_favorite, NULL::numeric AS rating
+               0 AS played, 0 AS play_count, false AS is_favorite, NULL::boolean AS liked, NULL::numeric AS origin_rating
         FROM ws
         JOIN content_items ci ON ci.id = ws.item_id
         LEFT JOIN content_provider_refs cpr ON cpr.content_id = ws.item_id AND cpr.provider='tmdb'
@@ -250,7 +250,7 @@ export class LocalUserWatchService {
     const limit = params.limit + 1;
     const rows = await db.query(
       `SELECT ws.item_id, ws.played, ws.play_count, ws.last_played_at,
-              ws.position_seconds, ws.rating, ws.is_favorite, ws.duration_seconds,
+              ws.position_seconds, ws.liked, ws.origin_rating, ws.is_favorite, ws.duration_seconds,
               ci.entity_type AS media_type
        FROM user_state.watch_state ws
        JOIN content_items ci ON ci.id = ws.item_id
@@ -272,11 +272,11 @@ export class LocalUserWatchService {
     const cursor = decodeWatchPageCursor(params.cursor);
     const limit = params.limit + 1;
     const rows = await db.query(
-      `SELECT ws.item_id, ws.rating, ws.last_played_at AS rated_at, ws.duration_seconds,
+      `SELECT ws.item_id, ws.liked, ws.origin_rating, ws.last_played_at AS rated_at, ws.duration_seconds,
               ci.entity_type AS media_type, ws.played, ws.play_count, ws.is_favorite, ws.position_seconds
        FROM user_state.watch_state ws
        JOIN content_items ci ON ci.id = ws.item_id
-       WHERE ws.profile_id = $1::uuid AND ws.rating IS NOT NULL
+       WHERE ws.profile_id = $1::uuid AND ws.liked IS NOT NULL
          AND ($2::timestamptz IS NULL OR ws.last_played_at < $2::timestamptz OR (ws.last_played_at = $2::timestamptz AND ws.item_id > $3::uuid))
        ORDER BY ws.last_played_at DESC, ws.item_id ASC
        LIMIT $4`,
@@ -295,7 +295,7 @@ export class LocalUserWatchService {
     const limit = params.limit + 1;
     const rows = await db.query(
       `SELECT ws.item_id, ws.last_played_at AS occurred_at, ws.duration_seconds,
-              ci.entity_type AS media_type, ws.played, ws.play_count, ws.is_favorite, ws.position_seconds, ws.rating
+              ci.entity_type AS media_type, ws.played, ws.play_count, ws.is_favorite, ws.position_seconds, ws.liked, ws.origin_rating
        FROM user_state.watch_state ws
        JOIN content_items ci ON ci.id = ws.item_id
        LEFT JOIN content_item_relationships cir ON cir.child_content_id = ws.item_id AND cir.relationship_type='series'
@@ -321,7 +321,7 @@ export class LocalUserWatchService {
       const result = await client.query(
         `WITH requested AS (SELECT unnest($2::uuid[]) AS item_id)
          SELECT req.item_id, ci.entity_type AS media_type,
-                ws.position_seconds, ws.duration_seconds, ws.played, ws.play_count, ws.is_favorite, ws.rating, ws.last_played_at
+                ws.position_seconds, ws.duration_seconds, ws.played, ws.play_count, ws.is_favorite, ws.liked, ws.origin_rating, ws.last_played_at
          FROM requested req
          LEFT JOIN content_items ci ON ci.id = req.item_id
          LEFT JOIN user_state.watch_state ws ON ws.profile_id = $1::uuid AND ws.item_id = req.item_id`,
@@ -574,13 +574,17 @@ export class LocalUserWatchService {
   }
 
   async setRating(params: SetRatingParams): Promise<void> {
+    if (params.liked === null) {
+      await this.deleteRating(params);
+      return;
+    }
     await db.query(
       `INSERT INTO user_state.watch_state
-        (profile_id, item_id, rating, last_played_at)
-       VALUES ($1::uuid, $2::uuid, $3, now())
+        (profile_id, item_id, liked, last_played_at)
+       VALUES ($1::uuid, $2::uuid, $3::boolean, now())
        ON CONFLICT (profile_id, item_id) DO UPDATE SET
-         rating = EXCLUDED.rating, last_played_at = EXCLUDED.last_played_at`,
-      [params.profileId, params.itemId, params.rating],
+         liked = EXCLUDED.liked, last_played_at = EXCLUDED.last_played_at`,
+      [params.profileId, params.itemId, params.liked],
     );
     await publishWatchChanged(params.accountId, params.profileId, 'ratings', { force: true });
   }
@@ -588,7 +592,7 @@ export class LocalUserWatchService {
   async deleteRating(params: DeleteRatingParams): Promise<void> {
     await db.query(
       `UPDATE user_state.watch_state
-        SET rating = NULL
+        SET liked = NULL
         WHERE profile_id = $1::uuid AND item_id = $2::uuid`,
       [params.profileId, params.itemId],
     );

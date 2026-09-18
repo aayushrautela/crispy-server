@@ -1,3 +1,4 @@
+import { toBinaryRating } from '../../watch/watch.types.js';
 import {
   inferMediaIdentity,
   type MediaIdentity,
@@ -66,7 +67,7 @@ function buildImportedTitleEvent(params: {
   eventType: ImportedWatchEventDraft['eventType'];
   resolved: ResolvedImportIdentity;
   occurredAt: string;
-  rating?: number | null;
+  liked?: boolean | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
   progressBps?: number | null;
@@ -83,7 +84,7 @@ function buildImportedTitleEvent(params: {
     tvdbId: params.resolved.tvdbId,
     kitsuId: params.resolved.kitsuId,
     showTmdbId: params.includeShowTmdbId && params.resolved.mediaType !== 'movie' ? params.resolved.tmdbId : null,
-    rating: params.rating ?? null,
+    liked: params.liked ?? null,
     positionSeconds: params.positionSeconds ?? null,
     durationSeconds: params.durationSeconds ?? null,
     progressBps: params.progressBps ?? null,
@@ -326,8 +327,9 @@ export async function normalizeTraktRatings(
 ): Promise<void> {
   for (const item of items) {
     const mediaFamily = traktItemMediaFamily(item);
-    const rating = asPositiveInt(item.rating);
-    if (!mediaFamily || !rating) {
+    const rating = asFiniteNumber(item.rating);
+    const liked = toBinaryRating(rating);
+    if (!mediaFamily || liked === null) {
       continue;
     }
     const resolved = await resolveTraktTitleIdentity(resolveIdentity, item, mediaFamily);
@@ -339,8 +341,8 @@ export async function normalizeTraktRatings(
       eventType: 'rating_put',
       resolved,
       occurredAt,
-      rating,
-      payload: traktPayload('ratings'),
+      liked,
+      payload: { ...traktPayload('ratings'), origin_rating: rating },
       includeShowTmdbId: true,
     }));
     collector.mediaKeysToRefresh.add(resolved.identity.mediaKey);

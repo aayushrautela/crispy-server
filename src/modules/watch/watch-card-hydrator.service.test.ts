@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { seedTestEnv } from '../../test-helpers.js';
+
+seedTestEnv();
 
 import type { MetadataCardView } from '../metadata/metadata-card.types.js';
 
@@ -82,11 +85,21 @@ test('watch card hydrator hydrates via last-layer (ClientMediaCard)', async (t) 
   });
 
   const hydrator = new WatchCardHydrator();
-  const refs = [
-    { itemId: '0000000000004000a000000000000001', mediaType: 'movie' as const, progress: null },
-  ];
-
-  const cards = await hydrator.hydrateByIds({} as never, refs, null);
-  assert.equal(cards.length, 1);
-  assert.equal(cards[0]?.itemId, '0000000000004000a000000000000001');
+  const { mapWatchStateInternalRef, mapRatingInternalRef, mapHistoryInternalRef, mapContinueWatchingInternalRef } = await import('../integrations/watch-read.mapper.js');
+  for (const liked of [true, false, null]) {
+    for (const mapper of [mapWatchStateInternalRef, mapRatingInternalRef, mapHistoryInternalRef, mapContinueWatchingInternalRef]) {
+      const ref = mapper({
+        item_id: '00000000-0000-4000-a000-000000000001',
+        playable_item_id: '00000000-0000-4000-a000-000000000001',
+        media_type: 'movie', liked, origin_rating: '8.5',
+      })!;
+      const cards = await hydrator.hydrateByIds({} as never, [ref], null);
+      assert.equal(cards.length, 1);
+      assert.equal(cards[0]?.itemId, '0000000000004000a000000000000001');
+      assert.equal(cards[0]?.rating, 8);
+      assert.equal(cards[0]?.progress?.liked, liked);
+      assert.equal(cards[0]?.progress?.originRating, 8.5);
+      assert.equal(cards[0]?.progress?.userRating, liked === null ? null : liked ? 10 : 1);
+    }
+  }
 });

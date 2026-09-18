@@ -379,6 +379,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/apps/v1/accounts/{accountId}/reco-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read account recompute context (pricing tier + last activity)
+         * @description Account-scoped scheduling context consumed by the reco scheduler:
+         *     `pricingTier` drives per-tier recompute cadence, `lastSeenAt` (refreshed
+         *     by identity.upsert_account on every authenticated request) gates inactive
+         *     accounts out of scheduled recomputes.
+         */
+        get: operations["getInternalAccountRecoContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -441,12 +464,21 @@ export interface components {
         ClientProgress: {
             played: boolean;
             playCount: number;
-            positionSeconds: number;
-            durationSeconds: number;
+            positionSeconds: number | null;
+            durationSeconds: number | null;
             percent: number | null;
             lastPlayedAt: string | null;
             watchlisted: boolean;
-            userRating: number | null;
+            /** @description Binary vote; null means no vote. */
+            liked: boolean | null;
+            /** @description Original imported provider rating, metadata only; never used as the current vote. */
+            originRating: number | null;
+            /**
+             * @deprecated
+             * @description Compatibility projection of liked: true = 10, false = 1, null = null.
+             * @enum {number|null}
+             */
+            userRating: 1 | 10 | null;
         };
         ClientParentRef: {
             seriesItemId?: components["schemas"]["PublicItemId"];
@@ -674,37 +706,39 @@ export interface components {
                 tasteProfile: components["schemas"]["TasteProfileRecord"] | null;
             };
         };
-        TasteTagConnection: {
-            /** @description Name of the connected entity - a genre, person, or another tag */
-            to: string;
-            /** @description Connection strength derived from co-occurrence frequency in the user's watch history */
-            weight: number;
-        };
         TasteProfileWriteRequest: {
             sourceKey: string;
             contentTypePref: components["schemas"]["Metadata"];
-            ratingTendency: components["schemas"]["Metadata"];
             watchingPace: string | null;
             aiSummary: string | null;
             source: string;
             vectors: components["schemas"]["TasteVectors"];
+            personaLongTerm?: string | null;
+            personaShortTerm?: string | null;
+            /** Format: date-time */
+            personaUpdatedAt?: string | null;
+            personaWatchFingerprint?: string | null;
+            avoidances?: string[];
         };
         TasteProfileRecord: {
             profileId: string;
             sourceKey: string;
             contentTypePref: components["schemas"]["Metadata"];
-            ratingTendency: components["schemas"]["Metadata"];
             watchingPace: string | null;
             aiSummary: string | null;
             source: string;
-            updatedByKind: string;
-            updatedById?: string | null;
             version: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
             vectors: components["schemas"]["TasteVectors"];
+            personaLongTerm?: string | null;
+            personaShortTerm?: string | null;
+            /** Format: date-time */
+            personaUpdatedAt?: string | null;
+            personaWatchFingerprint?: string | null;
+            avoidances?: string[];
         };
         TasteWeightedEntry: {
             name: string;
@@ -712,26 +746,26 @@ export interface components {
             shortCount: number;
             longScore: number;
             longCount: number;
-            shortHistogram?: number[];
-            longHistogram?: number[];
         };
         TastePersonEntry: components["schemas"]["TasteWeightedEntry"] & {
             roles: ("actor" | "director")[];
             popularity?: number;
         };
-        TasteTagVectorEntry: components["schemas"]["TasteWeightedEntry"] & {
-            connections?: components["schemas"]["TasteTagConnection"][];
-        };
         TasteVectors: {
             /** @enum {integer} */
-            schemaVersion: 2 | 3 | 4;
+            schemaVersion: 5;
             genres: components["schemas"]["TasteWeightedEntry"][];
-            tags: components["schemas"]["TasteTagVectorEntry"][];
             people: components["schemas"]["TastePersonEntry"][];
-            mood: components["schemas"]["TasteWeightedEntry"][];
             decades: components["schemas"]["TasteWeightedEntry"][];
-            ratingTiers?: components["schemas"]["TasteWeightedEntry"][];
             languages: components["schemas"]["TasteLanguageEntry"][];
+            contentMix: {
+                short: components["schemas"]["TasteContentMixSide"];
+                long: components["schemas"]["TasteContentMixSide"];
+            };
+        };
+        TasteContentMixSide: {
+            movie: number;
+            show: number;
         };
         TasteLanguageEntry: {
             code: string;
@@ -933,6 +967,13 @@ export interface components {
         };
         AccountLookupResponse: {
             [key: string]: unknown;
+        };
+        AccountRecoContextResponse: {
+            accountId: string;
+            /** @enum {string} */
+            pricingTier: "free" | "pro" | "ultra";
+            /** Format: date-time */
+            lastSeenAt: string | null;
         };
     };
     responses: {
@@ -1941,6 +1982,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountLookupResponse"];
+                };
+            };
+            401: components["responses"]["UnauthorizedError"];
+            403: components["responses"]["ForbiddenError"];
+            404: components["responses"]["NotFoundError"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getInternalAccountRecoContext: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @example Bearer <service-token> */
+                Authorization: components["parameters"]["Authorization"];
+                "x-service-id": components["parameters"]["ServiceId"];
+                /** @example req_example_01HXRECO */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+                /** @example corr_example_generation_001 */
+                "X-Correlation-Id"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @example acct_example_reco_001 */
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account recompute context. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountRecoContextResponse"];
                 };
             };
             401: components["responses"]["UnauthorizedError"];

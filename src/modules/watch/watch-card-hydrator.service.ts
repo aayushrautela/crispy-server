@@ -77,6 +77,8 @@ function progressFromInternalRef(
     percent,
     lastPlayedAt: progress.lastPlayedAt,
     watchlisted: progress.isFavorite,
-    userRating: progress.rating,
+    liked: progress.liked,
+    originRating: progress.originRating,
+    userRating: progress.liked === null ? null : progress.liked ? 10 : 1,
   };
 }

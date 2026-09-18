@@ -721,12 +721,14 @@ export class ProviderImportService {
         continue;
       }
 
-      if (event.eventType === 'rating_put' && typeof event.rating === 'number' && Number.isFinite(event.rating)) {
+      if (event.eventType === 'rating_put' && typeof event.liked === 'boolean') {
         const titleIdentity = this.resolveProviderEventTitleIdentity(event);
         ratings.push({
           mediaKey: canonicalTitleMediaKey(titleIdentity),
           mediaType: canonicalTitleMediaType(titleIdentity),
-          rating: event.rating,
+          liked: event.liked,
+          originRating: typeof event.payload?.origin_rating === 'number' && Number.isFinite(event.payload.origin_rating)
+            ? event.payload.origin_rating : null,
           ratedAt: event.occurredAt,
         });
         continue;

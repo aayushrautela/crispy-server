@@ -6,6 +6,18 @@ seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-client-id', TRAKT_IMPORT_CLIENT_SEC
 
 const noopTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
 
+test('Simkl ratings use binary votes and preserve numeric provider metadata', async () => {
+  const { normalizeSimklRatings } = await import('./simkl/simkl-import.normalizer.js');
+  const { createImportAccumulator } = await import('./provider-import.internals.js');
+  const { inferMediaIdentity } = await import('../identity/media-key.js');
+  const collector = createImportAccumulator();
+  await normalizeSimklRatings([1, 4, 5, 6, 7, 10].map((user_rating) => ({ movie: { ids: { tmdb: 1 } }, user_rating })), [], [], async () => ({
+    identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 1 }),
+    mediaType: 'movie', tmdbId: 1, tvdbId: null, kitsuId: null,
+  }), collector);
+  assert.deepEqual(collector.importedEvents.map((event) => [event.liked, event.payload?.origin_rating]), [[false, 1], [false, 4], [true, 7], [true, 10]]);
+});
+
 test('TraktImportService buildAuthUrl uses trakt.tv authorize host', async () => {
   const { TraktImportService } = await import('./trakt/trakt-import.service.js');
   const service = new TraktImportService();
@@ -398,7 +410,7 @@ test('TraktImportService.fetchAndNormalizeImport keeps Trakt playback progress w
       tvdbId: null,
       kitsuId: null,
       showTmdbId: null,
-      rating: null,
+      liked: null,
       positionSeconds: null,
       durationSeconds: null,
       progressBps: 1000,

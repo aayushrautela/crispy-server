@@ -77,7 +77,7 @@ export type ImportedWatchEventDraft = {
   seasonNumber?: number | null;
   episodeNumber?: number | null;
   absoluteEpisodeNumber?: number | null;
-  rating?: number | null;
+  liked?: boolean | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
   progressBps?: number | null;

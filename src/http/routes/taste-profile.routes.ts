@@ -93,15 +93,34 @@ export async function registerTasteProfileRoutes(app: FastifyInstance): Promise<
 
 function parseTasteProfileInput(body: unknown) {
   const value = asRecord(body);
+  const persona = tastePersonaFromValue(value);
   return {
     sourceKey: resolveRecommendationSourceKey(value.sourceKey),
     contentTypePref: asRecord(value.contentTypePref),
-    ratingTendency: asRecord(value.ratingTendency),
     watchingPace: typeof value.watchingPace === 'string' ? value.watchingPace : null,
     aiSummary: typeof value.aiSummary === 'string' ? value.aiSummary : null,
     source: typeof value.source === 'string' && value.source.trim() ? value.source.trim() : 'manual',
     vectors: value.vectors as import('../../modules/recommendations/recommendation.types.js').TasteVectors,
+    ...persona,
   };
+}
+
+function tastePersonaFromValue(value: Record<string, unknown>) {
+  const persona: {
+    personaLongTerm?: string | null;
+    personaShortTerm?: string | null;
+    personaUpdatedAt?: string | null;
+    personaWatchFingerprint?: string | null;
+    avoidances?: string[];
+  } = {};
+  if ('personaLongTerm' in value) persona.personaLongTerm = typeof value.personaLongTerm === 'string' ? value.personaLongTerm : null;
+  if ('personaShortTerm' in value) persona.personaShortTerm = typeof value.personaShortTerm === 'string' ? value.personaShortTerm : null;
+  if ('personaUpdatedAt' in value) persona.personaUpdatedAt = typeof value.personaUpdatedAt === 'string' ? value.personaUpdatedAt : null;
+  if ('personaWatchFingerprint' in value) persona.personaWatchFingerprint = typeof value.personaWatchFingerprint === 'string' ? value.personaWatchFingerprint : null;
+  if ('avoidances' in value && Array.isArray(value.avoidances)) {
+    persona.avoidances = value.avoidances.filter((item): item is string => typeof item === 'string');
+  }
+  return persona;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

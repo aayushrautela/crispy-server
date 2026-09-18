@@ -4,7 +4,7 @@ import { seedTestEnv } from '../../../test-helpers.js';
 
 seedTestEnv();
 
-const { normalizeTraktPlayback } = await import('./trakt-import.normalizer.js');
+const { normalizeTraktPlayback, normalizeTraktRatings } = await import('./trakt-import.normalizer.js');
 const { createImportAccumulator } = await import('../provider-import.internals.js');
 
 const resolvedMovie = {
@@ -16,6 +16,28 @@ const resolvedMovie = {
 } as never;
 
 const resolveIdentity = (async () => resolvedMovie) as never;
+
+test('normalizeTraktRatings maps likes and dislikes and preserves original numbers in payloads', async () => {
+  for (const [rating, liked] of [[1, false], [4, false], [7, true], [8.5, true], [10, true]] as const) {
+    const collector = createImportAccumulator();
+    await normalizeTraktRatings([{ movie: { ids: { tmdb: 12345 } }, rating, rated_at: '2026-05-14T00:00:00.000Z' }], resolveIdentity, collector);
+    assert.equal(collector.importedEvents.length, 1);
+    const event = collector.importedEvents[0]!;
+    assert.equal(event.liked, liked);
+    assert.equal(event.payload?.origin_rating, rating);
+    assert.equal(event.occurredAt, '2026-05-14T00:00:00.000Z');
+    assert.equal('rating' in event, false);
+  }
+});
+
+test('normalizeTraktRatings skips neutral and invalid values before resolving identity', async () => {
+  const collector = createImportAccumulator();
+  await normalizeTraktRatings([4.5, 5, 6, 6.9, 0, 11, null, NaN, Infinity].map((rating) => ({ movie: {}, rating })), async () => {
+    assert.fail('neutral and invalid votes must not resolve identity');
+  }, collector);
+  assert.deepEqual(collector.importedEvents, []);
+  assert.equal(collector.mediaKeysToRefresh.size, 0);
+});
 
 function moviePlaybackItem(progress: number): Record<string, unknown> {
   return {

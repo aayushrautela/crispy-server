@@ -29,7 +29,7 @@ test('append aligns recommendation_event_outbox insert placeholders', async () =
           season_number: values[11],
           episode_number: values[12],
           absolute_episode_number: values[13],
-          rating: values[14],
+           liked: values[14],
           occurred_at: values[15],
           payload: JSON.parse(String(values[16] ?? '{}')),
           created_at: '2024-01-01T00:00:00.000Z',
@@ -38,7 +38,7 @@ test('append aligns recommendation_event_outbox insert placeholders', async () =
     },
   } as never;
 
-  await repository.append(client, {
+  const result = await repository.append(client, {
     profileId: '11111111-1111-1111-1111-111111111111',
     historyGeneration: 7,
     eventType: 'rating_put',
@@ -53,7 +53,7 @@ test('append aligns recommendation_event_outbox insert placeholders', async () =
     seasonNumber: null,
     episodeNumber: null,
     absoluteEpisodeNumber: null,
-    rating: 8,
+    liked: false,
     occurredAt: '2024-01-01T00:00:00.000Z',
     payload: { source: 'test' },
   });
@@ -61,5 +61,7 @@ test('append aligns recommendation_event_outbox insert placeholders', async () =
   const insert = queries.find((entry) => entry.text.includes('INSERT INTO recommendation_event_outbox'));
   assert.ok(insert, 'expected recommendation_event_outbox insert query');
   assert.match(insert.text, /\$15, \$16::timestamptz, \$17::jsonb/);
+  assert.equal(result.liked, false);
+  assert.equal(insert.values[14], false);
   assert.equal(insert.values.length, 17);
 });

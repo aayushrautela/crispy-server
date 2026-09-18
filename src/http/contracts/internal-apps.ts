@@ -510,16 +510,6 @@ export const tasteProfileReadQuerySchema = {
   },
 } as const;
 
-export const tasteTagConnectionSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['to', 'weight'],
-  properties: {
-    to: nonEmptyStringSchema,
-    weight: numberSchema,
-  },
-} as const;
-
 export const tasteWeightedEntrySchema = {
   type: 'object',
   additionalProperties: false,
@@ -530,8 +520,6 @@ export const tasteWeightedEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
-    shortHistogram: { type: 'array', items: numberSchema },
-    longHistogram: { type: 'array', items: numberSchema },
   },
 } as const;
 
@@ -545,26 +533,8 @@ export const tastePersonEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
-    shortHistogram: { type: 'array', items: numberSchema },
-    longHistogram: { type: 'array', items: numberSchema },
     roles: { type: 'array', items: { type: 'string', enum: ['actor', 'director'] } },
     popularity: numberSchema,
-  },
-} as const;
-
-export const tasteTagVectorEntrySchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['name', 'shortScore', 'shortCount', 'longScore', 'longCount'],
-  properties: {
-    name: nonEmptyStringSchema,
-    shortScore: numberSchema,
-    shortCount: numberSchema,
-    longScore: numberSchema,
-    longCount: numberSchema,
-    shortHistogram: { type: 'array', items: numberSchema },
-    longHistogram: { type: 'array', items: numberSchema },
-    connections: { type: 'array', items: tasteTagConnectionSchema, maxItems: 8 },
   },
 } as const;
 
@@ -581,31 +551,49 @@ export const tasteLanguageEntrySchema = {
   },
 } as const;
 
+const tasteContentMixSideSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['movie', 'show'],
+  properties: { movie: numberSchema, show: numberSchema },
+} as const;
+
+const tastePersonaProperties = {
+  personaLongTerm: nullableStringSchema,
+  personaShortTerm: nullableStringSchema,
+  personaUpdatedAt: { anyOf: [dateTimeSchema, { type: 'null' }] },
+  personaWatchFingerprint: nullableStringSchema,
+  avoidances: { type: 'array', items: stringSchema },
+} as const;
+
 export const tasteVectorsSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['schemaVersion', 'genres', 'tags', 'people', 'mood', 'decades', 'languages'],
+  required: ['schemaVersion', 'genres', 'people', 'decades', 'languages', 'contentMix'],
   properties: {
-    schemaVersion: { type: 'integer', enum: [2, 3, 4] },
+    schemaVersion: { type: 'integer', enum: [5] },
     genres: { type: 'array', items: tasteWeightedEntrySchema },
-    tags: { type: 'array', items: tasteTagVectorEntrySchema },
     people: { type: 'array', items: tastePersonEntrySchema },
-    mood: { type: 'array', items: tasteWeightedEntrySchema },
     decades: { type: 'array', items: tasteWeightedEntrySchema },
-    ratingTiers: { type: 'array', items: tasteWeightedEntrySchema },
     languages: { type: 'array', items: tasteLanguageEntrySchema },
+    contentMix: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['short', 'long'],
+      properties: { short: tasteContentMixSideSchema, long: tasteContentMixSideSchema },
+    },
   },
 } as const;
 
 export const tasteProfileRecordSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['profileId', 'sourceKey', 'contentTypePref', 'ratingTendency', 'watchingPace', 'aiSummary', 'source', 'version', 'createdAt', 'updatedAt', 'vectors'],
+  required: ['profileId', 'sourceKey', 'contentTypePref', 'watchingPace', 'aiSummary', 'source', 'version', 'createdAt', 'updatedAt', 'vectors'],
   properties: {
     profileId: stringSchema,
     sourceKey: stringSchema,
     contentTypePref: recordSchema,
-    ratingTendency: recordSchema,
+    ...tastePersonaProperties,
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: stringSchema,
@@ -644,69 +632,18 @@ export const tasteProfileReadRouteSchema = withDefaultErrorResponses({
 export const tasteProfileWriteBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceKey', 'contentTypePref', 'ratingTendency', 'watchingPace', 'aiSummary', 'source', 'vectors'],
+  required: ['sourceKey', 'contentTypePref', 'watchingPace', 'aiSummary', 'source', 'vectors'],
   properties: {
     sourceKey: nonEmptyStringSchema,
     contentTypePref: recordSchema,
-    ratingTendency: recordSchema,
+    ...tastePersonaProperties,
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: nonEmptyStringSchema,
     vectors: tasteVectorsSchema,
   },
 } as const;
-export type TasteTagConnection = {
-  to: string;
-  weight: number;
-};
-
-export type TasteWeightedEntry = {
-  name: string;
-  shortScore: number;
-  shortCount: number;
-  longScore: number;
-  longCount: number;
-  shortHistogram?: number[];
-  longHistogram?: number[];
-};
-
-export type TastePersonEntry = TasteWeightedEntry & {
-  roles: ('actor' | 'director')[];
-  popularity?: number;
-};
-
-export type TasteTagVectorEntry = TasteWeightedEntry & {
-  connections?: TasteTagConnection[];
-};
-
-export type TasteLanguageEntry = {
-  code: string;
-  shortMovie: number;
-  shortShow: number;
-  longMovie: number;
-  longShow: number;
-};
-
-export type TasteVectors = {
-  schemaVersion: 3;
-  genres: TasteWeightedEntry[];
-  tags: TasteTagVectorEntry[];
-  people: TastePersonEntry[];
-  mood: TasteWeightedEntry[];
-  decades: TasteWeightedEntry[];
-  ratingTiers: TasteWeightedEntry[];
-  languages: TasteLanguageEntry[];
-};
-
-export type TasteProfileWriteBody = {
-  sourceKey: string;
-  contentTypePref: Record<string, unknown>;
-  ratingTendency: Record<string, unknown>;
-  watchingPace: string | null;
-  aiSummary: string | null;
-  source: string;
-  vectors: TasteVectors;
-};
+export type { TasteProfileInput as TasteProfileWriteBody } from '../../modules/recommendations/recommendation.types.js';
 
 export const tasteProfileWriteRouteSchema = withDefaultErrorResponses({
   params: {

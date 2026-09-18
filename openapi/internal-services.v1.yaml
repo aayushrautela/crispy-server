@@ -1119,16 +1119,18 @@ components:
     ClientProgress:
       type: object
       additionalProperties: false
-      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, userRating]
+      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, liked, originRating, userRating]
       properties:
         played: { type: boolean }
         playCount: { type: integer }
-        positionSeconds: { type: number }
-        durationSeconds: { type: number }
+        positionSeconds: { type: [number, 'null'] }
+        durationSeconds: { type: [number, 'null'] }
         percent: { type: [number, 'null'] }
         lastPlayedAt: { type: [string, 'null'] }
         watchlisted: { type: boolean }
-        userRating: { type: [number, 'null'] }
+        liked: { type: [boolean, 'null'], description: 'Binary vote; null means no vote.' }
+        originRating: { type: [number, 'null'], description: 'Original imported provider rating, metadata only; never used as the current vote.' }
+        userRating: { type: [number, 'null'], enum: [1, 10, null], deprecated: true, description: 'Compatibility projection of liked: true = 10, false = 1, null = null.' }
     ClientParentRef:
       type: object
       additionalProperties: false
@@ -1472,42 +1474,42 @@ components:
               oneOf:
                 - $ref: '#/components/schemas/TasteProfileRecord'
                 - type: 'null'
-    TasteTagConnection:
-      type: object
-      additionalProperties: false
-      required: [to, weight]
-      properties:
-        to: { type: string, minLength: 1, description: "Name of the connected entity - a genre, person, or another tag" }
-        weight: { type: number, description: "Connection strength derived from co-occurrence frequency in the user's watch history" }
     TasteProfileWriteRequest:
       type: object
       additionalProperties: false
-      required: [sourceKey, contentTypePref, ratingTendency, watchingPace, aiSummary, source, vectors]
+      required: [sourceKey, contentTypePref, watchingPace, aiSummary, source, vectors]
       properties:
         sourceKey: { type: string, minLength: 1 }
         contentTypePref: { $ref: '#/components/schemas/Metadata' }
-        ratingTendency: { $ref: '#/components/schemas/Metadata' }
         watchingPace: { type: [string, 'null'] }
         aiSummary: { type: [string, 'null'] }
         source: { type: string, minLength: 1 }
         vectors: { $ref: '#/components/schemas/TasteVectors' }
+        personaLongTerm: { type: [string, 'null'] }
+        personaShortTerm: { type: [string, 'null'] }
+        personaUpdatedAt: { type: [string, 'null'], format: date-time }
+        personaWatchFingerprint: { type: [string, 'null'] }
+        avoidances: { type: array, items: { type: string } }
     TasteProfileRecord:
       type: object
-      required: [profileId, sourceKey, contentTypePref, ratingTendency, watchingPace, aiSummary, source, updatedByKind, version, createdAt, updatedAt, vectors]
+      additionalProperties: false
+      required: [profileId, sourceKey, contentTypePref, watchingPace, aiSummary, source, version, createdAt, updatedAt, vectors]
       properties:
         profileId: { type: string }
         sourceKey: { type: string }
         contentTypePref: { $ref: '#/components/schemas/Metadata' }
-        ratingTendency: { $ref: '#/components/schemas/Metadata' }
         watchingPace: { type: [string, 'null'] }
         aiSummary: { type: [string, 'null'] }
         source: { type: string }
-        updatedByKind: { type: string }
-        updatedById: { type: [string, 'null'] }
         version: { type: integer, minimum: 0 }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         vectors: { $ref: '#/components/schemas/TasteVectors' }
+        personaLongTerm: { type: [string, 'null'] }
+        personaShortTerm: { type: [string, 'null'] }
+        personaUpdatedAt: { type: [string, 'null'], format: date-time }
+        personaWatchFingerprint: { type: [string, 'null'] }
+        avoidances: { type: array, items: { type: string } }
     TasteWeightedEntry:
       type: object
       additionalProperties: false
@@ -1518,8 +1520,6 @@ components:
         shortCount: { type: number }
         longScore: { type: number }
         longCount: { type: number }
-        shortHistogram: { type: array, items: { type: number } }
-        longHistogram: { type: array, items: { type: number } }
     TastePersonEntry:
       allOf:
         - $ref: '#/components/schemas/TasteWeightedEntry'
@@ -1531,42 +1531,38 @@ components:
               type: array
               items: { type: string, enum: [actor, director] }
             popularity: { type: number }
-    TasteTagVectorEntry:
-      allOf:
-        - $ref: '#/components/schemas/TasteWeightedEntry'
-        - type: object
-          additionalProperties: false
-          properties:
-            connections:
-              type: array
-              items: { $ref: '#/components/schemas/TasteTagConnection' }
     TasteVectors:
       type: object
       additionalProperties: false
-      required: [schemaVersion, genres, tags, people, mood, decades, languages]
+      required: [schemaVersion, genres, people, decades, languages, contentMix]
       properties:
-        schemaVersion: { type: integer, enum: [2, 3, 4] }
+        schemaVersion: { type: integer, enum: [5] }
         genres:
           type: array
           items: { $ref: '#/components/schemas/TasteWeightedEntry' }
-        tags:
-          type: array
-          items: { $ref: '#/components/schemas/TasteTagVectorEntry' }
         people:
           type: array
           items: { $ref: '#/components/schemas/TastePersonEntry' }
-        mood:
-          type: array
-          items: { $ref: '#/components/schemas/TasteWeightedEntry' }
         decades:
-          type: array
-          items: { $ref: '#/components/schemas/TasteWeightedEntry' }
-        ratingTiers:
           type: array
           items: { $ref: '#/components/schemas/TasteWeightedEntry' }
         languages:
           type: array
           items: { $ref: '#/components/schemas/TasteLanguageEntry' }
+        contentMix:
+          type: object
+          additionalProperties: false
+          required: [short, long]
+          properties:
+            short: { $ref: '#/components/schemas/TasteContentMixSide' }
+            long: { $ref: '#/components/schemas/TasteContentMixSide' }
+    TasteContentMixSide:
+      type: object
+      additionalProperties: false
+      required: [movie, show]
+      properties:
+        movie: { type: number }
+        show: { type: number }
     TasteLanguageEntry:
       type: object
       additionalProperties: false

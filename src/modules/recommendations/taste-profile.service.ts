@@ -1,17 +1,9 @@
 import { withDbClient, type DbClient } from '../../lib/db.js';
 import { ProfileAccessService } from '../profiles/profile-access.service.js';
-import { TasteProfileRepository, type TasteProfileRecord } from './taste-profile.repo.js';
-import type { TasteProfilePayload, TasteVectors } from './recommendation.types.js';
+import { TasteProfileRepository } from './taste-profile.repo.js';
+import type { TasteProfilePayload, TasteProfileInput } from './recommendation.types.js';
 
-export type RecommendationTasteProfileInput = {
-  sourceKey: string;
-  contentTypePref?: Record<string, unknown>;
-  ratingTendency?: Record<string, unknown>;
-  watchingPace?: string | null;
-  aiSummary?: string | null;
-  source: string;
-  vectors: TasteVectors;
-};
+export type RecommendationTasteProfileInput = TasteProfileInput;
 
 export class TasteProfileService {
   constructor(
@@ -22,42 +14,26 @@ export class TasteProfileService {
   async listTasteProfilesForAccount(accountId: string, profileId: string): Promise<TasteProfilePayload[]> {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
-      const rows = await this.tasteProfileRepository.listForProfile(client, profileId);
-      return rows.map((row) => mapTasteProfile(row));
+      return this.tasteProfileRepository.listForProfile(client, profileId);
     });
   }
 
   async getTasteProfileForAccount(accountId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
-      const row = await this.tasteProfileRepository.findByProfileAndSourceKey(client, profileId, sourceKey);
-      return row ? mapTasteProfile(row) : null;
+      return this.tasteProfileRepository.findByProfileAndSourceKey(client, profileId, sourceKey);
     });
   }
 
   async upsertTasteProfileForAccount(accountId: string, profileId: string, input: RecommendationTasteProfileInput): Promise<TasteProfilePayload> {
     return withDbClient(async (client) => {
       await this.requireOwnedProfile(client, accountId, profileId);
-      const row = await this.tasteProfileRepository.upsert(client, {
-        profileId,
-        sourceKey: input.sourceKey,
-        contentTypePref: input.contentTypePref,
-        ratingTendency: input.ratingTendency,
-        watchingPace: input.watchingPace,
-        aiSummary: input.aiSummary,
-        source: input.source,
-        vectors: input.vectors,
-      });
-      return mapTasteProfile(row);
+      return this.tasteProfileRepository.upsert(client, { ...input, profileId });
     });
   }
 
   async getTasteProfileForAccountService(accountId: string, profileId: string, sourceKey: string): Promise<TasteProfilePayload | null> {
-    return withDbClient(async (client) => {
-      const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
-      const row = await this.tasteProfileRepository.findByProfileAndSourceKey(client, targetProfileId, sourceKey);
-      return row ? mapTasteProfile(row) : null;
-    });
+    return this.getTasteProfileForAccount(accountId, profileId, sourceKey);
   }
 
   async upsertTasteProfileForAccountService(
@@ -65,44 +41,10 @@ export class TasteProfileService {
     profileId: string,
     input: RecommendationTasteProfileInput,
   ): Promise<TasteProfilePayload> {
-    return withDbClient(async (client) => {
-      const targetProfileId = await this.requireOwnedProfileForAccount(client, accountId, profileId);
-      const row = await this.tasteProfileRepository.upsert(client, {
-        profileId: targetProfileId,
-        sourceKey: input.sourceKey,
-        contentTypePref: input.contentTypePref,
-        ratingTendency: input.ratingTendency,
-        watchingPace: input.watchingPace,
-        aiSummary: input.aiSummary,
-        source: input.source,
-        vectors: input.vectors,
-      });
-      return mapTasteProfile(row);
-    });
+    return this.upsertTasteProfileForAccount(accountId, profileId, input);
   }
 
   private async requireOwnedProfile(client: DbClient, accountId: string, profileId: string): Promise<void> {
     await this.profileAccessService.assertOwnedProfile(client, profileId, accountId);
   }
-
-  private async requireOwnedProfileForAccount(client: DbClient, accountId: string, profileId: string): Promise<string> {
-    const profile = await this.profileAccessService.assertOwnedProfile(client, profileId, accountId);
-    return profile.id;
-  }
-}
-
-function mapTasteProfile(row: TasteProfileRecord): TasteProfilePayload {
-  return {
-    profileId: row.profileId,
-    sourceKey: row.sourceKey,
-    contentTypePref: row.contentTypePref,
-    ratingTendency: row.ratingTendency,
-    watchingPace: row.watchingPace,
-    aiSummary: row.aiSummary,
-    source: row.source,
-    vectors: row.vectors,
-    version: row.version,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
 }

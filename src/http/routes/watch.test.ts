@@ -37,6 +37,30 @@ function makeWatchInternalRef(id: string, progress: WatchInternalRef['progress']
   };
 }
 
+test('numeric rating endpoint translates at the boundary and rejects out-of-range input', async (t) => {
+  const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
+  const { ContentIdentityRepository } = await import('../../modules/identity/content-identity.repo.js');
+  const { db } = await import('../../lib/db.js');
+  const calls: Array<Record<string, unknown>> = [];
+  t.mock.method(db, 'connect', async () => ({ query: async () => ({ rows: [] }), release() {} }));
+  t.mock.method(ContentIdentityRepository.prototype, 'findContentItemById', async () => ({ entityType: 'movie' }));
+  t.mock.method(LocalUserWatchService.prototype, 'setRating', async (params: Parameters<InstanceType<typeof LocalUserWatchService>['setRating']>[0]) => { calls.push(params); });
+  const { registerWatchRoutes } = await import('./watch.js');
+  const app = await buildTestApp(registerWatchRoutes);
+  t.after(() => app.close());
+  for (const rating of [1, 4, 5, 6, 7, 10, 4.5]) {
+    const response = await app.inject({ method: 'PUT', url: `/v1/profiles/profile-1/watch/rating/${testItemId}`, headers: { authorization: 'Bearer test' }, payload: { rating } });
+    assert.equal(response.statusCode, 200, response.body);
+  }
+  assert.deepEqual(calls.map((call) => call.liked), [false, false, null, null, true, true, null]);
+  assert.ok(calls.every((call) => !('rating' in call)));
+  for (const rating of [0, 11, null]) {
+    const response = await app.inject({ method: 'PUT', url: `/v1/profiles/profile-1/watch/rating/${testItemId}`, headers: { authorization: 'Bearer test' }, payload: { rating } });
+    assert.equal(response.statusCode, 400);
+  }
+  assert.equal(calls.length, 7);
+});
+
 test('watch routes work with user actor auth subject', async (t) => {
   const { LocalUserWatchService } = await import('../../modules/integrations/local-user-watch.service.js');
   const { WatchCardHydrator } = await import('../../modules/watch/watch-card-hydrator.service.js');
@@ -504,7 +528,8 @@ test('continue-watching serializes items with progress', async (t) => {
         played: false,
         playCount: 0,
         isFavorite: false,
-        rating: null,
+        liked: null,
+        originRating: null,
         lastPlayedAt: now,
       }),
     ],
@@ -523,7 +548,9 @@ test('continue-watching serializes items with progress', async (t) => {
         percent: ref.progress.progressBps != null ? ref.progress.progressBps / 100 : null,
         lastPlayedAt: ref.progress.lastPlayedAt,
         watchlisted: ref.progress.isFavorite,
-        userRating: ref.progress.rating,
+        liked: ref.progress.liked,
+        originRating: ref.progress.originRating,
+        userRating: ref.progress.liked === null ? null : ref.progress.liked ? 10 : 1,
       } : null,
     })) as never;
   };
@@ -592,7 +619,8 @@ test('watch state serializes progress without status', async (t) => {
       played: false,
       playCount: 0,
       isFavorite: false,
-      rating: null,
+      liked: false,
+      originRating: 4,
       lastPlayedAt: now,
     }),
   ]);
@@ -609,7 +637,9 @@ test('watch state serializes progress without status', async (t) => {
         percent: ref.progress.progressBps != null ? ref.progress.progressBps / 100 : null,
         lastPlayedAt: ref.progress.lastPlayedAt,
         watchlisted: ref.progress.isFavorite,
-        userRating: ref.progress.rating,
+        liked: ref.progress.liked,
+        originRating: ref.progress.originRating,
+        userRating: ref.progress.liked === null ? null : ref.progress.liked ? 10 : 1,
       } : null,
     })) as never;
   };
@@ -634,6 +664,9 @@ test('watch state serializes progress without status', async (t) => {
   assert.equal(body.data.progress.positionSeconds, 120);
   assert.equal(body.data.progress.durationSeconds, 7200);
   assert.equal(body.data.progress.lastPlayedAt, now);
+  assert.equal(body.data.progress.liked, false);
+  assert.equal(body.data.progress.originRating, 4);
+  assert.equal(body.data.progress.userRating, 1);
 });
 
 test('watch route requires unlock (locked profile) when profile has a PIN', async (t) => {

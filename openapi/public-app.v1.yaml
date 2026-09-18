@@ -2552,6 +2552,7 @@ paths:
         - Watch
       operationId: putV1ProfilesProfileIdWatchRatingItemId
       summary: Set media rating.
+      description: 'Compatibility numeric input (1–10): >=7 stores liked=true, <=4 stores liked=false, values between 4 and 7 clear the vote. Imported originRating metadata is preserved.'
       security:
         - UserBearerAuth: []
       parameters:
@@ -4278,7 +4279,7 @@ components:
     ClientProgress:
       type: object
       additionalProperties: false
-      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, userRating]
+      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, liked, originRating, userRating]
       properties:
         played: { type: boolean }
         playCount: { type: integer, minimum: 0 }
@@ -4299,7 +4300,12 @@ components:
             - type: string
             - type: "null"
         watchlisted: { type: boolean }
+        liked: { type: [boolean, 'null'], description: 'Binary vote; null means no vote.' }
+        originRating: { type: [number, 'null'], description: 'Original imported provider rating, metadata only; never used as the current vote.' }
         userRating:
+          deprecated: true
+          description: 'Compatibility projection of liked: true = 10, false = 1, null = null.'
+          enum: [1, 10, null]
           anyOf:
             - type: number
             - type: "null"

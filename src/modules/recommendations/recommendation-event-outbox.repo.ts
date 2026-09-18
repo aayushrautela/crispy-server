@@ -17,7 +17,7 @@ export type RecommendationEventOutboxRecord = {
   seasonNumber: number | null;
   episodeNumber: number | null;
   absoluteEpisodeNumber: number | null;
-  rating: number | null;
+  liked: boolean | null;
   occurredAt: string;
   payload: Record<string, unknown>;
   createdAt: string;
@@ -51,7 +51,7 @@ function mapOutbox(row: Record<string, unknown>): RecommendationEventOutboxRecor
     seasonNumber: row.season_number === null ? null : Number(row.season_number),
     episodeNumber: row.episode_number === null ? null : Number(row.episode_number),
     absoluteEpisodeNumber: row.absolute_episode_number === null ? null : Number(row.absolute_episode_number),
-    rating: row.rating === null ? null : Number(row.rating),
+    liked: typeof row.liked === 'boolean' ? row.liked : null,
     occurredAt: requireDbIsoString(row.occurred_at as Date | string | null | undefined, 'recommendation_event_outbox.occurred_at'),
     payload: (row.payload as Record<string, unknown> | undefined) ?? {},
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'recommendation_event_outbox.created_at'),
@@ -78,7 +78,7 @@ export class RecommendationEventOutboxRepository {
     seasonNumber?: number | null;
     episodeNumber?: number | null;
     absoluteEpisodeNumber?: number | null;
-    rating?: number | null;
+    liked?: boolean | null;
     occurredAt: string;
     payload?: Record<string, unknown>;
   }): Promise<RecommendationEventOutboxRecord> {
@@ -99,14 +99,14 @@ export class RecommendationEventOutboxRepository {
           season_number,
           episode_number,
           absolute_episode_number,
-          rating,
+          liked,
           occurred_at,
           payload
         )
         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::timestamptz, $17::jsonb)
         RETURNING id, profile_id, history_generation, event_type, media_key, media_type,
                   provider, provider_id, parent_provider, parent_provider_id,
-                  tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number, rating,
+                  tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number, liked,
                   occurred_at, payload, created_at
       `,
       [
@@ -124,7 +124,7 @@ export class RecommendationEventOutboxRepository {
         params.seasonNumber ?? null,
         params.episodeNumber ?? null,
         params.absoluteEpisodeNumber ?? null,
-        params.rating ?? null,
+        params.liked ?? null,
         params.occurredAt,
         JSON.stringify(params.payload ?? {}),
       ],
@@ -137,7 +137,7 @@ export class RecommendationEventOutboxRepository {
       `
         SELECT id, profile_id, history_generation, event_type, media_key, media_type,
                provider, provider_id, parent_provider, parent_provider_id,
-               tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number, rating,
+               tmdb_id, show_tmdb_id, season_number, episode_number, absolute_episode_number, liked,
                occurred_at, payload, created_at, delivered_at
         FROM recommendation_event_outbox
         WHERE delivered_at IS NULL

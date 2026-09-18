@@ -313,6 +313,8 @@ export const clientProgressSchema = {
     'percent',
     'lastPlayedAt',
     'watchlisted',
+    'liked',
+    'originRating',
     'userRating',
   ],
   properties: {
@@ -323,7 +325,9 @@ export const clientProgressSchema = {
     percent: { type: ['number', 'null'] },
     lastPlayedAt: { type: ['string', 'null'] },
     watchlisted: { type: 'boolean' },
-    userRating: { type: ['number', 'null'] },
+    liked: { type: ['boolean', 'null'] },
+    originRating: { type: ['number', 'null'] },
+    userRating: { type: ['number', 'null'], enum: [1, 10, null] },
   },
 } as const;
 

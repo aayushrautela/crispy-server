@@ -1,6 +1,13 @@
 import { normalizeOptionalIsoString } from '../../lib/time.js';
 import type { SupportedProvider } from '../identity/media-key.js';
 
+export function toBinaryRating(rating: number | null): boolean | null {
+  if (rating === null || !Number.isFinite(rating) || rating < 1 || rating > 10) return null;
+  if (rating >= 7) return true;
+  if (rating <= 4) return false;
+  return null;
+}
+
 export type WatchEventInput = {
   clientEventId: string;
   eventType: string;
@@ -19,7 +26,7 @@ export type WatchEventInput = {
   absoluteEpisodeNumber?: number | null;
   positionSeconds?: number | null;
   durationSeconds?: number | null;
-  rating?: number | null;
+  liked?: boolean | null;
   occurredAt?: string | null;
   payload?: Record<string, unknown>;
 };
@@ -106,7 +113,7 @@ export type WatchMutationInput = {
   episodeNumber?: number | null;
   absoluteEpisodeNumber?: number | null;
   occurredAt?: string | null;
-  rating?: number | null;
+  liked?: boolean | null;
   payload?: Record<string, unknown>;
 };
 

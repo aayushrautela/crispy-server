@@ -19,7 +19,8 @@ export function mapContinueWatchingInternalRef(row: WatchReadRow): WatchInternal
       played: false,
       playCount: 0,
       isFavorite: false,
-      rating: null,
+      liked: typeof row.liked === 'boolean' ? row.liked : null,
+      originRating: numberValue(row.origin_rating),
       lastPlayedAt: isoValue(row.last_activity_at),
     },
   };
@@ -36,7 +37,8 @@ export function mapHistoryInternalRef(row: WatchReadRow): WatchInternalRef {
       played: true,
       playCount: 1,
       isFavorite: false,
-      rating: null,
+      liked: typeof row.liked === 'boolean' ? row.liked : null,
+      originRating: numberValue(row.origin_rating),
       lastPlayedAt: isoValue(row.occurred_at ?? row.watched_at),
     },
   };
@@ -53,7 +55,8 @@ export function mapWatchStateInternalRef(row: WatchReadRow): WatchInternalRef {
       played: row.played === true,
       playCount: numberValue(row.play_count) ?? 0,
       isFavorite: row.is_favorite === true,
-      rating: numberValue(row.rating),
+      liked: typeof row.liked === 'boolean' ? row.liked : null,
+      originRating: numberValue(row.origin_rating),
       lastPlayedAt: nullableIsoValue(row.last_played_at),
     },
   };
@@ -70,7 +73,8 @@ export function mapRatingInternalRef(row: WatchReadRow): WatchInternalRef {
       played: false,
       playCount: 0,
       isFavorite: false,
-      rating: numberValue(row.rating) ?? 0,
+      liked: typeof row.liked === 'boolean' ? row.liked : null,
+      originRating: numberValue(row.origin_rating),
       lastPlayedAt: isoValue(row.rated_at),
     },
   };

@@ -27,7 +27,8 @@ export type WatchInternalProgress = {
   played: boolean;
   playCount: number;
   isFavorite: boolean;
-  rating: number | null;
+  liked: boolean | null;
+  originRating: number | null;
   lastPlayedAt: string | null;
 };
 

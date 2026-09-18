@@ -943,7 +943,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Set media rating. */
+        /**
+         * Set media rating.
+         * @description Compatibility numeric input (1–10): >=7 stores liked=true, <=4 stores liked=false, values between 4 and 7 clear the vote. Imported originRating metadata is preserved.
+         */
         put: operations["putV1ProfilesProfileIdWatchRatingItemId"];
         post?: never;
         /** Clear media rating. */
@@ -1476,7 +1479,16 @@ export interface components {
             percent: number | null;
             lastPlayedAt: string | null;
             watchlisted: boolean;
-            userRating: number | null;
+            /** @description Binary vote; null means no vote. */
+            liked: boolean | null;
+            /** @description Original imported provider rating, metadata only; never used as the current vote. */
+            originRating: number | null;
+            /**
+             * @deprecated
+             * @description Compatibility projection of liked: true = 10, false = 1, null = null.
+             * @enum {unknown}
+             */
+            userRating: 1 | 10 | null;
         };
         ClientParentRef: {
             seriesItemId?: components["schemas"]["PublicItemId"];

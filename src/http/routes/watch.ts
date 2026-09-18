@@ -35,7 +35,7 @@ import { MetadataLanguageService } from '../../modules/metadata/metadata-languag
 import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
 import { toClientMediaCard } from '../../modules/metadata/client-media-card.mapper.js';
 import { mutation, success } from '../response.js';
-import type { WatchActionOutcome } from '../../modules/watch/watch.types.js';
+import { toBinaryRating, type WatchActionOutcome } from '../../modules/watch/watch.types.js';
 import { assertPublicItemId, decodePublicItemId, encodePublicItemId } from '../../modules/identity/public-item-id.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
@@ -559,7 +559,7 @@ export async function registerWatchRoutes(
     const profileId = getProfileIdFromParams(params);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
-    if (typeof body.rating !== 'number') {
+    if (typeof body.rating !== 'number' || !Number.isFinite(body.rating) || body.rating < 1 || body.rating > 10) {
       throw new HttpError(400, 'Rating must be between 1 and 10.');
     }
     const itemId = assertPublicItemId(params.itemId);
@@ -572,7 +572,7 @@ export async function registerWatchRoutes(
       profileId,
       itemId,
       mediaType: resolvedMediaType,
-      rating: body.rating,
+      liked: toBinaryRating(body.rating),
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });

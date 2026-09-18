@@ -52,6 +52,32 @@ const REWATCH_PARAMS = {
   episodeNumber: null,
 };
 
+test('setRating stores both boolean values and neutral clears only the vote', async (t) => {
+  const statements = captureDbWrites(t);
+  const service = new LocalUserWatchService();
+  for (const liked of [true, false, null]) {
+    await service.setRating({ ...REWATCH_PARAMS, liked });
+  }
+  await service.deleteRating(REWATCH_PARAMS);
+  assert.equal(statements.length, 4);
+  for (const [index, liked] of [true, false].entries()) {
+    assert.match(statements[index]!.sql, /liked = EXCLUDED.liked/);
+    assert.deepEqual(statements[index]!.params, [REWATCH_PARAMS.profileId, REWATCH_PARAMS.itemId, liked]);
+  }
+  for (const statement of statements.slice(2)) {
+    assert.match(statement.sql, /SET liked = NULL/);
+    assert.doesNotMatch(statement.sql, /origin_rating|last_played_at|position_seconds|played =/);
+  }
+});
+
+test('ratings page selects only binary votes, including dislikes', async (t) => {
+  const statements = captureDbWrites(t);
+  await new LocalUserWatchService().listRatingsPage({ ...REWATCH_PARAMS, limit: 20 });
+  assert.match(statements[0]!.sql, /ws.liked, ws.origin_rating/);
+  assert.match(statements[0]!.sql, /ws.liked IS NOT NULL/);
+  assert.doesNotMatch(statements[0]!.sql, /ws\.rating\b/);
+});
+
 test('resolvePlaybackDecision: no runtime keeps item in progress and preserves resume point', () => {
   assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(120, null), { kind: 'in_progress', positionSeconds: 120 });
   assert.deepEqual(LocalUserWatchService.resolvePlaybackDecision(0, null), { kind: 'ignored' });

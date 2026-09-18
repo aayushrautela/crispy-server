@@ -1,3 +1,4 @@
+import { toBinaryRating } from '../../watch/watch.types.js';
 import {
   inferMediaIdentity,
   type MediaIdentity,
@@ -252,8 +253,9 @@ export async function normalizeSimklRatings(
       tvdbId: mediaFamily === 'show' ? asString(ids?.tvdb) : null,
       kitsuId: mediaFamily === 'anime' ? (asPositiveInt(ids?.kitsu) ?? asString(ids?.kitsu)) : null,
     });
-    const rating = asPositiveInt(item.user_rating);
-    if (!resolved || !rating) {
+    const rating = asFiniteNumber(item.user_rating);
+    const liked = toBinaryRating(rating);
+    if (!resolved || liked === null) {
       continue;
     }
 
@@ -269,9 +271,9 @@ export async function normalizeSimklRatings(
       tvdbId: resolved.tvdbId,
       kitsuId: resolved.kitsuId,
       showTmdbId: resolved.mediaType !== 'movie' ? resolved.tmdbId : null,
-      rating,
+      liked,
       occurredAt,
-      payload: simklPayload('ratings'),
+      payload: { ...simklPayload('ratings'), origin_rating: rating },
     });
     collector.mediaKeysToRefresh.add(mediaKey);
   }
