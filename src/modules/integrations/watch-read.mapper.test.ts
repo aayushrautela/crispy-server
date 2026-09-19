@@ -44,6 +44,26 @@ test('mapHistoryInternalRef maps episode history', () => {
   assert.equal(ref.progress!.played, true);
 });
 
+test('mapHistoryInternalRef carries the play_count from watch_state so rewatches reach the rec engine', () => {
+  const ref = mapHistoryInternalRef({
+    item_id: movieId,
+    media_type: 'movie',
+    occurred_at: '2026-05-14T08:00:00.000Z',
+    play_count: 3,
+  } as WatchReadRow);
+  assert.equal(ref.progress!.playCount, 3);
+  assert.equal(ref.progress!.played, true);
+});
+
+test('mapHistoryInternalRef defaults play_count to 1 then the column is absent', () => {
+  const ref = mapHistoryInternalRef({
+    item_id: movieId,
+    media_type: 'movie',
+    occurred_at: '2026-05-14T08:00:00.000Z',
+  } as WatchReadRow);
+  assert.equal(ref.progress!.playCount, 1);
+});
+
 test('mapContinueWatchingInternalRef maps movie progress', () => {
   const ref = cwRef({
     title_item_id: movieId,

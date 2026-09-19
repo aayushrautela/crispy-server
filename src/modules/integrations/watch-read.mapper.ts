@@ -35,7 +35,7 @@ export function mapHistoryInternalRef(row: WatchReadRow): WatchInternalRef {
       durationSeconds: numberValue(row.duration_seconds),
       progressBps: null,
       played: true,
-      playCount: 1,
+      playCount: numberValue(row.play_count) ?? 1,
       isFavorite: false,
       liked: typeof row.liked === 'boolean' ? row.liked : null,
       originRating: numberValue(row.origin_rating),
