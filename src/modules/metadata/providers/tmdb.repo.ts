@@ -297,10 +297,14 @@ export class TmdbRepository {
   }
 
   /**
-   * Single canonical image per (title, kind). First writer wins: when a row
-   * already exists it is kept untouched, so every read path serves the same
-   * image. The PK on (media_type, tmdb_id, kind) backstops this against races.
-   * Kinds are independent: a missing backdrop fills even when a poster exists.
+   * Single canonical image per (title, kind). First writer wins on the file
+   * path: an existing row keeps its original file_path so every read path
+   * serves the same image. The PK on (media_type, tmdb_id, kind) backstops
+   * this against races. Kinds are independent: a missing backdrop fills even
+   * when a poster exists.
+   * Expiry is renewed on conflict when the existing row has already expired —
+   * otherwise an expired row would trigger a provider re-fetch on every read
+   * forever, since the insert would discard the fresh expiry each time.
    */
   async insertImagesIfEmpty(client: DbClient, mediaType: TmdbTitleType, tmdbId: number, images: TmdbImageRecord[], expiresAt?: string): Promise<void> {
     if (!images.length) {
@@ -317,7 +321,9 @@ export class TmdbRepository {
     await client.query(
       `INSERT INTO tmdb_images (media_type, tmdb_id, kind, file_path, expires_at)
        VALUES ${tuples.join(', ')}
-       ON CONFLICT (media_type, tmdb_id, kind) DO NOTHING`,
+       ON CONFLICT (media_type, tmdb_id, kind) DO UPDATE
+         SET expires_at = EXCLUDED.expires_at
+         WHERE tmdb_images.expires_at IS NOT NULL AND tmdb_images.expires_at < NOW()`,
       values,
     );
   }
