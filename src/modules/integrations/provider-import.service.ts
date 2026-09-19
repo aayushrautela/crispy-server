@@ -705,6 +705,7 @@ export class ProviderImportService {
       watchedAt: entry.watchedAt,
       seasonNumber: entry.seasonNumber ?? null,
       episodeNumber: entry.episodeNumber ?? null,
+      playCount: entry.playCount ?? null,
     }));
     const watchlistItems: ImportedProviderListItem[] = [];
     const ratings: ImportedProviderRating[] = [];

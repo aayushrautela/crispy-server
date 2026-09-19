@@ -15,6 +15,7 @@ export type ImportedProviderHistoryEntry = {
   watchedAt: string;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
+  playCount?: number | null;
 };
 
 export type ImportedProviderListItem = {
@@ -193,6 +194,8 @@ export class LocalProviderHistoryWriter {
     const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
 
     const historyByItem = new Map<string, ImportedProviderHistoryEntry>();
+    const explicitPlayCountByItem = new Map<string, number>();
+    const perEventCountByItem = new Map<string, number>();
     for (const entry of historyEntries) {
       const itemId = contentIds.get(entry.mediaKey);
       if (!itemId) {
@@ -202,6 +205,18 @@ export class LocalProviderHistoryWriter {
       const existing = historyByItem.get(itemId);
       if (!existing || entry.watchedAt > existing.watchedAt) {
         historyByItem.set(itemId, entry);
+      }
+      // Providers supply an aggregate play count on the entries they emit from
+      // `/sync/watch/*` (Trakt's `plays`). Entries from per-event history
+      // endpoints carry no count, so the safest read is the larger of the
+      // explicit aggregate and the number of distinct per-event rows: the
+      // aggregate is authoritative, and per-event rows keep the count when the
+      // aggregate truncates long histories. Keeping the two signals separate
+      // avoids double counting the same viewings.
+      if (entry.playCount && Number.isInteger(entry.playCount) && entry.playCount > 0) {
+        explicitPlayCountByItem.set(itemId, Math.max(explicitPlayCountByItem.get(itemId) ?? 0, entry.playCount));
+      } else {
+        perEventCountByItem.set(itemId, (perEventCountByItem.get(itemId) ?? 0) + 1);
       }
     }
 
@@ -219,6 +234,11 @@ export class LocalProviderHistoryWriter {
     }
 
     const itemIds = new Set<string>([...historyByItem.keys(), ...playbackByItem.keys()]);
+    const playCountForItem = (itemId: string): number => Math.max(
+      1,
+      explicitPlayCountByItem.get(itemId) ?? 0,
+      perEventCountByItem.get(itemId) ?? 0,
+    );
     const values: unknown[] = [];
     const tuples: string[] = [];
     [...itemIds].forEach((itemId, index) => {
@@ -233,17 +253,17 @@ export class LocalProviderHistoryWriter {
       let positionSeconds: number;
       if (playbackIsLatest && !playback.completed) {
         played = false;
-        playCount = history ? 1 : 0;
+        playCount = history ? playCountForItem(itemId) : 0;
         lastPlayedAt = playback.occurredAt;
         positionSeconds = playback.positionSeconds;
       } else if (playbackIsLatest) {
         played = true;
-        playCount = 1;
+        playCount = playCountForItem(itemId);
         lastPlayedAt = playback.occurredAt;
         positionSeconds = 0;
       } else {
         played = true;
-        playCount = 1;
+        playCount = playCountForItem(itemId);
         lastPlayedAt = history!.watchedAt;
         positionSeconds = 0;
       }

@@ -4,7 +4,7 @@ import { seedTestEnv } from '../../../test-helpers.js';
 
 seedTestEnv();
 
-const { normalizeTraktPlayback, normalizeTraktRatings } = await import('./trakt-import.normalizer.js');
+const { normalizeTraktPlayback, normalizeTraktRatings, normalizeTraktWatchedMovies, normalizeTraktWatchedShows } = await import('./trakt-import.normalizer.js');
 const { createImportAccumulator } = await import('../provider-import.internals.js');
 
 const resolvedMovie = {
@@ -70,4 +70,61 @@ test('normalizeTraktPlayback: position stays null when no runtime is available',
   assert.equal(collector.importedEvents.length, 1);
   const event = collector.importedEvents[0]!;
   assert.equal(event.positionSeconds, null, 'without a runtime the resume point cannot be derived');
+});
+
+test('normalizeTraktWatchedMovies carries the aggregate plays count onto the history entry', async () => {
+  const collector = createImportAccumulator();
+  await normalizeTraktWatchedMovies([
+    { plays: 3, last_watched_at: '2026-05-14T00:00:00.000Z', movie: { ids: { tmdb: 12345 } } },
+    { plays: 1, last_watched_at: '2026-05-13T00:00:00.000Z', movie: { ids: { tmdb: 54321 } } },
+  ], resolveIdentity, collector);
+
+  assert.equal(collector.importedHistoryEntries.length, 2);
+  assert.equal(collector.importedHistoryEntries[0]!.playCount, 3);
+  assert.equal(collector.importedHistoryEntries[1]!.playCount, 1);
+  assert.equal(collector.importedEvents[0]!.eventType, 'mark_watched');
+});
+
+test('normalizeTraktWatchedMovies leaves play_count null when plays is missing', async () => {
+  const collector = createImportAccumulator();
+  await normalizeTraktWatchedMovies([
+    { last_watched_at: '2026-05-14T00:00:00.000Z', movie: { ids: { tmdb: 12345 } } },
+  ], resolveIdentity, collector);
+
+  assert.equal(collector.importedHistoryEntries.length, 1);
+  assert.equal(collector.importedHistoryEntries[0]!.playCount, null);
+});
+
+test('normalizeTraktWatchedShows carries per-episode plays counts onto the history entries', async () => {
+  const resolveShowIdentity = (async () => ({
+    identity: { mediaKey: 'show:tmdb:999', provider: 'tmdb', providerId: '999' },
+    mediaType: 'show',
+    tmdbId: 999,
+    tvdbId: null,
+    kitsuId: null,
+  })) as never;
+
+  const collector = createImportAccumulator();
+  await normalizeTraktWatchedShows([
+    {
+      plays: 2,
+      last_watched_at: '2026-05-14T00:00:00.000Z',
+      show: { ids: { tmdb: 999 } },
+      seasons: [
+        {
+          number: 1,
+          episodes: [
+            { number: 1, plays: 2, last_watched_at: '2026-05-10T00:00:00.000Z' },
+            { number: 2, plays: 1, last_watched_at: '2026-05-14T00:00:00.000Z' },
+          ],
+        },
+      ],
+    },
+  ], resolveShowIdentity, collector);
+
+  assert.equal(collector.importedHistoryEntries.length, 2);
+  assert.equal(collector.importedHistoryEntries[0]!.mediaKey, 'episode:tmdb:999:1:1');
+  assert.equal(collector.importedHistoryEntries[0]!.playCount, 2);
+  assert.equal(collector.importedHistoryEntries[1]!.mediaKey, 'episode:tmdb:999:1:2');
+  assert.equal(collector.importedHistoryEntries[1]!.playCount, 1);
 });

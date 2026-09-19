@@ -477,7 +477,7 @@ test('TraktImportService.fetchAndNormalizeImport emits per-episode history for w
           {
             number: 1,
             episodes: [
-              { number: 1, plays: 1, last_watched_at: '2023-12-01T00:00:00.000Z' },
+              { number: 1, plays: 2, last_watched_at: '2023-12-01T00:00:00.000Z' },
               { number: 2, plays: 1, last_watched_at: '2023-12-08T00:00:00.000Z' },
             ],
           },
@@ -538,6 +538,7 @@ test('TraktImportService.fetchAndNormalizeImport emits per-episode history for w
     assert.equal(historyEntries[0].mediaType, 'episode');
     assert.equal(historyEntries[0].mediaKey, 'episode:tmdb:9001:1:1');
     assert.equal(historyEntries[0].watchedAt, '2023-12-01T00:00:00.000Z');
+    assert.deepEqual(historyEntries.map((entry) => entry.playCount), [2, 1, 1], 'per-episode plays should be carried through normalization');
   } finally {
     globalThis.fetch = originalFetch;
   }

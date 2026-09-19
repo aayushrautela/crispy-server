@@ -58,6 +58,13 @@ export type ImportedHistoryEntryDraft = {
   episodeNumber?: number | null;
   absoluteEpisodeNumber?: number | null;
   watchedAt: string;
+  /**
+   * Number of times the item was watched/completed. Providers that expose an
+   * aggregate count (e.g. Trakt's `/sync/watch/*` `plays` field) set this on a
+   * single history entry; per-event entries (e.g. Trakt `/sync/history/*`) leave
+   * it unset so the writer falls back to counting entries for the same item.
+   */
+  playCount?: number | null;
   sourceKind: 'provider_import';
   payload?: Record<string, unknown>;
 };

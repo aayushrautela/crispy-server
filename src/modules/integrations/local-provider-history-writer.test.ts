@@ -437,3 +437,196 @@ test('LocalProviderHistoryWriter::replaceImportedInteractions - later history co
   assert.equal(insertParams![4], '2026-05-14T00:00:00.000Z', 'last_played_at should reflect the latest completed event');
 });
 
+test('LocalProviderHistoryWriter::replaceImportedInteractions - play_count reflects the aggregate plays from watched endpoints', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      return new Map(identities.map((identity) => [identity.mediaKey, 'item-1']));
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  const result = await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-10T00:00:00.000Z', playCount: 3 },
+    ],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [],
+  });
+
+  assert.equal(result.skipped, false);
+  assert.equal(result.historyInserted, 1);
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![2], true, 'history entry should be played = true');
+  assert.equal(insertParams![3], 3, 'play_count should carry the aggregate plays');
+  assert.equal(insertParams![5], 0, 'history entry should have position_seconds = 0');
+});
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - play_count falls back to counting per-event history rows', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      return new Map(identities.map((identity) => [identity.mediaKey, 'item-1']));
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  const result = await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-08T00:00:00.000Z' },
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-09T00:00:00.000Z' },
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-10T00:00:00.000Z' },
+    ],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [],
+  });
+
+  assert.equal(result.skipped, false);
+  assert.equal(result.historyInserted, 1);
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![3], 3, 'play_count should count distinct per-event rows');
+  assert.equal(insertParams![4], '2026-05-10T00:00:00.000Z', 'last_played_at should be the latest per-event row');
+});
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - play_count takes the max of aggregate and per-event rows without double counting', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      return new Map(identities.map((identity) => [identity.mediaKey, 'item-1']));
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  // Trakt exports both an aggregate `/sync/watched/*` row (plays=3) and the
+  // underlying per-event `/sync/history/*` rows; both cover the same viewings.
+  await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-10T00:00:00.000Z', playCount: 3 },
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-09T00:00:00.000Z' },
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-08T00:00:00.000Z' },
+    ],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [],
+  });
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![3], 3, 'play_count should not sum aggregate plays and per-event rows');
+});
+
+test('LocalProviderHistoryWriter::replaceImportedInteractions - in-progress rewatch keeps the aggregate play count', async (t) => {
+  const queries: string[] = [];
+  const params: unknown[][] = [];
+
+  const contentIdentityService = {
+    ensureContentIds: async (_client: any, identities: Array<{ mediaKey: string }>) => {
+      return new Map(identities.map((identity) => [identity.mediaKey, 'item-1']));
+    },
+  } as never;
+
+  const writer = new LocalProviderHistoryWriter(contentIdentityService as any);
+
+  const client = {
+    query: async (sql: string, args: unknown[]) => {
+      queries.push(sql);
+      params.push(args);
+      return { rowCount: 1, rows: [] };
+    },
+  } as never;
+
+  // Completed 3 times in history, then watched again and left at 50%.
+  await writer.replaceImportedInteractions(client, {
+    appUser,
+    job,
+    profile,
+    providerSession,
+    importedAt: '2026-05-15T00:00:00.000Z',
+    historyEntries: [
+      { mediaKey: 'movie:tmdb:555', mediaType: 'movie', watchedAt: '2026-05-10T00:00:00.000Z', playCount: 3 },
+    ],
+    watchlistItems: [],
+    ratings: [],
+    playbackStates: [
+      {
+        mediaKey: 'movie:tmdb:555',
+        titleMediaKey: 'movie:tmdb:555',
+        mediaType: 'movie',
+        positionSeconds: 600,
+        durationSeconds: 1200,
+        progressBps: 5000,
+        occurredAt: '2026-05-14T00:00:00.000Z',
+        completed: false,
+      },
+    ],
+  });
+
+  const insertQuery = queries.find((q) => q.includes('INSERT INTO user_state.watch_state'));
+  assert.ok(insertQuery, 'should have an INSERT query for watch_state');
+  const insertParams = params.find((_, i) => queries[i] === insertQuery);
+  assert.ok(insertParams, 'should have params for the INSERT');
+  assert.equal(insertParams![2], false, 'rewatch in progress should be played = false');
+  assert.equal(insertParams![3], 3, 'play_count should keep the earlier completions');
+  assert.equal(insertParams![5], 600, 'position_seconds should be preserved for rewatch in progress');
+});
+

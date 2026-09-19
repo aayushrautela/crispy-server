@@ -96,6 +96,7 @@ function buildImportedTitleEvent(params: {
 function buildImportedTitleHistoryEntry(params: {
   resolved: ResolvedImportIdentity;
   watchedAt: string;
+  playCount?: number | null;
   payload: Record<string, unknown>;
 }): ImportedHistoryEntryDraft {
   return {
@@ -107,6 +108,7 @@ function buildImportedTitleHistoryEntry(params: {
     tvdbId: params.resolved.tvdbId,
     kitsuId: params.resolved.kitsuId,
     watchedAt: params.watchedAt,
+    playCount: params.playCount ?? null,
     sourceKind: 'provider_import',
     payload: params.payload,
   };
@@ -217,6 +219,7 @@ export async function normalizeTraktWatchedMovies(
     collector.importedHistoryEntries.push(buildImportedTitleHistoryEntry({
       resolved,
       watchedAt: occurredAt,
+      playCount: asPositiveInt(item.plays),
       payload: traktPayload('watched_movies'),
     }));
     collector.mediaKeysToRefresh.add(resolved.identity.mediaKey);
@@ -281,6 +284,7 @@ export async function normalizeTraktWatchedShows(
           seasonNumber: identity.seasonNumber,
           episodeNumber: identity.episodeNumber,
           watchedAt: occurredAt,
+          playCount: asPositiveInt(episode?.plays),
           sourceKind: 'provider_import',
           payload: traktPayload('watched_shows'),
         });
