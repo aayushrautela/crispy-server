@@ -10,7 +10,7 @@ seedTestEnv();
 const ITEM_ID = '00000000000000000000000000000001';
 const CONTENT_ID = '00000000-0000-0000-0000-000000000001';
 const LOCALE = 'en-US';
-const VERSION = 'v6:openai:gpt-4o-mini';
+const VERSION = 'v7:openai:gpt-4o-mini';
 
 async function loadServiceClass() {
   const { AiInsightsService } = await import('./ai-insights.service.js');

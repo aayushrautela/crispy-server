@@ -190,10 +190,10 @@ Periodic job (daily or on-demand via admin), **insights cache only** (search has
 
 ```sql
 DELETE FROM ai_insights_cache
-WHERE generation_version NOT LIKE 'v6:%';
+WHERE generation_version NOT LIKE 'v7:%';
 ```
 
-Current version prefix is hardcoded (`v6`). When `GENERATION_VERSION` bumps, the janitor prunes all rows from older versions.
+Current version prefix is hardcoded (`v7`). When `GENERATION_VERSION` bumps, the janitor prunes all rows from older versions.
 
 #### 5.2 Register in Worker: `src/worker/index.ts` or `src/worker/ai-generation.worker.ts`
 
@@ -204,7 +204,7 @@ Add `case 'ai-cache-prune':` calling `runAiCachePruneJob()`.
 `GET /v1/admin/ai/diagnostics` (admin-only):
 - Queue depths: `getJobCounts('waiting', 'delayed', 'active', 'completed', 'failed')` for both queues
 - Insights cache row counts per `generation_version`
-- Orphan count (rows where `generation_version NOT LIKE 'v6:%'`)
+- Orphan count (rows where `generation_version NOT LIKE 'v7:%'`)
 
 #### 5.4 Env Var for Janitor Schedule
 

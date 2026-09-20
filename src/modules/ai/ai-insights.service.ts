@@ -19,7 +19,7 @@ import { fetchBackdropPaths } from './ai-insights-generation.js';
 import { BullMqAiGenerationGateway, type AiGenerationGateway } from './ai-generation.gateway.js';
 import type { AiInsightsPayload, AiInsightsResponse, AiInsightSlide } from './ai.types.js';
 
-const GENERATION_VERSION = 'v6';
+const GENERATION_VERSION = 'v7';
 
 const SLIDE_ACCENTS: Record<AiInsightSlide['key'], string> = {
   the_good_stuff: '#7c5cff',
