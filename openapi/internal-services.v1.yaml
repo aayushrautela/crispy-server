@@ -1486,6 +1486,7 @@ components:
         source: { type: string, minLength: 1 }
         vectors: { $ref: '#/components/schemas/TasteVectors' }
         personaLongTerm: { type: [string, 'null'] }
+        drivers: { type: array, items: { type: string } }
         personaShortTerm: { type: [string, 'null'] }
         personaUpdatedAt: { type: [string, 'null'], format: date-time }
         personaWatchFingerprint: { type: [string, 'null'] }
@@ -1506,6 +1507,7 @@ components:
         updatedAt: { type: string, format: date-time }
         vectors: { $ref: '#/components/schemas/TasteVectors' }
         personaLongTerm: { type: [string, 'null'] }
+        drivers: { type: array, items: { type: string } }
         personaShortTerm: { type: [string, 'null'] }
         personaUpdatedAt: { type: [string, 'null'], format: date-time }
         personaWatchFingerprint: { type: [string, 'null'] }

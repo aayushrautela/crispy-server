@@ -30,6 +30,7 @@ export type TasteVectors = {
 
 export type TastePersona = {
   personaLongTerm?: string | null;
+  drivers?: string[];
   personaShortTerm?: string | null;
   personaUpdatedAt?: string | null;
   personaWatchFingerprint?: string | null;

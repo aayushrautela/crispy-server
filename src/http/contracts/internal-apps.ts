@@ -560,6 +560,7 @@ const tasteContentMixSideSchema = {
 
 const tastePersonaProperties = {
   personaLongTerm: nullableStringSchema,
+  drivers: { type: 'array', items: stringSchema },
   personaShortTerm: nullableStringSchema,
   personaUpdatedAt: { anyOf: [dateTimeSchema, { type: 'null' }] },
   personaWatchFingerprint: nullableStringSchema,

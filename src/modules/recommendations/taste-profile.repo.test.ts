@@ -36,6 +36,7 @@ function returningRow(): Record<string, unknown> {
     persona_updated_at: null,
     persona_watch_fingerprint: null,
     avoidances: [],
+    drivers: [],
   };
 }
 
@@ -65,10 +66,12 @@ test('upsert without persona fields keeps prior persona via CASE guards', async 
   const record = (await new TasteProfileRepository().upsert(client, baseInput()))!;
   assert.equal(record.personaLongTerm, null);
   assert.deepEqual(record.avoidances, []);
+  assert.deepEqual(record.drivers, []);
   const values = calls[0]!.values;
-  assert.equal(calls[0]!.text.includes('persona_long_term = CASE WHEN $13'), true);
-  assert.deepEqual(values.slice(12, 17), [false, false, false, false, false]);
-  assert.deepEqual(values.slice(7, 12), [null, null, null, null, '[]']);
+  assert.equal(calls[0]!.text.includes('persona_long_term = CASE WHEN $14'), true);
+  assert.equal(calls[0]!.text.includes('drivers = CASE WHEN $19'), true);
+  assert.deepEqual(values.slice(13, 19), [false, false, false, false, false, false]);
+  assert.deepEqual(values.slice(7, 13), [null, null, null, null, '[]', '[]']);
 });
 
 test('upsert with persona fields flips CASE guards and binds values', async () => {
@@ -84,11 +87,12 @@ test('upsert with persona fields flips CASE guards and binds values', async () =
   });
   assert.equal(record.personaLongTerm, 'Loves slow sci-fi');
   assert.deepEqual(record.avoidances, ['found footage']);
+  assert.deepEqual(record.drivers, []);
   assert.equal(record.personaUpdatedAt, '2026-09-01T10:00:00.000Z');
 
   const values = calls[0]!.values;
-  assert.deepEqual(values.slice(7, 12), ['Loves slow sci-fi', null, '2026-09-01T10:00:00.000Z', '12:2026-09-01T10:00:00.000Z', '["found footage"]']);
-  assert.deepEqual(values.slice(12, 17), [true, true, true, true, true]);
+  assert.deepEqual(values.slice(7, 13), ['Loves slow sci-fi', null, '2026-09-01T10:00:00.000Z', '12:2026-09-01T10:00:00.000Z', '["found footage"]', '[]']);
+  assert.deepEqual(values.slice(13, 19), [true, true, true, true, true, false]);
 });
 
 test('reads filter to schemaVersion 5 rows', async () => {

@@ -6,7 +6,7 @@ export type TasteProfileRecord = TasteProfilePayload;
 
 const columns = `profile_id, source_key, content_type_pref, watching_pace, ai_summary,
   source, vectors, version, created_at, updated_at, persona_long_term, persona_short_term,
-  persona_updated_at, persona_watch_fingerprint, avoidances`;
+  persona_updated_at, persona_watch_fingerprint, avoidances, drivers`;
 
 function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {  return {
     profileId: String(row.profile_id),
@@ -24,6 +24,7 @@ function mapTasteProfile(row: Record<string, unknown>): TasteProfileRecord {  re
     personaUpdatedAt: row.persona_updated_at == null ? null : requireDbIsoString(row.persona_updated_at as Date | string, 'taste_profiles.persona_updated_at'),
     personaWatchFingerprint: typeof row.persona_watch_fingerprint === 'string' ? row.persona_watch_fingerprint : null,
     avoidances: Array.isArray(row.avoidances) ? row.avoidances.filter((value): value is string => typeof value === 'string') : [],
+    drivers: Array.isArray(row.drivers) ? row.drivers.filter((value): value is string => typeof value === 'string') : [],
   };
 }
 
@@ -52,9 +53,9 @@ export class TasteProfileRepository {
       `
         INSERT INTO taste_profiles (
           profile_id, source_key, content_type_pref, watching_pace, ai_summary, source, vectors,
-          persona_long_term, persona_short_term, persona_updated_at, persona_watch_fingerprint, avoidances
+          persona_long_term, persona_short_term, persona_updated_at, persona_watch_fingerprint, avoidances, drivers
         )
-        VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, $9, $10::timestamptz, $11, $12::jsonb)
+        VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, $9, $10::timestamptz, $11, $12::jsonb, $13::jsonb)
         ON CONFLICT (profile_id, source_key)
         DO UPDATE SET
           content_type_pref = EXCLUDED.content_type_pref,
@@ -62,11 +63,12 @@ export class TasteProfileRepository {
           ai_summary = EXCLUDED.ai_summary,
           source = EXCLUDED.source,
           vectors = EXCLUDED.vectors,
-          persona_long_term = CASE WHEN $13 THEN EXCLUDED.persona_long_term ELSE taste_profiles.persona_long_term END,
-          persona_short_term = CASE WHEN $14 THEN EXCLUDED.persona_short_term ELSE taste_profiles.persona_short_term END,
-          persona_updated_at = CASE WHEN $15 THEN EXCLUDED.persona_updated_at ELSE taste_profiles.persona_updated_at END,
-          persona_watch_fingerprint = CASE WHEN $16 THEN EXCLUDED.persona_watch_fingerprint ELSE taste_profiles.persona_watch_fingerprint END,
-          avoidances = CASE WHEN $17 THEN EXCLUDED.avoidances ELSE taste_profiles.avoidances END,
+          persona_long_term = CASE WHEN $14 THEN EXCLUDED.persona_long_term ELSE taste_profiles.persona_long_term END,
+          persona_short_term = CASE WHEN $15 THEN EXCLUDED.persona_short_term ELSE taste_profiles.persona_short_term END,
+          persona_updated_at = CASE WHEN $16 THEN EXCLUDED.persona_updated_at ELSE taste_profiles.persona_updated_at END,
+          persona_watch_fingerprint = CASE WHEN $17 THEN EXCLUDED.persona_watch_fingerprint ELSE taste_profiles.persona_watch_fingerprint END,
+          avoidances = CASE WHEN $18 THEN EXCLUDED.avoidances ELSE taste_profiles.avoidances END,
+          drivers = CASE WHEN $19 THEN EXCLUDED.drivers ELSE taste_profiles.drivers END,
           version = taste_profiles.version + 1,
           updated_at = now()
         RETURNING ${columns}
@@ -84,11 +86,13 @@ export class TasteProfileRepository {
         params.personaUpdatedAt ?? null,
         params.personaWatchFingerprint ?? null,
         JSON.stringify(params.avoidances ?? []),
+        JSON.stringify(params.drivers ?? []),
         params.personaLongTerm !== undefined,
         params.personaShortTerm !== undefined,
         params.personaUpdatedAt !== undefined,
         params.personaWatchFingerprint !== undefined,
         params.avoidances !== undefined,
+        params.drivers !== undefined,
       ],
     );
     return mapTasteProfile(result.rows[0]);

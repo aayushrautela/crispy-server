@@ -714,6 +714,7 @@ export interface components {
             source: string;
             vectors: components["schemas"]["TasteVectors"];
             personaLongTerm?: string | null;
+            drivers?: string[];
             personaShortTerm?: string | null;
             /** Format: date-time */
             personaUpdatedAt?: string | null;
@@ -734,6 +735,7 @@ export interface components {
             updatedAt: string;
             vectors: components["schemas"]["TasteVectors"];
             personaLongTerm?: string | null;
+            drivers?: string[];
             personaShortTerm?: string | null;
             /** Format: date-time */
             personaUpdatedAt?: string | null;
