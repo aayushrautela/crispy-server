@@ -112,6 +112,7 @@ function tastePersonaFromValue(value: Record<string, unknown>) {
     personaUpdatedAt?: string | null;
     personaWatchFingerprint?: string | null;
     avoidances?: string[];
+    drivers?: string[];
   } = {};
   if ('personaLongTerm' in value) persona.personaLongTerm = typeof value.personaLongTerm === 'string' ? value.personaLongTerm : null;
   if ('personaShortTerm' in value) persona.personaShortTerm = typeof value.personaShortTerm === 'string' ? value.personaShortTerm : null;
@@ -119,6 +120,9 @@ function tastePersonaFromValue(value: Record<string, unknown>) {
   if ('personaWatchFingerprint' in value) persona.personaWatchFingerprint = typeof value.personaWatchFingerprint === 'string' ? value.personaWatchFingerprint : null;
   if ('avoidances' in value && Array.isArray(value.avoidances)) {
     persona.avoidances = value.avoidances.filter((item): item is string => typeof item === 'string');
+  }
+  if ('drivers' in value && Array.isArray(value.drivers)) {
+    persona.drivers = value.drivers.filter((item): item is string => typeof item === 'string');
   }
   return persona;
 }
