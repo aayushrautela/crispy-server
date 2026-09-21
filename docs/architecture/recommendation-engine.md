@@ -174,8 +174,11 @@ The home screen is recommendations. Client apps call `GET /home` and read back
 whatever was previously written; the read path does not call external services
 on-the-fly. A home is **stored per `(profile, source)` as a single atomic
 snapshot** — every write replaces every active rail for that source at once.
-The read response always carries rails from **one** source only; sources are
-never mixed.
+
+The read response is a **blend** for recommended-mode profiles: reco rails on
+top followed by the shared default home. The shared default snapshot is layered
+under the profile's reco rails at read time; it is never duplicated into
+per-profile rows.
 
 ### Producers and sources
 
@@ -246,24 +249,34 @@ Implications:
 - Producers are therefore obligated to guarantee "every rail I submit is
   non-empty" before calling the ingester.
 
-### Single-source resolution
+### Resolution (single-source vs. blended)
 
-`GET /home` picks **one** source for the entire response based on the
-profile's `homeMode` and which source has populated rows:
+`GET /home` resolves the response from the profile's `homeMode` and the
+populated sources:
 
-- `homeMode === 'custom'`: try `custom` rows; if none, return empty (custom
-  mode does not layer `reco` or `default`). Switching from `custom` to `reco`
-  requires a one-shot clear of custom rows for that profile so `reco` rows can
-  win — this is performed in the reco pipeline, not the ingester.
-- `homeMode === 'reco'` (default): try `reco` rows; if none, serve the shared
-  default home. The default snapshot is built lazily on first miss and cached
-  in English, so every profile without a stored home shares one build. Only if
-  the shared build itself fails (e.g. Trakt catastrophic outage) or resolves to
-  zero rails does the read return `source: 'empty'`. Kids profiles are excluded
-  from the shared default in v1 and report `empty`.
+- `homeMode === 'custom'`: try `custom` rows; if none, fall through to `reco`
+  rows (the one-shot clear path after a `custom → reco` switch), else return
+  empty. Custom mode never layers the shared default. Switching from `custom`
+  to `reco` requires a one-shot clear of custom rows for that profile so `reco`
+  rows can win — this is performed in the reco pipeline, not the ingester.
+- `homeMode === 'reco'` (default): serve the profile's `reco` rails **on top
+  of** the shared default home. Reco is expected to personalize only the rails
+  it sends (a handful — hero and a few picks); it is not expected to generate
+  the generic catalogs. The shared default snapshot is layered underneath and
+  built lazily on first miss, cached in English, so every profile shares one
+  build; it is never written to per-profile rows. Profiles with no populated
+  `reco` rows get the shared default alone, and `source` reports the layer that
+  provides the lead rails:
+  - `reco` when the profile has hydrated reco rails (default follows below),
+  - `default` when only the shared snapshot is served,
+  - `empty` when the shared build itself fails (e.g. Trakt catastrophic outage)
+    or resolves to zero rails.
+  - Kids profiles are excluded from the shared default in v1; with no reco rows
+    they report `empty`.
 
-**Never mixing sources** is a hard rule: a single home response is always 100%
-from one source. The resolver does not concatenate rails across sources.
+There is **no cross-source dedup**: a title may appear once in a reco rail and
+again in a generic rail. The read response is reco rails concatenated with the
+shared default's rails in that order.
 
 ### Retention
 

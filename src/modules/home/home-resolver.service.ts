@@ -110,21 +110,33 @@ export class HomeResolverService {
     const result = await withDbClient(async (client) => {
       const repo = new HomeListsRepo({ db: client });
       const mode = await this.modeService.getMode(ctx.accountId, ctx.profileId);
-      const source = await this.pickSource(client, repo, ctx.accountId, ctx.profileId, mode);
       let sections: ClientHomeSection[];
       let resolvedSource: ResolvedHomeSource;
 
-      if (source) {
-        const lists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source });
-        sections = await this.hydrator.hydrateSections(client, lists, ctx.locale);
-        resolvedSource = source;
+      if (mode === 'custom') {
+        const source = await this.pickSource(repo, ctx.accountId, ctx.profileId);
+        if (source) {
+          const lists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source });
+          sections = await this.hydrator.hydrateSections(client, lists, ctx.locale);
+          resolvedSource = source;
+        } else {
+          sections = [];
+          resolvedSource = 'empty';
+        }
       } else {
-        // No rails under any stored source. Serve the shared default home:
-        // one pre-hydrated English snapshot cached in Redis and reused by
-        // every profile. Never written to per-profile rows. Kids profiles are
-        // excluded in v1 and simply report 'empty'.
+        // Recommended mode: reco rails on top, then the shared default home
+        // below. Reco only personalizes a handful of its own rails; the shared
+        // deterministic snapshot (one pre-hydrated English build cached in
+        // Redis, reused by every profile, never copied into per-profile rows)
+        // grounds the rest of the screen. No cross-source dedup: a title may
+        // appear once in a reco rail and again in a generic one.
+        const recoLists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source: 'reco' });
+        const recoSections = recoLists.length > 0 ? await this.hydrator.hydrateSections(client, recoLists, ctx.locale) : [];
         const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault();
-        if (shared && shared.length > 0) {
+        if (recoSections.length > 0) {
+          sections = shared && shared.length > 0 ? recoSections.concat(shared) : recoSections;
+          resolvedSource = 'reco';
+        } else if (shared && shared.length > 0) {
           sections = shared;
           resolvedSource = 'default';
         } else {
@@ -173,18 +185,13 @@ export class HomeResolverService {
     return this.writeService.writeHome(input);
   }
 
-  /** Precedence: custom (custom mode) > reco (else) > shared default. One query. */
+  /** Custom mode: prefer custom rows; fall through to reco after a custom→reco clear. One query. */
   private async pickSource(
-    _client: unknown,
     repo: HomeListsRepo,
     accountId: string,
     profileId: string,
-    mode: HomeMode,
   ): Promise<HomeSource | null> {
-    const candidates: readonly HomeSource[] = mode === 'custom'
-      ? ['custom', 'reco']
-      : ['reco'];
-    return repo.findActiveSource({ accountId, profileId, sources: candidates });
+    return repo.findActiveSource({ accountId, profileId, sources: ['custom', 'reco'] });
   }
 }
 

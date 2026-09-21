@@ -1393,7 +1393,7 @@ export interface components {
              */
             mode: "recommended" | "custom";
             /**
-             * @description Which producer's lists are currently serving the home screen. `default` is the shared fallback home built from server-managed templates.
+             * @description Lead source serving the home screen. In recommended mode where the profile has reco rails, `reco` means the profile's personalized rails followed by the shared default home underneath; `default` is the shared fallback home alone (built from server-managed templates, never copied per user); `empty` means no rails resolved.
              * @enum {string}
              */
             source: "custom" | "reco" | "default" | "empty";

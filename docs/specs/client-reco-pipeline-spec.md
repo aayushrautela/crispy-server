@@ -281,7 +281,7 @@ Rules:
 - `PUT /internal/apps/v1/accounts/{accountId}/profiles/{profileId}/recommendations/lists/{listKey}` is the production write contract. There is no service-list discovery preflight.
 - **Atomic whole-snapshot writes.** The ingester never updates a single rail; a write soft-deletes every existing active row for `(profile, source)` and inserts the new rails in one transaction. A producer that wants to change one rail must resend **all** rails of the snapshot. Failed writes leave the previous snapshot intact.
 - Producers must not submit a rail with zero items. The ingester hard-rejects the whole snapshot with `400 INVALID_ITEMS` if any rail is empty. Producers are responsible for guaranteeing "every rail I submit is non-empty" before calling.
-- Single-source resolution: a `GET /home` response carries rails from exactly one `source`. Sources are never concatenated.
+- Resolution: in recommended mode, a `GET /home` response carries the profile's `reco` rails followed by the shared `default` rails; profiles without reco rows get the shared default alone. `custom` mode serves only the profile's `custom` snapshot. `source` reports the lead layer. Sources are never independently layered, and there is no cross-source dedup.
 - Allowed section types: `categoryTabs` (max 100), `heroCarousel` (max 10), `contentRail` (max 100), `collectionRail` (max 100).
 - MAIN rejects unknown list keys, mismatched `sectionType`, too many items, ineligible profiles, bad provider refs, duplicate items, and idempotency conflicts with stable canonical errors.
 - `Idempotency-Key` is required; reusing it with the same payload replays, reusing it with a different payload returns conflict.
@@ -390,7 +390,7 @@ The following legacy paths have been removed. Do not reintroduce them:
 - RECO signals (read side) consume `ClientMediaCard[]`; RECO writes use provider refs plus `type`, not Crispy `itemId`.
 - MAIN resolves all writes to canonical public item IDs before storage.
 - No recommendation storage path writes provider media keys as `contentId`.
-- A single `GET /home` response carries sections from exactly one `source`; sources are never concatenated.
+- A single `GET /home` response is reco rails + shared default rails in that order, or the shared default alone, or the `custom` snapshot alone; no cross-source dedup.
 - The home store keeps at most N snapshots per `(profile, source)` per the table above; old snapshots are pruned in the write transaction.
 - TVDB provider refs can be accepted without changing client contracts.
 

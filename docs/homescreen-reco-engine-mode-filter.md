@@ -14,25 +14,30 @@ sources feed one ingest pipeline; one shared artifact completes the picture:
   is never written to per-profile rows.
 
 A profile's `homeMode` (`identity.profile_preferences.settings_json.homeMode`)
-controls whose snapshot wins in the resolution chain. **A single `GET /home`
-response always carries rails from exactly one source — sources are never
-concatenated.**
+controls how the profile's home is resolved. **A response is either the
+`custom`-only snapshot or a blend of reco rails layered on top of the shared
+default home** — sources are not concatenated arbitrarily, but reco and the
+shared default *are* combined.
 
 1. `custom` mode: serve `custom` rows if non-empty; **otherwise empty** — `custom`
    mode does not layer `reco` or `default`. Switching `custom → reco` requires
    a one-shot clear of the custom snapshot for that profile (performed by the
    reco pipeline, not the ingester) so subsequent reads fall through to `reco`
    (and then `default`) instead of the stale `custom` rows.
-2. `reco` mode (default): serve `reco` rows if non-empty; otherwise serve the
-   shared default home. The default snapshot is built lazily on first miss,
-   cached as one English snapshot (versioned key, TTL-expired), reused by every profile —
-   a brand new profile gets a populated home on first read with zero per-profile
-   work. If the shared build itself fails (e.g. Trakt catastrophic outage) or
-   resolves to zero rails, the response is `source: 'empty'`. Kids profiles are
-   excluded from the shared default in v1 and report `empty`.
+2. `reco` mode (default): serve `reco` rows if non-empty **on top of** the
+   shared default home. Reco personalizes only the rails it sends (hero and a
+   few picks); the shared default snapshot supplies the generic catalogs below.
+   The default snapshot is built lazily on first miss, cached as one English
+   snapshot (versioned key, TTL-expired), reused by every profile — a brand new
+   profile gets a populated home on first read with zero per-profile work, and
+   the generic rails are never copied into per-user rows. Profiles with no reco
+   rows get the shared default alone. If the shared build itself fails (e.g.
+   Trakt catastrophic outage) or resolves to zero rails, the response is
+   `source: 'empty'`. Kids profiles are excluded from the shared default in v1;
+   with no reco rows they report `empty`. There is no cross-source dedup.
 
 See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for
-the shared-default contract and single-source resolution rule.
+the shared-default contract and the resolution rules.
 
 Continue-watching is layered on top of the materialized home at read time
 (real-time, per-profile, sourced from `playback_progress`); it is not part
