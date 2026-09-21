@@ -88,7 +88,17 @@ export async function fetchBackdropPaths(tmdbClient: TmdbClient, titleDetail: Me
     const images = await tmdbClient.request(`/${mediaType}/${tmdbId}/images`);
     const backdrops = Array.isArray(images.backdrops) ? images.backdrops : [];
     return backdrops
-      .map((entry) => (entry && typeof entry === 'object' ? (entry as Record<string, unknown>).file_path : null))
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return null;
+        }
+        const record = entry as Record<string, unknown>;
+        const language = record.iso_639_1;
+        if (language !== null && language !== undefined && language !== '') {
+          return null;
+        }
+        return typeof record.file_path === 'string' ? record.file_path : null;
+      })
       .filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
       .slice(0, 5);
   } catch {

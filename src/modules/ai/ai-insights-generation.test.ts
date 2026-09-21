@@ -59,7 +59,7 @@ test('fetchBackdropPaths never throws and falls back to empty on bad input or TM
   assert.deepEqual(await fetchBackdropPaths(badClient, titleDetail({ mediaType: 'person' })), []);
   assert.deepEqual(await fetchBackdropPaths(badClient, titleDetail()), []);
 
-  const okClient = { request: async () => ({ backdrops: [{ file_path: '/a.jpg' }, { file_path: '/b.jpg' }, null, { file_path: '' }] }) } as never;
+  const okClient = { request: async () => ({ backdrops: [{ file_path: '/a.jpg', iso_639_1: null }, { file_path: '/b.jpg', iso_639_1: null }, { file_path: '/en.jpg', iso_639_1: 'en' }, { file_path: '/zh.jpg', iso_639_1: 'zh' }, null, { file_path: '' }] }) } as never;
   const paths = await fetchBackdropPaths(okClient, titleDetail());
   assert.deepEqual(paths, ['/a.jpg', '/b.jpg']);
 });
