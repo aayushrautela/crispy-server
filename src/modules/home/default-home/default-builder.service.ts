@@ -156,9 +156,11 @@ export class DefaultHomeBuilderService {
       };
 
       const lists = await this.buildLists(client, templates, baseCtx);
-      if (lists.length === 0) return { sections: [], markedListKeys: [] };
-      const sections = await this.hydrator.hydrateSections(client, lists, tmdbLanguage);
+      const sections = lists.length === 0 ? [] : await this.hydrator.hydrateSections(client, lists, tmdbLanguage);
       const markedListKeys = templates.filter((template) => template.showWithReco).map((template) => template.listKey);
+      // The snapshot was regenerated from the active templates just now: stamp
+      // them so the admin UI reflects when each rail's content last refreshed.
+      await this.repo.stampDefaultTemplatesRefreshed(client);
       return { sections, markedListKeys };
     });
   }

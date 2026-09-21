@@ -251,8 +251,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     root.querySelectorAll('[data-home-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const action = button.getAttribute('data-home-action');
-        if (action === 'refresh-default') void loadHomeDefault();
-        else if (action === 'rebuild-default') void rebuildHomeDefault();
+        if (action === 'refresh-default') void refreshHomeDefault();
+        else if (action === 'rebuild-default') void refreshHomeDefault();
         else if (action === 'create-default') {
           toggleHomeForm('default-create', true);
           void loadListSources().then(() => {
@@ -566,13 +566,21 @@ export const ADMIN_UI_CLIENT = String.raw`
     }
   }
 
-  async function rebuildHomeDefault() {
-    setHomeStatus('#home-default-status', 'Rebuilding shared snapshot...', false);
+  async function refreshHomeDefault() {
+    setHomeStatus('#home-default-status', 'Refreshing default home...', false);
     try {
       const payload = await fetchJson(apiPath('/home/default-templates/rebuild'), { method: 'POST' });
-      setHomeStatus('#home-default-status', 'Rebuilt snapshot with ' + (payload.sections ?? 0) + ' section(s).', false);
+      const refreshedAt = payload && payload.refreshedAt ? payload.refreshedAt : null;
+      const sections = payload && Number.isFinite(payload.sections) ? payload.sections : 0;
+      await loadHomeDefault();
+      setHomeStatus(
+        '#home-default-status',
+        'Refreshed at ' + (refreshedAt ? formatDate(refreshedAt) : 'now') + ' · ' + sections + ' section(s).',
+        false,
+      );
+      pushNotification('success', 'Default home refreshed', 'Refreshed shared default home at ' + (refreshedAt ? formatDate(refreshedAt) : 'now') + '.', true);
     } catch (error) {
-      setHomeStatus('#home-default-status', error.message || 'Failed to rebuild snapshot.', true);
+      setHomeStatus('#home-default-status', error.message || 'Failed to refresh default home.', true);
     }
   }
 

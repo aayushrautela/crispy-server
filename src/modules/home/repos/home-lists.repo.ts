@@ -240,9 +240,10 @@ export class HomeListsRepo {
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
     showWithReco: boolean;
+    refreshedAt: Date | null;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -258,6 +259,7 @@ export class HomeListsRepo {
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
       showWithReco: Boolean(row.show_with_reco),
+      refreshedAt: row.last_refreshed_at == null ? null : new Date(row.last_refreshed_at as string),
     }));
   }
 
@@ -272,9 +274,10 @@ export class HomeListsRepo {
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
     showWithReco: boolean;
+    refreshedAt: Date | null;
   }>> {
     const result = await client.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -290,7 +293,21 @@ export class HomeListsRepo {
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
       showWithReco: Boolean(row.show_with_reco),
+      refreshedAt: row.last_refreshed_at == null ? null : new Date(row.last_refreshed_at as string),
     }));
+  }
+
+  /**
+   * Stamp every active default-home rail with the current time. Called whenever
+   * the shared default snapshot is (re)built so the admin UI can report when a
+   * rail's content was last refreshed, instead of always showing "never".
+   */
+  async stampDefaultTemplatesRefreshed(client: Queryable): Promise<void> {
+    await client.query(
+      `UPDATE home.default_list_templates
+       SET last_refreshed_at = now()
+       WHERE is_active`,
+    );
   }
 
   /** Upsert a default-home rail template. */
@@ -355,9 +372,10 @@ export class HomeListsRepo {
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
     showWithReco: boolean;
+    refreshedAt: Date | null;
   } | null> {
     const result = await client.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
         FROM home.default_list_templates
         WHERE is_active AND list_key = $1`,
       [listKey],
@@ -375,6 +393,7 @@ export class HomeListsRepo {
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
       showWithReco: Boolean(row.show_with_reco),
+      refreshedAt: row.last_refreshed_at == null ? null : new Date(row.last_refreshed_at as string),
     };
   }
 

@@ -64,6 +64,36 @@ test('listDefaultTemplates returns all active templates ordered by rank', { conc
   const b = mine.find((t) => t.listKey === TEST_MARKER + '_b');
   assert.equal(b!.showWithReco, true);
   assert.equal(mine[0]!.showWithReco, false);
+  assert.equal(mine[0]!.refreshedAt, null);
+  assert.equal(b!.refreshedAt, null);
+});
+
+test('stampDefaultTemplatesRefreshed records the shared snapshot build time', { concurrency: false }, async () => {
+  const repo = new HomeListsRepo({ db });
+  const listKey = TEST_MARKER + '_stamp';
+  await repo.upsertDefaultTemplate({
+    listKey,
+    regionOverride: null,
+    sectionType: 'contentRail',
+    title: 'Stamp',
+    subtitle: null,
+    rank: 0,
+    sourceId: 'trakt.trending',
+    sourceConfig: {},
+    refreshMinutes: null,
+    showWithReco: false,
+    updatedBy: TEST_MARKER,
+  });
+  const before = await repo.listDefaultTemplateByKey(db, listKey);
+  assert.equal(before!.refreshedAt, null);
+
+  await repo.stampDefaultTemplatesRefreshed(db);
+
+  const after = await repo.listDefaultTemplates();
+  const row = after.find((t) => t.listKey === listKey);
+  assert.ok(row);
+  assert.ok(row.refreshedAt instanceof Date);
+  assert.ok(Math.abs(Date.now() - row.refreshedAt.getTime()) < 60_000);
 });
 
 test('setDefaultTemplateShowWithReco flips the reco blending flag', { concurrency: false }, async () => {

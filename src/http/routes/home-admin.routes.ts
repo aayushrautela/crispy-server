@@ -122,7 +122,11 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     await app.requireAdminUiMutation(request);
     await defaultBuilder.bumpVersion();
     const sections = await defaultBuilder.getSharedDefault();
-    return mutation({ accepted: true, sections: sections?.length ?? 0 }, request);
+    return mutation({
+      accepted: true,
+      sections: sections?.length ?? 0,
+      refreshedAt: new Date().toISOString(),
+    }, request);
   });
 
   // --- Preview a source without persisting ---
