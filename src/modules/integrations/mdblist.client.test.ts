@@ -120,3 +120,59 @@ test('MdbListClient wraps timeout and network errors as 504', async () => {
     },
   );
 });
+
+test('MdbListClient fetchListItems parses the wrapper movies/shows shape', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  const client = new MdbListClient(async () => Response.json({
+    movies: [{ id: 603, title: 'The Matrix', mediatype: 'movie' }],
+    shows: [{ id: 1399, title: 'Game of Thrones', mediatype: 'show' }],
+  }));
+
+  const items = await client.fetchListItems('linaspurinis', 'latest-certified-fresh-releases', 'test-key');
+  assert.equal(items.length, 2);
+  assert.equal(items[0]?.id, 603);
+  assert.equal(items[1]?.id, 1399);
+});
+
+test('MdbListClient fetchListItems handles the flat array shape and forwards filters', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+  const calls: Array<{ url: string }> = [];
+
+  const client = new MdbListClient(async (input) => {
+    calls.push({ url: String(input) });
+    return Response.json([{ id: 603, imdb_id: 'tt0133093' }]);
+  });
+
+  const items = await client.fetchListItems('garycrawfordgc', 'top-movies-of-the-week', 'test-key', {
+    mediaType: 'movie',
+    limit: 50,
+  });
+
+  assert.equal(items.length, 1);
+  assert.equal(items[0]?.imdb_id, 'tt0133093');
+  assert.equal(
+    calls[0]?.url,
+    'https://api.mdblist.com/lists/garycrawfordgc/top-movies-of-the-week/items?mediatype=movie&limit=50&apikey=test-key',
+  );
+});
+
+test('MdbListClient fetchList returns the raw payload and shares it with fetchListItems', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  const client = new MdbListClient(async () => Response.json([
+    { id: 1176, name: 'Latest Certified Fresh Releases', slug: 'latest-certified-fresh-releases', mediatype: 'movie' },
+  ]));
+
+  const payload = await client.fetchList('linaspurinis', 'latest-certified-fresh-releases', 'test-key');
+  assert.ok(Array.isArray(payload));
+  assert.equal((payload as Array<Record<string, unknown>>)[0]?.name, 'Latest Certified Fresh Releases');
+});
+
+test('MdbListClient fetchListItems reports a missing list as an empty array', async () => {
+  const { MdbListClient } = await import('./mdblist.client.js');
+
+  const client = new MdbListClient(async () => new Response('not found', { status: 404 }));
+
+  assert.deepEqual(await client.fetchListItems('no', 'such-list', 'test-key'), []);
+});

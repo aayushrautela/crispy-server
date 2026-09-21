@@ -1,6 +1,7 @@
 import type { ListSource, ListSourceDescriptor } from './list-source.types.js';
 import { TraktTrendingSource, TraktPopularSource, TraktAnticipatedSource, TraktNewReleasesSource, TraktCalendarSource, TraktPopularByRegionSource, TraktPublicListSource } from './sources/trakt.sources.js';
 import { TmdbTrendingPersonSource, TmdbNewThisWeekSource, TmdbGenreFreshSource } from './sources/tmdb-pills.sources.js';
+import { MdbListPublicListSource } from './sources/mdblist.sources.js';
 
 const sources: ListSource[] = [
   new TraktTrendingSource(),
@@ -13,6 +14,7 @@ const sources: ListSource[] = [
   new TmdbTrendingPersonSource(),
   new TmdbNewThisWeekSource(),
   new TmdbGenreFreshSource(),
+  new MdbListPublicListSource(),
 ];
 
 const registry = new Map<string, ListSource>();
