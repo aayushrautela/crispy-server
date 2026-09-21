@@ -670,7 +670,6 @@ export const serviceRecommendationWriteItemSchema = {
     type: recoMediaTypeSchema,
     providerRefs: { type: 'array', items: recoProviderRefSchema, minItems: 1 },
     score: nullableNumberSchema,
-    description: nullableStringSchema,
     metadata: recordSchema,
   },
 } as const;

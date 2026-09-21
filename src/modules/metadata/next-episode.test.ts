@@ -111,6 +111,7 @@ test('episodeViewToLookup extracts episode-like fields from ClientMediaCard', ()
     mediaType: 'episode' as const,
     title: 'Episode 3',
     overview: null,
+    tagline: null,
     year: null,
     releaseDate: '2024-01-15',
     rating: null,

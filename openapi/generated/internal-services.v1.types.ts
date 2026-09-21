@@ -443,6 +443,7 @@ export interface components {
             mediaType: "movie" | "tv" | "season" | "episode";
             title: string;
             overview: string | null;
+            tagline: string | null;
             year: number | null;
             releaseDate: string | null;
             rating: number | null;
@@ -788,7 +789,6 @@ export interface components {
             type: components["schemas"]["RecoMediaType"];
             providerRefs: components["schemas"]["RecoProviderRef"][];
             score?: number | null;
-            description?: string | null;
             metadata?: components["schemas"]["Metadata"];
         };
         RecoModelInfo: {

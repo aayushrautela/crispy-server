@@ -45,6 +45,7 @@ export type ClientMediaCard = {
   mediaType: ClientMediaType;
   title: string;
   overview: string | null;
+  tagline: string | null;
   year: number | null;
   releaseDate: string | null;
   rating: number | null;

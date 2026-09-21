@@ -1454,6 +1454,7 @@ export interface components {
             mediaType: "movie" | "tv" | "season" | "episode";
             title: string;
             overview: string | null;
+            tagline: string | null;
             year: number | null;
             releaseDate: string | null;
             rating: number | null;

@@ -98,6 +98,7 @@ export function createMockMetadataView(overrides: Record<string, unknown> = {}) 
     subtitle: null,
     summary: null,
     overview: null,
+    tagline: null,
     artwork: { artwork: emptyImageSet(), still: emptyImageSet() },
     images: { artwork: emptyImageSet(), still: emptyImageSet(), logo: emptyImageSet() },
     releaseDate: null,

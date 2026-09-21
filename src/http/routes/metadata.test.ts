@@ -17,6 +17,7 @@ function makeClientMediaCard(id = MOVIE_ITEM_ID): ClientMediaCard {
     mediaType,
     title: 'Test Movie',
     overview: null,
+    tagline: null,
     year: null,
     releaseDate: null,
     rating: null,

@@ -265,8 +265,7 @@ type RecoWriteItem = {
   providerRefs: ProviderRef[];
   /** @deprecated tolerated but ignored; rank is array order */
   score: number | null;
-  description?: string;
-  /** @deprecated open bag; replace with explicit `description` in a future migration */
+  /** @deprecated open bag; reserved for future explicit fields */
   metadata: Record<string, unknown>;
 };
 
@@ -292,7 +291,7 @@ Rules:
 - Every item must have `type` and at least one provider ref.
 - RECO must not send `itemId`, `contentId`, `mediaKey`, nested `item`/`ref` wrappers, or TMDB-specific top-level fields.
 - `score` and `metadata` are **tolerated but ignored** by the home response. They are kept in the OpenAPI schema for backward compatibility only. New producers should omit them.
-- RECO must not send artwork, descriptions, display titles per item, or enriched card payloads.
+- RECO must not send artwork, descriptions, display titles per item, or enriched card payloads. `description` is no longer part of the write contract; hero and rail card copy (overview/tagline) comes exclusively from TMDB metadata.
 
 ### Batch write
 

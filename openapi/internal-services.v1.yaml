@@ -1065,7 +1065,7 @@ components:
     ClientMediaCard:
       type: object
       additionalProperties: false
-      required: [itemId, mediaType, title, overview, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
+      required: [itemId, mediaType, title, overview, tagline, year, releaseDate, rating, maturityRating, genres, runtimeSeconds, images, trailerUrl, progress, parent, providerIds]
       properties:
         itemId: { $ref: '#/components/schemas/PublicItemId' }
         mediaType:
@@ -1073,6 +1073,7 @@ components:
           enum: [movie, tv, season, episode]
         title: { type: string }
         overview: { type: [string, 'null'] }
+        tagline: { type: [string, 'null'] }
         year: { type: [integer, 'null'] }
         releaseDate: { type: [string, 'null'] }
         rating: { type: [number, 'null'] }
@@ -1605,7 +1606,6 @@ components:
           minItems: 1
           items: { $ref: '#/components/schemas/RecoProviderRef' }
         score: { type: [number, 'null'] }
-        description: { type: [string, 'null'] }
         metadata: { $ref: '#/components/schemas/Metadata' }
     RecoModelInfo:
       type: object

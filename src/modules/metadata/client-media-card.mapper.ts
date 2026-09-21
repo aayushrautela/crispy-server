@@ -11,7 +11,6 @@ import type { MetadataCardView, MetadataExternalIds } from './metadata-card.type
 export type ToClientMediaCardOptions = {
   progress?: ClientProgress | null;
   itemId?: string;
-  overviewOverride?: string;
   seriesItemId?: string;
   seriesTitle?: string;
 };
@@ -45,7 +44,8 @@ export function toClientMediaCard(
     itemId,
     mediaType: toClientMediaType(view.mediaType),
     title: view.title ?? '',
-    overview: opts.overviewOverride ?? view.overview ?? view.tagline ?? view.summary,
+    overview: view.overview ?? view.summary,
+    tagline: view.tagline ?? null,
     year: view.releaseYear,
     releaseDate: view.releaseDate,
     rating: view.rating,

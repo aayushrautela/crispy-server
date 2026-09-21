@@ -11,7 +11,6 @@ export type RecoWriteItem = {
   type: RecoMediaType;
   providerRefs: RecoProviderRef[];
   score: number | null;
-  description?: string;
   metadata: Record<string, unknown>;
 };
 
