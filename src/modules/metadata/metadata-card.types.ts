@@ -118,14 +118,4 @@ export type CollectionCardView = {
   items: [CollectionCardItemView, CollectionCardItemView, CollectionCardItemView];
 };
 
-export type HeroCardView = {
-  itemId: string;
-  mediaType: MetadataViewMediaType;
-  title: string;
-  description: string;
-  artwork: ResponsiveImageSet;
-  logo: ResponsiveImageSet;
-  releaseYear: number | null;
-  rating: number | null;
-  genre: string | null;
-};
+

@@ -694,33 +694,6 @@ export const collectionCardViewSchema = {
   },
 } as const;
 
-export const heroCardViewSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'itemId',
-    'mediaType',
-    'title',
-    'description',
-    'artwork',
-    'logo',
-    'releaseYear',
-    'rating',
-    'genre',
-  ],
-  properties: {
-    itemId: publicItemIdSchema,
-    mediaType: stringSchema,
-    title: stringSchema,
-    description: stringSchema,
-    artwork: responsiveImageSetSchema,
-    logo: responsiveImageSetSchema,
-    releaseYear: nullableIntegerSchema,
-    rating: nullableNumberSchema,
-    genre: nullableStringSchema,
-  },
-} as const;
-
 export function withDefaultErrorResponses<T extends RouteSchema>(schema: T): T & { response: Record<number, unknown> } {
   return {
     ...schema,
