@@ -86,3 +86,49 @@ test('buildMetadataCardView omits seriesArtwork for title cards', async () => {
 
   assert.equal(view.seriesArtwork, null);
 });
+
+test('unrated titles serialize a null rating instead of a 0.0 TMDB vote_average', async () => {
+  const { buildMetadataCardView, buildEpisodePreview } = await import('./metadata-card.builders.js');
+
+  const zeroVoteTitle = {
+    mediaType: 'movie' as const, tmdbId: 222, language: 'en', name: 'Unrated', originalName: 'Unrated',
+    overview: null, tagline: null, releaseDate: null, firstAirDate: null, status: null,
+    posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
+    numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: { vote_average: 0 },
+    hydrationLevel: 'detail' as const, fetchedAt: '', expiresAt: '',
+  };
+
+  const titleView = buildMetadataCardView({
+    identity: { mediaKey: 'movie:tmdb:222', mediaType: 'movie', tmdbId: 222, showTmdbId: null, seasonNumber: null, episodeNumber: null },
+    title: zeroVoteTitle,
+  });
+  assert.equal(titleView.rating, null);
+
+  const episodeView = buildMetadataCardView({
+    identity: { mediaKey: 'episode:tmdb:42:1:2', mediaType: 'episode', tmdbId: null, showTmdbId: 42, seasonNumber: 1, episodeNumber: 2 },
+    title: {
+      mediaType: 'tv', tmdbId: 42, language: 'en', name: 'Show', originalName: 'Show',
+      overview: null, tagline: null, releaseDate: null, firstAirDate: null, status: null,
+      posterPath: '/poster.jpg', backdropPath: null, runtime: null, episodeRunTime: [],
+      numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: {},
+      hydrationLevel: 'detail' as const, fetchedAt: '', expiresAt: '',
+    },
+    currentEpisode: {
+      showTmdbId: 42, seasonNumber: 1, episodeNumber: 2, tmdbId: 554,
+      name: 'Prev', overview: null, airDate: null, runtime: 45, stillPath: null,
+      voteAverage: 0, raw: {}, fetchedAt: '', expiresAt: '',
+    },
+  });
+  assert.equal(episodeView.rating, null);
+
+  const preview = buildEpisodePreview({
+    title: zeroVoteTitle,
+    episode: {
+      showTmdbId: 222, seasonNumber: 1, episodeNumber: 1, tmdbId: 555,
+      name: 'Ep', overview: null, airDate: null, runtime: 45, stillPath: null,
+      voteAverage: 0, raw: {}, fetchedAt: '', expiresAt: '',
+    },
+    itemId: 'uuid-for-test',
+  });
+  assert.equal(preview.rating, null);
+});

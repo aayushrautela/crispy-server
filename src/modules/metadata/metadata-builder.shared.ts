@@ -485,17 +485,21 @@ export function extractCollectionParts(collectionRaw: Record<string, unknown> | 
     });
 }
 
+export function toNullableRating(value: number | null): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 export function extractRating(title: TmdbTitleRecord | null, episode: TmdbEpisodeRecord | null): number | null {
   if (episode?.voteAverage !== null && episode?.voteAverage !== undefined) {
-    return episode.voteAverage;
+    return toNullableRating(episode.voteAverage);
   }
 
   if (title?.voteAverage !== null && title?.voteAverage !== undefined) {
-    return title.voteAverage;
+    return toNullableRating(title.voteAverage);
   }
 
   const raw = title?.raw;
-  return raw ? asNumber(raw.vote_average) : null;
+  return raw ? toNullableRating(asNumber(raw.vote_average)) : null;
 }
 
 function extractMovieCertification(raw: Record<string, unknown>): string | null {

@@ -20,6 +20,7 @@ import {
   extractCertification,
   extractExternalIds,
   extractPrimaryTrailer,
+  toNullableRating,
   metadataMediaTypeFromTitle,
   padded,
 } from './metadata-builder.shared.js';
@@ -69,7 +70,7 @@ export function buildEpisodePreview(params: {
     summary: episode.overview,
     airDate: episode.airDate,
     runtimeMinutes: deriveRuntimeMinutes(title, episode),
-    rating: episode.voteAverage,
+    rating: toNullableRating(episode.voteAverage),
     images: buildMetadataImages(title, episode),
     externalIds: title ? extractExternalIds(title) : { tmdb: episode.tmdbId ?? null, imdb: null, tvdb: null },
   };
