@@ -73,6 +73,7 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     const refreshMinutes = body.refreshMinutes === undefined || body.refreshMinutes === null || body.refreshMinutes === ''
       ? null
       : numberField(body.refreshMinutes, 'refreshMinutes', 60);
+    const showWithReco = typeof body.showWithReco === 'boolean' ? body.showWithReco : false;
     await withDbClient((client) => repo.upsertDefaultTemplate({
       listKey,
       regionOverride,
@@ -83,6 +84,7 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
       sourceId,
       sourceConfig,
       refreshMinutes,
+      showWithReco,
       updatedBy: 'admin',
     }));
     // Template changed: bump the shared snapshot version so cached default
@@ -99,6 +101,18 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     await withDbClient((client) => repo.deleteDefaultTemplate(listKey));
     await defaultBuilder.bumpVersion();
     return mutation({ accepted: true }, request);
+  });
+
+  // Mark a default-home rail so it also layers under reco rails.
+  app.put('/admin/api/home/default-templates/:listKey/show-with-reco', async (request) => {
+    await app.requireAdminUiMutation(request);
+    const params = asRecord(request.params);
+    const listKey = stringField(params.listKey, 'listKey');
+    const body = asRecord(request.body);
+    const showWithReco = typeof body.showWithReco === 'boolean' ? body.showWithReco : false;
+    await withDbClient((client) => repo.setDefaultTemplateShowWithReco(listKey, showWithReco));
+    await defaultBuilder.bumpVersion();
+    return mutation({ accepted: true, listKey, showWithReco }, request);
   });
 
   // Rebuild the shared default-home snapshot now: bump the version so the old

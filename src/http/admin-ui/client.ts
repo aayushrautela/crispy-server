@@ -19,7 +19,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     },
     'home-default': {
       title: 'Home Default',
-      description: 'Manage shared default-home templates served when a profile has no custom or reco home.',
+      description: 'Manage shared default-home templates served to profiles without reco, and mark rails to also layer under profiles with recommendations.',
     },
     'home-profiles': {
       title: 'Profile Home',
@@ -493,16 +493,32 @@ export const ADMIN_UI_CLIENT = String.raw`
         + '<td>' + escapeHtml(String(t.rank)) + '</td>'
         + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
         + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
+        + '<td><label class="checkbox"><input type="checkbox" data-home-template-show-reco="' + escapeHtml(String(t.listKey)) + '"' + (t.showWithReco ? ' checked' : '') + ' /></label></td>'
         + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
         + '<td><div class="jobs-toolbar">'
           + '<button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '">Delete</button>'
         + '</div></td>'
         + '</tr>';
     }).join('')
-      : emptyTableRow('No default rails. Create one to seed the shared default home.', 7);
+      : emptyTableRow('No default rails. Create one to seed the shared default home.', 8);
     rows.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
       btn.addEventListener('click', () => void deleteHomeDefault(btn.getAttribute('data-home-template-delete')));
     });
+    rows.querySelectorAll('[data-home-template-show-reco]').forEach((box) => {
+      box.addEventListener('change', () => void toggleShowWithReco(box.getAttribute('data-home-template-show-reco'), box.checked));
+    });
+  }
+
+  async function toggleShowWithReco(listKey, showWithReco) {
+    try {
+      await fetchJson(apiPath('/home/default-templates/' + encodeURIComponent(listKey) + '/show-with-reco'), {
+        method: 'PUT',
+        body: JSON.stringify({ showWithReco: Boolean(showWithReco) }),
+      });
+      void loadHomeDefault();
+    } catch (error) {
+      setHomeStatus('#home-default-status', error.message || 'Failed to update show-with-reco.', true);
+    }
   }
 
   async function createHomeDefault(form) {
@@ -526,6 +542,7 @@ export const ADMIN_UI_CLIENT = String.raw`
           sourceId,
           sourceConfig: config,
           refreshMinutes: data.get('refreshMinutes') ? Number(data.get('refreshMinutes')) : null,
+          showWithReco: Boolean(data.get('showWithReco')),
         }),
       });
       toggleHomeForm('default-create', false);

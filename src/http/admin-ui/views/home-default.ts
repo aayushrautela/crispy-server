@@ -65,6 +65,7 @@ export function renderHomeDefaultView(): string {
             <label>Subtitle<input name="subtitle" placeholder="Popular right now" /></label>
             <label>Rank<input name="rank" type="number" value="0" /></label>
             <label>Refresh minutes<input name="refreshMinutes" type="number" placeholder="optional" /></label>
+            <label class="checkbox"><input type="checkbox" name="showWithReco" value="true" /> Show with reco <em>(also appears under personal recommendations)</em></label>
           </div>
           <div class="form-config" data-home-field="source-config"></div>
           <div class="panel-note" data-home-field="slug-preview"></div>
@@ -77,7 +78,7 @@ export function renderHomeDefaultView(): string {
         <div class="panel-note" data-home-field="preview-status" hidden></div>
         <div class="preview-grid" data-home-field="preview-items"></div>
         <table class="data-table">
-          <thead><tr><th>List</th><th>Section</th><th>Rank</th><th>Title</th><th>Source</th><th>Refreshed</th><th></th></tr></thead>
+          <thead><tr><th>List</th><th>Section</th><th>Rank</th><th>Title</th><th>Source</th><th>With reco</th><th>Refreshed</th><th></th></tr></thead>
           <tbody id="home-default-rows"></tbody>
         </table>
       </div>

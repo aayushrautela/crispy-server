@@ -25,16 +25,18 @@ shared default *are* combined.
    reco pipeline, not the ingester) so subsequent reads fall through to `reco`
    (and then `default`) instead of the stale `custom` rows.
 2. `reco` mode (default): serve `reco` rows if non-empty **on top of** the
-   shared default home. Reco personalizes only the rails it sends (hero and a
-   few picks); the shared default snapshot supplies the generic catalogs below.
-   The default snapshot is built lazily on first miss, cached as one English
-   snapshot (versioned key, TTL-expired), reused by every profile — a brand new
-   profile gets a populated home on first read with zero per-profile work, and
-   the generic rails are never copied into per-user rows. Profiles with no reco
-   rows get the shared default alone. If the shared build itself fails (e.g.
-   Trakt catastrophic outage) or resolves to zero rails, the response is
-   `source: 'empty'`. Kids profiles are excluded from the shared default in v1;
-   with no reco rows they report `empty`. There is no cross-source dedup.
+   generic default-home rails **marked `show_with_reco`** (flagged per rail in
+   the admin UI). Reco personalizes only the rails it sends (hero and a few
+   picks); the marked generic rails supply the evergreen sections below. The
+   marked subset is built lazily on first miss, cached as one English snapshot
+   (versioned key, TTL-expired), reused by every profile — a brand new profile
+   gets a populated home on first read with zero per-profile work, and generic
+   rails are never copied into per-user rows. Profiles with no reco rows get the
+   full shared default alone; unmarked rails are default-only. If the shared
+   build itself fails (e.g. Trakt catastrophic outage) or resolves to zero
+   rails, the response is `source: 'empty'`. Kids profiles are excluded from the
+   shared default in v1; with no reco rows they report `empty`. There is no
+   cross-source dedup.
 
 See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for
 the shared-default contract and the resolution rules.

@@ -176,9 +176,10 @@ on-the-fly. A home is **stored per `(profile, source)` as a single atomic
 snapshot** — every write replaces every active rail for that source at once.
 
 The read response is a **blend** for recommended-mode profiles: reco rails on
-top followed by the shared default home. The shared default snapshot is layered
-under the profile's reco rails at read time; it is never duplicated into
-per-profile rows.
+top followed by the generic default-home rails **marked `show_with_reco`**. The
+marked subset is layered under the profile's reco rails at read time; it is
+never duplicated into per-profile rows. Unmarked generic rails appear only on
+the home of profiles with no reco rows.
 
 ### Producers and sources
 
@@ -260,14 +261,16 @@ populated sources:
   to `reco` requires a one-shot clear of custom rows for that profile so `reco`
   rows can win — this is performed in the reco pipeline, not the ingester.
 - `homeMode === 'reco'` (default): serve the profile's `reco` rails **on top
-  of** the shared default home. Reco is expected to personalize only the rails
-  it sends (a handful — hero and a few picks); it is not expected to generate
-  the generic catalogs. The shared default snapshot is layered underneath and
-  built lazily on first miss, cached in English, so every profile shares one
-  build; it is never written to per-profile rows. Profiles with no populated
-  `reco` rows get the shared default alone, and `source` reports the layer that
+  of** the generic default-home rails marked `show_with_reco`. Reco is expected
+  to personalize only the rails it sends (a handful — hero and a few picks); it
+  is not expected to generate the generic catalogs. Only marked rails are
+  layered underneath (an admin flags each rail in the shared default templates);
+  the full marked subset is built lazily on first miss, cached in English, so
+  every profile shares one build; it is never written to per-profile rows, and
+  unmarked rails are default-only. Profiles with no populated `reco` rows get
+  the **full** shared snapshot alone, and `source` reports the layer that
   provides the lead rails:
-  - `reco` when the profile has hydrated reco rails (default follows below),
+  - `reco` when the profile has hydrated reco rails (marked defaults follow below),
   - `default` when only the shared snapshot is served,
   - `empty` when the shared build itself fails (e.g. Trakt catastrophic outage)
     or resolves to zero rails.
@@ -276,7 +279,7 @@ populated sources:
 
 There is **no cross-source dedup**: a title may appear once in a reco rail and
 again in a generic rail. The read response is reco rails concatenated with the
-shared default's rails in that order.
+marked generic rails in that order.
 
 ### Retention
 

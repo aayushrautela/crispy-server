@@ -15,15 +15,29 @@ import { DEFAULT_SECTION_LIMITS, type DefaultTemplate } from './default-template
 const DEFAULT_HOME_TTL_SECONDS = env.homescreenDefaultTtlSeconds;
 const DEFAULT_HOME_VERSION_KEY = 'home:default:ver';
 const DEFAULT_HOME_SNAPSHOT_KEY = 'home:default:en';
+const DEFAULT_HOME_MARKED_KEY = 'home:default:marked';
 const EMPTY_MARKER = '__empty__';
 
 const inFlightBuilds = new Map<string, Promise<ClientHomeSection[] | null>>();
+
+function parseSections(value: string): ClientHomeSection[] | null {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as ClientHomeSection[]) : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Builds and serves the shared default home. There is exactly one snapshot
  * (English), cached in Redis and reused across every profile. It is never
  * materialized into per-profile rows — the resolver reads it directly when a
  * profile has no custom/reco home.
+ *
+ * Alongside the full snapshot the builder caches the subset of rail listKeys
+ * marked `show_with_reco`. Those rails are layered under an individual
+ * profile's reco rails; the full snapshot serves profiles with no reco home.
  *
  * Template edits bump a Redis version counter so stale snapshots expire on
  * TTL instead of being enumerated. Concurrent misses collapse into one build
@@ -63,6 +77,34 @@ export class DefaultHomeBuilderService {
     return this.buildAndCache(key);
   }
 
+  /**
+   * The subset of the shared default home marked `show_with_reco`, for layering
+   * beneath a profile's reco rails. Returns null when nothing is marked or the
+   * snapshot is empty/failed. Missing marked-keys metadata triggers a rebuild.
+   */
+  async getMarkedSharedDefault(): Promise<ClientHomeSection[] | null> {
+    const version = await this.readVersion();
+    const key = `${DEFAULT_HOME_SNAPSHOT_KEY}:${version}`;
+    const markedKey = this.markedKeyFor(key);
+
+    let [sectionsRaw, markedRaw] = await Promise.all([redis.get(key), redis.get(markedKey)]);
+    if (sectionsRaw !== EMPTY_MARKER && (!sectionsRaw || !markedRaw)) {
+      await this.buildAndCache(key);
+      [sectionsRaw, markedRaw] = await Promise.all([redis.get(key), redis.get(markedKey)]);
+    }
+    if (sectionsRaw === EMPTY_MARKER) return null;
+    const sections = sectionsRaw ? parseSections(sectionsRaw) : null;
+    if (!sections || sections.length === 0) return null;
+    const markedKeys = new Set<string>(markedRaw ? (JSON.parse(markedRaw) as string[]) : []);
+    const marked = sections.filter((section) => markedKeys.has(section.listKey));
+    return marked.length > 0 ? marked : null;
+  }
+
+  private markedKeyFor(snapshotKey: string): string {
+    const version = snapshotKey.slice(DEFAULT_HOME_SNAPSHOT_KEY.length + 1);
+    return `${DEFAULT_HOME_MARKED_KEY}:${version}`;
+  }
+
   private async readVersion(): Promise<string> {
     const raw = await redis.get(DEFAULT_HOME_VERSION_KEY);
     return raw ?? '0';
@@ -73,14 +115,18 @@ export class DefaultHomeBuilderService {
     if (existing) return existing;
 
     const promise = this.build()
-      .then(async (sections) => {
+      .then(async ({ sections, markedListKeys }) => {
+        const markedKey = this.markedKeyFor(key);
         if (sections.length === 0) {
           // Cache a short-lived empty marker so a misconfigured/empty template
           // set doesn't trigger a live rebuild on every read.
-          await redis.set(key, EMPTY_MARKER, 'EX', Math.min(DEFAULT_HOME_TTL_SECONDS, 300));
+          const ttl = Math.min(DEFAULT_HOME_TTL_SECONDS, 300);
+          await redis.set(key, EMPTY_MARKER, 'EX', ttl);
+          await redis.set(markedKey, JSON.stringify([]), 'EX', ttl);
           return null;
         }
         await redis.set(key, JSON.stringify(sections), 'EX', DEFAULT_HOME_TTL_SECONDS);
+        await redis.set(markedKey, JSON.stringify(markedListKeys), 'EX', DEFAULT_HOME_TTL_SECONDS);
         return sections;
       })
       .finally(() => {
@@ -91,10 +137,10 @@ export class DefaultHomeBuilderService {
     return promise;
   }
 
-  private async build(): Promise<ClientHomeSection[]> {
+  private async build(): Promise<{ sections: ClientHomeSection[]; markedListKeys: string[] }> {
     return withDbClient(async (client) => {
       const templates = await this.repo.listDefaultTemplates();
-      if (templates.length === 0) return [];
+      if (templates.length === 0) return { sections: [], markedListKeys: [] };
 
       const tmdbLanguage = 'en';
       const baseCtx: ListSourceCtx = {
@@ -110,8 +156,10 @@ export class DefaultHomeBuilderService {
       };
 
       const lists = await this.buildLists(client, templates, baseCtx);
-      if (lists.length === 0) return [];
-      return this.hydrator.hydrateSections(client, lists, tmdbLanguage);
+      if (lists.length === 0) return { sections: [], markedListKeys: [] };
+      const sections = await this.hydrator.hydrateSections(client, lists, tmdbLanguage);
+      const markedListKeys = templates.filter((template) => template.showWithReco).map((template) => template.listKey);
+      return { sections, markedListKeys };
     });
   }
 

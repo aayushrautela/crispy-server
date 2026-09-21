@@ -40,6 +40,7 @@ test('listDefaultTemplates returns all active templates ordered by rank', { conc
     sourceId: 'trakt.trending',
     sourceConfig: { feed: 'popular', mediaType: 'movie' },
     refreshMinutes: null,
+    showWithReco: true,
     updatedBy: TEST_MARKER,
   });
   await repo.upsertDefaultTemplate({
@@ -52,6 +53,7 @@ test('listDefaultTemplates returns all active templates ordered by rank', { conc
     sourceId: 'trakt.trending',
     sourceConfig: {},
     refreshMinutes: null,
+    showWithReco: false,
     updatedBy: TEST_MARKER,
   });
 
@@ -59,6 +61,35 @@ test('listDefaultTemplates returns all active templates ordered by rank', { conc
   const mine = all.filter((t) => t.listKey.startsWith(TEST_MARKER));
   assert.deepEqual(mine.map((t) => t.listKey), [TEST_MARKER + '_a', TEST_MARKER + '_b']);
   assert.equal(mine[0]!.regionOverride, 'US');
+  const b = mine.find((t) => t.listKey === TEST_MARKER + '_b');
+  assert.equal(b!.showWithReco, true);
+  assert.equal(mine[0]!.showWithReco, false);
+});
+
+test('setDefaultTemplateShowWithReco flips the reco blending flag', { concurrency: false }, async () => {
+  const repo = new HomeListsRepo({ db });
+  const listKey = TEST_MARKER + '_flag';
+  await repo.upsertDefaultTemplate({
+    listKey,
+    regionOverride: null,
+    sectionType: 'contentRail',
+    title: 'Flag',
+    subtitle: null,
+    rank: 0,
+    sourceId: 'trakt.trending',
+    sourceConfig: {},
+    refreshMinutes: null,
+    showWithReco: false,
+    updatedBy: TEST_MARKER,
+  });
+  await repo.setDefaultTemplateShowWithReco(listKey, true);
+  const after = await repo.listDefaultTemplates();
+  const row = after.find((t) => t.listKey === listKey);
+  assert.ok(row);
+  assert.equal(row.showWithReco, true);
+  await repo.setDefaultTemplateShowWithReco(listKey, false);
+  const flipped = await repo.listDefaultTemplates();
+  assert.equal(flipped.find((t) => t.listKey === listKey)?.showWithReco, false);
 });
 
 test('delete removes a default template by listKey', { concurrency: false }, async () => {
@@ -74,6 +105,7 @@ test('delete removes a default template by listKey', { concurrency: false }, asy
     sourceId: 'trakt.trending',
     sourceConfig: {},
     refreshMinutes: null,
+    showWithReco: false,
     updatedBy: TEST_MARKER,
   });
   await repo.deleteDefaultTemplate(listKey);

@@ -124,24 +124,27 @@ export class HomeResolverService {
           resolvedSource = 'empty';
         }
       } else {
-        // Recommended mode: reco rails on top, then the shared default home
-        // below. Reco only personalizes a handful of its own rails; the shared
-        // deterministic snapshot (one pre-hydrated English build cached in
-        // Redis, reused by every profile, never copied into per-profile rows)
-        // grounds the rest of the screen. No cross-source dedup: a title may
-        // appear once in a reco rail and again in a generic one.
+        // Recommended mode: reco rails on top, then the generic shared-default
+        // rails marked `show_with_reco` below. Reco personalizes only its own
+        // rails; the marked generic snapshot (one pre-hydrated English build
+        // cached in Redis, reused by every profile, never copied into
+        // per-profile rows) grounds the rest of the screen. Profiles without
+        // reco rows get the full shared snapshot alone. No cross-source dedup.
         const recoLists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source: 'reco' });
         const recoSections = recoLists.length > 0 ? await this.hydrator.hydrateSections(client, recoLists, ctx.locale) : [];
-        const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault();
         if (recoSections.length > 0) {
-          sections = shared && shared.length > 0 ? recoSections.concat(shared) : recoSections;
+          const marked = ctx.isKids ? null : await this.defaultBuilder.getMarkedSharedDefault();
+          sections = marked && marked.length > 0 ? recoSections.concat(marked) : recoSections;
           resolvedSource = 'reco';
-        } else if (shared && shared.length > 0) {
-          sections = shared;
-          resolvedSource = 'default';
         } else {
-          sections = [];
-          resolvedSource = 'empty';
+          const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault();
+          if (shared && shared.length > 0) {
+            sections = shared;
+            resolvedSource = 'default';
+          } else {
+            sections = [];
+            resolvedSource = 'empty';
+          }
         }
       }
 

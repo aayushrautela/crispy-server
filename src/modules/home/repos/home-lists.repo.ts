@@ -239,9 +239,10 @@ export class HomeListsRepo {
     sourceId: string;
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
+    showWithReco: boolean;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -256,6 +257,7 @@ export class HomeListsRepo {
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
+      showWithReco: Boolean(row.show_with_reco),
     }));
   }
 
@@ -269,9 +271,10 @@ export class HomeListsRepo {
     sourceId: string;
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
+    showWithReco: boolean;
   }>> {
     const result = await client.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -286,6 +289,7 @@ export class HomeListsRepo {
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
+      showWithReco: Boolean(row.show_with_reco),
     }));
   }
 
@@ -300,11 +304,12 @@ export class HomeListsRepo {
     sourceId: string;
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
+    showWithReco: boolean;
     updatedBy: string;
   }): Promise<void> {
     await this.deps.db.query(
-      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, updated_by, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, now())
+      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, updated_by, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, now())
         ON CONFLICT (list_key) DO UPDATE SET
           region_override = EXCLUDED.region_override,
           section_type = EXCLUDED.section_type,
@@ -314,9 +319,20 @@ export class HomeListsRepo {
           source_id = EXCLUDED.source_id,
           source_config = EXCLUDED.source_config,
           refresh_minutes = EXCLUDED.refresh_minutes,
+          show_with_reco = EXCLUDED.show_with_reco,
           updated_by = EXCLUDED.updated_by,
           updated_at = EXCLUDED.updated_at`,
-      [input.listKey, input.regionOverride, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.updatedBy],
+      [input.listKey, input.regionOverride, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.showWithReco, input.updatedBy],
+    );
+  }
+
+  /** Toggle whether a default-home rail also shows under reco rails. */
+  async setDefaultTemplateShowWithReco(listKey: string, showWithReco: boolean, updatedBy = 'admin'): Promise<void> {
+    await this.deps.db.query(
+      `UPDATE home.default_list_templates
+        SET show_with_reco = $2, updated_by = $3, updated_at = now()
+        WHERE list_key = $1`,
+      [listKey, showWithReco, updatedBy],
     );
   }
 
@@ -338,9 +354,10 @@ export class HomeListsRepo {
     sourceId: string;
     sourceConfig: Record<string, unknown>;
     refreshMinutes: number | null;
+    showWithReco: boolean;
   } | null> {
     const result = await client.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes
+      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco
         FROM home.default_list_templates
         WHERE is_active AND list_key = $1`,
       [listKey],
@@ -357,6 +374,7 @@ export class HomeListsRepo {
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
       refreshMinutes: row.refresh_minutes == null ? null : Number(row.refresh_minutes),
+      showWithReco: Boolean(row.show_with_reco),
     };
   }
 

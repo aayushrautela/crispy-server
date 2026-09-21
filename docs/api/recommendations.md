@@ -14,7 +14,7 @@ The home ingest endpoint (`PUT /internal/apps/v1/accounts/:accountId/profiles/:p
 - `reco` (reco engine, system-wide): Bearer token, hash matched against `RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH`. Principal resolved from `app_registry.app_id='reco'`.
 - `custom` (per-user, PAT-authenticated): Bearer `cp_pat_...` carrying `recommendations:write`, with URL `:accountId` matching the PAT owner's `appUserId`. Principal synthesized from the user actor with `appId='custom'`. **PAT/API-key validation happens at the HTTP edge, not in the ingester.** The ingester just consumes the already-authenticated actor.
 
-The `default` home is not a producer: it is a **shared** in-process artifact built from server-managed templates (`home.default_list_templates` + list sources), cached as a single English snapshot in Redis, and layered under a profile's reco rails (or served alone when a profile has no stored home). It never flows through the ingest endpoint and never materializes into per-profile rows.
+The `default` home is not a producer: it is a **shared** in-process artifact built from server-managed templates (`home.default_list_templates` + list sources), cached as a single English snapshot in Redis, and served whole to profiles with no stored home. Its rails flagged `show_with_reco` are also layered under a profile's reco rails. It never flows through the ingest endpoint and never materializes into per-profile rows.
 
 Both producers share the same write shape and the same canonicalize → policy → persist path. `/home` reads stored sources from what the pipeline wrote, and for recommended-mode profiles serves reco rails with the shared default below them. See `docs/architecture/recommendation-engine.md` → "Home ingest pipeline" for the shared-default contract and resolution rules.
 
@@ -88,7 +88,7 @@ Producers must not send enriched card payloads, posters, backdrops, logos, TMDB 
 
 `GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, storage `contentId`, media keys, or RECO internals.
 
-`mode` is the profile's current home mode (`recommended` or `custom`); `source` is the lead source currently serving the home screen (`custom`, `reco`, the shared `default`, or `empty`). In recommended mode with reco rows, the response is the profile's reco rails followed by the shared `default` rails; `source` reports `reco`. Sources are never independently layered — only reco + the shared default are combined, in that order, with no cross-source dedup.
+`mode` is the profile's current home mode (`recommended` or `custom`); `source` is the lead source currently serving the home screen (`custom`, `reco`, the shared `default`, or `empty`). In recommended mode with reco rows, the response is the profile's reco rails followed by the generic default rails flagged `show_with_reco`; `source` reports `reco`. Sources are never independently layered — only reco + the marked default rails are combined, in that order, with no cross-source dedup.
 
 ## RECO read path
 

@@ -7,6 +7,7 @@ export type DefaultTemplate = {
   rank: number;
   sourceId: string;
   sourceConfig: Record<string, unknown>;
+  showWithReco: boolean;
 };
 
 export const DEFAULT_SECTION_LIMITS: Record<string, number> = {
