@@ -19,7 +19,7 @@ type SearchTitlesInput = {
   signal?: AbortSignal;
 };
 
-type GenreMapping = {
+export type GenreMapping = {
   movieGenreId: number;
   tvGenreId?: number | null;
 };
@@ -314,7 +314,7 @@ function normalizeGenreKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-function resolveGenreMapping(genre: string | null | undefined): GenreMapping | null {
+export function resolveGenreMapping(genre: string | null | undefined): GenreMapping | null {
   if (!genre?.trim()) {
     return null;
   }

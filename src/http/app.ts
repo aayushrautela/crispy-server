@@ -25,6 +25,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerAvatarRoutes } from './routes/avatars.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
+import { registerBrowseRoutes } from './routes/browse.js';
 import { registerPersonalAccessTokenRoutes } from './routes/personal-access-tokens.js';
 import { PersonalAccessTokenService } from '../modules/auth/personal-access-token.service.js';
 import { DeviceAuthorizationService } from '../modules/auth/device-authorization.service.js';
@@ -236,6 +237,7 @@ export async function buildApp() {
   await registerProfileRoutes(app, { profileService, pinService: profilePinService });
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
+  await registerBrowseRoutes(app);
   await registerWatchRoutes(app, { profilePinService });
   await registerTasteProfileRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
