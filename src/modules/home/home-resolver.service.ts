@@ -129,12 +129,14 @@ export class HomeResolverService {
         // rails; the marked generic snapshot (one pre-hydrated English build
         // cached in Redis, reused by every profile, never copied into
         // per-profile rows) grounds the rest of the screen. Profiles without
-        // reco rows get the full shared snapshot alone. No cross-source dedup.
+        // reco rows get the full shared snapshot alone. Collection rails are emitted
+        // consecutively (recommended first, generic after) so clients group them
+        // into a single "Collections" shelf; no title-level merge.
         const recoLists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source: 'reco' });
         const recoSections = recoLists.length > 0 ? await this.hydrator.hydrateSections(client, recoLists, ctx.locale) : [];
         if (recoSections.length > 0) {
           const marked = ctx.isKids ? null : await this.defaultBuilder.getMarkedSharedDefault();
-          sections = marked && marked.length > 0 ? recoSections.concat(marked) : recoSections;
+          sections = marked && marked.length > 0 ? this.mergeRecoAndMarked(recoSections, marked) : recoSections;
           resolvedSource = 'reco';
         } else {
           const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault();
@@ -186,6 +188,29 @@ export class HomeResolverService {
 
   async writeHome(input: HomeWriteInput): Promise<HomeWriteResult> {
     return this.writeService.writeHome(input);
+  }
+
+  /**
+   * Layer the reco home over the marked generic default rails.
+   *
+   * Collection rails from both sides are emitted consecutively — the profile's
+   * recommended collections first, then the marked generic collections — so
+   * clients that group adjacent `collectionRail` sections render a single
+   * "Collections" shelf of cards instead of one shelf per source. Each section
+   * stays its own collection (one card per section); no merging at the title
+   * or item level. Non-collection sections keep the reco-then-default order.
+   */
+  private mergeRecoAndMarked(reco: ClientHomeSection[], marked: ClientHomeSection[]): ClientHomeSection[] {
+    const isCollection = (section: ClientHomeSection) => section.sectionType === 'collectionRail';
+    if (!reco.some(isCollection) || !marked.some(isCollection)) {
+      return reco.concat(marked);
+    }
+
+    const recoNonCollections = reco.filter((section) => !isCollection(section));
+    const insertAt = reco.findIndex(isCollection);
+    const reordered = [...recoNonCollections];
+    reordered.splice(insertAt, 0, ...reco.filter(isCollection), ...marked.filter(isCollection));
+    return reordered.concat(marked.filter((section) => !isCollection(section)));
   }
 
   /** Custom mode: prefer custom rows; fall through to reco after a custom→reco clear. One query. */
