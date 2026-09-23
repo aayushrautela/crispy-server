@@ -156,20 +156,22 @@ test('getTitles hydrates only missing keys', async () => {
   assert.equal(results.get('movie:2')?.tmdbId, 2);
 });
 
-test('searchTitles stays local when enough hits exist', async () => {
+test('searchTitles returns local hits when the live refresh adds no new titles', async () => {
   const module = await import('./tmdb-cache.service.js');
 
   let apiCalls = 0;
   const localHits = Array.from({ length: 6 }, (_, index) => makeTitle({ tmdbId: index + 1 }));
   const service = new module.TmdbCacheService(
     { searchTitles: async () => localHits } as never,
-    {} as never,
+    {
+      persistSummaries: async () => {},
+    } as never,
     { request: async () => { apiCalls += 1; return {}; } } as never,
   );
 
   const results = await service.searchTitles({} as never, 'cache', 20, ['movie', 'tv'], 'en');
   assert.equal(results.length, 6);
-  assert.equal(apiCalls, 0);
+  assert.equal(apiCalls, 2);
 });
 
 test('searchTitles falls back to TMDB when local coverage is thin', async () => {
@@ -200,6 +202,116 @@ test('searchTitles falls back to TMDB when local coverage is thin', async () => 
   const results = await service.searchTitles({} as never, 'live', 20, ['movie'], 'en');
   assert.equal(searchCalls, 2);
   assert.equal(results.length, 2);
+});
+
+test('searchTitles persists each payload under its own media type', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  const persisted: Array<{ mediaType: string; ids: number[] }> = [];
+  const service = new module.TmdbCacheService(
+    { searchTitles: async () => [] } as never,
+    {
+      persistSummaries: async (_client: unknown, items: Array<{ id?: unknown }>, mediaType: string) => {
+        persisted.push({ mediaType, ids: items.map((item) => Number(item.id)) });
+      },
+    } as never,
+    {
+      request: async (path: string) => {
+        if (path === '/search/movie') return { results: [{ id: 101, title: 'Movie Hit' }] };
+        if (path === '/search/tv') return { results: [{ id: 202, name: 'Series Hit' }] };
+        return {};
+      },
+    } as never,
+  );
+
+  await service.searchTitles({} as never, 'hit', 20, ['movie', 'tv'], 'en');
+  assert.deepEqual(persisted, [
+    { mediaType: 'movie', ids: [101] },
+    { mediaType: 'tv', ids: [202] },
+  ]);
+});
+
+test('searchTitles persists a single declared type correctly', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  const persisted: Array<{ mediaType: string; ids: number[] }> = [];
+  const service = new module.TmdbCacheService(
+    { searchTitles: async () => [] } as never,
+    {
+      persistSummaries: async (_client: unknown, items: Array<{ id?: unknown }>, mediaType: string) => {
+        persisted.push({ mediaType, ids: items.map((item) => Number(item.id)) });
+      },
+    } as never,
+    {
+      request: async (path: string) => {
+        if (path === '/search/tv') return { results: [{ id: 202, name: 'Series Hit' }] };
+        return {};
+      },
+    } as never,
+  );
+
+  await service.searchTitles({} as never, 'hit', 20, ['tv'], 'en');
+  assert.deepEqual(persisted, [{ mediaType: 'tv', ids: [202] }]);
+});
+
+test('discoverTitlesByGenre persists each requested media type separately', async () => {
+  const module = await import('./tmdb-cache.service.js');
+
+  const persisted: Array<{ mediaType: string; ids: number[] }> = [];
+  const service = new module.TmdbCacheService(
+    { discoverTitlesByGenre: async () => [] } as never,
+    {
+      persistSummaries: async (_client: unknown, items: Array<{ id?: unknown }>, mediaType: string) => {
+        persisted.push({ mediaType, ids: items.map((item) => Number(item.id)) });
+      },
+    } as never,
+    {
+      request: async (path: string) => {
+        if (path === '/discover/movie') return { results: [{ id: 101, title: 'Movie Hit' }] };
+        if (path === '/discover/tv') return { results: [{ id: 202, name: 'Series Hit' }] };
+        return {};
+      },
+    } as never,
+  );
+
+  await service.discoverTitlesByGenre({} as never, { movieGenreId: 16, tvGenreId: 16, filter: 'all', limit: 20, locale: 'en' });
+  assert.deepEqual(persisted, [
+    { mediaType: 'movie', ids: [101] },
+    { mediaType: 'tv', ids: [202] },
+  ]);
+});
+
+test('persistSummaries classifies rows by declared type and skips unclassifiable ones', async () => {
+  const module = await import('./tmdb-ingest.service.js');
+
+  const upserted: Array<{ mediaType: string; tmdbId: number }> = [];
+  const service = new module.TmdbIngestService(
+    {} as never,
+    {
+      upsertSummaryTitles: async (_client: unknown, rows: Array<{ mediaType: string; tmdbId: number }>) => {
+        upserted.push(...rows.map(({ mediaType, tmdbId }) => ({ mediaType, tmdbId })));
+      },
+      upsertTranslations: async () => {},
+      missingImageKinds: async () => [],
+      fetchImages: async () => {},
+    } as never,
+  );
+
+  // Item declares its own type; untyped item with no fallback is skipped.
+  await service.persistSummaries({} as never, [
+    { id: 1, title: 'Declared Movie', media_type: 'movie' },
+    { id: 2, name: 'No Type' },
+  ], undefined);
+
+  // Untyped items inherit the caller's endpoint-scoped type.
+  await service.persistSummaries({} as never, [
+    { id: 3, name: 'Endpoint TV Hit' },
+  ], 'tv');
+
+  assert.deepEqual(upserted, [
+    { mediaType: 'movie', tmdbId: 1 },
+    { mediaType: 'tv', tmdbId: 3 },
+  ]);
 });
 
 test('ensureSeasonCached ingests expired seasons inline', async () => {

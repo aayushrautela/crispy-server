@@ -247,19 +247,20 @@ export class TmdbCacheService {
     }
 
     const payloads = await Promise.all(
-      searchableTypes.map((mediaType) =>
-        this.tmdbClient.request(`/search/${mediaType}`, {
+      searchableTypes.map(async (mediaType) => ({
+        mediaType,
+        payload: await this.tmdbClient.request(`/search/${mediaType}`, {
           query,
           page: 1,
           include_adult: 'false',
           language: locale ? toLanguageQuery(locale) : undefined,
         }).catch(() => null),
-      ),
+      })),
     );
 
-    for (const payload of payloads) {
+    for (const { mediaType, payload } of payloads) {
       if (!payload) continue;
-      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], searchableTypes[0], locale);
+      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], mediaType, locale);
     }
 
     const refreshed = await this.tmdbRepository.searchTitles(client, query, limit, mediaTypes, lang);
@@ -285,19 +286,19 @@ export class TmdbCacheService {
       return [];
     }
 
-    const liveResults = (
-      await Promise.all(requested.map(({ mediaType, genreId }) =>
-        this.tmdbClient.request(`/discover/${mediaType}`, {
-          with_genres: genreId,
-          page: 1,
-          sort_by: 'popularity.desc',
-          include_adult: 'false',
-        }).catch(() => null),
-      ))
-    ).flat().filter(Boolean) as Array<Record<string, unknown>>;
+    const livePayloads = await Promise.all(requested.map(async ({ mediaType, genreId }) => ({
+      mediaType,
+      payload: await this.tmdbClient.request(`/discover/${mediaType}`, {
+        with_genres: genreId,
+        page: 1,
+        sort_by: 'popularity.desc',
+        include_adult: 'false',
+      }).catch(() => null),
+    })));
 
-    for (const payload of liveResults) {
-      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], undefined, params.locale);
+    for (const { mediaType, payload } of livePayloads) {
+      if (!payload) continue;
+      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], mediaType, params.locale);
     }
 
     const refreshed = (

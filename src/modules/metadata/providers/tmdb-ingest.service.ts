@@ -1,4 +1,5 @@
 import { appConfig } from '../../../config/app-config.js';
+import { logger } from '../../../config/logger.js';
 import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
 import { buildTmdbIncludeImageLanguage, normalizeMetadataLanguage, toTmdbLanguageQuery } from '../metadata-language.js';
@@ -7,6 +8,40 @@ import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
 
 type DetailPayload = Record<string, unknown>;
+
+type SummaryRow = {
+  mediaType: TmdbTitleType;
+  tmdbId: number;
+  originalName: string | null;
+  releaseDate: string | null;
+  firstAirDate: string | null;
+  genreIds: number[];
+  voteAverage: number | null;
+  voteCount: number | null;
+  popularity: number | null;
+  adult: boolean;
+  title: string | null;
+  overview: string | null;
+};
+
+/**
+ * Resolves the media type for a search/discover hit. Items from cross-type
+ * endpoints (multi, trending, combined credits) declare it themselves; items
+ * from single-type endpoints (search/movie, search/tv, discover/movie,
+ * discover/tv) never do, so the caller's endpoint-scoped `fallbackMediaType`
+ * is authoritative for them. Returns null when neither is available — it is
+ * never correct to guess, and never correct to silently default to 'movie'.
+ */
+function classifySummaryMediaType(item: DetailPayload, fallbackMediaType?: TmdbTitleType): TmdbTitleType | null {
+  const itemType = item.media_type;
+  if (itemType === 'movie' || itemType === 'tv') {
+    return itemType;
+  }
+  if (fallbackMediaType === 'movie' || fallbackMediaType === 'tv') {
+    return fallbackMediaType;
+  }
+  return null;
+}
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
@@ -298,29 +333,46 @@ export class TmdbIngestService {
     return this.repository.getPerson(client, personTmdbId);
   }
 
-  /** Persists lightweight search/discover/recommendation hits so future lookups stay local. */
+  /**
+   * Persists lightweight search/discover/recommendation hits so future lookups
+   * stay local. The media type comes from the item when the payload declares it
+   * (cross-type endpoints), otherwise from the caller's endpoint-scoped
+   * `fallbackMediaType` (single-type endpoints whose results carry no
+   * media_type). Rows that resolve to neither are skipped and logged — the old
+   * silent 'movie' default is what let TV payloads get stored as movies.
+   */
   async persistSummaries(client: DbClient, items: DetailPayload[], fallbackMediaType?: TmdbTitleType, language?: string | null): Promise<void> {
-    const rows = items
-      .filter((item) => typeof item.id === 'number' && Number.isFinite(item.id))
-      .map((item) => {
-        const mediaType = (item.media_type === 'tv' || (!item.media_type && fallbackMediaType === 'tv')
-          ? 'tv'
-          : 'movie') as TmdbTitleType;
-        return {
-          mediaType,
-          tmdbId: item.id as number,
-          originalName: asString(item.original_title) ?? asString(item.original_name),
-          releaseDate: asString(item.release_date),
-          firstAirDate: asString(item.first_air_date),
-          genreIds: asArray(item.genre_ids).map((value) => Number(value)).filter((value) => Number.isFinite(value)),
-          voteAverage: asNumber(item.vote_average),
-          voteCount: asNumber(item.vote_count),
-          popularity: asNumber(item.popularity),
-          adult: item.adult === true,
-          title: asString(item.title) ?? asString(item.name),
-          overview: asString(item.overview),
-        };
+    const rows: SummaryRow[] = [];
+    let skipped = 0;
+
+    for (const item of items) {
+      if (typeof item.id !== 'number' || !Number.isFinite(item.id)) {
+        continue;
+      }
+      const mediaType = classifySummaryMediaType(item, fallbackMediaType);
+      if (!mediaType) {
+        skipped += 1;
+        continue;
+      }
+      rows.push({
+        mediaType,
+        tmdbId: item.id,
+        originalName: asString(item.original_title) ?? asString(item.original_name),
+        releaseDate: asString(item.release_date),
+        firstAirDate: asString(item.first_air_date),
+        genreIds: asArray(item.genre_ids).map((value) => Number(value)).filter((value) => Number.isFinite(value)),
+        voteAverage: asNumber(item.vote_average),
+        voteCount: asNumber(item.vote_count),
+        popularity: asNumber(item.popularity),
+        adult: item.adult === true,
+        title: asString(item.title) ?? asString(item.name),
+        overview: asString(item.overview),
       });
+    }
+
+    if (skipped > 0) {
+      logger.warn({ skipped, fallbackMediaType: fallbackMediaType ?? null }, 'persistSummaries skipped rows without a resolvable media type');
+    }
 
     if (!rows.length) {
       return;
