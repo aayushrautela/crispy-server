@@ -129,14 +129,12 @@ export class HomeResolverService {
         // rails; the marked generic snapshot (one pre-hydrated English build
         // cached in Redis, reused by every profile, never copied into
         // per-profile rows) grounds the rest of the screen. Profiles without
-        // reco rows get the full shared snapshot alone. Collection rails from
-        // both sides collapse into one shelf (recommended first, generic
-        // after); no item-level dedup anywhere.
+        // reco rows get the full shared snapshot alone. No cross-source dedup.
         const recoLists = await repo.listActiveForSource({ accountId: ctx.accountId, profileId: ctx.profileId, source: 'reco' });
         const recoSections = recoLists.length > 0 ? await this.hydrator.hydrateSections(client, recoLists, ctx.locale) : [];
         if (recoSections.length > 0) {
           const marked = ctx.isKids ? null : await this.defaultBuilder.getMarkedSharedDefault();
-          sections = marked && marked.length > 0 ? this.mergeRecoAndMarked(recoSections, marked) : recoSections;
+          sections = marked && marked.length > 0 ? recoSections.concat(marked) : recoSections;
           resolvedSource = 'reco';
         } else {
           const shared = ctx.isKids ? null : await this.defaultBuilder.getSharedDefault();
@@ -188,51 +186,6 @@ export class HomeResolverService {
 
   async writeHome(input: HomeWriteInput): Promise<HomeWriteResult> {
     return this.writeService.writeHome(input);
-  }
-
-  /**
-   * Layer the reco home over the marked generic default rails.
-   *
-   * Collection rails appear exactly once: the profile's recommended collection
-   * rail(s) and the marked generic collection rail(s) are folded into a single
-   * shelf placed where the first reco collection rail sat, its items the reco
-   * collections followed by the generic collections. Every other section keeps
-   * the existing layering (reco sections in order, then the marked defaults).
-   * Nothing is deduped at the item level.
-   */
-  private mergeRecoAndMarked(reco: ClientHomeSection[], marked: ClientHomeSection[]): ClientHomeSection[] {
-    const isCollection = (section: ClientHomeSection) => section.sectionType === 'collectionRail';
-    const recoCollections = reco.filter(isCollection);
-    const markedCollections = marked.filter(isCollection);
-    if (recoCollections.length === 0 || markedCollections.length === 0) {
-      return reco.concat(marked);
-    }
-
-    const merged: ClientHomeSection = {
-      listKey: recoCollections[0]!.listKey,
-      title: recoCollections[0]!.title,
-      subtitle: recoCollections[0]!.subtitle,
-      sectionType: 'collectionRail',
-      items: [
-        ...recoCollections.flatMap((section) => section.items),
-        ...markedCollections.flatMap((section) => section.items),
-      ],
-      meta: recoCollections[0]!.meta,
-    };
-
-    const sections: ClientHomeSection[] = [];
-    let mergedPlaced = false;
-    for (const section of reco) {
-      if (isCollection(section)) {
-        if (!mergedPlaced) {
-          sections.push(merged);
-          mergedPlaced = true;
-        }
-        continue;
-      }
-      sections.push(section);
-    }
-    return sections.concat(marked.filter((section) => !isCollection(section)));
   }
 
   /** Custom mode: prefer custom rows; fall through to reco after a custom→reco clear. One query. */
