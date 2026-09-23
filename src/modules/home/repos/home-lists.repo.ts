@@ -325,8 +325,8 @@ export class HomeListsRepo {
     updatedBy: string;
   }): Promise<void> {
     await this.deps.db.query(
-      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, updated_by, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, now())
+      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, updated_by, updated_at, last_refreshed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, now(), now())
         ON CONFLICT (list_key) DO UPDATE SET
           region_override = EXCLUDED.region_override,
           section_type = EXCLUDED.section_type,

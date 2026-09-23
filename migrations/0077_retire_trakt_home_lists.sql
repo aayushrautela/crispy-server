@@ -19,10 +19,10 @@
 DELETE FROM home.default_list_templates
 WHERE source_id LIKE 'trakt.%';
 
-INSERT INTO home.default_list_templates (list_key, section_type, title, subtitle, rank, source_id, source_config, is_active, created_by)
+INSERT INTO home.default_list_templates (list_key, section_type, title, subtitle, rank, source_id, source_config, is_active, created_by, last_refreshed_at)
 VALUES
-  ('tmdb-trending-movie',   'heroCarousel', 'Trending Movies',      NULL, 10, 'tmdb.trending', '{"mediaType":"movie","timeWindow":"week"}'::jsonb, true, 'seed'),
-  ('tmdb-trending-show',    'contentRail',  'Trending Shows',       NULL, 20, 'tmdb.trending', '{"mediaType":"tv","timeWindow":"week"}'::jsonb,    true, 'seed'),
-  ('tmdb-popular-movie',    'contentRail',  'Big Movies Right Now', NULL, 30, 'tmdb.popular',  '{"mediaType":"movie"}'::jsonb,                     true, 'seed'),
-  ('tmdb-popular-show',     'contentRail',  'Most-Watched Shows',   NULL, 40, 'tmdb.popular',  '{"mediaType":"tv"}'::jsonb,                        true, 'seed')
+  ('tmdb-trending-movie',   'heroCarousel', 'Trending Movies',      NULL, 10, 'tmdb.trending', '{"mediaType":"movie","timeWindow":"week"}'::jsonb, true, 'seed', now()),
+  ('tmdb-trending-show',    'contentRail',  'Trending Shows',       NULL, 20, 'tmdb.trending', '{"mediaType":"tv","timeWindow":"week"}'::jsonb,    true, 'seed', now()),
+  ('tmdb-popular-movie',    'contentRail',  'Big Movies Right Now', NULL, 30, 'tmdb.popular',  '{"mediaType":"movie"}'::jsonb,                     true, 'seed', now()),
+  ('tmdb-popular-show',     'contentRail',  'Most-Watched Shows',   NULL, 40, 'tmdb.popular',  '{"mediaType":"tv"}'::jsonb,                        true, 'seed', now())
 ON CONFLICT (list_key) DO NOTHING;

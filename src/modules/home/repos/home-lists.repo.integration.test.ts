@@ -64,8 +64,9 @@ test('listDefaultTemplates returns all active templates ordered by rank', { conc
   const b = mine.find((t) => t.listKey === TEST_MARKER + '_b');
   assert.equal(b!.showWithReco, true);
   assert.equal(mine[0]!.showWithReco, false);
-  assert.equal(mine[0]!.refreshedAt, null);
-  assert.equal(b!.refreshedAt, null);
+  assert.ok(mine[0]!.refreshedAt instanceof Date);
+  assert.ok(Math.abs(Date.now() - mine[0]!.refreshedAt.getTime()) < 60_000);
+  assert.ok(b!.refreshedAt instanceof Date);
 });
 
 test('stampDefaultTemplatesRefreshed records the shared snapshot build time', { concurrency: false }, async () => {
@@ -85,7 +86,8 @@ test('stampDefaultTemplatesRefreshed records the shared snapshot build time', { 
     updatedBy: TEST_MARKER,
   });
   const before = await repo.listDefaultTemplateByKey(db, listKey);
-  assert.equal(before!.refreshedAt, null);
+  assert.ok(before!.refreshedAt instanceof Date);
+  assert.ok(Math.abs(Date.now() - before!.refreshedAt.getTime()) < 60_000);
 
   await repo.stampDefaultTemplatesRefreshed(db);
 
