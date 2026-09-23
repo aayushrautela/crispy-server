@@ -9,7 +9,7 @@ import { success } from '../response.js';
 const ALLOWED_TYPES: BrowseMediaType[] = ['movie', 'series'];
 const ALLOWED_SORTS: BrowseSort[] = ['popularity', 'rating', 'release'];
 const DEFAULT_SORT: BrowseSort = 'popularity';
-const MAX_PAGE = 3;
+const MAX_PAGE = 19;
 
 export async function registerBrowseRoutes(app: FastifyInstance): Promise<void> {
   const browseTitlesService = new BrowseTitlesService();
@@ -53,7 +53,7 @@ function parsePage(value: unknown): number {
   }
   const parsed = typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number.parseInt(value, 10) : Number.NaN;
   if (!Number.isInteger(parsed) || parsed < 0 || parsed > MAX_PAGE) {
-    throw new HttpError(400, 'browse page must be an integer between 0 and 3.');
+    throw new HttpError(400, 'browse page must be an integer between 0 and 19.');
   }
   return parsed;
 }

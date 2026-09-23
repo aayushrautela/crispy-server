@@ -33,7 +33,7 @@ export type BrowseTitlesResult = {
 
 const PAGE_SIZE = 50;
 const TMDB_PAGE_SIZE = 20;
-const MAX_TOTAL = 200;
+const MAX_TOTAL = 1_000;
 const MAX_PAGES = MAX_TOTAL / PAGE_SIZE;
 const VOTE_COUNT_FLOOR = 30;
 const COALESCE_TTL_MS = 3_000;
