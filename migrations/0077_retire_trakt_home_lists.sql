@@ -7,9 +7,10 @@
 --
 -- The six seeded Trakt rails are deleted. TMDB now backs trending and popular:
 --   tmdb.trending -> Trending Movies (hero) / Trending Shows
---   tmdb.popular  -> Big Movies Right Now (popular movies) / Most-Watched Shows
+--   tmdb.popular  -> Big Movies Right Now (popular movies)
 --
--- "Popular in Your Region" and "Most Anticipated" have no TMDB equivalent and
+-- "Popular in Your Region", "Most Anticipated" and a popular-shows rail
+-- ("Most-Watched Shows") have no TMDB equivalent that fits the product and
 -- are dropped entirely. The TMDB pills seeded in 0070 and any admin-added
 -- MDBList collection rails are untouched.
 --
@@ -23,6 +24,5 @@ INSERT INTO home.default_list_templates (list_key, section_type, title, subtitle
 VALUES
   ('tmdb-trending-movie',   'heroCarousel', 'Trending Movies',      NULL, 10, 'tmdb.trending', '{"mediaType":"movie","timeWindow":"week"}'::jsonb, true, 'seed', now()),
   ('tmdb-trending-show',    'contentRail',  'Trending Shows',       NULL, 20, 'tmdb.trending', '{"mediaType":"tv","timeWindow":"week"}'::jsonb,    true, 'seed', now()),
-  ('tmdb-popular-movie',    'contentRail',  'Big Movies Right Now', NULL, 30, 'tmdb.popular',  '{"mediaType":"movie"}'::jsonb,                     true, 'seed', now()),
-  ('tmdb-popular-show',     'contentRail',  'Most-Watched Shows',   NULL, 40, 'tmdb.popular',  '{"mediaType":"tv"}'::jsonb,                        true, 'seed', now())
+  ('tmdb-popular-movie',    'contentRail',  'Big Movies Right Now', NULL, 30, 'tmdb.popular',  '{"mediaType":"movie"}'::jsonb,                     true, 'seed', now())
 ON CONFLICT (list_key) DO NOTHING;

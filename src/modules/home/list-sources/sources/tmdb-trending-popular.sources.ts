@@ -13,6 +13,49 @@ function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+// TMDB returns up to 20 records per page on standard endpoints (trending,
+// popular) and offers no page_size parameter. Page sequentially until we have
+// `limit` titles, deduping ids across pages and tolerating a mid-stream page
+// failure once items are already collected.
+const TMDB_PAGE_SIZE = 20;
+const TMDB_MAX_PAGES = 5;
+
+async function collectTmdbItems(
+  tmdb: TmdbClient,
+  path: string,
+  query: Record<string, unknown>,
+  limit: number,
+): Promise<Array<Record<string, unknown>>> {
+  const collected: Array<Record<string, unknown>> = [];
+  const seen = new Set<number>();
+  const pages = Math.min(TMDB_MAX_PAGES, Math.max(1, Math.ceil(limit / TMDB_PAGE_SIZE)));
+
+  for (let page = 1; page <= pages; page++) {
+    let raw: Record<string, unknown>;
+    try {
+      raw = await tmdb.request(path, { ...query, page });
+    } catch (err) {
+      if (collected.length === 0) throw err;
+      break;
+    }
+    const rawResults = raw?.results;
+    if (!Array.isArray(rawResults)) break;
+    const results = rawResults as Array<Record<string, unknown>>;
+    for (const r of results) {
+      const id = asNumber(r.id);
+      if (id > 0 && !seen.has(id)) {
+        seen.add(id);
+        collected.push(r);
+      }
+    }
+    if (collected.length >= limit) break;
+    const totalPages = asNumber(raw.total_pages);
+    if (totalPages > 0 && page >= totalPages) break;
+    if (results.length === 0) break;
+  }
+  return collected.slice(0, limit);
+}
+
 // --- Trending (weekly view velocity) ---
 
 type TrendingConfig = { mediaType?: MediaType; timeWindow?: 'day' | 'week'; limit?: number };
@@ -71,18 +114,14 @@ export class TmdbTrendingSource implements ListSource<TrendingConfig> {
 
     let results: Array<Record<string, unknown>> = [];
     try {
-      const raw = await this.tmdb.request(`/trending/${mediaType}/${timeWindow}`, { language, page: 1 });
-      results = (raw.results ?? []) as Array<Record<string, unknown>>;
+      const path = `/trending/${mediaType}/${timeWindow}`;
+      results = await collectTmdbItems(this.tmdb, path, { language }, limit);
     } catch (err) {
       console.error(`tmdb.trending failed for ${mediaType}/${timeWindow}:`, err);
       return { items: [] };
     }
 
-    const items = results
-      .map((r) => ({ id: asNumber(r.id) }))
-      .filter((r) => r.id > 0)
-      .slice(0, limit)
-      .map((r) => toLite(mediaType, r.id));
+    const items = results.map((r) => toLite(mediaType, asNumber(r.id)));
 
     if (items.length === 0) return { items: [] };
 
@@ -140,18 +179,13 @@ export class TmdbPopularSource implements ListSource<PopularConfig> {
     let results: Array<Record<string, unknown>> = [];
     try {
       const path = mediaType === 'tv' ? '/tv/popular' : '/movie/popular';
-      const raw = await this.tmdb.request(path, { language, page: 1 });
-      results = (raw.results ?? []) as Array<Record<string, unknown>>;
+      results = await collectTmdbItems(this.tmdb, path, { language }, limit);
     } catch (err) {
       console.error(`tmdb.popular failed for ${mediaType}:`, err);
       return { items: [] };
     }
 
-    const items = results
-      .map((r) => ({ id: asNumber(r.id) }))
-      .filter((r) => r.id > 0)
-      .slice(0, limit)
-      .map((r) => toLite(mediaType, r.id));
+    const items = results.map((r) => toLite(mediaType, asNumber(r.id)));
 
     if (items.length === 0) return { items: [] };
 
