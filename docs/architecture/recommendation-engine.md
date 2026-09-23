@@ -192,7 +192,7 @@ that is never pushed — it is built in-process from server-managed templates.
 | --- | --- | --- | --- |
 | `reco` | External reco engine | push (RECO POSTs results) | Already wired today via `PUT /internal/apps/v1/accounts/:accountId/profiles/:profileId/recommendations/lists/:listKey`. Runs daily on the reco service's schedule. |
 | `custom` | External per-user service | push (same endpoint shape, different auth) | **Not** admin-curated. The external service authenticates with a per-user PAT carrying `recommendations:write`; API-key/PAT validation is **not** the ingester's job — it happens at the HTTP edge before the ingester is called. |
-| `default` | Crispy Server (in-process, shared) | built on demand, cached in Redis | Owns `home.default_list_templates` and the Trakt/TMDB list-source plugins. Builds one hydrated English snapshot, reused by every profile; never materialized into per-profile rows. |
+| `default` | Crispy Server (in-process, shared) | built on demand, cached in Redis | Owns `home.default_list_templates` and the MDBList/TMDB list-source plugins. Builds one hydrated English snapshot, reused by every profile; never materialized into per-profile rows. |
 
 ### Component boundaries
 
@@ -225,7 +225,7 @@ without leaking into the others:
              │  Default home builder (in-process, shared)   │
              │  - reads home.default_list_templates          │
              │  - resolves locale for the viewer pool        │
-             │  - invokes list-source plugins (Trakt, TMDB) │
+             │  - invokes list-source plugins (MDBList, TMDB) │
              │  - hydrates one English snapshot into Redis   │
              │    (versioned key, TTL-expired)               │
              └─────────────────────────────────────────────┘
@@ -272,8 +272,8 @@ populated sources:
   provides the lead rails:
   - `reco` when the profile has hydrated reco rails (marked defaults follow below),
   - `default` when only the shared snapshot is served,
-  - `empty` when the shared build itself fails (e.g. Trakt catastrophic outage)
-    or resolves to zero rails.
+  - `empty` when the shared build itself fails (e.g. MDBList/TMDB outage
+    when a rail's source is unreachable) or resolves to zero rails.
   - Kids profiles are excluded from the shared default in v1; with no reco rows
     they report `empty`.
 

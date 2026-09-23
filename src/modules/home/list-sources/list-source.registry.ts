@@ -1,16 +1,11 @@
 import type { ListSource, ListSourceDescriptor } from './list-source.types.js';
-import { TraktTrendingSource, TraktPopularSource, TraktAnticipatedSource, TraktNewReleasesSource, TraktCalendarSource, TraktPopularByRegionSource, TraktPublicListSource } from './sources/trakt.sources.js';
+import { TmdbTrendingSource, TmdbPopularSource } from './sources/tmdb-trending-popular.sources.js';
 import { TmdbTrendingPersonSource, TmdbNewThisWeekSource, TmdbGenreFreshSource } from './sources/tmdb-pills.sources.js';
 import { MdbListPublicListSource } from './sources/mdblist.sources.js';
 
 const sources: ListSource[] = [
-  new TraktTrendingSource(),
-  new TraktPopularSource(),
-  new TraktAnticipatedSource(),
-  new TraktNewReleasesSource(),
-  new TraktCalendarSource(),
-  new TraktPopularByRegionSource(),
-  new TraktPublicListSource(),
+  new TmdbTrendingSource(),
+  new TmdbPopularSource(),
   new TmdbTrendingPersonSource(),
   new TmdbNewThisWeekSource(),
   new TmdbGenreFreshSource(),

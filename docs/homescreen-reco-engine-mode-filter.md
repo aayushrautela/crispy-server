@@ -33,7 +33,8 @@ shared default *are* combined.
    gets a populated home on first read with zero per-profile work, and generic
    rails are never copied into per-user rows. Profiles with no reco rows get the
    full shared default alone; unmarked rails are default-only. If the shared
-   build itself fails (e.g. Trakt catastrophic outage) or resolves to zero
+   build itself fails (e.g. MDBList/TMDB outage when a rail's source is
+   unreachable) or resolves to zero
    rails, the response is `source: 'empty'`. Kids profiles are excluded from the
    shared default in v1; with no reco rows they report `empty`. There is no
    cross-source dedup.

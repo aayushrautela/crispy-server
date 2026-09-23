@@ -7,10 +7,28 @@ export function renderHomeDefaultView(): string {
           <div class="panel-actions">
             <button type="button" class="secondary" data-home-action="refresh-default">Refresh</button>
             <button type="button" class="secondary" data-home-action="rebuild-default">Rebuild snapshot</button>
-            <button type="button" data-home-action="create-default">New rail</button>
           </div>
         </div>
         <div id="home-default-status" class="panel-note"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>TMDB Rails <span class="muted">(server-managed)</span></h3>
+        </div>
+        <p class="panel-note">Trending and popular rails driven by TMDB. The only admin control here is the "With reco" toggle; titles, ranks and order change via database migrations.</p>
+        <table class="data-table">
+          <thead><tr><th>List</th><th>Section</th><th>Rank</th><th>Title</th><th>Source</th><th>With reco</th><th>Refreshed</th></tr></thead>
+          <tbody id="home-dynamic-rows"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>MDBList Rails</h3>
+          <div class="panel-actions">
+            <button type="button" data-home-action="create-default">New rail</button>
+          </div>
+        </div>
+        <p class="panel-note">Static collection rails backed by a public MDBList list URL. Fully manageable here: create, toggle "With reco", and delete.</p>
         <form class="stack-form" data-home-form="default-create" hidden>
           <div class="form-grid">
             <label>Source
@@ -56,10 +74,10 @@ export function renderHomeDefaultView(): string {
               <option value="PH">Philippines</option>
             </select></label>
             <label>Section type<select name="sectionType" required>
+              <option value="collectionRail" selected>collectionRail</option>
               <option value="contentRail">contentRail</option>
               <option value="heroCarousel">heroCarousel</option>
               <option value="categoryTabs">categoryTabs</option>
-              <option value="collectionRail">collectionRail</option>
             </select></label>
             <label>Title<input name="title" placeholder="Trending Movies" required /></label>
             <label>Subtitle<input name="subtitle" placeholder="Popular right now" /></label>

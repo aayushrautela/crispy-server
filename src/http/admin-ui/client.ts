@@ -295,10 +295,14 @@ export const ADMIN_UI_CLIENT = String.raw`
     for (const source of homeState.listSources) {
       homeState.sourceById[source.id] = source;
     }
+    // Only admin-authored static sources are creatable in the Web UI.
+    // Dynamic (TMDB) sources are served as read-only "managed" rails because
+    // their runtime title/meta overrides must not be edited by hand.
+    const creatable = homeState.listSources.filter((source) => source.adminCreatable === true);
     const selects = Array.from(document.querySelectorAll('[data-home-field="sourceId"]'));
     for (const select of selects) {
       select.innerHTML = '<option value="">— select source —</option>'
-        + homeState.listSources.map((source) => '<option value="' + escapeHtml(source.id) + '">' + escapeHtml(source.name) + '</option>').join('');
+        + creatable.map((source) => '<option value="' + escapeHtml(source.id) + '">' + escapeHtml(source.name) + '</option>').join('');
     }
     renderHomePresets();
   }
@@ -477,15 +481,21 @@ export const ADMIN_UI_CLIENT = String.raw`
   async function loadHomeDefault() {
     const result = await safeFetchJson(apiPath('/home/default-templates'));
     const rows = document.getElementById('home-default-rows');
-    if (!rows) return;
+    const dynamicRows = document.getElementById('home-dynamic-rows');
+    if (!rows || !dynamicRows) return;
     if (result.error) {
       setHomeStatus('#home-default-status', result.error, true);
       rows.innerHTML = '';
+      dynamicRows.innerHTML = '';
       return;
     }
     setHomeStatus('#home-default-status', '', false);
     const items = result.items || [];
-    rows.innerHTML = items.length ? items.map((t) => {
+    const creatable = items.filter((t) => homeState.sourceById[t.sourceId]?.adminCreatable === true);
+    const dynamic = items.filter((t) => homeState.sourceById[t.sourceId]?.adminCreatable !== true);
+    // Column-aware row: the server-managed (TMDB) table drops the trailing
+    // action cell that MDBList rows use for Delete.
+    const templateRow = (t, deletable) => {
       const region = t.regionOverride ? ' (' + escapeHtml(String(t.regionOverride)) + ')' : '';
       return '<tr>'
         + '<td>' + escapeHtml(String(t.listKey)) + '</td>'
@@ -495,17 +505,22 @@ export const ADMIN_UI_CLIENT = String.raw`
         + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
         + '<td><label class="checkbox"><input type="checkbox" data-home-template-show-reco="' + escapeHtml(String(t.listKey)) + '"' + (t.showWithReco ? ' checked' : '') + ' /></label></td>'
         + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
-        + '<td><div class="jobs-toolbar">'
-          + '<button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '">Delete</button>'
-        + '</div></td>'
+        + (deletable ? '<td><div class="jobs-toolbar"><button type="button" class="ghost" data-home-template-delete="' + escapeHtml(String(t.listKey)) + '">Delete</button></div></td>' : '')
         + '</tr>';
-    }).join('')
-      : emptyTableRow('No default rails. Create one to seed the shared default home.', 8);
-    rows.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => void deleteHomeDefault(btn.getAttribute('data-home-template-delete')));
-    });
-    rows.querySelectorAll('[data-home-template-show-reco]').forEach((box) => {
-      box.addEventListener('change', () => void toggleShowWithReco(box.getAttribute('data-home-template-show-reco'), box.checked));
+    };
+    rows.innerHTML = creatable.length
+      ? creatable.map((t) => templateRow(t, true)).join('')
+      : emptyTableRow('No MDBList rails. Create one to seed the shared default home.', 8);
+    dynamicRows.innerHTML = dynamic.length
+      ? dynamic.map((t) => templateRow(t, false)).join('')
+      : emptyTableRow('No server-managed rails.', 7);
+    [rows, dynamicRows].forEach((tbody) => {
+      tbody.querySelectorAll('[data-home-template-delete]').forEach((btn) => {
+        btn.addEventListener('click', () => void deleteHomeDefault(btn.getAttribute('data-home-template-delete')));
+      });
+      tbody.querySelectorAll('[data-home-template-show-reco]').forEach((box) => {
+        box.addEventListener('change', () => void toggleShowWithReco(box.getAttribute('data-home-template-show-reco'), box.checked));
+      });
     });
   }
 

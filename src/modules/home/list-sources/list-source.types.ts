@@ -53,6 +53,14 @@ export type ListSourceDescriptor = {
   requiresProvider?: ListSourceProvider;
   configFields: ListSourceConfigField[];
   presets?: ListSourcePreset[];
+  /**
+   * true = admins may create rails from this source in the Web UI.
+   * Default false: only static, admin-authored sources (e.g. MDBList lists)
+   * opt in. Dynamic/managed sources (TMDB pills, trending, popular) stay
+   * read-only because their runtime title/meta overrides would be misplaced
+   * by direct Web UI edits.
+   */
+  adminCreatable?: boolean;
 };
 
 export interface ListSource<IConfig = Record<string, unknown>> {

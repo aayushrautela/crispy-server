@@ -45,6 +45,7 @@ export class MdbListPublicListSource implements ListSource<PublicListConfig> {
       name: 'MDBList List (URL)',
       description: 'A public MDBList list by URL (https://mdblist.com/lists/<user>/<list>).',
       mediaTypes: ['movie', 'tv'],
+      adminCreatable: true,
       configFields: [
         { key: 'listUrl', label: 'MDBList list URL', type: 'text', required: true, placeholder: 'https://mdblist.com/lists/<user>/<list>' },
         { key: 'mediaType', label: 'Media type filter', type: 'select', required: false, default: '', options: MEDIA_TYPE_OPTIONS },

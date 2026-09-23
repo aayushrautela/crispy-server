@@ -61,6 +61,9 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     if (!source) {
       throw new HttpError(400, `Unknown source: ${sourceId}`);
     }
+    if (source.descriptor().adminCreatable !== true) {
+      throw new HttpError(403, 'This source is server-managed and cannot be created from the admin UI.');
+    }
     const sourceConfig = asRecord(body.sourceConfig);
     const regionOverride = typeof body.regionOverride === 'string' && body.regionOverride ? body.regionOverride : null;
 
@@ -98,6 +101,14 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
     await app.requireAdminUiMutation(request);
     const params = asRecord(request.params);
     const listKey = stringField(params.listKey, 'listKey');
+    const existing = await withDbClient((client) => repo.listDefaultTemplateByKey(client, listKey));
+    if (!existing) {
+      throw new HttpError(404, 'Template not found.');
+    }
+    const source = getListSource(existing.sourceId);
+    if (!source || source.descriptor().adminCreatable !== true) {
+      throw new HttpError(403, 'This rail is server-managed and cannot be deleted from the admin UI.');
+    }
     await withDbClient((client) => repo.deleteDefaultTemplate(listKey));
     await defaultBuilder.bumpVersion();
     return mutation({ accepted: true }, request);
