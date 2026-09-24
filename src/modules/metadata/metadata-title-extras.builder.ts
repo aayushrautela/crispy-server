@@ -4,12 +4,20 @@ import { assertPresent } from '../../lib/errors.js';
 import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
-import type { MetadataTitleExtrasInternal } from './metadata-detail.types.js';
+import type { MetadataExtrasListInternal, MetadataExtrasListKey, MetadataTitleExtrasInternal } from './metadata-detail.types.js';
 import { extractCollection, tmdbGenreName } from './metadata-builder.shared.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import { MetadataReviewAggregator } from './metadata-review-aggregator.js';
+
+type ExtrasListBuildResult = { identities: MediaIdentity[]; title: string | null };
+
+const LIST_DEFAULT_TITLES: Record<MetadataExtrasListKey, string> = {
+  MoreLikeThis: 'More Like This',
+  MoreByGenre: 'More by Genre',
+  Collection: 'Collection',
+};
 
 export class MetadataTitleExtrasBuilder {
   constructor(
@@ -21,8 +29,13 @@ export class MetadataTitleExtrasBuilder {
 
   /**
    * Brain 1 only: resolves the title, its season identities, related-title
-   * identities (moreLikeThis/collection) and reviews. The route boundary turns the
-   * identities into `ClientMediaCard` via `MetadataCardService.buildCardViews`.
+   * list identities (id-less, named shelves) and reviews. The route boundary
+   * turns each list's identities into `ClientMediaCard` via
+   * `MetadataCardService.buildCardViews`.
+   *
+   * Shelves are self-describing (key + title + identities). Adding a new shelf
+   * is a builder-only change: register it in {@link listBuilders} — no contract
+   * or route changes.
    */
   async buildTitleExtrasInternal(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataTitleExtrasInternal> {
     if (identity.mediaType !== 'movie' && identity.mediaType !== 'show') {
@@ -34,9 +47,7 @@ export class MetadataTitleExtrasBuilder {
 
     const reviews = await this.buildExtrasSection('reviews', resolvedTitle, effectiveLanguage, () =>
       this.reviewAggregator.mergeTitleReviews(client, resolvedTitle, identity.mediaType as 'movie' | 'show', effectiveLanguage), []);
-    const moreLikeThis = await this.buildExtrasSection('moreLikeThis', resolvedTitle, effectiveLanguage, () => this.buildRelatedIdentities(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
-    const moreByGenreData = await this.buildExtrasSection('moreByGenre', resolvedTitle, effectiveLanguage, () => this.buildMoreByGenre(client, resolvedTitle, effectiveLanguage), { identities: [], title: null });
-    const collectionData = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollectionIdentities(client, resolvedTitle, effectiveLanguage), null);
+    const lists = await this.buildLists(client, resolvedTitle, effectiveLanguage);
 
     const seasonIdentities = resolvedTitle.mediaType === 'tv'
       ? await this.buildExtrasSection('seasons', resolvedTitle, effectiveLanguage, () => this.buildSeasonIdentities(client, resolvedTitle, effectiveLanguage), [])
@@ -56,23 +67,48 @@ export class MetadataTitleExtrasBuilder {
       language: effectiveLanguage,
       seasons: seasonIdentities.length,
       reviews: reviews.length,
-      moreLikeThis: moreLikeThis.length,
-      moreByGenre: moreByGenreData.identities.length,
-      collectionItems: collectionData?.identities?.length ?? 0,
+      lists: lists.map(({ key, title, identities }) => ({ key, title, count: identities.length })),
     }, 'metadata title extras built (internal)');
     return {
       resolvedTitle,
       seasonIdentities,
       seriesItemId,
       seriesTitle,
-      moreLikeThis,
-      moreByGenre: moreByGenreData.identities,
-      moreByGenreTitle: moreByGenreData.title,
-      collection: collectionData?.identities ?? null,
-      collectionName: collectionData?.name ?? null,
+      lists,
       reviews,
       effectiveLanguage,
     };
+  }
+
+  /**
+   * Named shelves the extras response can carry, in display order. Each entry
+   * is `key` (stable client identifier) + `title` (human label, fallback title
+   * applied if a shelf has no specific one) + identity list. Fallbacks keep
+   * every shelf present but empty on failure. A shelf is never emitted without
+   * a title — the contract requires it.
+   */
+  private readonly listBuilders: { key: MetadataExtrasListKey; build: (...args: [client: DbClient, title: TmdbTitleRecord, language: string | null]) => Promise<ExtrasListBuildResult> }[] = [
+    {
+      key: 'MoreLikeThis',
+      build: (client, title, language) => this.buildRelatedIdentities(client, title, 'recommendation', language).then((identities) => ({ identities, title: null })),
+    },
+    {
+      key: 'MoreByGenre',
+      build: (client, title, language) => this.buildMoreByGenre(client, title, language),
+    },
+    {
+      key: 'Collection',
+      build: (client, title, language) => this.buildCollection(client, title, language),
+    },
+  ];
+
+  private async buildLists(client: DbClient, title: TmdbTitleRecord, language: string | null): Promise<MetadataExtrasListInternal[]> {
+    const lists: MetadataExtrasListInternal[] = [];
+    for (const builder of this.listBuilders) {
+      const result = await this.buildExtrasSection(builder.key, title, language, () => builder.build(client, title, language), { identities: [], title: null });
+      lists.push({ key: builder.key, title: result.title ?? LIST_DEFAULT_TITLES[builder.key], identities: result.identities });
+    }
+    return lists;
   }
 
   private async buildExtrasSection<T>(
@@ -121,7 +157,7 @@ export class MetadataTitleExtrasBuilder {
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
   }
 
-  private async buildMoreByGenre(client: DbClient, title: TmdbTitleRecord, language: string | null): Promise<{ identities: MediaIdentity[]; title: string | null }> {
+  private async buildMoreByGenre(client: DbClient, title: TmdbTitleRecord, language: string | null): Promise<ExtrasListBuildResult> {
     const genreIds = pickTopGenreIds(title, 2);
     if (genreIds.length < 2) {
       return { identities: [], title: null };
@@ -147,16 +183,16 @@ export class MetadataTitleExtrasBuilder {
     return { identities, title: `More ${genreNames[0]} & ${genreNames[1]}` };
   }
 
-  private async buildFullCollectionIdentities(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<{ identities: MediaIdentity[]; name: string | null } | null> {
+  private async buildCollection(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<ExtrasListBuildResult> {
     const collection = extractCollection(title);
-    if (!collection || typeof collection.id !== 'number') return null;
+    if (!collection || typeof collection.id !== 'number') return { identities: [], title: null };
     await this.tmdbCacheService.ensureCollectionCached(client, collection.id, language).catch(() => false);
     const parts = await this.tmdbCacheService.getRelatedTitles(client, 'collection', collection.id, 'collection_part', language);
-    if (parts.length === 0) return null;
+    if (parts.length === 0) return { identities: [], title: null };
     const identities = parts
       .filter((t) => t.mediaType === 'movie' || t.mediaType === 'tv')
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
-    return { identities, name: collection.name ?? null };
+    return { identities, title: collection.name ?? null };
   }
 }
 

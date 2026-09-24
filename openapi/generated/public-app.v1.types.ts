@@ -1316,13 +1316,15 @@ export interface components {
             companies: components["schemas"]["MetadataCompanyView"][];
             networks: components["schemas"]["MetadataCompanyView"][];
         };
+        MetadataExtrasList: {
+            key: string;
+            title: string;
+            items: components["schemas"]["ClientMediaCard"][];
+        };
         MetadataTitleExtrasResponse: {
             Seasons: components["schemas"]["ClientMediaCard"][];
             Reviews: components["schemas"]["MetadataReviewView"][];
-            MoreLikeThis: components["schemas"]["ClientMediaCard"][];
-            MoreByGenre: components["schemas"]["ClientMediaCard"][];
-            MoreByGenreTitle: string | null;
-            Collection: components["schemas"]["ClientMediaCardQueryResult"] | null;
+            Lists: components["schemas"]["MetadataExtrasList"][];
         };
         MetadataReviewView: {
             id: string;

@@ -82,16 +82,20 @@ export type MetadataTitleRatingsResponse = {
   };
 };
 
+export type MetadataExtrasListKey = 'MoreLikeThis' | 'MoreByGenre' | 'Collection';
+
+export type MetadataExtrasListInternal = {
+  key: MetadataExtrasListKey;
+  title: string;
+  identities: import('../identity/media-key.js').MediaIdentity[];
+};
+
 export type MetadataTitleExtrasInternal = {
   resolvedTitle: import('./providers/tmdb.types.js').TmdbTitleRecord;
   seasonIdentities: import('../identity/media-key.js').MediaIdentity[];
   seriesItemId: string;
   seriesTitle: string | null;
-  moreLikeThis: import('../identity/media-key.js').MediaIdentity[];
-  moreByGenre: import('../identity/media-key.js').MediaIdentity[];
-  moreByGenreTitle: string | null;
-  collection: import('../identity/media-key.js').MediaIdentity[] | null;
-  collectionName: string | null;
+  lists: MetadataExtrasListInternal[];
   reviews: MetadataReviewView[];
   effectiveLanguage: string | null;
 };

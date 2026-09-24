@@ -27,7 +27,7 @@ import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-b
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
 import { toClientMediaCard } from '../../modules/metadata/client-media-card.mapper.js';
-import type { ClientMediaCard, ClientMediaCardQueryResult } from '../../modules/recommendations/client-home.types.js';
+import type { ClientMediaCard } from '../../modules/recommendations/client-home.types.js';
 import type { MediaIdentity } from '../../modules/identity/media-key.js';
 import { withDbClient } from '../../lib/db.js';
 import { success } from '../response.js';
@@ -58,9 +58,9 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
     const internal = await metadataTitleExtrasService.getTitleExtrasInternal(params.itemId, language);
-    const [moreLikeThis, moreByGenre, collection, seasons] = await withDbClient(async (client) => {
+    const [seasons, lists] = await withDbClient(async (client) => {
       const metadataCardService = new MetadataCardService();
-      const hydrate = async (
+      const buildCards = async (
         identities: MediaIdentity[],
         overrides?: { seriesItemId?: string; seriesTitle?: string },
       ): Promise<ClientMediaCard[]> => {
@@ -73,29 +73,24 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
         }
         return cards;
       };
-      const moreLikeThisCards = await hydrate(internal.moreLikeThis);
-      const moreByGenreCards = await hydrate(internal.moreByGenre);
-      let collectionResult: ClientMediaCardQueryResult | null = null;
-      if (internal.collection && internal.collection.length) {
-        const collectionCards = await hydrate(internal.collection);
-        if (collectionCards.length) {
-          collectionResult = { Items: collectionCards, StartIndex: 0, TotalRecordCount: collectionCards.length, NextCursor: null, HasMore: false };
-        }
+      const hydratedLists: { key: string; title: string; items: ClientMediaCard[] }[] = [];
+      for (const shelf of internal.lists) {
+        hydratedLists.push({
+          key: shelf.key,
+          title: shelf.title,
+          items: await buildCards(shelf.identities),
+        });
       }
-      const seasonCards = await hydrate(internal.seasonIdentities, {
+      const seasonCards = await buildCards(internal.seasonIdentities, {
         seriesItemId: internal.seriesItemId || undefined,
         seriesTitle: internal.seriesTitle ?? undefined,
       });
-      return [moreLikeThisCards, moreByGenreCards, collectionResult, seasonCards] as const;
+      return [seasonCards, hydratedLists] as const;
     });
     return success({
       Seasons: seasons,
       Reviews: internal.reviews,
-      MoreLikeThis: moreLikeThis,
-      MoreByGenre: moreByGenre,
-      MoreByGenreTitle: internal.moreByGenreTitle,
-      Collection: collection,
-      CollectionName: internal.collectionName,
+      Lists: lists,
     });
   });
 

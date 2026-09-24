@@ -3843,15 +3843,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MetadataCompanyView"
+    MetadataExtrasList:
+      type: object
+      additionalProperties: false
+      required: [key, title, items]
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientMediaCard"
     MetadataTitleExtrasResponse:
       type: object
+      additionalProperties: false
       required:
         - Seasons
         - Reviews
-        - MoreLikeThis
-        - MoreByGenre
-        - MoreByGenreTitle
-        - Collection
+        - Lists
       properties:
         Seasons:
           type: array
@@ -3861,22 +3872,10 @@ components:
           type: 'array'
           items:
             $ref: "#/components/schemas/MetadataReviewView"
-        MoreLikeThis:
+        Lists:
           type: array
           items:
-            $ref: "#/components/schemas/ClientMediaCard"
-        MoreByGenre:
-          type: array
-          items:
-            $ref: "#/components/schemas/ClientMediaCard"
-        MoreByGenreTitle:
-          anyOf:
-            - type: string
-            - type: "null"
-        Collection:
-          anyOf:
-            - $ref: "#/components/schemas/ClientMediaCardQueryResult"
-            - type: "null"
+            $ref: "#/components/schemas/MetadataExtrasList"
     MetadataReviewView:
       type: object
       additionalProperties: false

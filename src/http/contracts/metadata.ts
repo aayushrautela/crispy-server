@@ -387,33 +387,25 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
 });
 
 
+const metadataExtrasListSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['key', 'title', 'items'],
+  properties: {
+    key: { type: 'string' },
+    title: { type: 'string' },
+    items: { type: 'array', items: clientMediaCardSchema },
+  },
+} as const;
+
 const metadataTitleExtrasResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Seasons', 'Reviews', 'MoreLikeThis', 'MoreByGenre', 'MoreByGenreTitle', 'Collection', 'CollectionName'],
+  required: ['Seasons', 'Reviews', 'Lists'],
   properties: {
     Seasons: { type: 'array', items: clientMediaCardSchema },
     Reviews: { type: 'array', items: metadataReviewViewSchema },
-    MoreLikeThis: { type: 'array', items: clientMediaCardSchema },
-    MoreByGenre: { type: 'array', items: clientMediaCardSchema },
-    MoreByGenreTitle: {
-      anyOf: [
-        { type: 'string' },
-        { type: 'null' },
-      ],
-    },
-    Collection: {
-      anyOf: [
-        clientMediaCardQueryResultSchema,
-        { type: 'null' },
-      ],
-    },
-    CollectionName: {
-      anyOf: [
-        { type: 'string' },
-        { type: 'null' },
-      ],
-    },
+    Lists: { type: 'array', items: metadataExtrasListSchema },
   },
 } as const;
 
