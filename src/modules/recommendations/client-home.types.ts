@@ -18,7 +18,6 @@ export type ClientProgress = {
   watchlisted: boolean;
   liked: boolean | null;
   originRating: number | null;
-  userRating: number | null;
 };
 
 export type ClientParentImages = {

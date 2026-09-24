@@ -99,7 +99,6 @@ test('watch card hydrator hydrates via last-layer (ClientMediaCard)', async (t) 
       assert.equal(cards[0]?.rating, 8);
       assert.equal(cards[0]?.progress?.liked, liked);
       assert.equal(cards[0]?.progress?.originRating, 8.5);
-      assert.equal(cards[0]?.progress?.userRating, liked === null ? null : liked ? 10 : 1);
     }
   }
 });

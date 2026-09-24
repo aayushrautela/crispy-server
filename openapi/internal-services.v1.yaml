@@ -1120,7 +1120,7 @@ components:
     ClientProgress:
       type: object
       additionalProperties: false
-      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, liked, originRating, userRating]
+      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, liked, originRating]
       properties:
         played: { type: boolean }
         playCount: { type: integer }
@@ -1131,7 +1131,6 @@ components:
         watchlisted: { type: boolean }
         liked: { type: [boolean, 'null'], description: 'Binary vote; null means no vote.' }
         originRating: { type: [number, 'null'], description: 'Original imported provider rating, metadata only; never used as the current vote.' }
-        userRating: { type: [number, 'null'], enum: [1, 10, null], deprecated: true, description: 'Compatibility projection of liked: true = 10, false = 1, null = null.' }
     ClientParentRef:
       type: object
       additionalProperties: false

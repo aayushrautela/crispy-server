@@ -105,7 +105,7 @@ Every per-signal watch route returns the **same `ClientMediaCard[]` shape** the 
 
 RECO's worker reads `itemId` + `mediaType` directly off each card via a single inline `cardToRecoInput` helper. RECO's webui renders the cards as-is. No consumer runs a `CatalogService` pass, re-resolves TMDB metadata by `ProviderIds.Tmdb`, or overlays `title`/`artworkUrl`/`overview`/`mediaType`/`year` per row. The reco-side `signal_bundle_mapper`/`signal_assembler` type is deleted.
 
-The watch-progress fields RECO's worker needs (`played`, `playCount`, `positionSeconds`, `percent`, `lastPlayedAt`, `userRating`, `watchlisted`) are carried on the card's existing `progress` (`ClientProgress`) field — no `BaseItemDto.UserData` is read from the wire.
+The watch-progress fields RECO's worker needs (`played`, `playCount`, `positionSeconds`, `percent`, `lastPlayedAt`, `liked`, `watchlisted`) are carried on the card's existing `progress` (`ClientProgress`) field — no `BaseItemDto.UserData` is read from the wire.
 
 ## Generation lifecycle
 

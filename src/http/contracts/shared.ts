@@ -315,7 +315,6 @@ export const clientProgressSchema = {
     'watchlisted',
     'liked',
     'originRating',
-    'userRating',
   ],
   properties: {
     played: { type: 'boolean' },
@@ -327,7 +326,6 @@ export const clientProgressSchema = {
     watchlisted: { type: 'boolean' },
     liked: { type: ['boolean', 'null'] },
     originRating: { type: ['number', 'null'] },
-    userRating: { type: ['number', 'null'], enum: [1, 10, null] },
   },
 } as const;
 

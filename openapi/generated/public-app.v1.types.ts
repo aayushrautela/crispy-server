@@ -945,7 +945,7 @@ export interface paths {
         get?: never;
         /**
          * Set media rating.
-         * @description Compatibility numeric input (1–10): >=7 stores liked=true, <=4 stores liked=false, values between 4 and 7 clear the vote. Imported originRating metadata is preserved.
+         * @description Sets the binary vote: liked=true (like), liked=false (dislike), liked=null clears the vote without touching the DELETE endpoint. Imported originRating metadata is preserved and never written by this endpoint.
          */
         put: operations["putV1ProfilesProfileIdWatchRatingItemId"];
         post?: never;
@@ -1488,12 +1488,6 @@ export interface components {
             liked: boolean | null;
             /** @description Original imported provider rating, metadata only; never used as the current vote. */
             originRating: number | null;
-            /**
-             * @deprecated
-             * @description Compatibility projection of liked: true = 10, false = 1, null = null.
-             * @enum {unknown}
-             */
-            userRating: 1 | 10 | null;
         };
         ClientParentRef: {
             seriesItemId?: components["schemas"]["PublicItemId"];
@@ -3453,8 +3447,6 @@ export interface operations {
                     positionSeconds?: number | null;
                     /** Format: double */
                     durationSeconds?: number | null;
-                    /** Format: double */
-                    rating?: number | null;
                     /** Format: date-time */
                     occurredAt?: string | null;
                     payload?: {
@@ -3591,8 +3583,6 @@ export interface operations {
                     itemId: components["schemas"]["PublicItemId"];
                     /** Format: date-time */
                     occurredAt?: string | null;
-                    /** Format: double */
-                    rating?: number | null;
                     payload?: {
                         [key: string]: unknown;
                     };
@@ -3631,8 +3621,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** Format: double */
-                    rating: number;
+                    /** @description Binary vote. true = like, false = dislike, null = clear vote. */
+                    liked: boolean | null;
                     /** Format: date-time */
                     occurredAt?: string | null;
                     payload?: {
@@ -3837,8 +3827,6 @@ export interface operations {
                     itemId: components["schemas"]["PublicItemId"];
                     /** Format: date-time */
                     occurredAt?: string | null;
-                    /** Format: double */
-                    rating?: number | null;
                     payload?: {
                         [key: string]: unknown;
                     };
@@ -3913,8 +3901,6 @@ export interface operations {
                 "application/json": {
                     /** Format: date-time */
                     occurredAt?: string | null;
-                    /** Format: double */
-                    rating?: number | null;
                     payload?: {
                         [key: string]: unknown;
                     };

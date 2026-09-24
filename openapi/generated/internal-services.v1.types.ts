@@ -474,12 +474,6 @@ export interface components {
             liked: boolean | null;
             /** @description Original imported provider rating, metadata only; never used as the current vote. */
             originRating: number | null;
-            /**
-             * @deprecated
-             * @description Compatibility projection of liked: true = 10, false = 1, null = null.
-             * @enum {number|null}
-             */
-            userRating: 1 | 10 | null;
         };
         ClientParentRef: {
             seriesItemId?: components["schemas"]["PublicItemId"];

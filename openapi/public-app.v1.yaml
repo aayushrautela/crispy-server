@@ -2288,10 +2288,6 @@ paths:
                   type: number
                   format: double
                   nullable: true
-                rating:
-                  type: number
-                  format: double
-                  nullable: true
                 occurredAt:
                   type: string
                   format: date-time
@@ -2518,10 +2514,6 @@ paths:
                   type: string
                   format: date-time
                   nullable: true
-                rating:
-                  type: number
-                  format: double
-                  nullable: true
                 payload:
                   type: object
                   additionalProperties: true
@@ -2552,7 +2544,7 @@ paths:
         - Watch
       operationId: putV1ProfilesProfileIdWatchRatingItemId
       summary: Set media rating.
-      description: 'Compatibility numeric input (1–10): >=7 stores liked=true, <=4 stores liked=false, values between 4 and 7 clear the vote. Imported originRating metadata is preserved.'
+      description: 'Sets the binary vote: liked=true (like), liked=false (dislike), liked=null clears the vote without touching the DELETE endpoint. Imported originRating metadata is preserved and never written by this endpoint.'
       security:
         - UserBearerAuth: []
       parameters:
@@ -2576,13 +2568,11 @@ paths:
               type: object
               additionalProperties: false
               required:
-                - rating
+                - liked
               properties:
-                rating:
-                  type: number
-                  format: double
-                  minimum: 1
-                  maximum: 10
+                liked:
+                  type: [boolean, 'null']
+                  description: 'Binary vote. true = like, false = dislike, null = clear vote.'
                 occurredAt:
                   type: string
                   format: date-time
@@ -2895,10 +2885,6 @@ paths:
                   type: string
                   format: date-time
                   nullable: true
-                rating:
-                  type: number
-                  format: double
-                  nullable: true
                 payload:
                   type: object
                   additionalProperties: true
@@ -3013,10 +2999,6 @@ paths:
                 occurredAt:
                   type: string
                   format: date-time
-                  nullable: true
-                rating:
-                  type: number
-                  format: double
                   nullable: true
                 payload:
                   type: object
@@ -4292,7 +4274,7 @@ components:
     ClientProgress:
       type: object
       additionalProperties: false
-      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, liked, originRating, userRating]
+      required: [played, playCount, positionSeconds, durationSeconds, percent, lastPlayedAt, watchlisted, liked, originRating]
       properties:
         played: { type: boolean }
         playCount: { type: integer, minimum: 0 }
@@ -4315,13 +4297,6 @@ components:
         watchlisted: { type: boolean }
         liked: { type: [boolean, 'null'], description: 'Binary vote; null means no vote.' }
         originRating: { type: [number, 'null'], description: 'Original imported provider rating, metadata only; never used as the current vote.' }
-        userRating:
-          deprecated: true
-          description: 'Compatibility projection of liked: true = 10, false = 1, null = null.'
-          enum: [1, 10, null]
-          anyOf:
-            - type: number
-            - type: "null"
     ClientParentRef:
       type: object
       additionalProperties: false

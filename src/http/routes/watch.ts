@@ -12,6 +12,7 @@ import {
   watchItemIdMutationRouteSchema,
   watchItemIdParamsRouteSchema,
   watchMutationRouteSchema,
+  watchRatingItemIdMutationRouteSchema,
   watchStateRouteSchema,
   watchStatesRouteSchema,
   watchStreamRouteSchema,
@@ -26,7 +27,6 @@ import {
 import { LocalUserWatchService } from '../../modules/integrations/local-user-watch.service.js';
 import { EpisodicFollowService } from '../../modules/watch/episodic-follow.service.js';
 import { getPlaybackProgressBuffer } from '../../modules/watch/playback-progress-buffer.service.js';
-import { HttpError } from '../../lib/errors.js';
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/env.js';
 import { withDbClient } from '../../lib/db.js';
@@ -35,7 +35,7 @@ import { MetadataLanguageService } from '../../modules/metadata/metadata-languag
 import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
 import { toClientMediaCard } from '../../modules/metadata/client-media-card.mapper.js';
 import { mutation, success } from '../response.js';
-import { toBinaryRating, type WatchActionOutcome } from '../../modules/watch/watch.types.js';
+import type { WatchActionOutcome } from '../../modules/watch/watch.types.js';
 import { assertPublicItemId, decodePublicItemId, encodePublicItemId } from '../../modules/identity/public-item-id.js';
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
@@ -552,16 +552,13 @@ export async function registerWatchRoutes(
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
-  app.put('/v1/profiles/:profileId/watch/rating/:itemId', { schema: watchItemIdMutationRouteSchema }, async (request) => {
+  app.put('/v1/profiles/:profileId/watch/rating/:itemId', { schema: watchRatingItemIdMutationRouteSchema }, async (request) => {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
-    if (typeof body.rating !== 'number' || !Number.isFinite(body.rating) || body.rating < 1 || body.rating > 10) {
-      throw new HttpError(400, 'Rating must be between 1 and 10.');
-    }
     const itemId = assertPublicItemId(params.itemId);
     const resolvedMediaType = await withDbClient(async (client) => {
       const contentItem = await contentIdentityRepo.findContentItemById(client, itemId);
@@ -572,7 +569,7 @@ export async function registerWatchRoutes(
       profileId,
       itemId,
       mediaType: resolvedMediaType,
-      liked: toBinaryRating(body.rating),
+      liked: body.liked ?? null,
     });
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });

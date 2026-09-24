@@ -42,7 +42,6 @@ export type WatchEventBody = {
   durationSeconds?: number | null;
   seasonNumber?: number | null;
   episodeNumber?: number | null;
-  rating?: number | null;
   occurredAt?: string | null;
   payload?: Record<string, unknown>;
 };
@@ -52,7 +51,7 @@ export type WatchMutationBody = {
   seasonNumber?: number | null;
   episodeNumber?: number | null;
   occurredAt?: string | null;
-  rating?: number | null;
+  liked?: boolean | null;
   payload?: Record<string, unknown>;
 };
 
@@ -87,7 +86,6 @@ export const watchEventsRouteSchema = withDefaultErrorResponses({
       durationSeconds: nullableNumberSchema,
       seasonNumber: nullableNumberSchema,
       episodeNumber: nullableNumberSchema,
-      rating: nullableNumberSchema,
       occurredAt: {
         anyOf: [
           stringSchema,
@@ -263,7 +261,6 @@ export const watchMutationRouteSchema = withDefaultErrorResponses({
           { type: 'null' },
         ],
       },
-      rating: nullableNumberSchema,
       payload: recordSchema,
     },
   },
@@ -281,7 +278,25 @@ export const watchItemIdMutationRouteSchema = withDefaultErrorResponses({
           { type: 'null' },
         ],
       },
-      rating: nullableNumberSchema,
+      payload: recordSchema,
+    },
+  },
+});
+
+export const watchRatingItemIdMutationRouteSchema = withDefaultErrorResponses({
+  params: profileIdAndItemIdParamsSchema,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['liked'],
+    properties: {
+      occurredAt: {
+        anyOf: [
+          stringSchema,
+          { type: 'null' },
+        ],
+      },
+      liked: { type: ['boolean', 'null'] },
       payload: recordSchema,
     },
   },
