@@ -140,6 +140,10 @@ export function extractGenres(title: TmdbTitleRecord | null): string[] {
   return [];
 }
 
+export function tmdbGenreName(genreId: number): string | null {
+  return TMDB_GENRE_NAMES[genreId] ?? null;
+}
+
 const TMDB_GENRE_NAMES: Record<number, string> = {
   28: 'Action',
   12: 'Adventure',

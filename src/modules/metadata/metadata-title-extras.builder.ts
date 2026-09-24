@@ -5,7 +5,7 @@ import { inferMediaIdentity, type MediaIdentity } from '../identity/media-key.js
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import type { MetadataTitleExtrasInternal } from './metadata-detail.types.js';
-import { extractCollection } from './metadata-builder.shared.js';
+import { extractCollection, tmdbGenreName } from './metadata-builder.shared.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
 import type { TmdbTitleRecord } from './providers/tmdb.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
@@ -21,7 +21,7 @@ export class MetadataTitleExtrasBuilder {
 
   /**
    * Brain 1 only: resolves the title, its season identities, related-title
-   * identities (similar/collection) and reviews. The route boundary turns the
+   * identities (moreLikeThis/collection) and reviews. The route boundary turns the
    * identities into `ClientMediaCard` via `MetadataCardService.buildCardViews`.
    */
   async buildTitleExtrasInternal(client: DbClient, identity: MediaIdentity, language?: string | null): Promise<MetadataTitleExtrasInternal> {
@@ -34,7 +34,8 @@ export class MetadataTitleExtrasBuilder {
 
     const reviews = await this.buildExtrasSection('reviews', resolvedTitle, effectiveLanguage, () =>
       this.reviewAggregator.mergeTitleReviews(client, resolvedTitle, identity.mediaType as 'movie' | 'show', effectiveLanguage), []);
-    const similar = await this.buildExtrasSection('similar', resolvedTitle, effectiveLanguage, () => this.buildRelatedIdentities(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
+    const moreLikeThis = await this.buildExtrasSection('moreLikeThis', resolvedTitle, effectiveLanguage, () => this.buildRelatedIdentities(client, resolvedTitle, 'recommendation', effectiveLanguage), []);
+    const moreByGenreData = await this.buildExtrasSection('moreByGenre', resolvedTitle, effectiveLanguage, () => this.buildMoreByGenre(client, resolvedTitle, effectiveLanguage), { identities: [], title: null });
     const collectionData = await this.buildExtrasSection('collection', resolvedTitle, effectiveLanguage, () => this.buildFullCollectionIdentities(client, resolvedTitle, effectiveLanguage), null);
 
     const seasonIdentities = resolvedTitle.mediaType === 'tv'
@@ -55,10 +56,23 @@ export class MetadataTitleExtrasBuilder {
       language: effectiveLanguage,
       seasons: seasonIdentities.length,
       reviews: reviews.length,
-      similar: similar.length,
+      moreLikeThis: moreLikeThis.length,
+      moreByGenre: moreByGenreData.identities.length,
       collectionItems: collectionData?.identities?.length ?? 0,
     }, 'metadata title extras built (internal)');
-    return { resolvedTitle, seasonIdentities, seriesItemId, seriesTitle, similar, collection: collectionData?.identities ?? null, collectionName: collectionData?.name ?? null, reviews, effectiveLanguage };
+    return {
+      resolvedTitle,
+      seasonIdentities,
+      seriesItemId,
+      seriesTitle,
+      moreLikeThis,
+      moreByGenre: moreByGenreData.identities,
+      moreByGenreTitle: moreByGenreData.title,
+      collection: collectionData?.identities ?? null,
+      collectionName: collectionData?.name ?? null,
+      reviews,
+      effectiveLanguage,
+    };
   }
 
   private async buildExtrasSection<T>(
@@ -107,6 +121,32 @@ export class MetadataTitleExtrasBuilder {
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
   }
 
+  private async buildMoreByGenre(client: DbClient, title: TmdbTitleRecord, language: string | null): Promise<{ identities: MediaIdentity[]; title: string | null }> {
+    const genreIds = pickTopGenreIds(title, 2);
+    if (genreIds.length < 2) {
+      return { identities: [], title: null };
+    }
+    const genreNames = genreIds.map((id) => tmdbGenreName(id)).filter((name): name is string => name !== null);
+    if (genreNames.length < 2) {
+      return { identities: [], title: null };
+    }
+    const mediaType = title.mediaType === 'tv' ? 'tv' : 'movie';
+    const related = await this.tmdbCacheService.discoverTitlesByGenres(client, {
+      mediaType,
+      genreIds,
+      limit: 20,
+      locale: language,
+      excludeTmdbId: title.tmdbId,
+    });
+    const identities = related
+      .filter((t) => t.mediaType === 'movie' || t.mediaType === 'tv')
+      .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
+    if (!identities.length) {
+      return { identities: [], title: null };
+    }
+    return { identities, title: `More ${genreNames[0]} & ${genreNames[1]}` };
+  }
+
   private async buildFullCollectionIdentities(client: DbClient, title: TmdbTitleRecord, language?: string | null): Promise<{ identities: MediaIdentity[]; name: string | null } | null> {
     const collection = extractCollection(title);
     if (!collection || typeof collection.id !== 'number') return null;
@@ -118,6 +158,20 @@ export class MetadataTitleExtrasBuilder {
       .map((t) => inferMediaIdentity({ mediaType: t.mediaType === 'movie' ? 'movie' : 'show', tmdbId: t.tmdbId }));
     return { identities, name: collection.name ?? null };
   }
+}
+
+function pickTopGenreIds(title: TmdbTitleRecord, max: number): number[] {
+  const seen = new Set<number>();
+  const ids: number[] = [];
+  const source = Array.isArray(title.genreIds) ? title.genreIds : [];
+  for (const value of source) {
+    const id = Number(value);
+    if (!Number.isFinite(id) || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    if (ids.length >= max) break;
+  }
+  return ids;
 }
 
 function extractSeasonNumbersFromTitle(title: TmdbTitleRecord): number[] {

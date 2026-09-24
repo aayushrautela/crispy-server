@@ -390,11 +390,18 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
 const metadataTitleExtrasResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['Seasons', 'Reviews', 'Similar', 'Collection', 'CollectionName'],
+  required: ['Seasons', 'Reviews', 'MoreLikeThis', 'MoreByGenre', 'MoreByGenreTitle', 'Collection', 'CollectionName'],
   properties: {
     Seasons: { type: 'array', items: clientMediaCardSchema },
     Reviews: { type: 'array', items: metadataReviewViewSchema },
-    Similar: { type: 'array', items: clientMediaCardSchema },
+    MoreLikeThis: { type: 'array', items: clientMediaCardSchema },
+    MoreByGenre: { type: 'array', items: clientMediaCardSchema },
+    MoreByGenreTitle: {
+      anyOf: [
+        { type: 'string' },
+        { type: 'null' },
+      ],
+    },
     Collection: {
       anyOf: [
         clientMediaCardQueryResultSchema,

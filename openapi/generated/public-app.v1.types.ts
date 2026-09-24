@@ -339,7 +339,7 @@ export interface paths {
         };
         /**
          * Get item details (without extras).
-         * @description Returns core metadata for a movie or show. Extras (seasons, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`; episodes are served by `/v1/metadata/shows/{itemId}/episodes`.
+         * @description Returns core metadata for a movie or show. Extras (seasons, reviews, more-like-this titles, more-by-genre titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`; episodes are served by `/v1/metadata/shows/{itemId}/episodes`.
          *     Item IDs are dashless lowercase UUID hex strings.
          *     Key video fields:
          *     - `videos` — all TMDB video results for the title.
@@ -361,7 +361,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get optional item detail sections (seasons, reviews, similar, collection parts). */
+        /** Get optional item detail sections (seasons, reviews, more-like-this, more-by-genre, collection parts). */
         get: operations["getV1MetadataItemsItemIdExtras"];
         put?: never;
         post?: never;
@@ -1319,7 +1319,9 @@ export interface components {
         MetadataTitleExtrasResponse: {
             Seasons: components["schemas"]["ClientMediaCard"][];
             Reviews: components["schemas"]["MetadataReviewView"][];
-            Similar: components["schemas"]["ClientMediaCard"][];
+            MoreLikeThis: components["schemas"]["ClientMediaCard"][];
+            MoreByGenre: components["schemas"]["ClientMediaCard"][];
+            MoreByGenreTitle: string | null;
             Collection: components["schemas"]["ClientMediaCardQueryResult"] | null;
         };
         MetadataReviewView: {

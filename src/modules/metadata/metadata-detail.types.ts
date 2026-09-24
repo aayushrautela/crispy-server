@@ -87,7 +87,9 @@ export type MetadataTitleExtrasInternal = {
   seasonIdentities: import('../identity/media-key.js').MediaIdentity[];
   seriesItemId: string;
   seriesTitle: string | null;
-  similar: import('../identity/media-key.js').MediaIdentity[];
+  moreLikeThis: import('../identity/media-key.js').MediaIdentity[];
+  moreByGenre: import('../identity/media-key.js').MediaIdentity[];
+  moreByGenreTitle: string | null;
   collection: import('../identity/media-key.js').MediaIdentity[] | null;
   collectionName: string | null;
   reviews: MetadataReviewView[];

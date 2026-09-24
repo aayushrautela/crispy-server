@@ -816,7 +816,7 @@ paths:
       operationId: getV1MetadataItemsItemId
       summary: Get item details (without extras).
       description: |
-        Returns core metadata for a movie or show. Extras (seasons, reviews, similar titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`; episodes are served by `/v1/metadata/shows/{itemId}/episodes`.
+        Returns core metadata for a movie or show. Extras (seasons, reviews, more-like-this titles, more-by-genre titles, collection parts) are available via `/v1/metadata/items/{itemId}/extras`; episodes are served by `/v1/metadata/shows/{itemId}/episodes`.
         Item IDs are dashless lowercase UUID hex strings.
         Key video fields:
         - `videos` — all TMDB video results for the title.
@@ -860,7 +860,7 @@ paths:
       tags:
         - Metadata
       operationId: getV1MetadataItemsItemIdExtras
-      summary: Get optional item detail sections (seasons, reviews, similar, collection parts).
+      summary: Get optional item detail sections (seasons, reviews, more-like-this, more-by-genre, collection parts).
       security:
         - UserBearerAuth: []
       parameters:
@@ -3848,7 +3848,9 @@ components:
       required:
         - Seasons
         - Reviews
-        - Similar
+        - MoreLikeThis
+        - MoreByGenre
+        - MoreByGenreTitle
         - Collection
       properties:
         Seasons:
@@ -3859,10 +3861,18 @@ components:
           type: 'array'
           items:
             $ref: "#/components/schemas/MetadataReviewView"
-        Similar:
+        MoreLikeThis:
           type: array
           items:
             $ref: "#/components/schemas/ClientMediaCard"
+        MoreByGenre:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientMediaCard"
+        MoreByGenreTitle:
+          anyOf:
+            - type: string
+            - type: "null"
         Collection:
           anyOf:
             - $ref: "#/components/schemas/ClientMediaCardQueryResult"

@@ -197,12 +197,17 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
         avatarUrl: null,
       },
     ],
-    similar: [
+    moreLikeThis: [
       { mediaKey: 'movie:tmdb:694', mediaType: 'movie', provider: 'tmdb', providerId: '694', tmdbId: 694, contentId: 'f137a2dd21bbc1b99aa5c0f6bf02a809' },
     ],
+    moreByGenre: [
+      { mediaKey: 'movie:tmdb:603', mediaType: 'movie', provider: 'tmdb', providerId: '603', tmdbId: 603, contentId: 'f137a2dd21bbc1b99aa5c0f6bf02a80b' },
+    ],
+    moreByGenreTitle: 'More Comedy & Drama',
     collection: [
       { mediaKey: 'movie:tmdb:695', mediaType: 'movie', provider: 'tmdb', providerId: '695', tmdbId: 695, contentId: 'f137a2dd21bbc1b99aa5c0f6bf02a80a' },
     ],
+    collectionName: 'Test Collection',
     resolvedTitle: {} as any,
     effectiveLanguage: 'en-US',
   })) as any;
@@ -218,7 +223,7 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
     seasonNumber: null,
     episodeNumber: null,
     absoluteEpisodeNumber: null,
-    title: 'Similar Movie',
+    title: 'More Like This Movie',
     subtitle: null,
     summary: null,
     overview: null,
@@ -257,8 +262,10 @@ test('GET /v1/metadata/items/:itemId/extras serializes movie extras', async (t) 
   const body = response.json();
   assert.equal(body.data.Reviews.length, 1);
   assert.equal(body.data.Reviews[0].id, 'rev-1');
-  assert.equal(body.data.Similar.length, 1);
-  assert.equal(body.data.Similar[0].itemId, 'f137a2dd21bbc1b99aa5c0f6bf02a809');
+  assert.equal(body.data.MoreLikeThis.length, 1);
+  assert.equal(body.data.MoreLikeThis[0].itemId, 'f137a2dd21bbc1b99aa5c0f6bf02a809');
+  assert.equal(body.data.MoreByGenre.length, 1);
+  assert.equal(body.data.MoreByGenreTitle, 'More Comedy & Drama');
   assert.ok(body.data.Collection);
   assert.equal(body.data.Collection.Items.length, 1);
 });
@@ -285,8 +292,11 @@ test('GET /v1/metadata/items/:itemId/extras serializes show seasons', async (t) 
     seriesItemId: SHOW_ITEM_ID,
     seriesTitle: 'Test Show',
     reviews: [],
-    similar: [],
+    moreLikeThis: [],
+    moreByGenre: [],
+    moreByGenreTitle: null,
     collection: null,
+    collectionName: null,
     resolvedTitle: {} as any,
     effectiveLanguage: 'en-US',
   })) as any;
@@ -342,7 +352,9 @@ test('GET /v1/metadata/items/:itemId/extras serializes show seasons', async (t) 
   assert.equal(body.data.Seasons.length, 1);
   assert.equal(body.data.Seasons[0].parent.seasonNumber, 1);
   assert.equal(body.data.Reviews.length, 0);
-  assert.equal(body.data.Similar.length, 0);
+  assert.equal(body.data.MoreLikeThis.length, 0);
+  assert.equal(body.data.MoreByGenre.length, 0);
+  assert.equal(body.data.MoreByGenreTitle, null);
   assert.equal(body.data.Collection, null);
 });
 

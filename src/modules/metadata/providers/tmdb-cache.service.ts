@@ -311,6 +311,40 @@ export class TmdbCacheService {
       .slice(0, params.limit);
   }
 
+  async discoverTitlesByGenres(client: DbClient, params: {
+    mediaType: TmdbTitleType;
+    genreIds: number[];
+    limit: number;
+    locale?: string | null;
+    excludeTmdbId?: number | null;
+  }): Promise<TmdbTitleRecord[]> {
+    if (!params.genreIds.length || params.limit <= 0) return [];
+    const lang = normalizeMetadataLanguage(params.locale)?.split('-')[0] ?? 'en';
+    const locale = params.locale ?? null;
+
+    const payload = await this.tmdbClient.request(`/discover/${params.mediaType}`, {
+      with_genres: params.genreIds.join(','),
+      page: 1,
+      sort_by: 'popularity.desc',
+      include_adult: 'false',
+    }).catch(() => null);
+    if (payload) {
+      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], params.mediaType, locale);
+    }
+
+    const refreshed = await this.tmdbRepository.discoverTitlesByGenres(
+      client,
+      params.mediaType,
+      params.genreIds,
+      params.limit + (params.excludeTmdbId ? 1 : 0),
+      lang,
+    );
+    return refreshed
+      .filter((title) => title.tmdbId !== params.excludeTmdbId)
+      .sort((left, right) => popularityOf(right) - popularityOf(left))
+      .slice(0, params.limit);
+  }
+
   async searchPeople(client: DbClient, query: string, limit: number, signal?: AbortSignal): Promise<TmdbPersonRecord[]> {
     const localResults = await this.tmdbRepository.searchPeople(client, query, limit);
     if (localResults.length >= Math.min(LOCAL_SEARCH_MIN_RESULTS, limit)) {

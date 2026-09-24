@@ -58,7 +58,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
     const actor = app.requireUserActor(request) as { appUserId: string };
     const language = await metadataLanguageService.resolveForAccount(actor.appUserId, asOptionalString(query.language));
     const internal = await metadataTitleExtrasService.getTitleExtrasInternal(params.itemId, language);
-    const [similar, collection, seasons] = await withDbClient(async (client) => {
+    const [moreLikeThis, moreByGenre, collection, seasons] = await withDbClient(async (client) => {
       const metadataCardService = new MetadataCardService();
       const hydrate = async (
         identities: MediaIdentity[],
@@ -73,7 +73,8 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
         }
         return cards;
       };
-      const similarCards = await hydrate(internal.similar);
+      const moreLikeThisCards = await hydrate(internal.moreLikeThis);
+      const moreByGenreCards = await hydrate(internal.moreByGenre);
       let collectionResult: ClientMediaCardQueryResult | null = null;
       if (internal.collection && internal.collection.length) {
         const collectionCards = await hydrate(internal.collection);
@@ -85,12 +86,14 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
         seriesItemId: internal.seriesItemId || undefined,
         seriesTitle: internal.seriesTitle ?? undefined,
       });
-      return [similarCards, collectionResult, seasonCards] as const;
+      return [moreLikeThisCards, moreByGenreCards, collectionResult, seasonCards] as const;
     });
     return success({
       Seasons: seasons,
       Reviews: internal.reviews,
-      Similar: similar,
+      MoreLikeThis: moreLikeThis,
+      MoreByGenre: moreByGenre,
+      MoreByGenreTitle: internal.moreByGenreTitle,
       Collection: collection,
       CollectionName: internal.collectionName,
     });

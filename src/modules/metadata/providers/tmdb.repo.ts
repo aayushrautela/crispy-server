@@ -158,6 +158,19 @@ export class TmdbRepository {
     return result.rows.map((row) => mapTitle(row, language));
   }
 
+  async discoverTitlesByGenres(client: DbClient, mediaType: TmdbTitleType, genreIds: number[], limit: number, language: string): Promise<TmdbTitleRecord[]> {
+    if (genreIds.length === 0) return [];
+    const result = await client.query(
+      `SELECT ${titleColumns()} ${titleJoins('$4')}
+       WHERE t.media_type = $1 AND t.genre_ids @> to_jsonb($2::integer[])
+         AND coalesce(t.hydration_level, 'summary') <> 'not_found'
+       ORDER BY t.popularity DESC NULLS LAST
+       LIMIT $3`,
+      [mediaType, genreIds, limit, language],
+    );
+    return result.rows.map((row) => mapTitle(row, language));
+  }
+
   async upsertTitleCore(client: DbClient, params: {
     mediaType: TmdbTitleType;
     tmdbId: number;
