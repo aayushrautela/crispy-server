@@ -81,6 +81,7 @@ export function renderHomeDefaultView(): string {
             </select></label>
             <label>Title<input name="title" placeholder="Trending Movies" required /></label>
             <label>Subtitle<input name="subtitle" placeholder="Popular right now" /></label>
+            <label>List key <em>(optional)</em><input name="listKey" placeholder="auto-derived if blank" /></label>
             <label>Rank<input name="rank" type="number" value="0" /></label>
             <label>Refresh minutes<input name="refreshMinutes" type="number" placeholder="optional" /></label>
             <label class="checkbox"><input type="checkbox" name="showWithReco" value="true" /> Show with reco <em>(also appears under personal recommendations)</em></label>

@@ -285,6 +285,21 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (presetSelect) {
       presetSelect.addEventListener('change', () => void applyHomePreset());
     }
+
+    const listKeyField = document.querySelector('[data-home-form="default-create"] [name="listKey"]');
+    if (listKeyField) {
+      listKeyField.addEventListener('input', () => void updateSlugPreview());
+    }
+  }
+
+  function updateSlugPreview() {
+    const slugEl = document.querySelector('[data-home-field="slug-preview"]');
+    if (!slugEl) return;
+    const field = document.querySelector('[data-home-form="default-create"] [name="listKey"]');
+    const value = field && typeof field.value === 'string' ? field.value.trim() : '';
+    slugEl.textContent = value
+      ? 'List key: ' + value
+      : 'List key: auto-derived on save (blank to keep default).';
   }
 
   async function loadListSources() {
@@ -544,11 +559,12 @@ export const ADMIN_UI_CLIENT = String.raw`
       return;
     }
     const config = collectHomeSourceConfig(form);
+    const listKey = String(data.get('listKey') || '').trim();
     try {
-      await fetchJson(apiPath('/home/default-templates'), {
+      const saved = await fetchJson(apiPath('/home/default-templates'), {
         method: 'POST',
         body: JSON.stringify({
-          listKey: '',
+          listKey,
           regionOverride: String(data.get('regionOverride') || ''),
           sectionType: String(data.get('sectionType') || '').trim(),
           title: String(data.get('title') || '').trim(),
@@ -566,6 +582,8 @@ export const ADMIN_UI_CLIENT = String.raw`
       if (configEl) configEl.innerHTML = '';
       const slugEl = form.querySelector('[data-home-field="slug-preview"]');
       if (slugEl) slugEl.textContent = '';
+      const savedKey = saved && saved.listKey ? String(saved.listKey) : (listKey || '');
+      setHomeStatus('#home-default-status', 'Saved rail as "' + savedKey + '".', false);
       void loadHomeDefault();
     } catch (error) {
       setHomeStatus('#home-default-status', error.message || 'Failed to save rail.', true);
