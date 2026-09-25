@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import Ajv from 'ajv';
+import { Ajv } from 'ajv';
 import Fastify from 'fastify';
 import { setTestEnv } from '../../test-helpers.js';
 import type { AppPrincipal } from '../../modules/apps/app-principal.types.js';
