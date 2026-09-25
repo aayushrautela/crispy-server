@@ -708,6 +708,8 @@ export interface components {
             aiSummary: string | null;
             source: string;
             vectors: components["schemas"]["TasteVectors"];
+            /** @enum {string} */
+            personaKind: "long" | "short" | "both";
             personaLongTerm?: string | null;
             drivers?: string[];
             personaShortTerm?: string | null;
@@ -715,7 +717,7 @@ export interface components {
             personaUpdatedAt?: string | null;
             personaWatchFingerprint?: string | null;
             avoidances?: string[];
-        };
+        } & (unknown & unknown);
         TasteProfileRecord: {
             profileId: string;
             sourceKey: string;

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import Ajv from 'ajv';
 import Fastify from 'fastify';
 import { setTestEnv } from '../../test-helpers.js';
 import type { AppPrincipal } from '../../modules/apps/app-principal.types.js';
@@ -18,6 +19,7 @@ import type { RecommendationBatchService } from '../../modules/apps/recommendati
 import type { RecommendationBackfillService } from '../../modules/apps/recommendation-backfill.service.js';
 import type { ProfileRecord } from '../../modules/profiles/profile-local.service.js';
 import type { AppGrant, AppGrantAction, AppGrantResourceType, AppPurpose, AppScope } from '../../modules/apps/app-principal.types.js';
+import { tasteProfileWriteBodySchema } from '../contracts/internal-apps.js';
 
 setTestEnv({
   AUTH_BASE_URL: 'http://localhost:54321',
@@ -384,4 +386,70 @@ test('any service app with accounts:all:read scope gets cross-account read acces
   // so this app (which holds accounts:all:read) should be allowed through
   // to the eligibility service and get a fabricated 200 response.
   assert.equal(response.statusCode, 200);
+});
+
+const tasteVectorsFixture = {
+  schemaVersion: 5,
+  genres: [],
+  people: [],
+  decades: [],
+  languages: [],
+  contentMix: { short: { movie: 1, show: 0 }, long: { movie: 1, show: 0 } },
+};
+
+function tasteWriteBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    sourceKey: 'default',
+    contentTypePref: { movie: 0.5, show: 0.5 },
+    watchingPace: null,
+    aiSummary: null,
+    source: 'recommendation_worker',
+    vectors: tasteVectorsFixture,
+    ...overrides,
+  };
+}
+
+test('taste write body schema rejects bodies that mix persona kinds with their columns', async (t) => {
+  const ajv = new Ajv({ strict: false, validateFormats: false });
+  const validate = ajv.compile(tasteProfileWriteBodySchema);
+
+  for (const bad of [
+    { ...tasteWriteBody(), personaKind: 'short', personaShortTerm: 'mood', personaLongTerm: 'portrait' },
+    { ...tasteWriteBody(), personaKind: 'short', personaShortTerm: 'mood', avoidances: ['gore'] },
+    { ...tasteWriteBody(), personaKind: 'long', personaLongTerm: 'portrait', personaShortTerm: 'mood' },
+    { ...tasteWriteBody(), personaKind: 'long', personaLongTerm: null, personaShortTerm: 'mood' },
+  ] as Record<string, unknown>[]) {
+    assert.equal(validate(bad), false, JSON.stringify(bad));
+  }
+
+  const good: Array<Record<string, unknown>> = [
+    tasteWriteBody({ personaKind: 'short' }),
+    tasteWriteBody({ personaKind: 'long' }),
+    tasteWriteBody({ personaKind: 'long', personaLongTerm: 'portrait' }),
+    tasteWriteBody({ personaKind: 'long', personaLongTerm: null }),
+    tasteWriteBody({ personaKind: 'short', personaShortTerm: 'mood' }),
+    tasteWriteBody({ personaKind: 'both', personaLongTerm: null, personaShortTerm: null }),
+    tasteWriteBody({ personaKind: 'both', personaLongTerm: 'portrait', personaShortTerm: 'mood' }),
+  ];
+  for (const body of good) {
+    assert.equal(validate(body), true, JSON.stringify(body));
+  }
+});
+
+test('PUT taste is rejected at the route when persona columns mismatch personaKind', async (t) => {
+  const principal = buildPrincipal(['apps:self:read', 'accounts:all:write']);
+  const app = await buildServer(principal);
+  t.after(async () => { await app.close(); });
+  const url = '/internal/apps/v1/accounts/acc-999/profiles/prof-888/signals/taste';
+
+  const cases: Array<Record<string, unknown>> = [
+    tasteWriteBody({ personaKind: 'short', personaShortTerm: 'mood', personaLongTerm: 'portrait' }),
+    tasteWriteBody({ personaKind: 'short', personaShortTerm: 'mood', avoidances: ['gore'] }),
+    tasteWriteBody({ personaKind: 'long', personaLongTerm: 'portrait', personaShortTerm: 'mood' }),
+  ];
+
+  for (const payload of cases) {
+    const response = await app.inject({ method: 'PUT', url, payload });
+    assert.equal(response.statusCode, 400, JSON.stringify(payload));
+  }
 });

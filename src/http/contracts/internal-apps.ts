@@ -633,16 +633,30 @@ export const tasteProfileReadRouteSchema = withDefaultErrorResponses({
 export const tasteProfileWriteBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceKey', 'contentTypePref', 'watchingPace', 'aiSummary', 'source', 'vectors'],
+  required: ['sourceKey', 'contentTypePref', 'watchingPace', 'aiSummary', 'source', 'vectors', 'personaKind'],
   properties: {
     sourceKey: nonEmptyStringSchema,
     contentTypePref: recordSchema,
     ...tastePersonaProperties,
+    personaKind: { type: 'string', enum: ['long', 'short', 'both'] },
     watchingPace: nullableStringSchema,
     aiSummary: nullableStringSchema,
     source: nonEmptyStringSchema,
     vectors: tasteVectorsSchema,
   },
+  // Each kind owns its persona columns: a short run must not carry long-term
+  // columns (and vice versa), so a client bug can never clobber the field the
+  // other kind is writing concurrently. "both" is the reset path only.
+  allOf: [
+    {
+      if: { properties: { personaKind: { const: 'short' } }, required: ['personaKind'] },
+      then: { not: { anyOf: [{ required: ['personaLongTerm'] }, { required: ['avoidances'] }] } },
+    },
+    {
+      if: { properties: { personaKind: { const: 'long' } }, required: ['personaKind'] },
+      then: { not: { required: ['personaShortTerm'] } },
+    },
+  ],
 } as const;
 export type { TasteProfileInput as TasteProfileWriteBody } from '../../modules/recommendations/recommendation.types.js';
 

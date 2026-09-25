@@ -1477,7 +1477,7 @@ components:
     TasteProfileWriteRequest:
       type: object
       additionalProperties: false
-      required: [sourceKey, contentTypePref, watchingPace, aiSummary, source, vectors]
+      required: [sourceKey, contentTypePref, watchingPace, aiSummary, source, vectors, personaKind]
       properties:
         sourceKey: { type: string, minLength: 1 }
         contentTypePref: { $ref: '#/components/schemas/Metadata' }
@@ -1485,12 +1485,28 @@ components:
         aiSummary: { type: [string, 'null'] }
         source: { type: string, minLength: 1 }
         vectors: { $ref: '#/components/schemas/TasteVectors' }
+        personaKind: { type: string, enum: [long, short, both] }
         personaLongTerm: { type: [string, 'null'] }
         drivers: { type: array, items: { type: string } }
         personaShortTerm: { type: [string, 'null'] }
         personaUpdatedAt: { type: [string, 'null'], format: date-time }
         personaWatchFingerprint: { type: [string, 'null'] }
         avoidances: { type: array, items: { type: string } }
+      allOf:
+        - if:
+            properties: { personaKind: { const: short } }
+            required: [personaKind]
+          then:
+            not:
+              anyOf:
+                - required: [personaLongTerm]
+                - required: [avoidances]
+        - if:
+            properties: { personaKind: { const: long } }
+            required: [personaKind]
+          then:
+            not:
+              required: [personaShortTerm]
     TasteProfileRecord:
       type: object
       additionalProperties: false
