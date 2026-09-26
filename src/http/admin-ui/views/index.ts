@@ -4,6 +4,7 @@ import { renderDiagnosticsView } from './diagnostics.js';
 import { renderOverviewView } from './overview.js';
 import { renderHomeDefaultView } from './home-default.js';
 import { renderHomeProfilesView } from './home-profiles.js';
+import { renderSearchSuggestionsView } from './search-suggestions.js';
 
 export function renderAdminViews(): string {
   return [
@@ -13,5 +14,6 @@ export function renderAdminViews(): string {
     renderAiLabView(),
     renderHomeDefaultView(),
     renderHomeProfilesView(),
+    renderSearchSuggestionsView(),
   ].join('');
 }

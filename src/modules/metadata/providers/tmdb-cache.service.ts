@@ -1,6 +1,6 @@
 import type { DbClient } from '../../../lib/db.js';
 import { normalizeMetadataLanguage } from '../metadata-language.js';
-import type { MetadataSearchFilter, SearchSuggestionItem } from '../metadata-detail.types.js';
+import type { MetadataSearchFilter } from '../metadata-detail.types.js';
 import { enqueueTmdbEntityRefresh, enqueueTmdbSeasonWarmBatch } from '../../../lib/queue.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbIngestService } from './tmdb-ingest.service.js';
@@ -383,34 +383,6 @@ export class TmdbCacheService {
     }
 
     return mapped.length > 0 ? mapped : localResults;
-  }
-
-  async searchSuggestions(client: DbClient, query: string, limit: number, filter: MetadataSearchFilter, locale?: string | null): Promise<SearchSuggestionItem[]> {
-    const titles = await this.searchTitles(client, query, limit, filter === 'movies' ? ['movie'] : filter === 'series' ? ['tv'] : ['movie', 'tv'], locale);
-
-    const suggestions: SearchSuggestionItem[] = [];
-    for (const record of titles) {
-      if (!record.name) continue;
-      const year = Number.parseInt((record.releaseDate ?? record.firstAirDate ?? '').slice(0, 4), 10);
-      const posterPath = record.posterPath;
-      const primary = posterPath ? {
-        small: `https://image.tmdb.org/t/p/w185${posterPath}`,
-        medium: `https://image.tmdb.org/t/p/w342${posterPath}`,
-        large: `https://image.tmdb.org/t/p/w500${posterPath}`,
-      } : null;
-
-      suggestions.push({
-        Id: String(record.tmdbId),
-        Type: record.mediaType === 'movie' ? 'Movie' : 'Series',
-        Name: record.name,
-        ProductionYear: Number.isInteger(year) ? year : null,
-        ImageTags: primary ? { Primary: primary } : null,
-        ProviderIds: { Tmdb: String(record.tmdbId) },
-      });
-    }
-
-    suggestions.sort((a, b) => (b.ProductionYear ?? 0) - (a.ProductionYear ?? 0));
-    return suggestions.slice(0, limit);
   }
 
   // --------------------------------------------------------------- people

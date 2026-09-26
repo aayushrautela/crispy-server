@@ -3115,6 +3115,52 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/search/suggestions:
+    get:
+      tags:
+        - Metadata
+      operationId: getV1SearchSuggestions
+      summary: Suggest search keywords for a partial query.
+      description: >-
+        Returns plain keyword completions drawn from a periodically refreshed
+        curated set. A suggestion is a name, not a resolvable item, so the
+        caller fills it into the search box and calls /v1/search/titles to
+        resolve it. This endpoint never calls TMDB, so it does not consume
+        search quota.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchSuggestionsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/metadata/cards/batch:
     post:
       tags:
@@ -4436,46 +4482,24 @@ components:
                 $ref: "#/components/schemas/ClientMediaCard"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
-    GenericArrayEnvelope:
+    SearchSuggestionsResponseEnvelope:
       type: object
       required:
         - data
         - meta
       properties:
         data:
-          type: array
-          items:
-            $ref: "#/components/schemas/SearchSuggestionItem"
+          type: object
+          required:
+            - suggestions
+          additionalProperties: false
+          properties:
+            suggestions:
+              type: array
+              items:
+                type: string
         meta:
           $ref: "#/components/schemas/ResponseMeta"
-    SearchSuggestionItem:
-      type: object
-      required:
-        - Id
-        - Type
-        - Name
-      properties:
-        Id:
-          $ref: "#/components/schemas/PublicItemId"
-        Type:
-          type: string
-        Name:
-          type: string
-        ProductionYear:
-          anyOf:
-            - type: integer
-            - type: "null"
-        ImageTags:
-          type: object
-          properties:
-            Primary:
-              anyOf:
-                - $ref: "#/components/schemas/ResponsiveImageSet"
-                - type: "null"
-        ProviderIds:
-          anyOf:
-            - $ref: "#/components/schemas/ProviderIds"
-            - type: "null"
     MetadataPersonSearchResult:
       type: object
       required:

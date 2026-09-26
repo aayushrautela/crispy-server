@@ -130,19 +130,6 @@ export type MetadataPersonSearchResult = {
   knownForTitles: string[];
 };
 
-export type SearchSuggestionItem = {
-  Id: string;
-  Type: 'Movie' | 'Series';
-  Name: string;
-  ProductionYear: number | null;
-  ImageTags: {
-    Primary: ResponsiveImageSet | null;
-  } | null;
-  ProviderIds: {
-    Tmdb: string | null;
-  };
-};
-
 export type MetadataSearchResponse = {
   query: string;
   movies: ClientMediaCard[];

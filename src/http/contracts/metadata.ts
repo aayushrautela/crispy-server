@@ -386,6 +386,39 @@ export const metadataSearchRouteSchema = withDefaultErrorResponses({
   },
 });
 
+export type MetadataSearchSuggestionsQuery = {
+  query: string;
+  limit?: string;
+};
+
+/**
+ * A suggestion is a plain name, not an item: the client fills it into the search
+ * box and /v1/search/titles resolves it. No public item id is returned because
+ * there is no media identity behind a keyword completion.
+ */
+const metadataSearchSuggestionsResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['suggestions'],
+  properties: {
+    suggestions: { type: 'array', items: { type: 'string' } },
+  },
+} as const;
+
+export const metadataSearchSuggestionsRouteSchema = withDefaultErrorResponses({
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      query: stringSchema,
+      limit: positiveIntegerLikeSchema,
+    },
+  },
+  response: {
+    200: successEnvelope(metadataSearchSuggestionsResponseSchema),
+  },
+});
+
 
 const metadataExtrasListSchema = {
   type: 'object',

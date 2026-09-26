@@ -4,6 +4,11 @@ import type { AiFeatureId, ServerAiTier } from '../modules/ai/ai.types.js';
 
 const DEFAULT_HOME_FRESH_SECONDS = 60;
 const DEFAULT_HOME_STALE_SECONDS = 300;
+const DEFAULT_CLASSICS_LIST_USERNAME = 'livinggglegenddd';
+const DEFAULT_CLASSICS_LIST_SLUG = 'all-time-classics';
+const DEFAULT_SUGGESTION_MAX_MOVIES = 600;
+const DEFAULT_SUGGESTION_MAX_SHOWS = 300;
+const DEFAULT_REFRESH_COOLDOWN_MINUTES = 10;
 
 export type AppServerAiConfig = {
   id: string;
@@ -29,6 +34,13 @@ type AppConfig = {
     tmdb: {
       baseUrl: string;
       imageBaseUrl: string;
+    };
+    searchSuggestions: {
+      classicsListUsername: string;
+      classicsListSlug: string;
+      maxMovies: number;
+      maxShows: number;
+      refreshCooldownMinutes: number;
     };
   };
   ai: {
@@ -117,6 +129,35 @@ function parseMetadata(root: Record<string, unknown>): AppConfig['metadata'] {
       baseUrl: expectNonEmptyString(tmdb.baseUrl, 'metadata.tmdb.baseUrl'),
       imageBaseUrl: expectNonEmptyString(tmdb.imageBaseUrl, 'metadata.tmdb.imageBaseUrl'),
     },
+    searchSuggestions: parseSearchSuggestions(metadata),
+  };
+}
+
+/**
+ * `metadata.searchSuggestions` is optional for the same reason `cache.home` is:
+ * the example config and older deployments must keep booting, and each field
+ * defaults independently so a partial block does not crash the parser. The
+ * classics list is operator-configurable because the upstream curation changes
+ * and is not strictly canonical.
+ */
+function parseSearchSuggestions(metadata: Record<string, unknown>): AppConfig['metadata']['searchSuggestions'] {
+  const block = isRecord(metadata.searchSuggestions) ? (metadata.searchSuggestions as Record<string, unknown>) : null;
+  return {
+    classicsListUsername: block?.classicsListUsername
+      ? expectNonEmptyString(block.classicsListUsername, 'metadata.searchSuggestions.classicsListUsername')
+      : DEFAULT_CLASSICS_LIST_USERNAME,
+    classicsListSlug: block?.classicsListSlug
+      ? expectNonEmptyString(block.classicsListSlug, 'metadata.searchSuggestions.classicsListSlug')
+      : DEFAULT_CLASSICS_LIST_SLUG,
+    maxMovies: block?.maxMovies !== undefined
+      ? expectPositiveNumber(block.maxMovies, 'metadata.searchSuggestions.maxMovies')
+      : DEFAULT_SUGGESTION_MAX_MOVIES,
+    maxShows: block?.maxShows !== undefined
+      ? expectPositiveNumber(block.maxShows, 'metadata.searchSuggestions.maxShows')
+      : DEFAULT_SUGGESTION_MAX_SHOWS,
+    refreshCooldownMinutes: block?.refreshCooldownMinutes !== undefined
+      ? expectPositiveNumber(block.refreshCooldownMinutes, 'metadata.searchSuggestions.refreshCooldownMinutes')
+      : DEFAULT_REFRESH_COOLDOWN_MINUTES,
   };
 }
 

@@ -45,6 +45,9 @@ export function renderAdminPage(options: { csrfToken: string; logoutToken: strin
           <button type="button" class="nav-item" data-nav-target="home-profiles">
             <span>Profile Home</span>
           </button>
+          <button type="button" class="nav-item" data-nav-target="search-suggestions">
+            <span>Search Suggestions</span>
+          </button>
         </nav>
       </div>
 

@@ -7,6 +7,7 @@ import {
   metadataItemRatingsRouteSchema,
   metadataPersonRouteSchema,
   metadataSearchRouteSchema,
+  metadataSearchSuggestionsRouteSchema,
   playbackResolveRouteSchema,
   type MetadataCardsBatchBody,
   type MetadataItemParams,
@@ -14,6 +15,7 @@ import {
   type MetadataPersonParams,
   type MetadataPersonQuery,
   type MetadataSearchQuery,
+  type MetadataSearchSuggestionsQuery,
 } from '../contracts/metadata.js';
 import { HttpError } from '../../lib/errors.js';
 import { MetadataDetailService } from '../../modules/metadata/metadata-detail.service.js';
@@ -23,6 +25,7 @@ import { PlaybackResolveService } from '../../modules/metadata/playback-resolve.
 import { MetadataRatingsService } from '../../modules/metadata/metadata-ratings.service.js';
 import type { MetadataSearchFilter } from '../../modules/metadata/metadata-detail.types.js';
 import { TitleSearchService } from '../../modules/search/title-search.service.js';
+import { SearchSuggestionService } from '../../modules/search/search-suggestion.service.js';
 import { MetadataCardBatchService } from '../../modules/metadata/metadata-card-batch.service.js';
 import { MetadataLanguageService } from '../../modules/metadata/metadata-language.service.js';
 import { MetadataCardService } from '../../modules/metadata/metadata-card.service.js';
@@ -41,6 +44,7 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
   const playbackResolveService = new PlaybackResolveService();
   const metadataCardBatchService = new MetadataCardBatchService();
   const metadataLanguageService = new MetadataLanguageService();
+  const searchSuggestionService = new SearchSuggestionService();
 
   app.get('/v1/metadata/items/:itemId', { schema: metadataItemDetailRouteSchema }, async (request) => {
     await app.requireAuth(request);
@@ -203,6 +207,14 @@ export async function registerMetadataRoutes(app: FastifyInstance): Promise<void
       return { query: internal.normalizedQuery, movies, series, people: internal.peopleMatches };
     });
     return success(result);
+  });
+
+  app.get('/v1/search/suggestions', { schema: metadataSearchSuggestionsRouteSchema }, async (request) => {
+    await app.requireAuth(request);
+    const query = (request.query ?? {}) as MetadataSearchSuggestionsQuery;
+    const limit = clampLimit(parseOptionalNumber(query.limit) ?? 8, 1, 20);
+    const suggestions = await searchSuggestionService.suggest(query.query ?? '', limit);
+    return success({ suggestions: suggestions.map((suggestion) => suggestion.name) });
   });
 
   app.post('/v1/metadata/cards/batch', { schema: metadataCardsBatchRouteSchema }, async (request) => {

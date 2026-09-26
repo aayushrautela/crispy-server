@@ -15,6 +15,13 @@
     "tmdb": {
       "baseUrl": "https://api.themoviedb.org/3",
       "imageBaseUrl": "https://image.tmdb.org/t/p"
+    },
+    "searchSuggestions": {
+      "classicsListUsername": "livinggglegenddd",
+      "classicsListSlug": "all-time-classics",
+      "maxMovies": 600,
+      "maxShows": 300,
+      "refreshCooldownMinutes": 10
     }
   },
   "ai": {

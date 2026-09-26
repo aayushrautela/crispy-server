@@ -332,6 +332,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/api/search-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search suggestion refresh state
+         * @description Reports entry count and last refresh time for each curated suggestion source (trending, popular, classics).
+         */
+        get: operations["getAdminApiSearchSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/search-suggestions/{source}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh one search suggestion source
+         * @description Replaces the rows for one source by re-reading its upstream list. A cooldown rejects a repeat refresh of the same source, and skipWhenUnchanged short-circuits classics when the upstream MDBList edit stamp is unchanged.
+         */
+        post: operations["postAdminApiSearchSuggestionsSourceRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/api/ai/config": {
         parameters: {
             query?: never;
@@ -1356,6 +1396,70 @@ export interface operations {
         responses: {
             /** @description Successful response. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getAdminApiSearchSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postAdminApiSearchSuggestionsSourceRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: "trending" | "popular" | "classics";
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    skipWhenUnchanged?: boolean;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Refresh completed or skipped. */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

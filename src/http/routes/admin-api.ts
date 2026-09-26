@@ -28,6 +28,8 @@ import { MetadataCardService } from '../../modules/metadata/metadata-card.servic
 import { ContentIdentityService } from '../../modules/identity/content-identity.service.js';
 import { assertPublicItemId } from '../../modules/identity/public-item-id.js';
 import { HomeHydrator } from '../../modules/home/home-hydrator.service.js';
+import { SearchSuggestionService } from '../../modules/search/search-suggestion.service.js';
+import { isSuggestionSource, SUGGESTION_SOURCES } from '../../modules/search/search-suggestion.ranking.js';
 import { HomeListsRepo } from '../../modules/home/repos/home-lists.repo.js';
 import type { ClientHomeSection } from '../../modules/recommendations/client-home.types.js';
 import { withDbClient, withTransaction, db } from '../../lib/db.js';
@@ -60,6 +62,7 @@ export async function registerAdminApiRoutes(
   const adminWatchReadService = new LocalUserWatchService();
   const episodicFollowService = new EpisodicFollowService();
   const watchCardHydrator = new WatchCardHydrator();
+  const searchSuggestionService = new SearchSuggestionService();
 
 
   async function requireAdmin(request: import('fastify').FastifyRequest): Promise<void> {
@@ -78,8 +81,9 @@ export async function registerAdminApiRoutes(
     await app.requireAdminUi(request);
   }
 
-  async function requireAdminMutation(request: import('fastify').FastifyRequest): Promise<void> {
-    await app.requireAdminUiMutation(request);
+  /** Returns the admin session so mutations can record who performed them. */
+  async function requireAdminMutation(request: import('fastify').FastifyRequest) {
+    return app.requireAdminUiMutation(request);
   }
 
   app.get('/admin/api/recommendations/runs', async (request, reply) => {
@@ -704,6 +708,47 @@ export async function registerAdminApiRoutes(
       },
       results,
     }, request);
+  });
+
+  app.get('/admin/api/search-suggestions', async (request) => {
+    await requireAdmin(request);
+    const refreshes = await searchSuggestionService.listRefreshes();
+    return success({
+      sources: SUGGESTION_SOURCES.map((source) => {
+        const state = refreshes.find((entry) => entry.source === source) ?? null;
+        return {
+          source,
+          entryCount: state?.entryCount ?? 0,
+          upstreamUpdatedAt: state?.upstreamUpdatedAt ?? null,
+          refreshedAt: state?.refreshedAt ? state.refreshedAt.toISOString() : null,
+          refreshedBy: state?.refreshedBy ?? null,
+        };
+      }),
+    });
+  });
+
+  app.post('/admin/api/search-suggestions/:source/refresh', async (request, reply) => {
+    const session = await requireAdminMutation(request);
+    const params = asRecord(request.params);
+    const source = readRequiredString(params.source, 'source');
+    if (!isSuggestionSource(source)) {
+      throw new HttpError(400, `Unknown suggestion source: ${source}.`);
+    }
+
+    const body = asRecord(request.body);
+    // Classics re-reads the upstream edit stamp first, so re-clicking Refresh
+    // after a completed run costs one metadata call instead of a full re-crawl.
+    const skipWhenUnchanged = body.skipWhenUnchanged === true;
+    if (skipWhenUnchanged && source !== 'classics') {
+      throw new HttpError(400, 'Only the classics source has an upstream stamp to check.');
+    }
+
+    await withDbClient((client) => searchSuggestionService.assertRefreshAllowed(source, client));
+    reply.code(202);
+    return mutation(
+      await searchSuggestionService.refresh(source, { actor: session.username, skipWhenUnchanged }),
+      request,
+    );
   });
 
   await registerHomeAdminRoutes(app);

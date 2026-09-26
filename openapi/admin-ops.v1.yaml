@@ -916,6 +916,94 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /admin/api/search-suggestions:
+    get:
+      tags:
+        - Admin Search Suggestions
+      operationId: getAdminApiSearchSuggestions
+      summary: Search suggestion refresh state
+      description: >-
+        Reports entry count and last refresh time for each curated suggestion
+        source (trending, popular, classics).
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /admin/api/search-suggestions/{source}/refresh:
+    post:
+      tags:
+        - Admin Search Suggestions
+      operationId: postAdminApiSearchSuggestionsSourceRefresh
+      summary: Refresh one search suggestion source
+      description: >-
+        Replaces the rows for one source by re-reading its upstream list. A
+        cooldown rejects a repeat refresh of the same source, and
+        skipWhenUnchanged short-circuits classics when the upstream MDBList
+        edit stamp is unchanged.
+      security:
+        - AdminSession: []
+        - AdminBearer: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - trending
+              - popular
+              - classics
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              properties:
+                skipWhenUnchanged:
+                  type: boolean
+      responses:
+        "202":
+          description: Refresh completed or skipped.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /admin/api/ai/config:
     get:
       tags:

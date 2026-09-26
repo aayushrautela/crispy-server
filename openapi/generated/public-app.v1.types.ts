@@ -1103,6 +1103,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/search/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest search keywords for a partial query.
+         * @description Returns plain keyword completions drawn from a periodically refreshed curated set. A suggestion is a name, not a resolvable item, so the caller fills it into the search box and calls /v1/search/titles to resolve it. This endpoint never calls TMDB, so it does not consume search quota.
+         */
+        get: operations["getV1SearchSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/metadata/cards/batch": {
         parameters: {
             query?: never;
@@ -1537,19 +1557,11 @@ export interface components {
             };
             meta: components["schemas"]["ResponseMeta"];
         };
-        GenericArrayEnvelope: {
-            data: components["schemas"]["SearchSuggestionItem"][];
-            meta: components["schemas"]["ResponseMeta"];
-        };
-        SearchSuggestionItem: {
-            Id: components["schemas"]["PublicItemId"];
-            Type: string;
-            Name: string;
-            ProductionYear?: number | null;
-            ImageTags?: {
-                Primary?: components["schemas"]["ResponsiveImageSet"] | null;
+        SearchSuggestionsResponseEnvelope: {
+            data: {
+                suggestions: string[];
             };
-            ProviderIds?: components["schemas"]["ProviderIds"] | null;
+            meta: components["schemas"]["ResponseMeta"];
         };
         MetadataPersonSearchResult: {
             /** @enum {string} */
@@ -3977,6 +3989,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetadataSearchResponseEnvelope"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1SearchSuggestions: {
+        parameters: {
+            query: {
+                query: string;
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSuggestionsResponseEnvelope"];
                 };
             };
             400: components["responses"]["BadRequest"];

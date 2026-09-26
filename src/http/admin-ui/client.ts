@@ -25,6 +25,10 @@ export const ADMIN_UI_CLIENT = String.raw`
       title: 'Profile Home',
       description: 'Inspect a profile home resolution and switch home mode.',
     },
+    'search-suggestions': {
+      title: 'Search Suggestions',
+      description: 'Curate the keyword list behind search typeahead, so typing never spends TMDB quota.',
+    },
   };
 
   const apiBase = String((document.body && document.body.getAttribute('data-admin-api-base')) || '/admin/api').replace(/\/$/, '');
@@ -123,6 +127,7 @@ export const ADMIN_UI_CLIENT = String.raw`
     await loadDiagnostics({ silent: true });
     await loadAiConfig();
     bindHome();
+    bindSearchSuggestions();
     startPolling();
   }
 
@@ -711,6 +716,10 @@ export const ADMIN_UI_CLIENT = String.raw`
     if (viewId === 'home-default') {
       void loadListSources().then(() => loadHomeDefault());
     }
+
+    if (viewId === 'search-suggestions') {
+      void loadSearchSuggestions();
+    }
   }
 
   function readHashView() {
@@ -722,6 +731,105 @@ export const ADMIN_UI_CLIENT = String.raw`
   function parseHashView(hash) {
     const value = String(hash || '').replace(/^#/, '');
     return { view: value };
+  }
+
+  function bindSearchSuggestions() {
+    const reload = document.getElementById('search-suggestions-reload');
+    if (reload) {
+      reload.addEventListener('click', () => {
+        void loadSearchSuggestions();
+      });
+    }
+  }
+
+  function setSuggestionStatus(message, isError) {
+    const el = document.getElementById('search-suggestions-status');
+    if (!el) return;
+    el.textContent = message || '';
+    el.className = 'panel-note' + (isError ? ' warn' : '');
+  }
+
+  async function loadSearchSuggestions() {
+    const rows = document.getElementById('search-suggestions-rows');
+    if (!rows) return;
+    const result = await safeFetchJson(apiPath('/search-suggestions'));
+    if (result.error) {
+      setSuggestionStatus(result.error, true);
+      rows.innerHTML = '';
+      return;
+    }
+
+    const sources = Array.isArray(result.sources) ? result.sources : [];
+    setSuggestionStatus('Trending rotates weekly; classics only re-crawls when its upstream list actually changed.', false);
+    rows.innerHTML = sources.map((entry) => {
+      const source = escapeHtml(String(entry.source || ''));
+      const stamp = entry.upstreamUpdatedAt
+        ? escapeHtml(formatDate(entry.upstreamUpdatedAt))
+        : '<span class="muted">n/a</span>';
+      const refreshed = entry.refreshedAt
+        ? escapeHtml(formatDate(entry.refreshedAt))
+        : '<span class="muted">never</span>';
+      const by = entry.refreshedBy ? escapeHtml(String(entry.refreshedBy)) : '<span class="muted">n/a</span>';
+      const isClassics = entry.source === 'classics';
+      const buttonLabel = isClassics ? 'Refresh if changed' : 'Refresh';
+      return '<tr>'
+        + '<td>' + source + '</td>'
+        + '<td>' + escapeHtml(String(entry.entryCount ?? 0)) + '</td>'
+        + '<td>' + refreshed + '</td>'
+        + '<td>' + stamp + '</td>'
+        + '<td>' + by + '</td>'
+        + '<td><button type="button" data-suggestion-refresh="' + source + '"'
+        + ' data-skip-when-unchanged="' + String(isClassics) + '">' + buttonLabel + '</button></td>'
+        + '</tr>';
+    }).join('');
+
+    rows.querySelectorAll('[data-suggestion-refresh]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const source = button.getAttribute('data-suggestion-refresh');
+        if (!source) return;
+        void refreshSearchSuggestionSource(
+          source,
+          button.getAttribute('data-skip-when-unchanged') === 'true',
+          button,
+        );
+      });
+    });
+  }
+
+  async function refreshSearchSuggestionSource(source, skipWhenUnchanged, button) {
+    const previousLabel = button ? button.textContent : '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+    }
+    setSuggestionStatus('Refreshing ' + source + '...', false);
+    try {
+      const payload = await fetchJson(
+        apiPath('/search-suggestions/' + encodeURIComponent(source) + '/refresh'),
+        { method: 'POST', body: JSON.stringify({ skipWhenUnchanged: Boolean(skipWhenUnchanged) }) },
+      );
+      const skipped = Boolean(payload && payload.skipped);
+      const entryCount = payload && Number.isFinite(Number(payload.entryCount)) ? Number(payload.entryCount) : 0;
+      const summary = skipped
+        ? 'Skipped ' + source + '; the upstream list has not changed since the last refresh.'
+        : 'Refreshed ' + source + ' with ' + entryCount + ' entries.';
+      setSuggestionStatus(summary, false);
+      pushNotification(
+        skipped ? 'info' : 'success',
+        'Search suggestions ' + source,
+        summary + (payload && payload.reason ? ' ' + payload.reason : ''),
+        // A real refresh is worth a toast; a no-op skip is not.
+        !skipped,
+      );
+      await loadSearchSuggestions();
+    } catch (error) {
+      const message = error && error.message ? error.message : 'Failed to refresh ' + source + '.';
+      setSuggestionStatus(message, true);
+      if (button) {
+        button.disabled = false;
+        button.textContent = previousLabel;
+      }
+    }
   }
 
   function apiPath(path) {

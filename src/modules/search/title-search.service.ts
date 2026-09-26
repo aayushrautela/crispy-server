@@ -5,7 +5,7 @@ import { inferMediaIdentity } from '../identity/media-key.js';
 import { ContentIdentityService } from '../identity/content-identity.service.js';
 import { encodePublicItemId } from '../identity/public-item-id.js';
 import { TmdbCacheService } from '../metadata/providers/tmdb-cache.service.js';
-import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse, SearchSuggestionItem } from '../metadata/metadata-detail.types.js';
+import type { MetadataPersonSearchResult, MetadataSearchFilter, MetadataSearchResponse } from '../metadata/metadata-detail.types.js';
 import { normalizeMetadataLanguage } from '../metadata/metadata-language.js';
 import type { TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType } from '../metadata/providers/tmdb.types.js';
 import type { AiResolvedCandidate } from '../ai/ai.types.js';
@@ -55,8 +55,7 @@ export class TitleSearchService {
     private readonly tmdbCacheService = new TmdbCacheService(),
     private readonly contentIdentityService = new ContentIdentityService(),
     private readonly requestCoalescer = new ShortLivedRequestCoalescer<SearchTitlesInternalResult>(SEARCH_CACHE_TTL_MS),
-    private readonly suggestionCoalescer = new ShortLivedRequestCoalescer<SearchSuggestionItem[]>(SEARCH_CACHE_TTL_MS),
-  ) {}
+    ) {}
 
   async searchTitlesInternal(input: SearchTitlesInput): Promise<SearchTitlesInternalResult> {
     const normalizedQuery = input.query.trim();
@@ -167,53 +166,6 @@ export class TitleSearchService {
 
       return results;
     });
-  }
-
-  async suggestTitles(input: SearchTitlesInput): Promise<SearchSuggestionItem[]> {
-    const normalizedQuery = input.query.trim();
-    const normalizedFilter = normalizeSearchFilter(input.filter);
-    const locale = normalizeSearchLocale(input.locale);
-    const limit = Math.min(input.limit ?? 8, 10);
-
-    if (normalizedQuery.length < 2) {
-      return [];
-    }
-
-    if (normalizedFilter === 'people') {
-      return [];
-    }
-
-    const suggestionKey = [normalizedQuery, normalizedFilter, locale ?? '', String(limit)].join('|');
-
-    return this.suggestionCoalescer.run(suggestionKey, () =>
-      withDbClient(async (client) => {
-        const suggestions = await this.tmdbCacheService.searchSuggestions(client, normalizedQuery, limit, normalizedFilter, locale);
-        const identities = suggestions.flatMap((suggestion) => {
-          const tmdbId = Number(suggestion.ProviderIds.Tmdb);
-          if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
-            return [];
-          }
-          return [inferMediaIdentity({
-            mediaType: suggestion.Type === 'Movie' ? 'movie' : 'show',
-            tmdbId,
-          })];
-        });
-        const contentIds = await this.contentIdentityService.ensureContentIds(client, identities);
-
-        return suggestions.map((suggestion) => {
-          const tmdbId = Number(suggestion.ProviderIds.Tmdb);
-          if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
-            return suggestion;
-          }
-          const identity = inferMediaIdentity({
-            mediaType: suggestion.Type === 'Movie' ? 'movie' : 'show',
-            tmdbId,
-          });
-          const contentId = contentIds.get(identity.mediaKey);
-          return contentId ? { ...suggestion, Id: encodePublicItemId(contentId) } : suggestion;
-        });
-      }),
-    );
   }
 }
 
