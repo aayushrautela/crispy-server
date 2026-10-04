@@ -510,6 +510,15 @@ export const tasteProfileReadQuerySchema = {
   },
 } as const;
 
+// Per-media-type volume arrived in schema v6. Stored v5 records predate it,
+// so the schema tolerates its absence; v6 writes always carry the full shape.
+const tastePerMediaTypeProperties = {
+  shortMovie: numberSchema,
+  shortShow: numberSchema,
+  longMovie: numberSchema,
+  longShow: numberSchema,
+} as const;
+
 export const tasteWeightedEntrySchema = {
   type: 'object',
   additionalProperties: false,
@@ -520,6 +529,7 @@ export const tasteWeightedEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
+    ...tastePerMediaTypeProperties,
   },
 } as const;
 
@@ -533,6 +543,7 @@ export const tastePersonEntrySchema = {
     shortCount: numberSchema,
     longScore: numberSchema,
     longCount: numberSchema,
+    ...tastePerMediaTypeProperties,
     roles: { type: 'array', items: { type: 'string', enum: ['actor', 'director'] } },
     popularity: numberSchema,
   },
@@ -572,7 +583,7 @@ export const tasteVectorsSchema = {
   additionalProperties: false,
   required: ['schemaVersion', 'genres', 'people', 'decades', 'languages', 'contentMix'],
   properties: {
-    schemaVersion: { type: 'integer', enum: [5] },
+    schemaVersion: { type: 'integer', enum: [5, 6] },
     genres: { type: 'array', items: tasteWeightedEntrySchema },
     people: { type: 'array', items: tastePersonEntrySchema },
     decades: { type: 'array', items: tasteWeightedEntrySchema },

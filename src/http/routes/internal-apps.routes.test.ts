@@ -397,6 +397,14 @@ const tasteVectorsFixture = {
   contentMix: { short: { movie: 1, show: 0 }, long: { movie: 1, show: 0 } },
 };
 
+const tasteVectorsV6Fixture = {
+  schemaVersion: 6,
+  genres: [{ name: 'sci-fi', shortScore: 1, shortCount: 2, longScore: 3, longCount: 4, shortMovie: 1, shortShow: 1, longMovie: 2, longShow: 2 }],
+  people: [{ name: 'Ada Director', shortScore: 1, shortCount: 1, longScore: 1, longCount: 1, shortMovie: 1, shortShow: 0, longMovie: 1, longShow: 0, roles: ['director'] }],
+  decades: [{ name: '2010s', shortScore: 1, shortCount: 1, longScore: 1, longCount: 1, shortMovie: 1, shortShow: 0, longMovie: 1, longShow: 0 }],
+  languages: [{ code: 'en', shortMovie: 1, shortShow: 0, longMovie: 1, longShow: 0 }],
+  contentMix: { short: { movie: 1, show: 0 }, long: { movie: 1, show: 0 } },
+};
 function tasteWriteBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     sourceKey: 'default',
@@ -434,6 +442,19 @@ test('taste write body schema rejects bodies that mix persona kinds with their c
   for (const body of good) {
     assert.equal(validate(body), true, JSON.stringify(body));
   }
+});
+
+test('taste write body schema accepts v5 and v6 vectors', async () => {
+  const ajv = new Ajv({ strict: false, validateFormats: false });
+  const validate = ajv.compile(tasteProfileWriteBodySchema);
+
+  // v5 rows predate per-media-type volume; v6 writes always carry it.
+  assert.equal(validate(tasteWriteBody({ personaKind: 'short', vectors: tasteVectorsFixture })), true);
+  assert.equal(
+    validate(tasteWriteBody({ personaKind: 'short', personaShortTerm: 'mood', vectors: tasteVectorsV6Fixture })),
+    true,
+    JSON.stringify(validate.errors),
+  );
 });
 
 test('PUT taste is rejected at the route when persona columns mismatch personaKind', async (t) => {

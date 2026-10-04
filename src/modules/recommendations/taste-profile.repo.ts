@@ -32,7 +32,7 @@ export class TasteProfileRepository {
   async findByProfileAndSourceKey(client: DbClient, profileId: string, sourceKey: string): Promise<TasteProfileRecord | null> {
     const result = await client.query(
       `SELECT ${columns} FROM taste_profiles
-       WHERE profile_id = $1::uuid AND source_key = $2 AND vectors->>'schemaVersion' = '5'`,
+       WHERE profile_id = $1::uuid AND source_key = $2 AND vectors->>'schemaVersion' IN ('5', '6')`,
       [profileId, sourceKey],
     );
     return result.rows[0] ? mapTasteProfile(result.rows[0]) : null;
@@ -41,7 +41,7 @@ export class TasteProfileRepository {
   async listForProfile(client: DbClient, profileId: string): Promise<TasteProfileRecord[]> {
     const result = await client.query(
       `SELECT ${columns} FROM taste_profiles
-       WHERE profile_id = $1::uuid AND vectors->>'schemaVersion' = '5'
+       WHERE profile_id = $1::uuid AND vectors->>'schemaVersion' IN ('5', '6')
        ORDER BY updated_at DESC, source_key ASC`,
       [profileId],
     );

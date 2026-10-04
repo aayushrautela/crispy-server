@@ -95,8 +95,8 @@ test('upsert with persona fields flips CASE guards and binds values', async () =
   assert.deepEqual(values.slice(13, 19), [true, true, true, true, true, false]);
 });
 
-test('reads filter to schemaVersion 5 rows', async () => {
+test('reads accept schemaVersion 5 and 6 rows', async () => {
   const { client, calls } = fakeClient();
   await new TasteProfileRepository().findByProfileAndSourceKey(client, UUID, 'default');
-  assert.equal(calls[0]!.text.includes(`vectors->>'schemaVersion' = '5'`), true);
+  assert.equal(calls[0]!.text.includes(`vectors->>'schemaVersion' IN ('5', '6')`), true);
 });

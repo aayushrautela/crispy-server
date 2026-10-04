@@ -1538,6 +1538,10 @@ components:
         shortCount: { type: number }
         longScore: { type: number }
         longCount: { type: number }
+        shortMovie: { type: number }
+        shortShow: { type: number }
+        longMovie: { type: number }
+        longShow: { type: number }
     TastePersonEntry:
       allOf:
         - $ref: '#/components/schemas/TasteWeightedEntry'
@@ -1554,7 +1558,7 @@ components:
       additionalProperties: false
       required: [schemaVersion, genres, people, decades, languages, contentMix]
       properties:
-        schemaVersion: { type: integer, enum: [5] }
+        schemaVersion: { type: integer, enum: [5, 6] }
         genres:
           type: array
           items: { $ref: '#/components/schemas/TasteWeightedEntry' }

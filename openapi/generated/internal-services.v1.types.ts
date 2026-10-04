@@ -745,6 +745,10 @@ export interface components {
             shortCount: number;
             longScore: number;
             longCount: number;
+            shortMovie?: number;
+            shortShow?: number;
+            longMovie?: number;
+            longShow?: number;
         };
         TastePersonEntry: components["schemas"]["TasteWeightedEntry"] & {
             roles: ("actor" | "director")[];
@@ -752,7 +756,7 @@ export interface components {
         };
         TasteVectors: {
             /** @enum {integer} */
-            schemaVersion: 5;
+            schemaVersion: 5 | 6;
             genres: components["schemas"]["TasteWeightedEntry"][];
             people: components["schemas"]["TastePersonEntry"][];
             decades: components["schemas"]["TasteWeightedEntry"][];
