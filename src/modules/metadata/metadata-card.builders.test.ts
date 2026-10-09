@@ -132,3 +132,93 @@ test('unrated titles serialize a null rating instead of a 0.0 TMDB vote_average'
   });
   assert.equal(preview.rating, null);
 });
+
+function certificationTitle(overrides: Record<string, unknown> = {}) {
+  return {
+    mediaType: 'movie' as const, tmdbId: 7, language: 'en', name: 'Rated', originalName: 'Rated',
+    overview: null, tagline: null, releaseDate: null, firstAirDate: null, status: null,
+    posterPath: null, backdropPath: null, runtime: null, episodeRunTime: [],
+    numberOfSeasons: null, numberOfEpisodes: null, externalIds: {}, raw: {},
+    hydrationLevel: 'detail' as const, fetchedAt: '', expiresAt: '',
+    ...overrides,
+  };
+}
+
+test('extractTitleCertification prefers the US movie certification', async () => {
+  const { extractTitleCertification } = await import('./metadata-builder.shared.js');
+
+  const payload = {
+    release_dates: {
+      results: [
+        { iso_3166_1: 'GB', release_dates: [{ certification: '15' }] },
+        { iso_3166_1: 'US', release_dates: [{ certification: 'R' }] },
+      ],
+    },
+  };
+
+  assert.equal(extractTitleCertification(payload, 'movie'), 'R');
+});
+
+test('extractTitleCertification falls back to the first rated region', async () => {
+  const { extractTitleCertification } = await import('./metadata-builder.shared.js');
+
+  const payload = {
+    release_dates: {
+      results: [
+        { iso_3166_1: 'US', release_dates: [{ certification: '' }] },
+        { iso_3166_1: 'DE', release_dates: [{ certification: 'FSK 16' }] },
+      ],
+    },
+  };
+
+  // US is present but unrated, so the first rated region wins.
+  assert.equal(extractTitleCertification(payload, 'movie'), 'FSK 16');
+});
+
+test('extractTitleCertification reads the tv content rating', async () => {
+  const { extractTitleCertification } = await import('./metadata-builder.shared.js');
+
+  const payload = {
+    content_ratings: {
+      results: [
+        { iso_3166_1: 'FR', rating: '12' },
+        { iso_3166_1: 'US', rating: 'TV-MA' },
+      ],
+    },
+  };
+
+  assert.equal(extractTitleCertification(payload, 'tv'), 'TV-MA');
+});
+
+test('extractTitleCertification returns null when the sub-resource is absent', async () => {
+  const { extractTitleCertification } = await import('./metadata-builder.shared.js');
+
+  assert.equal(extractTitleCertification({}, 'movie'), null);
+  assert.equal(extractTitleCertification({ release_dates: { results: [] } }, 'movie'), null);
+  assert.equal(extractTitleCertification({ content_ratings: { results: [] } }, 'tv'), null);
+});
+
+test('buildMetadataCardView surfaces the stored certification column', async () => {
+  const { buildMetadataCardView } = await import('./metadata-card.builders.js');
+
+  const view = buildMetadataCardView({
+    identity: { mediaKey: 'movie:tmdb:7', mediaType: 'movie', tmdbId: 7, showTmdbId: null, seasonNumber: null, episodeNumber: null },
+    title: certificationTitle({ certification: 'PG-13' }),
+  });
+
+  assert.equal(view.maturityRating, 'PG-13');
+});
+
+test('buildMetadataCardView falls back to raw for rows predating the column', async () => {
+  const { buildMetadataCardView } = await import('./metadata-card.builders.js');
+
+  const view = buildMetadataCardView({
+    identity: { mediaKey: 'movie:tmdb:7', mediaType: 'movie', tmdbId: 7, showTmdbId: null, seasonNumber: null, episodeNumber: null },
+    title: certificationTitle({
+      certification: null,
+      raw: { release_dates: { results: [{ iso_3166_1: 'US', release_dates: [{ certification: 'NC-17' }] }] } },
+    }),
+  });
+
+  assert.equal(view.maturityRating, 'NC-17');
+});

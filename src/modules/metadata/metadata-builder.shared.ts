@@ -506,12 +506,23 @@ export function extractRating(title: TmdbTitleRecord | null, episode: TmdbEpisod
   return raw ? toNullableRating(asNumber(raw.vote_average)) : null;
 }
 
+/** US first, then the first region that carries a non-empty rating. */
+function pickPreferredRegion(
+  entries: Record<string, unknown>[],
+  hasRating: (entry: Record<string, unknown>) => boolean,
+): Record<string, unknown> | null {
+  const rated = entries.filter(hasRating);
+  return rated.find((entry) => asString(entry.iso_3166_1) === 'US') ?? rated[0] ?? null;
+}
+
 function extractMovieCertification(raw: Record<string, unknown>): string | null {
   const releaseDates = asArray(asRecord(raw.release_dates)?.results)
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null);
 
-  const preferredRegion = releaseDates.find((entry) => asString(entry.iso_3166_1) === 'US') ?? releaseDates[0] ?? null;
+  const preferredRegion = pickPreferredRegion(releaseDates, (entry) =>
+    asArray(entry.release_dates).some((value) => asString(asRecord(value)?.certification) !== null),
+  );
   if (!preferredRegion) {
     return null;
   }
@@ -530,20 +541,30 @@ function extractShowCertification(raw: Record<string, unknown>): string | null {
     .map((entry) => asRecord(entry))
     .filter((entry): entry is Record<string, unknown> => entry !== null);
 
-  const preferredRegion = ratings.find((entry) => asString(entry.iso_3166_1) === 'US') ?? ratings[0] ?? null;
+  const preferredRegion = pickPreferredRegion(ratings, (entry) => asString(entry.rating) !== null);
   return preferredRegion ? asString(preferredRegion.rating) : null;
 }
 
+/**
+ * Certification off a raw TMDB detail payload. Called once at ingest so the
+ * value lands in the tmdb_titles.certification column; read paths do not parse
+ * raw.
+ */
+export function extractTitleCertification(payload: Record<string, unknown>, mediaType: TmdbTitleType): string | null {
+  return mediaType === 'movie' ? extractMovieCertification(payload) : extractShowCertification(payload);
+}
+
+/**
+ * Stored certification, falling back to the raw payload for rows written before
+ * the column existed. Falls through to raw so a not-yet-backfilled row still
+ * serves whatever its payload carried.
+ */
 export function extractCertification(title: TmdbTitleRecord | null): string | null {
   if (!title) {
     return null;
   }
 
-  if (title.mediaType === 'movie') {
-    return extractMovieCertification(title.raw);
-  }
-
-  return extractShowCertification(title.raw);
+  return title.certification ?? extractTitleCertification(title.raw, title.mediaType);
 }
 
 export function extractExternalIds(title: TmdbTitleRecord | null): MetadataExternalIds {

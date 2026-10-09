@@ -2,7 +2,13 @@ import { appConfig } from '../../../config/app-config.js';
 import { logger } from '../../../config/logger.js';
 import type { DbClient } from '../../../lib/db.js';
 import { HttpError } from '../../../lib/errors.js';
-import { buildTmdbIncludeImageLanguage, normalizeMetadataLanguage, toTmdbLanguageQuery } from '../metadata-language.js';
+import {
+  buildTmdbIncludeImageLanguage,
+  buildTmdbTitleDetailAppendToResponse,
+  normalizeMetadataLanguage,
+  toTmdbLanguageQuery,
+} from '../metadata-language.js';
+import { extractTitleCertification } from '../metadata-builder.shared.js';
 import type { TmdbEpisodeRecord, TmdbImageRecord, TmdbPersonRecord, TmdbTitleRecord, TmdbTitleType, TmdbTranslationEntry } from './tmdb.types.js';
 import { TmdbClient } from './tmdb.client.js';
 import { TmdbRepository } from './tmdb.repo.js';
@@ -109,7 +115,7 @@ export class TmdbIngestService {
     let payload: DetailPayload;
     try {
       payload = await this.tmdbClient.request(`/${mediaType}/${tmdbId}`, {
-        append_to_response: 'images,videos,credits,recommendations,similar,reviews,external_ids,translations',
+        append_to_response: buildTmdbTitleDetailAppendToResponse(mediaType),
         include_image_language: buildTmdbIncludeImageLanguage(effectiveLanguage),
         language: requestLanguage,
       });
@@ -159,6 +165,7 @@ export class TmdbIngestService {
         voteCount: asNumber(payload.vote_count),
         popularity: asNumber(payload.popularity),
         adult: payload.adult === true,
+        certification: extractTitleCertification(payload, mediaType),
         raw: payload,
         hydrationLevel: 'detail',
         fetchedAt: now.toISOString(),

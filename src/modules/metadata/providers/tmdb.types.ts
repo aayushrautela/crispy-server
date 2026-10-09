@@ -56,6 +56,8 @@ export type TmdbTitleRecord = {
   externalIds: Record<string, unknown>;
   genreIds?: number[];
   voteAverage?: number | null;
+  /** Maturity rating ("PG-13", "TV-MA"), preferred region US. Null until a detail ingest. */
+  certification?: string | null;
   raw: Record<string, unknown>;
   hydrationLevel?: TmdbHydrationLevel;
   fetchedAt: string;

@@ -29,3 +29,23 @@ export function toTmdbLanguageQuery(language: string | null): string | undefined
 export function buildTmdbIncludeImageLanguage(language: string | null): string {
   return language ? `null,${language}` : 'null,en';
 }
+
+/**
+ * Sub-resources appended to a title detail request. Certification is not part
+ * of the base movie/tv response: it arrives in `release_dates` for movies and
+ * `content_ratings` for tv, so the media type decides which one is asked for.
+ * Dropping it here is what silently emptied maturity ratings everywhere.
+ */
+export function buildTmdbTitleDetailAppendToResponse(mediaType: 'movie' | 'tv'): string {
+  return [
+    'images',
+    'videos',
+    'credits',
+    'recommendations',
+    'similar',
+    'reviews',
+    'external_ids',
+    'translations',
+    mediaType === 'movie' ? 'release_dates' : 'content_ratings',
+  ].join(',');
+}

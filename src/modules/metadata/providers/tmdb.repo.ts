@@ -19,7 +19,7 @@ function titleColumns(): string {
   return `
     t.media_type, t.tmdb_id, t.original_name, t.original_language, t.release_date, t.first_air_date,
     t.status, t.runtime, t.episode_run_time, t.number_of_seasons, t.number_of_episodes,
-    t.external_ids, t.genre_ids, t.vote_average, t.vote_count, t.popularity, t.adult,
+    t.external_ids, t.genre_ids, t.vote_average, t.vote_count, t.popularity, t.adult, t.certification,
     t.raw, t.hydration_level, t.fetched_at, t.expires_at,
     tr.name AS tr_name, tr.overview AS tr_overview, tr.tagline AS tr_tagline,
     ten.name AS ten_name, ten.overview AS ten_overview, ten.tagline AS ten_tagline,
@@ -73,6 +73,7 @@ function mapTitle(row: Row, language: string): TmdbTitleRecord {
     externalIds: (row.external_ids as Record<string, unknown> | undefined) ?? {},
     genreIds: Array.isArray(row.genre_ids) ? row.genre_ids.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n)) : [],
     voteAverage: row.vote_average === null || row.vote_average === undefined ? null : Number(row.vote_average),
+    certification: typeof row.certification === 'string' ? row.certification : null,
     raw: (row.raw as Record<string, unknown> | undefined) ?? {},
     hydrationLevel: (row.hydration_level as TmdbTitleRecord['hydrationLevel']) ?? 'summary',
     fetchedAt: requireDbIsoString(row.fetched_at as Date | string | null | undefined, 'tmdb_titles.fetched_at'),
@@ -189,6 +190,7 @@ export class TmdbRepository {
     voteCount: number | null;
     popularity: number | null;
     adult: boolean;
+    certification: string | null;
     raw: Record<string, unknown>;
     hydrationLevel: 'summary' | 'detail' | 'not_found';
     fetchedAt: string;
@@ -199,13 +201,13 @@ export class TmdbRepository {
         INSERT INTO tmdb_titles (
           media_type, tmdb_id, original_name, original_language, release_date, first_air_date,
           status, runtime, episode_run_time, number_of_seasons, number_of_episodes,
-          external_ids, genre_ids, vote_average, vote_count, popularity, adult,
+          external_ids, genre_ids, vote_average, vote_count, popularity, adult, certification,
           raw, hydration_level, fetched_at, expires_at
         )
         VALUES (
           $1, $2, $3, $4, $5::date, $6::date, $7, $8, $9::jsonb, $10, $11,
-          $12::jsonb, $13::jsonb, $14, $15, $16, $17,
-          $18::jsonb, $19, $20::timestamptz, $21::timestamptz
+          $12::jsonb, $13::jsonb, $14, $15, $16, $17, $18,
+          $19::jsonb, $20, $21::timestamptz, $22::timestamptz
         )
         ON CONFLICT (media_type, tmdb_id)
         DO UPDATE SET
@@ -224,6 +226,7 @@ export class TmdbRepository {
           vote_count = EXCLUDED.vote_count,
           popularity = EXCLUDED.popularity,
           adult = EXCLUDED.adult,
+          certification = EXCLUDED.certification,
           raw = EXCLUDED.raw,
           hydration_level = EXCLUDED.hydration_level,
           fetched_at = EXCLUDED.fetched_at,
@@ -247,6 +250,7 @@ export class TmdbRepository {
         params.voteCount,
         params.popularity,
         params.adult,
+        params.certification,
         JSON.stringify(params.raw),
         params.hydrationLevel,
         params.fetchedAt,
