@@ -46,6 +46,11 @@
    APP_DISPLAY_NAME=CrispyTV
    ```
 
+   **Stream-URL resolver (public `/v1/resolve-url`, `/v1/stream`):**
+
+   - `CORS_ORIGINS` must list every web origin the player and worker call from (e.g. `https://web.crispytv.tech,https://app.crispytv.tech`); the resolver endpoints are unauthenticated and inherit the global CORS policy.
+   - `PROXY_URL` is an optional sticky SOCKS5 endpoint (`socks5://user:pass@host:port`) used to retry the redirect-chain walk when a resolver host refuses datacenter IPs. Only the headers-only walk is ever proxied; media bytes always go direct, so residential bandwidth is never spent on playback. Unset means direct-only (server logs a warning at boot).
+
    Product defaults live in `config/app-config.json.example` (committed template). The loader looks for `config/app-config.json` first; if absent, it falls back to the example template. To customize, copy the template:
    ```bash
    cp config/app-config.json.example config/app-config.json

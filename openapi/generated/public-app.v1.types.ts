@@ -1140,6 +1140,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/resolve-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Query-string variant of the resolver probe. */
+        get: operations["getV1ResolveUrl"];
+        put?: never;
+        /**
+         * Walk a resolver URL chain and report whether a browser can read it.
+         * @description Follows an addon-provided resolver URL hop by hop and answers the one question the player cannot answer for itself through CORS: does the final URL expose Access-Control-Allow-Origin? `cors-ok` and `no-redirect` mean the browser reads the returned URL directly; `proxy-required` means the player must fetch the bytes from /v1/stream instead. Response shape is flat by contract with the client worker; no {data, meta} envelope is applied.
+         */
+        post: operations["postV1ResolveUrl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Proxy media bytes for sources a browser is not allowed to read.
+         * @description Walks the chain (single-byte probes only), then replays the client's Range request against the final URL directly. The residential proxy is never used for media bytes; it only ever accelerates the walk.
+         */
+        get: operations["getV1Stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Headers-only variant of the media proxy. */
+        head: operations["headV1Stream"];
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1599,6 +1641,35 @@ export interface components {
         MetadataSearchResponseEnvelope: {
             data: components["schemas"]["MetadataSearchResponse"];
             meta: components["schemas"]["ResponseMeta"];
+        };
+        ResolveUrlHop: {
+            url: string;
+            status: number;
+            location: string | null;
+            note?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ResolveUrlRequest: {
+            url: string;
+            /** @description Forwardable headers (authorization, x-api-key, x-auth-token only). */
+            headers?: {
+                [key: string]: string;
+            };
+            /** @description Origin to probe with; defaults to the request Origin header. */
+            origin?: string;
+        };
+        ResolveUrlResponse: {
+            url: string;
+            cors: boolean;
+            /** @enum {string} */
+            reason: "cors-ok" | "proxy-required" | "no-redirect" | "json-url" | "html-response" | "image-response" | "cloudflare-challenge" | "blocked-host" | "bad-scheme" | "too-long" | "too-many-redirects" | "redirect-blocked" | "json-blocked" | "malformed" | "missing-url" | "method-not-allowed" | "unreachable" | "timeout" | "rate-limited";
+            hops: components["schemas"]["ResolveUrlHop"][];
+            resolved?: boolean;
+            viaJson?: boolean;
+            error?: string;
+        } & {
+            [key: string]: unknown;
         };
     };
     responses: {
@@ -4062,6 +4133,144 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
+        };
+    };
+    getV1ResolveUrl: {
+        parameters: {
+            query: {
+                url: string;
+                /** @description JSON-encoded object of forwardable headers. */
+                headers?: string;
+                /** @description Origin to probe with; defaults to the request Origin. */
+                origin?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolution outcome, including refusal reason codes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveUrlResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    postV1ResolveUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveUrlRequest"];
+            };
+        };
+        responses: {
+            /** @description Resolution outcome, including refusal reason codes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveUrlResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1Stream: {
+        parameters: {
+            query: {
+                url: string;
+                /** @description JSON-encoded object of forwardable headers. */
+                headers?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Media bytes streamed from the resolved URL. */
+            200: {
+                headers: {
+                    "X-Crispy-Reason"?: string;
+                    "X-Crispy-Hops"?: string;
+                    "X-Crispy-Source"?: string;
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Partial media bytes for a range request. */
+            206: {
+                headers: {
+                    "X-Crispy-Reason"?: string;
+                    "X-Crispy-Hops"?: string;
+                    "X-Crispy-Source"?: string;
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+            502: components["responses"]["ServerError"];
+        };
+    };
+    headV1Stream: {
+        parameters: {
+            query: {
+                url: string;
+                /** @description JSON-encoded object of forwardable headers. */
+                headers?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Response headers for the resolved URL. */
+            200: {
+                headers: {
+                    "X-Crispy-Reason"?: string;
+                    "X-Crispy-Hops"?: string;
+                    "X-Crispy-Source"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Response headers for a range request. */
+            206: {
+                headers: {
+                    "X-Crispy-Reason"?: string;
+                    "X-Crispy-Hops"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+            502: components["responses"]["ServerError"];
         };
     };
 }

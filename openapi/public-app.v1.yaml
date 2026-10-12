@@ -34,6 +34,8 @@ tags:
     description: Personal access token management.
   - name: Recommendations
     description: Taste profile and recommendation outputs.
+  - name: Resolver
+    description: Public stream-URL resolution and byte proxy for playback.
 paths:
   /v1/account:
     delete:
@@ -3202,6 +3204,198 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/resolve-url:
+    post:
+      tags:
+        - Resolver
+      operationId: postV1ResolveUrl
+      summary: Walk a resolver URL chain and report whether a browser can read it.
+      security: []
+      x-security: public
+      description: >-
+        Follows an addon-provided resolver URL hop by hop and answers the one
+        question the player cannot answer for itself through CORS: does the
+        final URL expose Access-Control-Allow-Origin? `cors-ok` and
+        `no-redirect` mean the browser reads the returned URL directly;
+        `proxy-required` means the player must fetch the bytes from
+        /v1/stream instead. Response shape is flat by contract with the
+        client worker; no {data, meta} envelope is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveUrlRequest"
+      responses:
+        "200":
+          description: Resolution outcome, including refusal reason codes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveUrlResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      tags:
+        - Resolver
+      operationId: getV1ResolveUrl
+      summary: Query-string variant of the resolver probe.
+      security: []
+      x-security: public
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: headers
+          in: query
+          required: false
+          description: JSON-encoded object of forwardable headers.
+          schema:
+            type: string
+        - name: origin
+          in: query
+          required: false
+          description: Origin to probe with; defaults to the request Origin.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resolution outcome, including refusal reason codes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveUrlResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/stream:
+    get:
+      tags:
+        - Resolver
+      operationId: getV1Stream
+      summary: Proxy media bytes for sources a browser is not allowed to read.
+      security: []
+      x-security: public
+      description: >-
+        Walks the chain (single-byte probes only), then replays the client's
+        Range request against the final URL directly. The residential proxy is
+        never used for media bytes; it only ever accelerates the walk.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: headers
+          in: query
+          required: false
+          description: JSON-encoded object of forwardable headers.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Media bytes streamed from the resolved URL.
+          headers:
+            X-Crispy-Reason:
+              schema:
+                type: string
+            X-Crispy-Hops:
+              schema:
+                type: string
+            X-Crispy-Source:
+              schema:
+                type: string
+            Accept-Ranges:
+              schema:
+                type: string
+            Content-Range:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+        "206":
+          description: Partial media bytes for a range request.
+          headers:
+            X-Crispy-Reason:
+              schema:
+                type: string
+            X-Crispy-Hops:
+              schema:
+                type: string
+            X-Crispy-Source:
+              schema:
+                type: string
+            Content-Range:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          $ref: "#/components/responses/ServerError"
+    head:
+      tags:
+        - Resolver
+      operationId: headV1Stream
+      summary: Headers-only variant of the media proxy.
+      security: []
+      x-security: public
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: headers
+          in: query
+          required: false
+          description: JSON-encoded object of forwardable headers.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Response headers for the resolved URL.
+          headers:
+            X-Crispy-Reason:
+              schema:
+                type: string
+            X-Crispy-Hops:
+              schema:
+                type: string
+            X-Crispy-Source:
+              schema:
+                type: string
+        "206":
+          description: Response headers for a range request.
+          headers:
+            X-Crispy-Reason:
+              schema:
+                type: string
+            X-Crispy-Hops:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          $ref: "#/components/responses/ServerError"
 components:
   securitySchemes:
     UserBearerAuth:
@@ -4614,3 +4808,76 @@ components:
           $ref: "#/components/schemas/MetadataSearchResponse"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
+    ResolveUrlHop:
+      type: object
+      additionalProperties: true
+      required: [url, status, location]
+      properties:
+        url:
+          type: string
+        status:
+          type: integer
+        location:
+          anyOf:
+            - type: string
+            - type: "null"
+        note:
+          type: string
+    ResolveUrlRequest:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url:
+          type: string
+          maxLength: 8192
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Forwardable headers (authorization, x-api-key, x-auth-token only).
+        origin:
+          type: string
+          maxLength: 2048
+          description: Origin to probe with; defaults to the request Origin header.
+    ResolveUrlResponse:
+      type: object
+      additionalProperties: true
+      required: [url, cors, reason, hops]
+      properties:
+        url:
+          type: string
+        cors:
+          type: boolean
+        reason:
+          type: string
+          enum:
+            - cors-ok
+            - proxy-required
+            - no-redirect
+            - json-url
+            - html-response
+            - image-response
+            - cloudflare-challenge
+            - blocked-host
+            - bad-scheme
+            - too-long
+            - too-many-redirects
+            - redirect-blocked
+            - json-blocked
+            - malformed
+            - missing-url
+            - method-not-allowed
+            - unreachable
+            - timeout
+            - rate-limited
+        hops:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResolveUrlHop"
+        resolved:
+          type: boolean
+        viaJson:
+          type: boolean
+        error:
+          type: string

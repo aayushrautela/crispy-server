@@ -126,6 +126,13 @@ export const env = {
   redisUrl: requireEnv('REDIS_URL'),
   appPublicUrl,
   appDisplayName: requireEnv('APP_DISPLAY_NAME'),
+  /**
+   * Optional sticky SOCKS5 endpoint used when a resolver host refuses
+   * datacenter traffic. Format: socks5://user:pass@host:port. Only the
+   * redirect-chain walk is ever proxied, never media bytes. Unset means
+   * direct-only.
+   */
+  proxyUrl: optionalEnv('PROXY_URL'),
   deviceVerificationUrl,
   authBaseUrl,
   authAdminApiKey,

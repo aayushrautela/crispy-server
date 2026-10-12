@@ -22,6 +22,9 @@ import { registerAdminUiRoutes } from './routes/admin-ui.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerCalendarRoutes } from './routes/calendar.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerResolverRoutes } from './routes/resolver.js';
+import { ResolverService } from '../modules/resolver/resolver.service.js';
+import { buildProxyFetch } from '../modules/resolver/proxy.js';
 import { registerAvatarRoutes } from './routes/avatars.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerMetadataRoutes } from './routes/metadata.js';
@@ -225,6 +228,19 @@ export async function buildApp() {
   const deviceAuthorizationService = new DeviceAuthorizationService();
 
   await registerHealthRoutes(app);
+  if (!env.proxyUrl) {
+    // Direct-only is a supported production mode (no residential spend at
+    // all), but resolver hosts that refuse datacenter IPs will keep failing
+    // until a sticky SOCKS5 endpoint is configured.
+    logger.warn(
+      'PROXY_URL is not set: stream-URL resolution runs direct-only (no residential proxy fallback)',
+    );
+  }
+  await registerResolverRoutes(app, {
+    resolver: new ResolverService({
+      proxy: buildProxyFetch(env.proxyUrl, (message) => logger.warn(message)),
+    }),
+  });
   await registerAvatarRoutes(app);
   await registerAdminUiRoutes(app);
   await registerAccountRoutes(app, { accountSettingsService });
