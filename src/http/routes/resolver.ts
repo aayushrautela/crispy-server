@@ -381,6 +381,9 @@ export async function registerResolverRoutes(
       // probe's content-range carries the object size callers actually want
       // from a HEAD — answer 200 with that as content-length, and never leak
       // the probe's own one-byte length.
+      // This only keeps serving caller-provided content-length because HEAD
+      // is registered explicitly below: Fastify's auto-exposed HEAD route
+      // would overwrite the header with 0 for bodyless replies.
       const rangeTotal = upstream.status === 206
         ? /^bytes \d+-\d+\/(\d+)$/.exec(upstream.headers.get('content-range') ?? '')?.[1]
         : undefined;
@@ -402,5 +405,10 @@ export async function registerResolverRoutes(
     return reply.send(Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]));
   };
 
-  app.get('/v1/stream', { schema: streamRouteSchema }, streamHandler);
+  app.route({
+    method: ['GET', 'HEAD'],
+    url: '/v1/stream',
+    schema: streamRouteSchema,
+    handler: streamHandler,
+  });
 }
