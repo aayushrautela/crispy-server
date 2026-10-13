@@ -186,7 +186,10 @@ test('GET /v1/stream replays the range against the resolved URL and streams 206'
 
 test('HEAD /v1/stream returns headers without a body', async (t) => {
   const walk = recordingFetch([jsonResponse(200, null, {})]);
-  const media = recordingFetch([mediaResponse(200, 'ignored', {})]);
+  const media = recordingFetch([mediaResponse(206, 'ignored', {
+    'content-range': 'bytes 0-0/100',
+    'content-length': '1',
+  })]);
   const service = new ResolverService({ directFetch: walk.fetch });
   const app = await buildApp({ resolver: service, mediaFetch: media.fetch });
   t.after(() => app.close());
@@ -196,12 +199,21 @@ test('HEAD /v1/stream returns headers without a body', async (t) => {
     url: '/v1/stream?url=https%3A%2F%2Fcdn.example%2Fok.mp4',
   });
 
+  // A HEAD gets one-byte-GET semantics upstream, but the answer must look
+  // like a real HEAD: 200 with the object size from content-range, not the
+  // probe's 1-byte content-length.
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers['x-crispy-reason'], 'proxied');
+  assert.equal(response.headers['content-length'], '100');
   assert.equal(response.payload, '');
+
+  // HEAD is never replayed as HEAD against the upstream: presigned URLs sign
+  // the HTTP method, so a one-byte GET probe is used instead.
   const replay = media.calls.at(0);
   assert.ok(replay);
-  assert.equal(replay.init?.method, 'HEAD');
+  assert.equal(replay.init?.method, 'GET');
+  const replayHeaders = replay.init?.headers as Record<string, string>;
+  assert.equal(replayHeaders.Range, 'bytes=0-0');
 });
 
 test('GET /v1/stream answers 502 with a reason when the walk throws', async (t) => {

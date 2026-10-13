@@ -331,12 +331,23 @@ export async function registerResolverRoutes(
     // response cannot be streamed back — the client's own `Range` has to be
     // replayed against the final URL. The replay is hardcoded direct: media
     // bytes never go through the residential proxy, only the walk ever did.
+    //
+    // HEAD from the client is never replayed as HEAD: presigned object-store
+    // URLs (R2/S3) sign the HTTP method, so a HEAD against a GET-signed URL
+    // gets a 403 even though the object is perfectly readable. A one-byte
+    // Range GET returns the same headers for any store, signed or not.
+    const isHead = request.method === 'HEAD';
+    const replayHeaders: Record<string, string> = { 'User-Agent': USER_AGENT, ...clientHeaders };
+    if (isHead && !Object.keys(replayHeaders).some((name) => name.toLowerCase() === 'range')) {
+      replayHeaders.Range = 'bytes=0-0';
+    }
+
     let upstream: Response;
     try {
       upstream = await mediaFetch(result.url, {
-        method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+        method: 'GET',
         redirect: 'follow',
-        headers: { 'User-Agent': USER_AGENT, ...clientHeaders },
+        headers: replayHeaders,
         signal: AbortSignal.timeout(STREAM_TIMEOUT_MS),
       });
     } catch (error) {
@@ -366,6 +377,20 @@ export async function registerResolverRoutes(
     reply.code(upstream.status === 206 ? 206 : 200);
 
     if (request.method === 'HEAD') {
+      // The replay was a one-byte probe; only its headers go back. A 206
+      // probe's content-range carries the object size callers actually want
+      // from a HEAD — answer 200 with that as content-length, and never leak
+      // the probe's own one-byte length.
+      const rangeTotal = upstream.status === 206
+        ? /^bytes \d+-\d+\/(\d+)$/.exec(upstream.headers.get('content-range') ?? '')?.[1]
+        : undefined;
+      if (rangeTotal) {
+        reply.code(200);
+        reply.header('content-length', rangeTotal);
+      } else {
+        reply.removeHeader('content-length');
+      }
+      void upstream.body?.cancel().catch(() => {});
       return reply.send();
     }
     if (!upstream.body) {
