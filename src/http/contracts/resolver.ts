@@ -35,15 +35,6 @@ const resolveUrlQuerySchema = {
   },
 } as const;
 
-const streamQuerySchema = {
-  type: 'object',
-  additionalProperties: true,
-  properties: {
-    url: urlStringSchema,
-    headers: { type: 'string' },
-  },
-} as const;
-
 export const resolveUrlRouteSchema = {
   body: resolveUrlBodySchema,
   querystring: resolveUrlQuerySchema,
@@ -51,8 +42,4 @@ export const resolveUrlRouteSchema = {
 
 export const resolveUrlQueryRouteSchema = {
   querystring: resolveUrlQuerySchema,
-};
-
-export const streamRouteSchema = {
-  querystring: streamQuerySchema,
 };

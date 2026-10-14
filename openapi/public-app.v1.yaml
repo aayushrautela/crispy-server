@@ -35,7 +35,7 @@ tags:
   - name: Recommendations
     description: Taste profile and recommendation outputs.
   - name: Resolver
-    description: Public stream-URL resolution and byte proxy for playback.
+    description: Public stream-URL resolution for playback. Media bytes never transit this server.
 paths:
   /v1/account:
     delete:
@@ -3217,9 +3217,10 @@ paths:
         question the player cannot answer for itself through CORS: does the
         final URL expose Access-Control-Allow-Origin? `cors-ok` and
         `no-redirect` mean the browser reads the returned URL directly;
-        `proxy-required` means the player must fetch the bytes from
-        /v1/stream instead. Response shape is flat by contract with the
-        client worker; no {data, meta} envelope is applied.
+        `proxy-required` means the final URL is not cross-origin readable, so
+        web playback needs the local streaming engine on the user's machine.
+        Media bytes never pass through this server. Response shape is flat by
+        contract with the client worker; no {data, meta} envelope is applied.
       requestBody:
         required: true
         content:
@@ -3276,125 +3277,6 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":
-          $ref: "#/components/responses/ServerError"
-  /v1/stream:
-    get:
-      tags:
-        - Resolver
-      operationId: getV1Stream
-      summary: Proxy media bytes for sources a browser is not allowed to read.
-      security: []
-      x-security: public
-      description: >-
-        Walks the chain (single-byte probes only), then replays the client's
-        Range request against the final URL directly. The residential proxy is
-        never used for media bytes; it only ever accelerates the walk.
-      parameters:
-        - name: url
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: headers
-          in: query
-          required: false
-          description: JSON-encoded object of forwardable headers.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Media bytes streamed from the resolved URL.
-          headers:
-            X-Crispy-Reason:
-              schema:
-                type: string
-            X-Crispy-Hops:
-              schema:
-                type: string
-            X-Crispy-Source:
-              schema:
-                type: string
-            Accept-Ranges:
-              schema:
-                type: string
-            Content-Range:
-              schema:
-                type: string
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-        "206":
-          description: Partial media bytes for a range request.
-          headers:
-            X-Crispy-Reason:
-              schema:
-                type: string
-            X-Crispy-Hops:
-              schema:
-                type: string
-            X-Crispy-Source:
-              schema:
-                type: string
-            Content-Range:
-              schema:
-                type: string
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "502":
-          $ref: "#/components/responses/ServerError"
-    head:
-      tags:
-        - Resolver
-      operationId: headV1Stream
-      summary: Headers-only variant of the media proxy.
-      security: []
-      x-security: public
-      parameters:
-        - name: url
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: headers
-          in: query
-          required: false
-          description: JSON-encoded object of forwardable headers.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Response headers for the resolved URL.
-          headers:
-            X-Crispy-Reason:
-              schema:
-                type: string
-            X-Crispy-Hops:
-              schema:
-                type: string
-            X-Crispy-Source:
-              schema:
-                type: string
-        "206":
-          description: Response headers for a range request.
-          headers:
-            X-Crispy-Reason:
-              schema:
-                type: string
-            X-Crispy-Hops:
-              schema:
-                type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "502":
           $ref: "#/components/responses/ServerError"
 components:
   securitySchemes:

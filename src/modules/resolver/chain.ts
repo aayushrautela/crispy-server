@@ -1,9 +1,11 @@
 /**
- * Shared redirect-chain walking for the resolver endpoints.
+ * Shared redirect-chain walking for the resolver endpoint.
  *
- * Both `/v1/resolve-url` (decide what the player should load) and
- * `/v1/stream` (proxy the bytes) need the same thing: follow whatever chain
- * an addon handed us, one hop at a time, and end up at a URL that serves media.
+ * `/v1/resolve-url` follows whatever chain an addon handed us, one hop at a
+ * time, and ends up at a URL that serves media — but only ever learns *where*
+ * it lives and whether a browser can read it. Media bytes never transit this
+ * server: the player fetches the final URL itself, or a browser-unreadable
+ * URL through the local streaming engine on the user's own machine.
  *
  * Deliberately provider-agnostic. Nothing here knows the name of any debrid
  * service or addon. The chain is whatever the addon returned, and the only
@@ -12,7 +14,7 @@
  *
  * The fetch implementation is injectable so the walk can be rerun through a
  * SOCKS proxy when a resolver host refuses datacenter traffic (see
- * resolver.service.ts). The media bytes themselves are never proxied.
+ * resolver.service.ts). Even then, only the one-byte probes cross the proxy.
  */
 
 export type FetchLike = (
@@ -230,8 +232,7 @@ export async function followChain(
    * constructor appends rather than replaces after normalising case, so
    * `range: bytes=0-1023` alongside `Range: bytes=0-0` leaves upstream with
    * `bytes=0-0, bytes=0-1023` — an unsatisfiable range, and a 416. The walk
-   * only ever needs headers; `/v1/stream` re-requests the final URL itself,
-   * with the client's own range, to pass the bytes through.
+   * only ever needs headers; the player re-requests the final URL itself.
    */
   const probeHeaders: Record<string, string> = { ...headers };
   for (const name of ['range', 'if-range']) delete probeHeaders[name];
@@ -282,8 +283,8 @@ export async function followChain(
       }
     }
 
-    // Reached the end of the chain. The body is left unread for the caller:
-    // resolve-url only needs the headers, stream needs to pass it through.
+    // Reached the end of the chain. The body is left unread for the caller;
+    // /v1/resolve-url only needs the headers and cancels it.
     return { url: response.url || current.toString(), hops, response };
   }
 

@@ -33,6 +33,11 @@ This repository is easy to misread if you only scan env vars. Read this first be
   - BullMQ worker
   - Supabase Postgres for product data, metadata/cache tables, outbox/admin state, and recommendation data
   - Redis accessed directly with `ioredis`
+- **Stream media bytes must never transit this server.** Playback resolution is a ladder that only ever hands back the final URL, never the media itself:
+  1. the user's addons resolve the playable URL locally on the client;
+  2. if CORS or redirect visibility blocks that, the server walks the resolver chain on their behalf using one-byte probes (`/v1/resolve-url`) and returns the URL/headers;
+  3. if a resolver host refuses datacenter traffic, that same probe walk retries once through the residential SOCKS5 proxy.
+  The player always fetches the media bytes directly (browser-readable URLs) or through the local streaming engine on the user's own machine (browser-unreadable URLs). Never introduce a server path that relays media bytes.
 
 ## Auth model
 
@@ -128,5 +133,6 @@ This repository is easy to misread if you only scan env vars. Read this first be
 - Do not claim profiles have separate auth credentials; they are targets under an authenticated account.
 - Do not move Trakt or Simkl to account scope when discussing current product rules.
 - If documenting endpoints, prefer exhaustive grouped lists over vague summaries.
+- Do not describe any server path as proxying or relaying media bytes; the server resolves stream URLs only, and the client always fetches the media itself.
 - Prefer the phrase "external auth provider" in new high-level docs when possible, but preserve existing env var names and code behavior unless a task explicitly asks for renaming.
 - When answering architecture questions, verify claims against the source-of-truth files above.
