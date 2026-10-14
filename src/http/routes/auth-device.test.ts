@@ -4,6 +4,16 @@ import { buildTestApp, seedTestEnv } from '../../test-helpers.js';
 
 seedTestEnv();
 
+test('device record contract admits the companion device type', async () => {
+  const { listDevicesRouteSchema } = await import('../contracts/auth-device.js');
+  const schema = listDevicesRouteSchema as unknown as {
+    response: { 200: { properties: { data: { properties: { devices: { items: { properties: { deviceType: { enum: string[] } } } } } } } } };
+  };
+  const deviceTypeEnum = schema.response[200].properties.data.properties.devices.items.properties.deviceType.enum;
+  assert.ok(deviceTypeEnum.includes('tv'));
+  assert.ok(deviceTypeEnum.includes('companion'));
+});
+
 test('POST /v1/auth/device/authorize creates device authorization', async (t) => {
   const { DeviceAuthorizationService } = await import('../../modules/auth/device-authorization.service.js');
   const original = DeviceAuthorizationService.prototype.createAuthorization;

@@ -34,7 +34,7 @@ const deviceRecordSchema = {
     id: nonEmptyStringSchema,
     clientId: nonEmptyStringSchema,
     deviceName: nullableStringSchema,
-    deviceType: { type: 'string', enum: ['tv', 'mobile', 'web', 'desktop'] },
+    deviceType: { type: 'string', enum: ['tv', 'mobile', 'web', 'desktop', 'companion'] },
     lastSeenAt: nullableStringSchema,
     revokedAt: nullableStringSchema,
     createdAt: nonEmptyStringSchema,

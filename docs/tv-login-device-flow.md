@@ -18,6 +18,14 @@ OAuth 2.0 Device Authorization Grant — **[RFC 8628](https://datatracker.ietf.o
 | `GET /v1/auth/devices` | user Bearer | List connected devices (with active token previews) |
 | `DELETE /v1/auth/devices/{deviceId}` | user Bearer | Revoke a device and all its sessions (204) |
 
+### Companion client (local torrent engine)
+
+`clientId: "crispy-companion"` reuses this exact flow (allowed in `DEVICE_AUTHORIZATION_CLIENT_IDS`, migration `0081`):
+
+- Approval rows mint `deviceType: 'companion'` device rows and `Companion session: <name>` PATs (TV stays `tv` / `TV session: <name>`), so device/token lists stay truthful.
+- The companion echoes its `deviceId` on re-pair for row reuse, same as TV.
+- The web approval page needs no changes: `lookupForApproval` already returns `clientId` + `deviceName`, so it can render "Approve …?" for either client.
+
 All responses use the standard `{ data, meta: { requestId } }` envelope.
 
 ### Codes & constants

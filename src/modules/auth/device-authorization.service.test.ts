@@ -35,3 +35,9 @@ test('poll returns expired_token for malformed device codes', async () => {
   const result = await service.poll({ deviceCode: 'not-a-device-code' });
   assert.equal(result.kind, 'expired_token');
 });
+
+test('device grant allowlist includes the local companion client', async () => {
+  const { DEVICE_AUTHORIZATION_CLIENT_IDS } = await import('./device-authorization.service.js');
+  assert.ok((DEVICE_AUTHORIZATION_CLIENT_IDS as readonly string[]).includes('crispy-tv'));
+  assert.ok((DEVICE_AUTHORIZATION_CLIENT_IDS as readonly string[]).includes('crispy-companion'));
+});

@@ -26,7 +26,7 @@ const VERIFICATION_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const AUTHORIZATION_CREATE_LIMIT = 10;
 const AUTHORIZATION_CREATE_WINDOW_MS = 5 * 60 * 1000;
 
-export const DEVICE_AUTHORIZATION_CLIENT_IDS = ['crispy-tv'] as const;
+export const DEVICE_AUTHORIZATION_CLIENT_IDS = ['crispy-tv', 'crispy-companion'] as const;
 export type DeviceAuthorizationClientId = typeof DEVICE_AUTHORIZATION_CLIENT_IDS[number];
 
 export type DeviceAuthorizationView = {
@@ -72,7 +72,7 @@ export type DeviceListItem = {
   id: string;
   clientId: string;
   deviceName: string | null;
-  deviceType: 'tv' | 'mobile' | 'web' | 'desktop';
+  deviceType: 'tv' | 'mobile' | 'web' | 'desktop' | 'companion';
   lastSeenAt: string | null;
   revokedAt: string | null;
   createdAt: string;
@@ -196,7 +196,7 @@ export class DeviceAuthorizationService {
         const plaintextToken = `${TOKEN_PREFIX}${randomBytes(24).toString('base64url')}`;
         const token = await this.tokenRepo.create(txClient, {
           userId: consumed.accountId,
-          name: record.deviceName ? `TV session: ${record.deviceName}` : 'TV session',
+          name: record.deviceName ? `${sessionLabel(record.clientId)}: ${record.deviceName}` : sessionLabel(record.clientId),
           tokenHash: hashAccessToken(plaintextToken),
           tokenPreview: plaintextToken.slice(0, 12),
           scopes: PAT_DEFAULT_SCOPES,
@@ -270,6 +270,7 @@ export class DeviceAuthorizationService {
             accountId: userId,
             clientId: approvedRow.clientId,
             deviceName: approvedRow.deviceName,
+            deviceType: deviceTypeForClient(approvedRow.clientId),
           });
       if (!device) {
         throw new HttpError(500, 'Failed to register device.', undefined, 'device_registration_failed');
@@ -363,6 +364,16 @@ function normalizeClientId(value: string): DeviceAuthorizationClientId {
     throw new HttpError(400, 'Unknown client ID.', undefined, 'invalid_client_id');
   }
   return trimmed as DeviceAuthorizationClientId;
+}
+
+// sessionLabel keeps minted PAT names truthful per client: the companion
+// must not show up as a "TV session" in token/device lists.
+function sessionLabel(clientId: string): string {
+  return clientId === 'crispy-companion' ? 'Companion session' : 'TV session';
+}
+
+function deviceTypeForClient(clientId: string): 'tv' | 'companion' {
+  return clientId === 'crispy-companion' ? 'companion' : 'tv';
 }
 
 function normalizeDeviceName(value: string | null | undefined): string | null {

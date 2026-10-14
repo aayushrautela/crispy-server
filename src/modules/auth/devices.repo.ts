@@ -6,7 +6,7 @@ export type DeviceRecord = {
   accountId: string;
   clientId: string;
   deviceName: string | null;
-  deviceType: 'tv' | 'mobile' | 'web' | 'desktop';
+  deviceType: 'tv' | 'mobile' | 'web' | 'desktop' | 'companion';
   lastSeenAt: string | null;
   revokedAt: string | null;
   createdAt: string;
@@ -22,7 +22,7 @@ function mapDevice(row: Record<string, unknown>): DeviceRecord {
     accountId: String(row.account_id),
     clientId: String(row.client_id),
     deviceName: row.device_name == null ? null : String(row.device_name),
-    deviceType: (deviceType === 'mobile' || deviceType === 'web' || deviceType === 'desktop' ? deviceType : 'tv') as DeviceType,
+    deviceType: (deviceType === 'mobile' || deviceType === 'web' || deviceType === 'desktop' || deviceType === 'companion' ? deviceType : 'tv') as DeviceType,
     lastSeenAt: toDbIsoString(row.last_seen_at as Date | string | null | undefined, 'devices.last_seen_at'),
     revokedAt: toDbIsoString(row.revoked_at as Date | string | null | undefined, 'devices.revoked_at'),
     createdAt: requireDbIsoString(row.created_at as Date | string | null | undefined, 'devices.created_at'),
