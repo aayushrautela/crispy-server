@@ -66,3 +66,31 @@ test('parseRecoListWriteRequest rejects empty providerRefs', () => {
     (err: Error & { code?: string }) => err.code === 'INVALID_PROVIDER_REF',
   );
 });
+
+test('parseRecoListWriteRequest defaults a missing imageUrl to null', () => {
+  const result = parseRecoListWriteRequest({
+    lists: [{ sectionType: 'contentRail', title: 'X', items: [] }],
+  });
+  assert.equal(result.lists[0]!.imageUrl, null);
+});
+
+test('parseRecoListWriteRequest trims the section imageUrl', () => {
+  const result = parseRecoListWriteRequest({
+    lists: [{ sectionType: 'collectionRail', title: 'Collections', imageUrl: '  https://cdn.example.com/folder.jpg  ', items: [] }],
+  });
+  assert.equal(result.lists[0]!.imageUrl, 'https://cdn.example.com/folder.jpg');
+});
+
+test('parseRecoListWriteRequest rejects a non-string imageUrl', () => {
+  assert.throws(
+    () => parseRecoListWriteRequest({ lists: [{ sectionType: 'contentRail', title: 'X', imageUrl: 42, items: [] }] }),
+    (err: Error & { code?: string }) => err.code === 'INVALID_IMAGE_URL',
+  );
+});
+
+test('parseRecoListWriteRequest rejects an overlong imageUrl', () => {
+  assert.throws(
+    () => parseRecoListWriteRequest({ lists: [{ sectionType: 'contentRail', title: 'X', imageUrl: `https://cdn.example.com/${'a'.repeat(2048)}`, items: [] }] }),
+    (err: Error & { code?: string }) => err.code === 'INVALID_IMAGE_URL',
+  );
+});

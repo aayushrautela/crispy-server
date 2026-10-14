@@ -1603,6 +1603,7 @@ components:
         title: { type: string, minLength: 1 }
         subtitle: { type: [string, 'null'] }
         sectionType: { $ref: '#/components/schemas/RecoHomeSectionType' }
+        imageUrl: { type: [string, 'null'], maxLength: 2048, description: 'Optional per-section folder/cover image supplied by the writer; carried through to clients, never fetched server-side.' }
         items:
           type: array
           minItems: 0
@@ -1689,6 +1690,7 @@ components:
                     title: { type: string, minLength: 1 }
                     subtitle: { type: [string, 'null'] }
                     sectionType: { $ref: '#/components/schemas/RecoHomeSectionType' }
+                    imageUrl: { type: [string, 'null'], maxLength: 2048 }
                     items:
                       type: array
                       items: { $ref: '#/components/schemas/RecommendationListWriteItem' }

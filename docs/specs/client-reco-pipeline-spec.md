@@ -119,6 +119,7 @@ type ClientHomeSection = {
   title: string;
   subtitle: string | null;
   sectionType: HomeSectionType;
+  imageUrl: string | null;
   items: ClientMediaCard[];
   meta: Record<string, unknown>;
 };
@@ -128,6 +129,7 @@ Rules:
 
 - `title` is required for every list/section.
 - `subtitle` is optional but must be present as `null` when absent.
+- `imageUrl` is an optional opaque folder/cover image supplied at write time (collection rails); reads always carry it as `string | null` and clients render it directly — the server never fetches it.
 - Item order is display order.
 - Every section has a semantic `sectionType`: `categoryTabs`, `heroCarousel`, `contentRail`, or `collectionRail`.
 - `categoryTabs` represents top category/tab pills that route to named lists.
@@ -255,6 +257,7 @@ type RecoListWriteRequest = {
   title: string;
   subtitle: string | null;
   sectionType: HomeSectionType;
+  imageUrl?: string | null;
   items: RecoWriteItem[];
   model: RecoModelInfo | null;
   context: Record<string, unknown>;
@@ -286,6 +289,7 @@ Rules:
 - MAIN rejects unknown list keys, mismatched `sectionType`, too many items, ineligible profiles, bad provider refs, duplicate items, and idempotency conflicts with stable canonical errors.
 - `Idempotency-Key` is required; reusing it with the same payload replays, reusing it with a different payload returns conflict.
 - `title` is required; `subtitle` is nullable, not omitted.
+- `imageUrl` is optional (omit or `null` when there is no cover); when present it must be a string up to 2048 chars. It is stored on the section and returned to clients as-is for folder/collection covers — the server never fetches it.
 - `sectionType` is required and must be one of `categoryTabs`, `heroCarousel`, `contentRail`, or `collectionRail`.
 - Rank is derived from array order; do not send `rank`.
 - Every item must have `type` and at least one provider ref.
@@ -305,6 +309,7 @@ type RecoBatchWriteRequest = {
       title: string;
       subtitle: string | null;
       sectionType: HomeSectionType;
+      imageUrl?: string | null;
       items: RecoWriteItem[];
       model: RecoModelInfo | null;
       context: Record<string, unknown>;
@@ -327,6 +332,7 @@ type StoredRecommendationListVersion = {
   title: string;
   subtitle: string | null;
   sectionType: HomeSectionType;
+  imageUrl: string | null;
   items: StoredRecommendationItem[];
 };
 

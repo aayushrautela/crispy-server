@@ -94,6 +94,7 @@ export class DefaultHomeWriteService implements HomeWriteService {
             sectionType: list.sectionType,
             title: list.title,
             subtitle: list.subtitle ?? null,
+            imageUrl: list.imageUrl ?? null,
             items: list.items,
             actor: input.actor,
             version,
@@ -158,12 +159,12 @@ export class DefaultHomeWriteService implements HomeWriteService {
     return result;
   }
 
-  private async normalizeLists(input: HomeWriteInput): Promise<Array<{ listId: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; items: unknown[] }>> {
-    const normalized: Array<{ listId: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; items: unknown[] }> = [];
+  private async normalizeLists(input: HomeWriteInput): Promise<Array<{ listId: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; imageUrl: string | null; items: unknown[] }>> {
+    const normalized: Array<{ listId: string; sectionType: HomeWriteList['sectionType']; title: string; subtitle: string | null; imageUrl: string | null; items: unknown[] }> = [];
     for (const list of input.lists) {
       this.policy.validateSection(list.sectionType, list.items);
       const items = await this.resolveItems(list.items);
-      normalized.push({ listId: randomUUID(), sectionType: list.sectionType, title: list.title, subtitle: list.subtitle ?? null, items });
+      normalized.push({ listId: randomUUID(), sectionType: list.sectionType, title: list.title, subtitle: list.subtitle ?? null, imageUrl: list.imageUrl ?? null, items });
     }
     return normalized;
   }

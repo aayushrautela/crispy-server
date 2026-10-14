@@ -10,6 +10,7 @@ import { getListSource } from '../list-sources/list-source.registry.js';
 import type { HomeWriteItemLite, ListSourceCtx } from '../list-sources/list-source.types.js';
 import { HomeListsRepo } from '../repos/home-lists.repo.js';
 import type { ClientHomeSection } from '../../recommendations/client-home.types.js';
+import { normalizeClientHomeSections } from '../../recommendations/client-home.types.js';
 import { DEFAULT_SECTION_LIMITS, type DefaultTemplate } from './default-templates.js';
 
 const DEFAULT_HOME_TTL_SECONDS = env.homescreenDefaultTtlSeconds;
@@ -23,7 +24,7 @@ const inFlightBuilds = new Map<string, Promise<ClientHomeSection[] | null>>();
 function parseSections(value: string): ClientHomeSection[] | null {
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as ClientHomeSection[]) : null;
+    return Array.isArray(parsed) ? normalizeClientHomeSections(parsed as ClientHomeSection[]) : null;
   } catch {
     return null;
   }
@@ -69,7 +70,7 @@ export class DefaultHomeBuilderService {
     if (cached === EMPTY_MARKER) return null;
     if (cached) {
       try {
-        return JSON.parse(cached) as ClientHomeSection[];
+        return normalizeClientHomeSections(JSON.parse(cached) as ClientHomeSection[]);
       } catch {
         // Corrupt payload: fall through to a rebuild.
       }
@@ -169,8 +170,8 @@ export class DefaultHomeBuilderService {
     client: DbClient,
     templates: DefaultTemplate[],
     baseCtx: ListSourceCtx,
-  ): Promise<Array<{ listKey: string; title: string; subtitle: string | null; sectionType: string; items: unknown[] }>> {
-    const lists: Array<{ listKey: string; title: string; subtitle: string | null; sectionType: string; items: unknown[] }> = [];
+  ): Promise<Array<{ listKey: string; title: string; subtitle: string | null; sectionType: string; imageUrl: string | null; items: unknown[] }>> {
+    const lists: Array<{ listKey: string; title: string; subtitle: string | null; sectionType: string; imageUrl: string | null; items: unknown[] }> = [];
     for (const template of templates) {
       const source = getListSource(template.sourceId);
       if (!source) continue;
@@ -198,6 +199,7 @@ export class DefaultHomeBuilderService {
       title: metaTitle ?? template.title,
       subtitle: metaSubtitle ?? template.subtitle,
       sectionType: template.sectionType,
+      imageUrl: typeof template.imageUrl === 'string' && template.imageUrl.trim() ? template.imageUrl.trim() : null,
       items: rows,
     });
     }

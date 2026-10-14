@@ -77,12 +77,17 @@ export async function registerHomeAdminRoutes(app: FastifyInstance): Promise<voi
       ? null
       : numberField(body.refreshMinutes, 'refreshMinutes', 60);
     const showWithReco = typeof body.showWithReco === 'boolean' ? body.showWithReco : false;
+    const imageUrl = typeof body.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null;
+    if (imageUrl && imageUrl.length > 2048) {
+      throw new HttpError(400, 'imageUrl exceeds max length of 2048.');
+    }
     await withDbClient((client) => repo.upsertDefaultTemplate({
       listKey,
       regionOverride,
       sectionType,
       title: stringField(body.title, 'title'),
       subtitle: typeof body.subtitle === 'string' ? body.subtitle : null,
+      imageUrl,
       rank,
       sourceId,
       sourceConfig,

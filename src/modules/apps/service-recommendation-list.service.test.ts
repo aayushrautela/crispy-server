@@ -96,6 +96,7 @@ function buildWriteRequest(providerIds: string[] = ['101']) {
     title: 'For You',
     subtitle: null,
     sectionType: 'contentRail' as const,
+    imageUrl: null as string | null,
     items: providerIds.map((providerId) => ({ type: 'movie' as const, providerRefs: [{ provider: 'tmdb' as const, providerId }], score: null, metadata: {} })),
     model: null,
     context: {},
@@ -149,6 +150,39 @@ test('upsertList normalizes item refs and delegates to the home writer', async (
     { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '101' }] },
     { type: 'movie', providerRefs: [{ provider: 'tmdb', providerId: '102' }] },
   ]);
+});
+
+test('upsertList passes the section imageUrl through to the home writer', async () => {
+  const { service, homeWriteService } = buildService();
+
+  await service.upsertList({
+    principal: buildPrincipal(),
+    accountId: 'acc-1',
+    profileId: 'prof-1',
+    listKey: 'collections',
+    idempotencyKey: 'idem-img',
+    request: { ...buildWriteRequest(['101']), sectionType: 'collectionRail', imageUrl: 'https://cdn.example.com/folder.jpg' },
+  });
+
+  const list = homeWriteService.writes[0]?.lists[0];
+  assert.ok(list);
+  assert.equal(list.imageUrl, 'https://cdn.example.com/folder.jpg');
+});
+
+test('upsertList rejects an overlong section imageUrl', async () => {
+  const { service } = buildService();
+
+  await assert.rejects(
+    service.upsertList({
+      principal: buildPrincipal(),
+      accountId: 'acc-1',
+      profileId: 'prof-1',
+      listKey: 'for-you',
+      idempotencyKey: 'idem-1',
+      request: { ...buildWriteRequest(), imageUrl: `https://cdn.example.com/${'a'.repeat(2048)}` },
+    }),
+    (error: unknown) => error instanceof HttpError && error.code === 'INVALID_IMAGE_URL',
+  );
 });
 
 test('upsertList rejects legacy writer-supplied fields', async () => {

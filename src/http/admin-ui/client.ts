@@ -521,7 +521,7 @@ export const ADMIN_UI_CLIENT = String.raw`
         + '<td>' + escapeHtml(String(t.listKey)) + '</td>'
         + '<td>' + escapeHtml(String(t.sectionType)) + region + '</td>'
         + '<td>' + escapeHtml(String(t.rank)) + '</td>'
-        + '<td>' + escapeHtml(t.title ? String(t.title) : '') + '</td>'
+        + '<td>' + escapeHtml(t.title ? String(t.title) : '') + (t.imageUrl ? ' <span class="muted">[img]</span>' : '') + '</td>'
         + '<td>' + escapeHtml(String(t.sourceId)) + '</td>'
         + '<td><label class="checkbox"><input type="checkbox" data-home-template-show-reco="' + escapeHtml(String(t.listKey)) + '"' + (t.showWithReco ? ' checked' : '') + ' /></label></td>'
         + '<td>' + escapeHtml(t.refreshedAt ? formatDate(t.refreshedAt) : 'never') + '</td>'
@@ -574,6 +574,7 @@ export const ADMIN_UI_CLIENT = String.raw`
           sectionType: String(data.get('sectionType') || '').trim(),
           title: String(data.get('title') || '').trim(),
           subtitle: String(data.get('subtitle') || '').trim() || null,
+          imageUrl: String(data.get('imageUrl') || '').trim() || null,
           rank: Number(data.get('rank') || 0),
           sourceId,
           sourceConfig: config,
@@ -678,7 +679,8 @@ export const ADMIN_UI_CLIENT = String.raw`
     return sections.map((section) => '<div class="section-card">'
       + '<h4>' + escapeHtml(section.title || section.listKey || 'Section') + '</h4>'
       + '<p class="section-meta">' + escapeHtml(String(section.items ? section.items.length : 0)) + ' items'
-      + (section.sectionType ? ' · ' + escapeHtml(String(section.sectionType)) : '') + '</p>'
+      + (section.sectionType ? ' · ' + escapeHtml(String(section.sectionType)) : '')
+      + (section.imageUrl ? ' · <span class="muted">folder image set</span>' : '') + '</p>'
       + '</div>').join('');
   }
 
