@@ -1488,6 +1488,8 @@ export interface components {
             subtitle: string | null;
             /** @enum {string} */
             sectionType: "categoryTabs" | "heroCarousel" | "contentRail" | "collectionRail";
+            /** @description Per-section folder/cover image supplied at write time (collection rails); null when unset. Clients render it directly, no fetching is done server-side. */
+            imageUrl: string | null;
             items: components["schemas"]["ClientMediaCard"][];
             meta: {
                 [key: string]: unknown;

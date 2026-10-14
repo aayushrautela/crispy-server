@@ -31,6 +31,7 @@ interface NormalizedSingleRequest {
   title: string;
   subtitle: string | null;
   sectionType: RecoHomeSectionType;
+  imageUrl: string | null;
   items: RecoWriteItem[];
   model: UpsertServiceRecommendationListRequest['model'];
   context: Record<string, unknown>;
@@ -64,6 +65,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         sectionType: request.sectionType,
         title: request.title,
         subtitle: request.subtitle,
+        imageUrl: request.imageUrl,
         items: request.items.map(toHomeWriteItem),
       }],
     });
@@ -100,6 +102,7 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
             sectionType: list.sectionType,
             title: list.title,
             subtitle: list.subtitle,
+            imageUrl: list.imageUrl,
             items: list.items.map(toHomeWriteItem),
           })),
         });
@@ -153,11 +156,12 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
   private async validateSingleRequest(request: unknown): Promise<NormalizedSingleRequest> {
     assertRecord(request, 'request body');
     rejectRemovedFields(request, TOP_LEVEL_REMOVED_FIELDS, '');
-    assertOnlyKeys(request, ['title', 'subtitle', 'sectionType', 'items', 'model', 'context'], '');
+    assertOnlyKeys(request, ['title', 'subtitle', 'sectionType', 'imageUrl', 'items', 'model', 'context'], '');
     return {
       title: readRequiredString(request.title, 'title'),
       subtitle: readNullableString(request.subtitle, 'subtitle'),
       sectionType: readHomeSectionType(request.sectionType, 'sectionType'),
+      imageUrl: readNullableImageUrl(request.imageUrl, 'imageUrl'),
       items: await this.normalizeItemRefs(request.items, 'items'),
       model: readModelInfo(request.model, 'model'),
       context: asRecordOrEmpty(request.context),
@@ -183,11 +187,12 @@ export class DefaultServiceRecommendationListService implements ServiceRecommend
         const listPath = `${profilePath}.lists[${listIndex}]`;
         assertRecord(rawList, listPath);
         rejectRemovedFields(rawList, TOP_LEVEL_REMOVED_FIELDS, listPath);
-        assertOnlyKeys(rawList, ['title', 'subtitle', 'sectionType', 'items', 'model', 'context'], listPath);
+        assertOnlyKeys(rawList, ['title', 'subtitle', 'sectionType', 'imageUrl', 'items', 'model', 'context'], listPath);
         lists.push({
           title: readRequiredString(rawList.title, `${listPath}.title`),
           subtitle: readNullableString(rawList.subtitle, `${listPath}.subtitle`),
           sectionType: readHomeSectionType(rawList.sectionType, `${listPath}.sectionType`),
+          imageUrl: readNullableImageUrl(rawList.imageUrl, `${listPath}.imageUrl`),
           items: await this.normalizeItemRefs(rawList.items, `${listPath}.items`),
           model: readModelInfo(rawList.model, `${listPath}.model`),
           context: asRecordOrEmpty(rawList.context),
@@ -252,6 +257,21 @@ function readNullableString(value: unknown, path: string): string | null {
   if (value === null) return null;
   if (typeof value === 'string') return value.trim() || null;
   throw new HttpError(400, `${path} must be a string or null.`, { field: path }, 'INVALID_RECOMMENDATION_LIST_SUBTITLE');
+}
+
+const MAX_IMAGE_URL_LENGTH = 2048;
+
+function readNullableImageUrl(value: unknown, path: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') {
+    throw new HttpError(400, `${path} must be a string or null.`, { field: path }, 'INVALID_IMAGE_URL');
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > MAX_IMAGE_URL_LENGTH) {
+    throw new HttpError(400, `${path} exceeds max length of ${MAX_IMAGE_URL_LENGTH}.`, { field: path }, 'INVALID_IMAGE_URL');
+  }
+  return trimmed;
 }
 
 function readHomeSectionType(value: unknown, path: string): RecoHomeSectionType {

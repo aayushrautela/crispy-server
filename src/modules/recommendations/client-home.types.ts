@@ -65,6 +65,7 @@ export type ClientHomeSection = {
   title: string;
   subtitle: string | null;
   sectionType: ClientHomeSectionType;
+  imageUrl: string | null;
   items: ClientMediaCard[];
   meta: Record<string, unknown>;
 };
@@ -75,6 +76,18 @@ export type ClientHomeResponse = {
   expiresAt: string | null;
   sections: ClientHomeSection[];
 };
+
+/**
+ * Backfill for payloads cached before `imageUrl` existed: old sections (and
+ * old snapshots) carry no per-section image, which reads as null.
+ */
+export function normalizeClientHomeSections(sections: ClientHomeSection[]): ClientHomeSection[] {
+  for (const section of sections) {
+    const imageUrl = (section as { imageUrl?: unknown }).imageUrl;
+    section.imageUrl = typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null;
+  }
+  return sections;
+}
 
 export type ClientMediaCardQueryResult = {
   Items: ClientMediaCard[];

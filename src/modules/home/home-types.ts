@@ -23,6 +23,7 @@ export type HomeWriteList = {
   sectionType: HomeSectionType;
   title: string;
   subtitle?: string | null;
+  imageUrl?: string | null;
   items: HomeWriteItem[];
 };
 

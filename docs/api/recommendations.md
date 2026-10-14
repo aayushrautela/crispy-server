@@ -26,6 +26,7 @@ A profile home screen is an ordered array of sections. Every section has:
 - `title`: required display title
 - `subtitle`: nullable display subtitle
 - `sectionType`: one of `categoryTabs`, `heroCarousel`, `contentRail`, `collectionRail`
+- `imageUrl`: nullable per-section folder/cover image supplied at write time (used by `collectionRail` clients); never fetched server-side
 - `items`: ordered content identities from the writer; UI-ready cards in public reads
 - `meta`: server-owned/client-safe metadata
 
@@ -68,6 +69,7 @@ A single-list write body is a single rail of the snapshot:
 Contract rules (what a producer **must** send and what the ingester **requires**):
 
 - `sectionType` replaces the old `layout` field. Allowed values: `categoryTabs`, `heroCarousel`, `contentRail`, `collectionRail`.
+- `imageUrl` is an optional opaque string (max 2048 chars) carrying the section's folder/cover image, typically for `collectionRail` sections. It is stored on the section and returned to clients as-is; the server never fetches it. Omit or pass `null` when there is no cover.
 - Item identity is `type` plus `providerRefs`; producers must not send Crispy `itemId`, `contentId`, `mediaKey`, `rank`, or nested identity wrappers.
 - Provider refs may be TMDB, TVDB, IMDb, or Kitsu when supported by MAIN.
 - Rank is array order. Producers must not send `rank`.
@@ -86,7 +88,7 @@ Producers must not send enriched card payloads, posters, backdrops, logos, TMDB 
 
 ## Public home reads
 
-`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public section items are UI-ready cards with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, storage `contentId`, media keys, or RECO internals.
+`GET /v1/profiles/:profileId/home` returns the standard envelope `{ data: <ProfileHomeResponse>, meta: { requestId } }` where `data` contains `profileId`, `generatedAt`, `expiresAt`, `sections`, `mode`, and `source`. Public sections carry `listKey`, `title`, `subtitle`, `sectionType`, nullable `imageUrl` (folder/cover image for clients to render directly), and UI-ready card items with `itemId`, `mediaType`, title, artwork, lightweight metadata, `trailerUrl`, and progress. Public responses do not expose provider refs, model scores, storage `contentId`, media keys, or RECO internals.
 
 `mode` is the profile's current home mode (`recommended` or `custom`); `source` is the lead source currently serving the home screen (`custom`, `reco`, the shared `default`, or `empty`). In recommended mode with reco rows, the response is the profile's reco rails followed by the generic default rails flagged `show_with_reco`; `source` reports `reco`. Sources are never independently layered — only reco + the marked default rails are combined, in that order, with no cross-source dedup.
 

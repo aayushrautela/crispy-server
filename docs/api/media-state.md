@@ -83,5 +83,5 @@ Recommendation read payloads follow canonical item ID identity rules and the tar
 - Public recommendation cards use `itemId` for navigation.
 - Public recommendation cards expose UI-ready display fields, artwork, and progress.
 - Public recommendation cards do not expose provider refs, RECO score/reason metadata, storage `contentId`, or media keys.
-- Public recommendation sections include `title`, `subtitle`, `sectionType`, and ordered items.
+- Public recommendation sections include `title`, `subtitle`, `sectionType`, nullable `imageUrl` (folder/cover image), and ordered items.
 - RECO write payloads use provider refs plus media type as documented in `docs/api/recommendations.md` and `docs/specs/client-reco-pipeline-spec.md`; they do not use public `itemId`.

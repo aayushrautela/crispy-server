@@ -35,6 +35,7 @@ function parseList(rawList: unknown, listPath: string): HomeWriteList {
     sectionType: sectionType as HomeWriteList['sectionType'],
     title: list.title,
     subtitle: typeof list.subtitle === 'string' && list.subtitle.trim() ? list.subtitle : null,
+    imageUrl: readNullableImageUrl(list.imageUrl, `${listPath}.imageUrl`),
     items,
   };
 }
@@ -71,4 +72,19 @@ function parseProviderRef(rawRef: unknown, refPath: string): HomeWriteProviderRe
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+const MAX_IMAGE_URL_LENGTH = 2048;
+
+function readNullableImageUrl(value: unknown, path: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') {
+    throw new HttpError(400, `${path} must be a string or null.`, { field: path }, 'INVALID_IMAGE_URL');
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > MAX_IMAGE_URL_LENGTH) {
+    throw new HttpError(400, `${path} exceeds max length of ${MAX_IMAGE_URL_LENGTH}.`, { field: path }, 'INVALID_IMAGE_URL');
+  }
+  return trimmed;
 }

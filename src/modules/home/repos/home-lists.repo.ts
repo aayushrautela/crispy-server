@@ -31,6 +31,7 @@ export interface CreateHomeListVersionInput {
   sectionType: HomeWriteList['sectionType'];
   title: string;
   subtitle: string | null;
+  imageUrl: string | null;
   items: unknown[];
   actor: HomeWriteActor;
   createdAt: Date;
@@ -136,9 +137,9 @@ export class HomeListsRepo {
       const actorKeyId = list.actor.type === 'app' ? list.actor.keyId : list.actor.userId ?? null;
       await client.query(
         `INSERT INTO recommendation_list_versions
-           (account_id, profile_id, source, list_key, version, title, subtitle, section_type, items_json, item_count, actor_type, actor_id, actor_key_id, run_id, created_at)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15)`,
-        [list.accountId, list.profileId, list.source, list.listId, list.version, list.title, list.subtitle, list.sectionType, JSON.stringify(list.items), list.items.length, list.actor.type, actorId, actorKeyId, runId, list.createdAt],
+           (account_id, profile_id, source, list_key, version, title, subtitle, section_type, image_url, items_json, item_count, actor_type, actor_id, actor_key_id, run_id, created_at)
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, $16)`,
+        [list.accountId, list.profileId, list.source, list.listId, list.version, list.title, list.subtitle, list.sectionType, list.imageUrl, JSON.stringify(list.items), list.items.length, list.actor.type, actorId, actorKeyId, runId, list.createdAt],
       );
       await client.query(
         `INSERT INTO recommendation_active_lists (account_id, profile_id, source, list_key, active_version, updated_at)
@@ -204,12 +205,13 @@ export class HomeListsRepo {
     sectionType: string;
     title: string;
     subtitle: string | null;
+    imageUrl: string | null;
     version: number;
     items: unknown[];
     updatedAt: Date;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT v.list_key, v.section_type, v.title, v.subtitle, v.version, v.items_json, v.created_at
+      `SELECT v.list_key, v.section_type, v.title, v.subtitle, v.image_url, v.version, v.items_json, v.created_at
        FROM recommendation_active_lists a
        JOIN recommendation_list_versions v
          ON v.account_id = a.account_id AND v.profile_id = a.profile_id AND v.source = a.source AND v.list_key = a.list_key AND v.version = a.active_version
@@ -222,6 +224,7 @@ export class HomeListsRepo {
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
+      imageUrl: row.image_url == null || String(row.image_url).trim() === '' ? null : String(row.image_url),
       version: Number(row.version),
       items: Array.isArray(row.items_json) ? (row.items_json as unknown[]) : [],
       updatedAt: new Date(row.created_at as string),
@@ -235,6 +238,7 @@ export class HomeListsRepo {
     sectionType: string;
     title: string;
     subtitle: string | null;
+    imageUrl: string | null;
     rank: number;
     sourceId: string;
     sourceConfig: Record<string, unknown>;
@@ -243,7 +247,7 @@ export class HomeListsRepo {
     refreshedAt: Date | null;
   }>> {
     const result = await this.deps.db.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
+      `SELECT list_key, region_override, section_type, title, subtitle, image_url, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -254,6 +258,7 @@ export class HomeListsRepo {
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
+      imageUrl: row.image_url == null || String(row.image_url).trim() === '' ? null : String(row.image_url),
       rank: Number(row.rank),
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
@@ -269,6 +274,7 @@ export class HomeListsRepo {
     sectionType: string;
     title: string;
     subtitle: string | null;
+    imageUrl: string | null;
     rank: number;
     sourceId: string;
     sourceConfig: Record<string, unknown>;
@@ -277,7 +283,7 @@ export class HomeListsRepo {
     refreshedAt: Date | null;
   }>> {
     const result = await client.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
+      `SELECT list_key, region_override, section_type, title, subtitle, image_url, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
         FROM home.default_list_templates
         WHERE is_active
         ORDER BY rank ASC, list_key ASC`,
@@ -288,6 +294,7 @@ export class HomeListsRepo {
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
+      imageUrl: row.image_url == null || String(row.image_url).trim() === '' ? null : String(row.image_url),
       rank: Number(row.rank),
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},
@@ -317,6 +324,7 @@ export class HomeListsRepo {
     sectionType: string;
     title: string;
     subtitle: string | null;
+    imageUrl?: string | null;
     rank: number;
     sourceId: string;
     sourceConfig: Record<string, unknown>;
@@ -325,13 +333,14 @@ export class HomeListsRepo {
     updatedBy: string;
   }): Promise<void> {
     await this.deps.db.query(
-      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, updated_by, updated_at, last_refreshed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, now(), now())
+      `INSERT INTO home.default_list_templates (list_key, region_override, section_type, title, subtitle, image_url, rank, source_id, source_config, refresh_minutes, show_with_reco, updated_by, updated_at, last_refreshed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, now(), now())
         ON CONFLICT (list_key) DO UPDATE SET
           region_override = EXCLUDED.region_override,
           section_type = EXCLUDED.section_type,
           title = EXCLUDED.title,
           subtitle = EXCLUDED.subtitle,
+          image_url = EXCLUDED.image_url,
           rank = EXCLUDED.rank,
           source_id = EXCLUDED.source_id,
           source_config = EXCLUDED.source_config,
@@ -339,7 +348,7 @@ export class HomeListsRepo {
           show_with_reco = EXCLUDED.show_with_reco,
           updated_by = EXCLUDED.updated_by,
           updated_at = EXCLUDED.updated_at`,
-      [input.listKey, input.regionOverride, input.sectionType, input.title, input.subtitle, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.showWithReco, input.updatedBy],
+      [input.listKey, input.regionOverride, input.sectionType, input.title, input.subtitle, input.imageUrl ?? null, input.rank, input.sourceId, JSON.stringify(input.sourceConfig), input.refreshMinutes, input.showWithReco, input.updatedBy],
     );
   }
 
@@ -367,6 +376,7 @@ export class HomeListsRepo {
     sectionType: string;
     title: string;
     subtitle: string | null;
+    imageUrl: string | null;
     rank: number;
     sourceId: string;
     sourceConfig: Record<string, unknown>;
@@ -375,7 +385,7 @@ export class HomeListsRepo {
     refreshedAt: Date | null;
   } | null> {
     const result = await client.query(
-      `SELECT list_key, region_override, section_type, title, subtitle, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
+      `SELECT list_key, region_override, section_type, title, subtitle, image_url, rank, source_id, source_config, refresh_minutes, show_with_reco, last_refreshed_at
         FROM home.default_list_templates
         WHERE is_active AND list_key = $1`,
       [listKey],
@@ -388,6 +398,7 @@ export class HomeListsRepo {
       sectionType: String(row.section_type),
       title: String(row.title),
       subtitle: row.subtitle == null ? null : String(row.subtitle),
+      imageUrl: row.image_url == null || String(row.image_url).trim() === '' ? null : String(row.image_url),
       rank: Number(row.rank),
       sourceId: String(row.source_id),
       sourceConfig: (row.source_config as Record<string, unknown>) ?? {},

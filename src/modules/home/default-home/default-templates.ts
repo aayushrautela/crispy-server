@@ -4,6 +4,7 @@ export type DefaultTemplate = {
   sectionType: string;
   title: string;
   subtitle: string | null;
+  imageUrl: string | null;
   rank: number;
   sourceId: string;
   sourceConfig: Record<string, unknown>;

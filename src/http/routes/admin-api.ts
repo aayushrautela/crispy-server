@@ -434,6 +434,7 @@ export async function registerAdminApiRoutes(
           id: s.listKey,
           title: s.title,
           sectionType: s.sectionType,
+          imageUrl: s.imageUrl,
           items: s.items,
         })),
       },

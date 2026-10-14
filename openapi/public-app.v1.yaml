@@ -4293,6 +4293,7 @@ components:
         - title
         - subtitle
         - sectionType
+        - imageUrl
         - items
         - meta
       properties:
@@ -4307,6 +4308,11 @@ components:
         sectionType:
           type: string
           enum: [categoryTabs, heroCarousel, contentRail, collectionRail]
+        imageUrl:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Per-section folder/cover image supplied at write time (collection rails); null when unset. Clients render it directly, no fetching is done server-side.
         items:
           type: array
           items:

@@ -12,6 +12,7 @@ import { publishWatchChanged } from '../watch/watch-change.publisher.js';
 import { DefaultHomeBuilderService } from './default-home/index.js';
 import type { HomeMode, HomeSource, HomeWriteInput, HomeWriteResult } from './home-types.js';
 import type { ClientHomeResponse, ClientHomeSection } from '../recommendations/client-home.types.js';
+import { normalizeClientHomeSections } from '../recommendations/client-home.types.js';
 
 export type ResolvedHomeSource = 'custom' | 'reco' | 'default' | 'empty';
 
@@ -233,7 +234,10 @@ type HomeCachePayload = ClientHomeResponse & {
 function safeParse(value: string): HomeCachePayload | null {
   try {
     const parsed = JSON.parse(value);
-    if (parsed && Array.isArray(parsed.sections)) return parsed as HomeCachePayload;
+    if (parsed && Array.isArray(parsed.sections)) {
+      normalizeClientHomeSections(parsed.sections as ClientHomeSection[]);
+      return parsed as HomeCachePayload;
+    }
     return null;
   } catch {
     return null;

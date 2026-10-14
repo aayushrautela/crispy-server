@@ -5,6 +5,7 @@ export interface UpsertServiceRecommendationListRequest {
   title: string;
   subtitle: string | null;
   sectionType: RecoHomeSectionType;
+  imageUrl?: string | null;
   items: RecoWriteItem[];
   model: RecoModelInfo | null;
   context: Record<string, unknown>;

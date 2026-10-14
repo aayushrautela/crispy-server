@@ -12,6 +12,7 @@ type HomeListInput = {
   title: string;
   subtitle: string | null;
   sectionType: string;
+  imageUrl?: string | null;
   items: unknown[];
 };
 
@@ -112,6 +113,7 @@ export class HomeHydrator {
         title: list.title,
         subtitle: list.subtitle,
         sectionType: readSectionType(list.sectionType),
+        imageUrl: typeof list.imageUrl === 'string' && list.imageUrl.trim() ? list.imageUrl.trim() : null,
         items: sectionCards,
         meta: {},
       });

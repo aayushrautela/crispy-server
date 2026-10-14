@@ -414,6 +414,15 @@ export const recoProviderSchema = { type: 'string', enum: ['tmdb', 'tvdb', 'imdb
 export const recoMediaTypeSchema = { type: 'string', enum: ['movie', 'tv'] } as const;
 export const recoHomeSectionTypeSchema = { type: 'string', enum: ['categoryTabs', 'heroCarousel', 'contentRail', 'collectionRail'] } as const;
 
+// Opaque per-section folder/cover image supplied by the writer; never fetched
+// server-side. Optional on write, null when unset.
+export const nullableImageUrlSchema = {
+  anyOf: [
+    { type: 'string', maxLength: 2048 },
+    { type: 'null' },
+  ],
+} as const;
+
 export const recoProviderRefSchema = {
   type: 'object',
   additionalProperties: false,
@@ -723,6 +732,7 @@ export const upsertServiceRecommendationListBodySchema = {
     title: nonEmptyStringSchema,
     subtitle: nullableStringSchema,
     sectionType: recoHomeSectionTypeSchema,
+    imageUrl: nullableImageUrlSchema,
     items: { type: 'array', items: serviceRecommendationWriteItemSchema },
     model: recoModelInfoSchema,
     context: recordSchema,
@@ -873,6 +883,7 @@ export const batchUpsertServiceRecommendationListsBodySchema = {
                 title: nonEmptyStringSchema,
                 subtitle: nullableStringSchema,
                 sectionType: recoHomeSectionTypeSchema,
+                imageUrl: nullableImageUrlSchema,
                 items: { type: 'array', items: serviceRecommendationWriteItemSchema },
                 model: recoModelInfoSchema,
                 context: recordSchema,

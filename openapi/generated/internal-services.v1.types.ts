@@ -781,6 +781,8 @@ export interface components {
             title: string;
             subtitle: string | null;
             sectionType: components["schemas"]["RecoHomeSectionType"];
+            /** @description Optional per-section folder/cover image supplied by the writer; carried through to clients, never fetched server-side. */
+            imageUrl?: string | null;
             items: components["schemas"]["RecommendationListWriteItem"][];
             model: components["schemas"]["RecoModelInfo"] | null;
             context: components["schemas"]["Metadata"];
@@ -826,6 +828,7 @@ export interface components {
                     title: string;
                     subtitle: string | null;
                     sectionType: components["schemas"]["RecoHomeSectionType"];
+                    imageUrl?: string | null;
                     items: components["schemas"]["RecommendationListWriteItem"][];
                     model: components["schemas"]["RecoModelInfo"] | null;
                     context: components["schemas"]["Metadata"];
