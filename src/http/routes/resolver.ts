@@ -227,7 +227,16 @@ export async function registerResolverRoutes(
     // browser-unreadable URLs).
     void result.response?.body?.cancel().catch(() => {});
 
-    const cors = corsState(result.response);
+    let cors = corsState(result.response);
+    if (cors === 'cors') {
+      // The player loads with a Range header, so its fetch is preflighted.
+      // A GET answer that advertises CORS while OPTIONS answers nothing
+      // (pixeldrain-style CDNs) would be certified readable and then fail in
+      // the player; a definitive preflight refusal downgrades it here so the
+      // local engine re-serves instead.
+      const preflight = await resolver.preflight(result.url, origin);
+      if (preflight === false) cors = 'not-cors';
+    }
     const redirected = result.url !== inputUrl;
 
     return respond(reply, {

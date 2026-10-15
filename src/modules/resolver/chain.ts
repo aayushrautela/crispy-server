@@ -61,6 +61,21 @@ export const HOP_TIMEOUT_MS = 8000;
 export const MAX_URL_LENGTH = 8192;
 export const MAX_JSON_BYTES = 64 * 1024;
 
+/**
+ * Hard ceiling for one full walk (all transports combined). Without it the
+ * worst case is (MAX_REDIRECTS + 1) x HOP_TIMEOUT per transport — far past
+ * the caller's own timeout, so the client aborts while the server keeps
+ * walking a chain nobody will read.
+ */
+export const WALK_DEADLINE_MS = 12_000;
+
+/**
+ * A single OPTIONS probe against the final URL. Short: the host just answered
+ * a GET moments ago, so a slow preflight answer is a broken endpoint, not a
+ * busy one.
+ */
+export const PREFLIGHT_TIMEOUT_MS = 5000;
+
 export interface ChainHop {
   url: string;
   status: number;
@@ -204,6 +219,69 @@ export function corsState(response: Response | null): 'cors' | 'not-cors' | 'unk
   return 'cors';
 }
 
+/** Case-insensitive membership in a comma-separated CORS allow-list. */
+function allowListCovers(value: string | null, entry: string): boolean {
+  if (!value) return false;
+  const list = value.toLowerCase();
+  return list.split(',').some((item) => item.trim() === entry || item.trim() === '*');
+}
+
+/**
+ * Whether an OPTIONS preflight answer lets the player issue its real request.
+ *
+ * GET headers alone over-promise: `corsState` inspects the GET answer, but the
+ * player fetches with a `Range` header, which makes every cross-origin load
+ * preflighted. Some CDNs answer GET with `Access-Control-Allow-Origin: *` and
+ * OPTIONS with nothing at all; certifying those as readable only moves the
+ * failure into the player. A preflight passes only when the answer explicitly
+ * covers the origin, the GET method, and the range header.
+ */
+export function preflightAllows(response: Response, expectedOrigin?: string): boolean {
+  const allowOrigin = response.headers.get('access-control-allow-origin');
+  if (allowOrigin !== '*') {
+    // A mirrored-origin answer only helps the browser when it echoes exactly
+    // the origin the probe (and later the player) sends.
+    if (!allowOrigin || allowOrigin === 'null') return false;
+    if (expectedOrigin && allowOrigin !== expectedOrigin) return false;
+  }
+  return (
+    allowListCovers(response.headers.get('access-control-allow-methods'), 'get') &&
+    allowListCovers(response.headers.get('access-control-allow-headers'), 'range')
+  );
+}
+
+/**
+ * Probes the final URL with the same OPTIONS preflight the browser will send.
+ *
+ * Returns true/false when the host answered, null when the probe itself
+ * failed (DNS, TLS, timeout): a network failure says nothing about CORS, so
+ * the GET answer stands. Only a definitive "answered without the preflight
+ * contract" downgrades the certified URL.
+ */
+export async function checkPreflight(
+  url: URL,
+  origin: string | undefined,
+  fetchFn: FetchLike,
+  timeoutMs = PREFLIGHT_TIMEOUT_MS,
+): Promise<boolean | null> {
+  try {
+    const response = await fetchFn(url.toString(), {
+      method: 'OPTIONS',
+      headers: {
+        ...(origin ? { Origin: origin } : {}),
+        'Access-Control-Request-Method': 'GET',
+        // `range` is the header that forces the preflight in the real player.
+        'Access-Control-Request-Headers': 'range',
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    void response.body?.cancel().catch(() => {});
+    return preflightAllows(response, origin);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Walks the chain one hop at a time with `redirect: 'manual'`.
  *
@@ -222,10 +300,19 @@ export async function followChain(
   clientHeaders: Record<string, string> = {},
   origin?: string,
   fetchFn: FetchLike = fetch,
+  deadlineAt?: number,
 ): Promise<ChainResult> {
   const hops: ChainHop[] = [];
   const headers = { ...BROWSER_HEADERS, ...clientHeaders };
   let current = start;
+
+  /** Per-hop timeout, clamped to whatever the overall walk budget has left. */
+  const hopSignal = (): AbortSignal => {
+    if (deadlineAt === undefined) return AbortSignal.timeout(HOP_TIMEOUT_MS);
+    const remaining = deadlineAt - Date.now();
+    if (remaining <= 0) throw new ChainError('timeout', 'The chain walk ran out of time');
+    return AbortSignal.timeout(Math.min(HOP_TIMEOUT_MS, remaining));
+  };
 
   /**
    * A client-supplied `Range` must not ride along on the walk. The `Headers`
@@ -248,7 +335,7 @@ export async function followChain(
       // Ask for nothing: enough to learn the headers, never enough to
       // download a feature film through this endpoint.
       headers: { ...probeHeaders, Range: 'bytes=0-0' },
-      signal: AbortSignal.timeout(HOP_TIMEOUT_MS),
+      signal: hopSignal(),
     });
 
     // Some runtimes hide the redirect behind an opaque response. Nothing to
@@ -259,7 +346,7 @@ export async function followChain(
         method: 'GET',
         redirect: 'follow',
         headers: { ...probeHeaders, Range: 'bytes=0-0' },
-        signal: AbortSignal.timeout(HOP_TIMEOUT_MS),
+        signal: hopSignal(),
       });
       return { url: followed.url || current.toString(), hops, response: followed };
     }

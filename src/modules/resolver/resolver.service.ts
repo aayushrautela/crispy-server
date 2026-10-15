@@ -14,12 +14,15 @@
 
 import {
   ChainError,
+  checkPreflight,
   describeTerminalHop,
   followChain,
   FORWARDABLE_HEADERS,
+  WALK_DEADLINE_MS,
   type ChainResult,
   type FetchLike,
 } from './chain.js';
+import { parseResolvableUrl } from './chain.js';
 import type { ProxyConfig } from './proxy.js';
 
 export type ResolverTransport = 'direct' | 'proxy';
@@ -34,6 +37,14 @@ const TRANSPORT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Keep the in-memory cache bounded; a long-running process would leak hostnames. */
 const TRANSPORT_CACHE_MAX_ENTRIES = 5000;
+
+/**
+ * Terminal statuses a different egress IP cannot change: the resource is
+ * gone, the forwarded auth is wrong, or the limit belongs to the token baked
+ * into the URL (debrid APIs are largely token-scoped). Retrying these through
+ * the proxy pays residential bandwidth for the identical answer.
+ */
+const NO_PROXY_RETRY = /^status-(401|404|410|416|429)$/;
 
 type TransportDecision = {
   transport: ResolverTransport;
@@ -98,18 +109,22 @@ export class ResolverService {
   ): Promise<WalkOutcome> {
     const host = start.hostname;
     const transports = this.transportOrder(host);
+    const deadlineAt = this.now() + WALK_DEADLINE_MS;
 
     let refusal: WalkOutcome | null = null;
     let failure: unknown = null;
 
     for (const transport of transports) {
       try {
-        const result = await followChain(start, clientHeaders, origin, this.fetchFor(transport));
-        if (describeTerminalHop(result) === null) {
+        const result = await followChain(start, clientHeaders, origin, this.fetchFor(transport), deadlineAt);
+        const terminal = describeTerminalHop(result);
+        if (terminal === null) {
           this.remember(host, transport);
           return { result, transport };
         }
         refusal ??= { result, transport };
+        // A fresh IP buys nothing against gone/auth/token-scoped answers.
+        if (NO_PROXY_RETRY.test(terminal)) break;
       } catch (error) {
         failure ??= error;
       }
@@ -117,6 +132,26 @@ export class ResolverService {
 
     if (refusal) return refusal;
     throw failure instanceof Error ? failure : new ChainError('unreachable', 'The chain walk failed');
+  }
+
+  /**
+   * OPTIONS-probes a resolved URL the walk already certified via its GET
+   * answer. `false` downgrades the certification (the player's preflighted
+   * Range fetch would fail); `null` (the probe never got an answer) changes
+   * nothing. The proxy is only consulted when the direct probe could not run
+   * at all — CORS headers do not depend on the egress IP, a host that
+   * answered answered.
+   */
+  async preflight(url: string, origin?: string): Promise<boolean | null> {
+    let parsed: URL;
+    try {
+      parsed = parseResolvableUrl(url);
+    } catch {
+      return null;
+    }
+    const direct = await checkPreflight(parsed, origin, this.directFetch);
+    if (direct !== null || !this.proxy) return direct;
+    return checkPreflight(parsed, origin, this.proxy.fetch);
   }
 
   private transportOrder(host: string): ResolverTransport[] {

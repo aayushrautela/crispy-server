@@ -26,6 +26,18 @@ function recordingFetch(script: Response[]): { fetch: FetchLike; calls: Array<{ 
   return { fetch, calls };
 }
 
+/** An OPTIONS answer that passes the same preflight contract the browser demands. */
+function preflightOkResponse(): Response {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET, HEAD',
+      'access-control-allow-headers': 'range',
+    },
+  });
+}
+
 async function buildApp(deps: Partial<Parameters<typeof registerResolverRoutes>[1]> = {}): Promise<FastifyInstance> {
   const app = Fastify();
   await registerResolverRoutes(app, deps);
@@ -36,6 +48,7 @@ test('POST /v1/resolve-url reports cors-ok with hops for a redirect chain', asyn
   const direct = recordingFetch([
     jsonResponse(302, null, { location: 'https://cdn.example/final.mp4' }),
     jsonResponse(200, null, { 'access-control-allow-origin': '*' }),
+    preflightOkResponse(),
   ]);
   const service = new ResolverService({ directFetch: direct.fetch });
   const app = await buildApp({ resolver: service });
@@ -55,6 +68,10 @@ test('POST /v1/resolve-url reports cors-ok with hops for a redirect chain', asyn
   assert.equal(body.reason, 'cors-ok');
   assert.equal(body.resolved, true);
   assert.equal(body.hops.length, 2);
+  // The certification ends with the same OPTIONS probe the player would trigger.
+  const preflightCall = direct.calls.at(-1);
+  assert.equal(preflightCall?.init?.method, 'OPTIONS');
+  assert.equal(preflightCall?.init?.headers && (preflightCall.init.headers as Record<string, string>)['Access-Control-Request-Headers'], 'range');
 });
 
 test('POST /v1/resolve-url refuses a private host with blocked-host and keeps the input URL', async (t) => {
@@ -99,6 +116,7 @@ test('POST /v1/resolve-url reports the terminal refusal (proxy absent)', async (
 test('GET /v1/resolve-url reads url and headers from the query string', async (t) => {
   const direct = recordingFetch([
     jsonResponse(200, null, { 'access-control-allow-origin': '*' }),
+    preflightOkResponse(),
   ]);
   const service = new ResolverService({ directFetch: direct.fetch });
   const app = await buildApp({ resolver: service });
@@ -112,6 +130,29 @@ test('GET /v1/resolve-url reads url and headers from the query string', async (t
   const body = response.json();
   assert.equal(body.reason, 'no-redirect');
   assert.equal(body.cors, true);
+});
+
+test('POST /v1/resolve-url downgrades when OPTIONS lacks the preflight contract', async (t) => {
+  // pixeldrain-style: GET advertises ACAO:*, OPTIONS answers without any CORS.
+  // The player's Range fetch is preflighted, so this URL is not readable.
+  const direct = recordingFetch([
+    jsonResponse(200, null, { 'access-control-allow-origin': '*' }),
+    new Response(null, { status: 200 }),
+  ]);
+  const service = new ResolverService({ directFetch: direct.fetch });
+  const app = await buildApp({ resolver: service });
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/resolve-url',
+    payload: { url: 'https://cdn.example/unreadable.mp4' },
+  });
+
+  const body = response.json();
+  assert.equal(body.url, 'https://cdn.example/unreadable.mp4');
+  assert.equal(body.cors, false);
+  assert.equal(body.reason, 'proxy-required');
 });
 
 test('POST /v1/resolve-url without url answers missing-url', async (t) => {

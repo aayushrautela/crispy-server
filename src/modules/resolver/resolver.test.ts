@@ -4,6 +4,7 @@ import {
   ChainError,
   followChain,
   parseResolvableUrl,
+  preflightAllows,
   type FetchLike,
 } from './chain.js';
 import { pickForwardableHeaders, ResolverService } from './resolver.service.js';
@@ -135,6 +136,50 @@ test('walk without a proxy returns the direct refusal result instead of throwing
   assert.equal(outcome.transport, 'direct');
   assert.equal(outcome.result.response?.status, 403);
   assert.equal(direct.calls.length, 1);
+});
+
+test('walk does not spend a proxy walk on refusals a new IP cannot change', async () => {
+  // Debrid rate limits and gone-resources are scoped to the URL's token, not
+  // to the egress IP — the proxy answer would be identical, only billable.
+  for (const status of [401, 404, 410, 416, 429]) {
+    const resolver = `https://resolver.example/start-${status}`;
+    const proxyFetch = scriptedFetch([responseFor(resolver, 200, {})]);
+    const service = new ResolverService({
+      directFetch: scriptedFetch([responseFor(resolver, status, {})]).fetch,
+      proxy: { fetch: proxyFetch.fetch, label: 'p:1080' } as ProxyConfig,
+    });
+
+    const outcome = await service.walk(parseResolvableUrl(resolver));
+    assert.equal(outcome.transport, 'direct');
+    assert.equal(outcome.result.response?.status, status);
+    assert.equal(proxyFetch.calls.length, 0, `status ${status} must not reach the proxy`);
+  }
+});
+
+test('preflightAllows demands origin, method and range coverage', () => {
+  const ok = responseFor('https://cdn.example/f.mp4', 200, {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, HEAD',
+    'access-control-allow-headers': 'range',
+  });
+  assert.equal(preflightAllows(ok, 'https://web.example'), true);
+
+  const mirrored = responseFor('https://cdn.example/f.mp4', 200, {
+    'access-control-allow-origin': 'https://web.example',
+    'access-control-allow-methods': '*',
+    'access-control-allow-headers': '*',
+  });
+  assert.equal(preflightAllows(mirrored, 'https://web.example'), true);
+  assert.equal(preflightAllows(mirrored, 'https://other.example'), false);
+
+  const noHeaders = responseFor('https://cdn.example/f.mp4', 200, {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET',
+  });
+  assert.equal(preflightAllows(noHeaders, 'https://web.example'), false);
+
+  const noAacao = responseFor('https://cdn.example/f.mp4', 200, {});
+  assert.equal(preflightAllows(noAacao), false);
 });
 
 test('walk throws the direct error when every transport fails to walk', async () => {
