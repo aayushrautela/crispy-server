@@ -254,7 +254,7 @@ export async function buildApp() {
   await registerProfileSettingsRoutes(app, { profileService });
   await registerMetadataRoutes(app);
   await registerBrowseRoutes(app);
-  await registerWatchRoutes(app, { profilePinService });
+  await registerWatchRoutes(app, { profilePinService, profileService });
   await registerTasteProfileRoutes(app);
   const internalAppsDeps = buildInternalAppsRoutesDependencies(appAuthDeps);
   await registerAdminApiRoutes(app);

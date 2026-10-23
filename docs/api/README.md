@@ -18,7 +18,7 @@ Do not add a hand-maintained route inventory. Use OpenAPI plus `npm run contract
 
 | Class | Prefixes | Spec | Consumers | Security |
 | --- | --- | --- | --- | --- |
-| Public App API | `/v1/**` | `openapi/public-app.v1.yaml` | first-party app clients | user bearer/session auth |
+| Public App API | `/v1/**` | `openapi/public-app.v1.yaml` | first-party app clients | user bearer/session auth; PAT bearer (`watch:read`) on watch read endpoints |
 | Public Account API | `/api/account/v1/**` | `openapi/public-account.v1.yaml` | user-owned integrations and PAT clients | PAT bearer or user auth |
 | Internal Service API | `/internal/apps/v1/**`, `/internal/recommendations/v1/**` | `openapi/internal-services.v1.yaml` | trusted backend services | service bearer token plus app scopes |
 | Recommender Inbound API | `/internal/recommender/v1/**` | `openapi/internal-recommender.v1.yaml` | MAIN service-outbox dispatcher calling RECO | service bearer token |
@@ -27,6 +27,10 @@ Do not add a hand-maintained route inventory. Use OpenAPI plus `npm run contract
 | Health/Infrastructure | probes such as `/healthz` | `openapi/health-infrastructure.yaml` | load balancers/orchestrators | deployment/network policy |
 
 Browser-only admin UI routes such as `/admin`, `/admin/login`, and `/admin/logout` are intentionally excluded from API specs. Keep those exclusions in `scripts/check-contract-drift.mjs` if the browser-only surface changes.
+
+### Personal access tokens
+
+Personal access tokens (`cp_pat_...`) authenticate on the Public Account API and, on the Public App API, on the watch read endpoints `GET /v1/profiles/{profileId}/watch/history`, `/continue-watching`, `/watchlist`, `/ratings`, `/episodic-follow`, and `/generations`. A token must hold the `watch:read` scope and can only read profiles owned by its account; PAT watch reads are limited to 60 requests per minute per token (`PAT_WATCH_READS_RATE_LIMIT_PER_MINUTE` in `src/http/routes/watch.ts`). Watch mutations remain session-only. The `admin-ops.v1.yaml` `/admin/api/homescreen/*` paths are spec-only: the implemented admin homescreen API lives at `/admin/api/home/*` and is intentionally not yet mapped in the drift checker.
 
 ## Contract checks
 

@@ -441,7 +441,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete profile.
+         * @description Deletes the profile. Requires the caller's own profile to be an admin profile. When the admin profile has a PIN, pass it as `adminPin` in the request body.
+         */
+        delete: operations["deleteV1ProfilesProfileId"];
         options?: never;
         head?: never;
         /** Update profile. */
@@ -740,6 +744,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/profiles/{profileId}/home-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Return the profile home mode.
+         * @description Returns the profile's home mode (`recommended` or `custom`). Accepts a user session JWT or a personal access token; such calls are restricted to profiles owned by the token's account.
+         */
+        get: operations["getV1ProfilesProfileIdHomeMode"];
+        /**
+         * Set the profile home mode.
+         * @description Switches the home screen between `recommended` and `custom`. Accepts a user session JWT or a personal access token with the `recommendations:write` scope; personal access tokens can only access profiles owned by their account.
+         */
+        put: operations["putV1ProfilesProfileIdHomeMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/profiles/{profileId}/settings": {
         parameters: {
             query?: never;
@@ -800,8 +828,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List continue watching. */
+        /**
+         * List continue watching.
+         * @description Accepts a user session JWT or a personal access token with the `watch:read` scope. Personal access tokens can only read profiles owned by their account, and are limited to 60 requests per minute per token.
+         */
         get: operations["getV1ProfilesProfileIdWatchContinueWatching"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/profiles/{profileId}/watch/episodic-follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List episodic follow items.
+         * @description Returns the shows the profile follows episodically, with their next episode. Accepts a user session JWT or a personal access token with the `watch:read` scope. Personal access tokens can only read profiles owned by their account, and are limited to 60 requests per minute per token.
+         */
+        get: operations["getV1ProfilesProfileIdWatchEpisodicFollow"];
         put?: never;
         post?: never;
         delete?: never;
@@ -885,7 +936,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List watch history. */
+        /**
+         * List watch history.
+         * @description Accepts a user session JWT or a personal access token with the `watch:read` scope. Personal access tokens can only read profiles owned by their account, and are limited to 60 requests per minute per token.
+         */
         get: operations["getV1ProfilesProfileIdWatchHistory"];
         put?: never;
         post?: never;
@@ -963,7 +1017,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List ratings. */
+        /**
+         * List ratings.
+         * @description Accepts a user session JWT or a personal access token with the `watch:read` scope. Personal access tokens can only read profiles owned by their account, and are limited to 60 requests per minute per token.
+         */
         get: operations["getV1ProfilesProfileIdWatchRatings"];
         put?: never;
         post?: never;
@@ -987,6 +1044,10 @@ export interface paths {
          *     Clients use this to decide whether cached data needs a refetch after
          *     being offline or closed; null means no change has ever been published
          *     for that surface.
+         *
+         *     Accepts a user session JWT or a personal access token with the
+         *     `watch:read` scope. Personal access tokens can only read profiles owned
+         *     by their account, and are limited to 60 requests per minute per token.
          */
         get: operations["getV1ProfilesProfileIdWatchGenerations"];
         put?: never;
@@ -1058,7 +1119,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List watchlist. */
+        /**
+         * List watchlist.
+         * @description Accepts a user session JWT or a personal access token with the `watch:read` scope. Personal access tokens can only read profiles owned by their account, and are limited to 60 requests per minute per token.
+         */
         get: operations["getV1ProfilesProfileIdWatchWatchlist"];
         put?: never;
         post?: never;
@@ -2595,6 +2659,41 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    deleteV1ProfilesProfileId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    adminPin?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     patchV1ProfilesProfileId: {
         parameters: {
             query?: never;
@@ -3234,6 +3333,74 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    getV1ProfilesProfileIdHomeMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        mode?: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    putV1ProfilesProfileIdHomeMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "recommended" | "custom";
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        mode?: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     getV1ProfilesProfileIdSettings: {
         parameters: {
             query?: never;
@@ -3423,6 +3590,37 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getV1ProfilesProfileIdWatchEpisodicFollow: {
+        parameters: {
+            query?: {
+                limit?: string;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenericObject"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };

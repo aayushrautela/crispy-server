@@ -2,9 +2,37 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ClientMediaCard } from '../../modules/recommendations/client-home.types.js';
 import type { WatchInternalRef } from '../../modules/watch/watch-read.types.js';
+import type { WatchRoutesDeps } from './watch.js';
+import type { ProfileRecord } from '../../modules/profiles/profile-local.service.js';
+import { HttpError } from '../../lib/errors.js';
 import { seedTestEnv, buildTestApp } from '../../test-helpers.js';
 
 seedTestEnv();
+
+const TEST_OWNED_PROFILE: ProfileRecord = {
+  id: 'profile-1',
+  name: 'Member',
+  interfaceLanguage: 'en',
+  region: null,
+  avatarUrl: null,
+  isAdmin: false,
+  requirePinToAddProfiles: false,
+  hasPin: false,
+  isKids: false,
+  sortOrder: 1,
+  createdByUserId: 'user-1',
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+};
+
+function makeOwnershipStub(ownedProfileIds: string[] = ['profile-1']): NonNullable<WatchRoutesDeps['profileService']> {
+  return {
+    async requireOwnedProfile(_authSubject: string, profileId: string): Promise<ProfileRecord> {
+      if (ownedProfileIds.includes(profileId)) return TEST_OWNED_PROFILE;
+      throw new HttpError(404, 'Profile not found.');
+    },
+  };
+}
 
 const testItemId = '00000000000040008000000000000001';
 const testTitleItemId = '00000000000040008000000000000002';
@@ -47,7 +75,7 @@ test('rating endpoint stores the binary liked vote verbatim and rejects non-bool
   t.mock.method(ContentIdentityRepository.prototype, 'findContentItemById', async () => ({ entityType: 'movie' }));
   t.mock.method(LocalUserWatchService.prototype, 'setRating', async (params: Parameters<InstanceType<typeof LocalUserWatchService>['setRating']>[0]) => { calls.push(params); });
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(() => app.close());
   for (const liked of [true, false, null]) {
     const response = await app.inject({ method: 'PUT', url: `/v1/profiles/profile-1/watch/rating/${testItemId}`, headers: { authorization: 'Bearer test' }, payload: { liked } });
@@ -146,7 +174,7 @@ test('watch routes work with user actor auth subject', async (t) => {
   });
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const auth = { authorization: 'Bearer test' };
@@ -268,7 +296,7 @@ test('dismiss continue-watching resolves titleItemId from playableItemId', async
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -306,7 +334,7 @@ test('delete watch history routes to service with resolved mediaType', async (t)
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const auth = { authorization: 'Bearer test' };
@@ -395,7 +423,7 @@ test('mark/unmark watched accepts season itemId and cascades mediaType', async (
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const auth = { authorization: 'Bearer test' };
@@ -452,7 +480,7 @@ test('watch mutations surface a reason when rejected', async (t) => {
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -560,7 +588,7 @@ test('continue-watching serializes items with progress', async (t) => {
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -648,7 +676,7 @@ test('watch state serializes progress without status', async (t) => {
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp(registerWatchRoutes);
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
@@ -711,7 +739,7 @@ test('watch route requires unlock (locked profile) when profile has a PIN', asyn
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp((a) => registerWatchRoutes(a, { profilePinService: fakePin }));
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profilePinService: fakePin, profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const auth = { authorization: 'Bearer test' };
@@ -784,7 +812,7 @@ test('watch route allows access when profile has no PIN', async (t) => {
   };
 
   const { registerWatchRoutes } = await import('./watch.js');
-  const app = await buildTestApp((a) => registerWatchRoutes(a, { profilePinService: fakePin }));
+  const app = await buildTestApp((a) => registerWatchRoutes(a, { profilePinService: fakePin, profileService: makeOwnershipStub() }));
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({

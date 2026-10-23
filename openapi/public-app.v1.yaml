@@ -1096,6 +1096,55 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+    delete:
+      tags:
+        - Profiles
+      operationId: deleteV1ProfilesProfileId
+      summary: Delete profile.
+      description: >-
+        Deletes the profile. Requires the caller's own profile to be an admin
+        profile. When the admin profile has a PIN, pass it as `adminPin` in the
+        request body.
+      security:
+        - UserBearerAuth: []
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminPin:
+                  type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/pin:
     post:
       tags:
@@ -1881,6 +1930,105 @@ paths:
           $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/home-mode:
+    get:
+      tags:
+        - Profiles
+      operationId: getV1ProfilesProfileIdHomeMode
+      summary: Return the profile home mode.
+      security:
+        - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Returns the profile's home mode (`recommended` or `custom`). Accepts a
+        user session JWT or a personal access token; such calls are restricted
+        to profiles owned by the token's account.
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      tags:
+        - Profiles
+      operationId: putV1ProfilesProfileIdHomeMode
+      summary: Set the profile home mode.
+      security:
+        - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Switches the home screen between `recommended` and `custom`. Accepts a
+        user session JWT or a personal access token with the
+        `recommendations:write` scope; personal access tokens can only access
+        profiles owned by their account.
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [recommended, custom]
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
   /v1/profiles/{profileId}/settings:
     get:
       tags:
@@ -2099,6 +2247,11 @@ paths:
       summary: List continue watching.
       security:
         - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Accepts a user session JWT or a personal access token with the
+        `watch:read` scope. Personal access tokens can only read profiles owned
+        by their account, and are limited to 60 requests per minute per token.
       parameters:
         - name: profileId
           in: path
@@ -2145,6 +2298,57 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/profiles/{profileId}/watch/episodic-follow:
+    get:
+      tags:
+        - Watch
+      operationId: getV1ProfilesProfileIdWatchEpisodicFollow
+      summary: List episodic follow items.
+      security:
+        - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Returns the shows the profile follows episodically, with their next
+        episode. Accepts a user session JWT or a personal access token with the
+        `watch:read` scope. Personal access tokens can only read profiles owned
+        by their account, and are limited to 60 requests per minute per token.
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":
@@ -2369,6 +2573,11 @@ paths:
       summary: List watch history.
       security:
         - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Accepts a user session JWT or a personal access token with the
+        `watch:read` scope. Personal access tokens can only read profiles owned
+        by their account, and are limited to 60 requests per minute per token.
       parameters:
         - name: profileId
           in: path
@@ -2652,6 +2861,11 @@ paths:
       summary: List ratings.
       security:
         - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Accepts a user session JWT or a personal access token with the
+        `watch:read` scope. Personal access tokens can only read profiles owned
+        by their account, and are limited to 60 requests per minute per token.
       parameters:
         - name: profileId
           in: path
@@ -2714,8 +2928,13 @@ paths:
         Clients use this to decide whether cached data needs a refetch after
         being offline or closed; null means no change has ever been published
         for that surface.
+
+        Accepts a user session JWT or a personal access token with the
+        `watch:read` scope. Personal access tokens can only read profiles owned
+        by their account, and are limited to 60 requests per minute per token.
       security:
         - UserBearerAuth: []
+        - PersonalAccessToken: []
       parameters:
         - name: profileId
           in: path
@@ -2919,6 +3138,11 @@ paths:
       summary: List watchlist.
       security:
         - UserBearerAuth: []
+        - PersonalAccessToken: []
+      description: >-
+        Accepts a user session JWT or a personal access token with the
+        `watch:read` scope. Personal access tokens can only read profiles owned
+        by their account, and are limited to 60 requests per minute per token.
       parameters:
         - name: profileId
           in: path
@@ -3284,6 +3508,15 @@ components:
       type: http
       scheme: bearer
       bearerFormat: user-session-or-jwt
+    PersonalAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: personal-access-token
+      description: >-
+        Long-lived personal access token (`cp_pat_...`). Accepted on selected
+        read endpoints (for example watch history and watch lists) when the
+        token carries the required scope; the token owner must own the profile
+        in the path. See the endpoint description for the required scope.
   parameters:
     RequestId:
       name: X-Request-Id

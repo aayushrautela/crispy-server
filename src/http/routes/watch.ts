@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   continueWatchingListRouteSchema,
   historyListRouteSchema,
@@ -41,12 +41,61 @@ import { ContentIdentityService } from '../../modules/identity/content-identity.
 import { ContentIdentityRepository } from '../../modules/identity/content-identity.repo.js';
 import { requireProfileUnlock } from '../plugins/profile-unlock-guard.js';
 import { redis } from '../../lib/redis.js';
+import { HttpError } from '../../lib/errors.js';
+import { ProfileLocalService } from '../../modules/profiles/profile-local.service.js';
 
 export interface WatchRoutesDeps {
   profilePinService?: {
     hasPin(profileId: string): Promise<boolean>;
   };
+  profileService?: Pick<ProfileLocalService, 'requireOwnedProfile'>;
+  patWatchReadRateLimitService?: PatWatchReadRateLimitService;
 }
+
+export interface PatWatchReadRateLimitDecision {
+  allowed: boolean;
+  retryAfterSeconds?: number;
+  remaining?: number;
+  resetAt?: Date;
+}
+
+export interface PatWatchReadRateLimitService {
+  checkAndConsume(input: { key: string; method: string }): Promise<PatWatchReadRateLimitDecision>;
+}
+
+const PAT_WATCH_READS_RATE_LIMIT_PER_MINUTE = 60;
+
+export class InMemoryPatWatchReadRateLimitService implements PatWatchReadRateLimitService {
+  private readonly entries = new Map<string, { count: number; resetAt: Date }>();
+
+  constructor(private readonly limitPerMinute: number = PAT_WATCH_READS_RATE_LIMIT_PER_MINUTE) {}
+
+  async checkAndConsume(input: { key: string; method: string }): Promise<PatWatchReadRateLimitDecision> {
+    const now = new Date();
+    const windowSeconds = 60;
+    const bucket = Math.floor(now.getTime() / (windowSeconds * 1000));
+    const key = ['pat-watch-read-rate-limit', input.key, input.method.toUpperCase(), bucket].join(':');
+    const existing = this.entries.get(key);
+    const entry = existing && existing.resetAt > now
+      ? { count: existing.count + 1, resetAt: existing.resetAt }
+      : { count: 1, resetAt: new Date(now.getTime() + windowSeconds * 1000) };
+    this.entries.set(key, entry);
+
+    const remaining = Math.max(this.limitPerMinute - entry.count, 0);
+    if (entry.count > this.limitPerMinute) {
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(Math.ceil((entry.resetAt.getTime() - now.getTime()) / 1000), 1),
+        remaining,
+        resetAt: entry.resetAt,
+      };
+    }
+
+    return { allowed: true, remaining, resetAt: entry.resetAt };
+  }
+}
+
+const defaultPatWatchReadRateLimitService = new InMemoryPatWatchReadRateLimitService();
 
 const MAX_WATCH_STREAMS_PER_PROFILE = 5;
 const activeWatchStreams = new Map<string, number>();
@@ -80,16 +129,53 @@ export async function registerWatchRoutes(
   const contentIdentityRepo = new ContentIdentityRepository();
   const episodicFollowService = new EpisodicFollowService();
   const { profilePinService } = deps;
+  const profileService = deps.profileService ?? new ProfileLocalService();
+  const patWatchReadRateLimitService = deps.patWatchReadRateLimitService ?? defaultPatWatchReadRateLimitService;
 
-  async function assertProfileUnlocked(request: import('fastify').FastifyRequest, profileId: string) {
+  async function assertProfileUnlocked(request: FastifyRequest, profileId: string) {
     if (!profilePinService) return;
     await requireProfileUnlock(request, profileId, { profilePinService });
+  }
+
+  async function assertProfileOwned(authSubject: string | null | undefined, profileId: string): Promise<void> {
+    if (!authSubject) {
+      throw new HttpError(401, 'Authentication required.');
+    }
+    await profileService.requireOwnedProfile(authSubject, profileId);
+  }
+
+  async function enforcePatWatchReadRateLimit(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const actor = request.auth;
+    if (actor?.type !== 'pat' || !actor.tokenId) return;
+    const decision = await patWatchReadRateLimitService.checkAndConsume({
+      key: `pat:${actor.tokenId}`,
+      method: request.method,
+    });
+    if (!decision.allowed) {
+      if (decision.retryAfterSeconds) {
+        reply.header('Retry-After', String(decision.retryAfterSeconds));
+      }
+      if (decision.resetAt) {
+        reply.header('X-RateLimit-Reset', decision.resetAt.toISOString());
+      }
+      if (typeof decision.remaining === 'number') {
+        reply.header('X-RateLimit-Remaining', String(decision.remaining));
+      }
+      throw new HttpError(429, 'Rate limit exceeded.');
+    }
+    request.log.info({
+      method: request.method,
+      url: request.url,
+      tokenId: actor.tokenId,
+      appUserId: actor.appUserId,
+    }, 'personal access token used for watch read');
   }
 
   app.post('/v1/profiles/:profileId/watch/events', { schema: watchEventsRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchEventBody;
     const seasonNumber = typeof body.seasonNumber === 'number' ? Math.trunc(body.seasonNumber) : null;
@@ -142,10 +228,13 @@ export async function registerWatchRoutes(
     return mutation({ accepted: true, mode: 'synchronous' as const });
   });
 
-  app.get('/v1/profiles/:profileId/watch/continue-watching', { schema: continueWatchingListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/continue-watching', { schema: continueWatchingListRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserActor(request);
+    app.requireScopes(request, ['watch:read']);
+    await enforcePatWatchReadRateLimit(request, reply);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
@@ -172,10 +261,13 @@ export async function registerWatchRoutes(
     });
   });
 
-  app.get('/v1/profiles/:profileId/watch/episodic-follow', async (request) => {
+  app.get('/v1/profiles/:profileId/watch/episodic-follow', async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserActor(request);
+    app.requireScopes(request, ['watch:read']);
+    await enforcePatWatchReadRateLimit(request, reply);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
@@ -256,6 +348,7 @@ export async function registerWatchRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 20);
@@ -283,6 +376,7 @@ export async function registerWatchRoutes(
     const actor = app.requireUserSessionActor(request);
     const params = request.params as Partial<WatchContinueWatchingDismissParams> & { id: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const playableItemId = assertPublicItemId(params.id);
     const resolved = await withDbClient(async (client) => {
@@ -303,6 +397,7 @@ export async function registerWatchRoutes(
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; id: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.id);
     const query = (request.query ?? {}) as WatchHistoryDeleteQuery;
@@ -323,10 +418,13 @@ export async function registerWatchRoutes(
     return watchMutation(outcome);
   });
 
-  app.get('/v1/profiles/:profileId/watch/history', { schema: historyListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/history', { schema: historyListRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserActor(request);
+    app.requireScopes(request, ['watch:read']);
+    await enforcePatWatchReadRateLimit(request, reply);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 100);
@@ -350,9 +448,13 @@ export async function registerWatchRoutes(
     });
   });
 
-  app.get('/v1/profiles/:profileId/watch/generations', { schema: watchGenerationsRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/generations', { schema: watchGenerationsRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
+    const actor = app.requireUserActor(request);
+    app.requireScopes(request, ['watch:read']);
+    await enforcePatWatchReadRateLimit(request, reply);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const [continueWatching, history, watchlist, ratings, home] = await Promise.all([
       redis.get(`watchgen:${profileId}:continue_watching`),
@@ -371,10 +473,13 @@ export async function registerWatchRoutes(
     });
   });
 
-  app.get('/v1/profiles/:profileId/watch/watchlist', { schema: watchlistListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/watchlist', { schema: watchlistListRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserActor(request);
+    app.requireScopes(request, ['watch:read']);
+    await enforcePatWatchReadRateLimit(request, reply);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
@@ -397,10 +502,13 @@ export async function registerWatchRoutes(
     });
   });
 
-  app.get('/v1/profiles/:profileId/watch/ratings', { schema: ratingsListRouteSchema }, async (request) => {
+  app.get('/v1/profiles/:profileId/watch/ratings', { schema: ratingsListRouteSchema }, async (request, reply) => {
     await app.requireAuth(request);
-    const actor = app.requireUserSessionActor(request);
+    const actor = app.requireUserActor(request);
+    app.requireScopes(request, ['watch:read']);
+    await enforcePatWatchReadRateLimit(request, reply);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchPaginationQuery;
     const limit = Number(query.limit ?? 50);
@@ -427,6 +535,7 @@ export async function registerWatchRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const query = (request.query ?? {}) as WatchStateLookupContract;
     const language = await metadataLanguageService.resolveForProfile(profileId, actor.appUserId);
@@ -440,6 +549,7 @@ export async function registerWatchRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchStateBatchBody;
     const items = Array.isArray(body.items) ? body.items : [];
@@ -455,6 +565,7 @@ export async function registerWatchRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
@@ -486,6 +597,7 @@ export async function registerWatchRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const playableItemId = assertPublicItemId(body.itemId!);
@@ -518,6 +630,7 @@ export async function registerWatchRoutes(
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.itemId);
     const resolvedMediaType = await withDbClient(async (client) => {
@@ -542,6 +655,7 @@ export async function registerWatchRoutes(
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.itemId);
     await localUserWatchService.deleteListItem({
@@ -557,6 +671,7 @@ export async function registerWatchRoutes(
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const body = (request.body ?? {}) as WatchMutationBody;
     const itemId = assertPublicItemId(params.itemId);
@@ -579,6 +694,7 @@ export async function registerWatchRoutes(
     const actor = app.requireUserSessionActor(request);
     const params = request.params as { profileId: string; itemId: string };
     const profileId = getProfileIdFromParams(params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const itemId = assertPublicItemId(params.itemId);
     await localUserWatchService.deleteRating({
@@ -593,6 +709,7 @@ export async function registerWatchRoutes(
     await app.requireAuth(request);
     const actor = app.requireUserSessionActor(request);
     const profileId = getProfileIdFromParams(request.params);
+    await assertProfileOwned(actor.authSubject, profileId);
     await assertProfileUnlocked(request, profileId);
     const accountId = actor.authSubject!;
     const streamKey = `${accountId}:${profileId}`;
