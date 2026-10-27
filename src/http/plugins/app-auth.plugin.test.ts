@@ -1,76 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { FastifyRequest } from 'fastify';
-import { AppAuthError } from '../../modules/apps/app-auth.errors.js';
-import type { AppAuthService, AppCredential } from '../../modules/apps/app-auth.service.js';
 import type { AppAuditRepo, CreateAppAuditEventInput, AppAuditEventRecord, PaginatedAppAuditEvents } from '../../modules/apps/app-audit.repo.js';
 import type { AppGrantRepo } from '../../modules/apps/app-grant.repo.js';
 import type { AppGrant } from '../../modules/apps/app-principal.types.js';
 import type { AppRegistryRepo } from '../../modules/apps/app-registry.repo.js';
-import type { AppScope, AppRateLimitPolicy, AppPrincipal } from '../../modules/apps/app-principal.types.js';
+import type { AppScope, AppRateLimitPolicy } from '../../modules/apps/app-principal.types.js';
 import type { AppSourceOwnershipRepo, AppSourceOwnership } from '../../modules/apps/app-source-ownership.repo.js';
 import type { AppRateLimitService, AppRateLimitDecision } from '../../modules/apps/app-rate-limit.service.js';
 import { setTestEnv } from '../../test-helpers.js';
+
+const RECOMMENDER_TOKEN = 'reco-service-token';
 
 setTestEnv({
   AUTH_BASE_URL: 'http://localhost:54321',
   AUTH_ADMIN_API_KEY: 'service-role-key',
   JWT_SECRET: 'test-jwt-secret',
-  RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: 'unused-token-hash',
+  // sha256(RECOMMENDER_TOKEN)
+  RECOMMENDER_TO_MAIN_SERVICE_TOKEN_HASH: '42e3a67fc454b0c9b2974cb3a9ef0ce86ef1457494dd4f4aadee148f98a8a3b2',
 });
-
-function buildPrincipal(): AppPrincipal {
-  return {
-    principalType: 'app',
-    appId: 'test-app',
-    keyId: 'test-key-id',
-    scopes: ['apps:self:read'],
-    grants: [],
-    ownedSources: ['reco'],
-    rateLimitPolicy: {
-      profileChangesReadsPerMinute: 60,
-      profileSignalReadsPerMinute: 60,
-      recommendationWritesPerMinute: 60,
-      batchWritesPerMinute: 10,
-      configBundleReadsPerMinute: 60,
-      runsPerHour: 10,
-      snapshotsPerDay: 5,
-      maxProfilesPerBatch: 100,
-      maxItemsPerList: 50,
-    },
-    registryEntry: {
-      appId: 'test-app',
-      name: 'Test App',
-      status: 'active',
-      ownerTeam: 'test',
-      allowedEnvironments: ['test'],
-      principalType: 'service_app',
-      createdAt: new Date('2024-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-    },
-  };
-}
-
-class FakeAppAuthService implements AppAuthService {
-  constructor(private readonly result: AppPrincipal | AppAuthError) {}
-
-  async authenticateRequest(_request: FastifyRequest): Promise<AppPrincipal> {
-    if (this.result instanceof AppAuthError) {
-      throw this.result;
-    }
-    return this.result;
-  }
-
-  parseAuthorizationHeader(_value?: string): AppCredential {
-    return { scheme: 'AppKey', keyId: 'test-key-id', secretOrSignature: 'secret' };
-  }
-
-  assertScope(principal: AppPrincipal, requiredScope: AppScope): void {
-    if (!principal.scopes.includes(requiredScope)) {
-      throw new AppAuthError({ code: 'app_scope_missing', message: 'Missing app scope.', statusCode: 403 });
-    }
-  }
-}
 
 class FakeRateLimitService implements AppRateLimitService {
   async checkAndConsume(): Promise<AppRateLimitDecision> {
@@ -80,14 +27,14 @@ class FakeRateLimitService implements AppRateLimitService {
 
 class FakeRegistryRepo implements Pick<AppRegistryRepo, 'findAppById' | 'listScopesForApp' | 'getRateLimitPolicy'> {
   async findAppById(appId: string) {
-    if (appId === 'test-app') {
+    if (appId === 'reco') {
       return {
-        appId: 'test-app',
-        name: 'Test App',
-        description: 'Test description',
+        appId: 'reco',
+        name: 'Recommender',
+        description: 'Recommender service app',
         status: 'active' as const,
-        ownerTeam: 'test',
-        allowedEnvironments: ['test'],
+        ownerTeam: 'reco',
+        allowedEnvironments: ['production'],
         principalType: 'service_app' as const,
         createdAt: new Date('2024-01-01T00:00:00.000Z'),
         updatedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -153,7 +100,7 @@ class FakeAuditRepo implements AppAuditRepo {
   }
 }
 
-async function buildApp(authService: AppAuthService, auditRepo = new FakeAuditRepo()) {
+async function buildApp(auditRepo = new FakeAuditRepo()) {
   const Fastify = (await import('fastify')).default;
   const { default: errorHandlerPlugin } = await import('./error-handler.js');
   const { default: appAuthPlugin } = await import('./app-auth.plugin.js');
@@ -161,7 +108,6 @@ async function buildApp(authService: AppAuthService, auditRepo = new FakeAuditRe
   const app = Fastify();
   await app.register(errorHandlerPlugin);
   await app.register(appAuthPlugin, {
-    appAuthService: authService,
     appRateLimitService: new FakeRateLimitService(),
     appAuditRepo: auditRepo,
     appRegistryRepo: new FakeRegistryRepo(),
@@ -171,66 +117,52 @@ async function buildApp(authService: AppAuthService, auditRepo = new FakeAuditRe
   });
 
   app.get('/internal/apps/v1/test', async (request) => {
-    const principal = await app.requireAppAuth(request);
+    const principal = await app.requireRecommenderAuth(request);
     return { appId: principal.appId, keyId: principal.keyId, requestPrincipalAppId: request.appPrincipal?.appId };
-  });
-
-  app.get('/admin/api/test', async (request) => {
-    await app.requireRecommenderAuth(request);
-    throw new Error('recommender auth should not grant admin access');
   });
 
   return { app, auditRepo };
 }
 
-test('app auth plugin decorates request with authenticated app principal', async (t) => {
-  const { app, auditRepo } = await buildApp(new FakeAppAuthService(buildPrincipal()));
-  t.after(async () => { await app.close(); });
-
-  const response = await app.inject({ method: 'GET', url: '/internal/apps/v1/test' });
-
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
-    appId: 'test-app',
-    keyId: 'test-key-id',
-    requestPrincipalAppId: 'test-app',
-  });
-  assert.equal(auditRepo.inserted[0]?.action, 'app_authenticated');
-});
-
-test('app auth plugin returns app auth error response', async (t) => {
-  const authError = new AppAuthError({
-    code: 'missing_app_credentials',
-    message: 'Missing app credentials.',
-    statusCode: 401,
-  });
-  const { app, auditRepo } = await buildApp(new FakeAppAuthService(authError));
-  t.after(async () => { await app.close(); });
-
-  const response = await app.inject({ method: 'GET', url: '/internal/apps/v1/test' });
-
-  assert.equal(response.statusCode, 401);
-  assert.deepEqual(response.json().error, {
-    code: 'missing_app_credentials',
-    message: 'Missing app credentials.',
-    category: 'authentication',
-    retryable: false,
-    requestId: 'req-1',
-    details: null,
-  });
-  assert.equal(auditRepo.inserted[0]?.action, 'app_auth_failed');
-});
-
-test('app bearer token does not grant admin api access', async (t) => {
-  const { app } = await buildApp(new FakeAppAuthService(buildPrincipal()));
+test('recommender auth accepts the env-var service token and builds the reco principal', async (t) => {
+  const { app, auditRepo } = await buildApp();
   t.after(async () => { await app.close(); });
 
   const response = await app.inject({
     method: 'GET',
-    url: '/admin/api/test',
-    headers: { authorization: 'Bearer app-token' },
+    url: '/internal/apps/v1/test',
+    headers: { authorization: `Bearer ${RECOMMENDER_TOKEN}` },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    appId: 'reco',
+    keyId: '00000000-0000-0000-0000-000000000001',
+    requestPrincipalAppId: 'reco',
+  });
+  assert.equal(auditRepo.inserted[0]?.action, 'app_authenticated');
+});
+
+test('recommender auth rejects a missing bearer token', async (t) => {
+  const { app } = await buildApp();
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({ method: 'GET', url: '/internal/apps/v1/test' });
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json().error.message, 'Missing recommender bearer token.');
+});
+
+test('recommender auth rejects an invalid bearer token', async (t) => {
+  const { app } = await buildApp();
+  t.after(async () => { await app.close(); });
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/internal/apps/v1/test',
+    headers: { authorization: 'Bearer not-the-service-token' },
   });
 
   assert.equal(response.statusCode, 401);
+  assert.equal(response.json().error.message, 'Invalid recommender bearer token.');
 });
-
