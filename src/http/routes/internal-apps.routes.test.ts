@@ -5,7 +5,6 @@ import Fastify from 'fastify';
 import { setTestEnv } from '../../test-helpers.js';
 import type { AppPrincipal } from '../../modules/apps/app-principal.types.js';
 import { DefaultServiceRecommendationListService } from '../../modules/apps/service-recommendation-list.service.js';
-import type { AppAuthService, AppCredential } from '../../modules/apps/app-auth.service.js';
 import type { AppRateLimitDecision, AppRateLimitService } from '../../modules/apps/app-rate-limit.service.js';
 import { DefaultAppRateLimitService, InMemoryRateLimitStore } from '../../modules/apps/app-rate-limit.service.js';
 import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, PaginatedAppAuditEvents } from '../../modules/apps/app-audit.repo.js';
@@ -61,15 +60,6 @@ function buildPrincipal(scopes: AppScope[] = ['apps:self:read']): AppPrincipal {
   };
 }
 
-class FakeAuthService implements AppAuthService {
-  constructor(private readonly principal: AppPrincipal) {}
-  async authenticateRequest(): Promise<AppPrincipal> { return this.principal; }
-  parseAuthorizationHeader(_value?: string): AppCredential { return { scheme: 'AppKey', keyId: 'test-key', secretOrSignature: 'secret' }; }
-  assertScope(principal: AppPrincipal, requiredScope: AppScope): void {
-    if (!principal.scopes.includes(requiredScope)) throw new Error('scope missing');
-  }
-}
-
 class FakeRateLimitService implements AppRateLimitService {
   async checkAndConsume(): Promise<AppRateLimitDecision> { return { allowed: true }; }
 }
@@ -91,7 +81,6 @@ class FakeAuthorizationService implements AppAuthorizationService {
 
 async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = [], serviceRecommendationListService?: ServiceRecommendationListService, rateLimitService: AppRateLimitService = new FakeRateLimitService()) {
   const app = Fastify({ ajv: { customOptions: { removeAdditional: false } } });
-  const authService = new FakeAuthService(principal);
   const auditRepo = new FakeAuditRepo();
   const profileService = {
     async requireOwnedProfile(accountId: string, profileId: string): Promise<ProfileRecord> {
@@ -115,7 +104,6 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
   const { registerInternalAppsRoutes } = await import('./internal-apps.routes.js');
   await app.register(errorHandlerPlugin);
   await app.register(appAuthPlugin, {
-    appAuthService: authService,
     appRateLimitService: rateLimitService,
     appAuditRepo: auditRepo,
     appRegistryRepo: {
@@ -133,7 +121,6 @@ async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ 
     request.appPrincipal = principal;
   });
   await registerInternalAppsRoutes(app, {
-    appAuthService: authService,
     appAuthorizationService: new FakeAuthorizationService(),
     appRateLimitService: rateLimitService,
     appSelfService: { async getAppSelf(p) { return { appId: p.appId, name: p.registryEntry.name, status: p.registryEntry.status, principalType: p.registryEntry.principalType, scopes: p.scopes, ownedSources: p.ownedSources, rateLimitPolicy: p.rateLimitPolicy }; } } satisfies AppSelfService,

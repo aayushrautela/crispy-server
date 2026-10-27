@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppAuditAction } from '../../modules/apps/app-audit.repo.js';
 import type { AppAuditRepo } from '../../modules/apps/app-audit.repo.js';
-import type { AppAuthService } from '../../modules/apps/app-auth.service.js';
 import type { AppAuthorizationService } from '../../modules/apps/app-authorization.service.js';
 import type { AppRateLimitService } from '../../modules/apps/app-rate-limit.service.js';
 import type { AppSelfService } from '../../modules/apps/app-self.service.js';
@@ -54,7 +53,6 @@ import {
 type ProfileOwnershipValidator = Pick<ProfileLocalService, 'requireOwnedProfile' | 'requireProfileOwnerAccountId'>;
 
 export interface InternalAppsRoutesDeps {
-  appAuthService: AppAuthService;
   appAuthorizationService: AppAuthorizationService;
   appRateLimitService: AppRateLimitService;
   appSelfService: AppSelfService;

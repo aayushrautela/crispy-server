@@ -10,11 +10,8 @@ import appAuthPlugin from './plugins/app-auth.plugin.js';
 import { redis } from '../lib/redis.js';
 import { RedisRateLimitStore } from '../lib/rate-limit.store.js';
 import { SqlAppRegistryRepo } from '../modules/apps/app-registry.repo.js';
-import { SqlAppKeyRepo } from '../modules/apps/app-key.repo.js';
 import { SqlAppGrantRepo } from '../modules/apps/app-grant.repo.js';
 import { SqlAppSourceOwnershipRepo } from '../modules/apps/app-source-ownership.repo.js';
-import { BcryptAppKeyHasher } from '../modules/apps/app-key-hasher.js';
-import { DefaultAppAuthService } from '../modules/apps/app-auth.service.js';
 import { DefaultAppRateLimitService } from '../modules/apps/app-rate-limit.service.js';
 import { SqlAppAuditRepo } from '../modules/apps/app-audit.repo.js';
 import { SystemClock } from '../modules/apps/clock.js';
@@ -83,24 +80,15 @@ declare module 'fastify' {
 function buildAppAuthDependencies() {
   const clock = new SystemClock();
   const appRegistryRepo = new SqlAppRegistryRepo({ db });
-  const appKeyRepo = new SqlAppKeyRepo({ db });
   const appGrantRepo = new SqlAppGrantRepo({ db });
   const sourceOwnershipRepo = new SqlAppSourceOwnershipRepo({ db });
   const appAuditRepo = new SqlAppAuditRepo({ db });
-  const appAuthService = new DefaultAppAuthService({
-    appRegistryRepo,
-    appKeyRepo,
-    appGrantRepo,
-    sourceOwnershipRepo,
-    keyHasher: new BcryptAppKeyHasher(),
-    clock,
-  });
   const appRateLimitService = new DefaultAppRateLimitService({
     store: new RedisRateLimitStore(redis),
     clock,
   });
 
-  return { appAuthService, appRateLimitService, appAuditRepo, clock, sourceOwnershipRepo, appRegistryRepo, appGrantRepo };
+  return { appRateLimitService, appAuditRepo, clock, sourceOwnershipRepo, appRegistryRepo, appGrantRepo };
 }
 
 function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAppAuthDependencies>) {
@@ -172,7 +160,6 @@ function buildInternalAppsRoutesDependencies(authDeps: ReturnType<typeof buildAp
   });
 
   return {
-    appAuthService: authDeps.appAuthService,
     appAuthorizationService,
     appRateLimitService: authDeps.appRateLimitService,
     appSelfService,
