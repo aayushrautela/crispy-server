@@ -5,14 +5,17 @@ import { db } from '../lib/db.js';
 import adminUiAuthPlugin from './plugins/admin-ui-auth.js';
 import authPlugin from './plugins/auth.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
+import globalRateLimitPlugin from './plugins/global-rate-limit.js';
 import appAuthPlugin from './plugins/app-auth.plugin.js';
+import { redis } from '../lib/redis.js';
+import { RedisRateLimitStore } from '../lib/rate-limit.store.js';
 import { SqlAppRegistryRepo } from '../modules/apps/app-registry.repo.js';
 import { SqlAppKeyRepo } from '../modules/apps/app-key.repo.js';
 import { SqlAppGrantRepo } from '../modules/apps/app-grant.repo.js';
 import { SqlAppSourceOwnershipRepo } from '../modules/apps/app-source-ownership.repo.js';
 import { BcryptAppKeyHasher } from '../modules/apps/app-key-hasher.js';
 import { DefaultAppAuthService } from '../modules/apps/app-auth.service.js';
-import { DefaultAppRateLimitService, InMemoryRateLimitStore } from '../modules/apps/app-rate-limit.service.js';
+import { DefaultAppRateLimitService } from '../modules/apps/app-rate-limit.service.js';
 import { SqlAppAuditRepo } from '../modules/apps/app-audit.repo.js';
 import { SystemClock } from '../modules/apps/clock.js';
 import { registerAccountRoutes } from './routes/account.js';
@@ -93,7 +96,7 @@ function buildAppAuthDependencies() {
     clock,
   });
   const appRateLimitService = new DefaultAppRateLimitService({
-    store: new InMemoryRateLimitStore(),
+    store: new RedisRateLimitStore(redis),
     clock,
   });
 
@@ -195,6 +198,10 @@ export async function buildApp() {
   });
 
   await app.register(errorHandlerPlugin);
+  await app.register(globalRateLimitPlugin, {
+    store: new RedisRateLimitStore(redis),
+    clock: new SystemClock(),
+  });
   await app.register(cors, {
     origin: env.corsOrigins,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],

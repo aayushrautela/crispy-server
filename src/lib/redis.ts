@@ -3,11 +3,12 @@ import { env } from '../config/env.js';
 
 type RedisValue = string | number;
 
-type RedisLike = {
+export type RedisLike = {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ...args: RedisValue[]): Promise<'OK' | null>;
   del(...keys: string[]): Promise<number>;
   incr(key: string): Promise<number>;
+  incrby(key: string, amount: number): Promise<number>;
   keys(pattern: string): Promise<string[]>;
   sadd(key: string, ...members: string[]): Promise<number>;
   smembers(key: string): Promise<string[]>;
@@ -32,13 +33,51 @@ const isTestEnv = process.env.NODE_ENV?.trim() === 'test'
 class TestRedis implements RedisLike {
   private readonly kv = new Map<string, string>();
   private readonly sets = new Map<string, Set<string>>();
+  private readonly expiry = new Map<string, number>();
+
+  private purgeExpired(key: string): void {
+    const expiresAt = this.expiry.get(key);
+    if (expiresAt !== undefined && expiresAt <= Date.now()) {
+      this.kv.delete(key);
+      this.expiry.delete(key);
+    }
+  }
 
   async get(key: string): Promise<string | null> {
+    this.purgeExpired(key);
     return this.kv.get(key) ?? null;
   }
 
-  async set(key: string, value: string, ..._args: unknown[]): Promise<'OK' | null> {
+  async set(key: string, value: string, ...args: RedisValue[]): Promise<'OK' | null> {
+    this.purgeExpired(key);
+
+    let onlyIfAbsent = false;
+    let ttlSeconds: number | undefined;
+    for (let index = 0; index < args.length; index += 1) {
+      const option = String(args[index]).toUpperCase();
+      if (option === 'NX') {
+        onlyIfAbsent = true;
+        continue;
+      }
+      if (option === 'EX') {
+        const raw = Number(args[index + 1]);
+        if (Number.isFinite(raw) && raw > 0) {
+          ttlSeconds = raw;
+        }
+        index += 1;
+      }
+    }
+
+    if (onlyIfAbsent && this.kv.has(key)) {
+      return null;
+    }
+
     this.kv.set(key, value);
+    if (ttlSeconds === undefined) {
+      this.expiry.delete(key);
+    } else {
+      this.expiry.set(key, Date.now() + ttlSeconds * 1000);
+    }
     return 'OK';
   }
 
@@ -71,12 +110,18 @@ class TestRedis implements RedisLike {
       if (this.sets.delete(key)) {
         deleted += 1;
       }
+      this.expiry.delete(key);
     }
     return deleted;
   }
 
   async incr(key: string): Promise<number> {
-    const next = (Number(this.kv.get(key) ?? '0') || 0) + 1;
+    return this.incrby(key, 1);
+  }
+
+  async incrby(key: string, amount: number): Promise<number> {
+    this.purgeExpired(key);
+    const next = (Number(this.kv.get(key) ?? '0') || 0) + amount;
     this.kv.set(key, String(next));
     return next;
   }
@@ -144,6 +189,7 @@ class TestRedis implements RedisLike {
   disconnect(): void {
     this.kv.clear();
     this.sets.clear();
+    this.expiry.clear();
   }
 
   on(_event: string, _listener: (...args: unknown[]) => void): RedisLike {
