@@ -11,9 +11,8 @@ function mockService(impl: Record<string, (client: unknown, itemId: string) => P
 }
 
 const PUBLIC_ITEM_ID = '00000000000000000000000000000000';
-const CONTENT_ID = '00000000-0000-0000-0000-000000000000';
 
-test('resolveMetadataItemIdentity decodes public itemId before delegating', async () => {
+test('resolveMetadataItemIdentity forwards the public itemId to the identity service', async () => {
   let resolvedItemId: string | null = null;
   const service = mockService({
     resolveMetadataItemIdentity: async (_client: unknown, itemId: string) => {
@@ -31,7 +30,7 @@ test('resolveMetadataItemIdentity decodes public itemId before delegating', asyn
     },
   });
   const identity = await resolveMetadataItemIdentity({} as never, service, PUBLIC_ITEM_ID);
-  assert.equal(resolvedItemId, CONTENT_ID);
+  assert.equal(resolvedItemId, PUBLIC_ITEM_ID);
   assert.equal(identity.mediaType, 'movie');
 });
 
@@ -52,7 +51,7 @@ test('resolveMetadataItemIdentity accepts any media type (no title-only gate)', 
   assert.equal(identity.mediaType, 'season');
 });
 
-test('resolveSeriesItemIdentity decodes public itemId and delegates to the service', async () => {
+test('resolveSeriesItemIdentity forwards the public itemId to the identity service', async () => {
   let resolvedItemId: string | null = null;
   const service = mockService({
     resolveSeriesItemIdentity: async (_client: unknown, itemId: string) => {
@@ -70,6 +69,6 @@ test('resolveSeriesItemIdentity decodes public itemId and delegates to the servi
     },
   });
   const identity = await resolveSeriesItemIdentity({} as never, service, PUBLIC_ITEM_ID);
-  assert.equal(resolvedItemId, CONTENT_ID);
+  assert.equal(resolvedItemId, PUBLIC_ITEM_ID);
   assert.equal(identity.mediaType, 'show');
 });

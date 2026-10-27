@@ -90,6 +90,7 @@ npm run dev:worker
 npm run build
 npm run typecheck
 npm run test
+npm run test:integration   # database-backed tests; needs a migrated Postgres
 ```
 
 ## Documentation and source of truth
@@ -103,6 +104,7 @@ npm run test
 | Generated API artifacts | `openapi/generated/`, `docs/api/generated/` |
 | Recommendation API guide | `docs/api/recommendations.md` |
 | Recommendation-engine boundary and security contract | `docs/architecture/recommendation-engine.md` |
+| Test suites and quarantined database-backed tests | `docs/testing.md` |
 | Supabase auth-only boundary | `supabase/README.md` |
 | Client media identity/watch-state guidance | `docs/api/media-state.md` |
 

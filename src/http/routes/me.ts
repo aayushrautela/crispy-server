@@ -8,11 +8,15 @@ import { success } from '../response.js';
 
 export async function registerMeRoutes(
   app: FastifyInstance,
-  opts: { profileService: ProfileLocalService; accountSettingsService: AccountSettingsService },
+  opts: {
+    profileService: ProfileLocalService;
+    accountSettingsService: AccountSettingsService;
+    entitlementService?: Pick<FeatureEntitlementService, 'getMetadataClientSettingsForUser'>;
+  },
 ): Promise<void> {
   const profileService = opts.profileService;
   const accountSettingsService = opts.accountSettingsService;
-  const entitlementService = new FeatureEntitlementService();
+  const entitlementService = opts.entitlementService ?? new FeatureEntitlementService();
 
   app.get('/v1/me', { schema: meRouteSchema }, async (request) => {
     await app.requireAuth(request);

@@ -40,6 +40,7 @@ type TraktImportServiceDeps = {
   metadataCardService?: MetadataCardService;
   client?: TraktImportClient;
   resolver?: TraktImportIdentityResolver;
+  withClient?: <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 };
 
 export class TraktImportService implements ProviderImportModule {
@@ -47,10 +48,12 @@ export class TraktImportService implements ProviderImportModule {
   private readonly traktClient: TraktImportClient;
   private readonly traktResolver: TraktImportIdentityResolver;
   private readonly tmdbCache: TmdbCacheService;
+  private readonly withClient: <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
   constructor(deps: TraktImportServiceDeps = {}) {
     this.traktClient = deps.client ?? new TraktImportClient();
     this.tmdbCache = deps.tmdbCacheService ?? new TmdbCacheService();
+    this.withClient = deps.withClient ?? withDbClient;
     this.traktResolver = deps.resolver ?? new TraktImportIdentityResolver({
       externalIdResolver: deps.externalIdResolver ?? new TmdbExternalIdResolverService(),
       tmdbCacheService: deps.tmdbCacheService ?? new TmdbCacheService(),
@@ -152,7 +155,7 @@ export class TraktImportService implements ProviderImportModule {
     await normalizeTraktHistoryShows(historyShows, resolveIdentity, collector);
     await normalizeTraktWatchlist([...watchlistMovies, ...watchlistShows], resolveIdentity, collector);
     await normalizeTraktRatings([...ratingMovies, ...ratingShows], resolveIdentity, collector);
-    await withDbClient(async (client) => {
+    await this.withClient(async (client) => {
       const runtimeLookup = this.buildRuntimeLookup(client);
       await normalizeTraktPlayback(playback, resolveIdentity, collector, runtimeLookup);
     });

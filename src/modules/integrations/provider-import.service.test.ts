@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedTestEnv } from '../../test-helpers.js';
+import type { DbClient } from '../../lib/db.js';
 
 seedTestEnv({ TRAKT_IMPORT_CLIENT_ID: 'trakt-client-id', TRAKT_IMPORT_CLIENT_SECRET: 'trakt-client-secret', TRAKT_IMPORT_REDIRECT_URI: 'https://api.crispytv.tech/v1/imports/trakt/callback' });
 
 const noopTransaction = async <T>(work: (client: never) => Promise<T>): Promise<T> => work({} as never);
+
+// The Trakt import normalizer reads episode/movie runtimes from Postgres; the
+// unit tests only need the lookup to resolve to "unknown runtime".
+const withStubClient = async <T>(work: (client: DbClient) => Promise<T>): Promise<T> =>
+  work({ query: async () => ({ rows: [] }) } as unknown as DbClient);
 
 test('Simkl ratings use binary votes and preserve numeric provider metadata', async () => {
   const { normalizeSimklRatings } = await import('./simkl/simkl-import.normalizer.js');
@@ -138,8 +144,8 @@ test('ProviderImportService.revokeAuthorization revokes trakt upstream before lo
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
       noopTransaction as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -161,6 +167,7 @@ test('TraktImportService.fetchAndNormalizeImport keeps show tmdb ids on watchlis
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
   const service = new TraktImportService({
+    withClient: withStubClient,
     externalIdResolver: {
       resolve: async () => 9001,
     } as never,
@@ -192,38 +199,38 @@ test('TraktImportService.fetchAndNormalizeImport keeps show tmdb ids on watchlis
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.endsWith('/sync/watched/movies')) {
+    if (url.includes('/sync/watched/movies')) {
       return Response.json([]);
     }
     if (url.includes('/sync/watched/shows')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/watchlist/movies')) {
+    if (url.includes('/sync/watchlist/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/watchlist/shows')) {
+    if (url.includes('/sync/watchlist/shows')) {
       return Response.json([{
         listed_at: '2024-01-02T00:00:00.000Z',
         show: { ids: { imdb: 'tt0944947', tvdb: 121361 } },
       }]);
     }
-    if (url.endsWith('/sync/ratings/movies')) {
+    if (url.includes('/sync/ratings/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/ratings/shows')) {
+    if (url.includes('/sync/ratings/shows')) {
       return Response.json([{
         rated_at: '2024-01-03T00:00:00.000Z',
         rating: 9,
         show: { ids: { imdb: 'tt0944947', tvdb: 121361 } },
       }]);
     }
-    if (url.endsWith('/sync/playback')) {
+    if (url.includes('/sync/playback')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/history/movies')) {
+    if (url.includes('/sync/history/movies')) {
       return Response.json([]);
     }
-    if (url.endsWith('/sync/history/shows')) {
+    if (url.includes('/sync/history/shows')) {
       return Response.json([]);
     }
     return Response.json([]);
@@ -252,6 +259,7 @@ test('TraktImportService.fetchAndNormalizeImport carries show tmdb ids into epis
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
   const service = new TraktImportService({
+    withClient: withStubClient,
     externalIdResolver: {
       resolve: async () => 777,
     } as never,
@@ -283,7 +291,7 @@ test('TraktImportService.fetchAndNormalizeImport carries show tmdb ids into epis
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.endsWith('/sync/playback')) {
+    if (url.includes('/sync/playback')) {
       return Response.json([{
         id: 55,
         type: 'episode',
@@ -339,6 +347,7 @@ test('TraktImportService.fetchAndNormalizeImport keeps Trakt playback progress w
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
   const service = new TraktImportService({
+    withClient: withStubClient,
     externalIdResolver: {
       resolve: async () => 272,
     } as never,
@@ -372,7 +381,7 @@ test('TraktImportService.fetchAndNormalizeImport keeps Trakt playback progress w
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.endsWith('/sync/playback')) {
+    if (url.includes('/sync/playback')) {
       return Response.json([{
         id: 13,
         type: 'movie',
@@ -432,6 +441,7 @@ test('TraktImportService.fetchAndNormalizeImport emits per-episode history for w
   const { inferMediaIdentity } = await import('../identity/media-key.js');
 
   const service = new TraktImportService({
+    withClient: withStubClient,
     externalIdResolver: {
       resolve: async () => 9001,
     } as never,

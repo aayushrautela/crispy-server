@@ -14,6 +14,7 @@ This directory contains current Crispy Server documentation.
 | `api/media-state.md` | Client media identity and watch-state behavior guide |
 | `api/recommendations.md` | Recommendation API behavior and operator guidance |
 | `architecture/recommendation-engine.md` | Current MAIN/RECO boundary and security model |
+| `testing.md` | Test suite layout, hermetic vs database-backed tests, quarantined test list |
 | `specs/client-reco-pipeline-spec.md` | Client home and RECO DTO contract split |
 
 ## Contract ownership
