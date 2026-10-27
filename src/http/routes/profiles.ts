@@ -193,6 +193,7 @@ export async function registerProfileRoutes(
 
   app.patch('/v1/profiles/:profileId', async (request) => {
     await app.requireAuth(request);
+    await requireAdminProfile(request);
     const actor = app.requireUserActor(request) as { authSubject: string };
     const params = request.params as { profileId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
