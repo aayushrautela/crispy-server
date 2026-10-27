@@ -99,7 +99,7 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
     return { connections: [] } as never;
   };
   ProviderImportService.prototype.listJobs = async function () {
-    return { jobs: [], watchDataState: null } as never;
+    return { jobs: [] } as never;
   };
   ProviderTokenAccessService.prototype.getConnectionForAccountProfile = async function (_accountId, _profileId, provider) {
     if (provider === 'trakt') {
@@ -159,7 +159,6 @@ test('admin imports overview tolerates unavailable provider state', async (t) =>
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json().data, {
-    watchDataState: null,
     providerDiagnostics: [],
     jobs: [],
     providers: [

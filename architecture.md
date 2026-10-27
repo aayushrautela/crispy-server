@@ -255,3 +255,8 @@ Primary verification commands:
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
+
+`npm test` is hermetic: it never reaches Postgres, Redis or any other network
+service. Database-backed tests live in `src/**/*.integration.ts` and run through
+`npm run test:integration`; every quarantined file is listed in
+`docs/testing.md`.

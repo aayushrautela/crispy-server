@@ -9,6 +9,66 @@ seedTestEnv();
 
 type BootstrapDeps = { profileService: import('../../modules/profiles/profile-local.service.js').ProfileLocalService };
 
+type FakeProfile = {
+  id: string;
+  name: string;
+  interfaceLanguage: string;
+  region: string | null;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+  requirePinToAddProfiles: boolean;
+  hasPin: boolean;
+  isKids: boolean;
+  sortOrder: number;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * In-memory stand-in for ProfileLocalService. The real service talks to
+ * Postgres, which is not available in unit tests; the route contract (create
+ * once, stay idempotent) is reproduced here.
+ */
+function createFakeProfileService() {
+  const profiles = new Map<string, FakeProfile>();
+
+  return {
+    async bootstrapPrimaryProfile(
+      accountId: string,
+      input: { name: string; interfaceLanguage: string; region?: string | null; avatarUrl: string },
+    ): Promise<{ created: boolean; profile: FakeProfile }> {
+      const existing = profiles.get(accountId);
+      if (existing) {
+        return { created: false, profile: { ...existing } };
+      }
+
+      const profile: FakeProfile = {
+        id: `prof-${accountId}`,
+        name: input.name,
+        interfaceLanguage: input.interfaceLanguage,
+        region: input.region ?? null,
+        avatarUrl: input.avatarUrl,
+        isAdmin: true,
+        requirePinToAddProfiles: false,
+        hasPin: false,
+        isKids: false,
+        sortOrder: 0,
+        createdByUserId: accountId,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+      profiles.set(accountId, profile);
+      return { created: true, profile: { ...profile } };
+    },
+    async listForAccount(accountId: string): Promise<FakeProfile[]> {
+      const profile = profiles.get(accountId);
+      return profile ? [{ ...profile }] : [];
+    },
+    notifyProfileCreated(): void {},
+  };
+}
+
 async function buildBootstrapApp(accountId: string, deps: BootstrapDeps) {
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
   const { registerAccountBootstrapRoutes } = await import('./account-bootstrap.js');
@@ -39,8 +99,6 @@ async function buildBootstrapApp(accountId: string, deps: BootstrapDeps) {
 async function buildMeApp(accountId: string) {
   const { default: errorHandlerPlugin } = await import('../plugins/error-handler.js');
   const { registerMeRoutes } = await import('./me.js');
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
-  const { AccountSettingsService } = await import('../../modules/users/account-settings.service.js');
   const app = Fastify();
   app.decorateRequest('auth');
   const auth: AuthActor = {
@@ -61,7 +119,22 @@ async function buildMeApp(accountId: string) {
   app.decorate('requireUserSessionActor', (request: FastifyRequest) => (request as FastifyRequest & { auth: AuthActor }).auth as never);
   app.decorate('requireScopes', () => {});
   await app.register(errorHandlerPlugin);
-  await registerMeRoutes(app, { profileService: new ProfileLocalService(), accountSettingsService: new AccountSettingsService() });
+  await registerMeRoutes(app, {
+    profileService: createFakeProfileService() as never,
+    accountSettingsService: {
+      async getSettings() {
+        return {};
+      },
+      async getPricingTierForUser() {
+        return 'free';
+      },
+    } as never,
+    entitlementService: {
+      async getMetadataClientSettingsForUser() {
+        return { hasMdbListAccess: false };
+      },
+    },
+  });
   return app;
 }
 
@@ -72,8 +145,7 @@ const VALID_BODY = {
 };
 
 test('bootstrap rejects a missing name with 400', async (t) => {
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
-  const app = await buildBootstrapApp('bs-name-1', { profileService: new ProfileLocalService() });
+  const app = await buildBootstrapApp('bs-name-1', { profileService: createFakeProfileService() as never });
   t.after(async () => { await app.close(); });
 
   const res = await app.inject({
@@ -86,8 +158,7 @@ test('bootstrap rejects a missing name with 400', async (t) => {
 });
 
 test('bootstrap rejects an unsupported language with 400', async (t) => {
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
-  const app = await buildBootstrapApp('bs-lang-1', { profileService: new ProfileLocalService() });
+  const app = await buildBootstrapApp('bs-lang-1', { profileService: createFakeProfileService() as never });
   t.after(async () => { await app.close(); });
 
   const res = await app.inject({
@@ -100,8 +171,7 @@ test('bootstrap rejects an unsupported language with 400', async (t) => {
 });
 
 test('bootstrap rejects an unsupported avatar with 400', async (t) => {
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
-  const app = await buildBootstrapApp('bs-avatar-1', { profileService: new ProfileLocalService() });
+  const app = await buildBootstrapApp('bs-avatar-1', { profileService: createFakeProfileService() as never });
   t.after(async () => { await app.close(); });
 
   const res = await app.inject({
@@ -114,8 +184,7 @@ test('bootstrap rejects an unsupported avatar with 400', async (t) => {
 });
 
 test('bootstrap creates the primary profile as admin and non-kids', async (t) => {
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
-  const app = await buildBootstrapApp('bs-create-1', { profileService: new ProfileLocalService() });
+  const app = await buildBootstrapApp('bs-create-1', { profileService: createFakeProfileService() as never });
   t.after(async () => { await app.close(); });
 
   const res = await app.inject({
@@ -135,8 +204,7 @@ test('bootstrap creates the primary profile as admin and non-kids', async (t) =>
 });
 
 test('bootstrap is idempotent and returns the existing profile on retry', async (t) => {
-  const { ProfileLocalService } = await import('../../modules/profiles/profile-local.service.js');
-  const app = await buildBootstrapApp('bs-idem-1', { profileService: new ProfileLocalService() });
+  const app = await buildBootstrapApp('bs-idem-1', { profileService: createFakeProfileService() as never });
   t.after(async () => { await app.close(); });
 
   const first = await app.inject({

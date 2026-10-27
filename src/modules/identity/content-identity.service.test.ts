@@ -449,3 +449,61 @@ test('resolveContentReference treats existing anime rows as show references', as
 
   assert.equal(reference.entityType, 'show');
 });
+
+test('resolveMetadataItemIdentity decodes the public item id before resolving', async () => {
+  const tmdbRef: ContentProviderRefRecord = {
+    contentId: MOVIE_UUID,
+    provider: 'tmdb',
+    entityType: 'movie',
+    externalId: '487672',
+    metadata: {},
+  };
+  const { repository } = createStubRepository({
+    contentItems: new Map([[MOVIE_UUID, { contentId: MOVIE_UUID, entityType: 'movie' }]]),
+    providerRefsByContentId: new Map([[MOVIE_UUID, [tmdbRef]]]),
+  });
+  const service = new ContentIdentityService(repository as never);
+
+  const identity = await service.resolveMetadataItemIdentity({} as never, encodePublicItemId(MOVIE_UUID));
+
+  assert.equal(identity.mediaType, 'movie');
+  assert.equal(identity.provider, 'tmdb');
+  assert.equal(identity.providerId, '487672');
+});
+
+test('resolveSeriesItemIdentity decodes the public item id and maps an episode to its series', async () => {
+  const episodeRef: ContentProviderRefRecord = {
+    contentId: EPISODE_UUID,
+    provider: 'tmdb',
+    entityType: 'episode',
+    externalId: '44:s1:e2',
+    metadata: {},
+  };
+  const showRef: ContentProviderRefRecord = {
+    contentId: SHOW_UUID,
+    provider: 'tmdb',
+    entityType: 'show',
+    externalId: '44',
+    metadata: {},
+  };
+  const { repository } = createStubRepository({
+    contentItems: new Map([
+      [EPISODE_UUID, { contentId: EPISODE_UUID, entityType: 'episode' }],
+      [SHOW_UUID, { contentId: SHOW_UUID, entityType: 'show' }],
+    ]),
+    providerRefsByContentId: new Map([
+      [EPISODE_UUID, [episodeRef]],
+      [SHOW_UUID, [showRef]],
+    ]),
+    relationships: [
+      { childContentId: EPISODE_UUID, parentContentId: SHOW_UUID, relationshipType: 'series', metadata: {} },
+    ],
+  });
+  const service = new ContentIdentityService(repository as never);
+
+  const identity = await service.resolveSeriesItemIdentity({} as never, encodePublicItemId(EPISODE_UUID));
+
+  assert.equal(identity.mediaType, 'show');
+  assert.equal(identity.provider, 'tmdb');
+  assert.equal(identity.providerId, '44');
+});

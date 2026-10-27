@@ -33,7 +33,9 @@ test('generateJson sends correct request and parses response', async (t) => {
   assert.equal(capturedUrl, 'https://api.openai.com/v1/chat/completions');
   assert.equal(capturedBody.model, 'gpt-4o');
   assert.equal((capturedBody.messages as unknown[]).length, 1);
-  assert.equal('response_format' in capturedBody, false);
+  // JSON object mode is required for generateJson; tool calling is disabled.
+  assert.deepEqual(capturedBody.response_format, { type: 'json_object' });
+  assert.equal(capturedBody.tool_choice, 'none');
 });
 
 test('generateJson exposes provider error param details', async (t) => {
