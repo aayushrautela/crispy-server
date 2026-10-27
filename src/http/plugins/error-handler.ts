@@ -1,6 +1,6 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { HttpError, inferHttpErrorCode } from '../../lib/errors.js';
+import { HttpError, RateLimitExceededError, inferHttpErrorCode } from '../../lib/errors.js';
 import { AppAuthError } from '../../modules/apps/app-auth.errors.js';
 import type { ApiErrorResponse } from '../contracts/shared.js';
 
@@ -10,6 +10,14 @@ const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
     
     if (error instanceof AppAuthError) {
       void reply.status(error.statusCode).send(toErrorResponse(request, error.statusCode, error.code, error.message));
+      return;
+    }
+
+    if (error instanceof RateLimitExceededError) {
+      void reply
+        .header('retry-after', String(error.retryAfterSeconds))
+        .status(429)
+        .send(toErrorResponse(request, 429, error.code, error.message));
       return;
     }
 

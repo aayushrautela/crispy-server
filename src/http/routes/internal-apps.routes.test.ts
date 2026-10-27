@@ -7,6 +7,7 @@ import type { AppPrincipal } from '../../modules/apps/app-principal.types.js';
 import { DefaultServiceRecommendationListService } from '../../modules/apps/service-recommendation-list.service.js';
 import type { AppAuthService, AppCredential } from '../../modules/apps/app-auth.service.js';
 import type { AppRateLimitDecision, AppRateLimitService } from '../../modules/apps/app-rate-limit.service.js';
+import { DefaultAppRateLimitService, InMemoryRateLimitStore } from '../../modules/apps/app-rate-limit.service.js';
 import type { AppAuditEventRecord, AppAuditRepo, CreateAppAuditEventInput, PaginatedAppAuditEvents } from '../../modules/apps/app-audit.repo.js';
 import type { AppAuthorizationService } from '../../modules/apps/app-authorization.service.js';
 import type { AppSelfService } from '../../modules/apps/app-self.service.js';
@@ -88,10 +89,9 @@ class FakeAuthorizationService implements AppAuthorizationService {
   requireOwnedSource(): void {}
 }
 
-async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = [], serviceRecommendationListService?: ServiceRecommendationListService) {
+async function buildServer(principal = buildPrincipal(), ownedProfiles: Array<{ accountId: string; profileId: string }> = [], serviceRecommendationListService?: ServiceRecommendationListService, rateLimitService: AppRateLimitService = new FakeRateLimitService()) {
   const app = Fastify({ ajv: { customOptions: { removeAdditional: false } } });
   const authService = new FakeAuthService(principal);
-  const rateLimitService = new FakeRateLimitService();
   const auditRepo = new FakeAuditRepo();
   const profileService = {
     async requireOwnedProfile(accountId: string, profileId: string): Promise<ProfileRecord> {
@@ -455,6 +455,32 @@ test('taste write body schema accepts v5 and v6 vectors', async () => {
     true,
     JSON.stringify(validate.errors),
   );
+});
+
+test('GET /internal/apps/v1/profiles/eligible/changes returns 429 with Retry-After when the app rate limit is exhausted', async (t) => {
+  const principal = buildPrincipal(['apps:self:read', 'profiles:eligible:read']);
+  principal.rateLimitPolicy = {
+    ...principal.rateLimitPolicy,
+    profileChangesReadsPerMinute: 1,
+  };
+  const service = new DefaultAppRateLimitService({
+    store: new InMemoryRateLimitStore(),
+    clock: { now: () => new Date('2024-01-01T00:00:00.000Z') },
+  });
+  const app = await buildServer(principal, [], undefined, service);
+  t.after(async () => { await app.close(); });
+
+  const url = '/internal/apps/v1/profiles/eligible/changes?limit=1';
+  const first = await app.inject({ method: 'GET', url });
+  assert.equal(first.statusCode, 200);
+
+  const second = await app.inject({ method: 'GET', url });
+  assert.equal(second.statusCode, 429);
+  assert.equal(second.headers['retry-after'], '60');
+  const body = second.json();
+  assert.equal(body.error.code, 'RATE_LIMIT_EXCEEDED');
+  assert.equal(body.error.category, 'rate_limit');
+  assert.equal(body.error.retryable, true);
 });
 
 test('PUT taste is rejected at the route when persona columns mismatch personaKind', async (t) => {

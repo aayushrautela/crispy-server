@@ -11,6 +11,15 @@ export class HttpError extends Error {
   }
 }
 
+export class RateLimitExceededError extends HttpError {
+  public readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number, message = 'Rate limit exceeded.') {
+    super(429, message, undefined, 'RATE_LIMIT_EXCEEDED');
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export function inferHttpErrorCode(statusCode: number, message: string): string {
   const normalized = message
     .trim()

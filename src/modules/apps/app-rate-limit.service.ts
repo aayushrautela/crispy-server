@@ -1,5 +1,6 @@
 import type { Clock } from './clock.js';
 import type { AppPrincipal, AppRateLimitRouteGroup } from './app-principal.types.js';
+import { RateLimitExceededError } from '../../lib/errors.js';
 
 export interface AppRateLimitDecision {
   allowed: boolean;
@@ -9,6 +10,11 @@ export interface AppRateLimitDecision {
 }
 
 export interface AppRateLimitService {
+  /**
+   * Consumes one unit of the principal's quota for the given route group.
+   * Throws `RateLimitExceededError` (HTTP 429) when the quota is exhausted so
+   * that callers cannot silently ignore the limit.
+   */
   checkAndConsume(input: {
     principal: AppPrincipal;
     routeGroup: AppRateLimitRouteGroup;
@@ -73,12 +79,11 @@ export class DefaultAppRateLimitService implements AppRateLimitService {
     const remaining = Math.max(limit.capacity - result.count, 0);
 
     if (result.count > limit.capacity) {
-      return {
-        allowed: false,
-        retryAfterSeconds: Math.max(Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000), 1),
-        remaining,
-        resetAt: result.resetAt,
-      };
+      const retryAfterSeconds = Math.max(
+        Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000),
+        1,
+      );
+      throw new RateLimitExceededError(retryAfterSeconds, 'App rate limit exceeded.');
     }
 
     return { allowed: true, remaining, resetAt: result.resetAt };
