@@ -22,9 +22,9 @@ function makeCalendarCard(overrides: Record<string, unknown>) {
     genres: ['Drama'],
     runtimeSeconds: overrides.runtimeSeconds as number | null ?? 2640,
     images: {
-      artwork: { small: 'https://img.test/artwork.jpg', medium: 'https://img.test/artwork.jpg', large: 'https://img.test/artwork.jpg' },
-      logo: { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' },
-      still: { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' },
+      artwork: { small: 'https://img.test/artwork.jpg', medium: 'https://img.test/artwork.jpg', large: 'https://img.test/artwork.jpg', xl: 'https://img.test/artwork.jpg' },
+      logo: { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png', xl: 'https://img.test/logo.png' },
+      still: { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg', xl: 'https://img.test/still.jpg' },
     },
     trailerUrl: null,
     progress: null,

@@ -2,10 +2,24 @@ export type MetadataTitleMediaType = 'movie' | 'show';
 export type MetadataViewMediaType = MetadataTitleMediaType | 'season' | 'episode';
 export type MetadataParentMediaType = 'show';
 
+/**
+ * Image slots, ordered by delivery size.
+ *
+ * The slot names describe the *rendered* width budget a client should expect,
+ * not a provider-specific pixel size:
+ *   - small  — ~300px wide (row cards, thumbnails)
+ *   - medium — ~780px wide (large cards, episode stills, detail backdrops)
+ *   - large  — ~1280px wide (hero images, detail modals)
+ *   - xl     — original asset, uncapped (full-bleed backgrounds)
+ *
+ * The server owns the mapping from slots to provider tokens, so clients never
+ * need to know where the bytes come from.
+ */
 export type ResponsiveImageSet = {
   small: string | null;
   medium: string | null;
   large: string | null;
+  xl: string | null;
 };
 
 export type MetadataArtwork = {

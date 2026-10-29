@@ -3761,6 +3761,10 @@ components:
           anyOf:
             - type: string
             - type: "null"
+        xl:
+          anyOf:
+            - type: string
+            - type: "null"
     BaseItemImageTags:
       type: object
       additionalProperties: false

@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import type { FastifyRequest } from 'fastify';
 import type { AuthActor } from './modules/auth/auth.types.js';
 
-const emptyImageSet = () => ({ small: null, medium: null, large: null });
+const emptyImageSet = () => ({ small: null, medium: null, large: null, xl: null });
 
 const REQUIRED_ENV: Record<string, string> = {
   NODE_ENV: 'test',

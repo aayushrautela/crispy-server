@@ -217,6 +217,7 @@ export const responsiveImageSetSchema = {
     small: nullableStringSchema,
     medium: nullableStringSchema,
     large: nullableStringSchema,
+    xl: nullableStringSchema,
   },
 } as const;
 

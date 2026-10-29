@@ -19,9 +19,9 @@ function makeCalendarCard(overrides: Record<string, unknown>) {
     genres: (overrides.genres as string[] | undefined) ?? ['Drama'],
     runtimeSeconds: overrides.runtimeSeconds as number | null ?? 2640,
     images: {
-      artwork: imageSets?.artwork ?? { small: 'https://img.test/artwork.jpg', medium: 'https://img.test/artwork.jpg', large: 'https://img.test/artwork.jpg' },
-      logo: imageSets?.logo ?? { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png' },
-      still: imageSets?.still ?? { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg' },
+      artwork: imageSets?.artwork ?? { small: 'https://img.test/artwork.jpg', medium: 'https://img.test/artwork.jpg', large: 'https://img.test/artwork.jpg', xl: 'https://img.test/artwork.jpg' },
+      logo: imageSets?.logo ?? { small: 'https://img.test/logo.png', medium: 'https://img.test/logo.png', large: 'https://img.test/logo.png', xl: 'https://img.test/logo.png' },
+      still: imageSets?.still ?? { small: 'https://img.test/still.jpg', medium: 'https://img.test/still.jpg', large: 'https://img.test/still.jpg', xl: 'https://img.test/still.jpg' },
     },
     trailerUrl: overrides.trailerUrl as string | null ?? null,
     progress: null,

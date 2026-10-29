@@ -36,7 +36,7 @@ function titleDetail(): never {
       rating: 7.5,
       genres: ['Drama'],
       providerIds: { tmdb: '123' },
-      images: { artwork: { small: 's', medium: 'm', large: 'l' } },
+      images: { artwork: { small: 's', medium: 'm', large: 'l', xl: 'x' } },
     },
     NextEpisode: null,
     Videos: [],

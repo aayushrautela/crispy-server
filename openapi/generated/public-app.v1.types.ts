@@ -1293,6 +1293,7 @@ export interface components {
             small: string | null;
             medium: string | null;
             large: string | null;
+            xl?: string | null;
         };
         BaseItemImageTags: {
             Primary: components["schemas"]["ResponsiveImageSet"] | null;

@@ -435,6 +435,7 @@ export interface components {
             small: string | null;
             medium: string | null;
             large: string | null;
+            xl?: string | null;
         };
         PublicItemId: string;
         ClientMediaCard: {

@@ -69,12 +69,13 @@ export function buildImageUrl(path: string | null, size: string): string | null 
 
 export function buildResponsiveImageSet(
   path: string | null,
-  sizes: { small: string; medium: string; large: string },
+  sizes: { small: string; medium: string; large: string; xl: string },
 ): ResponsiveImageSet {
   return {
     small: buildImageUrl(path, sizes.small),
     medium: buildImageUrl(path, sizes.medium),
     large: buildImageUrl(path, sizes.large),
+    xl: buildImageUrl(path, sizes.xl),
   };
 }
 
@@ -83,6 +84,7 @@ export function emptyResponsiveImageSet(): ResponsiveImageSet {
     small: null,
     medium: null,
     large: null,
+    xl: null,
   };
 }
 
@@ -387,6 +389,7 @@ function buildCompanyView(record: Record<string, unknown>): MetadataCompanyView 
       small: 'w185',
       medium: 'w300',
       large: 'w500',
+      xl: 'original',
     }),
     originCountry: asString(record.origin_country),
   };
@@ -587,31 +590,36 @@ export function buildMetadataImages(title: TmdbTitleRecord | null, episode: Tmdb
     artwork: buildMergedArtwork(backdropPath, posterPath),
     still: buildResponsiveImageSet(episode?.stillPath ?? null, {
       small: 'w300',
-      medium: 'h632',
-      large: 'original',
+      medium: 'w780',
+      large: 'w1280',
+      xl: 'original',
     }),
     logo: buildResponsiveImageSet(logoPath, {
       small: 'w185',
-      medium: 'w500',
-      large: 'original',
+      medium: 'w300',
+      large: 'w500',
+      xl: 'original',
     }),
   };
 }
 
 export function buildMergedArtwork(backdropPath: string | null, posterPath: string | null): ResponsiveImageSet {
   const backdrop = buildResponsiveImageSet(backdropPath, {
-    small: 'w780',
-    medium: 'w1280',
-    large: 'original',
+    small: 'w300',
+    medium: 'w780',
+    large: 'w1280',
+    xl: 'original',
   });
   const poster = buildResponsiveImageSet(posterPath, {
-    small: 'w342',
+    small: 'w300',
     medium: 'w500',
     large: 'w780',
+    xl: 'original',
   });
   return {
     small: backdrop.small ?? poster.small,
     medium: backdrop.medium ?? poster.medium,
     large: backdrop.large ?? poster.large,
+    xl: backdrop.xl ?? poster.xl,
   };
 }

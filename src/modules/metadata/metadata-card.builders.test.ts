@@ -32,9 +32,10 @@ test('buildMetadataCardView for episode uses episode title and show subtitle', a
   assert.equal(view.subtitle, 'Breaking Point');
   assert.equal(view.summary, 'Previous.');
   assert.deepEqual(view.seriesArtwork, {
-    small: 'https://image.tmdb.org/t/p/w780/backdrop.jpg',
-    medium: 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
-    large: 'https://image.tmdb.org/t/p/original/backdrop.jpg',
+    small: 'https://image.tmdb.org/t/p/w300/backdrop.jpg',
+    medium: 'https://image.tmdb.org/t/p/w780/backdrop.jpg',
+    large: 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+    xl: 'https://image.tmdb.org/t/p/original/backdrop.jpg',
   });
 });
 
@@ -66,7 +67,7 @@ test('buildEpisodePreview produces provider-based payload', async () => {
   assert.equal(preview.airDate, '2024-01-15');
   assert.equal(preview.runtimeMinutes, 47);
   assert.equal(preview.rating, 8.1);
-  assert.equal(preview.images.still.medium, 'https://image.tmdb.org/t/p/h632/still.jpg');
+  assert.equal(preview.images.still.medium, 'https://image.tmdb.org/t/p/w780/still.jpg');
 });
 
 test('buildMetadataCardView omits seriesArtwork for title cards', async () => {

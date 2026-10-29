@@ -36,7 +36,7 @@ const SLIDE_BACKDROP_SLOTS: Record<AiInsightSlide['key'], number> = {
   trivia: 3,
 };
 
-const BACKDROP_IMAGE_SIZES = { small: 'w780', medium: 'w1280', large: 'original' } as const;
+const BACKDROP_IMAGE_SIZES = { small: 'w300', medium: 'w780', large: 'w1280', xl: 'original' } as const;
 
 type TransactionRunner = <T>(work: (client: DbClient) => Promise<T>) => Promise<T>;
 
@@ -168,7 +168,7 @@ export class AiInsightsService {
   private buildSlides(payload: AiInsightsPayload, titleDetail: MetadataTitleDetail, backdropPaths: string[]): AiInsightsResponse {
     const backdrops = backdropPaths
       .map((path) => buildResponsiveImageSet(path, BACKDROP_IMAGE_SIZES))
-      .filter((set): set is ResponsiveImageSet => Boolean(set.small || set.medium || set.large));
+      .filter((set): set is ResponsiveImageSet => Boolean(set.small || set.medium || set.large || set.xl));
     const candidates = backdrops.length > 0 ? backdrops : (titleDetail.Item.images.artwork ? [titleDetail.Item.images.artwork] : []);
 
     const pickBackdrop = (index: number): ResponsiveImageSet => {
