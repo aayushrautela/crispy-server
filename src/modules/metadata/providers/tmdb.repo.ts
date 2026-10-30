@@ -118,47 +118,6 @@ export class TmdbRepository {
     return map;
   }
 
-  async searchTitles(client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[], language: string): Promise<TmdbTitleRecord[]> {
-    const result = await client.query(
-      `SELECT DISTINCT ON (t.media_type, t.tmdb_id)
-              ${titleColumns()},
-              CASE
-                 WHEN lower(coalesce(tr.name, '')) = lower($1) THEN 0
-                 WHEN lower(coalesce(ten.name, '')) = lower($1) THEN 1
-                 WHEN lower(coalesce(tr.name, '')) LIKE lower($2) THEN 2
-                 WHEN lower(coalesce(ten.name, '')) LIKE lower($2) THEN 3
-                 ELSE 4
-              END AS rank_order,
-              CASE WHEN tr.lang = $4 THEN 0 ELSE 1 END AS lang_order
-       ${titleJoins('$4')}
-       WHERE t.media_type = ANY($3::text[])
-         AND (
-           lower(coalesce(tr.name, '')) LIKE '%' || lower($1) || '%'
-           OR lower(coalesce(ten.name, '')) LIKE '%' || lower($1) || '%'
-           OR lower(coalesce(t.original_name, '')) LIKE '%' || lower($1) || '%'
-         )
-       ORDER BY t.media_type, t.tmdb_id, lang_order ASC, rank_order ASC`,
-      [query, `${query}%`, mediaTypes, language],
-    );
-
-    return [...result.rows]
-      .sort((left, right) => Number(left.rank_order) - Number(right.rank_order))
-      .slice(0, limit)
-      .map((row) => mapTitle(row, language));
-  }
-
-  async discoverTitlesByGenre(client: DbClient, mediaType: TmdbTitleType, genreId: number, limit: number, language: string): Promise<TmdbTitleRecord[]> {
-    const result = await client.query(
-      `SELECT ${titleColumns()} ${titleJoins('$4')}
-       WHERE t.media_type = $1 AND t.genre_ids @> to_jsonb(ARRAY[$2::integer])
-         AND coalesce(t.hydration_level, 'summary') <> 'not_found'
-       ORDER BY t.popularity DESC NULLS LAST
-       LIMIT $3`,
-      [mediaType, genreId, limit, language],
-    );
-    return result.rows.map((row) => mapTitle(row, language));
-  }
-
   async discoverTitlesByGenres(client: DbClient, mediaType: TmdbTitleType, genreIds: number[], limit: number, language: string): Promise<TmdbTitleRecord[]> {
     if (genreIds.length === 0) return [];
     const result = await client.query(
@@ -641,19 +600,6 @@ export class TmdbRepository {
       [personTmdbId],
     );
     return result.rows[0] ? mapPerson(result.rows[0]) : null;
-  }
-
-  async searchPeople(client: DbClient, query: string, limit: number): Promise<TmdbPersonRecord[]> {
-    const result = await client.query(
-      `SELECT tmdb_id, name, known_for_department, biography, birthday, deathday, place_of_birth,
-              profile_path, popularity, homepage, adult, also_known_as, raw, fetched_at, expires_at
-       FROM tmdb_people
-       WHERE lower(name) LIKE '%' || lower($1) || '%'
-       ORDER BY popularity DESC NULLS LAST
-       LIMIT $2`,
-      [query, limit],
-    );
-    return result.rows.map(mapPerson);
   }
 
   async upsertPerson(client: DbClient, params: {

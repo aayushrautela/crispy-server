@@ -16,7 +16,6 @@ import type {
 } from './tmdb.types.js';
 
 const INGEST_CONCURRENCY = 4;
-const LOCAL_SEARCH_MIN_RESULTS = 5;
 
 type PersonSearchPayloadItem = {
   id?: unknown;
@@ -237,13 +236,16 @@ export class TmdbCacheService {
 
   // --------------------------------------------------------------- search
 
-  async searchTitles(client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null): Promise<TmdbTitleRecord[]> {
+  /**
+   * Live-only title search. Results are never read from or written to the
+   * local cache: TMDB's relevance order is the ranking, so payloads are
+   * mapped and returned directly in payload order.
+   */
+  async searchTitles(_client: DbClient, query: string, limit: number, mediaTypes: TmdbTitleType[], locale?: string | null): Promise<TmdbTitleRecord[]> {
     const lang = normalizeMetadataLanguage(locale)?.split('-')[0] ?? 'en';
     const searchableTypes = mediaTypes.filter((mediaType) => mediaType === 'movie' || mediaType === 'tv');
-    const localResults = await this.tmdbRepository.searchTitles(client, query, limit, mediaTypes, lang);
-
     if (!searchableTypes.length) {
-      return localResults;
+      return [];
     }
 
     const payloads = await Promise.all(
@@ -258,16 +260,19 @@ export class TmdbCacheService {
       })),
     );
 
+    const results: TmdbTitleRecord[] = [];
     for (const { mediaType, payload } of payloads) {
       if (!payload) continue;
-      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], mediaType, locale);
+      const mapped = asArray(payload.results)
+        .map((item) => mapLiveTitle(item as Record<string, unknown>, mediaType, lang))
+        .filter((record): record is TmdbTitleRecord => record !== null)
+        .slice(0, limit);
+      results.push(...mapped);
     }
-
-    const refreshed = await this.tmdbRepository.searchTitles(client, query, limit, mediaTypes, lang);
-    return (refreshed.length > localResults.length ? refreshed : localResults).slice(0, limit);
+    return results;
   }
 
-  async discoverTitlesByGenre(client: DbClient, params: {
+  async discoverTitlesByGenre(_client: DbClient, params: {
     movieGenreId?: number | null;
     tvGenreId?: number | null;
     filter: MetadataSearchFilter;
@@ -286,6 +291,8 @@ export class TmdbCacheService {
       return [];
     }
 
+    // Live-only, like title search: discover payloads are mapped and ranked by
+    // the endpoint's own popularity sort, never persisted or re-read locally.
     const livePayloads = await Promise.all(requested.map(async ({ mediaType, genreId }) => ({
       mediaType,
       payload: await this.tmdbClient.request(`/discover/${mediaType}`, {
@@ -296,17 +303,15 @@ export class TmdbCacheService {
       }).catch(() => null),
     })));
 
+    const results: TmdbTitleRecord[] = [];
     for (const { mediaType, payload } of livePayloads) {
       if (!payload) continue;
-      await this.ingest.persistSummaries(client, asArray(payload.results) as Record<string, unknown>[], mediaType, params.locale);
+      for (const item of asArray(payload.results)) {
+        const record = mapLiveTitle(item as Record<string, unknown>, mediaType, lang);
+        if (record) results.push(record);
+      }
     }
-
-    const refreshed = (
-      await Promise.all(requested.map(({ mediaType, genreId }) =>
-        this.tmdbRepository.discoverTitlesByGenre(client, mediaType, genreId, params.limit, lang),
-      ))
-    ).flat();
-    return dedupeTitles(refreshed)
+    return dedupeTitles(results)
       .sort((left, right) => popularityOf(right) - popularityOf(left))
       .slice(0, params.limit);
   }
@@ -345,44 +350,19 @@ export class TmdbCacheService {
       .slice(0, params.limit);
   }
 
-  async searchPeople(client: DbClient, query: string, limit: number, signal?: AbortSignal): Promise<TmdbPersonRecord[]> {
-    const localResults = await this.tmdbRepository.searchPeople(client, query, limit);
-    if (localResults.length >= Math.min(LOCAL_SEARCH_MIN_RESULTS, limit)) {
-      return localResults;
-    }
-
+  /**
+   * Live-only people search, same rule as titles: never cached, TMDB order.
+   */
+  async searchPeople(_client: DbClient, query: string, limit: number, signal?: AbortSignal): Promise<TmdbPersonRecord[]> {
     const payload = await this.tmdbClient.request('/search/person', { query, page: 1, include_adult: 'false' }, signal).catch(() => null);
     if (!payload) {
-      return localResults;
+      return [];
     }
 
-    const mapped = (asArray(payload.results) as Record<string, unknown>[])
-      .map((item) => item as PersonSearchPayloadItem)
-      .map((item) => mapLivePerson(item))
+    return asArray(payload.results)
+      .map((item) => mapLivePerson(item as PersonSearchPayloadItem))
       .filter((person): person is TmdbPersonRecord => person !== null)
       .slice(0, limit);
-
-    for (const person of mapped) {
-      await this.tmdbRepository.upsertPerson(client, {
-        tmdbPersonId: person.tmdbPersonId,
-        name: person.name,
-        knownForDepartment: person.knownForDepartment,
-        biography: null,
-        birthday: null,
-        deathday: null,
-        placeOfBirth: null,
-        profilePath: person.profilePath,
-        popularity: person.popularity,
-        homepage: null,
-        adult: false,
-        alsoKnownAs: [],
-        raw: {},
-        fetchedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
-      });
-    }
-
-    return mapped.length > 0 ? mapped : localResults;
   }
 
   // --------------------------------------------------------------- people
@@ -452,6 +432,39 @@ function dedupeTitles(records: TmdbTitleRecord[]): TmdbTitleRecord[] {
     }
   }
   return deduped;
+}
+
+function mapLiveTitle(item: Record<string, unknown>, mediaType: TmdbTitleType, language: string): TmdbTitleRecord | null {
+  const tmdbId = typeof item.id === 'number' && Number.isFinite(item.id) ? item.id : null;
+  if (!tmdbId) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  return {
+    mediaType,
+    tmdbId,
+    language,
+    name: toNullableString(item.title) ?? toNullableString(item.name),
+    originalName: toNullableString(item.original_title) ?? toNullableString(item.original_name),
+    overview: toNullableString(item.overview),
+    tagline: null,
+    releaseDate: toNullableString(item.release_date),
+    firstAirDate: toNullableString(item.first_air_date),
+    status: null,
+    posterPath: toNullableString(item.poster_path),
+    backdropPath: toNullableString(item.backdrop_path),
+    runtime: null,
+    episodeRunTime: [],
+    numberOfSeasons: null,
+    numberOfEpisodes: null,
+    externalIds: {},
+    genreIds: asArray(item.genre_ids).map(Number).filter(Number.isFinite),
+    voteAverage: typeof item.vote_average === 'number' && Number.isFinite(item.vote_average) ? item.vote_average : null,
+    raw: item,
+    fetchedAt: now,
+    expiresAt: now,
+  };
 }
 
 function mapLivePerson(item: PersonSearchPayloadItem): TmdbPersonRecord | null {
