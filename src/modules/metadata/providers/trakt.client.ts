@@ -3,6 +3,7 @@ import { env } from '../../../config/env.js';
 import { HttpError } from '../../../lib/errors.js';
 import type { MetadataExternalIds } from '../metadata-card.types.js';
 import type { MetadataReviewView } from '../metadata-detail.types.js';
+import { containsReviewLink } from '../metadata-review-filter.js';
 
 type FetchLike = typeof fetch;
 
@@ -111,7 +112,8 @@ export class TraktClient {
     const comments = await this.requestArray(pathname, { limit }, options);
     const parsed = comments
       .map((entry) => normalizeTraktComment(entry))
-      .filter((entry): entry is ParsedTraktReview => entry !== null);
+      .filter((entry): entry is ParsedTraktReview => entry !== null)
+      .filter((entry) => !containsReviewLink(entry.content));
 
     const prioritized = [
       ...parsed.filter((entry) => entry.isReview),

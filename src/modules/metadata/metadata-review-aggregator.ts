@@ -5,6 +5,7 @@ import type { ProviderImportProvider } from '../integrations/provider-import.typ
 import { ProviderTokenAccessService } from '../integrations/provider-token-access.service.js';
 import type { MediaIdentity } from '../identity/media-key.js';
 import { extractExternalIds } from './metadata-builder.shared.js';
+import { containsReviewLink } from './metadata-review-filter.js';
 import type { MetadataReviewView } from './metadata-detail.types.js';
 import { MetadataTitleSourceService } from './metadata-title-source.service.js';
 import { TmdbCacheService } from './providers/tmdb-cache.service.js';
@@ -12,7 +13,7 @@ import { TraktClient } from './providers/trakt.client.js';
 import type { TmdbReviewRecord, TmdbTitleRecord } from './providers/tmdb.types.js';
 
 export const PRIMARY_REVIEW_THRESHOLD = 5;
-export const REVIEW_LIMIT = 15;
+export const REVIEW_LIMIT = 50;
 
 type ReviewMediaType = 'movie' | 'show';
 
@@ -145,18 +146,20 @@ function assertPresent<T>(value: T | null | undefined): T {
 }
 
 function toReviewViews(reviews: TmdbReviewRecord[]): MetadataReviewView[] {
-  return reviews.map((review) => ({
-    id: review.reviewKey,
-    provider: review.source,
-    author: review.author,
-    username: review.authorUsername,
-    content: review.content,
-    createdAt: review.createdAt,
-    updatedAt: null,
-    url: review.url,
-    rating: review.rating != null ? Number(review.rating) : null,
-    avatarUrl: null,
-  }));
+  return reviews
+    .map((review) => ({
+      id: review.reviewKey,
+      provider: review.source,
+      author: review.author,
+      username: review.authorUsername,
+      content: review.content,
+      createdAt: review.createdAt,
+      updatedAt: null,
+      url: review.url,
+      rating: review.rating != null ? Number(review.rating) : null,
+      avatarUrl: null,
+    }))
+    .filter((review) => !containsReviewLink(review.content));
 }
 
 export function mergeReviews(primary: MetadataReviewView[], fallback: MetadataReviewView[]): MetadataReviewView[] {
