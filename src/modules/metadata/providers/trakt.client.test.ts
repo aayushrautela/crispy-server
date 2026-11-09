@@ -119,3 +119,35 @@ test('TraktClient resolves TMDB ids through search before loading show reviews',
   assert.match(calls[0] ?? '', /type=show/);
   assert.match(calls[1] ?? '', /\/shows\/1\/comments\/newest\?/);
 });
+
+test('TraktClient drops comments that link to a full review', async () => {
+  const fetcher: typeof fetch = async () => new Response(JSON.stringify([
+    {
+      comment: {
+        id: 401,
+        comment: 'Full review here: https://example.com/reviews/123',
+        review: false,
+        created_at: '2015-04-25T00:14:57.000Z',
+        updated_at: '2015-04-25T00:14:57.000Z',
+        user: { name: 'Linker', username: 'linker' },
+      },
+    },
+    {
+      comment: {
+        id: 402,
+        comment: 'Great movie, no link.',
+        review: false,
+        created_at: '2015-04-25T00:14:57.000Z',
+        updated_at: '2015-04-25T00:14:57.000Z',
+        user: { name: 'Clean', username: 'clean' },
+      },
+    },
+  ]), { status: 200 });
+
+  const { TraktClient } = await import('./trakt.client.js');
+  const client = new TraktClient(fetcher);
+  const reviews = await client.fetchTitleReviews('movie', { imdb: 'tt0372784', tmdb: null, tvdb: null }, 5);
+
+  assert.equal(reviews.length, 1);
+  assert.equal(reviews[0]?.id, 'trakt:402');
+});

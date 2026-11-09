@@ -124,6 +124,78 @@ test('MetadataReviewsService tops up TMDB movie reviews from Trakt when under th
   assert.deepEqual(traktCalls, [{ mediaType: 'movie', accessToken: 'user-trakt-token', externalIds: { imdb: 'tt0372784', tmdb: 42, tvdb: null } }]);
 });
 
+test('MetadataReviewsService drops TMDB reviews that link to a full review', async () => {
+  const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
+  const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
+
+  const tmdbTitle: TmdbTitleRecord = {
+    mediaType: 'movie',
+    tmdbId: 42,
+    language: 'en',
+    name: 'Batman Begins',
+    originalName: 'Batman Begins',
+    overview: 'A bat starts.',
+    tagline: null,
+    releaseDate: '2005-06-15',
+    firstAirDate: null,
+    status: 'Released',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
+    runtime: 140,
+    episodeRunTime: [],
+    numberOfSeasons: null,
+    numberOfEpisodes: null,
+    externalIds: { imdb_id: 'tt0372784', tvdb_id: null },
+    raw: {
+      genres: [],
+      videos: { results: [] },
+      credits: { cast: [], crew: [] },
+      created_by: [],
+      reviews: { results: [] },
+      production_companies: [],
+      networks: [],
+      production_countries: [],
+      spoken_languages: [],
+      similar: { results: [] },
+    },
+    hydrationLevel: 'detail',
+    fetchedAt: '2026-03-22T00:00:00.000Z',
+    expiresAt: '2026-03-23T00:00:00.000Z',
+  };
+
+  const service = new MetadataReviewsService(
+    new MetadataReviewAggregator(
+      {
+        loadTitleSource: async () => ({
+          identity: inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
+          language: null,
+          tmdbTitle,
+          tmdbNextEpisode: null,
+        }),
+      } as never,
+      {
+        getReviews: async () => [
+          buildStoredReview('tmdb-clean', 'Clean review'),
+          buildStoredReview('tmdb-link', 'Full review: https://example.com/review'),
+        ],
+      } as never,
+      { isConfigured: () => false, fetchTitleReviews: async () => [] } as never,
+      {} as never,
+    ),
+    {} as never,
+  );
+
+  const reviews = await service.loadTitleReviews(
+    {} as never,
+    'user-1',
+    'profile-1',
+    inferMediaIdentity({ mediaType: 'movie', tmdbId: 42 }),
+  );
+
+  assert.equal(reviews.length, 1);
+  assert.equal(reviews[0]?.id, 'tmdb-clean');
+});
+
 test('MetadataReviewsService tops up TMDB show reviews from Trakt when under threshold', async () => {
   const { MetadataReviewsService } = await import('./metadata-reviews.service.js');
   const { MetadataReviewAggregator } = await import('./metadata-review-aggregator.js');
