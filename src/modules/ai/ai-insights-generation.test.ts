@@ -29,18 +29,44 @@ function titleDetail(overrides: Record<string, unknown> = {}): MetadataTitleDeta
 test('normalizeInsightsPayload requires real positive or negative feedback', async () => {
   const { normalizeInsightsPayload } = await import('./ai-insights-generation.js');
   const valid = normalizeInsightsPayload({
-    the_good_stuff: 'good',
+    the_good_stuff: { heading: 'A twist that lands', text: 'good' },
     the_catch: '',
-    standout_element: { tag: 'PERFORMANCE', focus: 'f', context: 'c' },
-    trivia: 't',
+    standout_element: { heading: 'Lead actor', text: 'c' },
+    trivia: { heading: 'From a true story', text: 't' },
   });
   assert.ok(valid);
-  assert.equal(valid!.the_good_stuff, 'good');
+  assert.equal(valid!.the_good_stuff?.text, 'good');
+  assert.equal(valid!.the_good_stuff?.heading, 'A twist that lands');
   assert.equal(valid!.the_catch, null);
+  assert.equal(valid!.standout_element.heading, 'Lead actor');
+  assert.equal(valid!.trivia.text, 't');
 
-  assert.equal(normalizeInsightsPayload({ the_good_stuff: '', the_catch: '', standout_element: { tag: 'PERFORMANCE', focus: 'f', context: 'c' }, trivia: 't' }), null);
-  assert.equal(normalizeInsightsPayload({ the_good_stuff: 'g', the_catch: '', trivia: 't' } as Record<string, unknown>), null);
-  assert.equal(normalizeInsightsPayload({ the_good_stuff: 'g', the_catch: '', standout_element: { tag: 'BOGUS', focus: 'f', context: 'c' }, trivia: 't' }), null);
+  assert.equal(normalizeInsightsPayload({ the_good_stuff: '', the_catch: '', standout_element: { heading: 'h', text: 'c' }, trivia: { heading: 'h', text: 't' } }), null);
+  assert.equal(normalizeInsightsPayload({ the_good_stuff: { heading: 'h', text: 'g' }, the_catch: '', trivia: { heading: 'h', text: 't' } } as Record<string, unknown>), null);
+});
+
+test('normalizeInsightsPayload keeps partial sections and drops unusable fields', async () => {
+  const { normalizeInsightsPayload } = await import('./ai-insights-generation.js');
+  const partial = normalizeInsightsPayload({
+    the_good_stuff: { heading: 'x'.repeat(200), text: 'good' },
+    the_catch: { heading: 'A slow middle', text: 'catch' },
+    standout_element: { heading: 'Lead actor', text: 'c' },
+    trivia: { heading: 'From a true story', text: 't' },
+  });
+  assert.ok(partial);
+  // An unusable heading is dropped, the section itself still ships.
+  assert.equal(partial!.the_good_stuff?.heading, null);
+  assert.equal(partial!.the_catch?.heading, 'A slow middle');
+
+  // A plain string is accepted as copy without a heading.
+  const plain = normalizeInsightsPayload({
+    the_good_stuff: 'good',
+    the_catch: '',
+    standout_element: { heading: 'Lead actor', text: 'c' },
+    trivia: { heading: 'From a true story', text: 't' },
+  });
+  assert.equal(plain?.the_good_stuff?.text, 'good');
+  assert.equal(plain?.the_good_stuff?.heading, null);
 });
 
 test('buildTitleInsightsContext requires a titled movie or show', async () => {

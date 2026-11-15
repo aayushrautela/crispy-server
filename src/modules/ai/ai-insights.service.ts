@@ -17,15 +17,37 @@ import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import { fetchBackdropPaths } from './ai-insights-generation.js';
 import { BullMqAiGenerationGateway, type AiGenerationGateway } from './ai-generation.gateway.js';
-import type { AiInsightsPayload, AiInsightsResponse, AiInsightSlide } from './ai.types.js';
+import type {
+  AiInsightSection,
+  AiInsightSlide,
+  AiInsightSlideKey,
+  AiInsightSlideKind,
+  AiInsightsPayload,
+  AiInsightsResponse,
+} from './ai.types.js';
 
-const GENERATION_VERSION = 'v7';
+const GENERATION_VERSION = 'v9';
 
 const SLIDE_ACCENTS: Record<AiInsightSlide['key'], string> = {
   the_good_stuff: '#7c5cff',
   the_catch: '#ff7c5c',
   standout_element: '#5cc8ff',
   trivia: '#ffd75c',
+};
+
+const SLIDE_LABELS: Record<AiInsightSlideKey, string> = {
+  the_good_stuff: 'The Good Stuff',
+  the_catch: 'The Catch',
+  standout_element: 'Standout',
+  trivia: 'Did You Know?',
+};
+
+/** Used when the model omits a heading, so every card still has one. */
+const SLIDE_FALLBACK_HEADINGS: Record<AiInsightSlideKey, string> = {
+  the_good_stuff: 'What Works',
+  the_catch: 'Where It Falls Short',
+  standout_element: 'Signature Moment',
+  trivia: 'Behind the Scenes',
 };
 
 /** Fixed backdrop slot per slide key so colors/images never shift when slides are omitted. */
@@ -179,54 +201,26 @@ export class AiInsightsService {
     };
 
     const slides: AiInsightSlide[] = [];
-    if (payload.the_good_stuff) {
+    const pushSlide = (key: AiInsightSlideKey, kind: AiInsightSlideKind, section: AiInsightSection): void => {
       slides.push({
-        key: 'the_good_stuff',
-        label: 'The Good Stuff',
-        kind: 'prose',
-        body: payload.the_good_stuff,
-        tag: null,
-        focus: null,
-        context: null,
-        backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.the_good_stuff),
-        accent: SLIDE_ACCENTS.the_good_stuff,
+        key,
+        label: SLIDE_LABELS[key],
+        kind,
+        heading: section.heading ?? SLIDE_FALLBACK_HEADINGS[key],
+        body: section.text,
+        backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS[key]),
+        accent: SLIDE_ACCENTS[key],
       });
+    };
+
+    if (payload.the_good_stuff) {
+      pushSlide('the_good_stuff', 'prose', payload.the_good_stuff);
     }
     if (payload.the_catch) {
-      slides.push({
-        key: 'the_catch',
-        label: 'The Catch',
-        kind: 'prose',
-        body: payload.the_catch,
-        tag: null,
-        focus: null,
-        context: null,
-        backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.the_catch),
-        accent: SLIDE_ACCENTS.the_catch,
-      });
+      pushSlide('the_catch', 'prose', payload.the_catch);
     }
-    slides.push({
-      key: 'standout_element',
-      label: 'Standout',
-      kind: 'standout',
-      body: null,
-      tag: payload.standout_element.tag,
-      focus: payload.standout_element.focus,
-      context: payload.standout_element.context,
-      backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.standout_element),
-      accent: SLIDE_ACCENTS.standout_element,
-    });
-    slides.push({
-      key: 'trivia',
-      label: 'Did You Know?',
-      kind: 'trivia',
-      body: payload.trivia,
-      tag: null,
-      focus: null,
-      context: null,
-      backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS.trivia),
-      accent: SLIDE_ACCENTS.trivia,
-    });
+    pushSlide('standout_element', 'standout', payload.standout_element);
+    pushSlide('trivia', 'trivia', payload.trivia);
 
     return { slides };
   }

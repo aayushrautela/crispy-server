@@ -61,17 +61,14 @@ export type AiExecutionResult = {
 
 export type AiSearchResponse = MetadataSearchResponse;
 
-export type AiInsightStandoutTag =
-  | 'PERFORMANCE'
-  | 'VISUALS'
-  | 'STORY'
-  | 'DIRECTION'
-  | 'WORLD_BUILDING';
-
-export type AiInsightStandoutElement = {
-  tag: AiInsightStandoutTag;
-  focus: string;
-  context: string;
+/**
+ * One insight section: a short heading and the copy under it. `heading` is
+ * optional because the model may omit it; the slide builder falls back to a
+ * default for each section.
+ */
+export type AiInsightSection = {
+  heading: string | null;
+  text: string;
 };
 
 export type AiInsightSlideKey =
@@ -82,14 +79,16 @@ export type AiInsightSlideKey =
 
 export type AiInsightSlideKind = 'prose' | 'standout' | 'trivia';
 
+/**
+ * Every slide has the same shape — heading, paragraph — so the client apps
+ * render one card component instead of branching on the slide kind.
+ */
 export type AiInsightSlide = {
   key: AiInsightSlideKey;
   label: string;
   kind: AiInsightSlideKind;
-  body: string | null;
-  tag: AiInsightStandoutTag | null;
-  focus: string | null;
-  context: string | null;
+  heading: string;
+  body: string;
   backdrop: ResponsiveImageSet;
   accent: string;
 };
@@ -99,8 +98,8 @@ export type AiInsightsResponse = {
 };
 
 export type AiInsightsPayload = {
-  the_good_stuff: string | null;
-  the_catch: string | null;
-  standout_element: AiInsightStandoutElement;
-  trivia: string;
+  the_good_stuff: AiInsightSection | null;
+  the_catch: AiInsightSection | null;
+  standout_element: AiInsightSection;
+  trivia: AiInsightSection;
 };

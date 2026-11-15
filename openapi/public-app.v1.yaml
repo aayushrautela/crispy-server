@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Crispy Public App API
-  version: 1.0.0
+  version: 1.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-api-class: public-app
 x-owner: crispy-server
@@ -3624,18 +3624,13 @@ components:
     GenericObject:
       type: object
       additionalProperties: true
-    AiInsightStandoutTag:
-      type: string
-      enum:
-        - PERFORMANCE
-        - VISUALS
-        - STORY
-        - DIRECTION
-        - WORLD_BUILDING
     AiInsightSlide:
       type: object
+      description: >-
+        One insight card. Every slide has the same shape - heading and
+        paragraph - so the client apps render a single card component.
       additionalProperties: false
-      required: [key, label, kind, body, tag, focus, context, backdrop, accent]
+      required: [key, label, kind, heading, body, backdrop, accent]
       properties:
         key:
           type: string
@@ -3650,19 +3645,12 @@ components:
         kind:
           type: string
           enum: [prose, standout, trivia]
+        heading:
+          type: string
+          minLength: 1
         body:
-          nullable: true
           type: string
-        tag:
-          anyOf:
-            - $ref: "#/components/schemas/AiInsightStandoutTag"
-            - type: "null"
-        focus:
-          nullable: true
-          type: string
-        context:
-          nullable: true
-          type: string
+          minLength: 1
         backdrop:
           $ref: "#/components/schemas/ResponsiveImageSet"
         accent:

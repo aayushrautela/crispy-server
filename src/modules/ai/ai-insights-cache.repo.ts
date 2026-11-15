@@ -106,28 +106,27 @@ function isAiInsightsPayload(value: unknown): value is AiInsightsPayload {
   }
 
   const payload = value as Record<string, unknown>;
-  const goodStuff = typeof payload.the_good_stuff === 'string' ? payload.the_good_stuff : null;
-  const theCatch = typeof payload.the_catch === 'string' ? payload.the_catch : null;
-  if (goodStuff === null && theCatch === null) {
-    return false;
-  }
+  const goodStuff = isInsightSection(payload.the_good_stuff);
+  const theCatch = isInsightSection(payload.the_catch);
   // At least one of positive/negative must carry real feedback.
-  if (!goodStuff?.trim() && !theCatch?.trim()) {
-    return false;
-  }
-  if (typeof payload.trivia !== 'string') {
+  if (!goodStuff && !theCatch) {
     return false;
   }
 
-  const standout = payload.standout_element;
-  if (!standout || typeof standout !== 'object' || Array.isArray(standout)) {
+  return isInsightSection(payload.standout_element) && isInsightSection(payload.trivia);
+}
+
+function isInsightSection(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
   }
 
-  const standoutRecord = standout as Record<string, unknown>;
-  const validTags = ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'];
-  return typeof standoutRecord.tag === 'string'
-    && validTags.includes(standoutRecord.tag)
-    && typeof standoutRecord.focus === 'string'
-    && typeof standoutRecord.context === 'string';
+  const section = value as Record<string, unknown>;
+  if (typeof section.text !== 'string' || !section.text.trim()) {
+    return false;
+  }
+  if (section.heading !== null && section.heading !== undefined && typeof section.heading !== 'string') {
+    return false;
+  }
+  return true;
 }

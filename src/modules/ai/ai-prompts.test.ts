@@ -42,6 +42,7 @@ test('insights system prompt carries the stable rules and output contract', () =
   assert.match(prompt, /the_good_stuff/);
   assert.match(prompt, /the_catch/);
   assert.match(prompt, /standout_element/);
+  assert.match(prompt, /trivia/);
   assert.match(prompt, /NEVER perform web searches or call external tools/);
   assert.match(prompt, /If there is genuinely little positive feedback worth sharing, return an empty string\./);
   assert.match(prompt, /NEVER invent filler/);
@@ -49,6 +50,15 @@ test('insights system prompt carries the stable rules and output contract', () =
   assert.match(prompt, /reviews are not the main source and must not be the frame/);
   assert.match(prompt, /Return ONLY valid JSON/);
   assert.doesNotMatch(prompt, /User Reviews:/);
+});
+
+test('insights system prompt asks every section for the same heading and text', () => {
+  const prompt = buildInsightsSystemPrompt();
+
+  assert.match(prompt, /"heading": a short, specific headline for the section/);
+  assert.match(prompt, /MUST BE UNDER 48 CHARACTERS/);
+  assert.match(prompt, /Each key holds an object with "heading" and "text"/);
+  assert.doesNotMatch(prompt, /"tag"/);
 });
 
 test('insights user prompt treats anime-origin titles as shows in TMDB-only mode', () => {
