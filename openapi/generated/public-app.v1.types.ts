@@ -1243,18 +1243,15 @@ export interface components {
         GenericObject: {
             [key: string]: unknown;
         };
-        /** @enum {string} */
-        AiInsightStandoutTag: "PERFORMANCE" | "VISUALS" | "STORY" | "DIRECTION" | "WORLD_BUILDING";
+        /** @description One insight card. Every slide has the same shape - heading and paragraph - so the client apps render a single card component. */
         AiInsightSlide: {
             /** @enum {string} */
             key: "the_good_stuff" | "the_catch" | "standout_element" | "trivia";
             label: string;
             /** @enum {string} */
             kind: "prose" | "standout" | "trivia";
-            body: string | null;
-            tag: components["schemas"]["AiInsightStandoutTag"] | null;
-            focus: string | null;
-            context: string | null;
+            heading: string;
+            body: string;
             backdrop: components["schemas"]["ResponsiveImageSet"];
             accent: string;
         };

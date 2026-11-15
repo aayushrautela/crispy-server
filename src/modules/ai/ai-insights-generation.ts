@@ -9,9 +9,12 @@ import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsSystemPrompt, buildInsightsUserPrompt, type TitleInsightsContext } from './ai-prompts.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
-import type { AiInsightsPayload } from './ai.types.js';
+import type { AiInsightSection, AiInsightsPayload } from './ai.types.js';
 
-const GENERATION_VERSION = 'v7';
+const GENERATION_VERSION = 'v9';
+
+/** Headings longer than this are dropped so the card keeps a headline shape. */
+const MAX_HEADING_LENGTH = 80;
 
 /**
  * Cold-path generation, run by the worker so the request path never blocks on
@@ -143,33 +146,46 @@ export function normalizeInsightsPayload(payload: Record<string, unknown>): AiIn
     return null;
   }
 
-  const goodStuff = typeof payload.the_good_stuff === 'string' ? payload.the_good_stuff.trim() : '';
-  const theCatch = typeof payload.the_catch === 'string' ? payload.the_catch.trim() : '';
-  const trivia = typeof payload.trivia === 'string' ? payload.trivia.trim() : '';
-  const standout = payload.standout_element;
+  const goodStuff = normalizeSection(payload.the_good_stuff);
+  const theCatch = normalizeSection(payload.the_catch);
+  const trivia = normalizeSection(payload.trivia);
+  const standout = normalizeSection(payload.standout_element);
 
   // At least one of positive/negative must carry real feedback; both may be omitted.
-  if ((!goodStuff && !theCatch) || !trivia || !standout || typeof standout !== 'object' || Array.isArray(standout)) {
-    return null;
-  }
-
-  const standoutRecord = standout as Record<string, unknown>;
-  const validTags = ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'];
-  const tag = typeof standoutRecord.tag === 'string' ? standoutRecord.tag : '';
-  const focus = typeof standoutRecord.focus === 'string' ? standoutRecord.focus.trim() : '';
-  const context = typeof standoutRecord.context === 'string' ? standoutRecord.context.trim() : '';
-  if (!validTags.includes(tag) || !focus || !context) {
+  if ((!goodStuff && !theCatch) || !trivia || !standout) {
     return null;
   }
 
   return {
-    the_good_stuff: goodStuff || null,
-    the_catch: theCatch || null,
-    standout_element: {
-      tag: tag as AiInsightsPayload['standout_element']['tag'],
-      focus,
-      context,
-    },
+    the_good_stuff: goodStuff,
+    the_catch: theCatch,
+    standout_element: standout,
     trivia,
   };
+}
+
+/**
+ * A section is an object with "heading" and "text", or a plain string of copy.
+ * A missing heading is not fatal: the slide builder falls back to a default,
+ * so a partial answer still serves.
+ */
+function normalizeSection(value: unknown): AiInsightSection | null {
+  if (typeof value === 'string') {
+    const text = value.trim();
+    return text ? { heading: null, text } : null;
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const text = typeof record.text === 'string' ? record.text.trim() : '';
+  if (!text) {
+    return null;
+  }
+
+  const rawHeading = typeof record.heading === 'string' ? record.heading.trim() : '';
+  const heading = rawHeading && rawHeading.length <= MAX_HEADING_LENGTH ? rawHeading : null;
+
+  return { heading, text };
 }

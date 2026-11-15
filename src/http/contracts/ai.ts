@@ -1,7 +1,6 @@
 import {
   clientMediaCardSchema,
   nonEmptyStringSchema,
-  nullableStringSchema,
   profileIdParamsSchema,
   publicItemIdSchema,
   responsiveImageSetSchema,
@@ -47,15 +46,10 @@ export const aiSearchRouteSchema = withDefaultErrorResponses({
   },
 });
 
-const aiStandoutTagSchema = {
-  type: 'string',
-  enum: ['PERFORMANCE', 'VISUALS', 'STORY', 'DIRECTION', 'WORLD_BUILDING'],
-} as const;
-
 const aiInsightSlideSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['key', 'label', 'kind', 'body', 'tag', 'focus', 'context', 'backdrop', 'accent'],
+  required: ['key', 'label', 'kind', 'heading', 'body', 'backdrop', 'accent'],
   properties: {
     key: {
       type: 'string',
@@ -66,12 +60,8 @@ const aiInsightSlideSchema = {
       type: 'string',
       enum: ['prose', 'standout', 'trivia'],
     },
-    body: nullableStringSchema,
-    tag: {
-      anyOf: [aiStandoutTagSchema, { type: 'null' }],
-    },
-    focus: nullableStringSchema,
-    context: nullableStringSchema,
+    heading: nonEmptyStringSchema,
+    body: nonEmptyStringSchema,
     backdrop: responsiveImageSetSchema,
     accent: nonEmptyStringSchema,
   },

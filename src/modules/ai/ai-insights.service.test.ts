@@ -10,7 +10,7 @@ seedTestEnv();
 const ITEM_ID = '00000000000000000000000000000001';
 const CONTENT_ID = '00000000-0000-0000-0000-000000000001';
 const LOCALE = 'en-US';
-const VERSION = 'v7:openai:gpt-4o-mini';
+const VERSION = 'v9:openai:gpt-4o-mini';
 
 async function loadServiceClass() {
   const { AiInsightsService } = await import('./ai-insights.service.js');
@@ -19,10 +19,10 @@ async function loadServiceClass() {
 
 function validPayload(): AiInsightsPayload {
   return {
-    the_good_stuff: 'Great stuff',
-    the_catch: 'A real catch',
-    standout_element: { tag: 'PERFORMANCE', focus: 'Lead actor', context: 'Carries the film' },
-    trivia: 'A fun fact',
+    the_good_stuff: { heading: 'A twist that lands', text: 'Great stuff' },
+    the_catch: { heading: 'A slow middle', text: 'A real catch' },
+    standout_element: { heading: 'Lead actor', text: 'Carries the film' },
+    trivia: { heading: 'From a true story', text: 'A fun fact' },
   };
 }
 
@@ -131,6 +131,43 @@ test('cache hit with stored backdrops performs zero TMDB and zero enqueues', asy
   assert.equal(enqueueCount(), 0);
   assert.equal(waitCount(), 0);
   assert.equal((result as { slides: unknown[] }).slides.length, 4);
+});
+
+test('every slide carries the same heading and body shape', async () => {
+  const AiInsightsService = await loadServiceClass();
+  const { rows, repo } = makeCacheStore();
+  rows.set(`${CONTENT_ID}|${LOCALE}|${VERSION}`, { payload: validPayload(), backdropPaths: ['/a.jpg'] });
+  const { gateway } = makeGateway(repo);
+
+  const result = await buildService(AiInsightsService, repo, gateway).getInsights('user-1', { itemId: ITEM_ID, profileId: 'profile-1', locale: LOCALE });
+  const slides = (result as { slides: Array<Record<string, unknown>> }).slides;
+
+  assert.deepEqual(slides.map((slide) => slide.key), ['the_good_stuff', 'the_catch', 'standout_element', 'trivia']);
+  for (const slide of slides) {
+    assert.equal(typeof slide.heading, 'string');
+    assert.notEqual(slide.heading, '');
+    assert.equal(typeof slide.body, 'string');
+    assert.notEqual(slide.body, '');
+    assert.equal(slide.tag, undefined);
+  }
+  assert.equal(slides[0]!.heading, 'A twist that lands');
+  assert.equal(slides[1]!.heading, 'A slow middle');
+  assert.equal(slides[2]!.body, 'Carries the film');
+});
+
+test('a section without a heading falls back to the slide default', async () => {
+  const AiInsightsService = await loadServiceClass();
+  const { rows, repo } = makeCacheStore();
+  const payload = validPayload();
+  payload.the_good_stuff = { heading: null, text: 'Great stuff' };
+  rows.set(`${CONTENT_ID}|${LOCALE}|${VERSION}`, { payload, backdropPaths: ['/a.jpg'] });
+  const { gateway } = makeGateway(repo);
+
+  const result = await buildService(AiInsightsService, repo, gateway).getInsights('user-1', { itemId: ITEM_ID, profileId: 'profile-1', locale: LOCALE });
+  const slides = (result as { slides: Array<Record<string, unknown>> }).slides;
+
+  assert.equal(slides[0]!.heading, 'What Works');
+  assert.equal(slides[0]!.body, 'Great stuff');
 });
 
 test('legacy cache hit without backdrops self-heals by fetching once and writing back', async () => {
