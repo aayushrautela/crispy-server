@@ -59,23 +59,33 @@ export type AiExecutionResult = {
   payload: Record<string, unknown>;
 };
 
+/** A JSON Schema the provider is asked to honour for a structured call. */
+export type AiJsonSchemaSpec = {
+  name: string;
+  schema: Record<string, unknown>;
+};
+
 export type AiSearchResponse = MetadataSearchResponse;
 
 /**
- * One insight section: a short heading and the copy under it. `heading` is
- * optional because the model may omit it; the slide builder falls back to a
- * default for each section.
+ * The slide keys the model may return, in the order the story shows them:
+ * the hook first, then good/bad, the fun fact last. One list, so the schema,
+ * the parser and the slide builder cannot drift apart.
+ */
+export const AI_INSIGHT_SLIDE_KEYS = ['standout_element', 'the_good_stuff', 'the_catch', 'trivia'] as const;
+
+export type AiInsightSlideKey = (typeof AI_INSIGHT_SLIDE_KEYS)[number];
+
+/**
+ * One section of the model's answer: which slide it is, the headline and the
+ * copy under it. The heading is required — a section without one is a wrong
+ * answer, not a slide to be filled in with a generic label later.
  */
 export type AiInsightSection = {
-  heading: string | null;
-  text: string;
+  key: AiInsightSlideKey;
+  heading: string;
+  body: string;
 };
-
-export type AiInsightSlideKey =
-  | 'the_good_stuff'
-  | 'the_catch'
-  | 'standout_element'
-  | 'trivia';
 
 export type AiInsightSlideKind = 'prose' | 'standout' | 'trivia';
 
@@ -98,8 +108,5 @@ export type AiInsightsResponse = {
 };
 
 export type AiInsightsPayload = {
-  the_good_stuff: AiInsightSection | null;
-  the_catch: AiInsightSection | null;
-  standout_element: AiInsightSection;
-  trivia: AiInsightSection;
+  slides: AiInsightSection[];
 };

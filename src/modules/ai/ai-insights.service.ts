@@ -18,15 +18,15 @@ import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
 import { fetchBackdropPaths } from './ai-insights-generation.js';
 import { BullMqAiGenerationGateway, type AiGenerationGateway } from './ai-generation.gateway.js';
 import type {
-  AiInsightSection,
   AiInsightSlide,
   AiInsightSlideKey,
   AiInsightSlideKind,
   AiInsightsPayload,
   AiInsightsResponse,
 } from './ai.types.js';
+import { AI_INSIGHT_SLIDE_KEYS } from './ai.types.js';
 
-const GENERATION_VERSION = 'v9';
+const GENERATION_VERSION = 'v10';
 
 const SLIDE_ACCENTS: Record<AiInsightSlide['key'], string> = {
   the_good_stuff: '#7c5cff',
@@ -42,12 +42,11 @@ const SLIDE_LABELS: Record<AiInsightSlideKey, string> = {
   trivia: 'Did You Know?',
 };
 
-/** Used when the model omits a heading, so every card still has one. */
-const SLIDE_FALLBACK_HEADINGS: Record<AiInsightSlideKey, string> = {
-  the_good_stuff: 'What Works',
-  the_catch: 'Where It Falls Short',
-  standout_element: 'Signature Moment',
-  trivia: 'Behind the Scenes',
+const SLIDE_KINDS: Record<AiInsightSlideKey, AiInsightSlideKind> = {
+  the_good_stuff: 'prose',
+  the_catch: 'prose',
+  standout_element: 'standout',
+  trivia: 'trivia',
 };
 
 /** Fixed backdrop slot per slide key so colors/images never shift when slides are omitted. */
@@ -201,26 +200,23 @@ export class AiInsightsService {
     };
 
     const slides: AiInsightSlide[] = [];
-    const pushSlide = (key: AiInsightSlideKey, kind: AiInsightSlideKind, section: AiInsightSection): void => {
+    // The story order, not the model's order: the hook first, then good/bad,
+    // the fun fact last. The clients sort the same way, so both agree.
+    for (const key of AI_INSIGHT_SLIDE_KEYS) {
+      const section = payload.slides.find((entry) => entry.key === key);
+      if (!section) {
+        continue;
+      }
       slides.push({
         key,
         label: SLIDE_LABELS[key],
-        kind,
-        heading: section.heading ?? SLIDE_FALLBACK_HEADINGS[key],
-        body: section.text,
+        kind: SLIDE_KINDS[key],
+        heading: section.heading,
+        body: section.body,
         backdrop: pickBackdrop(SLIDE_BACKDROP_SLOTS[key]),
         accent: SLIDE_ACCENTS[key],
       });
-    };
-
-    if (payload.the_good_stuff) {
-      pushSlide('the_good_stuff', 'prose', payload.the_good_stuff);
     }
-    if (payload.the_catch) {
-      pushSlide('the_catch', 'prose', payload.the_catch);
-    }
-    pushSlide('standout_element', 'standout', payload.standout_element);
-    pushSlide('trivia', 'trivia', payload.trivia);
 
     return { slides };
   }

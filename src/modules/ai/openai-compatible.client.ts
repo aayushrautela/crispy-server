@@ -1,17 +1,38 @@
 import { logger } from '../../config/logger.js';
 import { HttpError } from '../../lib/errors.js';
-import type { AiProviderFailureDetails, AiResolvedProviderConfig } from './ai.types.js';
+import type { AiJsonSchemaSpec, AiProviderFailureDetails, AiResolvedProviderConfig } from './ai.types.js';
 
 export class OpenAiCompatibleClient {
+  // Providers that answered a structured call with "no such response_format"
+  // are remembered, so later calls go straight to JSON mode instead of
+  // paying for a rejected request every time.
+  private readonly schemaUnsupportedEndpoints = new Set<string>();
+
   async generateJson(args: {
     provider: AiResolvedProviderConfig;
     apiKey: string;
     model: string;
     systemPrompt?: string;
     userPrompt: string;
+    jsonSchema?: AiJsonSchemaSpec;
     signal?: AbortSignal;
   }): Promise<Record<string, unknown>> {
-    const attempt = await this.sendChatCompletion(args);
+    // Structured outputs where the provider supports them (shape enforced by
+    // the API), JSON mode otherwise (shape enforced by the parser).
+    const schema = args.jsonSchema && !this.schemaUnsupportedEndpoints.has(args.provider.endpointUrl)
+      ? args.jsonSchema
+      : null;
+    let attempt = await this.sendChatCompletion(args, responseFormatFor(schema));
+
+    if (!attempt.response.ok && schema && isSchemaRejection(attempt.response.status, attempt.rawBody)) {
+      this.schemaUnsupportedEndpoints.add(args.provider.endpointUrl);
+      logger.warn({
+        providerId: args.provider.id,
+        model: args.model,
+        status: attempt.response.status,
+      }, 'AI provider rejected the structured output schema; retrying in JSON mode');
+      attempt = await this.sendChatCompletion(args, responseFormatFor(null));
+    }
 
     if (!attempt.response.ok) {
       const parsedError = extractProviderError(attempt.rawBody);
@@ -100,6 +121,7 @@ export class OpenAiCompatibleClient {
       userPrompt: string;
       signal?: AbortSignal;
     },
+    responseFormat: Record<string, unknown>,
   ): Promise<{ response: Response; rawBody: string }> {
     let response: Response;
     try {
@@ -120,7 +142,7 @@ export class OpenAiCompatibleClient {
               : []),
             { role: 'user', content: args.userPrompt },
           ],
-          response_format: { type: 'json_object' },
+          response_format: responseFormat,
           tool_choice: 'none',
         }),
         ...(args.signal ? { signal: args.signal } : {}),
@@ -146,6 +168,33 @@ export class OpenAiCompatibleClient {
       rawBody: await response.text(),
     };
   }
+}
+
+/** The `response_format` that asks the provider for one of the two shapes. */
+function responseFormatFor(schema: AiJsonSchemaSpec | null): Record<string, unknown> {
+  if (!schema) {
+    return { type: 'json_object' };
+  }
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: schema.name,
+      strict: true,
+      schema: schema.schema,
+    },
+  };
+}
+
+/**
+ * True when a 4xx reads like a complaint about the response format ("no such
+ * response_format", "json_schema is not supported") rather than about the
+ * request itself. Only those are worth a second attempt in JSON mode.
+ */
+function isSchemaRejection(status: number, body: string): boolean {
+  if (status !== 400 && status !== 404 && status !== 415 && status !== 422) {
+    return false;
+  }
+  return /response_format|json_schema|schema|unsupported|not supported/i.test(body);
 }
 
 function extractJsonObject(text: string): string {

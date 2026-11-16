@@ -38,6 +38,72 @@ test('generateJson sends correct request and parses response', async (t) => {
   assert.equal(capturedBody.tool_choice, 'none');
 });
 
+test('generateJson asks for the json_schema response format when given a schema', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  let capturedBody: Record<string, unknown> = {};
+
+  globalThis.fetch = (async (_input, init) => {
+    capturedBody = JSON.parse((init?.body as string) ?? '{}');
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"slides":[]}' } }] }), { status: 200 });
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  const schema = { type: 'object', required: ['slides'] };
+  await client.generateJson({
+    provider: { id: 'openai', label: 'OpenAI', endpointUrl: 'https://api.openai.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
+    apiKey: 'test-key',
+    model: 'gpt-4o',
+    userPrompt: 'Hello',
+    jsonSchema: { name: 'ai_insights', schema },
+  });
+
+  assert.deepEqual(capturedBody.response_format, {
+    type: 'json_schema',
+    json_schema: { name: 'ai_insights', strict: true, schema },
+  });
+});
+
+test('generateJson falls back to JSON mode when the provider rejects the schema, and remembers the endpoint', async (t) => {
+  const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
+
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+
+  globalThis.fetch = (async (_input, init) => {
+    bodies.push(JSON.parse((init?.body as string) ?? '{}'));
+    if (bodies.length === 1) {
+      return new Response(JSON.stringify({ error: { message: 'response_format json_schema is not supported', param: 'response_format' } }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), { status: 200 });
+  }) as typeof fetch;
+
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const client = new OpenAiCompatibleClient();
+  const args = {
+    provider: { id: 'custom', label: 'Custom', endpointUrl: 'https://example.com/v1/chat/completions', httpReferer: 'https://api.crispytv.tech', title: 'CrispyTV' },
+    apiKey: 'test-key',
+    model: 'trinity-large',
+    userPrompt: 'Hello',
+    jsonSchema: { name: 'ai_insights', schema: { type: 'object' } },
+  };
+
+  const result = await client.generateJson(args);
+  assert.deepEqual(result, { ok: true });
+  assert.equal(bodies.length, 2);
+  assert.equal((bodies[0]!.response_format as { type: string }).type, 'json_schema');
+  assert.deepEqual(bodies[1]!.response_format, { type: 'json_object' });
+
+  // The endpoint is remembered: the next call skips the rejected format.
+  await client.generateJson(args);
+  assert.equal(bodies.length, 3);
+  assert.deepEqual(bodies[2]!.response_format, { type: 'json_object' });
+});
+
 test('generateJson exposes provider error param details', async (t) => {
   const { OpenAiCompatibleClient } = await import('./openai-compatible.client.js');
 
