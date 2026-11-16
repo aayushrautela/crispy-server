@@ -10,7 +10,7 @@ seedTestEnv();
 const ITEM_ID = '00000000000000000000000000000001';
 const CONTENT_ID = '00000000-0000-0000-0000-000000000001';
 const LOCALE = 'en-US';
-const VERSION = 'v9:openai:gpt-4o-mini';
+const VERSION = 'v10:openai:gpt-4o-mini';
 
 async function loadServiceClass() {
   const { AiInsightsService } = await import('./ai-insights.service.js');
@@ -19,10 +19,12 @@ async function loadServiceClass() {
 
 function validPayload(): AiInsightsPayload {
   return {
-    the_good_stuff: { heading: 'A twist that lands', text: 'Great stuff' },
-    the_catch: { heading: 'A slow middle', text: 'A real catch' },
-    standout_element: { heading: 'Lead actor', text: 'Carries the film' },
-    trivia: { heading: 'From a true story', text: 'A fun fact' },
+    slides: [
+      { key: 'the_good_stuff', heading: 'A twist that lands', body: 'Great stuff' },
+      { key: 'the_catch', heading: 'A slow middle', body: 'A real catch' },
+      { key: 'standout_element', heading: 'Lead actor', body: 'Carries the film' },
+      { key: 'trivia', heading: 'From a true story', body: 'A fun fact' },
+    ],
   };
 }
 
@@ -142,7 +144,7 @@ test('every slide carries the same heading and body shape', async () => {
   const result = await buildService(AiInsightsService, repo, gateway).getInsights('user-1', { itemId: ITEM_ID, profileId: 'profile-1', locale: LOCALE });
   const slides = (result as { slides: Array<Record<string, unknown>> }).slides;
 
-  assert.deepEqual(slides.map((slide) => slide.key), ['the_good_stuff', 'the_catch', 'standout_element', 'trivia']);
+  assert.deepEqual(slides.map((slide) => slide.key), ['standout_element', 'the_good_stuff', 'the_catch', 'trivia']);
   for (const slide of slides) {
     assert.equal(typeof slide.heading, 'string');
     assert.notEqual(slide.heading, '');
@@ -150,24 +152,35 @@ test('every slide carries the same heading and body shape', async () => {
     assert.notEqual(slide.body, '');
     assert.equal(slide.tag, undefined);
   }
-  assert.equal(slides[0]!.heading, 'A twist that lands');
-  assert.equal(slides[1]!.heading, 'A slow middle');
-  assert.equal(slides[2]!.body, 'Carries the film');
+  assert.equal(slides[0]!.heading, 'Lead actor');
+  assert.equal(slides[1]!.heading, 'A twist that lands');
+  assert.equal(slides[2]!.heading, 'A slow middle');
+  assert.equal(slides[3]!.heading, 'From a true story');
+  assert.equal(slides[0]!.body, 'Carries the film');
 });
 
-test('a section without a heading falls back to the slide default', async () => {
+test('the served order is the story order, not the payload order', async () => {
   const AiInsightsService = await loadServiceClass();
   const { rows, repo } = makeCacheStore();
-  const payload = validPayload();
-  payload.the_good_stuff = { heading: null, text: 'Great stuff' };
-  rows.set(`${CONTENT_ID}|${LOCALE}|${VERSION}`, { payload, backdropPaths: ['/a.jpg'] });
+  // The model is free to answer in any order; the story is not.
+  rows.set(`${CONTENT_ID}|${LOCALE}|${VERSION}`, {
+    payload: {
+      slides: [
+        { key: 'trivia', heading: 'A fun fact', body: 'A fun fact' },
+        { key: 'the_catch', heading: 'A slow middle', body: 'A real catch' },
+        { key: 'standout_element', heading: 'Lead actor', body: 'Carries the film' },
+        { key: 'the_good_stuff', heading: 'A twist that lands', body: 'Great stuff' },
+      ],
+    },
+    backdropPaths: ['/a.jpg'],
+  });
   const { gateway } = makeGateway(repo);
 
   const result = await buildService(AiInsightsService, repo, gateway).getInsights('user-1', { itemId: ITEM_ID, profileId: 'profile-1', locale: LOCALE });
   const slides = (result as { slides: Array<Record<string, unknown>> }).slides;
 
-  assert.equal(slides[0]!.heading, 'What Works');
-  assert.equal(slides[0]!.body, 'Great stuff');
+  assert.deepEqual(slides.map((slide) => slide.key), ['standout_element', 'the_good_stuff', 'the_catch', 'trivia']);
+  assert.equal(slides[0]!.heading, 'Lead actor');
 });
 
 test('legacy cache hit without backdrops self-heals by fetching once and writing back', async () => {

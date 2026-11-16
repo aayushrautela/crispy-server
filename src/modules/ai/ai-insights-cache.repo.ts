@@ -1,4 +1,5 @@
 import type { DbClient } from '../../lib/db.js';
+import { parseAiInsightsPayload } from './ai-insights-shape.js';
 import type { AiInsightsPayload } from './ai.types.js';
 
 type CachedAiInsightsRecord = {
@@ -24,8 +25,8 @@ export class AiInsightsCacheRepository {
     );
 
     const row = result.rows[0];
-    const payload = row?.payload;
-    return isAiInsightsPayload(payload) ? { payload, backdropPaths: readBackdropPaths(row?.backdrop_paths) } : null;
+    const payload = parseAiInsightsPayload(row?.payload);
+    return payload ? { payload, backdropPaths: readBackdropPaths(row?.backdrop_paths) } : null;
   }
 
   async upsert(client: DbClient, params: {
@@ -70,8 +71,8 @@ export class AiInsightsCacheRepository {
       ],
     );
 
-    const payload = result.rows[0]?.payload;
-    return isAiInsightsPayload(payload) ? payload : params.payload;
+    const payload = parseAiInsightsPayload(result.rows[0]?.payload);
+    return payload ?? params.payload;
   }
 
   async updateBackdropPaths(client: DbClient, params: {
@@ -98,35 +99,4 @@ function readBackdropPaths(value: unknown): string[] | null {
     return null;
   }
   return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
-}
-
-function isAiInsightsPayload(value: unknown): value is AiInsightsPayload {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-
-  const payload = value as Record<string, unknown>;
-  const goodStuff = isInsightSection(payload.the_good_stuff);
-  const theCatch = isInsightSection(payload.the_catch);
-  // At least one of positive/negative must carry real feedback.
-  if (!goodStuff && !theCatch) {
-    return false;
-  }
-
-  return isInsightSection(payload.standout_element) && isInsightSection(payload.trivia);
-}
-
-function isInsightSection(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-
-  const section = value as Record<string, unknown>;
-  if (typeof section.text !== 'string' || !section.text.trim()) {
-    return false;
-  }
-  if (section.heading !== null && section.heading !== undefined && typeof section.heading !== 'string') {
-    return false;
-  }
-  return true;
 }

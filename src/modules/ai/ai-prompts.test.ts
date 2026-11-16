@@ -44,20 +44,22 @@ test('insights system prompt carries the stable rules and output contract', () =
   assert.match(prompt, /standout_element/);
   assert.match(prompt, /trivia/);
   assert.match(prompt, /NEVER perform web searches or call external tools/);
-  assert.match(prompt, /If there is genuinely little positive feedback worth sharing, return an empty string\./);
+  assert.match(prompt, /a slide you have nothing to say about is omitted from the array entirely/);
   assert.match(prompt, /NEVER invent filler/);
   assert.match(prompt, /Lead with your own knowledge of the work/);
   assert.match(prompt, /reviews are not the main source and must not be the frame/);
   assert.match(prompt, /Return ONLY valid JSON/);
+  assert.doesNotMatch(prompt, /which is an empty string/);
   assert.doesNotMatch(prompt, /User Reviews:/);
 });
 
-test('insights system prompt asks every section for the same heading and text', () => {
+test('insights system prompt pins the final JSON shape and the heading rules', () => {
   const prompt = buildInsightsSystemPrompt();
 
-  assert.match(prompt, /"heading": a short, specific headline for the section/);
+  assert.match(prompt, /"slides":\[\{"key":"standout_element"/);
+  assert.match(prompt, /"heading": a short, specific headline for that slide/);
   assert.match(prompt, /MUST BE UNDER 48 CHARACTERS/);
-  assert.match(prompt, /Each key holds an object with "heading" and "text"/);
+  assert.match(prompt, /Every slide MUST carry a non-empty "heading" and a non-empty "body"/);
   assert.doesNotMatch(prompt, /"tag"/);
 });
 

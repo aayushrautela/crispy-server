@@ -1,6 +1,6 @@
 import { HttpError } from '../../lib/errors.js';
 import { FeatureEntitlementService } from '../entitlements/feature-entitlement.service.js';
-import type { AiExecutionResult, AiFeatureId } from './ai.types.js';
+import type { AiExecutionResult, AiFeatureId, AiJsonSchemaSpec } from './ai.types.js';
 import { OpenAiCompatibleClient } from './openai-compatible.client.js';
 
 const REQUEST_DEADLINE_MS = 90_000;
@@ -16,6 +16,7 @@ export class AiRequestExecutor {
     feature: AiFeatureId;
     systemPrompt?: string;
     userPrompt: string;
+    jsonSchema?: AiJsonSchemaSpec;
   }): Promise<AiExecutionResult> {
     const request = await this.entitlementService.resolveAiRequestForUser(args.userId, args.feature);
 
@@ -28,6 +29,7 @@ export class AiRequestExecutor {
         model: request.model,
         systemPrompt: args.systemPrompt,
         userPrompt: args.userPrompt,
+        jsonSchema: args.jsonSchema,
         signal,
       });
     } catch (error) {

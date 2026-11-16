@@ -7,14 +7,21 @@ import { MetadataTitlePageService } from '../metadata/metadata-title-page.servic
 import { TmdbClient } from '../metadata/providers/tmdb.client.js';
 import { AiInsightsCacheRepository } from './ai-insights-cache.repo.js';
 import { buildInsightsSystemPrompt, buildInsightsUserPrompt, type TitleInsightsContext } from './ai-prompts.js';
+import { AI_INSIGHTS_JSON_SCHEMA, AI_INSIGHTS_SCHEMA_NAME, parseAiInsightsPayload } from './ai-insights-shape.js';
 import { AiRequestExecutor } from './ai-request-executor.js';
 import { buildAiInsightsGenerationVersion } from './ai-provider-resolver.js';
-import type { AiInsightSection, AiInsightsPayload } from './ai.types.js';
+import type { AiExecutionResult, AiInsightsPayload } from './ai.types.js';
 
-const GENERATION_VERSION = 'v9';
+const GENERATION_VERSION = 'v10';
 
-/** Headings longer than this are dropped so the card keeps a headline shape. */
-const MAX_HEADING_LENGTH = 80;
+/** One retry: the first answer taught the model nothing, the reminder might. */
+const MAX_GENERATION_ATTEMPTS = 2;
+
+const SHAPE_RETRY_REMINDER = [
+  'Reminder: your previous answer did not match the required JSON shape.',
+  'Return exactly {"slides":[{"key":"<section key>","heading":"<headline>","body":"<copy>"}]}.',
+  'Every slide needs a non-empty "heading" and a non-empty "body"; a slide you have nothing to say about is omitted.',
+].join(' ');
 
 /**
  * Cold-path generation, run by the worker so the request path never blocks on
@@ -46,19 +53,24 @@ export async function generateInsightsIntoCache(params: {
     return;
   }
 
-  const execution = await aiRequestExecutor.generateJsonForUser({
-    userId: params.userId,
-    feature: 'insights',
-    systemPrompt: buildInsightsSystemPrompt(),
-    userPrompt: buildInsightsUserPrompt(titleContext),
-  });
-  const generated = execution.payload;
-  const actualGenerationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(execution.request)}`;
-  const payload = normalizeInsightsPayload(generated);
-  if (!payload) {
+  const userPrompt = buildInsightsUserPrompt(titleContext);
+  const generation = await generateInsightsPayload(
+    { itemId: params.itemId, locale: params.locale, baseUserPrompt: userPrompt },
+    (attemptUserPrompt) =>
+      aiRequestExecutor.generateJsonForUser({
+        userId: params.userId,
+        feature: 'insights',
+        systemPrompt: buildInsightsSystemPrompt(),
+        userPrompt: attemptUserPrompt,
+        jsonSchema: { name: AI_INSIGHTS_SCHEMA_NAME, schema: AI_INSIGHTS_JSON_SCHEMA },
+      }),
+  );
+  if (!generation) {
     logger.warn({ itemId: params.itemId, locale: params.locale }, 'AI insights generation skipped: provider returned invalid data');
     return;
   }
+  const { execution, payload } = generation;
+  const actualGenerationVersion = `${GENERATION_VERSION}:${buildAiInsightsGenerationVersion(execution.request)}`;
 
   await withDbClient(async (client) => {
     await cacheRepository.upsert(client, {
@@ -78,6 +90,36 @@ export async function generateInsightsIntoCache(params: {
     providerId: execution.request.providerId,
     model: execution.request.model,
   }, 'AI insights generated');
+}
+
+type InsightGeneration = {
+  execution: AiExecutionResult;
+  payload: AiInsightsPayload;
+};
+
+/**
+ * Asks the model for the slide payload, retrying once with a shape reminder
+ * when the answer does not match. Returns null when both answers are wrong:
+ * the caller must not write a cache row it cannot vouch for, because nothing
+ * downstream can repair a wrong shape.
+ */
+export async function generateInsightsPayload(
+  params: { itemId: string; locale: string; baseUserPrompt: string },
+  generateOnce: (userPrompt: string) => Promise<AiExecutionResult>,
+): Promise<InsightGeneration | null> {
+  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    const userPrompt = attempt === 1 ? params.baseUserPrompt : `${params.baseUserPrompt}\n\n${SHAPE_RETRY_REMINDER}`;
+    const execution = await generateOnce(userPrompt);
+    const payload = normalizeInsightsPayload(execution.payload);
+    if (payload) {
+      return { execution, payload };
+    }
+    logger.warn(
+      { itemId: params.itemId, locale: params.locale, attempt },
+      'AI insights answer did not match the required shape; retrying once',
+    );
+  }
+  return null;
 }
 
 /** Live TMDB artwork paths for insight slides. Never fails the request. */
@@ -141,51 +183,11 @@ export function buildTitleInsightsContext(detail: MetadataTitleDetail, reviews: 
   };
 }
 
-export function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsPayload | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return null;
-  }
-
-  const goodStuff = normalizeSection(payload.the_good_stuff);
-  const theCatch = normalizeSection(payload.the_catch);
-  const trivia = normalizeSection(payload.trivia);
-  const standout = normalizeSection(payload.standout_element);
-
-  // At least one of positive/negative must carry real feedback; both may be omitted.
-  if ((!goodStuff && !theCatch) || !trivia || !standout) {
-    return null;
-  }
-
-  return {
-    the_good_stuff: goodStuff,
-    the_catch: theCatch,
-    standout_element: standout,
-    trivia,
-  };
-}
-
 /**
- * A section is an object with "heading" and "text", or a plain string of copy.
- * A missing heading is not fatal: the slide builder falls back to a default,
- * so a partial answer still serves.
+ * Strict parse of the model's answer. See `parseAiInsightsPayload` for the
+ * contract: nothing is salvaged, so a flat string or a missing heading is a
+ * wrong answer the caller retries — never a fallback title on a shipped card.
  */
-function normalizeSection(value: unknown): AiInsightSection | null {
-  if (typeof value === 'string') {
-    const text = value.trim();
-    return text ? { heading: null, text } : null;
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const text = typeof record.text === 'string' ? record.text.trim() : '';
-  if (!text) {
-    return null;
-  }
-
-  const rawHeading = typeof record.heading === 'string' ? record.heading.trim() : '';
-  const heading = rawHeading && rawHeading.length <= MAX_HEADING_LENGTH ? rawHeading : null;
-
-  return { heading, text };
+export function normalizeInsightsPayload(payload: Record<string, unknown>): AiInsightsPayload | null {
+  return parseAiInsightsPayload(payload);
 }
